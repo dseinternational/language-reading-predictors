@@ -517,18 +517,20 @@ def _prior_table_overrides(
         )
         if not spec.extra.get("dose", False):
             role["tau_t2"] = "causal"
-            role["alpha_offset"] = "nuisance"
-            # The empirical-Bayes sentence comes from ``priors`` rather than being
-            # written again here, so the family prose and the suite-wide label
-            # cannot drift (#390 P1, Frank's 2026-07-24 ruling, condition 2). Scoped
-            # to the arm-by-wave models by the enclosing branch, which is correct
-            # rather than incidental: the dose variants build an ordinary free
-            # ``alpha ~ Normal(0, 1.5)`` and have no anchor to label.
-            rationale["alpha_offset"] = (
-                "Zero-centred offset around the pooled observed t1 logit anchor; "
-                "the deterministic alpha is the anchored t1 level. "
-                f"{_priors.EMPIRICAL_BAYES_SENTENCE}"
-            )
+            if spec.extra.get("use_intercept_anchor", True):
+                role["alpha_offset"] = "nuisance"
+                # The empirical-Bayes sentence comes from ``priors`` rather than
+                # being written again here, so the family prose and the suite-wide
+                # label cannot drift (#390 P1, Frank's 2026-07-24 ruling, condition
+                # 2). Scoped to the *anchored* arm-by-wave models, which is correct
+                # rather than incidental: the dose variants and the LRPDID101
+                # independent-prior companion build an ordinary free
+                # ``alpha ~ Normal(0, 1.5)`` and have no anchor to label.
+                rationale["alpha_offset"] = (
+                    "Zero-centred offset around the pooled observed t1 logit anchor; "
+                    "the deterministic alpha is the anchored t1 level. "
+                    f"{_priors.EMPIRICAL_BAYES_SENTENCE}"
+                )
         if spec.extra.get("dose", False):
             role["beta_group"] = "association"
             role["theta_treated"] = "association"
@@ -3152,7 +3154,9 @@ def _did_diag_vars(spec: ModelSpec) -> list[str]:
     off_floor = spec.extra.get("likelihood") == "bernoulli_offfloor"
     if not dose:
         v = [
-            "alpha_offset",
+            # LRPDID101 (use_intercept_anchor=False) fits a free alpha with no
+            # anchored offset; every other arm-by-wave fit summarises the offset.
+            "alpha_offset" if spec.extra.get("use_intercept_anchor", True) else "alpha",
             "beta_period",
             "arm_gap_t1",
             "tau_t2",
@@ -3311,7 +3315,13 @@ def _did_analysis_contract(
                     "t1 is modelled as an outcome level; no period-start outcome "
                     "is conditioned on"
                 ),
-                "alpha_anchor_logit": float(built.extras["alpha_anchor"]),
+                # None for the LRPDID101 independent-prior companion: its free
+                # alpha has no outcome-informed location to record.
+                "alpha_anchor_logit": (
+                    float(built.extras["alpha_anchor"])
+                    if built.extras["alpha_anchor"] is not None
+                    else None
+                ),
                 "arm_gap_orientation": "immediate minus waitlist",
                 "contrast_status": {
                     "arm_gap_t1": "pre-randomisation balance association",

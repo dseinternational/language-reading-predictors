@@ -1895,6 +1895,31 @@ def test_did_factory_builds(tmp_path):
     np.testing.assert_allclose(pp.prior["eta"].values, expected_eta)
 
 
+def test_did_factory_free_intercept_companion(tmp_path):
+    """#390 P1 condition 1 (LRPDID101): use_intercept_anchor=False builds a free
+    zero-centred alpha with no empirical-Bayes offset and records no anchor."""
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels")
+    built = build_did_model(prep, outcome_symbol="W", use_intercept_anchor=False)
+    names = {v.name for v in built.model.free_RVs}
+    assert "alpha" in names
+    assert "alpha_offset" not in names
+    assert "alpha" not in {v.name for v in built.model.deterministics}
+    assert built.extras["alpha_anchor"] is None
+    # The independent prior really is zero-centred at the tier scale: prior draws
+    # of alpha centre near zero, not near the observed t1 logit (~large negative).
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=400, random_seed=33)
+    assert float(np.abs(pp.prior["alpha"].values.mean())) < 0.3
+
+    # The dose models already build a free intercept; claiming the companion
+    # setting there would be a no-op and is refused.
+    with pytest.raises(ValueError, match="free intercept"):
+        build_did_model(
+            prep, outcome_symbol="W", dose=True, use_intercept_anchor=False
+        )
+
+
 def test_did_analysis_contract_persists_exact_rows_and_attrition(tmp_path):
     """The audit manifest identifies fitted rows and separates design exclusions."""
     from types import SimpleNamespace
@@ -2023,6 +2048,51 @@ def test_did_factory_toggles_and_dose(tmp_path):
             dose=True,
             use_varying_delta=True,
         )
+
+
+def test_did_factory_partitions_row_exclusions_by_reason(tmp_path):
+    """#390 P3: design restriction and missing data are recorded as disjoint,
+    reconciling components of dropped_rows, not one overloaded count."""
+    p = _write_synthetic(tmp_path, n_children=20)
+
+    # Arm-by-wave: t4 levels rows leave by design; an injected NaN outcome on an
+    # in-design row leaves as missing data.
+    levels = load_and_prepare(path=p, phase_mode="levels")
+    in_design_row = int(np.flatnonzero(np.isin(levels.phase, (0, 1, 2)))[0])
+    w = levels.post_counts["W"].astype(float)
+    w[in_design_row] = np.nan
+    levels.post_counts["W"] = w
+    expected_design = int(np.sum(~np.isin(levels.phase, (0, 1, 2))))
+    expected_missing = int(
+        np.sum(~np.isfinite(levels.post_counts["W"][np.isin(levels.phase, (0, 1, 2))]))
+    )
+    assert expected_design > 0 and expected_missing > 0
+    built = build_did_model(levels, outcome_symbol="W")
+    by = built.prepared.dropped_by_reason
+    assert by.get("design_excluded", 0) == expected_design
+    assert by.get("missing_data", 0) == expected_missing
+    assert by.get("loader", 0) == levels.dropped_rows
+    # Components are mutually exclusive by construction (sequential masks); they
+    # must reconcile to both the total and the source row count.
+    assert sum(by.values()) == built.prepared.dropped_rows
+    assert (
+        built.prepared.n_obs + expected_design + expected_missing == levels.n_obs
+    )
+
+    # Dose branch: same partition over the P1/P2 transition frame, with the
+    # missing mask spanning outcome, sessions and the broadcast t1 baseline.
+    transitions = load_and_prepare(path=p, phase_mode="all", covariates=("attend",))
+    dose_row = int(np.flatnonzero(np.isin(transitions.phase, (0, 1)))[0])
+    wt = transitions.post_counts["W"].astype(float)
+    wt[dose_row] = np.nan
+    transitions.post_counts["W"] = wt
+    dosed = build_did_model(transitions, outcome_symbol="W", dose=True)
+    dose_by = dosed.prepared.dropped_by_reason
+    assert dose_by.get("design_excluded", 0) == int(
+        np.sum(~np.isin(transitions.phase, (0, 1)))
+    )
+    assert dose_by.get("missing_data", 0) >= 1
+    assert sum(dose_by.values()) == dosed.prepared.dropped_rows
 
 
 def test_did_factory_period_varying_dose(tmp_path):

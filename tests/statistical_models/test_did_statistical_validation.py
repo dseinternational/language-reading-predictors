@@ -218,3 +218,134 @@ def test_heterogeneous_maturation_is_absorbed_by_post_crossover_gap() -> None:
         - fitted["imbalanced"]["delta_crossover"]
         > 0.35
     )
+
+
+# --- production-likelihood parameter recovery (#390) ---------------------------
+
+
+def _prepared_arm_wave_panel(
+    *,
+    n_children_per_arm: int,
+    truth: dict[str, float | np.ndarray],
+    n_trials: int,
+    seed: int,
+):
+    """A PreparedData levels panel simulated from the production DGP.
+
+    Children carry a Normal(0, sigma_child) random intercept; every row draws a
+    Beta-Binomial count through the logit mean structure the factory fits. Ages
+    are simulated independent of outcome, so the fitted precision term has a
+    true coefficient of zero.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        PreparedData,
+        standardise,
+    )
+
+    rng = np.random.default_rng(seed)
+    n_children = 2 * n_children_per_arm
+    child_g = np.repeat([1.0, 0.0], n_children_per_arm)
+    u_child = rng.normal(0.0, truth["sigma_child"], size=n_children)
+    ages = rng.uniform(60.0, 120.0, size=n_children)
+
+    child_idx = np.repeat(np.arange(n_children), 3)
+    phase = np.tile(np.arange(3), n_children)
+    G = child_g[child_idx]
+    wave_offset = np.asarray(truth["wave_offset"], dtype=float)
+    arm_gap = np.asarray(truth["arm_gap"], dtype=float)
+    eta = (
+        truth["alpha"]
+        + wave_offset[phase]
+        + u_child[child_idx]
+        + arm_gap[phase] * G
+    )
+    p = _expit(eta)
+    kappa = float(truth["kappa"])
+    theta = rng.beta(p * kappa, (1.0 - p) * kappa)
+    y = rng.binomial(n_trials, theta).astype(float)
+
+    a_months = ages[child_idx] + 5.0 * phase
+    a_std, age_scaler = standardise(a_months)
+    prepared = PreparedData(
+        subject_ids=np.asarray([f"c{i:03d}" for i in child_idx]),
+        child_idx=child_idx.astype(np.int64),
+        phase=phase.astype(np.int64),
+        G=G,
+        A_months=a_months,
+        A_std=a_std,
+        age_scaler=age_scaler,
+        pre_logit={},
+        post_counts={"W": y},
+        n_trials={"W": n_trials},
+        n_obs=int(y.size),
+        n_children=n_children,
+        n_phases=3,
+        dropped_rows=0,
+        phase_mode="levels",
+    )
+    # A single realisation's fitted model can only see the *realised* spread of
+    # its 2n random intercepts, not the super-population sigma, so the recovery
+    # assertion for sigma_child targets this quantity.
+    return prepared, float(u_child.std(ddof=1))
+
+
+def test_production_beta_binomial_random_intercept_recovers_truth() -> None:
+    """#390: one small real-sampler recovery test of the hierarchical production
+    likelihood — Beta-Binomial + non-centred child random intercept through
+    ``build_did_model`` itself — complementing the closed-form saturated-binomial
+    checks above, which cannot see the random-intercept or dispersion parts."""
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models.factories import (
+        build_did_model,
+    )
+
+    truth = {
+        "alpha": -0.4,
+        "wave_offset": np.asarray([0.0, 0.35, 0.55]),
+        "arm_gap": np.asarray([0.0, 0.60, 0.20]),
+        "sigma_child": 0.45,
+        "kappa": 60.0,
+    }
+    prepared, realised_sigma_child = _prepared_arm_wave_panel(
+        n_children_per_arm=30, truth=truth, n_trials=30, seed=20260807
+    )
+    built = build_did_model(prepared, outcome_symbol="W")
+    with built.model:
+        trace = pm.sample(
+            draws=500,
+            tune=500,
+            chains=2,
+            cores=2,
+            target_accept=0.9,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=20260807,
+            progressbar=False,
+        )
+
+    posterior = trace.posterior
+
+    def _draws(name: str) -> np.ndarray:
+        return posterior[name].values.ravel()
+
+    def _covers(name: str, value: float) -> bool:
+        d = _draws(name)
+        lo, hi = np.quantile(d, (0.03, 0.97))
+        return bool(lo <= value <= hi)
+
+    tau = _draws("tau_t2")
+    gap_t3 = _draws("arm_gap_t3")
+    assert abs(float(tau.mean()) - 0.60) < 0.30
+    assert _covers("tau_t2", 0.60)
+    assert abs(float(gap_t3.mean()) - 0.20) < 0.30
+    assert _covers("arm_gap_t3", 0.20)
+    # The two gaps are genuinely distinct in the recovered posterior — the
+    # restriction the legacy common-current-treatment model imposed.
+    assert float((tau - gap_t3).mean()) > 0.10
+    # Hierarchy and dispersion: the parts the saturated closed form cannot see.
+    assert _covers("sigma_child", realised_sigma_child)
+    assert 0.2 < float(_draws("sigma_child").mean()) < 0.8
+    assert _covers("kappa", truth["kappa"])
+    # The simulated ages are outcome-independent, so the precision term is null.
+    assert abs(float(_draws("gamma_A").mean())) < 0.15

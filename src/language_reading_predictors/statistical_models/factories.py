@@ -2048,11 +2048,19 @@ def build_did_model(
     dose: bool = False,
     period_varying_dose: bool = False,
     use_varying_delta: bool = False,
+    # #390 P1 condition 1: False replaces the arm-by-wave empirical-Bayes
+    # pooled-t1 anchor with a genuinely independent zero-centred alpha at the
+    # outcome-tier scale (LRPDID101). Dose models already build a free alpha.
+    use_intercept_anchor: bool = True,
     likelihood: str = "beta_binomial",
     # #382 recommendation 3: optional one-off wider prior on the single causal
     # term (LRPDID102). None keeps the outcome-tier default; arm_gap_t3 keeps
     # the tier scale either way, so the companion isolates tau_t2's prior.
     tau_t2_prior_sigma: float | None = None,
+    # #390: the dose models' focal-slope analogue for the treatment-prior sweep
+    # (mu_dose when period-varying, beta_dose otherwise). None keeps the
+    # Normal(0, 1) default; the per-period deviation scale is not swept.
+    dose_slope_prior_sigma: float | None = None,
 ) -> BuiltModel:
     """Waitlist-crossover triangulation with explicit arm-by-wave contrasts.
 
@@ -2083,6 +2091,16 @@ def build_did_model(
         )
     if period_varying_dose and not dose:
         raise ValueError("period_varying_dose=True requires dose=True")
+    if dose_slope_prior_sigma is not None and not dose:
+        raise ValueError(
+            "dose_slope_prior_sigma applies to the dose models' focal slope; an "
+            "arm-by-wave model has no dose term (sweep tau_t2_prior_sigma instead)"
+        )
+    if not use_intercept_anchor and dose:
+        raise ValueError(
+            "use_intercept_anchor=False is the arm-by-wave independent-prior "
+            "sensitivity; the dose models already build a free intercept"
+        )
     if use_varying_delta and dose:
         raise ValueError("use_varying_delta is unavailable for dose models")
     if use_varying_delta and not use_child_re:
@@ -2108,15 +2126,22 @@ def build_did_model(
         age_t1_all, age_scaler = _standardise_child_baseline(
             prepared, prepared.A_months, label="t1 age"
         )
-        keep = (
-            np.isin(prepared.phase, periods)
-            & np.isfinite(prepared.post_counts[own])
+        # #390 P3: a deliberate design restriction and a missing-data exclusion
+        # are different facts about a row; subset in two labelled steps so the
+        # persisted ``dropped_by_reason`` partitions them instead of folding
+        # both into one opaque count.
+        in_design = np.isin(prepared.phase, periods)
+        baseline_t1_all = baseline_t1_all[in_design]
+        age_t1_all = age_t1_all[in_design]
+        prepared = _subset(prepared, in_design, reason="design_excluded")
+        observed = (
+            np.isfinite(prepared.post_counts[own])
             & np.isfinite(prepared.covariates["attend"])
             & np.isfinite(baseline_t1_all)
         )
-        baseline_t1 = baseline_t1_all[keep]
-        age_t1 = age_t1_all[keep]
-        prepared = _subset(prepared, keep)
+        baseline_t1 = baseline_t1_all[observed]
+        age_t1 = age_t1_all[observed]
+        prepared = _subset(prepared, observed, reason="missing_data")
         post = prepared.post_counts[own].astype(np.int64)
         is_p2 = (prepared.phase == 1).astype(float)
         G_f = prepared.G.astype(float)
@@ -2187,11 +2212,16 @@ def build_did_model(
                 )
 
             eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
+            _dose_slope_prior = (
+                _priors.beta_mech_prior()
+                if dose_slope_prior_sigma is None
+                else _priors.beta_mech_prior(sigma=float(dose_slope_prior_sigma))
+            )
             if period_varying_dose:
                 dose_phase_idx = pm.Data(
                     "dose_phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
                 )
-                mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
+                mu_dose = _dose_slope_prior.to_pymc("mu_dose")
                 sigma_dose = _priors.sigma_dose_phase_prior().to_pymc(
                     "sigma_dose"
                 )
@@ -2206,7 +2236,7 @@ def build_did_model(
                 )
                 eta_full = eta_base + beta_dose_phase[dose_phase_idx] * dose_d
             else:
-                beta_dose = _priors.beta_mech_prior().to_pymc("beta_dose")
+                beta_dose = _dose_slope_prior.to_pymc("beta_dose")
                 eta_full = eta_base + beta_dose * dose_d
 
             eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
@@ -2246,26 +2276,34 @@ def build_did_model(
     age_t1_all, age_scaler = _standardise_child_baseline(
         prepared, prepared.A_months, label="t1 age"
     )
-    keep = np.isin(prepared.phase, waves) & np.isfinite(prepared.post_counts[own])
-    age_t1 = age_t1_all[keep]
-    prepared = _subset(prepared, keep)
+    # #390 P3: partition the exclusions — rows outside the modelled waves leave
+    # by design (the levels frame carries t4, which this model does not fit);
+    # rows with an unobserved outcome leave as missing data.
+    in_design = np.isin(prepared.phase, waves)
+    age_t1_all = age_t1_all[in_design]
+    prepared = _subset(prepared, in_design, reason="design_excluded")
+    observed = np.isfinite(prepared.post_counts[own])
+    age_t1 = age_t1_all[observed]
+    prepared = _subset(prepared, observed, reason="missing_data")
     post = prepared.post_counts[own].astype(np.int64)
     n_trials = prepared.n_trials[own]
 
-    t1 = post[prepared.phase == 0]
-    if not t1.size:
-        raise ValueError(f"Cannot anchor {own}: no observed t1 outcome values")
-    if likelihood == "bernoulli_offfloor":
-        movers = int(np.sum(t1 > 0))
-        alpha_anchor = float(
-            np.log((movers + 0.5) / (t1.size - movers + 0.5))
-        )
-    else:
-        successes = float(np.sum(t1))
-        failures = float(t1.size * n_trials - successes)
-        alpha_anchor = float(
-            np.log((successes + 0.5) / (failures + 0.5))
-        )
+    alpha_anchor: float | None = None
+    if use_intercept_anchor:
+        t1 = post[prepared.phase == 0]
+        if not t1.size:
+            raise ValueError(f"Cannot anchor {own}: no observed t1 outcome values")
+        if likelihood == "bernoulli_offfloor":
+            movers = int(np.sum(t1 > 0))
+            alpha_anchor = float(
+                np.log((movers + 0.5) / (t1.size - movers + 0.5))
+            )
+        else:
+            successes = float(np.sum(t1))
+            failures = float(t1.size * n_trials - successes)
+            alpha_anchor = float(
+                np.log((successes + 0.5) / (failures + 0.5))
+            )
 
     obs_ids = np.asarray(
         [
@@ -2298,10 +2336,18 @@ def build_did_model(
             "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
         )
 
-        alpha_offset = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha_offset")
-        alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
+        if use_intercept_anchor:
+            alpha_offset = _priors.alpha_prior(
+                sigma=_alpha_sigma_for(outcome_symbol)
+            ).to_pymc("alpha_offset")
+            alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
+        else:
+            # The independent-prior sensitivity (#390 P1 condition 1): the same
+            # zero-centred tier-scale prior the dose variants use, with no
+            # outcome-informed location at all.
+            alpha = _priors.alpha_prior(
+                sigma=_alpha_sigma_for(outcome_symbol)
+            ).to_pymc("alpha")
         beta_period = _priors.tau_prior().to_pymc(
             "beta_period", dims="post_wave"
         )

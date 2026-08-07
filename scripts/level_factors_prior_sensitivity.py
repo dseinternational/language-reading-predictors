@@ -39,9 +39,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import shutil
-import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +52,6 @@ from language_reading_predictors.statistical_models.factories import (
 )
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.sensitivity import (
-    _STANDARD_REQUIRED_COLUMNS,
     LEVEL_SENSITIVITY_MODEL_IDS,
     LEVEL_SENSITIVITY_OUTCOMES,
     STANDARD_SENSITIVITY_FILENAME,
@@ -63,156 +59,24 @@ from language_reading_predictors.statistical_models.sensitivity import (
     STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS,
     STANDARD_SENSITIVITY_SAMPLING_ATTR,
     PrimaryStandardReference,
+    assert_primary_sampling_contract,
+    attach_outcome_bundle,
     load_primary_level_reference,
-    sha256_file,
+    persist_sensitivity_trace,
 )
+
+# Re-exported for the contract tests: the sampling-contract and trace-backed
+# attach/rollback discipline now live in ``sensitivity`` (#390 lifted them out
+# of this script so the did runner shares one implementation, not a third copy).
+__all__ = [
+    "assert_primary_sampling_contract",
+    "attach_outcome_bundle",
+    "main",
+]
 
 TAU_SIGMAS = STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
 SENSITIVITY_AXIS = "tau"
 KAPPA_SIGMA = 50.0
-
-
-def assert_primary_sampling_contract(
-    sampling,
-    reference: PrimaryStandardReference,
-    *,
-    config: str,
-) -> None:
-    """Fail before fitting if the selected preset differs from the primary fit.
-
-    The primary may have been produced with a supported ``--target-accept``
-    override (or a different preset entirely); sweeping it with mismatched
-    sampling and attaching the result would bind evidence produced under a
-    different contract. Mirrors the standard runner's
-    ``_assert_primary_sampling_contract``.
-    """
-    matched = {
-        "draws": sampling.draws,
-        "tune": sampling.tune,
-        "chains": sampling.chains,
-        "target_accept": sampling.target_accept,
-    }
-    if reference.config_name != config or any(
-        not np.isclose(
-            float(observed), float(reference.sampling[key]), rtol=0.0, atol=1e-12
-        )
-        for key, observed in matched.items()
-    ):
-        raise RuntimeError(
-            f"{reference.outcome} level sensitivity sampling does not match its "
-            f"current {config} primary fit"
-        )
-
-
-def attach_outcome_bundle(
-    rows: pd.DataFrame,
-    *,
-    outcome: str,
-    primary_dir: Path,
-    sensitivity_dir: Path,
-    reference: PrimaryStandardReference,
-) -> Path:
-    """Install one outcome's **trace-backed** bundle beside its primary fit.
-
-    Follows the floor installer's discipline so the report-local manifest is
-    never exposed without its evidence: every clause is verified *before* the
-    gate's filename exists —
-
-    - the manifest carries the standard sweep's full column set, only this
-      outcome's rows, >= 2 tau scales, every cell converged, and one sign;
-    - its ``primary_config_sha256`` / ``primary_trace_sha256`` match the
-      **current** primary artefacts (via the freshly loaded ``reference``);
-    - each cell trace exists in the sweep directory, its sha256 matches the
-      manifest, and the copy installed beside the fit re-verifies after copy
-      (the release gate trusts the CSV, so the installer is where trace
-      integrity is enforced);
-    - ``trace_file`` is rewritten to the installed digest-suffixed basename.
-
-    The manifest lands via an atomic rename, and the release gate's own
-    evidence check (``release._standard_sweep_evidence``) is run as a final
-    assert; any failure rolls the installed files back and raises.
-    """
-    from language_reading_predictors.statistical_models.release import (
-        _standard_sweep_evidence,
-    )
-
-    rows = rows.reset_index(drop=True).copy()
-    if rows.empty:
-        raise RuntimeError(f"{outcome}: no sweep rows to attach")
-    missing = sorted(_STANDARD_REQUIRED_COLUMNS - set(rows.columns))
-    if missing:
-        raise RuntimeError(
-            f"{outcome}: sweep rows lack required columns: {missing[:4]}"
-        )
-    if set(rows["outcome"].astype(str)) != {outcome}:
-        raise RuntimeError(f"{outcome}: sweep rows mix outcomes")
-    if rows["tau_sigma"].nunique() < 2:
-        raise RuntimeError(f"{outcome}: fewer than two tau scales")
-    if not rows["converged"].astype(bool).all():
-        raise RuntimeError(
-            f"{outcome}: refusing to attach — one or more cells failed the "
-            "convergence gate"
-        )
-    signs = set(np.sign(rows["tau_logit_mean"].astype(float)).tolist())
-    if len(signs) != 1:
-        raise RuntimeError(
-            f"{outcome}: the effect changes sign across the grid; the bundle is "
-            "reportable evidence of instability, not of stability — not attaching"
-        )
-    for column, expected in (
-        ("primary_config_sha256", reference.config_sha256),
-        ("primary_trace_sha256", reference.trace_sha256),
-    ):
-        recorded = {str(v).strip().lower() for v in rows[column]}
-        if recorded != {expected}:
-            raise RuntimeError(
-                f"{outcome}: sweep rows bind to a different primary {column}; "
-                "re-run the sweep against the current fit"
-            )
-
-    installed: list[Path] = []
-    staging = primary_dir / (STANDARD_SENSITIVITY_FILENAME + ".staging")
-    destination = primary_dir / STANDARD_SENSITIVITY_FILENAME
-    try:
-        for index, row in rows.iterrows():
-            source = sensitivity_dir / str(row["trace_file"])
-            trace_sha256 = str(row["trace_sha256"]).strip().lower()
-            if not source.is_file():
-                raise RuntimeError(f"{outcome}: missing cell trace {source}")
-            if sha256_file(source) != trace_sha256:
-                raise RuntimeError(
-                    f"{outcome}: cell trace does not match its recorded sha256: "
-                    f"{source}"
-                )
-            digest_suffix = f"-{trace_sha256[:12]}"
-            name = (
-                source.name
-                if source.stem.endswith(digest_suffix)
-                else f"{source.stem}{digest_suffix}.nc"
-            )
-            target = primary_dir / name
-            shutil.copy2(source, target)
-            installed.append(target)
-            if sha256_file(target) != trace_sha256:
-                raise RuntimeError(
-                    f"{outcome}: installed trace changed during copy: {target}"
-                )
-            rows.at[index, "trace_file"] = name
-        rows.to_csv(staging, index=False)
-        os.replace(staging, destination)
-        ready, reason = _standard_sweep_evidence(primary_dir, outcome)
-        if not ready:
-            raise RuntimeError(
-                f"{outcome}: installed bundle fails the release gate's own "
-                f"evidence check ({reason})"
-            )
-    except BaseException:
-        for target in installed:
-            target.unlink(missing_ok=True)
-        staging.unlink(missing_ok=True)
-        destination.unlink(missing_ok=True)
-        raise
-    return destination
 
 
 def _resolve_plan(outcome: str):
@@ -229,33 +93,6 @@ def _resolve_plan(outcome: str):
         + model_id.replace("-", "_")
     )
     return resolve_level_factors_run_plan(module.SPEC)
-
-
-def _persist_trace(trace, *, sensitivity_dir: Path, semantic_file: Path) -> tuple[Path, str]:
-    """Atomically install an immutable cell trace named by its content digest."""
-    trace_dir = sensitivity_dir / semantic_file.parent
-    trace_dir.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{semantic_file.stem}-", suffix=".nc", dir=trace_dir
-    )
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    try:
-        trace.to_netcdf(temporary)
-        digest = sha256_file(temporary)
-        destination = trace_dir / f"{semantic_file.stem}-{digest[:12]}.nc"
-        if destination.exists():
-            if sha256_file(destination) != digest:
-                raise RuntimeError(
-                    f"level sensitivity trace digest-prefix collision: {destination}"
-                )
-            temporary.unlink()
-        else:
-            os.replace(temporary, destination)
-        return destination.relative_to(sensitivity_dir), digest
-    finally:
-        if temporary.exists():
-            temporary.unlink()
 
 
 def _fit_cell(
@@ -432,8 +269,11 @@ def _fit_cell(
         / f"level-{config}"
         / f"trace_{outcome}_tau-{sigma_token}.nc"
     )
-    trace_file, trace_sha256 = _persist_trace(
-        trace, sensitivity_dir=sensitivity_dir, semantic_file=semantic
+    trace_file, trace_sha256 = persist_sensitivity_trace(
+        trace,
+        sensitivity_dir=sensitivity_dir,
+        semantic_file=semantic,
+        label="level sensitivity",
     )
     row.update(trace_file=trace_file.as_posix(), trace_sha256=trace_sha256)
     return row
@@ -557,6 +397,14 @@ def main() -> None:
             print(f"    attached {destination}")
 
     combined = pd.DataFrame(rows)
+    # A subset rerun replaces the requested outcomes' rows and preserves the
+    # others, so the combined manifest stays reattachable for every swept fit
+    # (#390: the did runner shares this behaviour, keyed by model id).
+    if combined_path.exists():
+        previous = pd.read_csv(combined_path)
+        swept = set(combined["outcome"].astype(str))
+        previous = previous.loc[~previous["outcome"].astype(str).isin(swept)]
+        combined = pd.concat([previous, combined], ignore_index=True)
     combined.to_csv(combined_path, index=False)
     print(f"\nWrote {combined_path} ({len(combined)} rows)")
     for outcome, ok in attach_ready.items():
