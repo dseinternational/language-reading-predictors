@@ -172,7 +172,7 @@ def test_empirical_bayes_rationale_matches_only_anchored_locations():
     eb = priors.empirical_bayes_rationale
     assert "grand mean observed logit" in eb("alpha", "Normal(<constant>, 1.5)")
     assert "observed wave-1 mean logit" in eb("mu1", "Normal(<constant>, 1)")
-    assert "pooled observed t1 logit" in eb("alpha_offset", "Normal(0, 1.5)")
+    assert "arm-blind observed t1 logit" in eb("alpha_offset", "Normal(0, 1.5)")
     for anchored in ("alpha", "mu1", "alpha_offset"):
         rationale = eb(anchored, "Normal(<constant>, 1)")
         if anchored != "alpha_offset":

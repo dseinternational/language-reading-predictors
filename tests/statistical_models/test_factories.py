@@ -2443,21 +2443,57 @@ def test_gain_factors_rejects_bad_likelihood_and_phase(tmp_path):
 
 
 def test_level_factors_factory_builds(tmp_path):
-    """Level build: per-timepoint intercepts + group x time + ability x time +
-    group x ability over the four timepoints, with no own baseline."""
+    """Level build: anchored + zero-sum intercepts (#389 finding 2), group x time +
+    ability x time + group x ability over the four timepoints, no own baseline."""
     prep = _prep_levels(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     built = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks")
     names = {v.name for v in built.model.free_RVs}
-    assert {"alpha", "alpha_time", "b_grp_time", "gamma_A", "gamma_ability_time",
+    assert {"alpha_offset", "alpha_time", "b_grp_time", "gamma_A", "gamma_ability_time",
             "gamma_grp_ability", "kappa", "sigma_child"}.issubset(names)
+    # The intercept level is a Deterministic around the t1 empirical-Bayes anchor,
+    # not a second free location competing with alpha_time (#389 finding 2).
+    assert "alpha" not in names
+    assert "alpha" in {v.name for v in built.model.deterministics}
     assert "gamma_own" not in names  # levels carries no own baseline
     assert built.prepared.n_phases == 4
+
+    # The anchor is the Haldane-smoothed pooled t1 logit, recorded in extras.
+    post = built.prepared.post_counts["W"]
+    t1 = post[built.prepared.phase == 0]
+    successes = float(np.sum(t1))
+    failures = float(t1.size * built.prepared.n_trials["W"] - successes)
+    expected = np.log((successes + 0.5) / (failures + 0.5))
+    assert built.extras["alpha_anchor"] == pytest.approx(expected, abs=1e-12)
+
     with built.model:
-        pp = pm.sample_prior_predictive(draws=5, random_seed=43)
+        pp = pm.sample_prior_predictive(draws=20, random_seed=43)
     # group x time is a per-timepoint vector over the four timepoints
     assert pp.prior["b_grp_time"].shape[-1] == 4
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+    # alpha_time is an exact zero-sum wave-deviation vector: no translation ridge.
+    np.testing.assert_allclose(
+        pp.prior["alpha_time"].values.sum(axis=-1), 0.0, atol=1e-10
+    )
+    # alpha draws centre on the anchor, not on logit zero.
+    alpha_mean = float(pp.prior["alpha"].values.mean())
+    assert abs(alpha_mean - built.extras["alpha_anchor"]) < 1.0
+
+
+def test_level_factors_offfloor_anchor_uses_mover_rate(tmp_path):
+    """The off-floor likelihood anchors on the t1 off-floor rate, not the count
+    mean (#389 finding 2; the DiD anchor idiom)."""
+    prep = _prep_levels(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_level_factors_model(
+        prep, outcome_symbol="P", ability_covariate="blocks",
+        likelihood="bernoulli_offfloor",
+    )
+    post = built.prepared.post_counts["P"]
+    t1 = post[built.prepared.phase == 0]
+    movers = int(np.sum(t1 > 0))
+    expected = np.log((movers + 0.5) / (t1.size - movers + 0.5))
+    assert built.extras["alpha_anchor"] == pytest.approx(expected, abs=1e-12)
 
 
 def test_level_factors_adjust_for_covariates(tmp_path):
@@ -2512,14 +2548,16 @@ def test_level_factors_requires_levels_phase_mode(tmp_path):
 
 
 def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
-    """_gf_diag_vars / _lf_diag_vars must name only RVs the off-floor factories
-    build (kappa dropped), else summary_diagnostics raises KeyError at run time."""
+    """_gf_diag_vars / the level-factor run plan's diag_vars must name only RVs the
+    off-floor factories build (kappa dropped), else summary_diagnostics raises
+    KeyError at run time."""
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.pipeline import (
-        _gf_diag_vars,
-        _lf_diag_vars,
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.level_factors import (
+        resolve_level_factors_run_plan,
     )
+    from language_reading_predictors.statistical_models.pipeline import _gf_diag_vars
 
     gp = _prep_all(tmp_path, n_children=15)
     g_built = build_gain_factors_model(
@@ -2541,9 +2579,14 @@ def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
     l_names = {v.name for v in l_built.model.free_RVs} | {
         v.name for v in l_built.model.deterministics
     }
-    l_diag = _lf_diag_vars(SimpleNamespace(extra={
-        "likelihood": "bernoulli_offfloor", "ability_covariate": "blocks",
-    }))
+    l_plan = resolve_level_factors_run_plan(
+        ModelSpec(
+            model_id="lrp-test-lf-diag", kind="level_factors", title="t",
+            outcome_symbol="P",
+            extra={"likelihood": "bernoulli_offfloor", "ability_covariate": "blocks"},
+        )
+    )
+    l_diag = l_plan.diag_vars()
     assert "kappa" not in l_diag
     assert not (set(l_diag) - l_names)
 

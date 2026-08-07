@@ -532,6 +532,7 @@ pymc
 pyproject
 pytest
 readgrp
+recentring
 recomputation
 redescribing
 reframing

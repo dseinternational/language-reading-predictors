@@ -67,6 +67,12 @@ RECONCILED_FACTORY_DEFAULTS = [
     (factories.build_longitudinal_corr_factor_model, "residual_sigma", 1.0),
     (factories.build_growth_model, "assoc_prior_sigma", 0.3),
     (factories.build_growth_model, "re_intercept_prior_sigma", 0.5),
+    # #389 finding 2: the level family's zero-sum wave-deviation scale (sized so
+    # the largest observed wave deviation, ~0.85 logits, sits within ~1.3
+    # marginal prior SD) and the sweep-only override for the focal t2 contrast
+    # (None = the outcome-tier default; only the treatment-prior sweep sets it).
+    (factories.build_level_factors_model, "alpha_time_prior_sigma", 0.75),
+    (factories.build_level_factors_model, "tau_prior_sigma", None),
 ]
 
 
