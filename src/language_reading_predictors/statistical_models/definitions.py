@@ -338,6 +338,16 @@ _GAINB = [
        "treated-only companion", base=f"lrpgf{i:02d}")
     for i, o in enumerate(_FACTOR_OUTCOMES, 1)
 ]
+# Associational treatment-moderation variants (#391 finding 3 decision, 2026-07-22):
+# the headline gain-factor specs are interaction-free in trt, so the pre-specified
+# trt x ability / trt x own moderation questions live here, one per outcome
+# (gf-012/013 are alternate adjustment sets for TR/TE whose moderation is covered
+# by the gf-009/010 variants). Extended below for the TR/TE/N primaries.
+_GAINM = [
+    _d(f"lrpgf{i:02d}m", "gain_factors", "Gain factors", Status.COMPANION, o,
+       "associational treatment-moderation variant", base=f"lrpgf{i:02d}")
+    for i, o in enumerate(_FACTOR_OUTCOMES, 1)
+]
 _LEVEL = [
     _d(f"lrplf{i:02d}", "level_factors", "Level factors", Status.ASSOCIATION, o,
        "levels view; only the t2 group contrast is randomised")
@@ -380,6 +390,14 @@ _GAIN += [
        "TR gains with broad vocabulary associates R,E (#421 Tier 1); only the on-intervention term is causal"),
     _d("lrpgf13", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
        "TE gains with broad vocabulary associates TR,R,E (#421 Tier 1); only the on-intervention term is causal"),
+]
+_GAINM += [
+    _d("lrpgf09m", "gain_factors", "Gain factors", Status.COMPANION, "TR",
+       "associational treatment-moderation variant", base="lrpgf09"),
+    _d("lrpgf10m", "gain_factors", "Gain factors", Status.COMPANION, "TE",
+       "associational treatment-moderation variant", base="lrpgf10"),
+    _d("lrpgf11m", "gain_factors", "Gain factors", Status.COMPANION, "N",
+       "associational treatment-moderation variant", base="lrpgf11"),
 ]
 _LEVEL += [
     _d("lrplf11", "level_factors", "Level factors", Status.ASSOCIATION, "N",
@@ -464,7 +482,7 @@ _JM = [
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF, *_JM)
+    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_GAINM, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF, *_JM)
 }
 
 

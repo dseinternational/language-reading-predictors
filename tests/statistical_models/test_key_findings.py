@@ -1975,6 +1975,43 @@ def test_treated_only_gain_factor_companions_are_out_of_scope(tmp_path):
     assert payload["status"] != "robustness_unresolved"
 
 
+def test_moderation_variant_gain_factors_are_out_of_scope(tmp_path):
+    """A moderation variant's ``beta_trt`` exists but is never the causal headline.
+
+    By the #391 finding 3 decision its interaction-aware marginal is model-dependent
+    (the trt interactions are estimated partly on post-crossover rows) and the
+    randomised headline lives in the interaction-free primary — which is gated.
+    Gating the variant would demand treatment-prior sweep evidence for a number the
+    family never releases as causal.
+    """
+    d = _setup_dir(tmp_path, "gain_factors")
+    config = json.loads((d / "config.json").read_text())
+    config["resolved_run_plan"] = {
+        **config.get("resolved_run_plan", {}),
+        "moderation_variant": True,
+    }
+    (d / "config.json").write_text(json.dumps(config))
+    pd.DataFrame(
+        [
+            {
+                "term": "gamma_int_trt_ability",
+                "role": "association",
+                "median": 0.30,
+                "lo": -0.09,
+                "hi": 0.65,
+                "prob_positive": 0.88,
+            }
+        ]
+    ).to_csv(d / "factor_summary.csv", index=False)
+    payload = generate_key_findings(d)
+    assert "release" not in payload
+    assert payload["status"] != "robustness_unresolved"
+    texts = [s["text"] for s in payload.get("sentences", [])]
+    assert any("model-dependent adjusted association" in t for t in texts)
+    assert any(t.startswith("Moderation by general cognitive ability") for t in texts)
+    assert not any("only potentially cause-and-effect" in t for t in texts)
+
+
 def test_each_family_reads_its_own_causal_term():
     """The gate must name the term the headline actually rests on.
 

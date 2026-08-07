@@ -85,53 +85,114 @@ def test_settings_reject_an_interaction_on_an_undeclared_skill():
 
 def test_settings_accept_every_term_the_factory_builds():
     # trt / age / own are always available; declared skills and (with a covariate)
-    # "ability" join them. treated_only keeps "trt" — the factory allows it too.
+    # "ability" join them. trt pairs additionally need moderation_variant=True
+    # (#391 finding 3 decision) — the vocabulary itself still contains "trt".
     GainFactorsModelSettings(
         skill_symbols=("TR", "R"),
         ability_covariate="blocks",
         interactions=(("trt", "own"), ("age", "ability"), ("trt", "TR"), ("own", "R")),
+        moderation_variant=True,
     )
-    GainFactorsModelSettings(interactions=(("trt", "own"),), treated_only=True)
-
-
-def test_treated_only_plan_separates_declared_from_fitted_interactions():
-    # The b companions declare their parent's interactions on purpose, so the pair is
-    # a one-line diff; the factory then drops the trt ones because the treatment
-    # indicator is constant. The plan must record both, or config.json would claim
-    # coefficients the posterior does not contain.
-    spec = _spec(
-        skill_symbols=("TR",),
+    GainFactorsModelSettings(
+        skill_symbols=("R",),
         ability_covariate="blocks",
-        interactions=(("trt", "ability"), ("trt", "own"), ("age", "ability")),
-        treated_only=True,
+        interactions=(("age", "ability"), ("own", "R")),
     )
-    plan = resolve_gain_factors_run_plan(spec)
-
-    assert plan.interactions == (("trt", "ability"), ("trt", "own"), ("age", "ability"))
-    assert plan.active_interactions == (("age", "ability"),)
-    assert plan.factory_kwargs()["interactions"] == (("age", "ability"),)
-
-    recorded = plan.as_dict()
-    assert recorded["interactions"] == [
-        ["trt", "ability"], ["trt", "own"], ["age", "ability"],
-    ]
-    assert recorded["active_interactions"] == [["age", "ability"]]
-
-    recipe = plan.recipe_markdown(title="t")
-    assert "Interactions: age x ability" in recipe
-    assert "declared but not fitted" in recipe
 
 
-def test_untreated_plan_leaves_interactions_alone():
+def test_settings_reject_trt_interactions_on_headline_specs():
+    # #391 finding 3 decision: the causal headline is interaction-free in trt. A
+    # spec that wants the moderation questions must say so explicitly.
+    with pytest.raises(ValueError, match="interaction-free in trt"):
+        GainFactorsModelSettings(
+            ability_covariate="blocks", interactions=(("trt", "ability"),)
+        )
+
+
+def test_settings_reject_trt_interactions_on_treated_only_specs():
+    # The b companions stay a one-line diff from their (now interaction-free)
+    # parents, so a treated-only spec declaring a trt pair is a reconstruction of
+    # the pre-decision pattern and is rejected the same way.
+    with pytest.raises(ValueError, match="interaction-free in trt"):
+        GainFactorsModelSettings(interactions=(("trt", "own"),), treated_only=True)
+
+
+def test_settings_reject_moderation_variant_without_trt_interaction():
+    with pytest.raises(ValueError, match="requires at least one trt interaction"):
+        GainFactorsModelSettings(
+            ability_covariate="blocks",
+            interactions=(("age", "ability"),),
+            moderation_variant=True,
+        )
+
+
+def test_settings_reject_moderation_variant_with_treated_only():
+    with pytest.raises(ValueError, match="incoherent with treated_only"):
+        GainFactorsModelSettings(
+            interactions=(("trt", "own"),),
+            treated_only=True,
+            moderation_variant=True,
+        )
+
+
+def test_treated_only_spec_declaring_trt_interactions_is_rejected():
+    # Pre-#391-finding-3, the b companions declared their parent's trt interactions
+    # (a one-line diff) and the factory dropped them. The parents are now
+    # interaction-free in trt, so a treated-only spec declaring a trt pair is a
+    # reconstruction of the retired pattern and fails at declaration; the
+    # declared-vs-active recipe machinery stays for the general treated-only rule.
+    with pytest.raises(ValueError, match="interaction-free in trt"):
+        resolve_gain_factors_run_plan(
+            _spec(
+                skill_symbols=("TR",),
+                ability_covariate="blocks",
+                interactions=(("trt", "ability"), ("trt", "own"), ("age", "ability")),
+                treated_only=True,
+            )
+        )
+
+
+def test_treated_only_plan_records_declared_equals_active():
+    plan = resolve_gain_factors_run_plan(
+        _spec(
+            ability_covariate="blocks",
+            interactions=(("age", "ability"),),
+            treated_only=True,
+        )
+    )
+    assert plan.interactions == plan.active_interactions == (("age", "ability"),)
+    assert plan.as_dict()["active_interactions"] == plan.as_dict()["interactions"]
+    assert "declared but not fitted" not in plan.recipe_markdown(title="t")
+
+
+def test_moderation_variant_plan_leaves_interactions_alone():
     plan = resolve_gain_factors_run_plan(
         _spec(
             ability_covariate="blocks",
             interactions=(("trt", "ability"), ("age", "ability")),
+            moderation_variant=True,
         )
     )
+    assert plan.moderation_variant is True
     assert plan.active_interactions == plan.interactions
     assert plan.as_dict()["active_interactions"] == plan.as_dict()["interactions"]
+    assert plan.as_dict()["moderation_variant"] is True
     assert "declared but not fitted" not in plan.recipe_markdown(title="t")
+
+
+def test_moderation_variant_plan_is_labelled_model_dependent():
+    plan = resolve_gain_factors_run_plan(
+        _spec(
+            ability_covariate="blocks",
+            interactions=(("trt", "ability"), ("trt", "own")),
+            moderation_variant=True,
+        )
+    )
+    assert plan.causal_status.startswith("Explicitly associational moderation variant")
+    assert "post-crossover" in plan.estimand
+    assert "model-dependent" in plan.estimand
+    recipe = plan.recipe_markdown(title="t")
+    assert "moderation variant" in recipe.lower()
 
 
 def test_active_interactions_matches_the_factory_filter():
@@ -204,16 +265,18 @@ def test_from_legacy_extra_round_trips_known_keys():
             "skill_symbols": ("R", "E"),
             "ability_covariate": "blocks",
             "interactions": (("trt", "own"),),
-            "treated_only": True,
+            "treated_only": False,
             "likelihood": "bernoulli_offfloor",
+            "moderation_variant": True,
         },
         model_id="lrp-rli-gf-999",
     )
     assert settings.skill_symbols == ("R", "E")
     assert settings.ability_covariate == "blocks"
     assert settings.interactions == (("trt", "own"),)
-    assert settings.treated_only is True
+    assert settings.treated_only is False
     assert settings.likelihood == "bernoulli_offfloor"
+    assert settings.moderation_variant is True
 
 
 # --- resolve ------------------------------------------------------------------
@@ -282,12 +345,13 @@ def test_factory_kwargs_apply_effective_adjustment():
 
 
 def test_every_registered_gain_factor_model_resolves_with_metadata():
-    """Every registered gain-factor model — primary and treated-only — resolves to
-    a validated plan that records the design, estimand, causal status, analysis
-    population and missing-data assumption (#391 finding 6 acceptance criterion)."""
+    """Every registered gain-factor model — primary, treated-only and moderation
+    variant — resolves to a validated plan that records the design, estimand,
+    causal status, analysis population and missing-data assumption (#391 finding 6
+    acceptance criterion)."""
     specs = _gain_factor_specs()
-    assert len(specs) >= 15, f"expected the full gain-factor suite, found {len(specs)}"
-    saw_primary = saw_treated_only = False
+    assert len(specs) >= 32, f"expected the full gain-factor suite, found {len(specs)}"
+    saw_primary = saw_treated_only = saw_moderation_variant = False
     for spec in specs:
         plan = resolve_gain_factors_run_plan(spec)
         assert isinstance(plan, GainFactorsRunPlan)
@@ -298,7 +362,24 @@ def test_every_registered_gain_factor_model_resolves_with_metadata():
             )
         # The outcome is always loaded as its own first outcome.
         assert plan.prepare_kwargs()["outcomes"][0] == spec.outcome_symbol
-        saw_primary |= not plan.treated_only
+        saw_primary |= not (plan.treated_only or plan.moderation_variant)
         saw_treated_only |= plan.treated_only
+        saw_moderation_variant |= plan.moderation_variant
     assert saw_primary, "no primary gain-factor model found"
     assert saw_treated_only, "no treated-only gain-factor model found"
+    assert saw_moderation_variant, "no moderation-variant gain-factor model found"
+
+
+def test_registered_headlines_are_interaction_free_and_variants_are_not():
+    """#391 finding 3 acceptance: no registered headline (or treated-only
+    companion) declares a trt interaction; every registered moderation variant
+    does, and the settings layer enforces both directions so this cannot regress
+    silently."""
+    specs = _gain_factor_specs()
+    for spec in specs:
+        plan = resolve_gain_factors_run_plan(spec)
+        trt_pairs = tuple(p for p in plan.interactions if "trt" in p)
+        if plan.moderation_variant:
+            assert trt_pairs, f"{spec.model_id}: moderation variant without trt pairs"
+        else:
+            assert not trt_pairs, f"{spec.model_id}: headline declares {trt_pairs}"

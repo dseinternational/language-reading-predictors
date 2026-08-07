@@ -23,8 +23,11 @@ on-intervention log-odds contrast. The own baseline, age, cognitive ability (blo
 every upstream skill are *adjusted associations*: the child random intercept is a
 partial, shrunken stand-in for between-child heterogeneity — it does **not** control
 latent general ability, so those slopes remain descriptive associations. SES is excluded
-(not a DAG node, statistically redundant). Focal interactions: group x ability,
-group x own-baseline, age x ability.
+(not a DAG node, statistically redundant).
+
+The causal headline is interaction-free (#391 finding 3 decision, 2026-07-22): the
+pre-specified trt x ability / trt x own moderation questions live in the associational
+variant LRPGF01m, and only the age x ability precision interaction remains here.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -40,7 +43,7 @@ SPEC = ModelSpec(
         "skill_symbols": ("TR", "TE", "R", "E", "L", "N", "B"),
         "ability_covariate": V.BLOCKS,
         "adjust_for": (),
-        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        "interactions": (("age", "ability"),),
         "treated_only": False,
     },
 )

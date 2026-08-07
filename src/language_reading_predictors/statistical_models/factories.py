@@ -4384,6 +4384,7 @@ def build_gain_factors_model(
     likelihood: str = "beta_binomial",
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
+    trt_prior_sigma: float | None = None,
 ) -> BuiltModel:
     """Gain-factors model (LRPGF): what is associated with how much children gain.
 
@@ -4420,6 +4421,11 @@ def build_gain_factors_model(
     ``gamma_int_<a>_<b>`` coefficient on the product of the two standardised terms.
     All non-causal coefficients are adjusted associations under the DAG.
 
+    Under ``likelihood="bernoulli_offfloor"`` the ``own`` term — main effect and any
+    interaction naming it — is the **binary off-floor-at-pre indicator** (raw 0/1),
+    not the graded pre logit (#391 finding 2 decision, 2026-07-22); see the
+    own-baseline block below.
+
     ``adjust_for`` (default ()): revised-DAG confounders that are not bounded-count
     measures and so cannot enter via ``skill_symbols`` — hearing status (``hs`` /
     ``hs_missing``), speech production (``deapp_c`` / ``deapp_c_missing``) and
@@ -4438,6 +4444,15 @@ def build_gain_factors_model(
         raise ValueError(
             "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
             f"got {likelihood!r}"
+        )
+    # Treatment-prior sweep hook (#391): the gf sensitivity runner refits the
+    # registered primary with only the beta_trt prior scale moved across its
+    # grid. A treated-only fit has no beta_trt, so scaling its prior is a
+    # caller error, not a silent no-op.
+    if trt_prior_sigma is not None and treated_only:
+        raise ValueError(
+            "trt_prior_sigma is meaningless for a treated-only fit: the "
+            "treatment indicator is constant and beta_trt is not built"
         )
     own = outcome_symbol
     if own not in prepared.post_counts or own not in prepared.pre_logit:
@@ -4465,6 +4480,10 @@ def build_gain_factors_model(
     # Drop rows missing the outcome post, the own baseline, any skill baseline, or
     # any raw-covariate adjuster.
     keep = ~np.isnan(prepared.post_counts[own]) & ~np.isnan(prepared.pre_logit[own])
+    if likelihood == "bernoulli_offfloor":
+        # The off-floor path replaces the graded own baseline with the binary
+        # off-floor-at-pre indicator, which needs the raw pre count.
+        keep = keep & ~np.isnan(prepared.pre_counts[own])
     for s in skill_symbols:
         keep = keep & ~np.isnan(prepared.pre_logit[s])
     for c in adjust_for:
@@ -4497,7 +4516,15 @@ def build_gain_factors_model(
     term_vecs: dict[str, np.ndarray] = {"trt": trt, "age": prepared.A_std}
     if ability_covariate is not None:
         term_vecs["ability"], _ = standardise(prepared.covariates[ability_covariate])
-    term_vecs["own"], _ = standardise(prepared.pre_logit[own])
+    # "own" on the off-floor path is the binary off-floor-at-pre indicator (raw
+    # 0/1), NOT the standardised pre logit: the pre logit of a heavily-floored
+    # measure is a near-degenerate spike, so the indicator is the honest
+    # functional form for both the main effect and any declared interaction on
+    # ``own`` (#391 finding 2 decision, 2026-07-22).
+    if likelihood == "bernoulli_offfloor":
+        term_vecs["own"] = (prepared.pre_counts[own] > 0).astype(float)
+    else:
+        term_vecs["own"], _ = standardise(prepared.pre_logit[own])
     for s in skill_symbols:
         term_vecs[s], _ = standardise(prepared.pre_logit[s])
 
@@ -4543,36 +4570,35 @@ def build_gain_factors_model(
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
 
         eta = alpha + alpha_phase[phase_d] + gamma_A * A_std_d
-        # Own-baseline precision term — dropped on the off-floor (Bernoulli) path (A4,
-        # 2026-07-13): its Normal(1, 0.25) "post tracks pre 1:1" prior is calibrated to
-        # graded test-retest reliability and does not transfer to the binary off-floor
-        # indicator, and at the period-1 post baseline it would move the reported
-        # off-floor risk-difference operating point through a treatment-affected value.
-        # The ITT floored specs (use_own_baseline=False) and the DiD off-floor branch
-        # drop it for the same reason.
+        # Own-baseline term. On the graded path this is the usual precision slope on
+        # the raw pre logit. On the off-floor (Bernoulli) path the graded ``gamma_own``
+        # is dropped (A4, 2026-07-13): its Normal(1, 0.25) "post tracks pre 1:1" prior
+        # is calibrated to graded test-retest reliability and does not transfer to a
+        # binary indicator, and the standardised pre logit of a heavily-floored
+        # measure is a near-degenerate spike. In its place the model ALWAYS carries
+        # the **binary off-floor-at-pre indicator** as the baseline main effect
+        # (#391 finding 2 decision, 2026-07-22): the period-1 control data flatly
+        # contradict a flat-in-baseline control arm (2/17 at-floor vs 7/8 off-floor
+        # moved off the floor at post), so omitting it either misfits (no own term)
+        # or lets a declared interaction on ``own`` absorb the main effect
+        # (hierarchy violation — the pre-decision defect). ``term_vecs["own"]`` is
+        # this same indicator on the off-floor path, so any interaction on ``own``
+        # shares its functional form and hierarchy holds by construction.
         if own_pre_d is not None:
             gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
             eta = eta + gamma_own * own_pre_d
-        elif any("own" in pair for pair in active_interactions):
-            # Off-floor path (own_pre_d is None): the graded gamma_own precision term is
-            # dropped because its Normal(1, 0.25) "post tracks pre 1:1" prior does not
-            # transfer to the binary off-floor indicator. But an interaction on ``own``
-            # (e.g. trt×own) is active, so omitting the own MAIN effect would violate
-            # interaction hierarchy — it forces the control off-floor probability to be
-            # flat in the baseline and lets the interaction absorb the real baseline
-            # dependence rather than represent credible effect modification (#391
-            # Finding 2). Restore the main effect on the SAME standardised baseline the
-            # interaction uses, with a REGULARISED cross prior (Normal(0, 0.3))
-            # appropriate to the binary outcome (not the graded gamma_own). A
-            # period-1-only floor model that avoids treatment-affected later baselines
-            # is the cleaner causal alternative, flagged for review.
-            own_ff_d = pm.Data("own_pre_logit_std", term_vecs["own"], dims="obs_id")
-            gamma_own_ff = _priors.gamma_cross_prior().to_pymc("gamma_own_offfloor")
+        else:
+            own_ff_d = pm.Data("own_pre_offfloor", term_vecs["own"], dims="obs_id")
+            gamma_own_ff = _priors.gamma_own_offfloor_prior().to_pymc("gamma_own_offfloor")
             eta = eta + gamma_own_ff * own_ff_d
 
         if include_trt:
             beta_trt = _priors.tau_prior(
-                sigma=_tau_sigma_for(outcome_symbol)
+                sigma=(
+                    _tau_sigma_for(outcome_symbol)
+                    if trt_prior_sigma is None
+                    else float(trt_prior_sigma)
+                )
             ).to_pymc("beta_trt")
             eta = eta + beta_trt * trt_d
         if ability_d is not None:

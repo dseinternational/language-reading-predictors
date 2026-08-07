@@ -14,11 +14,17 @@ assumption alongside every fit.
 
 The gain-factor design is a period-stacked ANCOVA: the post-score is regressed on
 the child's own pre-score with a non-centred child random intercept. The headline
-randomised quantity is the interaction-aware **period-1 average marginal effect**
-of random assignment (computed from ``beta_trt`` together with any active
-treatment-interaction terms, not ``beta_trt`` alone); every skill / ability /
-interaction term is a
-latent-ability-confounded **adjusted association**, never a causal effect.
+randomised quantity is the **period-1 average marginal effect** of random
+assignment. Since the #391 finding 3 decision (2026-07-22) the causal headline is
+**interaction-free**: treatment-by-covariate interactions are estimated on all
+stacked periods — including post-crossover rows with no untreated comparison — so
+a headline that nets them out is partly model-dependent extrapolation. Headline
+specifications therefore may not declare a ``trt`` interaction; the pre-specified
+moderation questions live on in explicitly associational **moderation variants**
+(``moderation_variant=True``), whose interaction-aware marginal keeps the #391
+finding 1 netting and is labelled model-dependent rather than causal. Every skill
+/ ability / interaction term is a latent-ability-confounded **adjusted
+association**, never a causal effect.
 """
 
 from __future__ import annotations
@@ -43,6 +49,7 @@ _LEGACY_KEYS = frozenset(
         "interactions",
         "treated_only",
         "likelihood",
+        "moderation_variant",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -114,6 +121,12 @@ class GainFactorsModelSettings:
     interactions: tuple[tuple[str, str], ...] = ()
     treated_only: bool = False
     likelihood: str = "beta_binomial"
+    #: Explicitly associational treatment-moderation variant (#391 finding 3
+    #: decision, 2026-07-22): the only kind of specification allowed to declare a
+    #: ``trt`` interaction. Its interaction-aware marginal is model-dependent
+    #: (partly informed by post-crossover data) and is never the causal headline —
+    #: that lives in the interaction-free primary it varies.
+    moderation_variant: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -131,6 +144,8 @@ class GainFactorsModelSettings:
             raise TypeError("ability_covariate must be a non-empty string or None")
         if not isinstance(self.treated_only, bool):
             raise TypeError("treated_only must be bool")
+        if not isinstance(self.moderation_variant, bool):
+            raise TypeError("moderation_variant must be bool")
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
@@ -150,6 +165,37 @@ class GainFactorsModelSettings:
                         f"interaction term {term!r} not available; "
                         f"have {sorted(valid_terms)}"
                     )
+        # #391 finding 3 decision (2026-07-22): the causal headline is interaction-free.
+        # Treatment interactions are estimated on all stacked periods — including
+        # post-crossover rows with no untreated comparison — so a headline that nets
+        # them out is partly model-dependent extrapolation, and one that ignores them
+        # is the pre-#395 bug. Only an explicitly associational moderation variant may
+        # declare a trt pair; everything else (headline primaries AND their treated-only
+        # companions, which stay a one-line diff from their parents) must not. Checked
+        # after the vocabulary loop so a typo'd term reads as a typo, not as a
+        # finding-3 violation.
+        trt_pairs = tuple(p for p in self.interactions if "trt" in p)
+        if self.moderation_variant:
+            if self.treated_only:
+                raise ValueError(
+                    "moderation_variant is incoherent with treated_only: the "
+                    "treatment indicator is constant in a treated-only fit, so no "
+                    "treatment interaction can be estimated"
+                )
+            if not trt_pairs:
+                raise ValueError(
+                    "moderation_variant requires at least one trt interaction — a "
+                    "moderation variant without treatment moderation is a headline "
+                    "specification, so declare it as one"
+                )
+        elif trt_pairs:
+            listed = ", ".join(f"({a}, {b})" for a, b in trt_pairs)
+            raise ValueError(
+                "headline gain-factor specifications are interaction-free in trt "
+                "(#391 finding 3 decision): declare moderation_variant=True to fit "
+                f"treatment interactions as an explicitly associational variant "
+                f"(got {listed})"
+            )
 
     def interaction_vocabulary(self) -> frozenset[str]:
         """Terms an interaction pair may name, given the declared skills / ability."""
@@ -183,6 +229,7 @@ class GainFactorsModelSettings:
             interactions=extra.get("interactions", ()),
             treated_only=extra.get("treated_only", False),
             likelihood=extra.get("likelihood", "beta_binomial"),
+            moderation_variant=extra.get("moderation_variant", False),
         )
 
 
@@ -200,6 +247,7 @@ class GainFactorsRunPlan:
     treated_only: bool
     likelihood: str
     off_floor: bool
+    moderation_variant: bool
     # Covariate loading split by measurement wave (resolved from adjust_for).
     baseline_covariates: tuple[str, ...]
     pre_covariates: tuple[str, ...]
@@ -366,13 +414,15 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
     if off_floor:
         design = (
             "Period-stacked off-floor transition model: a Bernoulli likelihood for "
-            "whether the child moves above their own baseline floor, on the "
-            "randomised period-1 window."
+            "whether the child moves above their own baseline floor, with the binary "
+            "off-floor-at-pre indicator as the baseline main effect (#391 finding 2 "
+            "decision — the graded pre logit of a heavily-floored measure is a "
+            "near-degenerate spike, so the indicator is the honest functional form)."
         )
         estimand = (
-            "Interaction-aware period-1 average marginal effect of random assignment "
-            "on the probability of moving off the floor (a risk difference), on the "
-            "fitted available-case sample."
+            "Period-1 average marginal effect of random assignment on the "
+            "probability of moving off the floor (a risk difference), on the fitted "
+            "available-case sample."
         )
     else:
         design = (
@@ -381,9 +431,8 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
             "random intercept for repeated observations."
         )
         estimand = (
-            "Interaction-aware period-1 average marginal effect of random assignment "
-            "(computed from beta_trt and any active treatment-interaction terms), "
-            "on the fitted available-case sample."
+            "Period-1 average marginal effect of random assignment on the fitted "
+            "available-case sample."
         )
     if settings.treated_only:
         estimand = (
@@ -394,11 +443,31 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
             "Associational: no randomised contrast. Every coefficient is a "
             "latent-ability-confounded adjusted association."
         )
-    else:
+    elif settings.moderation_variant:
+        estimand = (
+            "Interaction-aware period-1 average marginal effect of the "
+            "on-intervention term (beta_trt with every fitted treatment interaction "
+            "netted out), on the fitted available-case sample. The treatment "
+            "interactions are estimated on ALL stacked periods — including "
+            "post-crossover rows with no untreated comparison — so this marginal is "
+            "model-dependent and partly informed by post-crossover data, not "
+            "exclusively randomised period-1 evidence (#391 finding 3)."
+        )
         causal_status = (
-            "The treatment term is randomised (a period-1 average marginal effect); "
-            "every skill, ability and interaction term is a latent-ability-confounded "
-            "adjusted association, never a causal effect."
+            "Explicitly associational moderation variant: no term here is reported "
+            "as a standalone causal effect. The randomised causal headline for this "
+            "outcome lives in the interaction-free primary this model varies; the "
+            "treatment-by-covariate interactions and the netted marginal are "
+            "model-dependent adjusted associations."
+        )
+    else:
+        # Headline: interaction-free in trt by validated invariant, so the period-1
+        # marginal direction coincides with the beta_trt coefficient draw-by-draw.
+        causal_status = (
+            "The treatment term is randomised (a period-1 average marginal effect; "
+            "the headline specification carries no treatment interactions, #391 "
+            "finding 3 decision); every skill, ability and interaction term is a "
+            "latent-ability-confounded adjusted association, never a causal effect."
         )
     analysis_population = (
         "Available-case children observed at the period-1 randomised transition "
@@ -421,6 +490,7 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         treated_only=settings.treated_only,
         likelihood=settings.likelihood,
         off_floor=off_floor,
+        moderation_variant=settings.moderation_variant,
         baseline_covariates=baseline_covariates,
         pre_covariates=pre_adj,
         post_covariates=post_adj,

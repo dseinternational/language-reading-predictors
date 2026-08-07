@@ -90,6 +90,7 @@ VARIANT_ROLE_BY_SUFFIX: dict[str, str] = {
     "base": "comparator",
     "d": "dose_sensitivity",
     "a": "alternate",
+    "m": "moderation",
 }
 _LETTER_SUFFIXES: frozenset[str] = frozenset(
     s for s in VARIANT_ROLE_BY_SUFFIX if len(s) == 1
@@ -111,6 +112,22 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     "lrpgf06b": ("gf", 106),
     "lrpgf07b": ("gf", 107),
     "lrpgf08b": ("gf", 108),
+    # The gf ``m`` (moderation-variant, #391 finding 3) suffix takes the uniform
+    # 2xx block — parent+200 — rather than per-parent alphabetical +100/+200:
+    # gf-009..011 have no ``b`` companion, so mapping their ``m`` variants to 1xx
+    # while gf-001..008's land at 2xx would scatter one family role across two
+    # blocks. One suffix, one block.
+    "lrpgf01m": ("gf", 201),
+    "lrpgf02m": ("gf", 202),
+    "lrpgf03m": ("gf", 203),
+    "lrpgf04m": ("gf", 204),
+    "lrpgf05m": ("gf", 205),
+    "lrpgf06m": ("gf", 206),
+    "lrpgf07m": ("gf", 207),
+    "lrpgf08m": ("gf", 208),
+    "lrpgf09m": ("gf", 209),
+    "lrpgf10m": ("gf", 210),
+    "lrpgf11m": ("gf", 211),
     "lrpitt08b": ("itt", 108),
     "lrpitt13b": ("itt", 113),
     "lrpitt14b": ("itt", 114),

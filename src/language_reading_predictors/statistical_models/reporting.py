@@ -3076,6 +3076,12 @@ class AssociationTerm:
     sd_items
         Informational: how many items ``+1 SD`` of a bounded-count covariate is,
         evaluated at ``mean_prop`` — so a reader can translate the opaque ``+1 SD``.
+    perturbation_label
+        Optional override for the ``scale`` column of the unit perturbation row
+        (default ``"+1 SD"``). Used when the term is not a standardised continuous
+        covariate — e.g. the gain family's off-floor binary off-floor-at-pre
+        indicator, whose ``+1`` perturbation is the at-floor -> off-floor switch
+        (#391 finding 2 decision) and would be mislabelled as a ``+1 SD`` shift.
     """
 
     label: str
@@ -3085,6 +3091,7 @@ class AssociationTerm:
     n_items: int | None = None
     mean_prop: float | None = None
     sd_items: float | None = None
+    perturbation_label: str | None = None
 
 
 def association_marginals(
@@ -3181,7 +3188,10 @@ def association_marginals(
 
         # (scale label, standardised shift Δz). +1 SD is Δz = 1; +k items maps the
         # bounded-count increment to standardised units at the mean operating point.
-        perturbations: list[tuple[str, float]] = [("+1 SD", 1.0)]
+        # A term may override the unit label (e.g. a 0/1 indicator switch).
+        perturbations: list[tuple[str, float]] = [
+            (term.perturbation_label or "+1 SD", 1.0)
+        ]
         if term.n_items and term.mean_prop is not None and term.main_scale > 0:
             eps = 1e-6
             p = float(np.clip(term.mean_prop, eps, 1 - eps))
@@ -3690,6 +3700,7 @@ KEY_FINDINGS_MAX_SENTENCES = 5
 # key-findings box must never ask the reader to decode a coefficient name.
 _KF_FACTOR_LABELS: dict[str, str] = {
     "gamma_own": "the child's own starting point on this measure",
+    "gamma_own_offfloor": "starting the period already off the floor on this measure",
     "gamma_A": "the child's age",
     "gamma_ability": "general cognitive ability (block design)",
     "gamma_R": "receptive vocabulary at the start of the period",
@@ -4278,13 +4289,121 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
     return sentences
 
 
+#: Human labels for the moderation-variant treatment-interaction coefficients.
+_KF_MODERATION_LABELS: dict[str, str] = {
+    "gamma_int_trt_ability": "general cognitive ability (block design)",
+    "gamma_int_trt_own": "the child's starting point on this measure",
+}
+
+
+def _kf_moderation_sentences(output_dir) -> list[str]:
+    """One sentence per fitted treatment-moderation coefficient (#391 finding 3).
+
+    Reads ``factor_summary.csv`` for the ``gamma_int_trt_*`` rows a moderation
+    variant fits (at most two: ability and own baseline). Logit-scale medians with
+    the 89% interval — the coefficients sit on the interaction-product scale, so no
+    items translation is attempted."""
+    path = os.path.join(str(output_dir), "factor_summary.csv")
+    if not os.path.exists(path):
+        return []
+    df = pd.read_csv(path)
+    needed = {"term", "median", "lo", "hi", "prob_positive"}
+    if df.empty or not needed.issubset(df.columns):
+        return []
+    out: list[str] = []
+    for _, row in df.iterrows():
+        term = str(row["term"])
+        label = _KF_MODERATION_LABELS.get(term)
+        if label is None:
+            continue
+        try:
+            med = _kf_float(row["median"])
+            lo = _kf_float(row["lo"])
+            hi = _kf_float(row["hi"])
+            p = _kf_float(row["prob_positive"])
+        except _KeyFindingsUnavailable:
+            continue
+        fav = favoured_direction(p)
+        stronger = (
+            "a larger on-intervention association"
+            if fav["favoured_direction"] == "positive"
+            else "a smaller on-intervention association"
+        )
+        out.append(
+            f"Moderation by {label}: {med:+.2f} logits (89% credible range "
+            f"{lo:+.2f} to {hi:+.2f}) — a "
+            f"{_kf_pct(fav['favoured_direction_prob'])}% probability that children "
+            f"higher on it saw {stronger}, read as a model-dependent adjusted "
+            f"association."
+        )
+    return out
+
+
 def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
     """Gain (ANCOVA) family: the randomised on-intervention term is the only
     causal coefficient, averaged over the period-1 transition; treated-only
-    companions have no causal term at all."""
+    companions have no causal term at all, and a moderation variant (#391
+    finding 3) presents every number — its netted treatment marginal included —
+    as a model-dependent adjusted association."""
     outcome_label = _kf_outcome_label(config)
-    treated_only = bool((config.get("extra") or {}).get("treated_only", False))
+    plan = config.get("resolved_run_plan") or {}
+    extra = config.get("extra") or {}
+    treated_only = bool(plan.get("treated_only", extra.get("treated_only", False)))
+    moderation_variant = bool(
+        plan.get("moderation_variant", extra.get("moderation_variant", False))
+    )
     sentences: list[dict[str, str]] = []
+    if moderation_variant:
+        sentences.append(
+            _kf_sentence(
+                f"This companion model asks whether the on-intervention association "
+                f"with {outcome_label} varies with children's starting point and "
+                f"general cognitive ability. Those moderation terms are estimated "
+                f"across all study periods — including after the comparison group "
+                f"had crossed over — so every number here is a model-dependent "
+                f"adjusted association, not a cause; the randomised headline lives "
+                f"in the interaction-free primary model.",
+                "causal",
+            )
+        )
+        for text in _kf_moderation_sentences(output_dir):
+            sentences.append(_kf_sentence(text, "moderation"))
+        tm = _kf_csv_row(output_dir, "treatment_marginal.csv")
+        if tm is not None:
+            is_rd = bool(
+                plan.get("off_floor", extra.get("likelihood") == "bernoulli_offfloor")
+            )
+            try:
+                scale = 100.0 if is_rd else 1.0
+                med = _kf_float(tm["trt_items_median"]) * scale
+                lo = _kf_float(tm["trt_items_lo"]) * scale
+                hi = _kf_float(tm["trt_items_hi"]) * scale
+            except _KeyFindingsUnavailable:
+                pass
+            else:
+                # ``or 0.0`` maps a rounded -0.0 back to +0.0 so a hair-negative
+                # median never renders as "-0".
+                nd = 0 if is_rd else 1
+                med, lo, hi = (round(v, nd) or 0.0 for v in (med, lo, hi))
+                unit = (
+                    f"**{med:+.0f} percentage points** on the chance of moving "
+                    f"off the floor (89% credible range {lo:+.0f} to {hi:+.0f})"
+                    if is_rd
+                    else f"**{med:+.1f} items** (89% credible range {lo:+.1f} "
+                    f"to {hi:+.1f})"
+                )
+                sentences.append(
+                    _kf_sentence(
+                        f"For context, netting those moderation terms out gives a "
+                        f"model-dependent on-intervention contrast of {unit} "
+                        f"during the randomised first period.",
+                        "headline",
+                    )
+                )
+        highlight = _kf_strongest_factor(output_dir)
+        if highlight:
+            sentences.append(_kf_sentence(highlight, "highlight"))
+        return sentences
     if treated_only:
         sentences.append(
             _kf_sentence(

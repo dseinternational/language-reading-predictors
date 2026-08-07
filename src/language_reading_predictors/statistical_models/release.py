@@ -140,12 +140,24 @@ def gate_applies(config: Mapping[str, Any]) -> bool:
     the absent term as an *unmeasured* one and withholds all eight companions — the
     fail-closed rule doing real damage, because "not measured" and "structurally not
     present" are the same absence to a lookup and opposite things to a reader.
+
+    A ``gain_factors`` **moderation variant** (#391 finding 3 decision) is skipped for
+    the complementary reason: its posterior *does* contain ``beta_trt``, but by decision
+    its interaction-aware marginal is model-dependent (the treatment interactions are
+    estimated on all stacked periods, partly post-crossover) and is never presented as
+    the causal headline — that lives in the interaction-free primary the variant varies,
+    which IS gated. Gating the variant would demand treatment-prior sweep evidence for a
+    number the family never releases as causal.
     """
     if config.get("kind") not in GATED_KINDS:
         return False
     plan = config.get("resolved_run_plan") or {}
     return not (
-        config.get("kind") == "gain_factors" and bool(plan.get("treated_only", False))
+        config.get("kind") == "gain_factors"
+        and (
+            bool(plan.get("treated_only", False))
+            or bool(plan.get("moderation_variant", False))
+        )
     )
 
 

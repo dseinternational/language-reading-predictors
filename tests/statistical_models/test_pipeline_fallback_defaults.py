@@ -78,6 +78,9 @@ RECONCILED_FACTORY_DEFAULTS = [
     # the LRPDID102 companion set them.
     (factories.build_did_model, "tau_t2_prior_sigma", None),
     (factories.build_did_model, "dose_slope_prior_sigma", None),
+    # #391: the gain-factor sweep's focal-prior override (None = the outcome
+    # tier); only the treatment-prior sweep sets it.
+    (factories.build_gain_factors_model, "trt_prior_sigma", None),
 ]
 
 
