@@ -3,7 +3,7 @@
 # Findings: is letter-sound knowledge _used for decoding_? (Tier-1 decoding-specificity mini-suite)
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Results from the Tier-1 mini-suite specced in `notes/202607172330-tier1-decoding-specificity-spec.md`. Numbers are the **`reporting`** fits (6×6000; all six mechanism models clear the convergence gate) and are reported to the house standard — the posterior **median** with an **89% equal-tailed** credible interval (`notes/202607172359-credible-interval-standard.md`). Everything here is an **adjusted association** under the revised DAG, never a causal skill→skill effect — general ability (`GA`) is latent and unblockable, and the child random intercept does not stand in for it. The only randomised warrant in the suite is the ITT arm.
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); the identified-contrast closeout was updated by a LLM-based AI tool (Codex/GPT-5). Results from the Tier-1 mini-suite specced in `notes/202607172330-tier1-decoding-specificity-spec.md`. Numbers are the **`reporting`** fits (6×6000; all six mechanism models clear the convergence gate) and are reported to the house standard — the posterior **median** with an **89% equal-tailed** credible interval (`notes/202607172359-credible-interval-standard.md`). Everything here is an **adjusted association** under the revised DAG, never a causal skill→skill effect — general ability (`GA`) is latent and unblockable, and the child random intercept does not stand in for it. The only randomised warrant in the suite is the ITT arm.
 
 ## The question and the design in one paragraph
 
@@ -11,18 +11,19 @@ Do gains in letter-sound knowledge (`LS`) actually get _used to decode_, or do t
 
 ## 1A — convergent–discriminant contrast: letter sounds feed decoding far more than word reading
 
-| slope (logit per SD of `LS`)          | median    | 89% CI                          |
-| ------------------------------------- | --------- | ------------------------------- |
-| `LS → N` (nonword decoding, mech-096) | **+1.03** | [0.74, 1.34]                    |
-| `LS → W` (word reading, mech-101)     | **+0.25** | [0.15, 0.35]                    |
-| **Δ = `LS→N` − `LS→W`**               | **+0.78** | **[0.47, 1.10]**, P(Δ>0) ≈ 1.00 |
+| slope or contrast (logit per SD of `LS`)                      | median    | 89% CI                            |
+| ------------------------------------------------------------- | --------- | --------------------------------- |
+| `LS → N` (nonword decoding, mech-096)                         | **+1.03** | [0.74, 1.34]                      |
+| `LS → W` (word reading, mech-101)                             | **+0.25** | [0.15, 0.35]                      |
+| **Identified Δ = `LS→N` − `LS→W`** (`jm-002`)                 | **+0.81** | **[0.50, 1.14]**, P(Δ>0) = 0.9999 |
+| Product-of-marginals Δ sensitivity (historical separate fits) | **+0.78** | **[0.47, 1.10]**, P(Δ>0) ≈ 1.00   |
 
 > [!NOTE]
-> The two slopes above are fitted **separately**, so this Δ (and its interval / `P(Δ>0)`) is a **product-of-marginals sensitivity** computed under a working independence assumption, **not** an identified posterior contrast (PR #359 review). `N` and `W` share children, so the true joint posterior has a non-zero cross-outcome covariance the paired-draws convolution ignores; with the positive covariance shared teaching/ability would induce, the true difference is if anything _more_ precise than the interval above, so the decisive direction is safe. What is _not_ certified by these fits is the exact Δ interval. The two **marginal** slopes (`LS→N` and `LS→W`) are each properly identified; the specificity conclusion rests on their well-separated marginals, which the Δ only summarises.
+> The +0.78 row pairs draws from two **separate** fits under a working-independence assumption, so its exact interval is only a sensitivity. [`lrp-rli-jm-002`](../docs/models/lrp-rli-jm-002/) fits `N` and `W` **jointly** on the same exposure, with the same ANCOVA parameterisation and `{G, A, HS, IS, SP}` adjustment set, and makes Δ a within-model deterministic carrying the cross-outcome covariance. Its reporting fit passed the convergence gate and gives +0.81 [0.50, 1.14], very close to the historical sensitivity; the conditional-change specificity conclusion therefore no longer depends on working independence.
 >
-> **The identified counterpart now exists.** [`lrp-rli-jm-002`](../docs/models/lrp-rli-jm-002/) (#421 Tier 3 (1)) fits `N` and `W` **jointly** on the same exposure, with the same ANCOVA parameterisation and the same `{G, A, HS, IS, SP}` adjustment set, and a bivariate (LKJ) child random intercept carrying the cross-outcome covariance. Its `delta_ls_decoding` is a within-model deterministic, and `scripts/compare_statistical_models.py` now writes it into `tier1_1a_contrast.csv` as a second row flagged `identified=True` alongside the sensitivity row above. **This note still quotes the sensitivity**: the numbers here are `reporting`-tier fits and the identified Δ is quoted only once `jm-002` has passed the convergence gate at `--config reporting`. Update this block — and the table above — when it does, keeping the sensitivity row as the historical comparator so the gap between them is visible.
+> This is still a **qualified observational result**, not a prior-robust causal effect. The July power-scaling sweep flagged `delta_ls_decoding`, `beta_mech[N]` and `rho_outcome` for potential prior–data conflict. The current release policy does not formally gate observational `joint_mechanism` fits on power-scaling, but the flag remains a limitation on the exact magnitude. The separate-fit agreement supports the direction; it does not erase latent-general-ability confounding, the nonword floor or the prior-sensitivity warning.
 
-Letter sounds predict **pure decoding about four times as strongly as they predict word reading**, and the two marginal slopes are cleanly separated (the sensitivity Δ excludes zero decisively). This is the decoding-use signature: a pure-`GA`-confounding account gives no reason for letter sounds to predict `N` _more_ than `W` (if anything `GA` should predict the broader word-reading skill at least as much), so the natural explanation for `LS→N` ≫ `LS→W` is that letter-sound knowledge is being converted into decoding. **Decoding-use supported.**
+Conditional on each outcome's own baseline, letter sounds predict **pure decoding about four times as strongly as they predict word reading**, and the identified joint contrast excludes zero decisively. This is the decoding-use signature: a pure-`GA`-confounding account gives no reason for letter sounds to predict `N` _more_ than `W` (if anything `GA` should predict the broader word-reading skill at least as much), so the natural explanation for `LS→N` ≫ `LS→W` is that letter-sound knowledge is being converted into decoding. **Decoding-use supported for conditional change, not demonstrated as a causal mechanism.**
 
 ## 1B — negative-control outcomes: written code moves, oral language barely does
 

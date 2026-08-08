@@ -31,6 +31,7 @@ recorded in the note instead). Promote to ``lrp_rli_ca_0NN`` / ``lrp_rli_gf_0NN`
 anywhere outside the note.
 
 Run with the conda env interpreter from the repo root; writes CSVs to ``--out``.
+Use ``--section q3-partials`` to rerun only the timing-sensitive Q3 partial fits.
 """
 
 from __future__ import annotations
@@ -48,8 +49,8 @@ from language_reading_predictors.data_utils import load_data
 from language_reading_predictors.statistical_models import factories as F
 from language_reading_predictors.statistical_models import reporting as R
 from language_reading_predictors.statistical_models.measures import MEASURES
-from language_reading_predictors.statistical_models.pipeline import _subset_prepared
 from language_reading_predictors.statistical_models.preprocessing import (
+    _subset_prepared,
     load_and_prepare,
     logit_safe,
     standardise,
@@ -217,14 +218,18 @@ def run_q1_q2(prepared, out: Path) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 CANDIDATE_MEASURES = ["N", "B", "R", "E", "T", "F"]  # same-wave measured skills
-CANDIDATE_COVARIATES = ["erbto", "deapp_c"]  # t1 baselines: phonological memory, speech
+CANDIDATE_COVARIATES = ["erbto", "deapp_c"]  # same-wave phonological memory + speech
 
 
 def run_q3_partials(out: Path) -> pd.DataFrame:
     prepared = load_and_prepare(
         phase_mode="levels",
         outcomes=("W", "L", "N", "B", "R", "E", "T", "F"),
-        baseline_covariates=("blocks", "hs", "erbto", "deapp_c"),
+        # Block design is t1-only and hearing is time-invariant; phonological
+        # memory and speech are repeatedly measured states and must come from
+        # each level row rather than being broadcast from t1 (#421 closeout).
+        baseline_covariates=("blocks", "hs"),
+        post_covariates=tuple(CANDIDATE_COVARIATES),
         pre_required=(),
     )
     rows: list[dict] = []
@@ -497,8 +502,19 @@ def run_q4_word_learning(out: Path) -> pd.DataFrame:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=Path("output/notes/202607241000-ls-wr"))
+    parser.add_argument(
+        "--section",
+        choices=("all", "q3-partials"),
+        default="all",
+        help="Run the full probe (default) or only the Q3 partial-association fits.",
+    )
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
+
+    if args.section == "q3-partials":
+        run_q3_partials(args.out)
+        print(f"Wrote Q3 partial-association CSV to {args.out}")
+        return
 
     prepared = load_and_prepare(
         phase_mode="levels", outcomes=("W", "L", "N"),
