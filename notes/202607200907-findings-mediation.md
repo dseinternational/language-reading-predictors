@@ -1,7 +1,10 @@
 # Mediation (g-formula NDE/NIE) findings (2026-07-20)
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+> Drafted and edited by LLM-based AI tools (Claude Code/Opus 4.8 and Codex/GPT-5).
+
+> [!WARNING]
+> **Partial supersession (2026-08-08).** The MED-086/186 and MED-087/187 specifications now adjust for baseline word reading after the current lagged DAG exposed $WR_1$ backdoors into the letter-sound mediator and both outcomes. Every numerical value and interpretation for those four rows below is stale and must not be published or interpreted until fresh `reporting` fits pass the normal gates and regenerate their artefacts. See `notes/202608081805-med-086-187-wr-baseline-correction.md`. The remaining mediation rows are unaffected by this correction.
 
 This note reports the full re-fit (production `reporting` configuration: 6000 draws × 6000 tune × 6 chains) of the **mediation family** — 18 models that ask _through which skill_ the reading/phonics intervention's effect travels. It is a companion to the shared reading guide `notes/202607200900-findings-00-index-and-reading-guide.md`; read that first for the study background, the outcome measures and their maxima, and the house reporting standard. Every figure here is traceable to a model's own output CSVs in `output/statistical_models/models/<id>-reporting/`. Work in progress; all data are preliminary.
 

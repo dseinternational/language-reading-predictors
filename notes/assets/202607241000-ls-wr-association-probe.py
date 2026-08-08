@@ -24,6 +24,11 @@ no own baseline, no child random intercept. Q4 is a *gains* question, so it reus
 with a child random intercept). Sampling is ``rep-lite``-equivalent (4 chains x
 2000-4000 draws, ``target_accept=0.95``, nutpie).
 
+Every mean-filled hearing / Q3 state covariate is paired with its ``{col}_missing``
+nuisance indicator, matching the preprocessing missing-data policy. A flag is fitted
+only when it varies on that wave's observed-W rows, so it cannot alias the intercept.
+The indicators are not candidate skills and are not interpreted substantively.
+
 These are **exploratory scratch fits**, not registered models: they publish no
 ``config.json`` / ``diagnostics_summary.json`` / report, and they bypass the
 production convergence gate (R-hat, ESS, BFMI and divergences are checked inline and
@@ -31,7 +36,8 @@ recorded in the note instead). Promote to ``lrp_rli_ca_0NN`` / ``lrp_rli_gf_0NN`
 anywhere outside the note.
 
 Run with the conda env interpreter from the repo root; writes CSVs to ``--out``.
-Use ``--section q3-partials`` to rerun only the timing-sensitive Q3 partial fits.
+Use ``--section q3-partials`` to rerun only the timing/missingness-sensitive Q3
+partial fits.
 """
 
 from __future__ import annotations
@@ -48,6 +54,11 @@ from scipy.special import expit
 from language_reading_predictors.data_utils import load_data
 from language_reading_predictors.statistical_models import factories as F
 from language_reading_predictors.statistical_models import reporting as R
+from language_reading_predictors.statistical_models.diagnostics import (
+    BFMI_THRESHOLD,
+    ESS_THRESHOLD,
+    RHAT_MAX,
+)
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
@@ -55,9 +66,12 @@ from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
 )
+from language_reading_predictors.statistical_models.sampling_quality import (
+    sampling_quality,
+)
 
 CI = 0.89  # house standard (notes/202607172359-credible-interval-standard.md)
-BASE_COV = ["blocks", "hs"]  # non-verbal ability + hearing; age enters via include_age
+BASE_COV = ["blocks", "hs", "hs_missing"]  # ability + hearing; age is separate
 
 
 # ---------------------------------------------------------------------------
@@ -79,12 +93,73 @@ def _summarise(trace, name: str) -> dict[str, float]:
     }
 
 
+def _is_informative_covariate(sub, name: str) -> bool:
+    """Whether a prepared covariate varies on this fit's effective rows."""
+    if name not in sub.covariates:
+        return False
+    values = np.asarray(sub.covariates[name], dtype=float)
+    finite = values[np.isfinite(values)]
+    return bool(finite.size > 1 and np.ptp(finite) > 0)
+
+
+def _informative_covariates(sub, names) -> list[str]:
+    """Drop absent/constant fitted-row covariates before they reach PyMC."""
+    return [name for name in names if _is_informative_covariate(sub, name)]
+
+
+def _sampling_diagnostics(trace, built) -> dict[str, float | int | bool | str | None]:
+    """Unrounded house-gate diagnostics over the model's free variables."""
+    var_names = [rv.name for rv in built.model.free_RVs]
+    # Keep the separate bulk/tail minima for the audit CSV. The shared helper is
+    # authoritative for max R-hat, the combined minimum ESS, BFMI and divergences.
+    summary = az.summary(
+        trace,
+        var_names=var_names,
+        round_to="none",
+        kind="diagnostics",
+    )
+    signals = sampling_quality(trace, var_names=var_names)
+    min_ess_bulk = float(summary["ess_bulk"].min())
+    min_ess_tail = float(summary["ess_tail"].min())
+    gate_pass = bool(
+        np.isfinite(signals.max_rhat)
+        and signals.max_rhat <= RHAT_MAX
+        and np.isfinite(min_ess_bulk)
+        and min_ess_bulk >= ESS_THRESHOLD
+        and np.isfinite(min_ess_tail)
+        and min_ess_tail >= ESS_THRESHOLD
+        and signals.min_bfmi is not None
+        and signals.min_bfmi >= BFMI_THRESHOLD
+        and signals.n_divergences == 0
+    )
+    return {
+        "max_rhat": signals.max_rhat,
+        "min_ess": signals.min_ess,
+        "min_ess_bulk": min_ess_bulk,
+        "min_ess_tail": min_ess_tail,
+        "min_bfmi": signals.min_bfmi,
+        "n_div": signals.n_divergences,
+        "gate_pass": gate_pass,
+    }
+
+
+def _diagnostic_log(diag: dict) -> str:
+    """Compact sampling-quality line, including an unavailable-BFMI guard."""
+    bfmi = diag["min_bfmi"]
+    bfmi_text = "n/a" if bfmi is None else f"{bfmi:.3f}"
+    return (
+        f"rhat={diag['max_rhat']:.4f} ess={diag['min_ess']:.0f} "
+        f"bfmi={bfmi_text} div={diag['n_div']} pass={diag['gate_pass']}"
+    )
+
+
 def _fit(sub, predictors, covariates, *, age=True, group=False, draws=4000, seed=20260724):
+    effective_covariates = _informative_covariates(sub, covariates)
     built = F.build_concurrent_model(
         sub,
         outcome_symbol="W",
         predictor_symbols=predictors,
-        covariates=covariates,
+        covariates=effective_covariates,
         include_age=age,
         include_group=group,
         predictor_slope_sigma=0.3,
@@ -101,14 +176,8 @@ def _fit(sub, predictors, covariates, *, age=True, group=False, draws=4000, seed
             random_seed=seed,
             progressbar=False,
         )
-    summary = az.summary(
-        trace, var_names=[rv.name for rv in built.model.free_RVs]
-    ).astype(float)
-    diag = {
-        "max_rhat": float(summary["r_hat"].max()),
-        "min_ess": float(summary["ess_bulk"].min()),
-        "n_div": int(trace.sample_stats.diverging.values.sum()),
-    }
+    diag = _sampling_diagnostics(trace, built)
+    diag["effective_covariates"] = "+".join(effective_covariates)
     return trace, built, diag
 
 
@@ -137,6 +206,17 @@ def _waves(prepared):
     for w in sorted({int(p) for p in np.unique(prepared.phase)}):
         sub = _subset_prepared(prepared, prepared.phase == w)
         yield w + 1, _subset_prepared(sub, ~np.isnan(sub.post_counts["W"]))
+
+
+def _load_level_probe_data(outcomes, *, post_covariates=()):
+    """Load a levels panel with the single authoritative Q1 adjustment block."""
+    return load_and_prepare(
+        phase_mode="levels",
+        outcomes=tuple(outcomes),
+        baseline_covariates=tuple(BASE_COV),
+        post_covariates=tuple(post_covariates),
+        pre_required=(),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -182,8 +262,7 @@ def run_q1_q2(prepared, out: Path) -> pd.DataFrame:
                 draws_by_key[f"t{tp}|{label}|{term}"] = (
                     trace.posterior[var].stack(sample=("chain", "draw")).values.ravel()
                 )
-            print(f"t{tp} {label}: rhat={diag['max_rhat']:.3f} "
-                  f"ess={diag['min_ess']:.0f} div={diag['n_div']}", flush=True)
+            print(f"t{tp} {label}: {_diagnostic_log(diag)}", flush=True)
 
     df = pd.DataFrame(rows)
     df.to_csv(out / "q1_q2_ls_wr_adjusted.csv", index=False)
@@ -219,36 +298,83 @@ def run_q1_q2(prepared, out: Path) -> pd.DataFrame:
 
 CANDIDATE_MEASURES = ["N", "B", "R", "E", "T", "F"]  # same-wave measured skills
 CANDIDATE_COVARIATES = ["erbto", "deapp_c"]  # same-wave phonological memory + speech
+Q3_STATE_COVARIATES = tuple(
+    value
+    for covariate in CANDIDATE_COVARIATES
+    for value in (covariate, f"{covariate}_missing")
+)
+
+
+def _covariate_with_missingness(covariate: str) -> list[str]:
+    """Return a mean-filled state covariate and its required nuisance flag."""
+    return [covariate, f"{covariate}_missing"]
+
+
+def _fitted_missing_count(sub, flag: str) -> int:
+    """Count imputed rows after the wave and observed-W masks are applied."""
+    raw = sub.covariate_scalers[flag].inverse(sub.covariates[flag])
+    rounded = np.rint(np.asarray(raw, dtype=float)).astype(int)
+    if not np.isin(rounded, (0, 1)).all():
+        raise ValueError(f"{flag} did not invert to a binary missingness indicator")
+    return int(rounded.sum())
 
 
 def run_q3_partials(out: Path) -> pd.DataFrame:
-    prepared = load_and_prepare(
-        phase_mode="levels",
+    prepared = _load_level_probe_data(
         outcomes=("W", "L", "N", "B", "R", "E", "T", "F"),
         # Block design is t1-only and hearing is time-invariant; phonological
         # memory and speech are repeatedly measured states and must come from
-        # each level row rather than being broadcast from t1 (#421 closeout).
-        baseline_covariates=("blocks", "hs"),
-        post_covariates=tuple(CANDIDATE_COVARIATES),
-        pre_required=(),
+        # each level row rather than being broadcast from t1 (#421 probe repair).
+        # Each mean-filled state requires its missingness nuisance indicator;
+        # loading the value without the flag would treat imputed rows as observed.
+        post_covariates=Q3_STATE_COVARIATES,
     )
     rows: list[dict] = []
+    missingness_rows: list[dict] = []
     for tp, sub in _waves(prepared):
+        for cov in CANDIDATE_COVARIATES:
+            flag = f"{cov}_missing"
+            missingness_rows.append(
+                {
+                    "timepoint": tp,
+                    "covariate": cov,
+                    "n": sub.n_obs,
+                    "missing_n": _fitted_missing_count(sub, flag),
+                    "flag_fitted": _is_informative_covariate(sub, flag),
+                }
+            )
         for sym in CANDIDATE_MEASURES:
             trace, built, diag = _fit(sub, ["L", sym], BASE_COV, draws=3000, seed=424242)
             for term, var in (("L", "beta_L"), (sym, f"beta_{sym}")):
                 rows.append({"timepoint": tp, "candidate": sym, "term": term,
                              "n": built.prepared.n_obs, **_summarise(trace, var), **diag})
         for cov in CANDIDATE_COVARIATES:
-            trace, built, diag = _fit(sub, ["L"], BASE_COV + [cov], draws=3000, seed=424242)
-            for term, var in (("L", "beta_L"), (cov, f"gamma_{cov}")):
+            state_adjusters = _covariate_with_missingness(cov)
+            trace, built, diag = _fit(
+                sub,
+                ["L"],
+                BASE_COV + state_adjusters,
+                draws=3000,
+                seed=424242,
+            )
+            for term, var in (
+                ("L", "beta_L"),
+                (cov, f"gamma_{cov}"),
+                (f"{cov}_missing", f"gamma_{cov}_missing"),
+            ):
+                # ``_fit`` drops a flag that is constant after the wave/outcome
+                # masks. In that case there is no intercept-alias coefficient.
+                if var not in trace.posterior:
+                    continue
                 rows.append({"timepoint": tp, "candidate": cov, "term": term,
                              "n": built.prepared.n_obs, **_summarise(trace, var), **diag})
         # All candidates at once. Heavily collinear at n ~ 51 and shrunk by the
         # Normal(0, 0.3) slope prior — read under the Table-2 fallacy, never as a
         # ranking of importance.
         trace, built, diag = _fit(
-            sub, ["L", "N", "B", "R", "E"], BASE_COV + CANDIDATE_COVARIATES,
+            sub,
+            ["L", "N", "B", "R", "E"],
+            BASE_COV + list(Q3_STATE_COVARIATES),
             draws=3000, seed=424242,
         )
         for var in [v for v in trace.posterior.data_vars
@@ -260,6 +386,7 @@ def run_q3_partials(out: Path) -> pd.DataFrame:
 
     df = pd.DataFrame(rows)
     df.to_csv(out / "q3_partial_associations.csv", index=False)
+    pd.DataFrame(missingness_rows).to_csv(out / "q3_state_missingness.csv", index=False)
     return df
 
 
@@ -464,7 +591,8 @@ def run_q4_word_learning(out: Path) -> pd.DataFrame:
     for label, outcome, skills in Q4_SPECS:
         prepared = load_and_prepare(
             phase_mode="all", outcomes=(outcome, *skills),
-            baseline_covariates=("blocks",), post_covariates=("hs",),
+            baseline_covariates=("blocks",),
+            post_covariates=("hs", "hs_missing"),
         )
         adjust = tuple(c for c in ("hs", "hs_missing") if c in prepared.covariates)
         built = F.build_gain_factors_model(
@@ -477,12 +605,7 @@ def run_q4_word_learning(out: Path) -> pd.DataFrame:
                 nuts_sampler="nutpie", return_inferencedata=True,
                 random_seed=20260724, progressbar=False,
             )
-        summary = az.summary(
-            trace, var_names=[rv.name for rv in built.model.free_RVs]
-        ).astype(float)
-        diag = {"max_rhat": float(summary["r_hat"].max()),
-                "min_ess": float(summary["ess_bulk"].min()),
-                "n_div": int(trace.sample_stats.diverging.values.sum())}
+        diag = _sampling_diagnostics(trace, built)
         for var in trace.posterior.data_vars:
             if not var.startswith(("gamma_", "beta_trt")) or "int_" in var:
                 continue
@@ -491,8 +614,10 @@ def run_q4_word_learning(out: Path) -> pd.DataFrame:
             rows.append({"model": label, "outcome": outcome, "skills": "+".join(skills),
                          "term": var, "n_rows": built.prepared.n_obs,
                          **_summarise(trace, var), **diag})
-        print(f"{label}: rhat={diag['max_rhat']:.3f} ess={diag['min_ess']:.0f} "
-              f"div={diag['n_div']} rows={built.prepared.n_obs}", flush=True)
+        print(
+            f"{label}: {_diagnostic_log(diag)} rows={built.prepared.n_obs}",
+            flush=True,
+        )
 
     df = pd.DataFrame(rows)
     df.to_csv(out / "q4_vocabulary_word_learning.csv", index=False)
@@ -516,10 +641,7 @@ def main() -> None:
         print(f"Wrote Q3 partial-association CSV to {args.out}")
         return
 
-    prepared = load_and_prepare(
-        phase_mode="levels", outcomes=("W", "L", "N"),
-        baseline_covariates=("blocks", "hs"), pre_required=(),
-    )
+    prepared = _load_level_probe_data(outcomes=("W", "L", "N"))
     run_q1_q2(prepared, args.out)
     run_q3_partials(args.out)
     residuals = run_q3_profile(prepared, args.out)

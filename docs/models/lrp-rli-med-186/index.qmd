@@ -12,6 +12,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -19,6 +23,10 @@ format:
 {{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
+
+::: {.callout-warning title="Reporting refit required after adjustment-set correction"}
+Numerical findings from fits made before 2026-08-08 are stale. This companion inherits MED-086's corrected baseline-word-reading adjustment. Do not publish or interpret its previous IDE/IIE table until a new `reporting` fit, diagnostics and generated findings have completed.
+:::
 
 MED-186 is the parent+100 **interventional-effects companion** to [MED-086](../lrp-rli-med-086/). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model nonword reading as the binary off-floor outcome $\mathbf{1}[N_{t2}>0]$. MED-086 reports the natural direct and indirect effects (NDE/NIE); MED-186 reports their randomised-interventional analogues (IDE/IIE).
 
@@ -36,7 +44,7 @@ The fitted probabilistic model and adjustment set are intentionally identical to
 
 ## Adjustment set
 
-The set is inherited directly from MED-086: randomised group $G$, age $A$, baseline letter sounds $L_{t1}$, baseline blending $B_{t1}$, hearing $HS$, speech production $SP$ and phonological memory $RW$, with the raw-covariate missing indicators. As required by the floor rule, the binary outcome has no own-baseline term. The time-indexed derivation in `notes/202607142340-lrp264-mediation-adjustment-dsep.md` confirms that baseline expressive/receptive vocabulary is not required and that no treatment-non-descendant adjustment set can block the $L_2\leftarrow IS_1\to PA_2\to NW_2$ witness path.
+The set is inherited directly from MED-086: randomised group $G$, age $A$, baseline letter sounds $L_{t1}$, baseline blending $B_{t1}$, baseline word reading $WR_1$, hearing $HS$, speech production $SP$ and phonological memory $RW$, with the raw-covariate missing indicators. $WR_1$ blocks the newly recognised measured forks $LS_2\leftarrow WR_1\to NW_2$ and $LS_2\leftarrow WR_1\to PA_2\to NW_2$. As required by the floor rule, the binary outcome has no own-baseline term. Baseline expressive/receptive vocabulary is not required, and no treatment-non-descendant adjustment set can block the $L_2\leftarrow IS_1\to PA_2\to NW_2$ witness path; the correction reduces observable backdoor bias without identifying the IDE/IIE split.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

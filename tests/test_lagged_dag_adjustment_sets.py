@@ -478,3 +478,67 @@ def test_med_parent_set_is_valid_and_e_r_are_harmless(
         else:
             role = "precision"
         assert role == expected, f"{name}: {base} role {role} != {expected}"
+
+
+@pytest.mark.parametrize(
+    ("name", "outcome"),
+    [
+        ("lrp_rli_med_086", "NW_2"),
+        ("lrp_rli_med_186", "NW_2"),
+        ("lrp_rli_med_087", "PA_2"),
+        ("lrp_rli_med_187", "PA_2"),
+    ],
+)
+def test_code_route_mediation_adjusts_for_lagged_word_reading_fork(
+    name, outcome, med_specs, unrolled
+):
+    """The WR->LS reciprocal edge makes baseline WR a common cause of LS2 and
+    both code-route outcomes; the bare ``W`` adjustment must block that admissible
+    pre-treatment fork in all natural/interventional pairs.
+
+    Exact contemporaneous SP2 is conditioned here only to isolate the incremental
+    WR1 fork. The fitted SP1 proxy, latent GA and treatment-affected IS limitations
+    remain and this test does not claim that the decomposition is identified.
+    """
+    spec = med_specs[name]
+    _, mediators, _, fitted = _med_case(spec, unrolled, unrolled)
+    assert mediators == {"LS_2"}
+    assert "WR_1" in fitted
+    assert "WR_1" not in nx.descendants(unrolled, "IG")
+    assert unrolled.has_edge("WR_1", "LS_2")
+    assert unrolled.has_edge("WR_1", outcome)
+
+    h = unrolled.copy()
+    h.remove_edges_from(list(h.out_edges("LS_2")))
+    h.remove_node("GA")
+
+    # Conditioning can open a collider path only by expanding the ancestral
+    # moral graph. WR1 is already an ancestor of both endpoints, so adding it
+    # expands no ancestry and only removes WR1 from that graph. Hence it cannot
+    # induce a new backdoor even though other (IS/SP/GA) limitations remain.
+    def conditioned_moral(z):
+        terminals = {"LS_2", outcome} | z
+        ancestral = set(terminals)
+        for node in terminals:
+            ancestral.update(nx.ancestors(h, node))
+        moral = nx.moral_graph(h.subgraph(ancestral))
+        moral.remove_nodes_from(z)
+        return ancestral, moral
+
+    z_without_wr = (fitted & set(h)) - {"WR_1"}
+    ancestors_before, moral_before = conditioned_moral(z_without_wr)
+    ancestors_after, moral_after = conditioned_moral(z_without_wr | {"WR_1"})
+    assert ancestors_after == ancestors_before
+    expected_nodes = set(moral_before) - {"WR_1"}
+    expected_edges = {
+        frozenset((u, v))
+        for u, v in moral_before.edges
+        if "WR_1" not in (u, v)
+    }
+    assert set(moral_after) == expected_nodes
+    assert {frozenset(edge) for edge in moral_after.edges} == expected_edges
+
+    h.remove_nodes_from(nx.descendants(unrolled, "IG") - {"LS_2", outcome})
+    isolate = ((fitted | {"SP_2"}) & set(h)) - {"WR_1"}
+    assert not nx.is_d_separator(h, {"LS_2"}, {outcome}, isolate)
+    assert nx.is_d_separator(h, {"LS_2"}, {outcome}, isolate | {"WR_1"})

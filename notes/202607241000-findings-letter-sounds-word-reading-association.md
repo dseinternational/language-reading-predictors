@@ -3,7 +3,7 @@
 # Findings — letter-sound knowledge and word reading: levels, counter-cases, and vocabulary in word learning
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); the Q3 timing correction and #421 closeout were updated by a LLM-based AI tool (Codex/GPT-5). Four associational questions asked of the existing suite and, where the suite had no exactly-matching fit, of a new exploratory probe (`notes/assets/202607241000-ls-wr-association-probe.py`). Numbers follow the house standard — posterior **median** with an **89% equal-tailed** credible interval and the tail probability, never a p-value ([credible-interval standard](202607172359-credible-interval-standard.md)). **Nothing in this note is causal.** Latent general ability (`GA`) is unobserved and unblockable, and every quantity here conditions on contemporaneous, post-treatment skill levels; the only randomisation-licensed effect in the study is the ITT arm. Preliminary — n ≈ 51–53 children, exploratory study.
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); the Q3 timing and missing-indicator corrections and probe-status update were made by a LLM-based AI tool (Codex/GPT-5). Four associational questions asked of the existing suite and, where the suite had no exactly-matching fit, of a new exploratory probe (`notes/assets/202607241000-ls-wr-association-probe.py`). Numbers follow the house standard — posterior **median** with an **89% equal-tailed** credible interval and the tail probability, never a p-value ([credible-interval standard](202607172359-credible-interval-standard.md)). **Nothing in this note is causal.** Latent general ability (`GA`) is unobserved and unblockable, and every quantity here conditions on contemporaneous, post-treatment skill levels; the only randomisation-licensed effect in the study is the ITT arm. Preliminary — n ≈ 51–53 children, exploratory study.
 >
 > Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
 
@@ -11,7 +11,7 @@
 > **Superseded in part on 2026-08-02.** The model-free descriptions and explicitly clean scratch fits remain a dated exploratory snapshot, but claims below inherited from gate-failed registered mechanism or knee-test fits are withheld under `notes/202608021625-divergence-qualification-policy.md`; nonlinear shape quantities remain zero-divergence-only.
 
 > [!IMPORTANT]
-> **#421 closeout (2026-08-08).** All eleven promoted models (`ca-010/011`, `gf-012/013`, `mech-102/103/104/204`, `jm-001/002`, `med-060`) now have reporting-tier fits that pass the automatic convergence gate; the consolidated August findings notes are the current results synthesis. The July power-scaling flags on `jm-001/002` were **not covered by the later targeted prior-refit work**: they remain a warning that parts of the joint fits are weakly likelihood-identified or in prior–data conflict. Under the repository's current release policy, `joint_mechanism` is an observational family and those flags qualify interpretation rather than formally withholding release. This does not make the parameters prior-robust. The Q3 timing defect is also closed below: `RW` and `SP` were rerun as same-wave state covariates.
+> **Probe status (2026-08-08).** All eleven models promoted from the exploratory work (`ca-010/011`, `gf-012/013`, `mech-102/103/104/204`, `jm-001/002`, `med-060`) have reporting-tier fits that pass the automatic convergence gate; the consolidated August findings notes are the current results synthesis. The July power-scaling flags on `jm-001/002` were **not covered by the later targeted prior-refit work**: they remain a warning that parts of the joint fits are weakly likelihood-identified or in prior–data conflict. Under the repository's current release policy, `joint_mechanism` is an observational family and those flags qualify interpretation rather than formally withholding release. This does not make the parameters prior-robust. In this scratch probe, `RW` and `SP` now enter as same-wave states; mean-filled hearing, `RW` and `SP` covariates carry their required missingness nuisances; and fitted-row-constant flags are omitted rather than aliased with the intercept. These repairs do not by themselves close issue #421.
 
 ## Why this note exists
 
@@ -26,9 +26,9 @@ The suite has close neighbours but no exact match for any of them. `lrp-rli-ca-0
 
 ## What was fitted
 
-Q1–Q3 are _levels_ questions. Per wave (t1–t4), a between-child Beta-Binomial regression of the `WR` item count on the standardised same-wave logit of `LS`, one row per child, no own baseline and no child random intercept (`factories.build_concurrent_model` — the `lrp-rli-ca-*` machinery). Q4 is a _gains_ question and uses the `gain_factors` factory instead (see that section). Adjusters: standardised age, hearing (`hs`), non-verbal ability (`blocks`, t1-only, broadcast). In the corrected Q3 discriminator fits, phonological memory (`erbto`) and speech production (`deapp_c`) are repeatedly measured states read from the **same wave** as `LS` and `WR`, not t1 values broadcast over later waves. Slopes carry the family's regularising `Normal(0, 0.3)` prior. Sampling is `rep-lite`-equivalent (4 chains × 2000–4000 draws, `target_accept = 0.95`, nutpie).
+Q1–Q3 are _levels_ questions. Per wave (t1–t4), a between-child Beta-Binomial regression of the `WR` item count on the standardised same-wave logit of `LS`, one row per child, no own baseline and no child random intercept (`factories.build_concurrent_model` — the `lrp-rli-ca-*` machinery). Q4 is a _gains_ question and uses the `gain_factors` factory instead (see that section). Adjusters: standardised age, hearing (`hs` plus the `hs_missing` nuisance), non-verbal ability (`blocks`, t1-only, broadcast). In the corrected Q3 discriminator fits, phonological memory (`erbto`) and speech production (`deapp_c`) are repeatedly measured states read from the **same wave** as `LS` and `WR`, not t1 values broadcast over later waves. Their arm-blind mean-filled values are paired with standardised `erbto_missing` / `deapp_c_missing` nuisance indicators whenever the flag varies on that wave's fitted rows, so an imputed row is not treated as an observed mean and a constant flag cannot alias the intercept. Slopes carry the family's regularising `Normal(0, 0.3)` prior. Sampling is `rep-lite`-equivalent (4 chains × 2000–4000 draws, `target_accept = 0.95`, nutpie).
 
-**Status: exploratory scratch fits, not registered models.** They publish no `config.json` / `diagnostics_summary.json` / report and so bypass the production convergence gate; convergence was checked inline and every fit reported here is clean — **max R-hat 1.000, minimum bulk ESS 1 618, zero divergences** across all 62 fits. They should be promoted to `lrp_rli_ca_0NN` / `lrp_rli_gf_0NN` modules before being cited outside this note.
+**Status: exploratory scratch fits, not registered models.** They publish no `config.json` / `diagnostics_summary.json` / report and so bypass the production convergence-gate artefact, but the probe now applies the same thresholds to unrounded diagnostics over every fit's free variables. All 62 fits pass: **maximum R-hat 1.0026, minimum bulk ESS 1,723, minimum tail ESS 2,861, minimum per-chain BFMI 0.739, and zero divergences** (thresholds R-hat ≤ 1.01, both ESS ≥ 400, BFMI ≥ 0.3, zero divergences). Displayed diagnostics are rounded only after the pass/fail decision. The scratch fits should be promoted to `lrp_rli_ca_0NN` / `lrp_rli_gf_0NN` modules before being cited outside this note.
 
 A scale note that matters for reading the numbers: `LS` enters as a **standardised logit**, so "+1 SD" is a large step near the ceiling — at the cohort mean it is **+11.9 letters at t1, +8.6 at t2, +7.3 at t3, +6.2 at t4** (mean `LS` rises from 14.3 to 23.7 of 32 across the study). Items-scale marginals are average marginal effects on the 79-item `WR` scale.
 
@@ -36,18 +36,18 @@ A scale note that matters for reading the numbers: `LS` enters as a **standardis
 
 | Wave | n   | `LS` slope (logit per +1 SD) | 89% CI         | Items (of 79) | 89% CI        | P(>0)  |
 | ---- | --- | ---------------------------- | -------------- | ------------- | ------------- | ------ |
-| t1   | 53  | **+0.63**                    | +0.34 to +0.93 | **+4.6**      | +2.1 to +7.6  | ≈1.000 |
-| t2   | 53  | **+1.01**                    | +0.78 to +1.23 | **+10.4**     | +7.7 to +12.8 | ≈1.000 |
-| t3   | 53  | **+0.71**                    | +0.50 to +0.91 | **+9.1**      | +6.3 to +11.8 | ≈1.000 |
+| t1   | 53  | **+0.63**                    | +0.34 to +0.94 | **+4.6**      | +2.2 to +7.6  | ≈1.000 |
+| t2   | 53  | **+1.02**                    | +0.78 to +1.24 | **+10.5**     | +7.8 to +13.0 | ≈1.000 |
+| t3   | 53  | **+0.71**                    | +0.50 to +0.91 | **+9.0**      | +6.2 to +11.8 | ≈1.000 |
 | t4   | 51  | **+0.81**                    | +0.62 to +0.98 | **+11.0**     | +8.6 to +13.1 | ≈1.000 |
 
 **The association is large, present at every wave, and essentially untouched by the adjustment.** The matched _unadjusted_ slopes are +0.63 / +0.99 / +0.76 / +0.83 — within a few hundredths of the adjusted ones at t1 and t2, and _slightly larger_ than them at t3 and t4. Age, hearing and non-verbal ability together explain **none** of the `LS`–`WR` level association in this cohort. Adding the randomised arm as a nuisance term changes nothing (+0.64 / +1.03 / +0.72 / +0.82).
 
 The adjusters' own coefficients say why:
 
-- **Non-verbal ability (`blocks`)** is a weak adjuster of `WR` level once `LS` is in the model: +0.13 (P = 0.78) at t1, +0.06 (0.68) at t2, +0.16 (0.89) at t3, +0.22 (0.97) at t4. Only at t4 does it reach even moderate evidence, and it never rivals `LS`.
-- **Hearing** is flat throughout (−0.11 to +0.07; every P between 0.23 and 0.77).
-- **Age** matters early and then stops: +0.40 (P = 0.99) at t1 and +0.29 (0.99) at t2, but +0.08 (0.72) at t3 and +0.00 (0.51) at t4. By the end of the study, how old a child is tells you essentially nothing about their word reading once you know their letter sounds.
+- **Non-verbal ability (`blocks`)** is a weak adjuster of `WR` level once `LS` is in the model: +0.13 (P = 0.77) at t1, +0.04 (0.61) at t2, +0.17 (0.89) at t3, +0.22 (0.97) at t4. Only at t4 does it reach even moderate evidence, and it never rivals `LS`.
+- **Hearing status** is flat throughout (−0.12 / −0.11 / +0.07 / +0.03; P = 0.22 / 0.18 / 0.72 / 0.61), as is its required missingness nuisance (−0.05 / −0.10 / −0.00 / +0.03; P = 0.38 / 0.21 / 0.50 / 0.61).
+- **Age** matters early and then stops: +0.41 (P = 0.99) at t1 and +0.31 (0.99) at t2, but +0.08 (0.72) at t3 and +0.00 (0.50) at t4. By the end of the study, how old a child is tells you essentially nothing about their word reading once you know their letter sounds.
 
 **The plain-English answer.** Among children of the same age, hearing status and non-verbal ability, those who know more letter sounds read markedly more words at the same point in time — around **+9 to +11 more words** for a step of roughly six to nine letter sounds at the mean, at every wave from t2 onward, with the direction certain to three decimal places. And the "controlling for" does no work: this is not a general-ability effect wearing a letter-sound costume, at least not one that block design can detect. What it emphatically is **not** is evidence that teaching letter sounds _causes_ word reading — the sharpest confound (latent general ability) has no observed handle beyond block design, and block design turns out to be a weak one.
 
@@ -57,10 +57,10 @@ Two shape results already in the suite belong with this: the association **accel
 
 | Wave | `LS` slope, Q1 | `LS` slope, +`NW` | 89% CI         | Share retained (89% CI) | `NW` slope | P(`NW` > 0) |
 | ---- | -------------- | ----------------- | -------------- | ----------------------- | ---------- | ----------- |
-| t1   | +0.63          | **+0.61**         | +0.33 to +0.90 | 0.97 (0.47–2.01)        | +0.38      | 0.994       |
-| t2   | +1.01          | **+0.75**         | +0.49 to +1.00 | 0.74 (0.47–1.10)        | +0.35      | 0.998       |
-| t3   | +0.71          | **+0.57**         | +0.36 to +0.78 | 0.80 (0.47–1.27)        | +0.41      | 0.999       |
-| t4   | +0.81          | **+0.53**         | +0.33 to +0.73 | 0.66 (0.40–0.99)        | +0.51      | ≈1.000      |
+| t1   | +0.63          | **+0.62**         | +0.32 to +0.90 | 0.97 (0.47–2.01)        | +0.39      | 0.995       |
+| t2   | +1.02          | **+0.76**         | +0.51 to +1.01 | 0.75 (0.47–1.11)        | +0.37      | ≈1.000      |
+| t3   | +0.71          | **+0.56**         | +0.35 to +0.77 | 0.80 (0.47–1.27)        | +0.42      | ≈1.000      |
+| t4   | +0.81          | **+0.52**         | +0.32 to +0.72 | 0.65 (0.39–0.98)        | +0.51      | ≈1.000      |
 
 **Yes — the association survives, and comfortably.** Holding nonword reading fixed attenuates the `LS` slope by roughly a **fifth to a third** at t2–t4 (nothing at t1, where `NW` is almost entirely floored), but what remains is decisively positive at every wave: **P(residual `LS` slope > 0) = 1.000** in all four. So a substantial majority of the `LS`–`WR` level association does **not** pass through measured nonword decoding.
 
@@ -70,7 +70,7 @@ Three qualifications, in order of how much they should change your reading:
 2. **The share-retained column is the original sensitivity; the registered joint fit is now the identified readout.** The Q1 and Q2 slopes in this dated table come from _separate_ fits, so their ratio pairs draws under a working-independence assumption. [`lrp-rli-jm-001`](../docs/models/lrp-rli-jm-001/) instead fits word reading and nonword decoding **together at each wave** with an LKJ residual correlation, matched term-for-term to `ca-010` / `ca-011`, and reports `share_retained = β(LS→W | N) / β(LS→W)` as a within-model deterministic built from `β_W − ρ (σ_W/σ_N) β_N`. Its reporting fit passed the convergence gate; the model report, not the separate-fit ratio above, is the authoritative identified result. The two remain useful as a bracket rather than one correcting the other: `jm-001` conditions on the **latent** nonword logit where `ca-011` conditions on the observed count, and the ratio is meaningful only while the unconditional slope stays clear of zero. Power-scaling does not directly diagnose a ratio, so `share_retained` was excluded from that calculation; its component terms nevertheless carried the July weak-likelihood/prior-conflict flags. Treat the identified share as qualified, not as proof that the prior is immaterial.
 3. **`NW` is a mediator, not a confounder.** Under the revised DAG the code route runs `LS → NW → WR`, so adjusting for it is deliberately _removing_ a pathway. The Q2 slope is therefore an "`LS`–`WR` association not through measured decoding" — the sight-word / paired-associate channel plus whatever decoding the 6-item `NW` test failed to capture — and, because `NW` is a common effect of `LS` and other reading inputs, conditioning on it can also open a collider path. It is a decomposition to be read alongside Q1, never instead of it.
 
-Meanwhile the `NW` slope itself **rises across the study** (+0.38 → +0.35 → +0.41 → +0.51, every P ≥ 0.994) even after `LS`, age, hearing and ability are held fixed — not strictly monotonically, since t2 dips a little below t1, but the t2→t4 climb is steady. Decoding becomes a progressively better independent marker of word-reading level as the cohort develops.
+Meanwhile the `NW` slope itself **rises across the study** (+0.39 → +0.37 → +0.42 → +0.51, every P ≥ 0.995) even after `LS`, age, hearing and ability are held fixed — not strictly monotonically, since t2 dips a little below t1, but the t2→t4 climb is steady. Decoding becomes a progressively better independent marker of word-reading level as the cohort develops.
 
 This sits consistently with the decoding-specificity result, which found `LS → NW` about four times steeper than `LS → WR` on a common logit scale: letter sounds feed decoding hard, decoding feeds word reading, **and** letter sounds retain a large direct association with word reading that decoding does not mediate.
 
@@ -80,29 +80,32 @@ This sits consistently with the decoding-specificity result, which found `LS →
 
 At t4, 30 of 51 children know at least 24 of 32 letter sounds. Their word-reading scores span **4 to 62 words** (quartiles 10 / 22 / 34). So knowing the letter sounds is compatible with almost any word-reading level in this cohort — the discrepancy is not a rounding artefact.
 
-It is also **persistent**. Residualising `WR` on `LS` + age + hearing + ability wave by wave, the residual correlates **r = 0.62–0.83** across every pair of waves, and children in the bottom third of the residual at t2 are still at a median **−7.3 words below expectation** at t4 (middle third −2.0; top third +8.6). This is a stable child characteristic, not measurement noise or regression to the mean.
+It is also **persistent**. Residualising `WR` on `LS` + age + hearing + hearing-missingness + ability wave by wave, the residual correlates **r = 0.64–0.82** across every pair of waves, and children in the bottom third of the residual at t2 are still at a median **−7.4 words below expectation** at t4 (middle third −2.0; top third +7.8). This is a stable child characteristic, not measurement noise or regression to the mean.
 
 ### What goes with it — partial associations holding `LS` (+ age, hearing, ability) fixed
 
-Each candidate entered one at a time alongside `LS` and the Q1 adjusters; the table gives the candidate's own slope (logit per +1 SD) and P(>0). The three _italicised_ rows are different in kind: age, hearing and non-verbal ability are **always** in the model, so those are the Q1 adjusters' own coefficients repeated here for comparison, not one-at-a-time candidates.
+Each candidate entered one at a time alongside `LS` and the Q1 adjusters; the table gives the candidate's own slope (logit per +1 SD) and P(>0). The four _italicised_ rows are different in kind: age, hearing status, hearing missingness and non-verbal ability are **always** in the model, so those are the Q1 adjusters' own coefficients repeated here for comparison, not one-at-a-time candidates.
 
 | Candidate                                     | t1             | t2             | t3               | t4               | Reading                                 |
 | --------------------------------------------- | -------------- | -------------- | ---------------- | ---------------- | --------------------------------------- |
-| Nonword reading (`NW`)                        | +0.38 (0.99)   | +0.35 (1.00)   | +0.41 (1.00)     | **+0.51** (1.00) | strongest and **strengthens** with time |
-| Expressive vocabulary (`EV`)                  | +0.46 (0.98)   | +0.34 (0.99)   | **+0.60** (1.00) | +0.50 (1.00)     | strong throughout                       |
-| Receptive vocabulary (`RV`)                   | +0.36 (0.97)   | +0.39 (1.00)   | +0.51 (1.00)     | +0.34 (0.99)     | strong throughout                       |
-| Phoneme blending (`PA`)                       | +0.47 (1.00)   | +0.17 (0.92)   | +0.27 (0.98)     | +0.34 (1.00)     | present, weakest in the middle          |
-| Receptive grammar (`RG`)                      | +0.48 (1.00)   | +0.15 (0.93)   | +0.19 (0.93)     | +0.35 (1.00)     | present                                 |
-| Basic concepts (`LF`)                         | +0.38 (0.99)   | +0.35 (1.00)   | +0.27 (0.98)     | +0.23 (0.97)     | present, fading                         |
-| Speech production (`SP`, same-wave `deapp_c`) | +0.25 (0.95)   | +0.27 (0.98)   | +0.18 (0.92)     | +0.23 (0.98)     | modest; t3 remains uncertain            |
-| Phonological memory (`RW`, same-wave `erbto`) | +0.30 (0.97)   | +0.32 (>0.99)  | +0.29 (0.99)     | +0.26 (0.97)     | clearer and consistent                  |
-| _Non-verbal ability (`blocks`)_               | _+0.13 (0.78)_ | _+0.06 (0.68)_ | _+0.16 (0.89)_   | _+0.22 (0.97)_   | **weak — not a discriminator**          |
-| _Hearing_                                     | _−0.11 (0.23)_ | _−0.07 (0.27)_ | _+0.07 (0.73)_   | _+0.02 (0.56)_   | **flat — not a discriminator**          |
-| _Age_                                         | _+0.40 (0.99)_ | _+0.29 (0.99)_ | _+0.08 (0.72)_   | _+0.00 (0.51)_   | **early only; nothing by t3/t4**        |
+| Nonword reading (`NW`)                        | +0.40 (0.99)   | +0.37 (1.00)   | +0.42 (1.00)     | **+0.52** (1.00) | strongest and **strengthens** with time |
+| Expressive vocabulary (`EV`)                  | +0.46 (0.99)   | +0.33 (0.99)   | **+0.60** (1.00) | +0.50 (1.00)     | strong throughout                       |
+| Receptive vocabulary (`RV`)                   | +0.36 (0.97)   | +0.39 (1.00)   | +0.51 (1.00)     | +0.36 (0.99)     | strong throughout                       |
+| Phoneme blending (`PA`)                       | +0.50 (1.00)   | +0.18 (0.92)   | +0.28 (0.98)     | +0.34 (1.00)     | present, weakest in the middle          |
+| Receptive grammar (`RG`)                      | +0.49 (1.00)   | +0.16 (0.94)   | +0.19 (0.93)     | +0.34 (1.00)     | present                                 |
+| Basic concepts (`LF`)                         | +0.38 (0.99)   | +0.34 (1.00)   | +0.27 (0.98)     | +0.24 (0.97)     | present, fading                         |
+| Speech production (`SP`, same-wave `deapp_c`) | +0.25 (0.95)   | +0.28 (0.98)   | +0.18 (0.94)     | +0.23 (0.97)     | modest; t3 remains uncertain            |
+| Phonological memory (`RW`, same-wave `erbto`) | +0.29 (0.97)   | +0.35 (>0.99)  | +0.29 (0.99)     | +0.27 (0.98)     | clearer and consistent                  |
+| _Non-verbal ability (`blocks`)_               | _+0.13 (0.77)_ | _+0.04 (0.61)_ | _+0.17 (0.89)_   | _+0.22 (0.97)_   | **weak — not a discriminator**          |
+| _Hearing status (`hs`)_                       | _−0.12 (0.22)_ | _−0.11 (0.18)_ | _+0.07 (0.72)_   | _+0.03 (0.61)_   | **flat — not a discriminator**          |
+| _Hearing missingness (`hs_missing`)_          | _−0.05 (0.38)_ | _−0.10 (0.21)_ | _−0.00 (0.50)_   | _+0.03 (0.61)_   | nuisance; flat                          |
+| _Age_                                         | _+0.41 (0.99)_ | _+0.31 (0.99)_ | _+0.08 (0.72)_   | _+0.00 (0.50)_   | **early only; nothing by t3/t4**        |
 
-Fitting all of them **together** (heavily collinear at n ≈ 51, so read strictly under the Table-2 fallacy and not as a ranking) leaves only two standing at every wave: `LS` itself (+0.46 / +0.73 / +0.34 / +0.36, P ≥ 0.99) and `NW` (+0.24 / +0.24 / +0.32 / +0.39, P 0.94 → 1.000). Expressive vocabulary holds at t3–t4. Correcting the timing asymmetry does **not** make `SP` or `RW` independently resolved in this deliberately over-adjusted joint model: the same-wave `RW` slopes are +0.18 / +0.17 / +0.13 / −0.07 (P = 0.83 / 0.87 / 0.80 / 0.32), and the `SP` slopes are +0.04 / −0.02 / −0.15 / +0.10 (P = 0.59 / 0.45 / 0.16 / 0.78). Their one-at-a-time associations therefore survive the timing correction, especially for phonological memory, but their purported **unique** contributions do not survive conditioning on the correlated skill cluster. Non-verbal ability goes flat or _negative_ in the joint fit (t3: −0.27, P(>0) = 0.033), the classic collinearity/suppression artefact the concurrent family's report warns about, and not a finding.
+Fitting all of them **together** (heavily collinear at n ≈ 51, so read strictly under the Table-2 fallacy and not as a ranking) leaves only two standing at every wave: `LS` itself (+0.47 / +0.74 / +0.39 / +0.38, P ≥ 0.99) and `NW` (+0.24 / +0.28 / +0.38 / +0.38, P 0.95 → 1.000). Expressive vocabulary holds at t3–t4. Correcting the timing, hearing and state-missingness adjustments does **not** make `SP` or `RW` independently resolved in this deliberately over-adjusted joint model: the same-wave `RW` slopes are +0.17 / +0.19 / +0.13 / −0.09 (P = 0.81 / 0.90 / 0.80 / 0.29), and the `SP` slopes are +0.05 / −0.03 / −0.14 / +0.17 (P = 0.59 / 0.42 / 0.18 / 0.89). Their one-at-a-time associations therefore survive the corrections, especially for phonological memory, but their purported **unique** contributions do not survive conditioning on the correlated skill cluster. Non-verbal ability goes flat or _negative_ in the joint fit (t3: −0.23, P(>0) = 0.061), the classic collinearity/suppression artefact the concurrent family's report warns about, and not a finding.
 
-This targeted rerun comprised 36 fits and was computationally clean: max R-hat 1.000, minimum bulk ESS 5,993 and zero divergences. It changes the interpretation rather than the overall conclusion: the earlier timing asymmetry understated the one-at-a-time `RW` association at t2–t4, but it did **not** explain why `RW` and `SP` collapse in the joint model.
+The missingness indicators are adjustment nuisances, not candidate predictors. After the wave and observed-`WR` masks, `RW` has 0 / 2 / 2 / 4 imputed rows and `SP` has 2 / 1 / 1 / 0 at t1–t4. Accordingly, `erbto_missing` is not fitted at t1 and `deapp_c_missing` is not fitted at t4: each is constant zero on the effective rows and would merely alias the intercept. Most retained flag coefficients are uncertain; the exception is the very sparse t3 `SP` flag at +0.24 per +1 SD of the indicator (89% interval +0.03 to +0.42, P(>0) = 0.961) in the joint fit. This offset must not be interpreted as a skill association; it shows why treating an imputed value as an observed mean was indefensible, while the one-child stratum makes the offset itself fragile.
+
+The Q3 partial-association subset comprises 36 fits, all of which pass the complete unrounded gate: maximum R-hat 1.0013, minimum bulk ESS 6,039, minimum tail ESS 6,600, minimum BFMI 0.921 and zero divergences. The corrected fitted-row design repairs the estimand without reversing the conclusion: neither timing nor correct hearing/state-missingness adjustment explains why `RW` and `SP` collapse in the joint model.
 
 ### The subgroup picture
 
@@ -137,7 +140,7 @@ Applying the descriptive-claims discipline this project runs on:
 - **The EWRSWR kink.** Children reading more than 25 words are given additional Test of Single-Word Reading items, so the upper tail of `WR` is a partly different instrument. Of the 30 high-`LS` children at t4, 12 cross that switch — all in the higher-`WR` half. The subgroup contrast is therefore partly a contrast across a measurement-regime boundary. The logit-scale model-based results are less exposed to this than the raw item medians.
 - **Floors.** Both written-code discriminators are heavily floored, and increasingly less so over time: `NW` (6 items) is at zero for **72 / 64 / 52 / 40%** of children at t1–t4, and `SPPHON` for **78 / 64 / 57 / 48%**. A "small" association on either is floor-limited, not absent — and the floor is itself moving, so cross-wave comparisons of these two are not on a fixed scale.
 - **Sample size.** 15 vs 15 children. Every _d_ in that table has a standard error near 0.4, so treat the ordering as indicative and only the top two or three separations as reasonably resolved.
-- **Intervention dose does not appear.** Sessions attended correlates ≈ 0 with the residual at each wave where it is recorded (−0.14 at t1, −0.03 at t2, +0.10 at t3; `attend` is not collected at t4), so the discrepancy is not "these children got less of the programme".
+- **Intervention dose does not appear.** Sessions attended correlates ≈ 0 with the residual at each wave where it is recorded (−0.13 at t1, −0.02 at t2, +0.10 at t3; `attend` is not collected at t4), so the discrepancy is not "these children got less of the programme".
 
 ## Q3b — the raw joint distribution at t4, and the counter-cases
 
@@ -181,10 +184,10 @@ The four counter-cases, ranked by the continuous residual (observed minus expect
 
 | Child (id suffix) | `WR` | `LS` | Letters below median | Expected `WR` | Residual  | Rank /51 | `NW`    |
 | ----------------- | ---- | ---- | -------------------- | ------------- | --------- | -------- | ------- |
-| …62E21F           | 45   | 24   | **1**                | 13.9          | **+31.1** | 1        | 6/6     |
+| …62E21F           | 45   | 24   | **1**                | 14.7          | **+30.3** | 1        | 6/6     |
 | …A93E23           | 34   | 17   | **8**                | 8.3           | **+25.7** | 2        | **0/6** |
 | …EB2CF4           | 15   | 18   | 7                    | 9.2           | +5.8      | 13       | 1/6     |
-| …CFE6F2           | 14   | 23   | 2                    | 14.1          | **−0.1**  | 21       | 2/6     |
+| …CFE6F2           | 14   | 23   | 2                    | 14.2          | **−0.2**  | 20       | 2/6     |
 
 Only two of the four survive contact with a continuous measure. **…CFE6F2 is not a counter-case at all** — it sits exactly at its model expectation and appears in the cell only because the two medians happen to fall either side of it. **…62E21F** is the cohort's largest over-performer but is one letter below the cut and maxes both nonword reading (6/6) and blending (10/10) — a strong reader on every route, not a letter-sound-poor one. Under a stricter definition (`WR` ≥ median **and** `LS` in the bottom quartile, ≤ 20) only **…A93E23** and **…EB2CF4** qualify: **n = 2**.
 
@@ -213,30 +216,30 @@ CFE6F2  X . X X  (3)    FB24DA  . X X .  (2)    6DDCA3  X . . .   5A1654  . . X 
                                                 5D8486  X . . .   62E21F  . . . X
 ```
 
-This does **not** contradict the earlier finding that the discrepancy is stable (residual r = 0.62–0.83 across waves). The stability is a property of the **continuous residual**; median-split _membership_ churns because most children sit close to the cut. The practical implication is the one stated in the callout above: use the residual, not the cell. By that measure the population of genuine reading-ahead-of-letters children in this cohort is about **two**, and no group profile is reportable at that size — the only defensible output is the case description above.
+This does **not** contradict the earlier finding that the discrepancy is stable (residual r = 0.64–0.82 across waves). The stability is a property of the **continuous residual**; median-split _membership_ churns because most children sit close to the cut. The practical implication is the one stated in the callout above: use the residual, not the cell. By that measure the population of genuine reading-ahead-of-letters children in this cohort is about **two**, and no group profile is reportable at that size — the only defensible output is the case description above.
 
 ## Q4 — vocabulary and word _learning_, irrespective of letter-sound knowledge
 
-"Word learning" is ambiguous, so both readings are fitted: **learning to read words** (outcome `WR`) and **learning new words** (the bespoke taught sets `TR` / `TE`). Both are _gains_ questions, so these use the registered `gain_factors` factory — a period-transition ANCOVA (post given that period's own pre) stacked over the three transitions, with a child random intercept, age, non-verbal ability and hearing, and the randomised on-intervention term. Each outcome is fitted **twice**, with skill adjusters `{RV, EV, LS}` and `{RV, EV}`; the difference is exactly "irrespective of letter-sound knowledge". All six fits clean (max R-hat 1.000, min bulk ESS 1 618, zero divergences; 157–161 transition rows over ~53 children).
+"Word learning" is ambiguous, so both readings are fitted: **learning to read words** (outcome `WR`) and **learning new words** (the bespoke taught sets `TR` / `TE`). Both are _gains_ questions, so these use the registered `gain_factors` factory — a period-transition ANCOVA (post given that period's own pre) stacked over the three transitions, with a child random intercept, age, non-verbal ability, hearing status and hearing missingness, and the randomised on-intervention term. Each outcome is fitted **twice**, with skill adjusters `{RV, EV, LS}` and `{RV, EV}`; the difference is exactly "irrespective of letter-sound knowledge". All six fits pass the full unrounded gate (max R-hat 1.0026, min bulk ESS 1,723, min tail ESS 2,861, min BFMI 0.739, zero divergences; 157–161 transition rows over ~53 children).
 
 Only `beta_trt` is causal. Every `gamma` is an adjusted association, and the child random intercept is a partial, shrunken stand-in for between-child heterogeneity — **not** a control for latent general ability.
 
 | Outcome (gains)            | Skill set  | `RV`                           | `EV`                           | `LS`                      |
 | -------------------------- | ---------- | ------------------------------ | ------------------------------ | ------------------------- |
-| **Word reading** `WR`      | `RV+EV+LS` | +0.16 (−0.07, +0.39) 0.87      | +0.11 (−0.12, +0.35) 0.78      | +0.09 (+0.01, +0.16) 0.97 |
-| **Word reading** `WR`      | `RV+EV`    | +0.15 (−0.09, +0.38) 0.84      | +0.17 (−0.06, +0.40) 0.88      | —                         |
-| **Taught receptive** `TR`  | `RV+EV+LS` | **+0.38 (+0.18, +0.58) 0.999** | +0.03 (−0.18, +0.24) 0.59      | +0.05 (−0.00, +0.11) 0.94 |
-| **Taught receptive** `TR`  | `RV+EV`    | **+0.40 (+0.21, +0.59) 1.000** | +0.09 (−0.12, +0.29) 0.75      | —                         |
-| **Taught expressive** `TE` | `RV+EV+LS` | **+0.28 (+0.07, +0.49) 0.983** | **+0.31 (+0.07, +0.56) 0.981** | +0.07 (+0.01, +0.14) 0.97 |
-| **Taught expressive** `TE` | `RV+EV`    | **+0.30 (+0.10, +0.51) 0.989** | **+0.37 (+0.13, +0.61) 0.992** | —                         |
+| **Word reading** `WR`      | `RV+EV+LS` | +0.17 (−0.07, +0.40) 0.87      | +0.13 (−0.11, +0.36) 0.81      | +0.08 (+0.00, +0.15) 0.95 |
+| **Word reading** `WR`      | `RV+EV`    | +0.16 (−0.08, +0.39) 0.86      | +0.17 (−0.07, +0.40) 0.87      | —                         |
+| **Taught receptive** `TR`  | `RV+EV+LS` | **+0.39 (+0.20, +0.58) 0.999** | +0.05 (−0.16, +0.26) 0.65      | +0.05 (−0.01, +0.10) 0.92 |
+| **Taught receptive** `TR`  | `RV+EV`    | **+0.41 (+0.22, +0.60) 1.000** | +0.09 (−0.11, +0.29) 0.77      | —                         |
+| **Taught expressive** `TE` | `RV+EV+LS` | **+0.29 (+0.08, +0.51) 0.987** | **+0.33 (+0.09, +0.58) 0.985** | +0.07 (+0.00, +0.13) 0.96 |
+| **Taught expressive** `TE` | `RV+EV`    | **+0.32 (+0.11, +0.53) 0.991** | **+0.40 (+0.16, +0.63) 0.996** | —                         |
 
 (Median, 89% CI, P(>0); logit per +1 SD of the period-baseline logit.)
 
 ### The headline is a dissociation
 
-**Vocabulary strongly predicts learning new spoken words, and barely predicts learning to read them.** Broad receptive vocabulary is the dominant predictor of taught-receptive-word gains (**+0.38**, P = 0.999, very strong); both vocabulary measures predict taught-expressive gains (+0.28 and +0.31, both P ≈ 0.98). Against word-reading gains the same measures reach only **+0.16 / +0.11**, with intervals straddling zero and P = 0.78–0.87 — _suggestive_ at best on the project's evidence ladder.
+**Vocabulary strongly predicts learning new spoken words, and barely predicts learning to read them.** Broad receptive vocabulary is the dominant predictor of taught-receptive-word gains (**+0.39**, P = 0.999, very strong); both vocabulary measures predict taught-expressive gains (+0.29 and +0.33, both P ≈ 0.99). Against word-reading gains the same measures reach only **+0.17 / +0.13**, with intervals straddling zero and P = 0.81–0.87 — _suggestive_ at best on the project's evidence ladder.
 
-**Holding letter sounds fixed makes almost no difference.** Dropping `LS` moves the vocabulary slopes by 0.01–0.06 in every one of the three outcomes (`WR`: +0.16/+0.11 → +0.15/+0.17; `TR`: +0.38/+0.03 → +0.40/+0.09; `TE`: +0.28/+0.31 → +0.30/+0.37). So the answer to "irrespective of letter-sound knowledge" is: **the vocabulary associations are what they are with or without it** — letter-sound conditioning is not what makes vocabulary look weak for reading gains, and not what makes it look strong for word learning. That is what the DAG predicts, since `LS` is neither a parent of `RV`/`EV` nor a confounder of the vocabulary → reading path. (Conditioning on `LS` _would_ open `EV ← SP → LS ← IG → WR`, but `IG` is in the model as the treatment term, which closes it.)
+**Holding letter sounds fixed makes almost no difference.** Dropping `LS` moves the vocabulary slopes by 0.01–0.07 in every one of the three outcomes (`WR`: +0.17/+0.13 → +0.16/+0.17; `TR`: +0.39/+0.05 → +0.41/+0.09; `TE`: +0.29/+0.33 → +0.32/+0.40). So the answer to "irrespective of letter-sound knowledge" is: **the vocabulary associations are what they are with or without it** — letter-sound conditioning is not what makes vocabulary look weak for reading gains, and not what makes it look strong for word learning. That is what the DAG predicts, since `LS` is neither a parent of `RV`/`EV` nor a confounder of the vocabulary → reading path. (Conditioning on `LS` _would_ open `EV ← SP → LS ← IG → WR`, but `IG` is in the model as the treatment term, which closes it.)
 
 ### Levels versus gains: the sharpest contrast in this note
 
@@ -244,16 +247,16 @@ The same vocabulary measures behave completely differently depending on whether 
 
 | Vocabulary → word reading                | Estimate (logit per +1 SD)               | Evidence                    |
 | ---------------------------------------- | ---------------------------------------- | --------------------------- |
-| **Level**, given `LS` (Q3)               | `RV` +0.33 to +0.51; `EV` +0.34 to +0.60 | P 0.97–1.000, very strong   |
-| **Gain**, given `LS` (Q4)                | `RV` +0.16; `EV` +0.11                   | P 0.87 / 0.78, suggestive   |
+| **Level**, given `LS` (Q3)               | `RV` +0.36 to +0.51; `EV` +0.33 to +0.60 | P 0.97–1.000, very strong   |
+| **Gain**, given `LS` (Q4)                | `RV` +0.17; `EV` +0.13                   | P 0.87 / 0.81, suggestive   |
 | **Gain**, full DAG-parent set (`gf-001`) | `RV` +0.05; `EV` +0.02                   | P 0.64 / 0.56, inconclusive |
 
 Vocabulary **tracks** where a child's word reading has got to, but adds little to **how fast it moves** once the child's own reading baseline is in the model — and once the taught-vocabulary and code measures are added too (`gf-001`), it goes to nothing. This is the cross-sectional-versus-longitudinal gap that the levels-only reading of Q1–Q3 would hide, and it matters for interpretation: a strong concurrent correlation with vocabulary is not evidence that vocabulary is driving reading progress. It is consistent with the mechanism family's independent verdict — `mech-056` (`RV → WR`) +2.9 items over the full exposure range (89% −2.6 to +8.2, P = 0.80) and `mech-057` (`EV → WR`) +5.3 items (−0.5 to +10.9, P = 0.93), neither resolved — and with the GP knee tests, where the two standardised vocabulary curves are essentially flat (`increasing_frac` ≈ 0.57–0.59; [skill-thresholds note](202607171215-findings-skill-thresholds.md)).
 
 ### Two more things the same fits say
 
-- **Age is a consistent brake on reading gains** (`gamma_A` = −0.14 with `LS`, −0.16 without; P(negative) ≈ 0.997–0.999), and a weaker one on taught-word gains (−0.06 to −0.12). This corroborates `gc-085`'s negative baseline-age effect on word-reading growth rate and the Q3 finding that the discrepancy group is _older_.
-- **Non-verbal ability splits the two kinds of learning.** Block design is flat for word-reading gains (+0.01, P = 0.60) but mildly positive for taught-word gains (+0.08 to +0.10, P = 0.92–0.95) — the opposite of the folk expectation that non-verbal ability gates reading specifically.
+- **Age is a consistent brake on reading gains** (`gamma_A` = −0.14 with `LS`, −0.15 without; P(negative) ≈ 0.996–0.999), and a weaker one on taught-word gains (−0.07 to −0.13). This corroborates `gc-085`'s negative baseline-age effect on word-reading growth rate and the Q3 finding that the discrepancy group is _older_.
+- **Non-verbal ability splits the two kinds of learning.** Block design is flat for word-reading gains (+0.01 to +0.02, P = 0.57–0.61) but mildly positive for taught-word gains (+0.08 to +0.10, P = 0.93–0.95) — the opposite of the folk expectation that non-verbal ability gates reading specifically.
 
 ### Caveats
 
@@ -300,9 +303,9 @@ Note `gf-1NN` is already the treated-only-companion convention (`gf-101` is `gf-
 - **An item-level LSK measurement model** to separate a real readiness threshold from the 32-item ceiling (the Q3b ambiguity). **Blocked by data, not modelling** — there is no item-level data, as [design-lessons](202607172345-design-lessons-for-future-studies.md) already records.
 - **More GP knee models.** The [skill-thresholds note](202607171215-findings-skill-thresholds.md) already swept six exposures and found only `LS` has a resolved knee, and Q3b shows even that one is confounded with the instrument ceiling. Another knee model cannot break that tie.
 
-### Probe timing closeout (completed 2026-08-08)
+### Probe timing and missingness closeout (completed 2026-08-08)
 
-`RW` and `SP` now enter the Q3 partials at the **same wave** as the skill measures, through per-row state covariates rather than t1 values broadcast across all waves. The one-at-a-time `RW` association becomes clearer (+0.30 / +0.32 / +0.29 / +0.26, P = 0.97 / >0.99 / 0.99 / 0.97); `SP` remains modest (+0.25 / +0.27 / +0.18 / +0.23). Neither becomes independently resolved in the heavily collinear joint fit. Thus the timing asymmetry was real and worth correcting, but it was **not** the reason the two terms collapsed after mutual adjustment.
+`RW` and `SP` now enter the Q3 partials at the **same wave** as the skill measures, through per-row state covariates rather than t1 values broadcast across all waves. Their mean-filled values carry `{col}_missing` nuisances whenever the flag varies after the wave and observed-`WR` masks; t1 `RW` and t4 `SP` need no flag because neither has a missing fitted row. The one-at-a-time `RW` association is +0.29 / +0.35 / +0.29 / +0.27 (P = 0.97 / >0.99 / 0.99 / 0.98); `SP` remains modest at +0.25 / +0.28 / +0.18 / +0.23. Neither becomes independently resolved in the heavily collinear joint fit. The timing and missingness corrections are required for the stated estimand, but neither explains why the two state terms collapse after mutual adjustment.
 
 **And one non-analytic follow-up:** re-examine the two counter-case children (…A93E23, …EB2CF4) with the study team. At n = 2 this is a case series, not a subgroup — but it is the study's only direct evidence on the sight-word route, and the team may know things about those children the data do not carry.
 

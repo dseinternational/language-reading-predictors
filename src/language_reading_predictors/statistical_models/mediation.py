@@ -72,6 +72,9 @@ from language_reading_predictors.statistical_models.factories import (
     PeriodStackedMediationData,
     TwoMediatorData,
 )
+from language_reading_predictors.statistical_models.mediation_parameter_names import (
+    outcome_confounder_coefficient,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     logit_safe,
@@ -227,7 +230,7 @@ def decompose(
     # coefficient — the portion of the fitted b_M one attributes to an unmeasured
     # mediator-outcome confounder. b_m_shift=0 is the primary (identified) analysis.
     b_M = b_M - b_m_shift
-    b_conf = {s: d(f"b_{s}") for s in confounder_symbols}
+    b_conf = {s: d(outcome_confounder_coefficient(s)) for s in confounder_symbols}
 
     # Covariates as (1, n) row vectors for broadcasting against (S, 1) draws.
     W1 = med.W1_logit[None, :]

@@ -34,9 +34,12 @@ effect would instead flag a missing edge.
 The set must block common causes of the mediator L and the outcome NW **including
 indirect routes through unadjusted intermediates** — arrows *into the mediator*
 matter, not just parents of the outcome (the mediation criterion, not the
-single-outcome "gf-011 rule"). Under the revised DAG the arrows into LS are
-{A, GA, HS, SP, IG, IS}. Adjusted: age (A); speech production (SP = `deapp_c`);
-phonological memory (RW = `erbto`), a common cause via `LS <- RW -> NW`; the mediator
+single-outcome "gf-011 rule"). Within a wave the arrows into LS are
+{A, GA, HS, SP, IG, IS}; the current lagged graph also has WR_t1 -> LS_t2.
+Adjusted: age (A); speech production (SP = `deapp_c`);
+phonological memory (RW = `erbto`), a common cause via `LS <- RW -> NW`; baseline
+word reading W_t1, which became a common cause through the lagged-DAG forks
+`LS_t2 <- WR_t1 -> PA_t2 -> NW_t2` and `LS_t2 <- WR_t1 -> NW_t2`; the mediator
 baseline L_t1; and — the identification fix over the first proposal — **hearing (HS =
 `hs`/`hs_missing`) is INCLUDED**: HS is a parent of the mediator with a route to NW
 that RW does not block, `LS <- HS -> PA -> NW`, so it confounds L -> N *through
@@ -82,17 +85,18 @@ SPEC = ModelSpec(
         # HS (hs/hs_missing) blocks LS<-HS->PA->NW; SP (deapp_c) and RW (erbto) the
         # other mediator-parent routes; baseline blending B (bare symbol -> taken at
         # t1 by the factory) reinforces the PA-mediated backdoors. No outcome
-        # own-baseline (off-floor drops b_W).
-        "G", "A", "L_t1", "B",
+        # own-baseline (off-floor drops b_W; the baseline-word-reading confounder
+        # has the collision-free outcome-leg coefficient b_conf_W).
+        "G", "A", "L_t1", "B", "W",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
     ],
     extra={
         # Off-floor (Bernoulli) outcome: NIE/NDE on the off-floor risk-difference scale.
         "outcome_kind": "bernoulli_offfloor",
-        # N is not in ITT_OUTCOMES (floored), and B must be loaded so its t1 baseline
-        # is available as a confounder; request them explicitly. This also restricts
-        # the complete-case mask to N + L + B.
-        "outcomes": ("N", "L", "B"),
+        # N is not in ITT_OUTCOMES (floored), while B and W must be loaded so their
+        # t1 baselines are available as confounders. This restricts the complete-case
+        # mask to N + L + B + W.
+        "outcomes": ("N", "L", "B", "W"),
     },
 )
 

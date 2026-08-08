@@ -3,13 +3,19 @@
 # Mediation adjustment sets settled by time-indexed d-separation (#264)
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+> Drafted and edited by LLM-based AI tools (Claude Code/Fable 5 and Codex/GPT-5).
+
+> [!WARNING]
+> **The MED-086/087 no-change verdict below was superseded on 2026-08-08.** Later lagged-DAG revisions added $WR_t\to LS_{t+1}$ and $WR_t\to NW_{t+1}$ alongside the existing $WR_t\to PA_{t+1}$ edge. Baseline $WR_1$ is therefore a measured common cause of $LS_2$ and both $PA_2$ and $NW_2$. MED-086/186 and MED-087/187 now adjust for bare `W`; all older numerical outputs for those four models are stale pending post-merge `reporting` refits. The E/R conclusion and the treatment-induced-session non-identification conclusion remain unchanged. See `notes/202608081805-med-086-187-wr-baseline-correction.md`.
+
+> [!NOTE]
+> **Archived-audit scope.** `assets/202607142340-med-adjustment-dsep.py` is a static witness audit of the 13 models that existed on 2026-07-14, not the live full-family roster. Its hand-coded DAG mirror, recorded adjustment snapshots and all 13 witnesses are revalidated against the current 36-node, 197-edge source graph, including the later `WR → LS` and `WR → NW` edges and the resulting MED-086/087 baseline-word-reading correction. The expanded live family and live `SPEC.adjustment` lists are covered separately by `tests/test_lagged_dag_adjustment_sets.py`.
 
 ## Decision
 
 **Baseline expressive and receptive vocabulary (`E`/`R`, the models' t1 values of `EV`/`RV`) stay in the mediation-family adjustment sets.** The wave-unrolled derivation below confirms the 2026-07-12 interim decision and closes the question #259 opened: with measurement occasions explicit, `E_t1`/`R_t1` are **not** descendants of the randomised treatment, dropping them changes **no** model's backdoor-blocking status, and in five of the thirteen models they do real work (one is a member of the strictly-valid parent set; four are the admissible pre-treatment proxies of treatment-affected contemporaneous confounders). **No adjustment set changes, so no model is refitted and no headline number moves** — the `rep-lite` sweep note (`notes/202607111100-replite-full-statistical-fit.md`) and the reporting sweep note (`notes/202607131300-full-statistical-refit-reporting.md`) stand as written.
 
-Every claim below was checked mechanically with networkx d-separation runs; the script is preserved at [`assets/202607142340-med-adjustment-dsep.py`](assets/202607142340-med-adjustment-dsep.py) and the load-bearing checks are promoted to CI in `tests/test_lagged_dag_adjustment_sets.py`, parametrised over the live `SPEC.adjustment` lists so an edit to either the `.dagitty` or a MED model's set re-triggers the derivation.
+Every historical claim below was checked mechanically with networkx d-separation runs; the static 13-model script is preserved at [`assets/202607142340-med-adjustment-dsep.py`](assets/202607142340-med-adjustment-dsep.py). The load-bearing checks are promoted to CI in `tests/test_lagged_dag_adjustment_sets.py`, which is separately parametrised over the expanded live `SPEC.adjustment` lists so an edit to either the `.dagitty` or a covered MED model's set re-triggers the derivation.
 
 ## Why #259's descendant argument fails
 
