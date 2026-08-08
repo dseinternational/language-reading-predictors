@@ -55,6 +55,7 @@ from language_reading_predictors.statistical_models.runtime import (
     run_sampling_and_loo,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
 def _raw_covariate_confounders(confounders: Iterable[str]) -> tuple[str, ...]:
@@ -92,8 +93,6 @@ def _fit_t3_sensitivity(
     measurement caveat, not a cleaner causal estimate. Returns the g-formula
     decomposition DataFrame for the t3-outcome variant.
     """
-    import pymc as pm
-
     from language_reading_predictors.statistical_models import mediation as _med
 
     outcome_symbol = spec.outcome_symbol or "W"
@@ -117,23 +116,20 @@ def _fit_t3_sensitivity(
         mediator_kind=mediator_kind,
         route_symbols=route_symbols,
     )
-    s = ctx.sampling
-    with built_t3.model:
-        trace_t3 = pm.sample(
-            draws=s.draws,
-            tune=s.tune,
-            chains=s.chains,
-            cores=s.cores,
-            target_accept=s.target_accept,
-            nuts_sampler="nutpie",
-            return_inferencedata=True,
-            random_seed=s.random_seed,
-            progressbar=False,
-        )
     # Gate this temporal-ordering sensitivity sub-fit (bypasses the primary gate).
-    conv = _diag.subfit_convergence(trace_t3, label=f"{spec.model_id} t3 sensitivity")
+    # ``convergence_scope="all"`` keeps the scan this fit has always used: every
+    # variable ArviZ reports, deterministics included, which is stricter than the
+    # free-RV scan the other sub-fits take.
+    res_t3 = run_subfit(
+        ctx,
+        built_t3,
+        label=f"{spec.model_id} t3 sensitivity",
+        role="sensitivity",
+        convergence_scope="all",
+    )
+    conv = res_t3.convergence
     df_t3 = _med.decompose(
-        trace_t3,
+        res_t3.trace,
         med_t3,
         ci_prob=ctx.reporting.ci_prob,
     )

@@ -41,7 +41,6 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.diagnostics import sample_subfit
 from language_reading_predictors.statistical_models.factories import default_of
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -66,6 +65,7 @@ from language_reading_predictors.statistical_models.runtime import (
     run_sampling_and_loo,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
 # Human-readable labels for the LRP65 predictor keys (for tables / forest plot).
@@ -275,9 +275,11 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             language_composite_symbols=lang_symbols,
             predictor_slope_sigma=sigma0,
         )
-        t, conv = sample_subfit(b.model, ctx.sampling, label=f"{spec.model_id} bivariate {k}")
-        bivariate[k] = beta_summary(t, f"beta_{k}", hdi)
-        biv_converged[k] = conv["converged"]
+        res = run_subfit(
+            ctx, b, label=f"{spec.model_id} bivariate {k}", role="bivariate"
+        )
+        bivariate[k] = beta_summary(res.trace, f"beta_{k}", hdi)
+        biv_converged[k] = res.converged
 
     rows = []
     for k in headline:
@@ -372,10 +374,14 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 language_composite_symbols=lang_symbols,
                 predictor_slope_sigma=sig,
             )
-            tr, conv = sample_subfit(
-                b.model, ctx.sampling, label=f"{spec.model_id} prior-sweep sigma={sig}"
+            res = run_subfit(
+                ctx,
+                b,
+                label=f"{spec.model_id} prior-sweep sigma={sig}",
+                role="prior_sweep",
             )
-            sig_converged = conv["converged"]
+            tr = res.trace
+            sig_converged = res.converged
         for k in headline:
             ps_rows.append(
                 {
@@ -417,15 +423,17 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             language_composite_symbols=lang_symbols,
             predictor_slope_sigma=sigma0,
         )
-        t, conv = sample_subfit(b.model, ctx.sampling, label=f"{spec.model_id} SES complete-case")
+        res = run_subfit(
+            ctx, b, label=f"{spec.model_id} SES complete-case", role="sensitivity"
+        )
         ses_n = int(b.prepared.n_children)
         ses_rows = [
             {
                 "predictor": k,
                 "label": _adj_label(k),
                 "n_children": ses_n,
-                **beta_summary(t, f"beta_{k}", hdi),
-                "converged": conv["converged"],
+                **beta_summary(res.trace, f"beta_{k}", hdi),
+                "converged": res.converged,
             }
             for k in ses_predictors
         ]
@@ -643,11 +651,11 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         b = _factories.build_rlm_adjusted_model(
             frame, predictors=[k], predictor_slope_sigma=sigma0
         )
-        t, conv = sample_subfit(
-            b.model, ctx.sampling, label=f"{spec.model_id} bivariate {k}"
+        res = run_subfit(
+            ctx, b, label=f"{spec.model_id} bivariate {k}", role="bivariate"
         )
-        bivariate[k] = beta_summary(t, f"beta_{k}", hdi)
-        biv_converged[k] = conv["converged"]
+        bivariate[k] = beta_summary(res.trace, f"beta_{k}", hdi)
+        biv_converged[k] = res.converged
     rows = []
     for k in headline:
         a, bv = adjusted[k], bivariate[k]
@@ -722,14 +730,16 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     sens_rows = []
     for sig in [sigma0, *prior_sens]:
         if sig == sigma0:
-            t, conv = ctx.trace, {"converged": _primary_converged}
+            t, sig_converged = ctx.trace, _primary_converged
         else:
             b = _factories.build_rlm_adjusted_model(
                 frame, predictors=headline, predictor_slope_sigma=float(sig)
             )
-            t, conv = sample_subfit(
-                b.model, ctx.sampling, label=f"{spec.model_id} sigma={sig}"
+            res = run_subfit(
+                ctx, b, label=f"{spec.model_id} sigma={sig}", role="prior_sweep"
             )
+            t = res.trace
+            sig_converged = res.converged
         for k in headline:
             s = beta_summary(t, f"beta_{k}", hdi)
             sens_rows.append(
@@ -740,7 +750,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                     "lo": s["lo"],
                     "hi": s["hi"],
                     "prob_pos": s["prob_pos"],
-                    "subfit_converged": conv["converged"],
+                    "subfit_converged": sig_converged,
                 }
             )
     sens = pd.DataFrame(sens_rows)

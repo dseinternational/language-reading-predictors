@@ -45,6 +45,7 @@ SHARED_MODULES = (
     "reporting",
     "runtime",
     "stages",
+    "subfits",
 )
 
 # Every family that has moved out of the monolith, and the entry points
@@ -232,3 +233,30 @@ def test_every_registered_family_kind_has_an_orchestration_module():
         if KIND_MODULES.get(kind, kind) not in modules
     }
     assert not missing, f"family kinds with no module under pipelines/: {sorted(missing)}"
+
+
+def test_no_family_module_samples_a_posterior_of_its_own():
+    """#394 acceptance criterion: one shared runner for every sub-fit.
+
+    A family pipeline declares *which* sub-fits to run — which wave, which
+    predictor, which prior width — and delegates the sampling. Two modules in the
+    package call ``pm.sample``: ``diagnostics.sample_posterior`` for the primary
+    fit and ``subfits.run_subfit`` for every sub-fit. An inline ``pm.sample`` in a
+    family module is how three of them drifted apart before design point 5, so it
+    fails here now.
+
+    Scoped to ``pipelines/`` deliberately. The post-hoc sweep tools
+    (``influence.py`` and the ``scripts/*_prior_sensitivity.py`` runners) sample
+    their own refits outside any family fit, with their own provenance
+    conventions; bringing them onto the runner is separate work, not something
+    this guard should quietly assert is done.
+    """
+    offenders = [
+        path.name
+        for path in sorted((PACKAGE / "pipelines").glob("*.py"))
+        if "pm.sample(" in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, (
+        f"family modules sampling their own posterior: {offenders}; "
+        "use subfits.run_subfit (sub-fit) or the shared stages (primary)"
+    )

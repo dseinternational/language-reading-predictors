@@ -40,7 +40,6 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.diagnostics import sample_subfit
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
@@ -58,6 +57,7 @@ from language_reading_predictors.statistical_models.runtime import (
     run_sampling_and_loo,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
 #: Terms reported for both designs, in report order. ``rho_outcome`` and the two
@@ -570,9 +570,10 @@ def _fit_joint_mechanism_levels(
                 and convergence.get("converged")
             )
         else:
-            trace, convergence = sample_subfit(
-                built.model, ctx.sampling, label=f"{spec.model_id} wave t{tp}"
+            res = run_subfit(
+                ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
             )
+            trace, convergence = res.trace, res.convergence
         slope_rows += _jm_slope_rows(
             trace,
             outcome_symbols=outcome_symbols,

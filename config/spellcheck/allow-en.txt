@@ -365,6 +365,7 @@ dseinternational
 dsep
 dseresearch
 dtype
+dtypes
 earinf
 econlet
 ecresq
@@ -595,6 +596,7 @@ spphon
 spraw
 startswith
 subfit
+subfits
 subsetting
 subskill
 suptitle

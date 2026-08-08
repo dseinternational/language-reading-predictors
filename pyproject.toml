@@ -79,7 +79,8 @@ files = [
   "src/language_reading_predictors/statistical_models/itt.py",
   "src/language_reading_predictors/statistical_models/output_transaction.py",
   "src/language_reading_predictors/statistical_models/provenance.py",
-  "src/language_reading_predictors/statistical_models/stages.py"
+  "src/language_reading_predictors/statistical_models/stages.py",
+  "src/language_reading_predictors/statistical_models/subfits.py"
 ]
 check_untyped_defs = true
 disallow_incomplete_defs = true
