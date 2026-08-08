@@ -12,13 +12,13 @@ couplings is identifiable at all**, and with what adjustment set.
 Same machinery and conventions as ``202607141030-lagged-dsep-checks.py`` (the
 d-separation checks behind the LCSM-081/082 design note), with two corrections:
 
-1. That script's ``REVERSE`` list is ``["TE", "TR", "PA", "RW"]`` — it predates the
+1. That script's ``REVERSE`` list was ``["TE", "TR", "PA", "RW"]`` — it predated the
    **2026-07-17** addition of ``WR_t -> LS_t1`` to
    ``dag/dag-language-reading-lagged.dagitty`` (added for the LRP-RLI-MED-176
    direction contrast). Re-run today it therefore builds a graph the DAG no longer
    matches. Note this is a stale *archived asset*, NOT an unguarded invariant: the
    design note's recommendation to promote the checks to a pytest was actioned, and
-   ``tests/test_lagged_dag_adjustment_sets.py`` carries the corrected five-edge list
+   ``tests/test_lagged_dag_adjustment_sets.py`` carries the corrected edge list
    plus a mirror assertion against the parsed ``.dagitty``. This script rebuilds the
    unroll from an explicit reverse-edge list and asserts that list against the
    ``.dagitty`` too, so the same drift cannot recur here.
@@ -68,9 +68,10 @@ WITHIN = [
     ("PA", ["NW", "WR", "PS"]),
     ("RG", ["EG"]),
 ]
-# The reverse (lagged) edges out of word reading, as at 2026-07-17. Asserted against
-# the .dagitty source below — do not edit one without the other.
-REVERSE = ["TE", "TR", "PA", "RW", "LS"]
+# The reverse (lagged) edges out of word reading. NW was adopted on 2026-08-08 in
+# ``notes/202608081900-decision-wr-nw-lagged-edge.md``. Asserted against the
+# .dagitty source below — do not edit one without the other.
+REVERSE = ["TE", "TR", "PA", "RW", "LS", "NW"]
 HS_CHILDREN = ["TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"]
 ITT_TARGETS = ["TR", "TE", "PA", "LS", "WR", "PS", "EI", "EG"]
 
@@ -334,15 +335,19 @@ def main() -> None:
     print("=" * 70)
     direct = ("NW" in REVERSE)
     print(f"  WR_t -> NW_t1 in the DAG: {direct}")
-    print("  So a WR->NW coupling estimated on this graph is the TOTAL lagged effect")
-    print("  routed through WR_t -> LS_t1 -> NW_t1 and WR_t -> PA_t1 -> NW_t1,")
-    print("  not a direct edge. Adjusting for LS_t1 / PA_t1 would block it entirely:")
-    check(g, "WR_1", "NW_2", {"NW_1", "LS_2", "PA_2", "A_1", "HS"},
-          "(conditioning on the mediators kills the effect being sought)")
+    if direct:
+        print("  The working DAG now allows a direct visual-analogy route alongside")
+        print("  the mediated WR_t -> {LS, PA}_t1 -> NW_t1 routes.")
+        print("  This changes the causal structure but not the measured backdoor sets:")
+        print("  outgoing WR edges are removed when those sets are derived, so the")
+        print("  8-node / 12-node sets above remain unfittable at n ~= 54.")
+    else:
+        print("  A WR->NW coupling is the TOTAL lagged effect routed through")
+        print("  WR_t -> LS_t1 -> NW_t1 and WR_t -> PA_t1 -> NW_t1.")
 
     print("\n" + "=" * 70)
     print("REGRESSION TEST: the design note's published results still hold")
-    print("with LS added to the reverse-edge set (they were derived without it)")
+    print("after the reverse-edge amendments")
     print("=" * 70)
     check(g, "WR_2", "TE_3", {"TE_2", "TR_2", "RW_2", "SP_2", "A_2", "HS"}, "(no IG -> expect NOT-VALID)")
     check(g, "WR_2", "TE_3", {"TE_2", "TR_2", "RW_2", "SP_2", "A_2", "HS", "IG"}, "(+ IG -> expect VALID)")

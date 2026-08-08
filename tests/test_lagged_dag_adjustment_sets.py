@@ -52,7 +52,7 @@ WITHIN = [
     ("PA", ["NW", "WR", "PS"]),
     ("RG", ["EG"]),
 ]
-REVERSE = ["TE", "TR", "PA", "RW", "LS"]  # WR_w -> {..}_{w+1}
+REVERSE = ["TE", "TR", "PA", "RW", "LS", "NW"]  # WR_w -> {..}_{w+1}
 HS_CHILDREN = ["TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"]
 ITT_TARGETS = ["TR", "TE", "PA", "LS", "WR", "PS", "EI", "EG"]
 
@@ -145,10 +145,10 @@ def unrolled() -> nx.DiGraph:
 
 def test_template_parses_and_is_acyclic(template):
     assert nx.is_directed_acyclic_graph(template)
-    # The header records 36 nodes / 195 edges; a drift here means the .dagitty
+    # The header records 36 nodes / 197 edges; a drift here means the .dagitty
     # was revised and every derivation below needs re-checking.
     assert template.number_of_nodes() == 36
-    assert template.number_of_edges() == 196
+    assert template.number_of_edges() == 197
 
 
 def test_unroll_slices_mirror_the_dagitty_template(template):
@@ -228,6 +228,34 @@ def test_w_pa_and_w_rw_need_the_unfittable_wide_set(unrolled):
     }
     assert blocks_backdoors(unrolled, "WR_2", "PA_3", wide)
     assert blocks_backdoors(unrolled, "WR_2", "RW_3", wide)
+
+
+def test_w_nw_edge_keeps_the_unfittable_wide_sets(unrolled):
+    """#428: adding the direct edge does not repair identification.
+
+    A backdoor graph removes every outgoing edge from the exposure, including
+    the new WR -> NW edge.  The machine-derived minimal measured sets therefore
+    remain eight nodes before randomisation and twelve post-crossover.  Each is
+    minimal in this graph: dropping any one member reopens a measured backdoor.
+    """
+    assert unrolled.has_edge("WR_1", "NW_2")
+    transition_1 = {
+        "A_1", "EV_1", "LS_1", "NW_1", "PA_1", "RV_1", "TE_1", "TR_1",
+    }
+    transition_2 = {
+        "A_2", "EV_2", "HS", "IG", "LS_2", "NW_2", "PA_2", "RV_2",
+        "RW_2", "SP_2", "TE_2", "TR_2",
+    }
+    assert blocks_backdoors(unrolled, "WR_1", "NW_2", transition_1)
+    assert blocks_backdoors(unrolled, "WR_2", "NW_3", transition_2)
+    assert all(
+        not blocks_backdoors(unrolled, "WR_1", "NW_2", transition_1 - {node})
+        for node in transition_1
+    )
+    assert all(
+        not blocks_backdoors(unrolled, "WR_2", "NW_3", transition_2 - {node})
+        for node in transition_2
+    )
 
 
 # --- the #264 mediation preview ---------------------------------------------

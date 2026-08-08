@@ -81,13 +81,10 @@ WITHIN = [
 ]
 # WR_w -> {..}_{w+1}. ``LS`` was added to the .dagitty on 2026-07-17 and this
 # archived list was not updated with it, so re-running the script built a graph the
-# DAG no longer matched (#428). Refreshed 2026-08-05. Adding it changes no verdict:
-# the stale and refreshed graphs differ only in the two WR_w -> LS_{w+1} edges (312
-# vs 314 edges in the three-slice unroll), and every [VALID] / [NOT-VALID] line the
-# design note quotes is identical either way — so nothing published on the back of
-# this script was wrong. ``assert_mirrors_dagitty`` below now fails loudly rather
-# than letting the next such drift pass silently.
-REVERSE = ["TE", "TR", "PA", "RW", "LS"]
+# DAG no longer matched (#428). Refreshed 2026-08-05; the WR -> NW edge adopted in
+# the #428 decision was added on 2026-08-08. ``assert_mirrors_dagitty`` below now
+# fails loudly rather than letting the next such drift pass silently.
+REVERSE = ["TE", "TR", "PA", "RW", "LS", "NW"]
 HS_CHILDREN = ["TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"]
 ITT_TARGETS = ["TR", "TE", "PA", "LS", "WR", "PS", "EI", "EG"]
 
