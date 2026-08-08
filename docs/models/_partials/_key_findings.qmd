@@ -132,6 +132,22 @@ else:
             f"The fit passed its sampling-quality checks, but {_kf_reason}, so no "
             f"cause-and-effect statement is released.{_kf_next}\n\n:::"
         )
+    elif _kf_status == "artifacts_incomplete":
+        # #394 design point 3: a required output the fit recorded is not on disk, so
+        # what the report would render is not what the fit produced. Like the
+        # robustness withhold this suppresses the result tables rather than printing
+        # a soft note — a findings box built from an incomplete directory would be
+        # reporting on files nobody can check.
+        _scientific_results_released = False
+        _kf_missing = ", ".join(_kf.get("missing_artifacts", [])) or "unknown"
+        print(
+            '::: {.callout-important title="Findings withheld: required outputs '
+            'are missing"}\n\n'
+            "The fit recorded required artefacts that are not in its output "
+            f"directory ({_kf_missing}), so no findings are summarised. Refit, or "
+            "restore the missing outputs and regenerate the key-findings file."
+            "\n\n:::"
+        )
     elif _kf_status == "gate_exception":
         _kf_checks = ", ".join(_kf.get("waived_checks", [])) or "unknown"
         print(

@@ -22,6 +22,7 @@ from language_reading_predictors.models._reporting import section_header
 from language_reading_predictors.statistical_models import (
     artifacts as _artifacts,
     diagnostics as _diag,
+    release as _release,
     reporting as _report,
 )
 from language_reading_predictors.statistical_models.context import (
@@ -183,10 +184,23 @@ class SharedFitStages:
         _report.write_run_metadata(ctx, extra=extra)
 
     def finalize_report(self, ctx: StatisticalFitContext) -> StatisticalFitContext:
-        """Generate key findings, copy the report, print the footer, and return."""
+        """Decide the release, generate key findings, copy the report, finish.
+
+        The release decision comes first and explicitly (#394 design point 3):
+        whether this fit may publish findings — and if not, at which stage and why
+        — is settled and written to ``release_decision.json`` *before* the
+        findings that follow from it are built. It was previously assembled
+        inline inside ``generate_key_findings``, so finalisation never held it and
+        nothing recorded it for the families the robustness gate does not cover.
+        """
 
         section_header("Report")
-        findings = _report.generate_key_findings(ctx.output_dir)
+        decision = _release.evaluate_publication(
+            ctx.output_dir, artifacts=getattr(ctx, "artifacts", None)
+        )
+        _release.write_release_decision(ctx, decision)
+        rprint(f"  Release decision: {decision.summary()}")
+        findings = _report.generate_key_findings(ctx.output_dir, decision=decision)
         rprint(
             "  Key findings: "
             f"{findings['status']} ({len(findings['sentences'])} sentences)"

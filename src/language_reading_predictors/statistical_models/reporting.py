@@ -5701,41 +5701,10 @@ _KF_BUILDERS = {
 _KF_DROPPABLE_ROLES = ("rope", "note")
 
 
-def _kf_release_decision(output_dir, config: Mapping):
-    """The robustness release decision for this fit, or None if out of scope.
-
-    A gate that cannot be evaluated **withholds**, matching how an unverifiable
-    analysis population is already handled: the alternative — degrading to "no
-    gating" — would silently reinstate the exact defect the gate exists to prevent,
-    and would do so precisely when something unexpected is wrong. Withholding is loud,
-    costs no data (every CSV is still written), and is repaired by regenerating the
-    key findings once the cause is fixed. It never raises, so a fit's finalisation is
-    not lost after sampling.
-
-    Scope and per-family term resolution are both declared in ``release``, so they
-    cannot drift apart. Imported inside the function because ``release`` reaches this
-    module through ``sensitivity``, and a top-level import would close that cycle.
-    """
-    from language_reading_predictors.statistical_models.release import (
-        ReleaseDecision,
-        evaluate_release,
-        gate_applies,
-    )
-
-    if not gate_applies(config):
-        return None
-
-    try:
-        return evaluate_release(output_dir, config)
-    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
-        return ReleaseDecision(
-            status="withhold",
-            tau_class="unavailable",
-            reason=(
-                "the robustness release gate could not be evaluated for this fit "
-                f"({exc}), so its prior dependence is unverified"
-            ),
-        )
+# ``_kf_release_decision`` lived here until #394 design point 3. The robustness
+# verdict, and the fail-closed rule for a gate that cannot be evaluated, are now
+# ``release._robustness_decision`` — one stage of the ordered publication decision
+# rather than a hook this module reached for on its way to writing findings.
 
 
 def _kf_with_release_note(
@@ -5821,7 +5790,7 @@ def _raw_convergence_gate_checks(diag_summary: Mapping) -> dict[str, bool] | Non
     }
 
 
-def _convergence_gate_failures(diag_summary: Mapping | None) -> list[str]:
+def convergence_gate_failures(diag_summary: Mapping | None) -> list[str]:
     """Return readable failing checks from a sampling-quality gate payload.
 
     ``passed`` is the measured verdict written by ``dse_research_utils``. The
@@ -5865,7 +5834,7 @@ def _convergence_gate_failures(diag_summary: Mapping | None) -> list[str]:
 
 def convergence_gate_clean_passed(diag_summary: Mapping | None) -> bool:
     """Return whether the complete automatic sampling-quality gate passed cleanly."""
-    return not _convergence_gate_failures(diag_summary)
+    return not convergence_gate_failures(diag_summary)
 
 
 def convergence_gate_badge_markdown(
@@ -5882,7 +5851,7 @@ def convergence_gate_badge_markdown(
     artefact and a separate verifier before a third, amber state may be implemented.
     The full numerical banner remains under Technical checks.
     """
-    failing = _convergence_gate_failures(diag_summary)
+    failing = convergence_gate_failures(diag_summary)
     if failing:
         failed_text = ", ".join(failing)
         return (
@@ -5897,30 +5866,33 @@ def convergence_gate_badge_markdown(
     )
 
 
-def generate_key_findings(output_dir) -> dict:
+def generate_key_findings(output_dir, *, decision=None) -> dict:
     """Build and write ``key_findings.json`` for a fit output directory (#320).
 
     Reads only artefacts already in ``output_dir`` (``config.json``,
     ``diagnostics_summary.json`` and the family CSVs), so it can be re-run over
-    an existing fit without refitting. The convergence gate is checked FIRST: a
-    failed gate yields a ``gate_failed`` payload and no findings — students must
-    not meet findings from an unconverged fit. Missing artefacts degrade to a
+    an existing fit without refitting. Missing artefacts degrade to a
     ``not_available`` payload with a reason, never an exception; sentences are
     capped at :data:`KEY_FINDINGS_MAX_SENTENCES` and can never contain a
     non-finite number (:func:`_kf_float` raises, and the builder's whole payload
     then degrades). Returns the payload it wrote.
+
+    ``decision`` is the fit's :class:`release.ReleaseEvaluation` — whether it may
+    publish findings at all, and why. Report finalisation computes it and passes
+    it in (#394 design point 3); when it is omitted, as by the regeneration
+    scripts, this function evaluates it over the stored directory. Either way the
+    ordering it encodes holds: inputs, then the sampling-quality gate, then
+    required artefacts, then robustness. Nothing here re-decides any of that —
+    what remains below is building the sentences.
     """
     out = str(output_dir)
-    config = {}
-    config_path = os.path.join(out, "config.json")
-    if os.path.exists(config_path):
-        try:
-            with open(config_path) as f:
-                config = json.load(f)
-        except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-            # A malformed config.json must degrade to not_available (after the
-            # gate check, which outranks it), not abort a fit's finalisation.
-            config = None
+    from language_reading_predictors.statistical_models.release import (
+        evaluate_publication,
+    )
+
+    if decision is None:
+        decision = evaluate_publication(out)
+    config = decision.config if decision.config is not None else None
 
     payload: dict = {
         "schema_version": KEY_FINDINGS_SCHEMA_VERSION,
@@ -5929,52 +5901,26 @@ def generate_key_findings(output_dir) -> dict:
         "sentences": [],
     }
 
-    diag_path = os.path.join(out, "diagnostics_summary.json")
-    if not os.path.exists(diag_path):
-        payload["status"] = "not_available"
-        payload["reason"] = (
-            "diagnostics_summary.json is missing, so the convergence gate cannot "
-            "be checked"
-        )
-        return _write_key_findings(out, payload)
-    try:
-        with open(diag_path) as f:
-            diag = json.load(f)
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        payload["status"] = "not_available"
-        payload["reason"] = (
-            "diagnostics_summary.json could not be parsed, so the convergence "
-            "gate cannot be checked"
-        )
-        return _write_key_findings(out, payload)
-    failing = _convergence_gate_failures(diag)
-    if failing:
+    if decision.status == "gate_failed":
         payload["status"] = "gate_failed"
-        payload["failing_checks"] = failing
+        payload["failing_checks"] = list(decision.failing_checks)
         return _write_key_findings(out, payload)
 
-    if not config:
-        payload["status"] = "not_available"
-        payload["reason"] = (
-            "config.json could not be parsed"
-            if config is None
-            else "config.json is missing"
-        )
-        return _write_key_findings(out, payload)
-
-    # Robustness gate (#392 P1), after sampling quality and before any sentence is
-    # built. A diagnosed prior-data conflict on the causal term, or a floor-rule model
-    # whose required treatment-prior grid is missing or not provenance-aligned,
-    # suppresses the causal headline until validated evidence covers the model. Without
-    # this the box could publish an unqualified cause-and-effect sentence that the
-    # report's own release gate further down then contradicts.
-    release = _kf_release_decision(out, config)
-    if release is not None and not release.released:
+    if decision.status == "robustness_unresolved":
         payload["status"] = "robustness_unresolved"
-        payload["reason"] = release.reason
-        payload["release"] = release.as_dict()
+        payload["reason"] = decision.reason
+        payload["release"] = decision.robustness.as_dict()
         return _write_key_findings(out, payload)
 
+    if not decision.publishable:
+        # ``not_available`` (unreadable inputs) and ``artifacts_incomplete``.
+        payload["status"] = decision.status
+        payload["reason"] = decision.reason
+        if decision.missing_artifacts:
+            payload["missing_artifacts"] = list(decision.missing_artifacts)
+        return _write_key_findings(out, payload)
+
+    release = decision.robustness
     builder = _KF_BUILDERS.get(config.get("kind"), _kf_build_fallback)
     try:
         sentences = builder(out, config)
