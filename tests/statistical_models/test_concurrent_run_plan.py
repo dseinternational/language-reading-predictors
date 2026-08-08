@@ -95,7 +95,7 @@ def test_from_legacy_extra_round_trips_and_sigma_defaults_none():
     assert settings.covariates == ("hs", "blocks")
     assert settings.include_age is False
     assert settings.include_group is False
-    # Absent -> None so the pipeline fills the factory default via _default_of.
+    # Absent -> None so the pipeline fills the factory default via default_of.
     assert settings.predictor_slope_sigma is None
 
 
@@ -121,7 +121,7 @@ def test_resolve_rejects_wrong_kind():
 def test_resolve_is_levels_frame_and_associational():
     plan = resolve_concurrent_run_plan(_spec(predictor_symbols=("L", "B")))
     assert plan.settings_source == "legacy_extra"
-    assert plan.predictor_slope_sigma is None  # unset -> pipeline fills via _default_of
+    assert plan.predictor_slope_sigma is None  # unset -> pipeline fills via default_of
     prep = plan.prepare_kwargs()
     assert prep["phase_mode"] == "levels"
     # outcome first, then predictors, de-duplicated.

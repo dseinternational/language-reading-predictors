@@ -15,6 +15,9 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models import pipeline
+from language_reading_predictors.statistical_models.pipelines import (
+    dose_response as dose_pipeline,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
@@ -97,9 +100,9 @@ def test_dose_summary_writes_items_scale_marginal(tmp_path, monkeypatch):
         output_dir=str(tmp_path),
         tables={},
     )
-    monkeypatch.setattr(pipeline, "print_table", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(dose_pipeline, "print_table", lambda *_args, **_kwargs: None)
 
-    pipeline._write_dose_slope_summary(ctx, period_varying=False)
+    dose_pipeline.write_dose_slope_summary(ctx, period_varying=False)
 
     summary = pd.read_csv(tmp_path / "dose_marginal_summary.csv").iloc[0]
     expected = (expit(beta.reshape(-1)) - 0.5) * 100
