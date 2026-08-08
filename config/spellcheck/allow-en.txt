@@ -595,6 +595,7 @@ spphon
 spraw
 startswith
 subfit
+subfits
 subsetting
 subskill
 suptitle

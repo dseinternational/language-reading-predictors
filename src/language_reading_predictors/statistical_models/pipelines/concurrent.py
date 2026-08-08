@@ -44,7 +44,6 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.diagnostics import sample_subfit
 from language_reading_predictors.statistical_models.factories import default_of
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -70,6 +69,7 @@ from language_reading_predictors.statistical_models.runtime import (
     run_sampling_and_loo,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
 _CA_LABELS = {
@@ -437,10 +437,11 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             convergence = None  # populated below after the full primary gate
         else:
             built = _build(sub, preds, age=include_age, group=include_group)
-            trace, conv = sample_subfit(
-                built.model, ctx.sampling, label=f"{spec.model_id} wave t{tp}"
+            res = run_subfit(
+                ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
             )
-            convergence = conv
+            trace = res.trace
+            convergence = res.convergence
         wave_fits[w] = {
             "trace": trace,
             "prepared": built.prepared,
@@ -536,9 +537,13 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         for sym in preds:
             adj = beta_summary(trace, f"beta_{sym}", hdi)
             b = _build(sub, [sym], age=False, group=False)
-            bt, bconv = sample_subfit(
-                b.model, ctx.sampling, label=f"{spec.model_id} t{tp} bivariate {sym}"
+            bres = run_subfit(
+                ctx,
+                b,
+                label=f"{spec.model_id} t{tp} bivariate {sym}",
+                role="bivariate",
             )
+            bt, bconv = bres.trace, bres.convergence
             biv = beta_summary(bt, f"beta_{sym}", hdi)
             biv_mdf = _report.concurrent_marginals(
                 bt,

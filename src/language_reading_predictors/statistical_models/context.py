@@ -22,6 +22,7 @@ import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models import environment as _env
 from language_reading_predictors.statistical_models.artifacts import ArtifactLog
+from language_reading_predictors.statistical_models.subfits import SubfitLog
 from language_reading_predictors.statistical_models.preprocessing import (
     LongitudinalPanel,
     PreparedData,
@@ -186,6 +187,8 @@ class StatisticalFitContext:
     tables: dict[str, pd.DataFrame] = field(default_factory=dict)
     artifacts: ArtifactLog = field(default_factory=ArtifactLog)
     """Per-fit artefact record consumed by the manifest at finalisation (#394)."""
+    subfits: SubfitLog = field(default_factory=SubfitLog)
+    """Per-fit record of every secondary / sensitivity sub-fit (#394 design point 5)."""
     resolved_plan: Any | None = None
     """Validated family run plan resolved before data loading."""
     output_transaction: OutputTransaction | None = None

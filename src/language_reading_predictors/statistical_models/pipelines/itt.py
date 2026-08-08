@@ -16,7 +16,6 @@ this module is orchestration only (#394 step 5).
 
 from __future__ import annotations
 
-import os
 from collections.abc import Sequence
 
 import numpy as np
@@ -76,6 +75,7 @@ from language_reading_predictors.statistical_models.runtime import (
     run_sampling_and_loo,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
 def emit_itt_extras(
@@ -384,8 +384,6 @@ def fit_itt_floor_rule(
     post-hoc and data-adaptive in this reanalysis, although its mechanical gate is
     applied arm-blind.
     """
-    import pymc as pm
-
     from language_reading_predictors.statistical_models import floor as _floor
 
     own = plan.outcome_symbol
@@ -625,41 +623,27 @@ def fit_itt_floor_rule(
         event_label="off the floor at t2",
     )
 
-    s = ctx.sampling
-
     def _fit_secondary(built_x, *, label: str, trace_filename: str):
-        with built_x.model:
-            tr = pm.sample(
-                draws=s.draws,
-                tune=s.tune,
-                chains=s.chains,
-                cores=s.cores,
-                target_accept=s.target_accept,
-                nuts_sampler="nutpie",
-                return_inferencedata=True,
-                random_seed=s.random_seed,
-                progressbar=False,
-            )
-            tr = pm.sample_posterior_predictive(
-                tr,
-                var_names=["y_post"],
-                extend_inferencedata=True,
-                random_seed=s.random_seed,
-                progressbar=False,
-            )
         # Gate every free variable: a well-mixed tau cannot rescue a non-mixing
         # kappa/alpha/age term because those nuisance parameters determine the
-        # fitted mean and posterior predictive distribution (#341).
-        free_names = [rv.name for rv in built_x.model.free_RVs]
-        conv = _diag.subfit_convergence(tr, label=label, var_names=free_names)
-        summ = _report.tau_summary_itt(tr, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G)
-        summ.update(conv)
-        # Secondary estimates are publication artefacts too. Persist the trace
-        # so every convergence value and posterior can be audited independently
-        # of the exploratory off-floor fit.
-        tr.to_netcdf(os.path.join(ctx.output_dir, trace_filename))
-        summ["trace_file"] = trace_filename
-        return tr, summ
+        # fitted mean and posterior predictive distribution (#341). Secondary
+        # estimates are publication artefacts too, so the trace is persisted:
+        # every convergence value and posterior stays auditable independently of
+        # the exploratory off-floor fit.
+        res = run_subfit(
+            ctx,
+            built_x,
+            label=label,
+            role="secondary",
+            posterior_predictive=["y_post"],
+            trace_filename=trace_filename,
+        )
+        summ = _report.tau_summary_itt(
+            res.trace, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G
+        )
+        summ.update(res.convergence)
+        summ["trace_file"] = res.trace_file
+        return res.trace, summ
 
     # ----- SECONDARY (flagged cross-check): graded Beta-Binomial over ALL children.
     # Not the exploratory headline — it mixes already-off-floor children into a mover analysis and
