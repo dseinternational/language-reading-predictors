@@ -25,8 +25,9 @@ PACKAGE = pathlib.Path(pipeline.__file__).parent
 MONOLITH = "language_reading_predictors.statistical_models.pipeline"
 
 # The shared layer ``pipelines/*`` is built on: artefact production, presentation,
-# the stage binding and the samplers. Each was carved out of ``pipeline.py`` (or,
-# for ``diagnostics``, predates it) and must stay below it.
+# the stage binding, the samplers and the posterior summaries. Each was carved out
+# of ``pipeline.py`` (or, for ``diagnostics`` and ``reporting``, predates it) and
+# must stay below it.
 SHARED_MODULES = (
     "adjustment",
     "diagnostics",
@@ -34,19 +35,25 @@ SHARED_MODULES = (
     "ppc_artifacts",
     "prior_artifacts",
     "publication",
+    "reporting",
     "runtime",
 )
 
 # Every family that has moved out of the monolith, and the entry points
-# ``pipeline.py`` must keep re-exporting for it. Most families have exactly one;
-# mediation is the outlier, with three fit functions and a data-preparation
-# helper that ``scripts/regenerate_mediation_calibration.py`` imports by name.
+# ``pipeline.py`` must keep re-exporting for it. Most families have exactly one.
+# Mediation is the outlier, with three fit functions and a data-preparation helper
+# that ``scripts/regenerate_mediation_calibration.py`` imports by name; adjusted
+# and horseshoe each carry a second entry point for the Byrne (RLM) cohort, which
+# ``definitions.KINDS`` keys as the same family.
 MIGRATED_FAMILIES: dict[str, tuple[str, ...]] = {
+    "adjusted": ("fit_adjusted", "fit_rlm_adjusted"),
     "aligned": ("fit_aligned",),
     "block_exposure": ("fit_block_exposure",),
+    "concurrent": ("fit_concurrent",),
     "did": ("fit_did",),
     "dose_response": ("fit_dose_response",),
     "gain_factors": ("fit_gain_factors",),
+    "horseshoe": ("fit_horseshoe", "fit_rlm_horseshoe"),
     "itt": ("fit_itt",),
     "joint": ("fit_joint",),
     "joint_mechanism": ("fit_joint_mechanism",),

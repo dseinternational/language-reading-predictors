@@ -6026,3 +6026,23 @@ def _write_key_findings(output_dir: str, payload: dict) -> dict:
         json.dump(payload, f, indent=2)
         f.write("\n")
     return payload
+
+
+def beta_summary(trace, name: str, ci_prob: float) -> dict:
+    """Posterior mean, equal-tailed ``ci_prob``-coverage interval, and P(>0) for ``name``.
+
+    The interval is equal-tailed at ``ci_prob`` coverage, not an HDI — the parameter
+    was previously named ``hdi``, which misdescribed it (the callers already pass
+    ``ctx.reporting.ci_prob``).
+    """
+    draws = trace.posterior[name].stack(sample=("chain", "draw")).values
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    return {
+        "median": float(np.median(draws)),
+        "mean": float(np.mean(draws)),
+        "lo": float(np.quantile(draws, lo_q)),
+        "hi": float(np.quantile(draws, hi_q)),
+        "lo50": float(np.quantile(draws, 0.25)),
+        "hi50": float(np.quantile(draws, 0.75)),
+        "prob_pos": float(np.mean(draws > 0)),
+    }

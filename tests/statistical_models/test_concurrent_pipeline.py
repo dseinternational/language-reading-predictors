@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models.lrp_rli_ca_005 import (
 from language_reading_predictors.statistical_models.lrp_rli_ca_006 import (
     SPEC as CA006,
 )
-from language_reading_predictors.statistical_models.pipeline import (
+from language_reading_predictors.statistical_models.pipelines.concurrent import (
     _ca_label,
     _ca_margin_fields,
     _ca_sd_margin,
