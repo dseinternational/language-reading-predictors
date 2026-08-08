@@ -12,6 +12,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -19,6 +23,10 @@ format:
 {{< include _partials/_reading_guide.qmd >}}
 
 ## Overview
+
+::: {.callout-warning title="Reporting refit required after adjustment-set correction"}
+Numerical findings from fits made before 2026-08-08 are stale. The current lagged DAG makes baseline word reading $WR_1$ a measured common cause of letter sounds and phoneme blending, so this model and its MED-187 companion now adjust for $WR_1$. Do not publish or interpret the previous MED-087/MED-187 tables; both models require new `reporting` fits, diagnostics and generated findings.
+:::
 
 LRP87 is the downstream link in the phonological chain (#228 item 12): the companion to [LRP59](../lrp-rli-med-059/) (word reading via letter-sounds) and [LRP86](../lrp-rli-med-086/) (nonword reading via letter-sounds), decomposing the intervention's effect on **phoneme blending** ($B$) into the part transmitted by raising letter-sound knowledge $L$ (NIE) and the direct/residual part (NDE). Together the three trace the code route through its intermediate (blending) and terminal (nonword decoding) outcomes — both previously visible only as associations (mech-072/172).
 
@@ -32,7 +40,7 @@ The full mediation-assumption treatment (randomisation handles $G\to Y$/$G\to M$
 
 **Natural versus interventional estimand.** [MED-187](../lrp-rli-med-187/) is the parent+100 interventional companion: the same joint model and adjustment set, but IDE/IIE replace the cross-world NDE/NIE. In this implementation its IIE should match this model's NIE up to sampling and g-formula Monte Carlo error because both use the same fitted covariate-conditional mediator law. That agreement is an implementation check, not evidence that shared dose is harmless; latent general ability still prevents an identified causal mediation reading.
 
-_Adjustment set — signed off (2026-07-14), mediation criterion._ Under the revised DAG the $L \to B$ (letter-sounds → blending) confounders are the common parents of the two skills: age $A$, hearing $HS$ (`hs`) and speech production $SP$ (`deapp_c`), via the missing-indicator method, plus the baseline $L_{t1}$ and the outcome own-baseline $B_{t1}$. **Phonological memory ($RW$) considered and excluded — precision-only:** it is a parent of blending but **not** of letter-sounds, so it is not a common cause of the two and sits on no $L \to B$ backdoor (the one route it touches, $L \leftarrow HS \to RW \to B$, is blocked at the adjusted $HS$). **Intervention sessions $IS$ (`attend`) confirmed NOT adjusted:** $L \leftarrow IS \to B$ is a recanting witness ($IS$ is treatment-affected, $IG \to IS$), which no adjustment set rescues, and conditioning on $IS$ would open the collider $IG \to IS \leftarrow GA \to B$ ($GA$ latent) — strictly worse. MED-187 supplies the interventional estimand; #324 supplies the named-confounder calibration. The time-indexed re-derivation (#250/#264) confirms the set; $E$/$R$ are legitimately absent because they have no arrows into $L$.
+_Adjustment set — corrected (2026-08-08), mediation criterion._ Under the current lagged DAG the measured $L \to B$ confounders include age $A$, hearing $HS$ (`hs`), speech production $SP$ (`deapp_c`) and baseline word reading $WR_1$ through $LS_2 \leftarrow WR_1 \to PA_2$, plus the baseline $L_{t1}$ and the outcome own-baseline $B_{t1}$. Bare `W` denotes the distinct $WR_1$ confounder; `W_pre` remains the structural marker that resolves to $B_{t1}$. **Phonological memory ($RW$) considered and excluded — precision-only:** it is a parent of blending but not of letter sounds, and the route $L \leftarrow HS \to RW \to B$ is blocked at adjusted $HS$. **Intervention sessions $IS$ (`attend`) confirmed NOT adjusted:** $L \leftarrow IS \to B$ is a treatment-affected recanting witness, so conditioning on it would change the estimand and can open the latent-general-ability collider. MED-187 supplies the interventional estimand; #324 supplies the named-confounder calibration. $E$/$R$ remain legitimately absent. Adding $WR_1$ reduces an observable backdoor but does not identify the decomposition.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

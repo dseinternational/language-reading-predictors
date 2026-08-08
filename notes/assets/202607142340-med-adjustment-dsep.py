@@ -1,15 +1,20 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Time-indexed d-separation for the mediation-family adjustment sets (#264).
+"""Historical 13-model mediation witness audit with a current DAG mirror (#264).
 
 Extends ``notes/assets/202607141030-lagged-dsep-checks.py`` (the #250 script)
-from the LCSM couplings to the full mediation family: for each of the thirteen
-MED models the crossover-aware unroll of ``dag/dag-language-reading-lagged.dagitty``
-is used to derive, mechanically:
+from the LCSM couplings to the thirteen MED models present in the 2026-07-14
+audit. ``MODELS`` below is that static historical roster, not a live catalogue
+of the subsequently expanded mediation family. Its adjustment snapshots are
+manually maintained for those thirteen models, including later corrections;
+live ``SPEC.adjustment`` coverage remains in pytest. The wave-slice mirror stays
+synchronised with ``dag/dag-language-reading-lagged.dagitty`` and therefore
+revalidates these historical witnesses against the current graph. For each
+roster model it derives, mechanically:
 
-1. whether the fitted (all-baseline) adjustment set contains any descendant of
-   the randomised treatment ``IG`` (cross-world admissibility of the set itself);
+1. whether its recorded (all-baseline) adjustment set contains any descendant
+   of the randomised treatment ``IG`` (cross-world admissibility of the set itself);
 2. whether baseline vocabulary ``EV_1`` / ``RV_1`` (the models' ``E`` / ``R``)
    are descendants of ``IG`` or of any mediator (the #259 claim under test);
 3. whether the fitted set blocks the mediator -> outcome backdoors (``GA`` aside);
@@ -27,8 +32,8 @@ measured set can block it, so the checks ask the honest question ("GA aside,
 does this set block every backdoor?") and the family labels its decompositions
 adjusted associations / g-formula-under-assumptions accordingly.
 
-Age enters the fitted models once, at baseline; on the unroll the fitted ``A``
-is granted {A_1, A_2} because age at later waves is deterministic given wave
+Age entered the audited models once, at baseline; on the unroll the recorded
+``A`` is granted {A_1, A_2} because age at later waves is deterministic given wave
 spacing (the .dagitty header records the A_t -> A_t1 edge as "a placeholder for
 maturation, not a stochastic cause").
 
@@ -68,7 +73,11 @@ WITHIN = [
     ("PA", ["NW", "WR", "PS"]),
     ("RG", ["EG"]),
 ]
-REVERSE = ["TE", "TR", "PA", "RW"]  # WR_w -> {..}_{w+1}
+# WR_w -> {..}_{w+1}. ``LS`` was added to the DAG on 2026-07-17 and ``NW``
+# on 2026-08-08. Keep this current graph mirror synchronized with the mutable DAG;
+# ``assert_reverse_edges_match_dag`` below fails before any witness is reported
+# if either side changes again.
+REVERSE = ["TE", "TR", "PA", "RW", "LS", "NW"]
 HS_CHILDREN = ["TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"]
 ITT_TARGETS = ["TR", "TE", "PA", "LS", "WR", "PS", "EI", "EG"]
 
@@ -92,6 +101,26 @@ def parse_dagitty(path: Path) -> nx.DiGraph:
             continue
         raise ValueError(f"unparsed dagitty line: {line!r}")
     return g
+
+
+def assert_reverse_edges_match_dag(template: nx.DiGraph) -> None:
+    """Fail loudly if ``REVERSE`` has drifted from the DAG source of truth."""
+    # WR_t -> WR_t1 is ordinary carry-over, not a reciprocal cross-lag; the
+    # unroll adds it through SKILLS rather than REVERSE, so exclude it here.
+    actual = {
+        target[: -len("_t1")]
+        for _, target in template.out_edges("WR_t")
+        if target.endswith("_t1") and target != "WR_t1"
+    }
+    expected = set(REVERSE)
+    if actual != expected:
+        raise AssertionError(
+            "REVERSE has drifted from dag-language-reading-lagged.dagitty.\n"
+            f"  in the DAG but not in REVERSE: {sorted(actual - expected)}\n"
+            f"  in REVERSE but not in the DAG: {sorted(expected - actual)}\n"
+            "Update REVERSE and revalidate every mediation witness."
+        )
+    print(f"reverse edges WR_t -> *_t1 match the DAG: {sorted(actual)}")
 
 
 def unroll(n_waves: int) -> nx.DiGraph:
@@ -129,7 +158,7 @@ def unroll(n_waves: int) -> nx.DiGraph:
 
 
 # ---------------------------------------------------------------------------
-# The mediation family, mapped onto the unroll
+# Historical 2026-07-14 mediation roster, mapped onto the current unroll
 # ---------------------------------------------------------------------------
 
 # ModelSpec symbol -> DAG node (same mapping as measures.py / the DAG node key).
@@ -171,7 +200,9 @@ def map_adjustment(entries: list[str], outcome_symbol: str) -> set[str]:
 
 
 # Witness paths: alternating node / arrow sequences from a mediator to the
-# outcome. Every interior node must be an IG-descendant (asserted below).
+# outcome. Every interior node must be an IG-descendant (asserted below). This
+# static list is intentionally not the authoritative family roster; the live,
+# expanded model catalogue is exercised by tests/test_lagged_dag_adjustment_sets.py.
 MODELS: list[dict] = [
     dict(mid="med-059", mediators=["L"], outcome="W",
          adjustment=["G", "A", "E", "R", "L_t1", "W_pre", "hs", "deapp_c"],
@@ -207,10 +238,10 @@ MODELS: list[dict] = [
          adjustment=["G", "A", "L", "E", "W_pre", "TR_t1"],
          witness=["TR_2", "<-", "IS_1", "->", "WR_2"]),
     dict(mid="med-086", mediators=["L"], outcome="N",
-         adjustment=["G", "A", "L_t1", "B", "hs", "deapp_c", "erbto"],
+         adjustment=["G", "A", "L_t1", "B", "W", "hs", "deapp_c", "erbto"],
          witness=["LS_2", "<-", "IS_1", "->", "PA_2", "->", "NW_2"]),
     dict(mid="med-087", mediators=["L"], outcome="B",
-         adjustment=["G", "A", "W_pre", "L_t1", "hs", "deapp_c"],
+         adjustment=["G", "A", "W_pre", "L_t1", "W", "hs", "deapp_c"],
          witness=["LS_2", "<-", "IS_1", "->", "PA_2"]),
 ]
 
@@ -261,9 +292,14 @@ def parent_set(g: nx.DiGraph, mediators: set[str]) -> set[str]:
 
 
 def main() -> None:
+    print(
+        "historical audit roster: 13 models from 2026-07-14; "
+        "DAG mirror, recorded sets and witness validation are current"
+    )
     tmpl = parse_dagitty(DAG_PATH)
     assert nx.is_directed_acyclic_graph(tmpl)
-    assert tmpl.number_of_nodes() == 36 and tmpl.number_of_edges() == 195
+    assert tmpl.number_of_nodes() == 36 and tmpl.number_of_edges() == 197
+    assert_reverse_edges_match_dag(tmpl)
     print(f"template ok: {tmpl.number_of_nodes()} nodes, {tmpl.number_of_edges()} edges")
 
     g3 = unroll(3)
@@ -289,12 +325,12 @@ def main() -> None:
         er_in_c = sorted(c & {"EV_1", "RV_1"})
 
         print(f"== {mid}: M = {sorted(ms)} -> Y = {y}")
-        print(f"   fitted set (mapped): {sorted(c)}")
+        print(f"   recorded set (mapped): {sorted(c)}")
 
-        # 1. cross-world admissibility of the fitted set itself
+        # 1. cross-world admissibility of the recorded set itself
         bad = sorted(c & ig_desc)
-        assert not bad, f"{mid}: fitted set contains IG-descendants {bad}"
-        print("   [OK] fitted set contains no IG-descendant (cross-world-admissible)")
+        assert not bad, f"{mid}: recorded set contains IG-descendants {bad}"
+        print("   [OK] recorded set contains no IG-descendant (cross-world-admissible)")
 
         # 2. E/R are not descendants of IG or of any mediator
         for n in ("EV_1", "RV_1"):
@@ -302,13 +338,13 @@ def main() -> None:
             for m in ms:
                 assert n not in nx.descendants(g, m)
 
-        # 3. does the fitted (all-baseline) set block the M -> Y backdoors?
+        # 3. does the recorded (all-baseline) set block the M -> Y backdoors?
         ok_c = blocks_backdoors(g, ms, y, c)
         ok_c_no_er = blocks_backdoors(g, ms, y, c - {"EV_1", "RV_1"})
-        print(f"   [{'VALID' if ok_c else 'NOT-VALID'}] M -> Y | fitted set")
+        print(f"   [{'VALID' if ok_c else 'NOT-VALID'}] M -> Y | recorded set")
         if er_in_c:
             print(f"   [{'VALID' if ok_c_no_er else 'NOT-VALID'}] "
-                  f"M -> Y | fitted set minus {er_in_c} (dropping E/R changes nothing)")
+                  f"M -> Y | recorded set minus {er_in_c} (dropping E/R changes nothing)")
             assert ok_c == ok_c_no_er
 
         # 4. witness: a collider-free backdoor path blockable only at IG-descendants
@@ -337,7 +373,7 @@ def main() -> None:
                         "affected member of the valid set")
             else:
                 role = "precision-only (on no minimal backdoor route)"
-            flag = "in fitted set" if base in c else "NOT in fitted set"
+            flag = "in recorded set" if base in c else "NOT in recorded set"
             print(f"   {sym} ({base}, {flag}): {role}")
         print()
 

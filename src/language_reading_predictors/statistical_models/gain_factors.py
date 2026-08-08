@@ -80,8 +80,8 @@ def resolve_active_interactions(
     """
     pairs = tuple(tuple(p) for p in interactions)
     if not treated_only:
-        return pairs  # type: ignore[return-value]
-    return tuple(p for p in pairs if "trt" not in p)  # type: ignore[return-value]
+        return pairs
+    return tuple(p for p in pairs if "trt" not in p)
 
 
 def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
