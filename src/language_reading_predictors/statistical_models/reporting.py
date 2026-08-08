@@ -6046,3 +6046,23 @@ def beta_summary(trace, name: str, ci_prob: float) -> dict:
         "hi50": float(np.quantile(draws, 0.75)),
         "prob_pos": float(np.mean(draws > 0)),
     }
+
+
+def coef_row(label: str, draws, hdi_prob: float) -> dict:
+    """Posterior mean, equal-tailed central interval and ``P(coef > 0)``.
+
+    Equal-tailed quantiles at coverage ``hdi_prob`` — the same convention as
+    :func:`reporting.tau_summary_itt` (not a highest-density interval).
+    """
+    d = np.asarray(draws).reshape(-1)
+    lo_q = (1 - hdi_prob) / 2
+    return {
+        "coefficient": label,
+        "median": float(np.median(d)),
+        "mean": float(np.mean(d)),
+        "lo": float(np.quantile(d, lo_q)),
+        "hi": float(np.quantile(d, 1 - lo_q)),
+        "lo50": float(np.quantile(d, 0.25)),
+        "hi50": float(np.quantile(d, 0.75)),
+        "prob_pos": float(np.mean(d > 0)),
+    }
