@@ -8,14 +8,17 @@ End-to-end fit pipeline for the statistical models.
 ``fit_mediation`` for the g-formula decompositions, and ``fit_adjusted`` /
 ``fit_lcsm`` / ``fit_concurrent`` for the LRP65/LRP67/LRP-CA companions.
 
-Nine families have moved to :mod:`pipelines` — ITT and joint (#394 step 5), then
-DiD, dose-response, gain- and level-factors, block exposure and aligned (step 6).
-Their entry points are re-exported here so model modules and tests keep their
-import path. The shared mechanics they used to carry inline now live in
-:mod:`runtime` (the stage binding and spec validation), :mod:`publication`
-(banners, report template, model graph), :mod:`adjustment` (the fitted
-adjustment-set record), :mod:`prior_artifacts`, :mod:`ppc_artifacts` and
-:mod:`figure_artifacts`. The remaining families migrate in the same way.
+The ITT and joint families have moved to :mod:`pipelines` (#394 step 5), followed
+by DiD, dose-response, gain- and level-factors, block exposure and aligned (step
+6). Their entry points are re-exported here so model modules and tests keep their
+import path; ``MIGRATED_FAMILIES`` in ``test_pipeline_boundaries.py`` is the
+authoritative list, checked against the package contents.
+
+The shared mechanics they used to carry inline now live in :mod:`runtime` (the
+stage binding and spec validation), :mod:`publication` (banners, report template,
+model graph), :mod:`adjustment` (the fitted adjustment-set record),
+:mod:`prior_artifacts`, :mod:`ppc_artifacts` and :mod:`figure_artifacts`. The
+remaining families migrate in the same way.
 
 Each pipeline:
 
