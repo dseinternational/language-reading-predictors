@@ -1624,3 +1624,38 @@ def write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
     out["loo_reliable"] = out["pareto_k"] <= threshold
     save_table(ctx, "pareto_k", out)
     return out
+
+
+def sample_subfit(model, sampling, *, label: str = "sub-fit"):
+    """Sample a sub-model (bivariate / sensitivity / prior-sweep) with nutpie.
+
+    Mirrors :func:`diagnostics.sample_posterior` but is standalone, so the sub-fit
+    traces never overwrite the headline ``ctx.trace`` / ``trace.nc``. A convergence
+    check runs on the result and warns loudly if the sub-fit failed the gate, since
+    these traces bypass the primary ``diagnostics_summary.json`` gate.
+
+    Returns ``(trace, conv)`` where ``conv`` is the
+    :func:`diagnostics.subfit_convergence` verdict dict (``converged``/``max_rhat``/
+    ``min_ess``/``min_bfmi``/``n_divergences``). The caller persists the verdict onto
+    the sub-fit's published CSV: previously it was computed and discarded, so the
+    bivariate / prior-sweep / SES sensitivity tables were reported with no convergence
+    flag despite bypassing the primary gate (this review's finding B1).
+    """
+    import pymc as pm
+
+    with model:
+        trace = pm.sample(
+            draws=sampling.draws,
+            tune=sampling.tune,
+            chains=sampling.chains,
+            cores=sampling.cores,
+            target_accept=sampling.target_accept,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=sampling.random_seed,
+            progressbar=False,
+        )
+    conv = subfit_convergence(
+        trace, label=label, var_names=[rv.name for rv in model.free_RVs]
+    )
+    return trace, conv

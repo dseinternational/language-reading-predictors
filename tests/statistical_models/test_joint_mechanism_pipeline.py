@@ -26,10 +26,12 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from language_reading_predictors.statistical_models import pipeline as _pipeline
 from language_reading_predictors.statistical_models.lrp_rli_jm_001 import SPEC as JM001
 from language_reading_predictors.statistical_models.lrp_rli_jm_002 import SPEC as JM002
-from language_reading_predictors.statistical_models.pipeline import (
+from language_reading_predictors.statistical_models.pipelines import (
+    joint_mechanism as _jm_pipeline,
+)
+from language_reading_predictors.statistical_models.pipelines.joint_mechanism import (
     _JM_SLOPE_REQUIRED,
     _jm_diag_vars,
     _jm_marginal_ppc,
@@ -313,7 +315,7 @@ def _silent_diagnostics(monkeypatch):
         "save_trace",
         "save_prior_posterior_plot",
     ):
-        monkeypatch.setattr(_pipeline._diag, name, lambda *a, **k: None)
+        monkeypatch.setattr(_jm_pipeline._diag, name, lambda *a, **k: None)
     clean_gate = {
         "passed": True,
         "checks": {
@@ -328,15 +330,15 @@ def _silent_diagnostics(monkeypatch):
         "bfmi_per_chain": [0.8, 0.9],
     }
     monkeypatch.setattr(
-        _pipeline._diag, "write_diagnostics_summary", lambda *a, **k: clean_gate
+        _jm_pipeline._diag, "write_diagnostics_summary", lambda *a, **k: clean_gate
     )
     monkeypatch.setattr(
-        _pipeline._diag,
+        _jm_pipeline._diag,
         "run_psense",
         lambda ctx, *, var_names: calls["psense"].append(list(var_names)),
     )
     monkeypatch.setattr(
-        _pipeline._diag,
+        _jm_pipeline._diag,
         "save_joint_loo_pit_plot",
         lambda ctx, symbol, **k: calls["loo_pit"].append((symbol, k.get("posterior_var"))),
     )

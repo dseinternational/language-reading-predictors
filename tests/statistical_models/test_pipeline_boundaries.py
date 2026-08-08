@@ -24,11 +24,12 @@ from language_reading_predictors.statistical_models import pipeline
 PACKAGE = pathlib.Path(pipeline.__file__).parent
 MONOLITH = "language_reading_predictors.statistical_models.pipeline"
 
-# The shared layer ``pipelines/*`` is built on: artefact production, presentation
-# and the stage binding. Each was carved out of ``pipeline.py`` and must stay
-# below it.
+# The shared layer ``pipelines/*`` is built on: artefact production, presentation,
+# the stage binding and the samplers. Each was carved out of ``pipeline.py`` (or,
+# for ``diagnostics``, predates it) and must stay below it.
 SHARED_MODULES = (
     "adjustment",
+    "diagnostics",
     "figure_artifacts",
     "ppc_artifacts",
     "prior_artifacts",
@@ -36,18 +37,32 @@ SHARED_MODULES = (
     "runtime",
 )
 
-# Every family that has moved out of the monolith, and the entry point
-# ``pipeline.py`` must keep re-exporting for it.
-MIGRATED_FAMILIES = {
-    "aligned": "fit_aligned",
-    "block_exposure": "fit_block_exposure",
-    "did": "fit_did",
-    "dose_response": "fit_dose_response",
-    "gain_factors": "fit_gain_factors",
-    "itt": "fit_itt",
-    "joint": "fit_joint",
-    "level_factors": "fit_level_factors",
+# Every family that has moved out of the monolith, and the entry points
+# ``pipeline.py`` must keep re-exporting for it. Most families have exactly one;
+# mediation is the outlier, with three fit functions and a data-preparation
+# helper that ``scripts/regenerate_mediation_calibration.py`` imports by name.
+MIGRATED_FAMILIES: dict[str, tuple[str, ...]] = {
+    "aligned": ("fit_aligned",),
+    "block_exposure": ("fit_block_exposure",),
+    "did": ("fit_did",),
+    "dose_response": ("fit_dose_response",),
+    "gain_factors": ("fit_gain_factors",),
+    "itt": ("fit_itt",),
+    "joint": ("fit_joint",),
+    "joint_mechanism": ("fit_joint_mechanism",),
+    "level_factors": ("fit_level_factors",),
+    "mechanism": ("fit_mechanism",),
+    "mediation": (
+        "fit_mediation",
+        "fit_mediation_multi",
+        "fit_mediation_period_stacked",
+        "prepare_mediation_data",
+    ),
 }
+
+MIGRATED_ENTRY_POINTS = sorted(
+    (family, entry) for family, entries in MIGRATED_FAMILIES.items() for entry in entries
+)
 
 
 def _package_of(path: pathlib.Path) -> str:
@@ -147,7 +162,7 @@ def test_family_pipelines_do_not_import_the_monolith():
         )
 
 
-@pytest.mark.parametrize("family,entry", sorted(MIGRATED_FAMILIES.items()))
+@pytest.mark.parametrize("family,entry", MIGRATED_ENTRY_POINTS)
 def test_pipeline_re_exports_the_migrated_family_entry_points(family, entry):
     """``pipeline.py`` stays a working facade until every caller has migrated."""
     module = importlib.import_module(
@@ -158,6 +173,6 @@ def test_pipeline_re_exports_the_migrated_family_entry_points(family, entry):
 
 def test_migrated_families_are_no_longer_defined_in_the_monolith():
     source = pathlib.Path(pipeline.__file__).read_text(encoding="utf-8")
-    entries = [f"def {e}(" for e in MIGRATED_FAMILIES.values()]
+    entries = [f"def {entry}(" for _, entry in MIGRATED_ENTRY_POINTS]
     for entry in [*entries, "def fit_itt_floor_rule("]:
         assert entry not in source, f"{entry!r} is back in pipeline.py"

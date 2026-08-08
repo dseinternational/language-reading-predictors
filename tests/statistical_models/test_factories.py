@@ -2899,7 +2899,7 @@ def test_mechanism_writers_use_pre_exposure_when_lagged(tmp_path):
     not the post score — or the artifacts mislabel a lagged fit as concurrent."""
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models import pipeline as pl
+    from language_reading_predictors.statistical_models.pipelines import mechanism as pl
     from language_reading_predictors.statistical_models.measures import MEASURES
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
