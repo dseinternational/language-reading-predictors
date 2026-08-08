@@ -131,7 +131,7 @@ def test_concurrent_group_term_is_documented_as_nuisance():
 
 
 def test_level_factor_prior_role_is_conservative_for_group_time_vector():
-    from language_reading_predictors.statistical_models.pipeline import (
+    from language_reading_predictors.statistical_models.prior_artifacts import (
         _prior_table_overrides,
     )
 
@@ -153,7 +153,7 @@ def test_gain_factor_moderation_variant_demotes_beta_trt_role():
     table as "causal" — every artefact of a variant fit presents it as a
     model-dependent association, priors_table.csv included. A headline primary is
     untouched (no override entry), so its ``beta_trt`` keeps the causal role."""
-    from language_reading_predictors.statistical_models.pipeline import (
+    from language_reading_predictors.statistical_models.prior_artifacts import (
         _prior_table_overrides,
     )
 

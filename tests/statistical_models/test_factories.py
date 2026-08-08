@@ -502,9 +502,9 @@ def _assert_itt_diag_vars_subset(
     adjust_for=(),
     likelihood="beta_binomial",
 ):
-    """``_itt_diag_vars`` must only name RVs the factory actually builds, else
+    """``itt_diag_vars`` must only name RVs the factory actually builds, else
     ``summary_diagnostics`` (``az.summary``) raises ``KeyError`` at diagnostics time."""
-    from language_reading_predictors.statistical_models.pipeline import _itt_diag_vars
+    from language_reading_predictors.statistical_models.pipelines.itt import itt_diag_vars
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-999",
@@ -514,12 +514,12 @@ def _assert_itt_diag_vars_subset(
         model_settings=settings,
     )
     plan = resolve_itt_run_plan(spec)
-    diag = _itt_diag_vars(plan, adjust_for, likelihood=likelihood)
+    diag = itt_diag_vars(plan, adjust_for, likelihood=likelihood)
     built_names = {v.name for v in built.model.free_RVs} | {
         v.name for v in built.model.deterministics
     }
     missing = set(diag) - built_names
-    assert not missing, f"_itt_diag_vars names RVs the model never builds: {missing}"
+    assert not missing, f"itt_diag_vars names RVs the model never builds: {missing}"
     return set(diag)
 
 

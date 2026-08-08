@@ -340,6 +340,7 @@ dagitty
 dataclass
 dcor
 dcorr
+ddof
 deapp
 deappav
 deappfi
@@ -417,10 +418,10 @@ importorskip
 incl
 invlogit
 isfinite
+isin
 isinstance
 isna
 issubset
-isin
 iterdir
 iterrows
 itertuples
@@ -467,6 +468,7 @@ mathrm
 matplotlib
 medae
 miscalibration
+monkeypatch
 monofont
 monofontoptions
 morphosyntax
@@ -580,6 +582,7 @@ scrartcl
 scratchpad
 secondaries
 sens
+setattr
 shutil
 sigmas
 sizable
@@ -639,4 +642,3 @@ yarcsi
 ypre
 zproc
 ΔELPD
-ddof

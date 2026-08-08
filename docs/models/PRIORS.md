@@ -21,7 +21,7 @@ The main source of truth is
 `src/language_reading_predictors/statistical_models/priors.py`, especially
 `ALL_PRIORS`, `_ROLE_BY_CTOR`, `_RV_TO_CTOR`, and `_INLINE_PRIORS`. Per-fit
 `priors_table.csv` files are generated from the actual PyMC model by
-`priors.priors_table()` and emitted by `pipeline._emit_priors()`.
+`priors.priors_table()` and emitted by `prior_artifacts.emit_priors()`.
 
 This inventory was generated on 2026-06-29 from:
 
