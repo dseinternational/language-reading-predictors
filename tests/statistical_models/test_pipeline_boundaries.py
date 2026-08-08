@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Structural guards for the family-split boundaries (#394 step 5).
+"""Structural guards for the family-split boundaries (#394 steps 5-6).
 
 The split only stays possible while the dependency edges point one way: the
 shared artefact and presentation modules, and the family orchestration modules
@@ -9,6 +9,10 @@ under ``pipelines/``, must not reach back into ``pipeline.py``. A back-edge woul
 reintroduce the import cycle that kept every family inside the monolith, and it
 would do so silently — nothing else in the suite would fail. These tests make it
 fail here instead.
+
+Now that the split is complete, two further properties are pinned: ``pipeline.py``
+holds re-exports and nothing else, and every registered family kind has an
+orchestration module to its name.
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ import pathlib
 
 import pytest
 
-from language_reading_predictors.statistical_models import pipeline
+from language_reading_predictors.statistical_models import definitions, pipeline
 
 PACKAGE = pathlib.Path(pipeline.__file__).parent
 MONOLITH = "language_reading_predictors.statistical_models.pipeline"
@@ -30,13 +34,17 @@ MONOLITH = "language_reading_predictors.statistical_models.pipeline"
 # must stay below it.
 SHARED_MODULES = (
     "adjustment",
+    "artifacts",
     "diagnostics",
     "figure_artifacts",
+    "lcf_inference",
+    "lcf_summaries",
     "ppc_artifacts",
     "prior_artifacts",
     "publication",
     "reporting",
     "runtime",
+    "stages",
 )
 
 # Every family that has moved out of the monolith, and the entry points
@@ -50,14 +58,20 @@ MIGRATED_FAMILIES: dict[str, tuple[str, ...]] = {
     "aligned": ("fit_aligned",),
     "block_exposure": ("fit_block_exposure",),
     "concurrent": ("fit_concurrent",),
+    "corr_factor": ("fit_correlated_factor", "fit_rlm_corr_factor"),
     "did": ("fit_did",),
     "dose_response": ("fit_dose_response",),
     "gain_factors": ("fit_gain_factors",),
+    "growth": ("fit_growth",),
+    "historical_growth": ("fit_historical_growth",),
+    "historical_joint": ("fit_rlm_joint_growth",),
     "horseshoe": ("fit_horseshoe", "fit_rlm_horseshoe"),
     "itt": ("fit_itt",),
     "joint": ("fit_joint",),
     "joint_mechanism": ("fit_joint_mechanism",),
+    "lcsm": ("fit_lcsm",),
     "level_factors": ("fit_level_factors",),
+    "long_corr_factor": ("fit_longitudinal_corr_factor",),
     "mechanism": ("fit_mechanism",),
     "mediation": (
         "fit_mediation",
@@ -65,6 +79,7 @@ MIGRATED_FAMILIES: dict[str, tuple[str, ...]] = {
         "fit_mediation_period_stacked",
         "prepare_mediation_data",
     ),
+    "survival": ("fit_survival",),
 }
 
 MIGRATED_ENTRY_POINTS = sorted(
@@ -183,3 +198,37 @@ def test_migrated_families_are_no_longer_defined_in_the_monolith():
     entries = [f"def {entry}(" for _, entry in MIGRATED_ENTRY_POINTS]
     for entry in [*entries, "def fit_itt_floor_rule("]:
         assert entry not in source, f"{entry!r} is back in pipeline.py"
+
+
+def test_the_facade_holds_re_exports_and_nothing_else():
+    """#394 acceptance criterion 1: no family-specific statistical calculations.
+
+    Stated structurally, because "no statistical code" is otherwise a matter of
+    opinion: the facade may contain imports and nothing else. A function, class
+    or module-level constant appearing here is the first step back towards a
+    monolith, and it should have to be argued for by editing this test.
+    """
+    tree = ast.parse(pathlib.Path(pipeline.__file__).read_text(encoding="utf-8"))
+    offenders = [
+        getattr(node, "name", type(node).__name__)
+        for node in tree.body
+        if not isinstance(node, (ast.Import, ast.ImportFrom, ast.Expr))
+    ]
+    assert not offenders, f"pipeline.py is no longer a pure facade: {offenders}"
+
+
+# ``mediation_multi`` is a distinct ``ModelSpec.kind`` but the same family module:
+# its two-mediator decomposition shares the g-formula machinery with the
+# single-mediator fits, so ``pipelines/mediation.py`` owns both entry points.
+KIND_MODULES = {"mediation_multi": "mediation"}
+
+
+def test_every_registered_family_kind_has_an_orchestration_module():
+    """#394 acceptance criterion 2, checked against the authoritative kind list."""
+    modules = {p.stem for p in (PACKAGE / "pipelines").glob("*.py")} - {"__init__"}
+    missing = {
+        kind
+        for kind in definitions.KINDS
+        if KIND_MODULES.get(kind, kind) not in modules
+    }
+    assert not missing, f"family kinds with no module under pipelines/: {sorted(missing)}"

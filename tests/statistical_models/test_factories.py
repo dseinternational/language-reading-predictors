@@ -1427,7 +1427,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     import xarray as xr
     from scipy.stats import multivariate_normal
 
-    from language_reading_predictors.statistical_models.pipeline import (
+    from language_reading_predictors.statistical_models.pipelines.long_corr_factor import (
         _lcf_child_log_likelihood,
         _lcf_concurrent_comparison,
         _lcf_observed_conditional_slope,
