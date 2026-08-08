@@ -365,6 +365,7 @@ dseinternational
 dsep
 dseresearch
 dtype
+dtypes
 earinf
 econlet
 ecresq

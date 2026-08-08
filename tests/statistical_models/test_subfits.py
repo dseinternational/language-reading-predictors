@@ -52,16 +52,22 @@ def _ctx(tmp_path=None, *, draws=800, tune=500, chains=2):
     )
 
 
-def _built(counts=(3, 5, 2, 7), *, n_children=4):
+def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None):
     """A tiny Binomial model plus the duck-typed ``prepared`` the runner reads."""
     observed = np.asarray(counts)
     with pm.Model() as model:
         p = pm.Beta("p", 2.0, 2.0)
         pm.Binomial("y", n=10, p=p, observed=observed)
-    return SimpleNamespace(
-        model=model,
-        prepared=SimpleNamespace(n_children=n_children, n_obs=len(observed)),
+    prepared = SimpleNamespace(
+        n_children=n_children,
+        n_obs=len(observed),
+        subject_ids=np.asarray(
+            subject_ids if subject_ids is not None else range(len(observed))
+        ),
     )
+    if phase is not None:
+        prepared.phase = np.asarray(phase)
+    return SimpleNamespace(model=model, prepared=prepared)
 
 
 def _verdict(**over):
@@ -92,7 +98,12 @@ def _result(**over):
             "random_seed": 47,
         },
         "data": SubfitData(
-            n_children=4, n_obs=4, observed=(("y", (4,)),), digest="abc", digest_error=None
+            n_children=4,
+            n_obs=4,
+            observed=(("y", (4,)),),
+            identity_keys=("subject_ids",),
+            digest="abc",
+            digest_error=None,
         ),
         "convergence_scope": "free_rvs",
     }
@@ -107,6 +118,7 @@ def test_the_data_identity_reads_the_rows_and_observations_actually_fitted():
     data = describe_fitted_data(_built((3, 5, 2, 7), n_children=4))
     assert (data.n_children, data.n_obs) == (4, 4)
     assert data.observed == (("y", (4,)),)
+    assert data.identity_keys == ("subject_ids",)
     assert data.digest and data.digest_error is None
 
 
@@ -124,11 +136,50 @@ def test_the_digest_separates_sub_fits_that_differ_only_in_their_rows():
     assert same.digest != shuffled.digest
 
 
+def test_the_digest_separates_different_children_with_identical_scores():
+    """Observations alone are not an identity, and floored outcomes prove it.
+
+    On a heavily floored measure two different subsets of children routinely
+    share one ordered score vector — all zeros, say. Hashing the scores alone
+    would declare two different analysis populations the same data, so the row
+    keys are hashed too.
+    """
+    floored = (0, 0, 0, 0)
+    first = describe_fitted_data(_built(floored, subject_ids=[11, 12, 13, 14]))
+    second = describe_fitted_data(_built(floored, subject_ids=[21, 22, 23, 24]))
+    assert first.digest != second.digest
+    # And the same children at a different phase are a different fit again.
+    p1 = describe_fitted_data(_built(floored, subject_ids=[11, 12, 13, 14], phase=[1] * 4))
+    p2 = describe_fitted_data(_built(floored, subject_ids=[11, 12, 13, 14], phase=[2] * 4))
+    assert p1.digest != p2.digest
+    assert p1.identity_keys == ("subject_ids", "phase")
+
+
+def test_the_digest_covers_shape_so_a_reshape_is_not_the_same_data():
+    built = _built((3, 5, 2, 7))
+    flat = describe_fitted_data(built)
+    with pm.Model() as model:
+        p = pm.Beta("p", 2.0, 2.0)
+        pm.Binomial("y", n=10, p=p, observed=np.asarray([[3, 5], [2, 7]]))
+    reshaped = describe_fitted_data(
+        SimpleNamespace(model=model, prepared=built.prepared)
+    )
+    assert flat.digest != reshaped.digest
+
+
+def test_string_subject_identifiers_are_hashed_by_their_text():
+    """Object/str id arrays have no meaningful buffer to hash."""
+    a = describe_fitted_data(_built(subject_ids=["c01", "c02", "c03", "c04"]))
+    b = describe_fitted_data(_built(subject_ids=["c01", "c02", "c03", "c99"]))
+    assert a.digest and a.digest != b.digest
+
+
 def test_a_missing_prepared_frame_degrades_to_nulls_rather_than_failing():
     """Provenance is never worth losing a fit over."""
     built = SimpleNamespace(model=_built().model)
     data = describe_fitted_data(built)
     assert (data.n_children, data.n_obs) == (None, None)
+    assert data.identity_keys == ()
     assert data.digest is not None
 
 
@@ -138,12 +189,17 @@ def test_an_unreadable_observation_records_why_the_digest_is_absent():
 
     built = SimpleNamespace(
         model=SimpleNamespace(observed_RVs=[Hostile()], rvs_to_values={}),
-        prepared=SimpleNamespace(n_children=4, n_obs=4),
+        prepared=SimpleNamespace(
+            n_children=4, n_obs=4, subject_ids=np.arange(4)
+        ),
     )
     data = describe_fitted_data(built)
     assert data.digest is None
     assert data.digest_error and "KeyError" in data.digest_error
     assert (data.n_children, data.n_obs) == (4, 4)
+    # No partial digest, and no identity keys claimed for one: a blank cell with a
+    # reason cannot be misread as comparable to a full digest.
+    assert data.identity_keys == ()
 
 
 # --- the typed result ------------------------------------------------------
@@ -184,6 +240,22 @@ def test_the_log_keeps_sub_fits_in_the_order_the_family_ran_them():
         log.record(_result(label=f"bivariate {k}"))
     assert [r.label for r in log.results] == ["bivariate L", "bivariate B", "bivariate age"]
     assert list(log.frame()["label"]) == ["bivariate L", "bivariate B", "bivariate age"]
+
+
+def test_the_log_does_not_retain_the_traces():
+    """Provenance must not pin every sub-fit posterior in memory.
+
+    The concurrent family runs 27 sub-fits at reporting tier and drops each trace
+    once its summary is computed. A log holding the ``InferenceData`` would undo
+    that for the lifetime of the fit context; the caller still gets the full
+    result back from the runner.
+    """
+    log = SubfitLog()
+    full = _result(trace={"posterior": "a large object"})
+    log.record(full)
+    assert full.trace is not None
+    assert log.results[0].trace is None
+    assert log.results[0].label == full.label
 
 
 def test_recording_writes_the_provenance_table_and_registers_it(tmp_path):
@@ -251,6 +323,11 @@ def test_the_runner_samples_checks_persists_and_records(tmp_path):
     assert row["role"] == "sensitivity"
     assert row["n_obs"] == 4
     assert row["data_digest"] == describe_fitted_data(_built()).digest
+    # Shapes are published with the node names, and the digest says what it covers.
+    assert row["observed_nodes"] == "y[4]"
+    assert row["identity_keys"] == "subject_ids"
+    # The log holds provenance, not posteriors.
+    assert ctx.subfits.results[0].trace is None
 
 
 def test_the_convergence_scope_selects_the_parameters_scanned(monkeypatch):

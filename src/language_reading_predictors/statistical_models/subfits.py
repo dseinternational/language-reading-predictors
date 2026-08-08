@@ -27,7 +27,8 @@ filename and a structured failure classification, and it appends a row to
 ``subfit_provenance.csv`` on every call. The families keep their scientific loops
 explicit — which wave, which predictor, which prior width is being fitted stays
 in the family module — and delegate only the sampling, convergence, persistence
-and provenance mechanics.
+and provenance mechanics. The log keeps trace-free copies, so recording a
+sub-fit's provenance does not keep its posterior alive for the rest of the run.
 
 The provenance table is rewritten by each call rather than assembled at
 finalisation on purpose: a record of what a run did is worth least if it is the
@@ -44,7 +45,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Literal, Sequence
 
 import numpy as np
@@ -97,17 +98,26 @@ class SubfitData:
     model: the SES refit drops children with missing SES, a bivariate refit keeps
     the rows its one predictor is observed on, and a wave sub-fit takes one
     timepoint. ``n_children`` / ``n_obs`` come from the prepared frame the factory
-    returned (which is the post-drop frame, not what was requested), and ``digest``
-    hashes the observed arrays the model was conditioned on, so two sub-fits with
-    the same shape but different rows are still distinguishable.
+    returned — the post-drop frame, not what was requested.
+
+    ``digest`` hashes the **row keys** (subject identifiers, and the phase or wave
+    key where the frame carries one) alongside the observed arrays, their dtypes
+    and their shapes. Hashing the observations alone would not identify the rows:
+    on a floored outcome, two different subsets of children can share an identical
+    ordered score vector — heavily-floored measures make that likely, not exotic —
+    and the digests would then agree while the fitted children differed.
+    ``identity_keys`` names what actually went into the hash, so the digest is
+    self-describing rather than a number whose meaning has to be inferred.
     """
 
     n_children: int | None
     n_obs: int | None
     observed: tuple[tuple[str, tuple[int, ...]], ...]
     """``(observed node name, shape)`` for every observed RV, in model order."""
+    identity_keys: tuple[str, ...]
+    """The row-key arrays hashed into ``digest``, in hash order."""
     digest: str | None
-    """Short SHA-256 over the observed arrays, or ``None`` when unreadable."""
+    """Short SHA-256 over the row keys and observed arrays, or ``None``."""
     digest_error: str | None
     """Why the digest is absent, when it is."""
 
@@ -151,7 +161,13 @@ class SubfitResult:
             "convergence_scope": self.convergence_scope,
             "n_children": self.data.n_children,
             "n_obs": self.data.n_obs,
-            "observed_nodes": ", ".join(name for name, _ in self.data.observed),
+            # Shapes travel with the names: an auditor comparing two rows has to be
+            # able to see that differently shaped observations *are* different.
+            "observed_nodes": ", ".join(
+                f"{name}[{', '.join(str(n) for n in shape)}]"
+                for name, shape in self.data.observed
+            ),
+            "identity_keys": ", ".join(self.data.identity_keys),
             "data_digest": self.data.digest,
             "data_digest_error": self.data.digest_error,
             "sampler": self.sampling.get("sampler"),
@@ -170,12 +186,20 @@ class SubfitResult:
 
 @dataclass(slots=True)
 class SubfitLog:
-    """Per-fit record of every sub-fit, in the order the family ran them."""
+    """Per-fit provenance record, in the order the family ran the sub-fits.
+
+    The log holds **trace-free** copies. A family runs its sub-fits in a loop and
+    lets each trace go once the summary is computed — the concurrent family alone
+    runs twenty-seven at reporting tier, several carrying a per-child random-effect
+    vector over 36,000 draws — so a log that kept every ``InferenceData`` alive for
+    the lifetime of the fit context would multiply peak memory for no gain. The
+    caller still receives the full :class:`SubfitResult` from :func:`run_subfit`.
+    """
 
     results: list[SubfitResult] = field(default_factory=list)
 
     def record(self, result: SubfitResult) -> None:
-        self.results.append(result)
+        self.results.append(replace(result, trace=None))
 
     def frame(self) -> pd.DataFrame:
         return pd.DataFrame([r.provenance_row() for r in self.results])
@@ -192,6 +216,7 @@ PROVENANCE_COLUMNS: tuple[str, ...] = tuple(
             n_children=None,
             n_obs=None,
             observed=(),
+            identity_keys=(),
             digest=None,
             digest_error=None,
         ),
@@ -230,34 +255,92 @@ def _observed_arrays(model: Any) -> list[tuple[str, np.ndarray]]:
     return out
 
 
+#: Row-key attributes hashed into the digest when the prepared frame carries them.
+#: ``subject_ids`` identifies *which children*, and is present on all three frame
+#: types (``PreparedData``, ``WavePanel``, ``LongitudinalPanel``); ``phase`` and
+#: ``waves`` identify *which transition or timepoint*, and only one of them exists
+#: on any given frame. Absent attributes are skipped and simply do not appear in
+#: ``identity_keys``.
+_ROW_KEY_ATTRIBUTES: tuple[str, ...] = ("subject_ids", "phase", "waves")
+
+
+def _row_key_arrays(prepared: Any) -> list[tuple[str, np.ndarray]]:
+    """The identity arrays a prepared frame carries, in declared order."""
+    keys: list[tuple[str, np.ndarray]] = []
+    for name in _ROW_KEY_ATTRIBUTES:
+        value = getattr(prepared, name, None)
+        if value is None:
+            continue
+        array = np.asarray(value)
+        if array.size:
+            keys.append((name, array))
+    return keys
+
+
+def _hash_array(hasher: Any, name: str, array: np.ndarray) -> None:
+    """Fold one named array into the digest, shape and dtype included.
+
+    The shape matters on its own: without it, an array and a reshaping of it hash
+    identically, so a ``(4,)`` observation and a ``(2, 2)`` one would claim to be
+    the same data.
+    """
+    hasher.update(name.encode("utf-8"))
+    hasher.update(str(array.dtype).encode("utf-8"))
+    hasher.update(repr(array.shape).encode("utf-8"))
+    # ``str`` / ``object`` subject identifiers have no meaningful buffer, so those
+    # arrays are folded in by their text form instead.
+    if array.dtype.kind in "OUS":
+        hasher.update("|".join(str(v) for v in array.ravel()).encode("utf-8"))
+    else:
+        hasher.update(np.ascontiguousarray(array).tobytes())
+
+
 def describe_fitted_data(built: Any) -> SubfitData:
-    """Identify the rows and observations a built sub-model will be fitted to."""
+    """Identify the rows and observations a built sub-model will be fitted to.
+
+    The digest covers the prepared frame's row keys *and* the model's observed
+    arrays. Observations alone are not an identity: a floored outcome makes it
+    entirely possible for two different subsets of children to share one ordered
+    score vector, and a digest over the scores would then declare two different
+    analysis populations identical.
+    """
     prepared = getattr(built, "prepared", None)
     n_children = getattr(prepared, "n_children", None)
     n_obs = getattr(prepared, "n_obs", None)
+    row_keys = _row_key_arrays(prepared)
     try:
         arrays = _observed_arrays(built.model)
     except Exception as exc:  # noqa: BLE001 - provenance must not fail a fit
+        # No partial digest: one computed over the row keys alone would sit in the
+        # same column as full ones and invite a comparison that does not hold.
+        # A blank digest with a reason beside it cannot be misread.
         return SubfitData(
             n_children=_as_int(n_children),
             n_obs=_as_int(n_obs),
             observed=(),
+            identity_keys=(),
             digest=None,
             digest_error=f"{type(exc).__name__}: {exc}",
         )
     hasher = hashlib.sha256()
+    for name, array in row_keys:
+        _hash_array(hasher, f"key:{name}", array)
     observed: list[tuple[str, tuple[int, ...]]] = []
     for name, array in arrays:
         observed.append((name, tuple(int(n) for n in array.shape)))
-        hasher.update(name.encode("utf-8"))
-        hasher.update(str(array.dtype).encode("utf-8"))
-        hasher.update(np.ascontiguousarray(array).tobytes())
+        _hash_array(hasher, name, array)
+    identified = bool(arrays) or bool(row_keys)
     return SubfitData(
         n_children=_as_int(n_children),
         n_obs=_as_int(n_obs),
         observed=tuple(observed),
-        digest=hasher.hexdigest()[:16] if arrays else None,
-        digest_error=None if arrays else "the model has no observed nodes",
+        identity_keys=tuple(name for name, _ in row_keys),
+        digest=hasher.hexdigest()[:16] if identified else None,
+        digest_error=(
+            None
+            if identified
+            else "the model has no observed nodes and the frame no row keys"
+        ),
     )
 
 
