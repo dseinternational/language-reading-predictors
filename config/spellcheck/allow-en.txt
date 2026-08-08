@@ -622,6 +622,7 @@ undercoverage
 underdispersed
 underdispersion
 unfittable
+ungated
 unidimensionality
 univariates
 unmodelled

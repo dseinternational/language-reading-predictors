@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 from language_reading_predictors.statistical_models import stages
@@ -300,11 +301,16 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
         "write_run_metadata",
         lambda context, *, extra: metadata.append((context, extra)),
     )
-    monkeypatch.setattr(
-        stages._report,
-        "generate_key_findings",
-        lambda _output: {"status": "ok", "sentences": ["one"]},
-    )
+    # The findings generator now *receives* the release decision rather than
+    # making one (#394 design point 3), so the stub records what it was handed.
+    findings_calls = []
+
+    def _fake_findings(output, *, decision=None):
+        findings_calls.append((output, decision))
+        events.append("key_findings")
+        return {"status": "ok", "sentences": ["one"]}
+
+    monkeypatch.setattr(stages._report, "generate_key_findings", _fake_findings)
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
 
     runner.write_metadata(ctx, extra={"family": "example"})
@@ -312,6 +318,14 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
 
     assert metadata == [(ctx, {"family": "example"})]
     assert returned is ctx
-    assert events == ["Report", "copy_report", "publish", "footer"]
+    assert events == ["Report", "key_findings", "copy_report", "publish", "footer"]
     # The manifest is written between the report copy and publication (#394).
     assert (tmp_path / "artifact_manifest.json").exists()
+    # The release decision is settled and on disk *before* the findings that
+    # follow from it — the acceptance criterion, asserted as an ordering.
+    assert (tmp_path / "release_decision.json").exists()
+    (_output, decision), = findings_calls
+    assert decision is not None and decision.status == "not_available"
+    written = json.loads((tmp_path / "release_decision.json").read_text())
+    assert written["status"] == decision.status
+    assert written["publishable"] is False

@@ -98,13 +98,19 @@ from language_reading_predictors.statistical_models.sensitivity import (
 __all__ = [
     "GATED_KINDS",
     "PSENSE_THRESHOLD",
+    "RELEASE_DECISION_FILENAME",
+    "PublicationStatus",
     "ReleaseDecision",
+    "ReleaseEvaluation",
+    "ReleaseStage",
     "TauSensitivityClass",
     "causal_term_for",
     "classify_tau_sensitivity",
+    "evaluate_publication",
     "gate_applies",
     "evaluate_itt_release",
     "evaluate_release",
+    "write_release_decision",
 ]
 
 #: ArviZ's default power-scaling flag threshold. A parameter is "sensitive" when
@@ -715,3 +721,307 @@ def _load_config(output_dir: Path) -> dict[str, Any] | None:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
     return loaded if isinstance(loaded, dict) else None
+
+
+# ---------------------------------------------------------------------------
+# The publication decision (#394 design point 3)
+# ---------------------------------------------------------------------------
+
+RELEASE_DECISION_FILENAME = "release_decision.json"
+
+PublicationStatus = Literal[
+    "ok", "not_available", "gate_failed", "artifacts_incomplete", "robustness_unresolved"
+]
+"""What a fit is permitted to publish, in the vocabulary ``key_findings.json`` uses."""
+
+ReleaseStage = Literal["inputs", "computation", "artifacts", "robustness"]
+"""Which stage of the decision settled it.
+
+``inputs`` the fit's own summary files are missing or unreadable; ``computation``
+the sampling-quality gate failed; ``artifacts`` a required output is not on disk;
+``robustness`` the treatment-effect sensitivity evidence does not support a causal
+headline. The order is the order below: a fit that did not converge is not asked
+whether its prior sensitivity is acceptable.
+"""
+
+
+@dataclass(frozen=True, slots=True)
+class ReleaseEvaluation:
+    """The whole publication decision for one fit, in the order it is made.
+
+    Before this existed the decision was assembled inline inside
+    ``reporting.generate_key_findings`` — four sequential branches over
+    ``diagnostics_summary.json``, ``config.json`` and the robustness gate, with no
+    object anyone could hold, print, record or test. Report finalisation therefore
+    could not *receive* a release decision; it could only call the function that
+    happened to make one on its way to writing findings.
+
+    The fields below carry what each stage found, so ``release_decision.json`` can
+    state why a fit published what it published — for every family, not only the
+    ones the robustness gate covers.
+    """
+
+    status: PublicationStatus
+    stage: ReleaseStage
+    reason: str = ""
+    #: Human-readable sampling-quality checks that failed, when ``computation`` decided.
+    failing_checks: tuple[str, ...] = ()
+    #: Required artefacts recorded by the fit but absent from its directory.
+    missing_artifacts: tuple[str, ...] = ()
+    #: The robustness verdict, when the fit is in scope for that gate.
+    robustness: ReleaseDecision | None = None
+    #: The fit's ``config.json``, loaded once so callers need not re-read it.
+    #: ``None`` when it is unreadable, ``{}`` when it is absent.
+    config: Mapping[str, Any] | None = None
+
+    @property
+    def publishable(self) -> bool:
+        """May this fit's key-findings box carry scientific sentences?"""
+        return self.status == "ok"
+
+    @property
+    def note(self) -> str:
+        """A qualification to attach to released findings, or ``""``."""
+        return self.robustness.note if self.robustness is not None else ""
+
+    def as_dict(self) -> dict[str, Any]:
+        """JSON-ready record for ``release_decision.json``."""
+        record: dict[str, Any] = {
+            "status": self.status,
+            "stage": self.stage,
+            "publishable": self.publishable,
+        }
+        if self.reason:
+            record["reason"] = self.reason
+        if self.failing_checks:
+            record["failing_checks"] = list(self.failing_checks)
+        if self.missing_artifacts:
+            record["missing_artifacts"] = list(self.missing_artifacts)
+        if self.robustness is not None:
+            record["robustness"] = self.robustness.as_dict()
+        if self.config:
+            record["model_id"] = self.config.get("model_id")
+            record["kind"] = self.config.get("kind")
+        return record
+
+    def summary(self) -> str:
+        """One line for the console at finalisation."""
+        if self.publishable:
+            return "ok" + (" (with note)" if self.note else "")
+        return f"{self.status} at the {self.stage} stage: {self.reason}"
+
+
+def _read_json(path: str | Path) -> tuple[Any, str | None]:
+    """``(payload, error)`` — ``error`` names why the payload is unusable."""
+    if not os.path.exists(path):
+        return None, "missing"
+    try:
+        with open(path) as handle:
+            return json.load(handle), None
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None, "unreadable"
+
+
+def _recorded_required_artifacts(
+    output_dir: Path, artifacts: Any
+) -> tuple[str, ...]:
+    """Required artefacts the fit recorded but that are not on disk.
+
+    ``artifacts`` is the run's :class:`artifacts.ArtifactLog` during a fit, and
+    ``None`` for a post-hoc evaluation over a stored directory — in which case the
+    inventory is read back from ``artifact_manifest.json``, so the same decision
+    can be reproduced without refitting.
+
+    Only *required* artefacts count. An optional figure that a backend hiccup
+    skipped is already recorded with its failure and does not withhold anything;
+    that distinction is the whole point of the required/optional split.
+    """
+    records = getattr(artifacts, "records", None)
+    if records is not None:
+        declared = [
+            (rec.filename, rec.status, bool(rec.required)) for rec in records.values()
+        ]
+    else:
+        manifest, _err = _read_json(output_dir / "artifact_manifest.json")
+        entries = (manifest or {}).get("artifacts") if isinstance(manifest, dict) else None
+        if not entries:
+            return ()
+        declared = [
+            (str(e.get("filename")), str(e.get("status")), bool(e.get("required")))
+            for e in entries
+        ]
+    missing = [
+        filename
+        for filename, status, required in declared
+        if required
+        and status in ("written", "missing")
+        and not os.path.exists(output_dir / filename)
+    ]
+    return tuple(sorted(missing))
+
+
+def evaluate_publication(
+    output_dir: str | Path,
+    *,
+    config: Mapping[str, Any] | None = None,
+    artifacts: Any = None,
+) -> ReleaseEvaluation:
+    """Decide what one fit may publish, as a single structured object.
+
+    The stages run in the order a reader would apply them, and the first to
+    object settles it:
+
+    1. **inputs** — ``diagnostics_summary.json`` and ``config.json`` must be
+       present and readable. The diagnostics file is checked first because the
+       sampling-quality gate outranks everything: findings from an unconverged fit
+       must not reach a reader even if every other artefact is perfect.
+    2. **computation** — the automatic sampling-quality gate must pass cleanly.
+    3. **artifacts** — every artefact the fit recorded as *required* must be on
+       disk. A required output that vanished between its write and finalisation is
+       a withheld release, not a warning (#394 design point 3).
+    4. **robustness** — for the families the treatment-effect gate covers, the
+       prior-sensitivity and floor-grid evidence must support a causal headline.
+
+    Reads only artefacts already in ``output_dir``, so a stored fit can be
+    re-decided without refitting — the contract ``evaluate_release`` and
+    ``generate_key_findings`` both keep.
+    """
+    output_dir = Path(output_dir)
+
+    # Loaded before any stage runs but *evaluated* after the sampling-quality gate:
+    # the model identity belongs on the record whichever stage objects, while the
+    # gate still outranks a missing config in deciding what may be published.
+    if config is None:
+        loaded = _load_config(output_dir)
+        if loaded is None and os.path.exists(output_dir / "config.json"):
+            config = None  # present but unreadable
+        else:
+            config = loaded if loaded is not None else {}
+
+    diag, diag_error = _read_json(output_dir / "diagnostics_summary.json")
+    if diag_error == "missing":
+        return ReleaseEvaluation(
+            status="not_available",
+            stage="inputs",
+            reason=(
+                "diagnostics_summary.json is missing, so the convergence gate "
+                "cannot be checked"
+            ),
+            config=config,
+        )
+    if diag_error is not None:
+        return ReleaseEvaluation(
+            status="not_available",
+            stage="inputs",
+            reason=(
+                "diagnostics_summary.json could not be parsed, so the convergence "
+                "gate cannot be checked"
+            ),
+            config=config,
+        )
+
+    # Local import: ``reporting`` reaches this module through its own function-local
+    # import of ``release``, and the gate reader lives beside the badge and banner
+    # that render the same verdict.
+    from language_reading_predictors.statistical_models.reporting import (
+        convergence_gate_failures,
+    )
+
+    failing = convergence_gate_failures(diag)
+    if failing:
+        return ReleaseEvaluation(
+            status="gate_failed",
+            stage="computation",
+            reason="the automatic sampling-quality gate failed",
+            failing_checks=tuple(failing),
+            config=config,
+        )
+
+    if not config:
+        return ReleaseEvaluation(
+            status="not_available",
+            stage="inputs",
+            reason=(
+                "config.json could not be parsed"
+                if config is None
+                else "config.json is missing"
+            ),
+            config=config,
+        )
+
+    missing = _recorded_required_artifacts(output_dir, artifacts)
+    if missing:
+        return ReleaseEvaluation(
+            status="artifacts_incomplete",
+            stage="artifacts",
+            reason=(
+                "the fit recorded required artefacts that are not in its output "
+                f"directory: {', '.join(missing)}"
+            ),
+            missing_artifacts=missing,
+            config=config,
+        )
+
+    robustness = _robustness_decision(output_dir, config)
+    if robustness is not None and not robustness.released:
+        return ReleaseEvaluation(
+            status="robustness_unresolved",
+            stage="robustness",
+            reason=robustness.reason,
+            robustness=robustness,
+            config=config,
+        )
+    return ReleaseEvaluation(
+        status="ok", stage="robustness", robustness=robustness, config=config
+    )
+
+
+def _robustness_decision(
+    output_dir: Path, config: Mapping[str, Any]
+) -> ReleaseDecision | None:
+    """The treatment-effect robustness verdict, or ``None`` if out of scope.
+
+    A gate that cannot be evaluated **withholds**, matching how an unverifiable
+    analysis population is already handled: degrading to "no gating" would silently
+    reinstate the defect the gate exists to prevent, and would do so precisely when
+    something unexpected is wrong. Withholding is loud, costs no data (every CSV is
+    still written), and is repaired by regenerating the decision once the cause is
+    fixed. It never raises, so a fit's finalisation is not lost after sampling.
+    """
+    if not gate_applies(config):
+        return None
+    try:
+        return evaluate_release(output_dir, config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return ReleaseDecision(
+            status="withhold",
+            tau_class="unavailable",
+            reason=(
+                "the robustness release gate could not be evaluated for this fit "
+                f"({exc}), so its prior dependence is unverified"
+            ),
+        )
+
+
+def write_release_decision(ctx: Any, evaluation: ReleaseEvaluation) -> dict[str, Any]:
+    """Persist the decision as ``release_decision.json`` and record the artefact.
+
+    Written before ``key_findings.json`` so the reasoning is on disk whether or not
+    the findings that follow from it are. Kept separate from the findings file
+    because it answers a different question — *why* this fit published what it did,
+    for every family, rather than only for the ones the robustness gate covers.
+    """
+    from language_reading_predictors.statistical_models.artifacts import record_artifact
+
+    record = evaluation.as_dict()
+    path = os.path.join(ctx.output_dir, RELEASE_DECISION_FILENAME)
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(record, handle, indent=2)
+        handle.write("\n")
+    record_artifact(
+        ctx,
+        "release_decision",
+        filename=RELEASE_DECISION_FILENAME,
+        kind="json",
+    )
+    return record
