@@ -32,6 +32,8 @@ draws and assemble report tables), the row-subset ``prepared`` data, and any
 
 from __future__ import annotations
 
+import inspect
+
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Iterable
 
@@ -6783,3 +6785,17 @@ def build_rlm_joint_growth_model(
                 )
 
     return BuiltModel(model=model, prepared=panel)
+
+
+def default_of(fn, param: str) -> float:
+    """The default value of keyword ``param`` in factory ``fn``'s signature.
+
+    Makes the factory the single source of truth for a prior-scale default, so a
+    ``spec.extra.get(param, ...)`` fallback in the pipeline cannot silently drift
+    from the factory it feeds (the failure Copilot caught on #209: the adjusted
+    fallback was re-hardcoded and lagged the reconciled factory default). Prefer
+    this over re-typing the number: if ``param`` is ever renamed the lookup raises
+    ``KeyError`` loudly at fit time rather than falling back to a stale literal.
+    ``test_pipeline_fallback_defaults`` guards that this stays in step.
+    """
+    return inspect.signature(fn).parameters[param].default

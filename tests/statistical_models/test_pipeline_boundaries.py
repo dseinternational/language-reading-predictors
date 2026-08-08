@@ -14,15 +14,12 @@ fail here instead.
 from __future__ import annotations
 
 import ast
+import importlib
 import pathlib
 
 import pytest
 
 from language_reading_predictors.statistical_models import pipeline
-from language_reading_predictors.statistical_models.pipelines import (
-    itt as itt_pipeline,
-    joint as joint_pipeline,
-)
 
 PACKAGE = pathlib.Path(pipeline.__file__).parent
 MONOLITH = "language_reading_predictors.statistical_models.pipeline"
@@ -31,12 +28,26 @@ MONOLITH = "language_reading_predictors.statistical_models.pipeline"
 # and the stage binding. Each was carved out of ``pipeline.py`` and must stay
 # below it.
 SHARED_MODULES = (
+    "adjustment",
     "figure_artifacts",
     "ppc_artifacts",
     "prior_artifacts",
     "publication",
     "runtime",
 )
+
+# Every family that has moved out of the monolith, and the entry point
+# ``pipeline.py`` must keep re-exporting for it.
+MIGRATED_FAMILIES = {
+    "aligned": "fit_aligned",
+    "block_exposure": "fit_block_exposure",
+    "did": "fit_did",
+    "dose_response": "fit_dose_response",
+    "gain_factors": "fit_gain_factors",
+    "itt": "fit_itt",
+    "joint": "fit_joint",
+    "level_factors": "fit_level_factors",
+}
 
 
 def _package_of(path: pathlib.Path) -> str:
@@ -124,20 +135,29 @@ def test_shared_artifact_modules_do_not_import_the_monolith():
 
 def test_family_pipelines_do_not_import_the_monolith():
     modules = sorted((PACKAGE / "pipelines").glob("*.py"))
-    assert len(modules) >= 3, "expected __init__ plus the migrated family modules"
+    present = {p.stem for p in modules} - {"__init__"}
+    assert present == set(MIGRATED_FAMILIES), (
+        "pipelines/ and MIGRATED_FAMILIES disagree; update the guard when a "
+        f"family moves. Only in package: {sorted(present - set(MIGRATED_FAMILIES))}; "
+        f"only in guard: {sorted(set(MIGRATED_FAMILIES) - present)}"
+    )
     for path in modules:
         assert MONOLITH not in _imports_of(path), (
             f"pipelines/{path.name} imports pipeline.py; family modules must not"
         )
 
 
-def test_pipeline_re_exports_the_migrated_family_entry_points():
+@pytest.mark.parametrize("family,entry", sorted(MIGRATED_FAMILIES.items()))
+def test_pipeline_re_exports_the_migrated_family_entry_points(family, entry):
     """``pipeline.py`` stays a working facade until every caller has migrated."""
-    assert pipeline.fit_itt is itt_pipeline.fit_itt
-    assert pipeline.fit_joint is joint_pipeline.fit_joint
+    module = importlib.import_module(
+        f"language_reading_predictors.statistical_models.pipelines.{family}"
+    )
+    assert getattr(pipeline, entry) is getattr(module, entry)
 
 
 def test_migrated_families_are_no_longer_defined_in_the_monolith():
     source = pathlib.Path(pipeline.__file__).read_text(encoding="utf-8")
-    for entry in ("def fit_itt(", "def fit_joint(", "def fit_itt_floor_rule("):
+    entries = [f"def {e}(" for e in MIGRATED_FAMILIES.values()]
+    for entry in [*entries, "def fit_itt_floor_rule("]:
         assert entry not in source, f"{entry!r} is back in pipeline.py"

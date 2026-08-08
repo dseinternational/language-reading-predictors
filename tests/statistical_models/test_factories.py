@@ -1924,7 +1924,7 @@ def test_did_analysis_contract_persists_exact_rows_and_attrition(tmp_path):
     """The audit manifest identifies fitted rows and separates design exclusions."""
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.pipeline import (
+    from language_reading_predictors.statistical_models.pipelines.did import (
         _did_analysis_contract,
     )
 
@@ -2202,7 +2202,9 @@ def test_did_diag_vars_match_offfloor_build(tmp_path):
     the off-floor DiD builds, else summary_diagnostics raises KeyError at run time."""
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.pipeline import _did_diag_vars
+    from language_reading_predictors.statistical_models.pipelines.did import (
+        _did_diag_vars,
+    )
 
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="levels")
@@ -2437,7 +2439,9 @@ def test_gf_coef_names_report_the_offfloor_indicator_unconditionally():
     graded path always reports ``gamma_own``."""
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.pipeline import _gf_coef_names
+    from language_reading_predictors.statistical_models.pipelines.gain_factors import (
+        _gf_coef_names,
+    )
 
     base = {"likelihood": "bernoulli_offfloor", "interactions": ()}
     assert "gamma_own_offfloor" in _gf_coef_names(SimpleNamespace(extra=dict(base)))
@@ -2637,7 +2641,9 @@ def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
     from language_reading_predictors.statistical_models.level_factors import (
         resolve_level_factors_run_plan,
     )
-    from language_reading_predictors.statistical_models.pipeline import _gf_diag_vars
+    from language_reading_predictors.statistical_models.pipelines.gain_factors import (
+        _gf_diag_vars,
+    )
 
     gp = _prep_all(tmp_path, n_children=15)
     g_built = build_gain_factors_model(
@@ -2739,7 +2745,9 @@ def test_al_diag_vars_match_build(tmp_path):
     no sigma_child (no random intercept)."""
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.pipeline import _al_diag_vars
+    from language_reading_predictors.statistical_models.pipelines.aligned import (
+        _al_diag_vars,
+    )
 
     prep = _prep_aligned(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
