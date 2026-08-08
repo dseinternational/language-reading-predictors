@@ -14,9 +14,9 @@ import pytest
 import xarray as xr
 from scipy.special import expit
 
-from language_reading_predictors.statistical_models import pipeline
 from language_reading_predictors.statistical_models.pipelines import (
     dose_response as dose_pipeline,
+    mechanism as mech_pipeline,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
@@ -62,12 +62,12 @@ def test_mechanism_curve_writes_posterior_items_range_summary(tmp_path, monkeypa
         tables={},
     )
     monkeypatch.setattr(
-        pipeline,
+        mech_pipeline,
         "save_styled_figure",
         lambda *_args, **_kwargs: plt.close("all"),
     )
 
-    pipeline._write_mechanism_curve(ctx)
+    mech_pipeline._write_mechanism_curve(ctx)
 
     summary = pd.read_csv(tmp_path / "mechanism_summary.csv").iloc[0]
     expected = (

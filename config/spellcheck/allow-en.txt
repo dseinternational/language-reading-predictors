@@ -329,6 +329,7 @@ comprehender
 configural
 confounder
 confounders
+conv
 crosscheck
 crosswalk
 cumul
@@ -469,6 +470,7 @@ matplotlib
 medae
 miscalibration
 monkeypatch
+monkeypatching
 monofont
 monofontoptions
 morphosyntax
