@@ -82,6 +82,7 @@ def _fit_t3_sensitivity(
     *,
     confounders: tuple[str, ...],
     mediator_kind: str,
+    outcome_kind: str,
     route_symbols: tuple[str, ...],
 ):
     """Temporal-ordering sensitivity fit for the mediation models (issue #84).
@@ -114,6 +115,7 @@ def _fit_t3_sensitivity(
         outcome_symbol=outcome_symbol,
         confounder_symbols=confounders,
         mediator_kind=mediator_kind,
+        outcome_kind=outcome_kind,
         route_symbols=route_symbols,
     )
     # Gate this temporal-ordering sensitivity sub-fit (bypasses the primary gate).
@@ -376,13 +378,17 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             spec,
             confounders=confounders,
             mediator_kind=mediator_kind,
+            outcome_kind=outcome_kind,
             route_symbols=route_symbols,
         )
         save_table(ctx, "mediation_summary_t3", med_df_t3)
         print_table(
             ranked_dataframe_table(
                 med_df_t3,
-                title="Temporal-ordering sensitivity (outcome W at t3; NOT randomised)",
+                title=(
+                    "Temporal-ordering sensitivity "
+                    f"(outcome {spec.outcome_symbol or 'W'} at t3; NOT randomised)"
+                ),
                 columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
                 rank_column=False,
                 precision=3,

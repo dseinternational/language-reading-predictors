@@ -199,6 +199,71 @@ def test_decompose_offfloor_outcome(tmp_path):
     assert bool(df["off_floor"].iloc[0]) is True
 
 
+def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch):
+    """The temporal sensitivity must rebuild the primary outcome likelihood.
+
+    MED-086 uses a Bernoulli off-floor outcome. Dropping ``outcome_kind`` from
+    the t3 rebuild silently changed that sensitivity to a graded Beta-Binomial
+    model, so it was not the identical later-outcome fit its contract promises.
+    """
+    from language_reading_predictors.statistical_models import mediation as med
+    from language_reading_predictors.statistical_models.pipelines import (
+        mediation as pipeline,
+    )
+
+    path = _write_synthetic(tmp_path, n_children=15)
+    prepared = load_and_prepare(
+        path=path,
+        phase_mode="itt",
+        outcomes=("N", "L", "W"),
+    )
+    trace = object()
+    captured = {}
+
+    monkeypatch.setattr(
+        pipeline,
+        "load_and_prepare_lagged_outcome",
+        lambda *args, **kwargs: prepared,
+    )
+
+    def _run_subfit(ctx, built, **kwargs):
+        captured["built"] = built
+        return SimpleNamespace(trace=trace, convergence={"converged": True})
+
+    def _decompose(trace_arg, med_data, **kwargs):
+        assert trace_arg is trace
+        captured["med_data"] = med_data
+        return pd.DataFrame([{"quantity": "NIE"}])
+
+    monkeypatch.setattr(pipeline, "run_subfit", _run_subfit)
+    monkeypatch.setattr(med, "decompose", _decompose)
+
+    spec = ModelSpec(
+        model_id="lrp-rli-med-test",
+        title="off-floor mediation test",
+        kind="mediation",
+        outcome_symbol="N",
+        mechanism_symbol="L",
+        extra={"outcomes": ("N", "L", "W")},
+    )
+    result = pipeline._fit_t3_sensitivity(
+        SimpleNamespace(reporting=SimpleNamespace(ci_prob=0.89)),
+        spec,
+        confounders=("W",),
+        mediator_kind="beta_binomial",
+        outcome_kind="bernoulli_offfloor",
+        route_symbols=(),
+    )
+
+    named_vars = set(captured["built"].model.named_vars)
+    assert "y_offfloor" in named_vars
+    assert "y_post" not in named_vars
+    assert "b_W" not in named_vars
+    assert "kappa_Y" not in named_vars
+    assert captured["med_data"].off_floor is True
+    assert bool(result["converged"].iloc[0]) is True
+
+
 def test_decompose_interventional_offfloor_outcome(tmp_path):
     """#323 (MED-186): the interventional flag and Bernoulli off-floor outcome
     compose cleanly. The rows use IDE/IIE labels, stay on the risk-difference
