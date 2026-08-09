@@ -19,6 +19,9 @@ core-set measures; it is not itself added to the other models' predictor sets (a
 asymmetric, focal-only scope extension).
 """
 
+from language_reading_predictors.statistical_models.concurrent import (
+    ConcurrentModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_concurrent
 
@@ -31,15 +34,23 @@ SPEC = ModelSpec(
     design="per-wave cross-sectional conditional associations",
     estimand_type="association",
     causal_status="none",
-    extra={
+    model_settings=ConcurrentModelSettings(
         # Full core skill set as predictors (F is outside it, so none removed).
-        "predictor_symbols": ["W", "L", "B", "TR", "TE", "R", "E"],
+        predictor_symbols=("W", "L", "B", "TR", "TE", "R", "E"),
         # Trait covariates aligned with the gains panel (#371).
-        "covariates": ["blocks", "hs", "deapp_c", "erbto"],
-        "include_age": True,
-        "include_group": True,
-        "predictor_slope_sigma": 0.3,
-    },
+        covariates=(
+            "blocks",
+            "hs",
+            "hs_missing",
+            "deapp_c",
+            "deapp_c_missing",
+            "erbto",
+            "erbto_missing",
+        ),
+        include_age=True,
+        include_group=True,
+        predictor_slope_sigma=0.3,
+    ),
 )
 
 

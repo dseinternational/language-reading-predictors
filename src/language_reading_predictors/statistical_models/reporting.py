@@ -5439,7 +5439,9 @@ def _kf_build_concurrent(output_dir, config: Mapping) -> list[dict[str, str]]:
         ),
         _kf_sentence(
             "All concurrent coefficients condition on post-treatment skills and "
-            "are descriptive associations, not causal pathways.",
+            "are descriptive associations, not causal pathways. Any fitted "
+            "missingness-indicator coefficients are nuisance subgroup offsets, not "
+            "skill effects.",
             "causal",
         ),
     ]

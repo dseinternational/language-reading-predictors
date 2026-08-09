@@ -1253,6 +1253,73 @@ def test_concurrent_factory_bivariate_single_predictor(tmp_path):
     assert betas == {"beta_L"}
 
 
+def test_concurrent_factory_fits_varying_missingness_offset(tmp_path):
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L"))
+    wave = _subset_prepared(prep, prep.phase == 1)
+    wave.covariates["hs"] = np.linspace(-1.0, 1.0, wave.n_obs)
+    wave.covariates["hs_missing"] = np.resize([0.0, 1.0], wave.n_obs)
+    built = build_concurrent_model(
+        wave,
+        outcome_symbol="W",
+        predictor_symbols=["L"],
+        covariates=("hs", "hs_missing"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"gamma_hs", "gamma_hs_missing"} <= names
+    assert {"z_hs", "z_hs_missing", "eta"} <= set(built.model.named_vars)
+
+
+def test_concurrent_factory_omits_filtered_constant_indicator(tmp_path):
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+        filter_informative_covariates,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L"))
+    wave = _subset_prepared(prep, prep.phase == 1)
+    wave.covariates["hs"] = np.linspace(-1.0, 1.0, wave.n_obs)
+    wave.covariates["hs_missing"] = np.full(wave.n_obs, 0.25)
+    filtered, effective, dropped = filter_informative_covariates(
+        wave, ("hs", "hs_missing")
+    )
+    assert effective == ("hs",)
+    assert dropped == ("hs_missing",)
+
+    built = build_concurrent_model(
+        filtered,
+        outcome_symbol="W",
+        predictor_symbols=["L"],
+        covariates=effective,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_hs" in names
+    assert "gamma_hs_missing" not in names
+    assert "z_hs_missing" not in built.model.named_vars
+
+
+def test_concurrent_factory_rejects_unfiltered_covariate(tmp_path):
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+    )
+
+    p = _write_synthetic(tmp_path, n_children=20)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L"))
+    wave = _subset_prepared(prep, prep.phase == 1)
+    with pytest.raises(ValueError, match="Invalid: absent_missing"):
+        build_concurrent_model(
+            wave,
+            outcome_symbol="W",
+            predictor_symbols=["L"],
+            covariates=("absent_missing",),
+        )
+
+
 def test_concurrent_factory_accepts_non_w_focal(tmp_path):
     """#312 extension: any core-set measure can be the focal outcome, with word
     reading entering as a predictor (the ca-002/003/004 configuration)."""
@@ -1293,7 +1360,11 @@ def test_concurrent_specs_mirror_core_skill_set():
         lrp_rli_ca_006,
     ):
         spec = mod.SPEC
-        preds = set(spec.extra["predictor_symbols"])
+        from language_reading_predictors.statistical_models.concurrent import (
+            resolve_concurrent_run_plan,
+        )
+
+        preds = set(resolve_concurrent_run_plan(spec).predictor_symbols)
         assert spec.outcome_symbol in core
         assert preds == core - {spec.outcome_symbol}, spec.model_id
 

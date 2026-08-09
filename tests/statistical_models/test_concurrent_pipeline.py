@@ -8,6 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -29,11 +30,19 @@ from language_reading_predictors.statistical_models.lrp_rli_ca_005 import (
 from language_reading_predictors.statistical_models.lrp_rli_ca_006 import (
     SPEC as CA006,
 )
+from language_reading_predictors.statistical_models.concurrent import (
+    resolve_concurrent_run_plan,
+)
 from language_reading_predictors.statistical_models.pipelines.concurrent import (
     _ca_label,
     _ca_margin_fields,
     _ca_sd_margin,
     _write_concurrent_outputs,
+)
+from language_reading_predictors.statistical_models.preprocessing import (
+    _subset_prepared,
+    filter_informative_covariates,
+    load_and_prepare,
 )
 
 
@@ -52,7 +61,43 @@ def test_concurrent_specs_share_family_design_and_core_conditionals():
         assert spec.design == "per-wave cross-sectional conditional associations"
         assert spec.estimand_type == "association"
         assert spec.causal_status == "none"
-        assert set(spec.extra["predictor_symbols"]) == core - {spec.outcome_symbol}
+        assert set(resolve_concurrent_run_plan(spec).predictor_symbols) == core - {
+            spec.outcome_symbol
+        }
+
+
+@pytest.mark.parametrize(
+    ("spec", "expected_n", "dropped_waves"),
+    (
+        (CA001, (53, 53, 53, 51), {1, 2, 3, 4}),
+        (CA002, (54, 54, 54, 52), {4}),
+    ),
+)
+def test_live_wave_masks_drop_only_informative_missingness_offsets(
+    spec, expected_n, dropped_waves
+):
+    """Regression guard for the globally-varying, fitted-row-constant defect."""
+    plan = resolve_concurrent_run_plan(spec)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    observed_n = []
+    dropped = set()
+    for wave in range(4):
+        subset = _subset_prepared(prepared, prepared.phase == wave)
+        subset = _subset_prepared(
+            subset, ~np.isnan(subset.post_counts[plan.outcome_symbol])
+        )
+        _, effective, omitted = filter_informative_covariates(
+            subset, plan.covariates
+        )
+        observed_n.append(subset.n_obs)
+        if "erbto_missing" in omitted:
+            dropped.add(wave + 1)
+        # Parent values remain fitted even when their missingness flag is constant.
+        assert "erbto" in effective
+        assert {"hs_missing", "deapp_c_missing"} <= set(effective)
+
+    assert tuple(observed_n) == expected_n
+    assert dropped == dropped_waves
 
 
 def test_concurrent_wide_margin_fields_cover_probability_and_items():
@@ -116,6 +161,9 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
                 "predictor": "all",
                 "n": 53,
                 "n_predictors": 6,
+                "n_covariates": 6,
+                "effective_covariates": "blocks|hs|hs_missing|deapp_c|deapp_c_missing|erbto",
+                "dropped_covariates": "erbto_missing",
                 "converged": True,
                 "max_rhat": 1.001,
                 "min_ess": 1000.0,
@@ -180,6 +228,9 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
                     "predictor": predictor,
                     "n": 53,
                     "n_predictors": 1,
+                    "n_covariates": 6,
+                    "effective_covariates": "blocks|hs|hs_missing|deapp_c|deapp_c_missing|erbto",
+                    "dropped_covariates": "erbto_missing",
                     "converged": True,
                     "max_rhat": 1.001,
                     "min_ess": 1000.0,
@@ -200,12 +251,15 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
     assert set(marginal_df["adjustment"]) == {"adjusted", "bivariate"}
     assert set(marginal_df["scale"]) == {"+1 SD", "+3 items"}
     assert marginal_df.shape == (96, 18)
-    assert diagnostic_df.shape == (28, 10)
+    assert diagnostic_df.shape == (28, 13)
     assert set(diagnostic_df.columns) >= {
         "max_rhat",
         "min_ess",
         "min_bfmi",
         "n_divergences",
+        "n_covariates",
+        "effective_covariates",
+        "dropped_covariates",
     }
     for stem in (
         "concurrent_associations",
@@ -231,6 +285,9 @@ def test_shared_concurrent_results_partial_is_focal_outcome_neutral():
     assert "words read" not in text.lower()
     assert "`adjustment`" in text
     assert "concurrent_fit_diagnostics.csv" in text
+    assert "nuisance subgroup-offset" in text
+    assert "single-skill comparator" in text
+    assert "effective_adjustment_by_timepoint" in text
 
 
 def test_concurrent_spec_docs_avoid_unqualified_attenuation_claims():
@@ -240,3 +297,18 @@ def test_concurrent_spec_docs_avoid_unqualified_attenuation_claims():
         text = (model_dir / f"lrp_rli_ca_{number:03d}.py").read_text().lower()
         assert "associations attenuate toward zero" not in text
         assert "gap is itself informative" not in text
+
+
+def test_concurrent_reports_name_comparator_and_missingness_policy_accurately():
+    repo = Path(__file__).resolve().parents[2]
+    for number in range(1, 12):
+        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text()
+        assert "Every adjusted and bivariate fit" not in text
+        assert "adjusted-versus-bivariate" not in text
+        assert "Drafted by a LLM-based AI tool (Codex/GPT-5)." in text
+
+    for number in range(1, 10):
+        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text()
+        assert "single-skill, trait-adjusted comparator" in text
+        assert "informative flags are nuisance subgroup offsets" in text
+        assert "flags that are constant" in text

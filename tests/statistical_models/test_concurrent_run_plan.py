@@ -63,6 +63,11 @@ def test_settings_reject_string_covariates():
         ConcurrentModelSettings(covariates="hs")  # type: ignore[arg-type]
 
 
+def test_settings_reject_string_require_observed():
+    with pytest.raises(TypeError, match="require_observed"):
+        ConcurrentModelSettings(require_observed="hs")  # type: ignore[arg-type]
+
+
 def test_settings_reject_non_positive_sigma():
     with pytest.raises(ValueError, match="predictor_slope_sigma must be positive"):
         ConcurrentModelSettings(predictor_slope_sigma=0.0)
@@ -139,10 +144,71 @@ def test_resolve_dedups_outcome_in_measure_outcomes():
 
 def test_resolve_keeps_covariates_and_explicit_sigma():
     plan = resolve_concurrent_run_plan(
-        _spec(covariates=("blocks", "hs"), predictor_slope_sigma=0.5)
+        _spec(
+            covariates=("blocks", "hs", "hs_missing"),
+            predictor_slope_sigma=0.5,
+        )
     )
-    assert plan.prepare_kwargs()["baseline_covariates"] == ("blocks", "hs")
+    assert plan.prepare_kwargs()["baseline_covariates"] == (
+        "blocks",
+        "hs",
+        "hs_missing",
+    )
     assert plan.predictor_slope_sigma == 0.5
+
+
+@pytest.mark.parametrize(
+    ("parent", "indicator"),
+    (
+        ("hs", "hs_missing"),
+        ("deapp_c", "deapp_c_missing"),
+        ("erbto", "erbto_missing"),
+    ),
+)
+def test_resolve_requires_indicator_or_complete_case(parent, indicator):
+    with pytest.raises(ValueError, match=indicator):
+        resolve_concurrent_run_plan(_spec(covariates=(parent,)))
+
+    paired = resolve_concurrent_run_plan(
+        _spec(covariates=(parent, indicator))
+    )
+    assert paired.covariates == (parent, indicator)
+
+    complete_case = resolve_concurrent_run_plan(
+        _spec(covariates=(parent,), require_observed=(parent,))
+    )
+    prep = complete_case.prepare_kwargs()
+    assert prep["baseline_covariates"] == (parent, indicator)
+    assert prep["require_observed"] == (parent,)
+
+
+def test_resolve_rejects_orphan_indicator():
+    with pytest.raises(ValueError, match="orphan missingness indicator"):
+        resolve_concurrent_run_plan(_spec(covariates=("hs_missing",)))
+
+
+def test_resolve_rejects_unknown_missingness_indicator():
+    with pytest.raises(ValueError, match="unsupported missingness indicator"):
+        resolve_concurrent_run_plan(_spec(covariates=("hearing_missing",)))
+
+
+def test_resolve_rejects_unsupported_or_undeclared_complete_case():
+    with pytest.raises(ValueError, match="supports only"):
+        resolve_concurrent_run_plan(
+            _spec(covariates=("blocks",), require_observed=("blocks",))
+        )
+    with pytest.raises(ValueError, match="must also be declared"):
+        resolve_concurrent_run_plan(_spec(require_observed=("hs",)))
+
+
+def test_resolve_rejects_indicator_and_complete_case_together():
+    with pytest.raises(ValueError, match="cannot use both"):
+        resolve_concurrent_run_plan(
+            _spec(
+                covariates=("hs", "hs_missing"),
+                require_observed=("hs",),
+            )
+        )
 
 
 def test_typed_settings_are_accepted_and_sourced():
@@ -190,3 +256,26 @@ def test_every_registered_concurrent_model_resolves_with_metadata():
             )
         # The outcome always loads as the first measure outcome.
         assert plan.prepare_kwargs()["outcomes"][0] == spec.outcome_symbol
+
+
+def test_registered_concurrent_models_use_typed_paired_missingness_settings():
+    specs = _concurrent_specs()
+    assert len(specs) == 11
+    full = (
+        "blocks",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
+        "erbto",
+        "erbto_missing",
+    )
+    minimal = ("blocks", "hs", "hs_missing")
+    for spec in specs:
+        assert spec.extra == {}, spec.model_id
+        assert isinstance(spec.model_settings, ConcurrentModelSettings), spec.model_id
+        plan = resolve_concurrent_run_plan(spec)
+        expected = minimal if spec.model_id.endswith(("010", "011")) else full
+        assert plan.settings_source == "typed"
+        assert plan.covariates == expected, spec.model_id
+        assert plan.require_observed == ()

@@ -22,6 +22,9 @@ arm. Report as median + inner 50% + outer 89% credible interval + P(>0), with th
 adjusted-association caveat.
 """
 
+from language_reading_predictors.statistical_models.concurrent import (
+    ConcurrentModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_concurrent
 
@@ -34,18 +37,18 @@ SPEC = ModelSpec(
     design="per-wave cross-sectional conditional association, minimal adjustment",
     estimand_type="association",
     causal_status="none",
-    extra={
+    model_settings=ConcurrentModelSettings(
         # Minimal adjustment: letter sounds is the sole skill predictor (contrast
         # ca-001's six-skill mutual adjustment).
-        "predictor_symbols": ["L"],
+        predictor_symbols=("L",),
         # Trait covariates: non-verbal ability (block design) and hearing, entered as
         # t1 baselines broadcast across waves. Age is added via include_age.
-        "covariates": ["blocks", "hs"],
-        "include_age": True,
+        covariates=("blocks", "hs", "hs_missing"),
+        include_age=True,
         # Group as a flagged, non-interpretable nuisance (absorbs arm composition).
-        "include_group": True,
-        "predictor_slope_sigma": 0.3,
-    },
+        include_group=True,
+        predictor_slope_sigma=0.3,
+    ),
 )
 
 

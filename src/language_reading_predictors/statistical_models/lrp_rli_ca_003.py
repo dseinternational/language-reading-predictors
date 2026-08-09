@@ -15,7 +15,7 @@ The family's core skill set is {W, L, B, TR, TE, R, E}: each model conditions it
 focal outcome on the remaining six (see ``lrp_rli_ca_002``). The taught expressive
 companion TE stays in TR's predictor set - the two taught tests are strongly
 correlated, so the regularising priors stabilise the adjusted model; differences from
-the bivariate fit show sensitivity to the conditioning set, not a decomposition of
+the single-skill comparator show sensitivity to the conditioning set, not a decomposition of
 shared variance. Floored measures (P, N) stay excluded. Note TR approaches its 24-item
 ceiling at later waves; the Beta-Binomial respects the bound, but per-wave outcome
 variance (and hence the associations' resolution) shrinks as scores compress.
@@ -32,6 +32,9 @@ reported side by side; group as a non-interpretable nuisance; standardised same-
 logit predictors with regularising ``Normal(0, 0.3)`` slopes.
 """
 
+from language_reading_predictors.statistical_models.concurrent import (
+    ConcurrentModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_concurrent
 
@@ -47,18 +50,26 @@ SPEC = ModelSpec(
     design="per-wave cross-sectional conditional associations",
     estimand_type="association",
     causal_status="none",
-    extra={
+    model_settings=ConcurrentModelSettings(
         # The core skill set minus the focal (TR). Floored P/N are excluded as
         # predictors (issue #312).
-        "predictor_symbols": ["W", "L", "B", "TE", "R", "E"],
+        predictor_symbols=("W", "L", "B", "TE", "R", "E"),
         # Trait covariates aligned with the gains panel (non-verbal ability, hearing,
         # speech, phonological memory), entered as t1 baselines broadcast across the waves (#371).
-        "covariates": ["blocks", "hs", "deapp_c", "erbto"],
-        "include_age": True,
+        covariates=(
+            "blocks",
+            "hs",
+            "hs_missing",
+            "deapp_c",
+            "deapp_c_missing",
+            "erbto",
+            "erbto_missing",
+        ),
+        include_age=True,
         # Group as a flagged, non-interpretable nuisance (absorbs arm composition).
-        "include_group": True,
-        "predictor_slope_sigma": 0.3,
-    },
+        include_group=True,
+        predictor_slope_sigma=0.3,
+    ),
 )
 
 

@@ -484,19 +484,26 @@ def test_itt_adjust_covariate_and_ses_are_precision(built_models):
 
 
 def test_missing_indicator_coefficients_are_nuisance():
-    """beta_{cov}_missing indicators are subgroup mean-offsets under the
+    """beta/gamma missing indicators are subgroup mean-offsets under the
     missing-indicator method, confounded with the fill value and uninterpretable as
     an effect, so they are nuisance (not predictor-slope associations) in every
     family that carries them (currently adjusted LRP65 and correlated-factor mm-002;
     #384 review, Frank)."""
-    rv = SimpleNamespace(name="beta_hs_missing")
-    for kind in ("adjusted", "corr_factor"):
+    cases = (
+        ("adjusted", "beta_hs_missing"),
+        ("corr_factor", "beta_hs_missing"),
+        ("concurrent", "gamma_hs_missing"),
+    )
+    for kind, name in cases:
         spec = SimpleNamespace(kind=kind, extra={}, outcome_symbol="W")
         _, role, rationale = _prior_table_overrides(
-            SimpleNamespace(spec=spec, model=SimpleNamespace(free_RVs=[rv]))
+            SimpleNamespace(
+                spec=spec,
+                model=SimpleNamespace(free_RVs=[SimpleNamespace(name=name)]),
+            )
         )
-        assert role["beta_hs_missing"] == "nuisance"
-        assert "missing-indicator" in rationale["beta_hs_missing"].lower()
+        assert role[name] == "nuisance"
+        assert "missing-indicator" in rationale[name].lower()
 
 
 def test_mediation_paths_and_confounders(built_models):

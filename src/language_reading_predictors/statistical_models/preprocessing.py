@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import hashlib
 import warnings
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -218,6 +218,17 @@ def add_hearing_status(df: pd.DataFrame) -> pd.DataFrame:
 #: repetition / phonological memory (RW = ``erbto``). Handled by
 #: :func:`add_missing_indicator_covariates` with the hearing-status policy.
 MISSING_INDICATOR_COVARIATES: tuple[str, ...] = ("deapp_c", "erbto")
+
+#: Covariates whose filled value must be accompanied by an explicit missingness
+#: indicator whenever a model elects to keep the filled rows. Hearing status uses
+#: reference-category filling; speech production and phonological memory use an
+#: arm-blind whole-column mean. The policy is named generically because ``hs`` is
+#: deliberately not mean-filled.
+MISSINGNESS_INDICATOR_PAIRS: dict[str, str] = {
+    "hs": "hs_missing",
+    "deapp_c": "deapp_c_missing",
+    "erbto": "erbto_missing",
+}
 
 
 #: Covariates whose value describes the **interval following** the row's wave rather
@@ -889,6 +900,61 @@ def _subset_prepared(prepared: PreparedData, mask: np.ndarray) -> PreparedData:
         n_obs=int(mask.sum()),
         n_children=int(np.unique(subject_ids).size),
     )
+
+
+def filter_informative_covariates(
+    prepared: PreparedData,
+    requested: Iterable[str],
+    *,
+    atol: float = 1e-12,
+) -> tuple[PreparedData, tuple[str, ...], tuple[str, ...]]:
+    """Keep only requested covariates that vary on ``prepared``'s fitted rows.
+
+    The main loader removes constants on its complete prepared frame. A later
+    family-specific mask can nevertheless make a previously varying indicator
+    constant. In particular, concurrent models restrict first to one wave and then
+    to children with an observed focal outcome. A constant missingness indicator in
+    that final sample would otherwise be an exact alias of the intercept.
+
+    Returns the filtered prepared data, the effective covariate names and the names
+    dropped as absent, non-finite, too sparse or constant. Range rather than sample
+    standard deviation decides constancy: subtractive round-off can give a
+    mathematically constant standardised vector a tiny positive SD.
+    """
+    requested_names = tuple(dict.fromkeys(requested))
+    effective: list[str] = []
+    dropped: list[str] = []
+    for name in requested_names:
+        values = prepared.covariates.get(name)
+        if values is None:
+            dropped.append(name)
+            continue
+        finite = np.asarray(values, dtype=float)
+        if finite.size < 2 or not np.all(np.isfinite(finite)):
+            dropped.append(name)
+            continue
+        scale = max(1.0, float(np.max(np.abs(finite))))
+        if float(np.ptp(finite)) <= atol * scale:
+            dropped.append(name)
+            continue
+        effective.append(name)
+
+    keep = set(effective)
+    all_dropped = tuple(
+        dict.fromkeys((*prepared.dropped_covariates, *dropped))
+    )
+    filtered = replace(
+        prepared,
+        covariates={k: v for k, v in prepared.covariates.items() if k in keep},
+        covariate_scalers={
+            k: v for k, v in prepared.covariate_scalers.items() if k in keep
+        },
+        covariate_time={
+            k: v for k, v in prepared.covariate_time.items() if k in keep
+        },
+        dropped_covariates=all_dropped,
+    )
+    return filtered, tuple(effective), tuple(dropped)
 
 
 def restrict_to_baseline_floored(prepared: PreparedData, symbol: str) -> PreparedData:

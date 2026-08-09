@@ -539,24 +539,33 @@ def _prior_table_overrides(
         ctor.setdefault("alpha", "alpha_distal")
         ctor.setdefault("alpha_offset", "alpha_distal")
 
-    # Missing-data-indicator coefficients (beta_{cov}_missing) are subgroup
+    # Missing-data-indicator coefficients (beta_{cov}_missing or
+    # gamma_{cov}_missing) are subgroup
     # mean-offsets under the missing-indicator method — confounded with the constant
     # fill value and well known to be uninterpretable as an effect (Greenland &
     # Finkle 1995, Am J Epidemiol 142(12):1255-64; Groenwold et al. 2012, CMAJ
     # 184(11):1265-9) — so they are nuisance, not predictor-slope associations, in
-    # every family that carries them (currently the adjusted LRP65 and the
-    # correlated-factor mm-002). Swept once here rather than per kind (#384 review,
-    # Frank). The distribution column, read off the RV, still shows the true
+    # every family that carries them. Swept once here rather than per kind (#384
+    # review, Frank). The distribution column, read off the RV, still shows the true
     # predictor_slope Normal(0, 0.3). See also the predictor_associations.csv filter
     # in the adjusted/RLM writers, which keeps the reported-associations table from
     # contradicting this nuisance label.
     if context.model is not None:
         for rv in context.model.free_RVs:
-            if rv.name.startswith("beta_") and rv.name.endswith("_missing"):
+            missing_prefix = next(
+                (
+                    prefix
+                    for prefix in ("beta_", "gamma_")
+                    if rv.name.startswith(prefix) and rv.name.endswith("_missing")
+                ),
+                None,
+            )
+            if missing_prefix is not None:
                 ctor.setdefault(rv.name, "predictor_slope")
                 role[rv.name] = "nuisance"
                 rationale[rv.name] = (
-                    f"Missing-data indicator ({rv.name[len('beta_') :]} = 1 when the "
+                    f"Missing-data indicator ({rv.name[len(missing_prefix) :]} = 1 "
+                    "when the "
                     "value is unknown/imputed); a subgroup mean-offset under the "
                     "missing-indicator method, confounded with the fill value and not "
                     "interpretable as a substantive standardised-trait association."
