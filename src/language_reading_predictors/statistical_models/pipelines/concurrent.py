@@ -8,8 +8,9 @@ regression of the focal outcome's *level* on the standardised same-wave logits o
 predictor skill set, plus age and a group nuisance term. Four separate
 cross-sectional fits are reported side by side: the diagnostic-anchor wave (most
 rows, ties to the latest) carries the standard trace, convergence gate and PPC
-artefacts, while the other waves and every single-predictor bivariate fit are
-sub-fits with their own recorded convergence diagnostics.
+artefacts, while the other waves and every single-skill comparator are sub-fits
+with their own recorded convergence diagnostics. The comparator retains the same
+trait covariates while omitting age, group and the other skills.
 
 Predictors and outcome are measured at the same visit, so no temporal ordering is
 available and every coefficient is an adjusted association by construction —
@@ -36,6 +37,9 @@ from language_reading_predictors.statistical_models import (
     reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
+from language_reading_predictors.statistical_models.adjustment import (
+    effective_adjustment,
+)
 from language_reading_predictors.statistical_models.concurrent import (
     resolve_concurrent_run_plan,
 )
@@ -48,6 +52,7 @@ from language_reading_predictors.statistical_models.factories import default_of
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
+    filter_informative_covariates,
     load_and_prepare,
     logit_safe,
     standardise,
@@ -219,6 +224,9 @@ _CA_DIAGNOSTIC_REQUIRED = {
     "predictor",
     "n",
     "n_predictors",
+    "n_covariates",
+    "effective_covariates",
+    "dropped_covariates",
     "converged",
     "max_rhat",
     "min_ess",
@@ -237,10 +245,10 @@ def _write_concurrent_outputs(
     """Validate and write the three concurrent-family output tables.
 
     The explicit cross-table checks make the issue #312 contract executable: every
-    wave-predictor association must have adjusted and bivariate ``+1 SD`` natural-scale
-    rows and a matching fit-diagnostics row, while every wave has one adjusted-fit
+    wave-predictor association must have adjusted and legacy-labelled ``bivariate``
+    (single-skill, trait-adjusted) ``+1 SD`` natural-scale rows and a matching fit-diagnostics row, while every wave has one adjusted-fit
     diagnostics row. This prevents a future refactor from silently publishing only one
-    side of the requested adjusted/bivariate comparison.
+    side of the requested adjusted/single-skill comparison.
     """
     association_df = pd.DataFrame(association_rows)
     marginal_df = pd.concat(marginal_frames, ignore_index=True)
@@ -326,10 +334,11 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     Design (issue #312): four separate cross-sectional fits, reported side by side. The
     diagnostic-anchor wave (most rows; ties → latest) is the fit that carries the
     standard trace / convergence-gate / PPC artefacts; the other waves and every
-    bivariate (single-predictor, unadjusted) fit are sub-fits. Every published fit has
+    single-skill (trait-adjusted, but without age/group/other skills) fit is a
+    sub-fit. Every published fit has
     R-hat, ESS, BFMI and divergence diagnostics recorded in
     ``concurrent_fit_diagnostics.csv``. ``concurrent_associations.csv`` carries the
-    adjusted and bivariate logit coefficients plus matched +1-SD probability/items
+    adjusted and single-skill-comparator logit coefficients plus matched +1-SD probability/items
     marginals (wave × predictor); ``concurrent_marginals.csv`` carries both fit kinds'
     detailed probability/items marginals (wave × predictor × {+1 SD, +k items}).
     """
@@ -377,13 +386,20 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     wave_n: dict[int, int] = {}
     wave_preds: dict[int, list[str]] = {}
     dropped_by_wave: dict[int, list[str]] = {}
+    wave_covariates: dict[int, list[str]] = {}
+    dropped_covariates_by_wave: dict[int, list[str]] = {}
     for w in wave_indices:
         sub = _subset_prepared(prepared_all, prepared_all.phase == w)
         keep = ~np.isnan(sub.post_counts[outcome])
         sub = _subset_prepared(sub, keep)
+        sub, effective_covariates, dropped_covariates = (
+            filter_informative_covariates(sub, covariates)
+        )
         wave_subsets[w] = sub
         wave_n[w] = sub.n_obs
         wave_preds[w], dropped_by_wave[w] = _ca_wave_predictors(sub, predictor_symbols)
+        wave_covariates[w] = list(effective_covariates)
+        dropped_covariates_by_wave[w] = list(dropped_covariates)
     # Diagnostic anchor = most complete-outcome rows; tie → latest timepoint. This is
     # an operational artefact-selection rule, not a claim that the wave is best-powered
     # or substantively primary. Choose it ONLY among waves that actually have a usable
@@ -404,12 +420,12 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     ctx.prepared = wave_subsets[primary_wave]
     print_header(ctx)
 
-    def _build(sub, preds, *, age, group):
+    def _build(sub, preds, covs, *, age, group):
         return _factories.build_concurrent_model(
             sub,
             outcome_symbol=outcome,
             predictor_symbols=preds,
-            covariates=covariates,
+            covariates=covs,
             include_age=age,
             include_group=group,
             predictor_slope_sigma=sigma0,
@@ -420,13 +436,16 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     for w in wave_indices:
         sub = wave_subsets[w]
         preds = wave_preds[w]
+        covs = wave_covariates[w]
         tp = w + 1  # 1-based timepoint for reports
         if not preds:
             rprint(f"[yellow]Concurrent: wave t{tp} has no usable predictors; skipped.[/yellow]")
             continue
         if w == primary_wave:
             section_header(f"Build model (primary wave t{tp})")
-            built = _build(sub, preds, age=include_age, group=include_group)
+            built = _build(
+                sub, preds, covs, age=include_age, group=include_group
+            )
             attach_built(ctx, built)
             render_model_graph(ctx)
             section_header("Prior predictive")
@@ -436,7 +455,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             trace = ctx.trace
             convergence = None  # populated below after the full primary gate
         else:
-            built = _build(sub, preds, age=include_age, group=include_group)
+            built = _build(
+                sub, preds, covs, age=include_age, group=include_group
+            )
             res = run_subfit(
                 ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
             )
@@ -446,6 +467,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             "trace": trace,
             "prepared": built.prepared,
             "preds": preds,
+            "covariates": covs,
+            "dropped_covariates": dropped_covariates_by_wave[w],
             "convergence": convergence,
         }
 
@@ -458,6 +481,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         diag_vars.append("beta_age")
     if include_group:
         diag_vars.append("beta_group_nuisance")
+    diag_vars.extend(f"gamma_{name}" for name in prim["covariates"])
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
@@ -498,8 +522,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         ),
     )
 
-    # ---- Adjusted vs bivariate coefficients + natural-scale marginals -----------
-    section_header("Concurrent associations (adjusted vs bivariate)")
+    # ---- Adjusted vs single-skill coefficients + natural-scale marginals --------
+    section_header("Concurrent associations (adjusted vs single-skill)")
     assoc_rows: list[dict] = []
     marg_frames: list[pd.DataFrame] = []
     fit_diagnostic_rows: list[dict] = []
@@ -509,6 +533,10 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         tp = w + 1
         fit = wave_fits[w]
         sub, preds, trace = fit["prepared"], fit["preds"], fit["trace"]
+        covs = fit["covariates"]
+        dropped_covs = fit["dropped_covariates"]
+        covariate_text = "|".join(covs)
+        dropped_covariate_text = "|".join(dropped_covs)
         adj_conv = fit["convergence"]
         fit_diagnostic_rows.append(
             {
@@ -517,6 +545,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                 "predictor": "all",
                 "n": sub.n_obs,
                 "n_predictors": len(preds),
+                "n_covariates": len(covs),
+                "effective_covariates": covariate_text,
+                "dropped_covariates": dropped_covariate_text,
                 **adj_conv,
             }
         )
@@ -533,14 +564,15 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         adj_mdf["converged"] = adj_conv["converged"]
         marg_frames.append(adj_mdf)
 
-        # Per-predictor: adjusted beta (this wave's full fit) + bivariate beta (refit).
+        # Per-predictor: adjusted beta plus the legacy-labelled ``bivariate``
+        # single-skill beta (same trait adjustment, but no age/group/other skills).
         for sym in preds:
             adj = beta_summary(trace, f"beta_{sym}", hdi)
-            b = _build(sub, [sym], age=False, group=False)
+            b = _build(sub, [sym], covs, age=False, group=False)
             bres = run_subfit(
                 ctx,
                 b,
-                label=f"{spec.model_id} t{tp} bivariate {sym}",
+                label=f"{spec.model_id} t{tp} single-skill {sym}",
                 role="bivariate",
             )
             bt, bconv = bres.trace, bres.convergence
@@ -596,6 +628,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                     "predictor": sym,
                     "n": sub.n_obs,
                     "n_predictors": 1,
+                    "n_covariates": len(covs),
+                    "effective_covariates": covariate_text,
+                    "dropped_covariates": dropped_covariate_text,
                     **bconv,
                 }
             )
@@ -636,7 +671,29 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         "wave_n": {f"t{w + 1}": wave_n[w] for w in wave_indices},
         "include_age": include_age,
         "include_group_nuisance": include_group,
-        "bivariate_adjustment": "predictor only; age, group and other skills omitted",
+        "bivariate_adjustment": (
+            "single-skill comparator; same effective trait covariates retained; "
+            "age, group and other skills omitted"
+        ),
+        "covariates_requested": covariates,
+        "effective_covariates_by_wave": {
+            f"t{w + 1}": wave_covariates[w] for w in wave_indices
+        },
+        "dropped_covariates_by_wave": {
+            f"t{w + 1}": dropped_covariates_by_wave[w] for w in wave_indices
+        },
+        "effective_adjustment_by_timepoint": {
+            f"t{w + 1}": {
+                **effective_adjustment(
+                    spec,
+                    wave_subsets[w],
+                    adjust_for=tuple(wave_covariates[w]),
+                ),
+                "requested": covariates,
+                "dropped_constant": dropped_covariates_by_wave[w],
+            }
+            for w in wave_indices
+        },
         "averaging_population": "all fitted rows at the wave (descriptive)",
         "predictor_slope_sigma": sigma0,
         "standardisation": (
@@ -648,7 +705,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             (~fit_diagnostics_df["converged"].eq(True)).sum()
         ),
         "output_contract": (
-            "concurrent_associations.csv contains adjusted and bivariate logit, "
+            "concurrent_associations.csv contains mutually adjusted and single-skill "
+            "comparator logit, "
             "probability and items summaries for +1 SD; concurrent_marginals.csv "
             "contains both fit kinds for +1 SD and +k items"
         ),
@@ -661,7 +719,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
 def _plot_concurrent(
     ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float, *, primary_tp: int
 ) -> None:
-    """Forest of adjusted vs bivariate coefficients for the primary wave (#312)."""
+    """Forest of adjusted vs single-skill coefficients for the primary wave (#312)."""
     if df.empty:
         return
     d = df[df["timepoint"] == primary_tp].reset_index(drop=True)
@@ -677,7 +735,7 @@ def _plot_concurrent(
     plt.errorbar(
         d["biv_mean"], y - 0.12,
         xerr=[d["biv_mean"] - d["biv_lo"], d["biv_hi"] - d["biv_mean"]],
-        fmt="s", color="#999999", capsize=3, label="bivariate (unadjusted)",
+        fmt="s", color="#999999", capsize=3, label="single-skill (trait-adjusted)",
     )
     plt.axvline(0.0, color="grey", ls=":", lw=1)
     plt.yticks(y, d["label"])

@@ -1392,6 +1392,12 @@ def test_every_remaining_family_has_bespoke_findings(tmp_path, kind):
     assert 3 <= len(payload["sentences"]) <= KEY_FINDINGS_MAX_SENTENCES
 
 
+def test_concurrent_findings_qualify_missingness_indicators_as_nuisance(tmp_path):
+    d, _ = _remaining_family_case(tmp_path, "concurrent")
+    payload = generate_key_findings(d)
+    assert "nuisance subgroup offsets, not skill effects" in _texts(payload)
+
+
 def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
     d, _ = _remaining_family_case(tmp_path, "joint")
 

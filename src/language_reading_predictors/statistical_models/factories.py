@@ -68,6 +68,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     Standardiser,
     WavePanel,
+    filter_informative_covariates,
     standardise,
 )
 
@@ -3635,6 +3636,20 @@ def build_concurrent_model(
     post = prepared.post_counts[outcome_symbol].astype(np.int64)
     N = prepared.n_trials[outcome_symbol]
     predictor_symbols = tuple(predictor_symbols)
+    covariates = tuple(covariates)
+    _, effective_covariates, dropped_covariates = filter_informative_covariates(
+        prepared, covariates
+    )
+    if dropped_covariates:
+        raise ValueError(
+            "Concurrent covariates must be present and vary on the final fitted rows; "
+            "filter them after the wave and focal-outcome masks before building. "
+            f"Invalid: {', '.join(dropped_covariates)}"
+        )
+    if effective_covariates != covariates:
+        raise ValueError(
+            "Concurrent covariates must be unique and preserve their declared order"
+        )
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
@@ -3679,12 +3694,10 @@ def build_concurrent_model(
         # memory), passed by the pipeline as t1 baselines broadcast across the waves
         # (via ``baseline_covariates=``) so the levels panel conditions on the same
         # variable set as the gains panel. Each enters as a standardised linear
-        # ``gamma_{c}`` with the regularising cross-coupling prior. A covariate absent
-        # from ``prepared.covariates`` (e.g. a constant missing-indicator the loader
-        # dropped) is skipped, matching the adjusted / gain-factor loaders.
-        for c in tuple(covariates):
-            if c not in prepared.covariates:
-                continue
+        # ``gamma_{c}`` with the regularising cross-coupling prior. The caller has
+        # already removed absent or fitted-row-constant terms; the fail-closed check
+        # above prevents a missingness indicator from aliasing the intercept.
+        for c in covariates:
             cov_vec = np.nan_to_num(np.asarray(prepared.covariates[c], dtype=float))
             cov_d = pm.Data(f"z_{c}", cov_vec, dims="obs_id")
             gamma = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(

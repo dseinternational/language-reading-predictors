@@ -21,8 +21,10 @@ from language_reading_predictors.statistical_models.measures import (
 from language_reading_predictors.statistical_models.preprocessing import (
     HEARING_STATUS_COVARIATES,
     INTERVAL_COVARIATES,
+    _subset_prepared,
     add_hearing_status,
     add_missing_indicator_covariates,
+    filter_informative_covariates,
     logit_safe,
     standardise,
     load_and_prepare,
@@ -630,6 +632,46 @@ def test_constant_missing_indicator_is_dropped_not_fatal_wholly_missing_column(t
     assert set(prep.dropped_covariates) == {"deapp_c", "deapp_c_missing"}
     assert "deapp_c" not in prep.covariates
     assert "deapp_c_missing" not in prep.covariates
+
+
+def test_post_subset_filter_drops_wave_constant_indicator(tmp_path):
+    """A flag can vary globally but alias the intercept after the final wave mask."""
+    p = tmp_path / "rli.csv"
+    _make_synthetic_long(n_children=16, seed=33).to_csv(p, index=False)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W",))
+    # The synthetic flag varies on the complete panel, but is exactly constant at t1.
+    flag = np.where(prep.phase == 0, 0.123456789, prep.phase.astype(float))
+    prep.covariates["test_missing"] = flag
+    prep.covariate_time["test_missing"] = "baseline"
+
+    wave = _subset_prepared(prep, prep.phase == 0)
+    filtered, effective, dropped = filter_informative_covariates(
+        wave, ("test_missing",)
+    )
+
+    assert effective == ()
+    assert dropped == ("test_missing",)
+    assert "test_missing" not in filtered.covariates
+    assert "test_missing" not in filtered.covariate_time
+    assert "test_missing" in filtered.dropped_covariates
+
+
+def test_post_subset_filter_drops_partly_nonfinite_covariate(tmp_path):
+    p = tmp_path / "rli.csv"
+    _make_synthetic_long(n_children=16, seed=34).to_csv(p, index=False)
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W",))
+    wave = _subset_prepared(prep, prep.phase == 0)
+    values = np.linspace(-1.0, 1.0, wave.n_obs)
+    values[-1] = np.inf
+    wave.covariates["partly_nonfinite"] = values
+
+    filtered, effective, dropped = filter_informative_covariates(
+        wave, ("partly_nonfinite",)
+    )
+
+    assert effective == ()
+    assert dropped == ("partly_nonfinite",)
+    assert "partly_nonfinite" not in filtered.covariates
 
 
 def test_split_covariates_by_wave_puts_sessions_pre_and_states_post():

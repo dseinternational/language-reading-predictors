@@ -23,6 +23,9 @@ this pair of separate fits is the descriptive version. Report median + 50% + 89%
 with the adjusted-association caveat.
 """
 
+from language_reading_predictors.statistical_models.concurrent import (
+    ConcurrentModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_concurrent
 
@@ -35,14 +38,14 @@ SPEC = ModelSpec(
     design="per-wave cross-sectional conditional association, decoding held fixed",
     estimand_type="association",
     causal_status="none",
-    extra={
+    model_settings=ConcurrentModelSettings(
         # ca-010 plus same-wave nonword reading (N): the decoding-held-fixed check.
-        "predictor_symbols": ["L", "N"],
-        "covariates": ["blocks", "hs"],
-        "include_age": True,
-        "include_group": True,
-        "predictor_slope_sigma": 0.3,
-    },
+        predictor_symbols=("L", "N"),
+        covariates=("blocks", "hs", "hs_missing"),
+        include_age=True,
+        include_group=True,
+        predictor_slope_sigma=0.3,
+    ),
 )
 
 

@@ -26,7 +26,7 @@ error often attenuates a simple association, but the size and direction of disto
 are not guaranteed in this multivariable nonlinear model (the longitudinal factor
 model, #313, is a complementary measurement-error-aware analysis); (3) collinearity
 and regularisation - with n ~ 53 and a strongly inter-correlated predictor cluster,
-the priors stabilise the adjusted coefficients. Adjusted and bivariate estimates may
+the priors stabilise the adjusted coefficients. Adjusted and single-skill estimates may
 differ in size or sign because they answer different questions; their difference is a
 sensitivity-to-conditioning comparison, not a decomposition of shared variance.
 
@@ -41,6 +41,9 @@ taught vocabulary and standardised vocabulary are the sibling focal outcomes
 {W, L, B, TR, TE, R, E} minus itself.
 """
 
+from language_reading_predictors.statistical_models.concurrent import (
+    ConcurrentModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_concurrent
 
@@ -53,19 +56,27 @@ SPEC = ModelSpec(
     design="per-wave cross-sectional conditional associations",
     estimand_type="association",
     causal_status="none",
-    extra={
+    model_settings=ConcurrentModelSettings(
         # Contemporaneous predictor skills (standardised same-wave logits). Floored
         # P/N are excluded as predictors (issue #312).
-        "predictor_symbols": ["L", "B", "TR", "TE", "R", "E"],
+        predictor_symbols=("L", "B", "TR", "TE", "R", "E"),
         # Trait covariates aligned with the gains panel (non-verbal ability, hearing,
         # speech, phonological memory), entered as t1 baselines broadcast across the
         # waves. Same variable set the gain-factor covariates condition on (#371).
-        "covariates": ["blocks", "hs", "deapp_c", "erbto"],
-        "include_age": True,
+        covariates=(
+            "blocks",
+            "hs",
+            "hs_missing",
+            "deapp_c",
+            "deapp_c_missing",
+            "erbto",
+            "erbto_missing",
+        ),
+        include_age=True,
         # Group as a flagged, non-interpretable nuisance (absorbs arm composition).
-        "include_group": True,
-        "predictor_slope_sigma": 0.3,
-    },
+        include_group=True,
+        predictor_slope_sigma=0.3,
+    ),
 )
 
 

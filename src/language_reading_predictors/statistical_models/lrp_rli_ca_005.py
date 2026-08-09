@@ -29,6 +29,9 @@ reported side by side; group as a non-interpretable nuisance; standardised same-
 logit predictors with regularising ``Normal(0, 0.3)`` slopes.
 """
 
+from language_reading_predictors.statistical_models.concurrent import (
+    ConcurrentModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_concurrent
 
@@ -44,18 +47,26 @@ SPEC = ModelSpec(
     design="per-wave cross-sectional conditional associations",
     estimand_type="association",
     causal_status="none",
-    extra={
+    model_settings=ConcurrentModelSettings(
         # The core skill set minus the focal (R). Floored P/N are excluded as
         # predictors (issues #312 and #336).
-        "predictor_symbols": ["W", "L", "B", "TR", "TE", "E"],
+        predictor_symbols=("W", "L", "B", "TR", "TE", "E"),
         # Trait covariates aligned with the gains panel (non-verbal ability, hearing,
         # speech, phonological memory), entered as t1 baselines broadcast across the waves (#371).
-        "covariates": ["blocks", "hs", "deapp_c", "erbto"],
-        "include_age": True,
+        covariates=(
+            "blocks",
+            "hs",
+            "hs_missing",
+            "deapp_c",
+            "deapp_c_missing",
+            "erbto",
+            "erbto_missing",
+        ),
+        include_age=True,
         # Group as a flagged, non-interpretable nuisance (absorbs arm composition).
-        "include_group": True,
-        "predictor_slope_sigma": 0.3,
-    },
+        include_group=True,
+        predictor_slope_sigma=0.3,
+    ),
 )
 
 
