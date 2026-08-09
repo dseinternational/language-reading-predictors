@@ -47,6 +47,9 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
+from language_reading_predictors.statistical_models.release import (
+    MEDIATION_T3_TRACE_FILENAME,
+)
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -127,6 +130,7 @@ def _fit_t3_sensitivity(
         built_t3,
         label=f"{spec.model_id} t3 sensitivity",
         role="sensitivity",
+        trace_filename=MEDIATION_T3_TRACE_FILENAME,
         convergence_scope="all",
     )
     conv = res_t3.convergence
@@ -140,6 +144,7 @@ def _fit_t3_sensitivity(
     # shipped with no convergence flag (this review's finding B1). Flows through to
     # both mediation_summary_t3.csv and the mediation_t3_sensitivity metadata block.
     df_t3["converged"] = conv["converged"]
+    df_t3["trace_file"] = res_t3.trace_file
     return df_t3
 
 

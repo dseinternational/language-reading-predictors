@@ -1,3 +1,7 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Results
 
 This section splits the treatment's effect into the part that flows through the mediator and the part that does not. Natural-effect models label the direct and indirect rows NDE/NIE; interventional-effect companions label them IDE/IIE. In either case, the total is the sum of the two components.
@@ -114,18 +118,43 @@ if mediation_summary is not None:
 
 ### Temporal-Ordering Sensitivity
 
-_How to read this table:_ where available, it re-runs the same direct / indirect / total decomposition (same columns as above) but with the mediator measured before the outcome, so you can check whether the split points the same way when temporal order is enforced. Compare the direction and rough size against the main table rather than reading its numbers as the headline estimate. Interventional companions omit this natural-effect sensitivity by design.
+_How to read this table:_ where available, it re-runs the same direct / indirect / total decomposition (same columns as above) but with the mediator measured before the outcome, so you can check whether the split points the same way when temporal order is enforced. Compare the direction and rough size against the main table rather than reading its numbers as the headline estimate. Interventional companions omit this natural-effect sensitivity by design. The table is shown only when its own all-parameter convergence check passed and its separately persisted trace is present; a failed or unchecked sub-fit is not scientific evidence.
 
 ```{python}
 # | echo: false
 mediation_summary_t3 = _csv("mediation_summary_t3.csv")
-mediation_display_t3 = _mediation_display(mediation_summary_t3)
-mediation_display_t3 if mediation_display_t3 is not None else "No t3 sensitivity table."
+_t3_trace = "trace_mediation_t3_sensitivity.nc"
+_t3_ready = (
+    mediation_summary_t3 is not None
+    and not mediation_summary_t3.empty
+    and "converged" in mediation_summary_t3.columns
+    and bool(
+        mediation_summary_t3["converged"]
+        .map(lambda value: str(value).strip().lower() in {"true", "1", "yes"})
+        .all()
+    )
+    and "trace_file" in mediation_summary_t3.columns
+    and set(mediation_summary_t3["trace_file"].dropna().astype(str)) == {_t3_trace}
+    and _has(_t3_trace)
+)
+mediation_display_t3 = (
+    _mediation_display(mediation_summary_t3) if _t3_ready else None
+)
+mediation_display_t3
 ```
 
-The t3 sensitivity puts the mediator before the outcome in time, but the later
-contrast is no longer the clean randomised phase-0 contrast. Use it as a direction
-check, not as a replacement estimand.
+```{python}
+# | echo: false
+# | output: asis
+if mediation_summary_t3 is not None and not _t3_ready:
+    print(
+        '::: {.callout-warning title="Temporal-ordering sensitivity suppressed"}\n'
+        "The t3 sub-fit failed its convergence gate, could not be checked, or is not backed by its persisted trace. Its decomposition is therefore not rendered or released.\n"
+        ":::"
+    )
+```
+
+The t3 sensitivity puts the mediator before the outcome in time, but the later contrast is no longer the clean randomised phase-0 contrast. Use it as a direction check, not as a replacement estimand.
 
 ### Unmeasured mediator–outcome confounding sensitivity
 

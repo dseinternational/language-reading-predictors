@@ -24,6 +24,7 @@ from language_reading_predictors.statistical_models.artifacts import (
     save_table,
 )
 from language_reading_predictors.statistical_models.release import (
+    MEDIATION_T3_TRACE_FILENAME,
     RELEASE_DECISION_FILENAME,
     ReleaseEvaluation,
     evaluate_publication,
@@ -36,6 +37,7 @@ from language_reading_predictors.statistical_models.reporting import (
 
 REPO = Path(__file__).resolve().parents[2]
 PARTIAL = REPO / "docs/models/_partials/_key_findings.qmd"
+MEDIATION_PARTIAL = REPO / "docs/models/_partials/_results_mediation.qmd"
 
 
 def _gate(passed: bool = True) -> dict:
@@ -74,6 +76,24 @@ def _ctx(output_dir: Path) -> SimpleNamespace:
     )
 
 
+def _natural_mediation_fit_dir(tmp_path: Path) -> Path:
+    """Minimal natural-mediation bundle with a clean, trace-backed t3 sub-fit."""
+    d = _fit_dir(tmp_path, kind="mediation")
+    config = json.loads((d / "config.json").read_text())
+    config["extra"] = {"estimand": "natural"}
+    (d / "config.json").write_text(json.dumps(config))
+    (d / "mediation_summary_t3.csv").write_text(
+        "quantity,converged,trace_file\n"
+        f"NIE,True,{MEDIATION_T3_TRACE_FILENAME}\n"
+    )
+    (d / "subfit_provenance.csv").write_text(
+        "label,role,converged,trace_file\n"
+        f"lrp-test-001 t3 sensitivity,sensitivity,True,{MEDIATION_T3_TRACE_FILENAME}\n"
+    )
+    (d / MEDIATION_T3_TRACE_FILENAME).write_bytes(b"trace fixture")
+    return d
+
+
 # --- the stages, and their order ------------------------------------------
 
 
@@ -82,6 +102,58 @@ def test_a_clean_ungated_fit_publishes(tmp_path):
     assert decision.publishable and decision.status == "ok"
     assert decision.robustness is None  # ungated family, no robustness verdict
     assert decision.config["model_id"] == "lrp-test-001"
+
+
+def test_clean_natural_mediation_requires_and_accepts_trace_backed_t3(tmp_path):
+    decision = evaluate_publication(_natural_mediation_fit_dir(tmp_path))
+    assert decision.publishable
+
+
+@pytest.mark.parametrize("failure", ["summary", "provenance"])
+def test_natural_mediation_t3_gate_failure_withholds_the_whole_release(
+    tmp_path, failure
+):
+    d = _natural_mediation_fit_dir(tmp_path)
+    if failure == "summary":
+        (d / "mediation_summary_t3.csv").write_text(
+            "quantity,converged,trace_file\n"
+            f"NIE,False,{MEDIATION_T3_TRACE_FILENAME}\n"
+        )
+    elif failure == "provenance":
+        (d / "subfit_provenance.csv").write_text(
+            "label,role,converged,trace_file\n"
+            f"lrp-test-001 t3 sensitivity,sensitivity,,{MEDIATION_T3_TRACE_FILENAME}\n"
+        )
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("gate_failed", "computation")
+    assert not decision.publishable
+    assert any("mediation t3 sensitivity" in check for check in decision.failing_checks)
+
+
+@pytest.mark.parametrize("failure", ["summary", "provenance", "trace"])
+def test_natural_mediation_t3_artifact_failure_does_not_misstate_sampling(
+    tmp_path, failure
+):
+    d = _natural_mediation_fit_dir(tmp_path)
+    artifact = {
+        "summary": d / "mediation_summary_t3.csv",
+        "provenance": d / "subfit_provenance.csv",
+        "trace": d / MEDIATION_T3_TRACE_FILENAME,
+    }[failure]
+    artifact.unlink()
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
+    assert not decision.publishable
+    assert any(artifact.name in item for item in decision.missing_artifacts)
+
+
+def test_mediation_t3_gate_does_not_apply_to_interventional_companion(tmp_path):
+    d = _fit_dir(tmp_path, kind="mediation")
+    config = json.loads((d / "config.json").read_text())
+    config["extra"] = {"estimand": "interventional"}
+    (d / "config.json").write_text(json.dumps(config))
+    assert evaluate_publication(d).publishable
 
 
 def test_missing_diagnostics_stops_at_the_inputs_stage(tmp_path):
@@ -300,5 +372,13 @@ def test_the_partial_renders_every_withholding_status(status):
     source = PARTIAL.read_text(encoding="utf-8")
     assert f'_kf_status == "{status}"' in source
     branch = source.split(f'_kf_status == "{status}"', 1)[1].split("elif ")[0]
-    assert "_scientific_results_released = False" in branch or status == "gate_failed"
-    assert "callout-important" in branch or status == "gate_failed"
+    assert "_scientific_results_released = False" in branch
+    assert "callout-important" in branch
+
+
+def test_report_fail_closes_t3_table_on_verdict_and_trace():
+    source = MEDIATION_PARTIAL.read_text(encoding="utf-8")
+    assert '"converged" in mediation_summary_t3.columns' in source
+    assert "_has(_t3_trace)" in source
+    assert "_mediation_display(mediation_summary_t3) if _t3_ready else None" in source
+    assert "Temporal-ordering sensitivity suppressed" in source

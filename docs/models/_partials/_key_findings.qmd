@@ -1,3 +1,7 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ```{python}
 # | echo: false
 # | output: asis
@@ -105,12 +109,16 @@ else:
             "interpreting or releasing this report.\n\n:::"
         )
     elif _kf_status == "gate_failed":
+        # A secondary fit can fail even when diagnostics_summary.json records a
+        # clean primary trace. Always honour the fit-level release decision.
+        _scientific_results_released = False
         _kf_checks = ", ".join(_kf.get("failing_checks", [])) or "unknown"
         print(
-            '::: {.callout-note title="Key findings need regeneration"}\n\n'
-            f"The stored summary records a failed gate (failing: {_kf_checks}), "
-            "so no findings are summarised. Regenerate the key-findings file from "
-            "the current clean fit before interpreting it."
+            '::: {.callout-important title="Findings withheld: a sampling-quality '
+            'gate failed"}\n\n'
+            f"The fit-level release decision records a failed or unchecked gate "
+            f"(failing: {_kf_checks}), so no findings or scientific result tables "
+            "are released. Repair and rerun the failed fit before interpreting it."
             "\n\n:::"
         )
     elif _kf_status == "robustness_unresolved":
@@ -133,19 +141,19 @@ else:
             f"cause-and-effect statement is released.{_kf_next}\n\n:::"
         )
     elif _kf_status == "artifacts_incomplete":
-        # #394 design point 3: a required output the fit recorded is not on disk, so
-        # what the report would render is not what the fit produced. Like the
+        # #394 design point 3: a required output is absent or invalid, so what the
+        # report would render is not a complete, auditable fit. Like the
         # robustness withhold this suppresses the result tables rather than printing
         # a soft note — a findings box built from an incomplete directory would be
         # reporting on files nobody can check.
         _scientific_results_released = False
-        _kf_missing = ", ".join(_kf.get("missing_artifacts", [])) or "unknown"
+        _kf_incomplete = ", ".join(_kf.get("missing_artifacts", [])) or "unknown"
         print(
             '::: {.callout-important title="Findings withheld: required outputs '
-            'are missing"}\n\n'
-            "The fit recorded required artefacts that are not in its output "
-            f"directory ({_kf_missing}), so no findings are summarised. Refit, or "
-            "restore the missing outputs and regenerate the key-findings file."
+            'are incomplete"}\n\n'
+            "Required fit artefacts are missing or invalid "
+            f"({_kf_incomplete}), so no findings are summarised. Restore or "
+            "regenerate the affected outputs, then regenerate the key-findings file."
             "\n\n:::"
         )
     elif _kf_status == "gate_exception":
