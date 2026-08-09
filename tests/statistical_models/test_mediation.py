@@ -228,7 +228,12 @@ def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch):
 
     def _run_subfit(ctx, built, **kwargs):
         captured["built"] = built
-        return SimpleNamespace(trace=trace, convergence={"converged": True})
+        captured["subfit_kwargs"] = kwargs
+        return SimpleNamespace(
+            trace=trace,
+            convergence={"converged": True},
+            trace_file=kwargs.get("trace_filename"),
+        )
 
     def _decompose(trace_arg, med_data, **kwargs):
         assert trace_arg is trace
@@ -262,6 +267,10 @@ def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch):
     assert "kappa_Y" not in named_vars
     assert captured["med_data"].off_floor is True
     assert bool(result["converged"].iloc[0]) is True
+    assert captured["subfit_kwargs"]["trace_filename"] == (
+        "trace_mediation_t3_sensitivity.nc"
+    )
+    assert set(result["trace_file"]) == {"trace_mediation_t3_sensitivity.nc"}
 
 
 def test_decompose_interventional_offfloor_outcome(tmp_path):

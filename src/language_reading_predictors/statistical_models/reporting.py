@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from collections.abc import Mapping, Sequence
@@ -2533,6 +2534,62 @@ def _json_safe(value):
     return str(value)
 
 
+_FITTED_SUBJECT_IDENTITY_DOMAIN = "dse-lrp-fitted-subject-identity-v1"
+
+
+def fitted_subject_identity(prepared: Any) -> dict[str, Any] | None:
+    """Return a non-identifying fingerprint of the rows used by a primary fit.
+
+    ``write_run_metadata`` runs after the model factory has attached its possibly
+    filtered prepared frame to the context. The sequence fingerprint therefore
+    identifies the primary fit's actual rows, rather than only the source file or
+    the loader's pre-factory rows. It is suitable for checking that a parent and
+    companion fit used the same ordered subjects without persisting raw IDs.
+
+    Canonicalisation is deliberately explicit: preserve ``prepared.subject_ids``
+    row order (including duplicates), convert each value to text with ``str``,
+    encode it as UTF-8, and prefix it with an unsigned 64-bit big-endian byte
+    length. SHA-256 receives a versioned UTF-8 domain separator plus NUL before
+    those records. The full digest is retained to make accidental collisions
+    negligible.
+
+    This is an audit fingerprint, not encryption: it avoids publishing identifiers
+    but should not be treated as anonymisation against an attacker who already has
+    a small candidate set of subject IDs.
+    """
+
+    subject_ids = getattr(prepared, "subject_ids", None)
+    if subject_ids is None:
+        return None
+    values = np.asarray(subject_ids)
+    if values.ndim != 1:
+        raise ValueError(
+            "prepared.subject_ids must be one-dimensional to fingerprint fitted rows"
+        )
+
+    hasher = hashlib.sha256()
+    hasher.update(_FITTED_SUBJECT_IDENTITY_DOMAIN.encode("utf-8"))
+    hasher.update(b"\0")
+    encoded_values: list[bytes] = []
+    for value in values:
+        if isinstance(value, np.generic):
+            value = value.item()
+        encoded = str(value).encode("utf-8")
+        encoded_values.append(encoded)
+        hasher.update(len(encoded).to_bytes(8, byteorder="big", signed=False))
+        hasher.update(encoded)
+
+    return {
+        "algorithm": "sha256",
+        "domain_separator": _FITTED_SUBJECT_IDENTITY_DOMAIN,
+        "encoding": "str(value) UTF-8 with uint64 big-endian byte-length prefix",
+        "order": "prepared.subject_ids fitted-row order; unsorted; duplicates retained",
+        "n_rows": int(values.size),
+        "n_unique_subjects": len(set(encoded_values)),
+        "sha256": hasher.hexdigest(),
+    }
+
+
 def _effective_model_settings(context: StatisticalFitContext) -> dict:
     """Resolve the spec and prepared-data choices that actually reached a fit."""
 
@@ -2793,6 +2850,10 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
             if context.prepared
             else None
         ),
+        # Privacy-preserving fitted-row identity. Unlike ``data_sha256`` and row
+        # counts, this lets companion fits prove that their primary analysis rows
+        # match without writing raw subject identifiers to the artefact bundle.
+        "fitted_subject_identity": fitted_subject_identity(context.prepared),
         "ci_prob": context.reporting.ci_prob,
         "sampling": {
             "draws": context.sampling.draws,

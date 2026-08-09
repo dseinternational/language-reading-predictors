@@ -97,6 +97,7 @@ from language_reading_predictors.statistical_models.sensitivity import (
 
 __all__ = [
     "GATED_KINDS",
+    "MEDIATION_T3_TRACE_FILENAME",
     "PSENSE_THRESHOLD",
     "RELEASE_DECISION_FILENAME",
     "PublicationStatus",
@@ -116,6 +117,11 @@ __all__ = [
 #: ArviZ's default power-scaling flag threshold. A parameter is "sensitive" when
 #: either its prior or its likelihood power-scaling statistic reaches this.
 PSENSE_THRESHOLD = 0.05
+
+#: Trace backing the natural-effect temporal-ordering sensitivity.  The fixed
+#: basename is part of the release contract: a table is not independently
+#: auditable when its posterior exists only in memory during the fit.
+MEDIATION_T3_TRACE_FILENAME = "trace_mediation_t3_sensitivity.nc"
 
 TauSensitivityClass = Literal[
     "clear", "prior_data_conflict", "prior_dominant", "unavailable"
@@ -766,7 +772,7 @@ class ReleaseEvaluation:
     reason: str = ""
     #: Human-readable sampling-quality checks that failed, when ``computation`` decided.
     failing_checks: tuple[str, ...] = ()
-    #: Required artefacts recorded by the fit but absent from its directory.
+    #: Required artefacts absent from the fit or invalid under a family contract.
     missing_artifacts: tuple[str, ...] = ()
     #: The robustness verdict, when the fit is in scope for that gate.
     robustness: ReleaseDecision | None = None
@@ -860,6 +866,98 @@ def _recorded_required_artifacts(
     return tuple(sorted(missing))
 
 
+def _mediation_t3_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Fail-closed computation and artefact checks for the mediation t3 fit.
+
+    Natural single-mediator fits without a longitudinal primary estimand always
+    run this temporal-ordering sensitivity.  Its posterior bypasses the primary
+    ``diagnostics_summary.json`` gate, so release requires a checked, converged
+    provenance row, a concordant summary table and the persisted sub-fit trace.
+    Interventional companions and already-longitudinal primaries do not run it.
+
+    The two returned tuples preserve the release-stage contract. A present but
+    failed or unchecked convergence verdict is a computation failure; a missing,
+    unreadable or internally inconsistent output is an artefact failure. Losing a
+    trace after a clean fit must not be reported as evidence that sampling failed.
+    """
+    if config.get("kind") != "mediation":
+        return (), ()
+    extra = config.get("extra") or {}
+    if not isinstance(extra, Mapping):
+        return (), ("config.json (mediation t3 configuration is unreadable)",)
+    required = (
+        extra.get("estimand") == "natural"
+        and extra.get("outcome_time") is None
+    )
+    if not required:
+        return (), ()
+
+    computation_failures: list[str] = []
+    artifact_failures: list[str] = []
+    summary = _read_csv(output_dir, "mediation_summary_t3.csv")
+    if summary is None or summary.empty:
+        artifact_failures.append("mediation_summary_t3.csv")
+    else:
+        if "converged" not in summary.columns:
+            artifact_failures.append("mediation_summary_t3.csv (no convergence column)")
+        elif not bool(
+            summary["converged"]
+            .map(lambda value: str(value).strip().casefold() in {"true", "1", "yes"})
+            .all()
+        ):
+            computation_failures.append(
+                "mediation t3 sensitivity summary convergence failed or was unchecked"
+            )
+        trace_files = (
+            set(summary["trace_file"].dropna().astype(str))
+            if "trace_file" in summary.columns
+            else set()
+        )
+        if trace_files != {MEDIATION_T3_TRACE_FILENAME}:
+            artifact_failures.append("mediation_summary_t3.csv (invalid trace binding)")
+
+    provenance = _read_csv(output_dir, "subfit_provenance.csv")
+    model_id = str(config.get("model_id") or "")
+    if provenance is None or provenance.empty or "label" not in provenance.columns:
+        artifact_failures.append("subfit_provenance.csv")
+    else:
+        rows = provenance.loc[
+            provenance["label"].astype(str) == f"{model_id} t3 sensitivity"
+        ]
+        if len(rows) != 1:
+            artifact_failures.append(
+                "subfit_provenance.csv (no unique mediation t3 row)"
+            )
+        else:
+            row = rows.iloc[0]
+            if str(row.get("role", "")).strip() != "sensitivity":
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid mediation t3 role)"
+                )
+            if "converged" not in provenance.columns:
+                artifact_failures.append(
+                    "subfit_provenance.csv (no convergence column)"
+                )
+            elif str(row.get("converged", "")).strip().casefold() not in {
+                "true",
+                "1",
+                "yes",
+            }:
+                computation_failures.append(
+                    "mediation t3 sensitivity provenance failed or was unchecked"
+                )
+            if str(row.get("trace_file", "")).strip() != MEDIATION_T3_TRACE_FILENAME:
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid mediation t3 trace binding)"
+                )
+
+    if not (output_dir / MEDIATION_T3_TRACE_FILENAME).is_file():
+        artifact_failures.append(MEDIATION_T3_TRACE_FILENAME)
+    return tuple(computation_failures), tuple(artifact_failures)
+
+
 def evaluate_publication(
     output_dir: str | Path,
     *,
@@ -949,14 +1047,36 @@ def evaluate_publication(
             config=config,
         )
 
-    missing = _recorded_required_artifacts(output_dir, artifacts)
+    t3_gate_failures, t3_artifact_failures = _mediation_t3_release_failures(
+        output_dir, config
+    )
+    if t3_gate_failures:
+        return ReleaseEvaluation(
+            status="gate_failed",
+            stage="computation",
+            reason=(
+                "the required natural-mediation temporal-ordering sensitivity "
+                "did not pass its trace-backed sampling-quality gate"
+            ),
+            failing_checks=t3_gate_failures,
+            config=config,
+        )
+
+    missing = tuple(
+        sorted(
+            {
+                *t3_artifact_failures,
+                *_recorded_required_artifacts(output_dir, artifacts),
+            }
+        )
+    )
     if missing:
         return ReleaseEvaluation(
             status="artifacts_incomplete",
             stage="artifacts",
             reason=(
-                "the fit recorded required artefacts that are not in its output "
-                f"directory: {', '.join(missing)}"
+                "required fit artefacts are missing or invalid: "
+                f"{', '.join(missing)}"
             ),
             missing_artifacts=missing,
             config=config,
