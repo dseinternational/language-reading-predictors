@@ -2,12 +2,17 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Targeted 2026-08-09 addendum substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings index and reading guide — full statistical-model suite (2026-08-05)
 
 Entry point for a set of dated notes reporting, model by model, the findings from the complete re-fit of every Bayesian statistical model in the study — **194 models across 22 families**, production `reporting` configuration, fit 2026-08-04/05. There is one note per family, each covering **every** model in it and reporting adjusted **associations** as fully as **causal** effects. This note explains the study, the conventions and — importantly — how to read the numbers. Written for a broad audience, including readers who do not work with Bayesian statistics day to day.
 
 **Preliminary research data — all estimates provisional.**
+
+> [!IMPORTANT]
+> **Targeted correction fitted 2026-08-09.** The eleven concurrent-association models and four corrected mediation models were re-fitted after the missing-indicator and word-reading-baseline corrections, with two dose models re-fitted as mediation-calibration prerequisites. All 17 targeted reporting fits, all 280 concurrent component fits and both required temporal mediation subfits pass the automatic gate with zero divergences. This is a bounded addendum to the 194-model 4/5-August suite, not a new full-suite refit. The revised numerical and interpretive records are notes 08 and 11 and the two dated 9-August refit notes.
 
 ## Why this series replaces the previous one
 

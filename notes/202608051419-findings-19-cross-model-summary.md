@@ -2,14 +2,16 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Targeted 2026-08-09 addendum substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings 19 — cross-model summary
 
-Synthesis across all 194 models of the 2026-08-04/05 `reporting` refit. Read note 00 first for conventions; each claim below points to the family note that supports it. Preliminary research data — all estimates provisional.
+Synthesis across all 194 models of the 2026-08-04/05 `reporting` refit, with a targeted 2026-08-09 correction to the eleven concurrent-association and four mediation models (plus two dose-calibration prerequisites). Read note 00 first for conventions; each claim below points to the family note that supports it. Preliminary research data — all estimates provisional.
 
 ## The suite in one paragraph
 
-A reading and phonics intervention was evaluated in a waitlist-crossover randomised trial with about 54 children with Down syndrome, measured at four timepoints. The intervention produced clear gains in **letter-sound knowledge** and **word reading**, smaller gains in the specific vocabulary it teaches and in phoneme blending, and **no detectable change in broad standardised vocabulary**. The word-reading gain appears to run almost entirely **through** letter-sound knowledge. Baseline characteristics predict where a child _is_ almost perfectly and how much they _gain_ barely at all — the intervention is one of the few things in this study that moves a gain measure.
+A reading and phonics intervention was evaluated in a waitlist-crossover randomised trial with about 54 children with Down syndrome, measured at four timepoints. The intervention produced clear gains in **letter-sound knowledge** and **word reading**, smaller gains in the specific vocabulary it teaches and in phoneme blending, and **no detectable change in broad standardised vocabulary**. Several models are consistent with letter-sound learning as part of the word-reading route, but the corrected mediation fits do not identify that route: the off-floor indirect component is positive yet prior- and confounding-sensitive, while the graded indirect interval includes zero. Baseline characteristics predict where a child _is_ almost perfectly and how much they _gain_ barely at all — the intervention is one of the few things in this study that moves a gain measure.
 
 ## The headline effects, and how well they replicate
 
@@ -31,16 +33,17 @@ Five designs estimate the intervention's effect on the same outcomes from differ
 
 **The vocabulary rows are all over the place, and that is informative rather than alarming.** RV ranges from −3.8 to +2.7 across designs. The triangulation check flags **R as the one inconsistent outcome** (directions disagree, though intervals still overlap). This is what an inconclusive effect looks like when estimated five ways: the designs are sampling noise around zero, and the ones without an own-baseline term (levels, aligned) swing furthest because they cannot difference out baseline imbalance. The honest conclusion is that broad standardised vocabulary did not move detectably, not that any one design found something.
 
-## What carries the effect
+## What may carry the effect
 
-The mechanism picture (notes 07, 08) is unusually clean for observational work:
+The mechanism picture (notes 07, 08) is coherent, but the corrected fits make its limits binding:
 
-- The word-reading gain is **almost entirely indirect** through letter-sound knowledge: NIE +1.69 items (P = 0.997) against a direct effect of +0.16 (P = 0.55).
-- The letter-sound route **beats every competitor** put head-to-head with it — expressive vocabulary, phoneme blending and nonword decoding each carry essentially nothing when fitted alongside it.
-- A **negative-control mediator** (receptive grammar) correctly carries nothing, which is meaningful evidence the decomposition is not manufacturing indirect effects.
-- Letter-sound knowledge is associated with **pure decoding about four times more strongly than with word reading** (identified contrast +0.81, P = 0.9999), the signature of a skill actually being used to decode.
+- Earlier mediation models favour a letter-sound route over the alternative mediators they tested, and the negative-control mediator carries little. Those patterns are compatible with decoding specificity, not proof of it.
+- In the corrected off-floor model (MED-086), the model-based total risk difference is +0.087 (89% interval −0.011 to +0.188), while the indirect component is +0.079 (+0.028 to +0.148; P > 0 = 0.996). The total interval crosses zero, so a proportion mediated is unstable and “almost the whole gain” is not a defensible summary.
+- In the corrected graded model (MED-087), the total is +0.748 blending items (−0.056 to +1.560) and the indirect component is +0.292 (−0.098 to +0.761; P > 0 = 0.888). Its indirect interval already includes zero before adding unmeasured confounding.
+- The temporal check preserves a positive off-floor indirect component (+0.103, +0.037 to +0.186) but again has an uncertain total; the graded temporal indirect component remains uncertain (+0.263, −0.144 to +0.747). These t3 outcomes are post-crossover and non-randomised.
+- For MED-086, the 89% indirect-effect interval first reaches zero at an omitted-confounding offset of 0.636 logit units, 45% of the fitted mediator–outcome slope. The deliberately wide instruction-session calibration band reaches beyond that point, and 19 of 24 constituent parameters are flagged by power-scaling diagnostics. Clean sampling therefore does not establish a prior-robust or causally identified pathway.
 
-**Three limits travel with that story.** The decoding-specificity contrast holds for _conditional change_, and reverses in a levels view of the same children. The negative-control _outcomes_ do not come out clean — letter sounds predict every oral-language measure at P ≈ 0.99, attenuated but not null, the expected fingerprint of general-ability confounding. And reverse mediation (word reading carrying the effect to letter sounds) is smaller but not excluded.
+Letter-sound knowledge remains strongly associated with decoding and word reading elsewhere in the suite. But latent general ability, treatment-influenced attendance and the timing of mediator and outcome remain unresolved. The direct/indirect split is a model-based g-formula decomposition under those assumptions, not an identified causal mechanism.
 
 ## The cross-cutting finding: levels are predictable, gains are not
 
@@ -70,6 +73,8 @@ Together these say that this cohort's skill ordering is highly stable, and that 
 ## Computational status
 
 **All 194 models pass the convergence gate, with zero divergent transitions across the entire suite.** Under the study's divergence policy every divergent fit fails closed with no qualification pathway, so this is the first run in which the whole suite clears computation. Thirteen fits initially failed and were repaired by geometry changes rather than waivers — the account is in `notes/202608050649-reporting-refit-predictive-checks.md`.
+
+The targeted 9-August correction is independently clean: 17 primary reporting fits, 280 concurrent component fits and two required temporal mediation subfits all pass, with maximum R-hat 1.00178, minimum effective sample size 3,960, minimum BFMI 0.521 and zero divergences. The audit reconciles 19 traces, exact 50-child identity for MED-086/186 and exact 53-child identity for MED-087/187. These checks establish computational integrity and fitted-row equivalence; they do not resolve the identification limits above.
 
 **Clearing computation is not the same as clearing release.** A robustness gate adopted on 2026-08-05, after these fits were made, additionally classifies each randomised-effect fit on the power-scaling sensitivity of the coefficient its headline rests on. It covers the five families with a randomisation-anchored estimand — ITT (τ), the joint models (τ per outcome), the arm-by-wave DiD (`tau_t2`, or a dose slope), gain factors (`beta_trt`) and level factors (the t2 element of `b_grp_time`) — **70 fits, of which 10 are withheld**.
 

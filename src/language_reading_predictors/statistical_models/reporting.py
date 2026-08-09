@@ -4959,7 +4959,7 @@ def _kf_build_mediation(output_dir, config: Mapping) -> list[dict[str, str]]:
     sentences.append(
         _kf_sentence(
             "The direct/indirect split is a model-based g-formula decomposition, "
-            "not an identified natural mediation effect: unmeasured "
+            "not an identified causal mediation effect: unmeasured "
             "mediator-outcome confounding remains a binding assumption.",
             "causal",
         )

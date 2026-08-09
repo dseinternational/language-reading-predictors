@@ -24,11 +24,11 @@ Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 ## Overview
 
-::: {.callout-warning title="Reporting refit required after adjustment-set correction"}
-Numerical findings from fits made before 2026-08-08 are stale. This companion inherits MED-086's corrected baseline-word-reading adjustment. Do not publish or interpret its previous IDE/IIE table until a new `reporting` fit, diagnostics and generated findings have completed.
+::: {.callout-warning title="Current reporting result — computationally sound, identification-qualified"}
+The corrected 2026-08-09 `reporting` fit uses the exact same 50-child identity as MED-086 and passes the automatic computational gate. The interventional indirect contrast is +0.079 in off-floor probability (89% interval +0.028 to +0.148; P>0 = 0.996), while the total is +0.087 (−0.011 to +0.188; P>0 = 0.924). Numerical agreement with MED-086 is expected from the shared fitted model and current g-formula functional; it is an implementation check, not identification evidence. MED-086's session-dose calibration band extends past the shift where the indirect 89% interval first includes zero; that interval threshold is not where its median becomes zero. Power scaling also flags material prior/likelihood sensitivity. This remains a model-based decomposition under unresolved confounding and same-wave assumptions, not an identified causal route.
 :::
 
-MED-186 is the parent+100 **interventional-effects companion** to [MED-086](../lrp-rli-med-086/). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model nonword reading as the binary off-floor outcome $\mathbf{1}[N_{t2}>0]$. MED-086 reports the natural direct and indirect effects (NDE/NIE); MED-186 reports their randomised-interventional analogues (IDE/IIE).
+MED-186 is the parent+100 **interventional-effects companion** to [MED-086](https://github.com/dseinternational/language-reading-predictors/tree/main/docs/models/lrp-rli-med-086). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model nonword reading as the binary off-floor outcome $\mathbf{1}[N_{t2}>0]$. MED-086 reports the natural direct and indirect effects (NDE/NIE); MED-186 reports their randomised-interventional analogues (IDE/IIE).
 
 _Off-floor outcome — effects are risk differences._ IDE, IIE and Total are changes in the probability of reading at least one nonword, not changes in an item count. Positive values mean that the intervention increases the probability of coming off the floor.
 
