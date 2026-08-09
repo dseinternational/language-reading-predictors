@@ -12,6 +12,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -61,12 +65,16 @@ Z_i \sim \mathrm{MVN}\!\left(0,\ \Lambda\,R\,\Lambda^{\top} +
 $$
 
 where $\Lambda$ is the sparse 9×4 loading matrix (each indicator loads only on
-its domain; positive $\mathrm{HalfNormal}(1)$ loadings, $\mathrm{HalfNormal}(1)$
-residuals, memory fixed as above) and $R$ is the 4×4 factor correlation matrix
-under an LKJ(2) prior. The indicator-factor correlation is
-$\lambda / \sqrt{\lambda^2 + \sigma^2}$ and the communality
-$\lambda^2 / (\lambda^2 + \sigma^2)$, exactly as in the RLI family. No LOO is
-computed, matching the RLI corr-factor convention.
+its domain) and $R$ is the 4×4 factor correlation matrix under an LKJ(2) prior.
+For each of the eight free indicators, the communality
+$c \sim \operatorname{Beta}(2, 2)$; its positive loading and residual standard
+deviation are derived as $\lambda = \sqrt{c}$ and
+$\sigma = \sqrt{1-c}$. This enforces
+$\lambda^2 + \sigma^2 = 1$ for the standardised indicator instead of estimating
+an over-parameterised loading–residual pair. The memory indicator is fixed at
+$c=0.8$ as described above. Thus the indicator-factor correlation is
+$\sqrt{c}$ and the communality is $c$. No LOO is computed, matching the RLI
+corr-factor convention.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

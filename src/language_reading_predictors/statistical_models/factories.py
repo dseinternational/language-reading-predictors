@@ -56,6 +56,9 @@ from language_reading_predictors.statistical_models.likelihood import (
     beta_binomial_from_logit,
     beta_binomial_from_score_mean_link,
 )
+from language_reading_predictors.statistical_models.mediation_parameter_names import (
+    outcome_confounder_coefficient,
+)
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     is_distal,
@@ -2576,7 +2579,9 @@ def _build_outcome_leg(
             + b_A * A_d
         )
     for s in confounder_symbols:
-        b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+        b_c = _priors.gamma_cross_prior().to_pymc(
+            outcome_confounder_coefficient(s)
+        )
         eta_Y = eta_Y + b_c * conf_d[s]
     eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
     if off_floor:

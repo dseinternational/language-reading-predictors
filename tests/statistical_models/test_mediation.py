@@ -110,23 +110,84 @@ def test_decompose_beta_binomial(tmp_path):
     assert effects[["prob_mean", "words_mean"]].notna().all().all()
 
 
+def test_word_reading_confounder_is_distinct_from_blending_baseline(tmp_path):
+    """MED-087/187 adjust for baseline W while B is the graded outcome.
+
+    The legacy outcome-own-baseline coefficient remains ``b_W`` and the distinct
+    baseline-word-reading confounder coefficient is ``b_conf_W``. ``b_B`` is
+    already the two-mediator blending path, so neither existing name may be
+    repurposed.
+    """
+    prep = _prepare(tmp_path)
+    built, med = build_mediation_model(
+        prep,
+        mediator_symbol="L",
+        outcome_symbol="B",
+        confounder_symbols=("W",),
+    )
+    assert {"b_W", "b_conf_W", "a_W"} <= set(built.model.named_vars)
+    assert "b_B" not in built.model.named_vars
+
+    from language_reading_predictors.statistical_models import priors
+    from language_reading_predictors.statistical_models.prior_artifacts import (
+        _prior_table_overrides,
+    )
+
+    context = SimpleNamespace(
+        spec=SimpleNamespace(kind="mediation", outcome_symbol="B", extra={}),
+        model=built.model,
+    )
+    ctor, role, rationale = _prior_table_overrides(context)
+    prior_rows = priors.priors_table(
+        built.model,
+        ctor_overrides=ctor,
+        role_overrides=role,
+        rationale_overrides=rationale,
+    ).set_index("parameter")
+    assert prior_rows.loc["b_W", ["panel", "role"]].tolist() == [
+        "gamma_own",
+        "precision",
+    ]
+    assert prior_rows.loc["b_conf_W", ["panel", "role"]].tolist() == [
+        "gamma_cross",
+        "association",
+    ]
+
+    names = (
+        ["b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_conf_W"]
+        + _BB_MEDIATOR_DRAWS
+        + ["a_W", "kappa_M"]
+    )
+    df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
+    assert set(df["quantity"]) == _QUANTITIES
+
+
 def test_decompose_offfloor_outcome(tmp_path):
     """#228 item 12 (LRP86, nonword N): an off-floor (Bernoulli) OUTCOME. The outcome
-    leg drops the own-baseline b_W, so decompose must NOT read it, and it reports
+    leg drops the outcome own-baseline coefficient, so decompose must not read it,
+    and it reports
     NIE/NDE on the off-floor risk-difference scale (n_trials_W = 1, so words_* ==
     prob_*)."""
-    prep = _prepare(tmp_path)
-    _, med = build_mediation_model(
-        prep, confounder_symbols=("E", "R"), outcome_kind="bernoulli_offfloor"
+    path = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(
+        path=path, phase_mode="itt", outcomes=("N", "L", "W")
+    )
+    built, med = build_mediation_model(
+        prep,
+        outcome_symbol="N",
+        confounder_symbols=("W",),
+        outcome_kind="bernoulli_offfloor",
     )
     assert med.off_floor is True
     assert med.n_trials_W == 1
-    # Fake trace WITHOUT b_W (never created on the off-floor leg) and WITHOUT kappa_Y
-    # (the Bernoulli has no dispersion) — so if decompose read b_W it would KeyError.
+    assert "b_conf_W" in built.model.named_vars
+    assert "b_W" not in built.model.named_vars
+    # Fake trace without an outcome-own-baseline coefficient and without kappa_Y
+    # (the Bernoulli has no dispersion), so an accidental read would raise KeyError.
     names = (
-        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_E", "b_R"]
+        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_conf_W"]
         + _BB_MEDIATOR_DRAWS
-        + ["a_E", "a_R", "kappa_M"]
+        + ["a_W", "kappa_M"]
     )
     df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
     assert set(df["quantity"]) == _QUANTITIES
@@ -203,6 +264,8 @@ def test_code_route_interventional_specs_mirror_their_parents():
             "estimand": "interventional",
             "companion_of": parent.model_id,
         }
+        assert "W" in parent.adjustment
+        assert "W" in parent.extra["outcomes"]
 
 
 def test_decompose_gaussian_composite(tmp_path):

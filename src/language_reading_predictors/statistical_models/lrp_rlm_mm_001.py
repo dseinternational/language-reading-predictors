@@ -62,14 +62,13 @@ SPEC = ModelSpec(
         # weakly-informative communality prior centred at 0.5 — flagged for review.
         "comm_alpha": 2.0,
         "comm_beta": 2.0,
-        # target_accept stays at 0.99 for the next diagnostic fit. The wave-3 domains
-        # are near-collinear (factor correlations 0.81-0.95), so the LKJ correlation
-        # matrix approaches the positive-definite boundary. Earlier runs retained
-        # divergences after the communality reparameterisation. Under the 2026-08-02
-        # policy this specification carries no permanent model-level waiver. Its
-        # factor correlations are covariance and latent-structure headlines, which
-        # remain zero-divergence-only. A higher-order or single-general-factor model
-        # remains the preferred structural investigation.
+        # Retain target_accept=0.99 as a conservative sampling setting for the
+        # near-collinear wave-3 domains (factor correlations 0.81-0.95). The current
+        # reporting fit passes the full convergence gate with zero divergences; this
+        # specification carries no permanent model-level waiver. Factor correlations
+        # remain covariance and latent-structure headlines, so any future fit must
+        # also clear the zero-divergence policy before release. A higher-order or
+        # single-general-factor model remains the preferred structural investigation.
         "target_accept": 0.99,
     },
 )

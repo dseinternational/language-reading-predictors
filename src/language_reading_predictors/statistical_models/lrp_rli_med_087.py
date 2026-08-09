@@ -18,9 +18,11 @@ NDE/NIE on the items scale by counterfactual simulation from the posterior.
 
 **Adjustment set (mediation criterion; signed off by @frankbuckley 2026-07-14).**
 The L -> PA (blending) confounders under the revised DAG are the common parents of
-LS and PA: age (A), hearing (HS = `hs`) and speech production (SP = `deapp_c`), via
-the missing-indicator method, plus the baselines L_t1 and the outcome own-baseline
-(the "W_pre" marker, resolved to B's pre-score in the factory).
+LS and PA: age (A), hearing (HS = `hs`), speech production (SP = `deapp_c`) and
+baseline word reading W_t1 through `LS_t2 <- WR_t1 -> PA_t2`, plus the baselines
+L_t1 and the outcome own-baseline (the "W_pre" marker, resolved to B's pre-score
+in the factory). Bare `W` is distinct from that marker and enters as the t1
+word-reading logit in both fitted legs.
 
 **Phonological memory (RW = `erbto`) considered and excluded — precision-only.** RW
 is a parent of PA but NOT of LS, so it is not a common cause of the mediator and
@@ -66,12 +68,12 @@ SPEC = ModelSpec(
         # confirmed NOT adjusted (treatment-affected recanting witness; MED-187/#324).
         # "W_pre" is the outcome-own-baseline marker (stripped by fit_mediation; the
         # factory uses B's pre-score).
-        "G", "A", "W_pre", "L_t1",
+        "G", "A", "W_pre", "L_t1", "W",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
     ],
     extra={
-        # Restrict the complete-case mask to B + L (both are in ITT_OUTCOMES).
-        "outcomes": ("B", "L"),
+        # Restrict the complete-case mask to B + L + baseline-W availability.
+        "outcomes": ("B", "L", "W"),
     },
 )
 
