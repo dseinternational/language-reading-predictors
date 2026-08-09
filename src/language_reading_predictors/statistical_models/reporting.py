@@ -62,6 +62,11 @@ from language_reading_predictors.statistical_models.level_factors import (
     LevelFactorsRunPlan,
     resolve_level_factors_run_plan,
 )
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismRunPlan,
+    resolve_mechanism_run_plan,
+    validate_mechanism_run_plan,
+)
 from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
     write_environment_lock,
@@ -2761,6 +2766,14 @@ def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
     return resolve_growth_run_plan(context.spec)
 
 
+def _mechanism_run_plan(context: StatisticalFitContext) -> MechanismRunPlan:
+    """Return the mechanism plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, MechanismRunPlan):
+        return validate_mechanism_run_plan(context.spec, resolved_plan)
+    return resolve_mechanism_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2781,6 +2794,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _aligned_run_plan(context)
     if context.spec.kind == "growth":
         return _growth_run_plan(context)
+    if context.spec.kind == "mechanism":
+        return _mechanism_run_plan(context)
     return None
 
 

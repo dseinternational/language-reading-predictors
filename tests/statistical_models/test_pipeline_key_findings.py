@@ -18,6 +18,11 @@ from language_reading_predictors.statistical_models.pipelines import (
     dose_response as dose_pipeline,
     mechanism as mech_pipeline,
 )
+from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+    resolve_mechanism_run_plan,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
@@ -44,13 +49,21 @@ def test_mechanism_curve_writes_posterior_items_range_summary(tmp_path, monkeypa
         beta_mech=(("chain", "draw"), beta),
         eta=(("chain", "draw", "obs_id"), eta),
     )
+    spec = ModelSpec(
+        model_id="test-mechanism-summary",
+        kind="mechanism",
+        title="test",
+        outcome_symbol="W",
+        mechanism_symbol="L",
+        adjustment=["G", "W_pre"],
+        model_settings=MechanismModelSettings(
+            outcomes=("W", "L"), linear_mechanism=True
+        ),
+    )
     ctx = SimpleNamespace(
         trace=SimpleNamespace(posterior=posterior, constant_data=xr.Dataset()),
-        spec=SimpleNamespace(
-            mechanism_symbol="L",
-            outcome_symbol="W",
-            extra={"mechanism_is_covariate": False},
-        ),
+        spec=spec,
+        resolved_plan=resolve_mechanism_run_plan(spec),
         prepared=SimpleNamespace(
             post_counts={"L": counts},
             n_trials={"L": 32, "W": 100},
