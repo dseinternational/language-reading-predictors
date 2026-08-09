@@ -16,7 +16,7 @@ import pymc as pm
 import pytest
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.statistical_models import priors
+from language_reading_predictors.statistical_models import mechanism, priors
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import (
     build_adjusted_model,
@@ -3001,14 +3001,26 @@ def test_mechanism_writers_use_pre_exposure_when_lagged(tmp_path):
 
     out = tmp_path / "mech_out"
     out.mkdir()
+    spec = ModelSpec(
+        model_id="test-mechanism-at-pre",
+        kind="mechanism",
+        title="test",
+        outcome_symbol="W",
+        mechanism_symbol="R",
+        adjustment=["G", "W_pre"],
+        extra={
+            "outcomes": ("W", "R"),
+            "mechanism_at_pre": True,
+            "linear_mechanism": True,
+            "use_subject_random_intercept": False,
+        },
+    )
+    run_plan = mechanism.resolve_mechanism_run_plan(spec)
     ctx = SimpleNamespace(
         trace=trace,
         prepared=built.prepared,
-        spec=SimpleNamespace(
-            mechanism_symbol="R",
-            outcome_symbol="W",
-            extra={"mechanism_at_pre": True, "linear_mechanism": True},
-        ),
+        spec=spec,
+        resolved_plan=run_plan,
         reporting=SimpleNamespace(ci_prob=0.89),
         output_dir=str(out),
         tables={},

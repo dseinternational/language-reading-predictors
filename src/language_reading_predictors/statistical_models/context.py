@@ -51,8 +51,8 @@ class ModelSpec:
     ``"growth"``, ``"historical_growth"``, ``"historical_joint"``, ``"survival"``,
     ``"block_exposure"``, ``"concurrent"`` and ``"long_corr_factor"``. ``title``
     is the long human-readable title shown on the report. ``model_settings`` is the
-    typed family boundary (currently implemented for ITT); ``extra`` remains the
-    migration boundary for other families.
+    typed family boundary for migrated families; ``extra`` remains the strict legacy
+    translation boundary for those families and the migration boundary for the rest.
     """
 
     model_id: str
@@ -65,7 +65,7 @@ class ModelSpec:
     adjustment: list[str] = field(default_factory=list)
     """For mechanism models, the list of adjustment-set symbols."""
     model_settings: object | None = None
-    """Typed, immutable family settings; ITT uses ``IttModelSettings``."""
+    """Typed, immutable settings for a family that has completed this migration."""
     extra: dict[str, Any] = field(default_factory=dict)
 
     # --- Dataset / estimand metadata (#165) -------------------------------

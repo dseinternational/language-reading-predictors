@@ -66,10 +66,24 @@ from language_reading_predictors.statistical_models.runtime import (
 )
 
 
+def _mechanism_run_plan(
+    ctx: StatisticalFitContext,
+) -> _mechanism.MechanismRunPlan:
+    """Return the pre-IO plan attached by ``fit_mechanism`` or reconstruct it."""
+    resolved = getattr(ctx, "resolved_plan", None)
+    if isinstance(resolved, _mechanism.MechanismRunPlan):
+        return _mechanism.validate_mechanism_run_plan(ctx.spec, resolved)
+    return _mechanism.resolve_mechanism_run_plan(ctx.spec)
+
+
 def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     require_spec(spec, "mechanism", mechanism=True)
-
+    # Resolve and validate every mechanism setting before ``make_context`` resets an
+    # output staging directory or the loader reads any data (#394 pillar 4).
+    run_plan = _mechanism.resolve_mechanism_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = run_plan
+    _report.write_model_recipe(ctx)
     # Some mechanism fits keep the HSGP curve and need a higher target_accept for
     # the residual boundary divergences (LRP58/71/158); honour it with the shared
     # CLI > model-specific > preset precedence.
@@ -80,13 +94,13 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # model as this fit rather than a re-derived lookalike. Behaviour-preserving
     # relocation: the loader-argument derivation, confounder filtering and factory
     # keyword mapping moved verbatim.
-    plan = _mechanism.resolve_mechanism_plan(spec)
+    plan = _mechanism.resolve_mechanism_plan(spec, run_plan=run_plan)
     prepared = plan.prepared
     ctx.prepared = prepared
     adjust_for = plan.adjust_for
     confounders = list(plan.confounders)
-    moderator_symbol = spec.extra.get("moderator_symbol")
-    mechanism_is_covariate = bool(spec.extra.get("mechanism_is_covariate", False))
+    moderator_symbol = run_plan.moderator_symbol
+    mechanism_is_covariate = run_plan.mechanism_is_covariate
 
     print_header(ctx)
 
@@ -103,19 +117,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
-    _mech_vars = ["alpha", "beta_G", "gamma_own", "kappa"]
-    _mech_vars += [f"gamma_{s}" for s in confounders if s in MEASURES]
-    _mech_vars += [f"gamma_{c}" for c in adjust_for]
-    if "A" in confounders and not spec.extra.get("use_age_gp", False):
-        _mech_vars.append("gamma_A")
-    if spec.extra.get("use_subject_random_intercept", True):
-        _mech_vars.append("sigma_child")
-    if spec.extra.get("linear_mechanism", False):
-        _mech_vars.append("beta_mech")
-    if moderator_symbol is not None:
-        _mech_vars.append("gamma_mod")
-        if spec.extra.get("include_interaction", True):
-            _mech_vars.append("gamma_int")
+    _mech_vars = _mechanism.mechanism_diagnostic_vars(plan)
     _diag.summary_diagnostics(ctx, var_names=_mech_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381). For the
     # HSGP mechanism curve the estimand is the shape, governed by the deliberately
@@ -123,7 +125,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # ``beta_mech`` is already in ``_mech_vars``, so add the GP amplitude and
     # lengthscale only when the nonparametric curve is fitted.
     _mech_psense_vars = list(_mech_vars)
-    if not spec.extra.get("linear_mechanism", False):
+    if not run_plan.linear_mechanism:
         _mech_psense_vars += ["f_mech__eta", "f_mech__ell"]
     _diag.run_psense(ctx, var_names=_mech_psense_vars)
 
@@ -157,7 +159,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
                 s for s in confounders if s in ("G", "A") or s in MEASURES
             ),
             adjust_for=adjust_for,
-            baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
+            baseline_symbol=run_plan.adjust_baseline_symbol,
         ),
     }
     # Items-scale worked-example reference points (#319): recorded so the caption
@@ -211,7 +213,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         wave=ctx.prepared.phase,
         child_idx=ctx.prepared.child_idx,
         off_floor=False,
-        obs_node="y_post",
+        obs_node=run_plan.observation_node,
         x_label="period transition",
     )
 
@@ -243,7 +245,8 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     )
 
     sym = ctx.spec.mechanism_symbol
-    is_covariate = bool(ctx.spec.extra.get("mechanism_is_covariate", False))
+    run_plan = _mechanism_run_plan(ctx)
+    is_covariate = run_plan.mechanism_is_covariate
     if is_covariate:
         # Covariate exposure: x is the raw score (the loader scaler inverted); the
         # model's z is the loader z re-standardised on the kept rows, exactly as
@@ -253,7 +256,7 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
         x_vals = _scaler.inverse(z_loaded) if _scaler is not None else z_loaded
         z_L, _ = standardise(z_loaded)
         x_col, x_label = "mech_x", f"{sym} (raw score)"
-    elif bool(ctx.spec.extra.get("mechanism_at_pre", False)):
+    elif run_plan.mechanism_at_pre:
         # Lagged form: the factory fits the mechanism on its period-start (pre)
         # logit, so the reported curve must use that same vector on the same rows.
         # Using the post logit here would plot and label the fitted pre-slope
@@ -407,9 +410,10 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
 
     try:
         spec = ctx.spec
+        run_plan = _mechanism_run_plan(ctx)
         sym = spec.mechanism_symbol
         outcome = spec.outcome_symbol or "W"
-        is_covariate = bool(spec.extra.get("mechanism_is_covariate", False))
+        is_covariate = run_plan.mechanism_is_covariate
 
         if is_covariate:
             z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
@@ -417,7 +421,7 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
             x_exposure = scaler.inverse(z_loaded) if scaler is not None else z_loaded
             exposure_label = _COVARIATE_EXPOSURE_LABELS.get(sym, sym)
             exposure_n_trials = None
-        elif bool(spec.extra.get("mechanism_at_pre", False)):
+        elif run_plan.mechanism_at_pre:
             # Lagged form: the fitted curve (via z_mech_logit) is on the pre
             # exposure, so the items-scale x-axis must be the pre counts, not the
             # post counts — otherwise the worked-example quantiles land on the
@@ -434,7 +438,7 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
         # y-axis is an item count. Floored (off-floor Bernoulli) mechanism
         # outcomes are a future addition (#319 design note); wire the flag when
         # such a model ships.
-        ref_quantiles = tuple(spec.extra.get("items_ref_quantiles", (0.25, 0.75)))
+        ref_quantiles = run_plan.items_ref_quantiles
         worked = write_mechanism_items_artifacts(
             ctx.output_dir,
             ctx.trace,
@@ -579,7 +583,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
 
     sym = ctx.spec.mechanism_symbol
     outcome = ctx.spec.outcome_symbol or "W"
-    is_covariate = bool(ctx.spec.extra.get("mechanism_is_covariate", False))
+    is_covariate = _mechanism_run_plan(ctx).mechanism_is_covariate
     f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
 
     if is_covariate:
