@@ -5,28 +5,28 @@
 
 # Findings 08 — the mediation family (what carries the effect)
 
-> [!WARNING]
-> **Stale MED-086/186 and MED-087/187 rows (2026-08-08).** The current lagged DAG exposes baseline-word-reading forks into the letter-sound mediator and both code-route outcomes. Those four specifications now adjust for baseline word reading and require fresh `reporting` fits. Their numerical rows, the prose interpreting the 8.7-percentage-point and 0.23-item indirect effects, and any family synthesis that relies on them are historical only and must not be published or interpreted until replaced from new trace-backed outputs. The other mediation models in this note are unaffected by this correction; see `notes/202608081805-med-086-187-wr-baseline-correction.md`.
+> [!NOTE]
+> **Corrected MED-086/186 and MED-087/187 reporting fits completed (2026-08-09).** The four current fits adjust for baseline word reading, use exact matching fitted-child identities within each natural/interventional pair, pass the automatic computational gate and replace every pre-2026-08-08 result for these model IDs. Their indirect contrasts remain model-based decompositions rather than identified causal routes; the detailed correction and refit record are in `notes/202608081805-med-086-187-wr-baseline-correction.md` and `notes/202608091335-med-wr-baseline-reporting-refit.md`.
 
-Reports every model in the `mediation` family (15) and the `mediation_multi` family (4) from the 2026-08-04/05 `reporting` refit. **19 models, all passing the convergence gate.** Reading conventions in note 00. Preliminary research data — all estimates provisional.
+Reports every model in the `mediation` family (15) and the `mediation_multi` family (4). Most results come from the 2026-08-04/05 `reporting` refit; MED-086/186 and MED-087/187 are replaced by the corrected 2026-08-09 fits. **All 19 current model reports pass the automatic convergence gate.** Reading conventions in note 00. Preliminary research data — all estimates provisional.
 
 ## What these models do
 
-The ITT family shows the intervention raises word reading. This family asks **through what**. If the programme teaches letter sounds and letter sounds are used to read words, the word-reading gain should run through the letter-sound gain rather than around it.
+The ITT family shows the intervention raises word reading. This family asks how fitted g-formula models allocate that contrast between direct and mediator-indexed components. If the programme teaches letter sounds and letter sounds are used to read words, the fitted letter-sound component should be positive; that pattern alone would not identify a causal route.
 
 **Design.** A g-formula decomposition by counterfactual simulation. The model is fitted, then the posterior is used to simulate what would have happened under combinations of treatment assignment and mediator value, splitting the total effect into:
 
-- **NDE** (natural direct effect) — the part that would remain if the mediator did not respond to treatment;
-- **NIE** (natural indirect effect) — the part carried _through_ the mediator;
+- **NDE** (natural direct effect) — the modelled contrast that would remain if the mediator did not respond to treatment;
+- **NIE** (natural indirect effect) — the modelled contrast assigned to the mediator response;
 - **total** = NDE + NIE.
 
 Several models also report the **interventional-effects** version (IDE/IIE), which targets a slightly different and more robustly-defined estimand under interference between mediators.
 
-**What this family can and cannot claim.** The _total_ effect inherits the ITT's randomisation warrant. The **split** between direct and indirect does not: decomposing a total effect requires assuming there is no unmeasured confounding of the **mediator–outcome** relationship, and general ability plausibly confounds letter sounds and word reading together. Randomisation balances the arms; it does not make the mediator exogenous. So the NIE is a **model-based decomposition under an untestable assumption**, not a randomised quantity. Everything below should be read at that strength.
+**What this family can and cannot claim.** For the single-window models using random assignment in the trial window, the modelled _total_ contrast is randomisation-anchored within its fitted analysis population. The **split** between direct and indirect is not: decomposing a total requires assuming there is no unmeasured confounding of the **mediator–outcome** relationship, and general ability plausibly confounds letter sounds and word reading together. Randomisation balances the arms; it does not make the mediator exogenous. MED-092 is a separate exception even at the total: its all-period model uses the time-varying on-programme exposure and therefore depends on conditional ignorability, while only its period-1 restricted readout is randomisation-anchored. The NIE/IIE quantities below are **model-based decompositions under untestable assumptions**, not randomised quantities.
 
 All quantities are on the word-reading items scale unless marked otherwise.
 
-## The headline: the word-reading gain runs through letter sounds
+## The headline: fitted decompositions consistently assign a positive component to letter sounds
 
 | Model     | Mediator                                    | Total | NDE (direct)   | NIE (indirect)             |  P(NIE>0) |
 | --------- | ------------------------------------------- | ----- | -------------- | -------------------------- | --------: |
@@ -36,13 +36,13 @@ All quantities are on the word-reading items scale unless marked otherwise.
 | `med-092` | Letter sounds (period-stacked)              | +3.03 | +2.24 (P=0.97) | +0.75 (+0.29 to +1.39)     |     0.999 |
 | `med-062` | Code-based reading route (composite)        | +1.62 | +0.61 (P=0.68) | +0.92 (+0.06 to +2.17)     |     0.959 |
 
-**In the cross-sectional models essentially the whole effect is indirect.** `med-059` puts the direct effect at +0.16 items with a direction probability of 0.55 — indistinguishable from nothing — while the route through letter sounds carries +1.69 with very strong evidence. The interventional-effects version agrees to two decimal places. The longitudinal-ordering model, which requires the mediator to be measured before the outcome, gives an even larger indirect effect.
+**In the cross-sectional models, most of the fitted total is assigned to the letter-sound indirect component.** `med-059` puts the direct contrast at +0.16 items with a direction probability of 0.55, while the letter-sound-indexed component is +1.69 with strong directional evidence. The interventional-effects functional agrees to two decimal places because it uses the same fitted model; this is an implementation check, not independent evidence. The longitudinal-ordering model, which requires the mediator to be measured before the outcome, also assigns a larger positive component to letter sounds. None of these ratios identifies how much of the causal effect travels through a pathway.
 
 `med-092` is the exception worth noting: stacking every period, the direct effect is +2.24 and the indirect +0.75. That model uses far more rows and a different treatment definition ("on the programme" rather than assigned), so it is not directly comparable, but it is a reminder that the "almost all indirect" split is strongest in the single-window models.
 
 ## Which routes do _not_ carry the effect
 
-This is where the family earns its keep — several plausible-sounding routes come out empty.
+Several plausible mediator-indexed components remain small or uncertain in the fitted decompositions.
 
 | Model     | Mediator                                 | NIE                    | P(NIE>0) | Reading               |
 | --------- | ---------------------------------------- | ---------------------- | -------: | --------------------- |
@@ -51,9 +51,9 @@ This is where the family earns its keep — several plausible-sounding routes co
 | `med-080` | Taught receptive vocabulary              | +0.21 (−0.30 to +1.23) |    0.754 | weak at best          |
 | `med-068` | Taught expressive vocabulary             | +0.30 (−0.23 to +1.32) |    0.814 | weak at best          |
 
-**The negative control behaves.** `med-079` routes the effect through receptive grammar — a skill the intervention has no mechanism to use for word reading — and finds nothing (NIE +0.08, inconclusive), with the direct effect absorbing the total. That is exactly what a well-behaved negative control should do, and it is meaningful evidence that the letter-sound result is not an artefact of the decomposition machinery producing large indirect effects for any mediator handed to it.
+**The negative-control pattern is reassuring but not decisive.** `med-079` indexes the decomposition by receptive grammar — a skill the intervention has no proposed mechanism to use for word reading — and assigns little to that component (NIE +0.08, inconclusive), with the fitted direct component absorbing most of the total. This reduces concern that the machinery produces a large indirect estimate for every mediator, but it neither validates the letter-sound decomposition nor repairs its identification assumptions.
 
-**Nonword decoding does not mediate, which is initially surprising.** The mechanism family (note 07) found letter sounds → nonword reading to be the strongest coupling in the suite. Yet routing the _intervention effect_ through nonword decoding gives NIE +0.02 with the direct effect taking +2.83. The two facts are compatible: letter-sound knowledge is strongly associated with nonword decoding, but the intervention's effect on word reading does not travel through a measurable nonword-decoding step. The sequential model `med-060` confirms it directly — running the route letter sounds → nonword decoding → word reading gives NIE_L +1.66 (P = 0.989) and **NIE_N −0.07 (P = 0.31)**.
+**The nonword-decoding component is unresolved, which is initially surprising.** The mechanism family (note 07) found the letter-sounds/nonword-reading coupling to be the strongest adjusted association in the suite. Yet the single-mediator decomposition assigns +0.02 to the nonword-indexed component and +2.83 to the fitted direct component. The sequential model `med-060` shows the same descriptive pattern: NIE_L +1.66 (P = 0.989) and **NIE_N −0.07 (P = 0.31)**. These fits are compatible with little additional nonword-indexed component after letter sounds, but do not show that the causal intervention effect bypasses nonword decoding.
 
 ## The two-mediator models
 
@@ -66,16 +66,22 @@ These fit two mediators at once, so the routes compete for the same effect rathe
 | `med-075` | Letter sounds + phoneme blending (sequential) | **+1.62** (P=0.995)   | −0.04 (P=0.42)    |
 | `med-060` | Letter sounds + nonword decoding (sequential) | **+1.66** (P=0.989)   | −0.07 (P=0.31)    |
 
-**The letter-sound route survives every competitor.** Put head to head with expressive vocabulary, phoneme blending or nonword decoding, letter sounds carry +1.6 to +1.9 items with very strong evidence and the alternative route carries nothing. This is the most robust mechanistic finding in the suite.
+**The fitted letter-sound route survives every tested competitor.** Put head to head with expressive vocabulary, phoneme blending or nonword decoding, the model assigns +1.6 to +1.9 items to the letter-sound indirect component with very strong directional evidence, while the alternative component is unresolved. This is the suite's most consistent model-based pathway pattern, but it remains conditional on the mediation assumptions rather than an identified mechanism.
 
-## Other outcomes — four rows awaiting corrected refits
+## Other outcomes — corrected refits require a more qualified reading
 
-| Model                 | Outcome via letter sounds               | NIE                       | P(NIE>0) |
-| --------------------- | --------------------------------------- | ------------------------- | -------: |
-| `med-086` / `med-186` | Nonword reading (off-floor probability) | +0.087 (+0.028 to +0.160) |    0.993 |
-| `med-087` / `med-187` | Phoneme blending                        | +0.23 (−0.03 to +0.59)    |    0.921 |
+| Models                | Outcome and scale               | Indirect contrast (89% interval)       | Direct contrast (89% interval)         | Total contrast (89% interval)          |
+| --------------------- | ------------------------------- | -------------------------------------- | -------------------------------------- | -------------------------------------- |
+| `med-086` / `med-186` | Nonword reading, off-floor risk | +0.079 (+0.028 to +0.148), P>0 = 0.996 | +0.005 (−0.078 to +0.090), P>0 = 0.538 | +0.087 (−0.011 to +0.188), P>0 = 0.924 |
+| `med-087` / `med-187` | Phoneme blending, items         | +0.292 (−0.098 to +0.761), P>0 = 0.888 | +0.441 (−0.471 to +1.366), P>0 = 0.778 | +0.748 (−0.056 to +1.560), P>0 = 0.932 |
 
-The numerical rows above are retained only as a record of the superseded fits. No current conclusion about the letter-sound route to nonword reading or phoneme blending should be drawn until MED-086/186 and MED-087/187 have been refitted under the corrected baseline-word-reading adjustment.
+The natural and interventional companions are numerically identical in this implementation because they use the same fitted probabilistic model and g-formula functional; their fitted-child identities also match exactly within each pair. This is an implementation and comparability check, not evidence that the indirect contrasts are identified.
+
+**Nonword reading.** The corrected primary MED-086 fit puts the letter-sound indirect contrast at an increase of 7.9 percentage points in the probability of reading at least one nonword. Its 89% interval excludes zero, but the total contrast's interval includes zero. The separately fitted t3 off-floor sensitivity likewise has a positive indirect contrast of +0.103 (+0.037 to +0.186; P>0 = 0.996), alongside a direct contrast of −0.085 (−0.195 to +0.024; P>0 = 0.106) and a total of +0.022 (−0.106 to +0.148; P>0 = 0.608). These are all off-floor risk differences; no comparison is made with any superseded graded-item t3 quantity.
+
+The confounding sweep weakens the apparent certainty. MED-086's primary NIE 89% interval first includes zero at an outcome-leg shift of $\delta^*=0.636$, 45% of the fitted effective mediator coefficient; at that point the median remains +0.048 and the interval is −0.007 to +0.115. The median changes sign only between $\delta=1.379$ and 1.485. The session-dose point calibration ($\delta=0.247$) is below the interval tipping point and maps to a +0.068 NIE (+0.017 to +0.136), but its deliberately wide 89% endpoint scenario (0.000 to 2.656) extends beyond both thresholds. Session-strength confounding could therefore plausibly remove credible evidence for a positive indirect contrast and, at the upper end of the scenario, reverse its median; $\delta^*=0.636$ itself does not set the median to zero. Power-scaling sensitivity also flags 19 of 24 scanned MED-086 parameters, including `b_M`, `b_GM` and the newly fitted `b_conf_W`; this is a substantial prior/likelihood caution even though the sampler converged cleanly.
+
+**Phoneme blending.** The corrected MED-087 primary indirect contrast is +0.292 items, but its 89% interval already includes zero. The t3 sensitivity agrees in that limited sense: NIE +0.263 items (−0.144 to +0.747; P>0 = 0.854), NDE +0.102 (−0.846 to +1.078; P>0 = 0.569) and total +0.385 (−0.447 to +1.222; P>0 = 0.772). The session-dose point calibration maps to +0.266 items (−0.127 to +0.732), but there is no credibly non-zero indirect contrast for dose confounding to explain away. Power-scaling sensitivity flags 9 of 22 scanned parameters, including `b_GM` and the own-baseline term `b_W`; it does not flag `b_M` or the new `b_conf_W`.
 
 ## Could the causality run the other way?
 
@@ -96,7 +102,8 @@ Two models reverse the ordering — does word reading carry the effect to letter
 - **The two-mediator models are the slow ones** (`med-064/066/075` take 36–41 minutes each at reporting tier) because the sensitivity sweep runs 42 full counterfactual decompositions over all 36,000 draws.
 - **Reverse mediation is not excluded** — see above.
 - **Predictive calibration.** 50% bands cover about 71% of observations (79% for the two-mediator models).
+- **Clean computation is not identification.** The corrected MED-086/186 and MED-087/187 primary fits and the two natural-model t3 subfits all have zero divergences and pass the automatic R-hat, effective-sample-size and BFMI gates, but those checks cannot remove latent-general-ability confounding, treatment-induced session confounding or same-wave mediator/outcome ambiguity.
 
 ## Where this leads
 
-Taken with note 07, the still-supported mechanism picture is: the intervention raises letter-sound knowledge; letter-sound knowledge carries essentially the whole word-reading gain; no vocabulary or blending route competes with that word-reading result; a grammar negative control correctly shows nothing; and the reverse ordering, while smaller, is not excluded. The former claim about the whole off-the-floor nonword-reading gain is withheld pending the corrected MED-086/186 refits, and the MED-087/187 blending decomposition is likewise withheld.
+Taken with note 07, the fitted decompositions are consistent with much of the word-reading contrast being assigned to letter-sound learning: no vocabulary or blending route competes with that model-based component, a grammar negative control carries little, and the reverse ordering, while smaller, is not excluded. The corrected code-route models add narrower, qualified evidence: the off-floor nonword indirect contrast is positive but sensitive to model, prior and unmeasured-confounding assumptions, while its total interval includes zero; the graded blending indirect interval already includes zero. None of these results establishes that a reading or code-route outcome is causally carried through letter sounds.

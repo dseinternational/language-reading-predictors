@@ -26,7 +26,7 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 LRP-CA-011 is the "does the letter-sound → word-reading association survive holding
 decoding fixed" decomposition (#421 Tier 1). It is identical to
-[`lrp-rli-ca-010`](../lrp-rli-ca-010) — minimal adjustment for age, hearing and non-verbal
+[`lrp-rli-ca-010`](https://github.com/dseinternational/language-reading-predictors/tree/main/docs/models/lrp-rli-ca-010) — minimal adjustment for age, hearing and non-verbal
 ability — but adds same-wave **nonword reading** (`N`) as a second predictor. The
 letter-sound slope here is the `L` → `W` level association *among children alike on
 nonword decoding*; comparing it to `ca-010`'s slope is the review's attenuation check
@@ -39,21 +39,24 @@ children score 0 or 1 at t1). It is *admissible* as a linear standardised predic
 identifiability problem with a floored *outcome* or a nonparametric curve does not arise
 here. But the severe floor is coarsening and measurement error **in the variable being
 conditioned on**, so this fit holds decoding fixed only *partially*: the residual `L`
-slope is an **upper bound** on the non-decoding channel ("at most this much"), not a clean
-non-decoding association. Better measurement of decoding would, if anything, attribute
-more of the `L`–`W` association to it. Two further qualifications carry over from the
+slope is only the association that remains after conditioning on this coarse observed
+score, not a bound on, or estimate of, a non-decoding channel. Better measurement could
+change the residual slope in either direction. Two further qualifications carry over from the
 source note (`notes/202607241000-findings-letter-sounds-word-reading-association.md`):
-under the revised DAG `N` is a **mediator** of `L → W`, not a confounder, so adjusting for
-it deliberately *removes* a pathway; and because `N` is a common effect of `L` and other
-reading inputs, conditioning on it can also **open a collider path**. Read this fit
+under the revised DAG `N` is a **mediator** of `L → W`, not a confounder, so adjustment
+changes the conditional question rather than identifying a pathway decomposition; and
+because `N` is a common effect of `L` and other reading inputs, conditioning on it can
+also **open a collider path**. Read this fit
 alongside `ca-010`, never instead of it.
 
 _Estimand: descriptive association (no causal warrant)._ As `ca-010`, every coefficient
 is a latent-GA-confounded **adjusted association**, never causal. The single-posterior
-`L`-slope contrast against `ca-010` that the review's "share retained" wants is a #421
-Tier-3 joint {W, N} fit (deferred); this pair of separate fits is its descriptive version,
-and the ratio it implies is a sensitivity, not an identified quantity — the two slopes
-come from separate fits, so pairing their draws assumes working independence.
+"share retained" quantity is now implemented in the #421 Tier-3 joint model
+[`lrp-rli-jm-001`](https://github.com/dseinternational/language-reading-predictors/tree/main/docs/models/lrp-rli-jm-001). This pair of separate fits remains a different,
+observed-count sensitivity: its ratio is not a posterior estimand because the two slopes
+come from separate fits, so pairing their draws assumes working independence. The joint
+model conditions on a latent nonword outcome and is therefore complementary rather than
+an interchangeable correction; neither specification identifies a causal pathway.
 
 ## Design
 

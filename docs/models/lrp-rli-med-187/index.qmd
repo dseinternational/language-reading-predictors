@@ -24,11 +24,11 @@ Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 ## Overview
 
-::: {.callout-warning title="Reporting refit required after adjustment-set correction"}
-Numerical findings from fits made before 2026-08-08 are stale. This companion inherits MED-087's corrected baseline-word-reading adjustment. Do not publish or interpret its previous IDE/IIE table until a new `reporting` fit, diagnostics and generated findings have completed.
+::: {.callout-warning title="Current reporting result — computationally sound, interval crosses zero"}
+The corrected 2026-08-09 `reporting` fit uses the exact same 53-child identity as MED-087 and passes the automatic computational gate. The interventional indirect contrast is +0.292 blending items (89% interval −0.098 to +0.761; P>0 = 0.888), and the total is +0.748 (−0.056 to +1.560; P>0 = 0.932). Numerical agreement with MED-087 is expected from the shared fitted model and current g-formula functional; it is an implementation check, not identification evidence. The indirect interval includes zero before any session-dose shift, and power scaling flags several parameters. This remains a model-based decomposition under unresolved confounding and same-wave assumptions, not an identified causal route.
 :::
 
-MED-187 is the parent+100 **interventional-effects companion** to [MED-087](../lrp-rli-med-087/). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model the graded phoneme-blending score at t2. MED-087 reports the natural direct and indirect effects (NDE/NIE); MED-187 reports their randomised-interventional analogues (IDE/IIE) on the blending-item scale.
+MED-187 is the parent+100 **interventional-effects companion** to [MED-087](https://github.com/dseinternational/language-reading-predictors/tree/main/docs/models/lrp-rli-med-087). Both fit the same Phase-0 joint model, use letter-sound knowledge at t2 as the mediator, use the same signed-off adjustment set, and model the graded phoneme-blending score at t2. MED-087 reports the natural direct and indirect effects (NDE/NIE); MED-187 reports their randomised-interventional analogues (IDE/IIE) on the blending-item scale.
 
 ## Why the estimand changes
 

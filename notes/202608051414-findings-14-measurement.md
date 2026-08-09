@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Targeted concurrent-family qualification added by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings 14 — the measurement models (correlated domain factors)
 
@@ -44,7 +46,7 @@ Every other family treats each test score as the skill. These ask what the tests
 
 **This cohort is close to one-dimensional.** Every pair correlates at 0.82–0.95, and language ↔ ability at 0.95 is barely distinguishable from unity. The dominant eigenvalue carries roughly 90% of the variance among these four domains.
 
-**This is the single most important context for reading the whole suite.** When four notionally distinct abilities correlate at 0.9, "adjusting for" one of them removes a large share of the others too — which is exactly why the concurrent family (note 11) sees every association halve on adjustment, and why no observational model in this study can separate a specific skill effect from general ability. The latent structure makes concrete what the phrase "latent general ability is unblockable" means throughout these notes.
+**This is the single most important context for reading the whole suite.** When four notionally distinct abilities correlate at 0.9, "adjusting for" one of them removes a large share of the others too — consistent with the corrected concurrent family (note 11), where the strongest adjusted slope retains a median 63% of its single-skill comparator and the all-predictor signed median is 39%. That attenuation is not itself an estimate of a general factor, and no observational model in this study can separate a specific skill effect from latent general ability. The latent structure makes concrete what the phrase "latent general ability is unblockable" means throughout these notes.
 
 Two reporting obligations attach to these numbers. They are **latent** correlations, disattenuated for measurement error, and therefore sit systematically above any raw inter-test correlation a reader might compute. And every memory-domain correlation scales with an assumed single-indicator reliability of 0.8, because recall of digits is the only memory indicator in the prepared extract — so the memory correlations are the least secure in the table.
 
@@ -70,5 +72,6 @@ The per-wave correlations are correspondingly flat: vocabulary ↔ grammar sits 
 - **Memory in the Byrne cohort rests on a single indicator** with an assumed reliability of 0.8; those correlations move with that assumption.
 - **Near-unidimensionality in the Byrne cohort** (dominant eigenvalue ≈ 90%) should be reported explicitly rather than left to be inferred from six pairwise numbers.
 - **No causal content** anywhere in this family.
+- **The stored LCF-versus-concurrent comparison is historical.** Its 32-row table was generated from the 4/5-August CA-002–006 outputs and is not aligned to the corrected 9-August concurrent bundle. The LCF latent posterior is unaffected; only that derived cross-model table awaits regeneration.
 - **These four `corr_factor` fits previously failed the convergence gate** and are reported here for the first time from clean fits. The failures were traced to unidentified scale components in the covariance prior rather than to the near-singular correlation geometry that had been blamed; switching to a bare correlation prior cleared all four. The domain correlations rose by 0.001–0.028 in the process (up to 0.23 posterior SD), so the numbers above supersede any earlier quotation — see the run record for the full account.
 - **No coverage statistic is emitted for the latent measurement nodes**, by design: there is no single count outcome to score, so the measurement side gets a per-indicator distribution overlay and no interval-coverage number. The two purely measurement fits (`rlm-mm-001`, `lcf-001`) therefore report no coverage at all. The three RLI models do carry one — but for their **structural outcome leg** (0.57–0.61 on the 50% bands), not for the factor model, and it should not be read as a check on the measurement structure.

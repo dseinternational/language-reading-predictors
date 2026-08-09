@@ -1398,6 +1398,15 @@ def test_concurrent_findings_qualify_missingness_indicators_as_nuisance(tmp_path
     assert "nuisance subgroup offsets, not skill effects" in _texts(payload)
 
 
+def test_mediation_findings_use_generic_causal_qualification(tmp_path):
+    d, _ = _remaining_family_case(tmp_path, "mediation")
+
+    payload = generate_key_findings(d)
+
+    assert "not an identified causal mediation effect" in _texts(payload)
+    assert "not an identified natural mediation effect" not in _texts(payload)
+
+
 def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
     d, _ = _remaining_family_case(tmp_path, "joint")
 
