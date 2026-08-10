@@ -30,6 +30,7 @@ from language_reading_predictors.statistical_models import (
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import BuiltModel
 from language_reading_predictors.statistical_models.itt import IttModelSettings
+from language_reading_predictors.statistical_models.joint import resolve_joint_run_plan
 from language_reading_predictors.statistical_models.pipelines import (
     itt as itt_pipeline,
     joint as joint_pipeline,
@@ -913,7 +914,8 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
     assert marginal_calls[0]["n_trials"] is prepared.n_trials
     assert contrast_scales == ["probability", "logit"]
     assert difference_calls[0]["G"] is prepared.G
-    assert difference_calls[0]["metadata"] == SPEC.extra["difference_metadata"]
+    plan = resolve_joint_run_plan(SPEC)
+    assert difference_calls[0]["metadata"] == plan.difference_metadata()
 
     for filename in (
         "trace.nc",
@@ -937,7 +939,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
     assert cfg["extra"]["joint_structure"] == "factorised_outcome_marginals"
     assert cfg["extra"]["loo_unit"] == "child"
     assert cfg["extra"]["tau_difference"]["headline_scale"] == ("proportion_correct_risk_difference")
-    assert cfg["extra"]["difference_metadata"] == SPEC.extra["difference_metadata"]
+    assert cfg["extra"]["difference_metadata"] == plan.difference_metadata()
 
 
 def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, monkeypatch):

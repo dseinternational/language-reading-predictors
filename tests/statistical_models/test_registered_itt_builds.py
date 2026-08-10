@@ -25,7 +25,10 @@ from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
     resolve_itt_run_plan,
 )
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
+from language_reading_predictors.statistical_models.joint import (
+    JointModelSettings,
+    resolve_joint_run_plan,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     restrict_to_baseline_floored,
@@ -65,17 +68,9 @@ def _build_itt(spec: ModelSpec):
 
 
 def _build_joint(spec: ModelSpec):
-    outcomes = tuple(spec.extra.get("outcomes") or ITT_OUTCOMES)
-    prepared = load_and_prepare(phase_mode="itt", outcomes=outcomes)
-    return build_joint_model(
-        prepared,
-        outcomes=outcomes,
-        use_age_gp=spec.extra.get("use_age_gp", False),
-        partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
-        use_residual_correlation=spec.extra.get("use_residual_correlation", False),
-        use_cross_baselines=spec.extra.get("use_cross_baselines", True),
-        use_age_linear=spec.extra.get("use_age_linear", False),
-    )
+    plan = resolve_joint_run_plan(spec)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    return build_joint_model(prepared, **plan.factory_kwargs())
 
 
 _REGISTERED_SPECS = _registered_specs()
@@ -111,6 +106,8 @@ def test_registered_itt_family_model_builds(model_id: str, spec: ModelSpec):
         assert spec.extra == {}, model_id
         built_models = _build_itt(spec)
     else:
+        assert isinstance(spec.model_settings, JointModelSettings), model_id
+        assert spec.extra == {}, model_id
         built_models = (_build_joint(spec),)
 
     for built in built_models:

@@ -23,6 +23,7 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
+    joint as _joint,
     reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import (
@@ -38,7 +39,6 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
     save_contrast_heatmap,
     save_forest_plot,
 )
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.pipelines.itt import (
     write_analysis_audit,
     write_ppc_calibration,
@@ -64,29 +64,26 @@ from language_reading_predictors.statistical_models.runtime import (
 def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     require_spec(spec, "joint")
 
+    # Resolve the complete family contract before ``make_context`` opens an output
+    # transaction or the loader reads intervention data (#394 pillar 4).
+    plan = _joint.resolve_joint_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
     # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
     # taught contrast in LRPITT15/15b); load exactly those so the complete-case mask is
     # not driven by the eight standardised outcomes. Defaults to ITT_OUTCOMES.
-    joint_outcomes = tuple(spec.extra.get("outcomes") or ITT_OUTCOMES)
-    if "outcomes" in spec.extra:
-        prepared = load_and_prepare(phase_mode="itt", outcomes=joint_outcomes)
-    else:
-        prepared = load_and_prepare(phase_mode="itt")
+    joint_outcomes = plan.outcomes
+    prepared = load_and_prepare(**plan.prepare_kwargs())
     ctx.prepared = prepared
 
     section_header("Build model")
 
     built = _factories.build_joint_model(
         prepared,
-        outcomes=joint_outcomes,
-        use_age_gp=spec.extra.get("use_age_gp", False),
-        partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
-        use_residual_correlation=spec.extra.get("use_residual_correlation", False),
-        use_cross_baselines=spec.extra.get("use_cross_baselines", True),
-        use_age_linear=spec.extra.get("use_age_linear", False),
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
     write_analysis_audit(ctx, built.prepared, joint_outcomes)
@@ -106,11 +103,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     run_sampling_and_loo(ctx)
 
     section_header("Summary diagnostics")
-    _joint_vars = ["alpha", "tau", "gamma_own", "kappa"]
-    if spec.extra.get("use_age_linear", False):
-        _joint_vars.append("gamma_A")
-    if spec.extra.get("use_residual_correlation", False):
-        _joint_vars.append("sigma_outcome")
+    _joint_vars = plan.diagnostic_vars()
     _diag.summary_diagnostics(ctx, var_names=_joint_vars)
 
     section_header("Posterior predictive")
@@ -247,9 +240,9 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Two-outcome contrast (LRPITT15/15b/16). ``difference = (a, b)`` reports the
     # headline probability-scale AME[a] - AME[b] and retains tau[a] - tau[b] as a
     # secondary conditional-logit contrast.
-    difference = spec.extra.get("difference")
+    difference = plan.difference
     if difference is not None:
-        pair = tuple(difference)
+        pair = difference
         section_header("Treatment-effect difference")
         diff_s = _report.tau_difference_summary(
             ctx.trace,
@@ -257,7 +250,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             pair,
             ci_prob=ctx.reporting.ci_prob,
             G=built.prepared.G,
-            metadata=spec.extra.get("difference_metadata"),
+            metadata=plan.difference_metadata(),
         )
         diff_df = pd.DataFrame([diff_s])
         save_table(ctx, "tau_difference", diff_df)
@@ -273,7 +266,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
         meta_extra["tau_difference"] = diff_s
-        meta_extra["difference_metadata"] = spec.extra.get("difference_metadata")
+        meta_extra["difference_metadata"] = plan.difference_metadata()
 
     write_run_metadata(ctx, extra=meta_extra)
 

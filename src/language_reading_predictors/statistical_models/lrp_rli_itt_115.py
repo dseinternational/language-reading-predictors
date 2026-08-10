@@ -14,6 +14,10 @@ threshold.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.joint import (
+    JointContrastSettings,
+    JointModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_joint
 
 SPEC = ModelSpec(
@@ -27,20 +31,21 @@ SPEC = ModelSpec(
     # dependence sensitivity mixed poorly. The factorised fit is more stable, but
     # it does not estimate within-child covariance and is not automatically
     # conservative: the omitted covariance can widen or narrow the contrast interval.
-    extra={
-        "outcomes": ("TR", "UR"),
+    model_settings=JointModelSettings(
+        outcomes=("TR", "UR"),
         # DAG-faithful spec, mirroring the single-outcome suite (own baseline +
         # linear age, no cross-baselines).
-        "use_cross_baselines": False,
-        "use_age_linear": True,
-        "use_residual_correlation": False,
-        "joint_structure": "factorised_outcome_marginals",
-        "loo_unit": "child",
-        "difference": ("TR", "UR"),
-        "difference_metadata": {
-            "contrast_kind": "generalisation",
-            "contrast_label": "Receptive taught versus not-taught vocabulary",
-            "positive_interpretation": (
+        use_cross_baselines=False,
+        use_age_linear=True,
+        use_residual_correlation=False,
+        joint_structure="factorised_outcome_marginals",
+        loo_unit="child",
+        contrast=JointContrastSettings(
+            left="TR",
+            right="UR",
+            contrast_kind="generalisation",
+            contrast_label="Receptive taught versus not-taught vocabulary",
+            positive_interpretation=(
                 "A positive contrast means the intervention increased the "
                 "proportion correct more for taught receptive words than for "
                 "not-taught receptive words. It does not by itself show that "
@@ -48,25 +53,25 @@ SPEC = ModelSpec(
                 "not-taught effect against a substantively defined negligible-effect "
                 "threshold."
             ),
-            "negative_interpretation": (
+            negative_interpretation=(
                 "A negative contrast means the intervention increased the "
                 "proportion correct more for not-taught than taught receptive words."
             ),
-            "transfer_outcome": "UR",
-            "transfer_interpretation": (
+            transfer_outcome="UR",
+            transfer_interpretation=(
                 "Assess whether receptive generalisation is small from the marginal "
                 "UR average marginal effect against a substantively defined "
                 "negligible-effect threshold."
             ),
-            "dependence_note": (
+            dependence_note=(
                 "The fitted model factorises by outcome and does not estimate "
                 "within-child residual covariance, so the current interval omits "
                 "that covariance. Confirmation requires a paired child-level "
                 "randomisation-inference/permutation analysis, bootstrap, sandwich, "
                 "or dependence-model sensitivity."
             ),
-        },
-    },
+        ),
+    ),
 )
 
 

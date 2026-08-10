@@ -499,9 +499,13 @@ def test_taught_contrast_metadata_requires_the_untaught_marginal_for_transfer_cl
     from language_reading_predictors.statistical_models.lrp_rli_itt_115 import (
         SPEC as RECEPTIVE_SPEC,
     )
+    from language_reading_predictors.statistical_models.joint import (
+        resolve_joint_run_plan,
+    )
 
     for spec in (EXPRESSIVE_SPEC, RECEPTIVE_SPEC):
-        metadata = spec.extra["difference_metadata"]
+        metadata = resolve_joint_run_plan(spec).difference_metadata()
+        assert metadata is not None
         interpretation = metadata["positive_interpretation"]
         assert "does not by itself show that generalisation was limited" in interpretation
         assert "marginal not-taught effect" in interpretation
