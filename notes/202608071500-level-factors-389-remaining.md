@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
 # Level factors: identified anchored intercepts, plan-owned contracts and the family treatment-prior sweep (#389, remaining findings)
@@ -56,7 +59,7 @@ The #482 robustness release gate withholds a prior-dominant randomised claim unl
 | TR      | +0.35 [−1.01, +1.73]            | +1.37 [+0.19, +2.53] | +1.05 [−0.10, +2.19] | +1.22 [−0.29, +2.70] |
 | TE      | +0.38 [−1.01, +1.76]            | +1.55 [+0.42, +2.67] | +1.16 [−0.01, +2.30] | +1.51 [+0.04, +2.95] |
 
-The cross-family picture is coherent: the decoding-and-taught cluster (W, L, B, and the taught vocabulary) is positive-leaning in every family, the floored P/N are null everywhere, and the level estimates run systematically closer to zero with wider intervals than their ANCOVA-style siblings — the expected price of estimating a t2 level contrast with no own-baseline conditioning, which is why the level family is registered as the sensitivity view rather than a headline. The one visually divergent cell — receptive vocabulary, lf −3.69 vs itt +0.23 — is two different estimands (the t2 score level at mean ability vs the baseline-adjusted ITT effect), both with intervals spanning zero; nothing to reconcile beyond the family's standing caveat.
+The cross-family picture is coherent: the decoding-and-taught cluster (W, L, B, and the taught vocabulary) is positive-leaning in every family, the floored P/N are null everywhere, and the level estimates run systematically closer to zero with wider intervals than their ANCOVA-style siblings — the expected price of estimating a t2 level contrast with no own-baseline conditioning, which is why the level family is registered as the sensitivity view rather than a headline. The one visually divergent cell — receptive vocabulary, lf −3.69 vs itt +0.23 — is two different estimands (the t2 score level at mean ability vs the baseline-adjusted available-case modified ITT estimate), both with intervals spanning zero; nothing to reconcile beyond the family's standing caveat.
 
 **The sweep: 15 of 15 cells converge, one sign per outcome, and the family's release states resolve.** Across the proximal grid (`tau_sigma` 0.25 / 0.5 / 0.75) the t2 contrast `b_grp_time[1]` keeps a single sign for every swept outcome — W +0.16 to +0.30, L +0.26 to +0.52, B +0.13 to +0.25, N +0.04 to +0.12, P −0.10 to −0.01 logits — with the familiar monotone widening as the prior loosens (attenuation, not instability). The trace-backed bundles were installed beside the five primaries (manifest + digest-verified cell traces, `trace_file` rewritten to the installed names, and the release gate's own evidence check asserted after install), and `key_findings.json` regenerated for all eleven:
 

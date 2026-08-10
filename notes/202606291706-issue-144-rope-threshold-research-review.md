@@ -40,8 +40,10 @@ the two places where the judgement is most fragile:
 
 ## The statistical issue in plain language
 
-The ITT models estimate the randomised intervention effect, `tau`. Positive `tau`
-means the immediate-intervention arm did better during the randomised phase.
+The available-case modified ITT models estimate the assigned-arm contrast among
+their fitted observed cases, `tau`. Positive `tau` means the
+immediate-intervention arm did better during the randomised phase; extending that
+causal reading beyond the fitted cases requires the stated selection assumption.
 
 There are two different questions:
 

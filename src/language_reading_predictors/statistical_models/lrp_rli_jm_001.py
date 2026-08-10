@@ -51,8 +51,8 @@ pure-general-ability account gives no reason for letter sounds to predict pure
 decoding *more* than sight-readable word reading), not identification of a causal
 decoding mechanism. Nonword decoding is a 6-item count floored for 72 / 64 / 52 / 40 %
 of children at t1-t4, so its residual scale - and through it ``share_retained`` - is
-the least well determined quantity in the model. The only randomisation-licensed
-effect in the study remains the ITT arm.
+the least well determined quantity in the model. The corresponding randomised-arm
+result is an available-case modified ITT estimate in the ITT suite.
 
 Companion: ``jm-002`` re-reports the Tier-1 Delta on the phase-stacked ANCOVA
 parameterisation that ``mech-096`` / ``mech-101`` use.

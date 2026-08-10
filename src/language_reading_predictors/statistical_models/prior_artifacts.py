@@ -192,7 +192,7 @@ def _prior_table_overrides(
             )
             rationale["theta_treated"] = (
                 "Modelled current-treatment presence at the mean treated dose; a "
-                "crossover association, not a second randomised ITT effect."
+                "crossover association, not a second available-case modified ITT estimate."
             )
             rationale["gamma_t1"] = (
                 "Shared pre-randomisation t1 outcome precision term broadcast to both "
@@ -323,7 +323,7 @@ def _prior_table_overrides(
     elif spec.kind == "mechanism":
         # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
         # it is the group main effect entered as a DAG backdoor adjustment, not the
-        # randomised ITT effect — an adjusted association, not a causal term. The
+        # available-case modified ITT estimate — an adjusted association, not a causal term. The
         # role is demoted but the rationale still inherits the tau docstring, so set
         # it explicitly. ``f_mech__ell`` is built with ell_prior_mech() = IG(5, 5)
         # (#265) but the ``__ell`` suffix routes it to the default ell constructor
@@ -453,7 +453,8 @@ def _prior_table_overrides(
             rationale["beta_G"] = (
                 "Randomised arm G entered as an adjusted-association (mech-058) "
                 "backdoor covariate on the standardised predictor_slope prior, not "
-                "the randomised ITT effect (the causal claim lives in the ITT suite)."
+                "the available-case modified ITT estimate (the conditional causal "
+                "claim lives in the ITT suite)."
             )
         if "factor_corr_chol" in _rv_names:
             # ``factor_corr_chol``'s off-diagonals are the reported factor-correlation

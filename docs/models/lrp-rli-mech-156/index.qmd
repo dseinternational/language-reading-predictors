@@ -44,7 +44,7 @@ precision term and $W_{\text{pre}}$ the autoregressive baseline. This is **ident
 only the mechanism's functional form (nonparametric curve vs single slope) changes.
 
 _Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^R$ is an **adjusted
-association**, not a causal effect. The randomised causal claim lives in the ITT suite.
+association**, not a causal effect. The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

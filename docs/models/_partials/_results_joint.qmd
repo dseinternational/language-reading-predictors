@@ -1,6 +1,6 @@
 ## Analysis set and estimand
 
-These are available-case **modified-ITT** randomised offer effects, not full-cohort ITT effects for all 57 randomised children. The table records the outcome-specific fitted counts by assigned arm; extending the causal interpretation to excluded or missing children requires ignorable missingness.
+These are **available-case modified ITT estimates** of randomised offer effects, not full-cohort ITT effects for all 57 randomised children. The published CONSORT diagram records three losses to follow-up—one intervention child and two waiting-control children—leaving 54 analysed and represented in the repository; two children per arm who discontinued the intervention were nevertheless followed and included under assignment. The table records the outcome-specific fitted counts by assigned arm. Extending the causal interpretation to children lost to follow-up or otherwise missing from an outcome-specific fit requires ignorable missingness.
 
 ```{python}
 # | echo: false
@@ -165,7 +165,7 @@ if _diff is not None:
         print(f"\n**Dependence caveat:** {_dependence}")
 ```
 
-_ITT-vs-joint consistency._ The single-outcome LRPITT models and this joint model estimate the *same* ITT
+_Available-case modified ITT versus joint consistency._ The single-outcome LRPITT models and this joint model estimate the *same available-case modified ITT*
 effects; the joint τ per outcome should track the singles. The cross-model
 ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 (`output/statistical_models/comparison/`). Phoneme blending (`B`) is deliberately excluded from this ordinary-logit comparison: its result must instead be read across the required `lrp-rli-itt-008` / `lrp-rli-itt-108` ordinary-logit versus guessing-floor response-link sensitivity.
@@ -175,5 +175,5 @@ ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 # | output: asis
 # Shown here if the comparison forest has been copied alongside this report.
 print(_img("itt_vs_joint_forest.png", "ITT vs joint τ consistency"))
-print("\n_How to read the ITT-vs-joint forest:_ each outcome has two markers with credible-interval bars — the joint model's estimate (circle) and the matching single-outcome ITT estimate (square, offset just below it). The dashed line at 0 is no-effect. The two markers for an outcome should land close together; that agreement is the consistency check. A large gap flags an outcome where the joint and single-outcome estimates disagree. A dagger (†) marks heavily-floored outcomes, whose graded effect shown here is not their post-hoc exploratory off-floor headline.")
+print("\n_How to read the ITT-vs-joint forest:_ each outcome has two markers with credible-interval bars — the joint model's estimate (circle) and the matching single-outcome available-case modified ITT estimate (square, offset just below it). The dashed line at 0 is no-effect. The two markers for an outcome should land close together; that agreement is the consistency check. A large gap flags an outcome where the joint and single-outcome estimates disagree. A dagger (†) marks heavily-floored outcomes, whose graded effect shown here is not their post-hoc exploratory off-floor headline.")
 ```

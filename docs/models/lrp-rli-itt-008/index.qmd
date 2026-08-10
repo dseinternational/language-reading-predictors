@@ -1,5 +1,5 @@
 ---
-title: "LRPITT08: Modified-ITT analysis of phoneme blending (PA)"
+title: "LRPITT08: Available-case modified ITT analysis of phoneme blending (PA)"
 
 format:
   html:
@@ -22,7 +22,7 @@ format:
 
 **In plain terms.** Did the children offered the intervention blend more spoken sounds together into words than those who were not—and how large, and how certain, is that difference? This model estimates the assigned-arm contrast among children in the fitted observed-data analysis set. Because the repository omits three randomised children and the model requires its analytic variables to be observed, calling even that selected-sample contrast causal assumes that archive inclusion and outcome observation did not select children differently between arms according to how they would have scored under either assignment. Extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
-LRPITT08 is the available-case modified-ITT analysis for phoneme blending (`blending`). The estimand is the assigned-arm contrast in the post-score $B_{\text{post}}$ in the model-specific fitted sample, using the randomised controlled trial phase only (time 1 $\rightarrow$ time 2); its causal interpretation is conditional on the selection assumption above.
+LRPITT08 is the available-case modified ITT analysis for phoneme blending (`blending`). The estimand is the assigned-arm contrast in the post-score $B_{\text{post}}$ in the model-specific fitted sample, using the randomised controlled trial phase only (time 1 $\rightarrow$ time 2); its causal interpretation is conditional on the selection assumption above.
 
 
 _Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so assignment creates exchangeability for the full randomised cohort without covariate adjustment. Restricting to archived and observed cases can break that exchangeability; a causal interpretation of the fitted contrast therefore requires ignorable archive inclusion and outcome observation, and a claim for all 57 randomised children needs further missing-data assumptions and sensitivity. The own baseline $\gamma_{\text{own}}$ and linear age $\gamma_A$ are **precision terms only**—they may sharpen $\tau$ but do not supply missing-data identification—and no cross-baseline conditioning is used. Attendance or sessions are never conditioned on (a DAG collider). **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher outcome under the model.

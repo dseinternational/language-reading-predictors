@@ -55,7 +55,7 @@ A Bayesian model returns a **posterior**: a full probability distribution for ea
 
 Randomisation is what licenses a causal claim. In this suite only three quantities are **causal**:
 
-1. the **ITT effect τ** (intention-to-treat: the effect of being _assigned_ to the intervention);
+1. the **available-case modified ITT estimate τ** (assigned-arm contrast in the fitted observed-data sample);
 2. the **difference-in-differences t2 contrast** (the randomised gap at the first post-baseline wave); and
 3. the **gain-factor on-intervention treatment marginal**.
 
@@ -85,4 +85,4 @@ Before any interpretation, each fit is checked against a gate: R-hat ≤ 1.01 (c
 
 ## The coherent story to expect (spoiler)
 
-Reading the notes together: strong-to-very-strong evidence of an ITT benefit on the code-related and directly-taught skills — letter-sound knowledge (LS), phoneme blending (PA), word reading (WR), taught expressive vocabulary (TE) — tapering to moderate/suggestive on transfer measures, and **inconclusive and probably negligible on broad standardised vocabulary (R, E)**. The word-reading gain is **mediated by letter-sound knowledge**, not by the vocabulary route. The randomised result is echoed by the difference-in-differences and gain-factor re-analyses, and the associational families describe the developmental scaffolding (which skills track which) without over-claiming cause.
+Reading the notes together: strong-to-very-strong evidence in the available-case modified ITT estimates for benefits on the code-related and directly-taught skills — letter-sound knowledge (LS), phoneme blending (PA), word reading (WR), taught expressive vocabulary (TE) — tapering to moderate/suggestive on transfer measures, and **inconclusive and probably negligible on broad standardised vocabulary (R, E)**. The word-reading gain is **mediated by letter-sound knowledge**, not by the vocabulary route. The fitted randomised-arm result is echoed by the difference-in-differences and gain-factor re-analyses, and the associational families describe the developmental scaffolding (which skills track which) without over-claiming cause.

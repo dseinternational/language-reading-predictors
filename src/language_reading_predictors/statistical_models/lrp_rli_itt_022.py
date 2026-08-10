@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT22 - general-ability-adjusted ITT for expressive vocabulary (EOWPVT) (E).
+"""LRPITT22 - ability-adjusted available-case modified ITT estimate for expressive vocabulary (E).
 
 Ability-robustness companion to LRPITT06, part of the LRPITT17-24 ability-adjusted
 family (parallel to the SES-adjusted LRPITT13/13b). Adds the baseline nonverbal
@@ -10,7 +10,7 @@ linear precision covariate, on top of the own baseline and linear age the unifor
 LRPITT spec already carries.
 
 Block design is a child trait measured *before* randomisation, so - like SES - it
-cannot confound the randomised effect; randomisation balances it across arms in
+cannot confound the available-case modified ITT estimate; randomisation balances it across arms in
 expectation. This adjustment is a precision / chance-imbalance robustness check, not
 confounding control (the immediate-intervention arm started ~0.27 SD higher in block
 design, and ability is prognostic of the outcomes - most strongly for vocabulary).
@@ -34,7 +34,10 @@ ABILITY_ADJUSTER = (V.BLOCKS,)
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-022",
     kind="itt",
-    title="Ability-adjusted ITT effect of group assignment on expressive vocabulary (EOWPVT) (E)",
+    title=(
+        "Ability-adjusted available-case modified ITT estimate of the assigned-arm "
+        "contrast in expressive vocabulary (EOWPVT) (E)"
+    ),
     outcome_symbol="E",
     adjustment=list(ABILITY_ADJUSTER),
     model_settings=IttModelSettings(adjust_for=ABILITY_ADJUSTER),

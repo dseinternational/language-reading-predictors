@@ -22,6 +22,14 @@ def test_target_accept_override_must_be_a_probability(value):
         StatisticalRunOptions(target_accept=value)
 
 
+def test_randomised_archive_option_must_name_a_path():
+    with pytest.raises(ValueError, match="non-empty path"):
+        StatisticalRunOptions(rli_randomised_archive="   ")
+
+    options = StatisticalRunOptions(rli_randomised_archive="/tmp/rli.csv")
+    assert options.rli_randomised_archive == "/tmp/rli.csv"
+
+
 def test_run_options_are_nested_and_restored():
     outer = StatisticalRunOptions(target_accept=0.91)
     inner = StatisticalRunOptions(target_accept=0.97)

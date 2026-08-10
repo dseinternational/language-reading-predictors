@@ -4,7 +4,7 @@
 from language_reading_predictors.statistical_models.context import ModelSpec
 
 
-def test_itt_spec_records_available_case_randomised_design_by_default():
+def test_itt_spec_records_available_case_modified_itt_estimand_by_default():
     spec = ModelSpec(
         model_id="lrp-rli-itt-010",
         kind="itt",
@@ -13,10 +13,10 @@ def test_itt_spec_records_available_case_randomised_design_by_default():
     )
 
     assert spec.family == "itt"
-    assert spec.design == "waitlist_randomised_t1_to_t2_available_case"
-    assert spec.estimand_type == "causal_available_case_randomised_effect"
+    assert spec.design == "waitlist_randomised_t1_to_t2_available_case_modified_itt"
+    assert spec.estimand_type == "available_case_modified_itt_estimate"
     assert "observed_analysis_set" in spec.causal_status
-    assert "54 available of 57 randomised" in spec.dataset_ref
+    assert "54 analysed after 3 losses to follow-up" in spec.dataset_ref
 
 
 def test_explicit_itt_audit_metadata_is_not_overwritten():

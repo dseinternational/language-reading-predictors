@@ -4,7 +4,7 @@
 """LRP84 - period-resolved dose-response: intervention dose -> phoneme blending (B).
 
 The phoneme-blending companion to ``lrp-rli-dose-077`` (word reading), completing the
-dose-response family's coverage of the two largest ITT effects (L and B) (#228 item
+dose-response family's coverage of the two largest available-case modified ITT estimates (L and B) (#228 item
 2). Same observational estimand and causal structure as dose-077 -- see that module's
 docstring for the full treatment; only the outcome changes.
 

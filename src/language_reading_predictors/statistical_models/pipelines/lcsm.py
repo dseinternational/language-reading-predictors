@@ -261,11 +261,15 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
 
     # Window-1 randomised contrast on the latent change scale (immediate -
-    # waitlist), the built-in consistency check against the ITT suite. Only the
+    # waitlist), the built-in consistency check against the available-case modified
+    # ITT suite. Only the
     # arm x window shape carries it.
     itt_rows: list[dict] = []
     if arm_window:
-        section_header("Window-1 randomised contrast (ITT consistency check)")
+        section_header(
+            "Window-1 randomised contrast "
+            "(available-case modified ITT consistency check)"
+        )
         for s in outcomes:
             itt_rows.append(
                 coef_row(

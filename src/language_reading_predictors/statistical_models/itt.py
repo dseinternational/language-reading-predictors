@@ -50,6 +50,7 @@ _LEGACY_KEYS = frozenset(
         "floor_rule_provenance",
         "gamma_own_sigma",
         "kappa_sigma",
+        "missingness_sensitivity",
         "outcomes",
         "pre_required",
         "restrict_complete",
@@ -153,6 +154,7 @@ class IttModelSettings:
     floor_rule: bool = False
     floor_rule_provenance: str | None = None
     floor_estimand_role: str | None = None
+    missingness_sensitivity: bool = False
 
     def __post_init__(self) -> None:
         for name in ("outcomes", "cross_symbols", "pre_required"):
@@ -175,6 +177,7 @@ class IttModelSettings:
             "tau_moderator_is_covariate",
             "tau_moderator_interaction",
             "floor_rule",
+            "missingness_sensitivity",
         ):
             if not isinstance(getattr(self, name), bool):
                 raise TypeError(f"{name} must be bool")
@@ -285,7 +288,41 @@ class IttModelSettings:
             floor_rule=_legacy_bool(extra, "floor_rule", False),
             floor_rule_provenance=extra.get("floor_rule_provenance"),
             floor_estimand_role=extra.get("floor_estimand_role"),
+            missingness_sensitivity=_legacy_bool(
+                extra, "missingness_sensitivity", False
+            ),
         )
+
+
+@dataclass(frozen=True, slots=True)
+class IttMissingnessPlan:
+    """Saved recipe for the mandatory word-reading missing-data sensitivity."""
+
+    source_doi: str
+    source_csv_sha256: str
+    local_wide_sha256: str
+    reconciliation_digest: str
+    screening_covariates: tuple[str, ...]
+    randomised_n: int
+    randomised_intervention_n: int
+    randomised_control_n: int
+    observed_intervention_n: int
+    observed_control_n: int
+    lost_to_follow_up_n: int
+    within_archive_w_missing_n: int
+    word_reading_n: int
+    delta_items: tuple[float, ...]
+    scenarios: tuple[str, ...]
+    common_estimand_class: str
+    completion_estimand_class: str
+    intercept_prior_anchor: str
+    intercept_prior_sigma: float
+    prior_predictive_draws: int
+    trace_filename: str
+    summary_filename: str
+    ppc_filename: str
+    prior_check_filename: str
+    provenance_filename: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,6 +354,8 @@ class IttRunPlan:
     score_mean_link: ScoreMeanLink
     required_link_companion_model_id: str | None
     link_sensitivity_required_for_release: bool
+    missingness_sensitivity_required_for_release: bool
+    missingness_plan: IttMissingnessPlan | None
     floor_rule: bool
     floor_rule_provenance: str | None
     floor_estimand_role: str | None
@@ -372,9 +411,9 @@ class IttRunPlan:
         """Explain the executable plan in undergraduate-friendly Markdown."""
         if self.floor_rule:
             question = (
-                "What is the assigned-arm contrast in the probability of moving "
-                "above the test floor at t2 among children observed at the floor "
-                "at t1?"
+                "What is the available-case modified ITT estimate of the assigned-arm "
+                "contrast in the probability of moving above the test floor at t2 "
+                "among children observed at the floor at t1?"
             )
             likelihood = (
                 "The headline uses a Bernoulli model for whether the child moves "
@@ -382,8 +421,8 @@ class IttRunPlan:
             )
         elif self.score_mean_link == "three_choice_guessing_floor":
             question = (
-                f"What is the assigned-arm contrast in the t2 "
-                f"{self.outcome_symbol} score in the fitted available-case sample?"
+                "What is the available-case modified ITT estimate of the assigned-arm "
+                f"contrast in the t2 {self.outcome_symbol} score?"
             )
             likelihood = (
                 "The observed score is modelled with a Beta-Binomial likelihood. "
@@ -393,8 +432,8 @@ class IttRunPlan:
             )
         else:
             question = (
-                f"What is the assigned-arm contrast in the t2 "
-                f"{self.outcome_symbol} score in the fitted available-case sample?"
+                "What is the available-case modified ITT estimate of the assigned-arm "
+                f"contrast in the t2 {self.outcome_symbol} score?"
             )
             likelihood = (
                 "The observed score is treated as a bounded count and modelled with "
@@ -437,6 +476,15 @@ class IttRunPlan:
                 f"`{self.required_link_companion_model_id}` fit; the ordinary-logit "
                 "and one-in-three guessing-floor estimates must be reported together."
             )
+        if self.missingness_sensitivity_required_for_release:
+            robustness_text += (
+                "\n\nThe headline word-reading model remains an available-case "
+                "modified ITT. Release additionally requires the trace-backed "
+                "screening-baseline companion: its matched 53-profile estimate, "
+                "MAR standardisation over all 57 randomised profiles, the "
+                "intervention-nonstarter jump-to-reference scenario, and the "
+                "complete arm-specific delta grid must be reported together."
+            )
         return (
             "Note: Generated from the validated ITT run plan; template drafted by "
             "a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -444,14 +492,14 @@ class IttRunPlan:
             f"Model ID: `{self.model_id}`.\n\n"
             f"## Question\n\n{question}\n\n"
             "## Analysis rows\n\n"
-            "The randomised comparison uses the t1 to t2 trial window, with one "
-            "available row per child. Requested outcomes: "
+            "The available-case modified ITT analysis uses the randomised t1 to t2 "
+            "trial window, with one observed row per fitted child. Requested outcomes: "
             f"{', '.join(self.outcomes)}. Complete-case-only restrictions: "
             f"{restriction_text}.\n\n"
             f"## Model\n\n{likelihood}{robustness_text}\n\n"
-            "The treatment term compares the assigned intervention and wait-list "
-            "groups. Positive values mean the intervention arm is higher under the "
-            "model. A causal reading in the observed analysis set requires archive "
+            "The available-case modified ITT estimate compares the assigned intervention "
+            "and wait-list groups. Positive values mean the intervention arm is higher "
+            "under the model. A causal reading in the observed analysis set requires archive "
             "inclusion, outcome observation and any complete-case restriction not to "
             "induce an association between assigned arm and potential outcomes. "
             "Extending it to every randomised child requires further missing-outcome "
@@ -464,7 +512,7 @@ class IttRunPlan:
             "The fit reports a posterior distribution: a range of effect values and "
             "how much support the data and model give each one. Interpret it only "
             "after the convergence gate and posterior-predictive checks pass. The "
-            "report translates the treatment effect from log-odds to items or "
+            "report translates the assigned-arm contrast from log-odds to items or "
             "percentage points, as appropriate, for interpretation.\n\n"
             "The saved `config.json` contains the same resolved run plan in a "
             "machine-readable form.\n"
@@ -666,6 +714,13 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         raise ValueError(
             f"{spec.model_id}: floor metadata is only valid when floor_rule=True"
         )
+    if settings.missingness_sensitivity and (
+        own != "W" or settings.floor_rule or spec.model_id != "lrp-rli-itt-010"
+    ):
+        raise ValueError(
+            f"{spec.model_id}: missingness_sensitivity is registered only for "
+            "the lrp-rli-itt-010 word-reading primary"
+        )
 
     covariates_to_load = list(settings.adjust_for)
     if (
@@ -673,6 +728,40 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         and settings.tau_moderator_symbol not in {None, "A"}
     ):
         covariates_to_load.append(settings.tau_moderator_symbol)
+
+    missingness_plan = None
+    if settings.missingness_sensitivity:
+        from language_reading_predictors.statistical_models import (
+            itt_missingness as _missingness,
+        )
+
+        missingness_plan = IttMissingnessPlan(
+            source_doi=_missingness.RLI_ARCHIVE_DOI,
+            source_csv_sha256=_missingness.RLI_ARCHIVE_CSV_SHA256,
+            local_wide_sha256=_missingness.RLI_LOCAL_WIDE_SHA256,
+            reconciliation_digest=_missingness.RLI_RECONCILIATION_DIGEST,
+            screening_covariates=_missingness.SCREENING_COVARIATES,
+            randomised_n=_missingness.RANDOMISED_N,
+            randomised_intervention_n=_missingness.RANDOMISED_INTERVENTION_N,
+            randomised_control_n=_missingness.RANDOMISED_CONTROL_N,
+            observed_intervention_n=_missingness.OBSERVED_INTERVENTION_N,
+            observed_control_n=_missingness.OBSERVED_CONTROL_N,
+            lost_to_follow_up_n=_missingness.LOST_TO_FOLLOW_UP_N,
+            within_archive_w_missing_n=_missingness.WITHIN_ARCHIVE_W_MISSING_N,
+            word_reading_n=_missingness.WORD_READING_N,
+            delta_items=_missingness.DEFAULT_DELTA_ITEMS,
+            scenarios=_missingness.MISSINGNESS_SCENARIOS,
+            common_estimand_class="common_profile_standardisation",
+            completion_estimand_class="randomised_arm_factual_completion",
+            intercept_prior_anchor="mean_all_57_screening_word_reading_logit",
+            intercept_prior_sigma=_missingness.SCREENING_ALPHA_SIGMA,
+            prior_predictive_draws=_missingness.MISSINGNESS_PRIOR_DRAWS,
+            trace_filename=_missingness.MISSINGNESS_TRACE_FILENAME,
+            summary_filename=_missingness.MISSINGNESS_SUMMARY_FILENAME,
+            ppc_filename=_missingness.MISSINGNESS_PPC_FILENAME,
+            prior_check_filename=_missingness.MISSINGNESS_PRIOR_FILENAME,
+            provenance_filename=_missingness.MISSINGNESS_PROVENANCE_FILENAME,
+        )
 
     return IttRunPlan(
         model_id=spec.model_id,
@@ -706,6 +795,8 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
             else None
         ),
         link_sensitivity_required_for_release=own == "B",
+        missingness_sensitivity_required_for_release=settings.missingness_sensitivity,
+        missingness_plan=missingness_plan,
         floor_rule=settings.floor_rule,
         floor_rule_provenance=settings.floor_rule_provenance,
         floor_estimand_role=settings.floor_estimand_role,

@@ -51,9 +51,9 @@ causal contrast. (This is also why it stays a standalone `lrp-rli-adj-065` rathe
 the `lrpgf` family: those pool the three period transitions with a child intercept — a
 within+between blend — whereas this is the one-row-per-child between-child estimand.)
 
-These are **associations, not causal effects** (n ≈ 51). The randomised word-reading ITT
-(now `lrp-rli-itt-010`, which supersedes LRP52; the randomised gain-side coefficient lives in
-`lrp-rli-gf-001`) carries the causal claim about the programme.
+These are **associations, not causal effects** (n ≈ 51). The corresponding randomised-arm
+result is the available-case modified ITT estimate in `lrp-rli-itt-010` (which supersedes
+LRP52); the randomised gain-side coefficient lives in `lrp-rli-gf-001`.
 
 ![Causal DAG. Latent general ability `g` (dashed, not fitted) drives the correlated T1 baselines; the dashed edges from non-verbal MA, behaviour and SES to gain are the associations the model is built to test.](dag.svg){#fig-dag .lightbox fig-align="left"}
 

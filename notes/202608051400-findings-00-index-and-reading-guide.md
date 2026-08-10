@@ -4,6 +4,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 >
 > Targeted 2026-08-09 addendum substantially edited by a LLM-based AI tool (Codex/GPT-5).
+>
+> Available-case modified ITT terminology added by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings index and reading guide — full statistical-model suite (2026-08-05)
 
@@ -65,7 +67,7 @@ Non-outcome variables use the same diagram labels: **A** age, **GA** general (la
 
 Randomisation is what licenses a causal claim. In this suite only randomisation-anchored contrasts are causal:
 
-1. the **ITT effect τ** (effect of being _assigned_ to the intervention) — notes 01, 02;
+1. the **available-case modified ITT estimate τ** (assigned-arm contrast in the fitted observed-data sample) — notes 01, 02;
 2. the **DiD t2 contrast** — note 05;
 3. the **gain-factor on-intervention marginal**, averaged over the randomised period-1 transition — note 03;
 4. the **t2 group contrast** in the level-factor family — note 04.

@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRP84 is the phoneme-blending companion to [`lrp-rli-dose-077`](../lrp-rli-dose-077/) (word reading), completing the dose-response family's coverage of the two largest ITT effects (`L` and `B`). The estimand, causal structure and caveats are identical to LRP77; only the outcome changes.
+LRP84 is the phoneme-blending companion to [`lrp-rli-dose-077`](../lrp-rli-dose-077/) (word reading), completing the dose-response family's coverage of the two largest available-case modified ITT estimates (`L` and `B`). The estimand, causal structure and caveats are identical to LRP77; only the outcome changes.
 
 **Estimand.** How blending _conditional change_ relates to the per-period intervention **dose** (`attend`), with partial pooling across the three periods and a test of whether the dose–gain slope **varies by period**. The outcome is the Beta-Binomial post-count of $B$ conditional on its own baseline logit ($N = 10$) — conditional change, not a raw change score. All three phase transitions are stacked with phase-specific intercepts; the dose enters standardised:
 
@@ -39,7 +39,7 @@ with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$ (p
 
 The focal edge is $\text{dose} \to \text{outcome}$; the back-door set is $\{G, B_{\text{pre}}, A\}$ — $G$ (arm, coded $G = 2-\text{group}$, positive = benefit) is the sole confounder; $B_{\text{pre}}$ is the autoregression / RTM control; age is a maturation precision covariate (no $\text{age} \to \text{dose}$ edge). **Cumulative dose** (`attend_cumul`) is not conditioned on (`IS`-collider descendant, #269). The waitlist controls' period-1 `attend == 0` rows are kept as the zero-dose anchor.
 
-_Adjusted association, not \._ Dose is **not** randomised, so this is an adjusted association; the load-bearing assumption is no $\text{ability} \to \text{dose}$ edge (Frank 2012: the least-able children attended least). Read the dose slope accordingly — the randomised causal effect for blending lives in the ITT suite (`lrp-rli-itt-008`).
+_Adjusted association, not \._ Dose is **not** randomised, so this is an adjusted association; the load-bearing assumption is no $\text{ability} \to \text{dose}$ edge (Frank 2012: the least-able children attended least). Read the dose slope accordingly — the corresponding randomised-arm result is the available-case modified ITT estimate in `lrp-rli-itt-008`, with its stated missing-data qualification.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 

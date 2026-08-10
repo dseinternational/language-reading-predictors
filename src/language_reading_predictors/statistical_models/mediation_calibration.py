@@ -201,7 +201,10 @@ def _observed_slopes(
     med_slope = _linear_slope(
         med_std,
         X_med,
-        source="observed ITT association (arm, age and L baseline adjusted)",
+        source=(
+            "observed randomised-window association on available-case rows "
+            "(arm, age and L baseline adjusted)"
+        ),
     )
 
     if med.off_floor:
@@ -210,7 +213,10 @@ def _observed_slopes(
         out_slope = _logistic_slope(
             y,
             X_out,
-            source="observed ITT off-floor logit association (arm and age adjusted)",
+            source=(
+                "observed randomised-window off-floor logit association on "
+                "available-case rows (arm and age adjusted)"
+            ),
         )
     else:
         y = logit_safe(med.W2_count, med.n_trials_W)
@@ -223,7 +229,10 @@ def _observed_slopes(
         out_slope = _linear_slope(
             y,
             X_out,
-            source="observed ITT logit association (arm, age and own baseline adjusted)",
+            source=(
+                "observed randomised-window logit association on available-case rows "
+                "(arm, age and own baseline adjusted)"
+            ),
         )
     return med_slope, out_slope, float(attend_scaler.sd)
 

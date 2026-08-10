@@ -1,9 +1,11 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
-# Design lessons for future studies — what the walls in this study tell us
-
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). A meta-note, not a findings note: it records where our analyses **could not cleanly answer a question**, diagnoses _why_, and turns each wall into a concrete recommendation for the design of future studies (sample size, waves/duration, measures, randomisation structure). Living document — extend as new walls are hit.
+>
+> Participant-flow and ITT qualification wording updated by a LLM-based AI tool (Codex/GPT-5).
+
+# Design lessons for future studies — what the walls in this study tell us
 
 ## 1. Why this note exists
 
@@ -23,7 +25,7 @@ The diagnostic question for any future "we couldn't answer X" is therefore: **is
 
 ## 3. Sample size
 
-**What n ≈ 54 (of 57 randomised) _was_ enough for:** the primary total intention-to-treat effect on the main outcome (word reading) — the quantity the trial was powered for, and it delivered a usable randomised estimate.
+**What n ≈ 54 (of 57 randomised) _was_ enough for:** a usable available-case randomised-offer estimate on the main outcome (word reading), the quantity the trial was powered for. This is an **available-case modified ITT estimate** rather than a full-cohort ITT effect because three children were lost to follow-up; the trial did retain four other children who discontinued the intervention, two per arm, under their assigned groups.
 
 **What it was _not_ enough for** — every _secondary/mechanistic_ question:
 
@@ -64,7 +66,7 @@ The design that _does_ answer "which component works" is a **componential / fact
 
 ## 7. Missingness and attrition
 
-54 of 57 randomised children entered the analytic set; complete-case requirements dropped further rows, and two confounders needed missingness indicators plus imputation. At small n **every lost case is expensive** and can flip a "suggestive" read. Recommendations: strong retention protocols; **collect all baseline confounders completely** (especially the exogenous ones — hearing, speech, phonological memory — that anchor the adjustment sets); consider **planned-missingness designs** to field a broad measure battery without over-testing any one child; and pre-register a principled imputation model rather than defaulting to complete-case.
+Three of 57 randomised children were lost to follow-up—one from the immediate-intervention arm and two from the waiting-control arm—leaving 54 in the analysed cohort; four other children discontinued the intervention but were followed and retained under assignment. Complete-case requirements then dropped further rows, and two confounders needed missingness indicators plus imputation. At small n **every lost case is expensive** and can flip a "suggestive" read. Recommendations: strong retention protocols; continue collecting outcomes after discontinuation; **collect all baseline confounders completely** (especially the exogenous ones—hearing, speech and phonological memory—that anchor the adjustment sets); consider **planned-missingness designs** to field a broad measure battery without over-testing any one child; and pre-register a principled imputation model and missing-not-at-random sensitivity rather than defaulting to complete-case.
 
 ## 8. Analysis planning
 

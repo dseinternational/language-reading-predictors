@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 # Waitlist-crossover arm-by-wave family: reporting refit
 
@@ -38,7 +40,7 @@ The estimand re-specification, dose redesign, DID-013 re-scoping, report/catalog
 | did-009 | E standardised expressive vocab | +0.03 (−0.20, +0.25)      | 0.608  | +0.8 items        | inconclusive         |
 | did-005 | R receptive vocabulary          | −0.00 (−0.21, +0.21)      | 0.492  | −0.1 items        | inconclusive         |
 
-The pattern is coherent with the randomised ITT and the gain-factor ANCOVA: strong-to-very-strong signal on the phonics-proximal outcomes (L, B, W) and taught expressive vocabulary (TE), fading to inconclusive on broad standardised vocabulary (R, E). `did-013`'s `tau_t2` reproduces `did-001` as expected — the heterogeneity variant adds only a waitlist-only catch-up deviation and shares the arm-by-wave core. Agreement of `tau_t2` with the ITT is a shared-data parameterisation check, not independent replication, exactly as the reports now state. The floored P/N models report off-floor **prevalence** risk differences, not floor-exit transitions.
+The pattern is coherent with the available-case modified ITT estimates and the gain-factor ANCOVA: strong-to-very-strong signal on the phonics-proximal outcomes (L, B, W) and taught expressive vocabulary (TE), fading to inconclusive on broad standardised vocabulary (R, E). `did-013`'s `tau_t2` reproduces `did-001` as expected — the heterogeneity variant adds only a waitlist-only catch-up deviation and shares the arm-by-wave core. Agreement of `tau_t2` with the available-case modified ITT estimate is a shared-data parameterisation check, not independent replication, exactly as the reports now state. The floored P/N models report off-floor **prevalence** risk differences, not floor-exit transitions.
 
 The `arm_gap_t3` and `delta_crossover` quantities are reported alongside but flagged associational (post-crossover histories differ by ~20 weeks of exposure); `arm_gap_t1` is a pre-treatment balance quantity.
 

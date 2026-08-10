@@ -4,8 +4,9 @@
 """
 Bayesian statistical models for the RLI study.
 
-LRPITT01-LRPITT11 are the uniform DAG-faithful intention-to-treat (ITT) suite,
-one outcome each (issue #119; supersede the deleted LRP52-LRP54/LRP74-LRP75).
+LRPITT01-LRPITT11 are the uniform DAG-faithful available-case modified
+intention-to-treat (ITT) suite, one outcome each (issue #119; supersede the
+deleted LRP52-LRP54/LRP74-LRP75).
 The companions supersede the deleted ad-hoc models: LRPITT12 (joint outcome
 model), LRPITT13/LRPITT13b/LRPITT14/LRPITT14b (SES robustness) and
 LRPITT15/LRPITT15b (taught-vs-not-taught generalisation contrast) replace

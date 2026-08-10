@@ -121,48 +121,48 @@ def _d(*args, **kwargs) -> ModelDefinition:
     )
 
 
-# --- ITT suite: one outcome each, the randomised models of record -----------------
+# --- ITT suite: one available-case modified ITT estimate per outcome ---------------
 _ITT = [
-    _d("lrpitt01", "itt", "ITT suite", Status.MODEL_OF_RECORD, "TR", "randomised ITT effect"),
-    _d("lrpitt02", "itt", "ITT suite", Status.MODEL_OF_RECORD, "TE", "randomised ITT effect"),
-    _d("lrpitt03", "itt", "ITT suite", Status.MODEL_OF_RECORD, "UR", "randomised ITT effect"),
-    _d("lrpitt04", "itt", "ITT suite", Status.MODEL_OF_RECORD, "UE", "randomised ITT effect"),
-    _d("lrpitt05", "itt", "ITT suite", Status.MODEL_OF_RECORD, "R", "randomised ITT effect"),
-    _d("lrpitt06", "itt", "ITT suite", Status.MODEL_OF_RECORD, "E", "randomised ITT effect"),
-    _d("lrpitt07", "itt", "ITT suite", Status.MODEL_OF_RECORD, "L", "randomised ITT effect"),
-    _d("lrpitt08", "itt", "ITT suite", Status.MODEL_OF_RECORD, "B", "randomised ITT effect"),
-    _d("lrpitt08b", "itt", "ITT link sensitivity", Status.ROBUSTNESS, "B", "three-choice guessing-floor score-mean link", base="lrpitt08"),
-    _d("lrpitt09", "itt", "ITT suite", Status.MODEL_OF_RECORD, "P", "floor-rule branch"),
-    _d("lrpitt10", "itt", "ITT suite", Status.MODEL_OF_RECORD, "W", "randomised ITT effect (primary outcome)"),
-    _d("lrpitt11", "itt", "ITT suite", Status.MODEL_OF_RECORD, "N", "floor-rule branch"),
+    _d("lrpitt01", "itt", "ITT suite", Status.MODEL_OF_RECORD, "TR", "available-case modified ITT estimate"),
+    _d("lrpitt02", "itt", "ITT suite", Status.MODEL_OF_RECORD, "TE", "available-case modified ITT estimate"),
+    _d("lrpitt03", "itt", "ITT suite", Status.MODEL_OF_RECORD, "UR", "available-case modified ITT estimate"),
+    _d("lrpitt04", "itt", "ITT suite", Status.MODEL_OF_RECORD, "UE", "available-case modified ITT estimate"),
+    _d("lrpitt05", "itt", "ITT suite", Status.MODEL_OF_RECORD, "R", "available-case modified ITT estimate"),
+    _d("lrpitt06", "itt", "ITT suite", Status.MODEL_OF_RECORD, "E", "available-case modified ITT estimate"),
+    _d("lrpitt07", "itt", "ITT suite", Status.MODEL_OF_RECORD, "L", "available-case modified ITT estimate"),
+    _d("lrpitt08", "itt", "ITT suite", Status.MODEL_OF_RECORD, "B", "available-case modified ITT estimate"),
+    _d("lrpitt08b", "itt", "ITT link sensitivity", Status.ROBUSTNESS, "B", "available-case modified ITT link sensitivity: three-choice guessing-floor score-mean link", base="lrpitt08"),
+    _d("lrpitt09", "itt", "ITT suite", Status.MODEL_OF_RECORD, "P", "available-case modified ITT floor-rule estimate"),
+    _d("lrpitt10", "itt", "ITT suite", Status.MODEL_OF_RECORD, "W", "available-case modified ITT estimate (primary outcome)"),
+    _d("lrpitt11", "itt", "ITT suite", Status.MODEL_OF_RECORD, "N", "available-case modified ITT floor-rule estimate"),
 ]
 
 # --- Joint + generalisation contrasts ---------------------------------------------
 _JOINT = [
-    _d("lrpitt12", "joint", "Joint", Status.JOINT, None, "cross-outcome consistency + contrasts"),
-    _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (expressive)"),
-    _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "taught vs not-taught (receptive)"),
-    _d("lrpitt16", "joint", "Modality contrast", Status.ROBUSTNESS, None, "taught expressive vs taught receptive"),
+    _d("lrpitt12", "joint", "Joint", Status.JOINT, None, "joint available-case modified ITT estimates: cross-outcome consistency + contrasts"),
+    _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (expressive)"),
+    _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (receptive)"),
+    _d("lrpitt16", "joint", "Modality contrast", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught expressive vs taught receptive"),
 ]
 
 # --- SES adjustment + matched complete-case comparators ---------------------------
 _SES = [
-    _d("lrpitt13", "itt", "SES + comparators", Status.ROBUSTNESS, "W", "SES-adjusted", base="lrpitt10"),
-    _d("lrpitt13b", "itt", "SES + comparators", Status.ROBUSTNESS, "L", "SES-adjusted", base="lrpitt07"),
-    _d("lrpitt14", "itt", "SES + comparators", Status.ROBUSTNESS, "W", "matched complete-case comparator", base="lrpitt13"),
-    _d("lrpitt14b", "itt", "SES + comparators", Status.ROBUSTNESS, "L", "matched complete-case comparator", base="lrpitt13b"),
+    _d("lrpitt13", "itt", "SES + comparators", Status.ROBUSTNESS, "W", "SES-adjusted available-case modified ITT estimate", base="lrpitt10"),
+    _d("lrpitt13b", "itt", "SES + comparators", Status.ROBUSTNESS, "L", "SES-adjusted available-case modified ITT estimate", base="lrpitt07"),
+    _d("lrpitt14", "itt", "SES + comparators", Status.ROBUSTNESS, "W", "available-case modified ITT estimate on the matched complete-case subset", base="lrpitt13"),
+    _d("lrpitt14b", "itt", "SES + comparators", Status.ROBUSTNESS, "L", "available-case modified ITT estimate on the matched complete-case subset", base="lrpitt13b"),
 ]
 
 # --- General-ability (block-design) robustness ------------------------------------
 _ABIL = [
-    _d("lrpitt17", "itt", "General-ability adjustment", Status.ROBUSTNESS, "TR", "block-design adjustment", base="lrpitt01"),
-    _d("lrpitt18", "itt", "General-ability adjustment", Status.ROBUSTNESS, "TE", "block-design adjustment", base="lrpitt02"),
-    _d("lrpitt19", "itt", "General-ability adjustment", Status.ROBUSTNESS, "UR", "block-design adjustment", base="lrpitt03"),
-    _d("lrpitt20", "itt", "General-ability adjustment", Status.ROBUSTNESS, "UE", "block-design adjustment", base="lrpitt04"),
-    _d("lrpitt21", "itt", "General-ability adjustment", Status.ROBUSTNESS, "R", "block-design adjustment", base="lrpitt05"),
-    _d("lrpitt22", "itt", "General-ability adjustment", Status.ROBUSTNESS, "E", "block-design adjustment", base="lrpitt06"),
-    _d("lrpitt23", "itt", "General-ability adjustment", Status.ROBUSTNESS, "L", "block-design adjustment", base="lrpitt07"),
-    _d("lrpitt24", "itt", "General-ability adjustment", Status.ROBUSTNESS, "W", "block-design adjustment", base="lrpitt10"),
+    _d("lrpitt17", "itt", "General-ability adjustment", Status.ROBUSTNESS, "TR", "ability-adjusted available-case modified ITT estimate", base="lrpitt01"),
+    _d("lrpitt18", "itt", "General-ability adjustment", Status.ROBUSTNESS, "TE", "ability-adjusted available-case modified ITT estimate", base="lrpitt02"),
+    _d("lrpitt19", "itt", "General-ability adjustment", Status.ROBUSTNESS, "UR", "ability-adjusted available-case modified ITT estimate", base="lrpitt03"),
+    _d("lrpitt20", "itt", "General-ability adjustment", Status.ROBUSTNESS, "UE", "ability-adjusted available-case modified ITT estimate", base="lrpitt04"),
+    _d("lrpitt21", "itt", "General-ability adjustment", Status.ROBUSTNESS, "R", "ability-adjusted available-case modified ITT estimate", base="lrpitt05"),
+    _d("lrpitt22", "itt", "General-ability adjustment", Status.ROBUSTNESS, "E", "ability-adjusted available-case modified ITT estimate", base="lrpitt06"),
+    _d("lrpitt23", "itt", "General-ability adjustment", Status.ROBUSTNESS, "L", "ability-adjusted available-case modified ITT estimate", base="lrpitt07"),
+    _d("lrpitt24", "itt", "General-ability adjustment", Status.ROBUSTNESS, "W", "ability-adjusted available-case modified ITT estimate", base="lrpitt10"),
 ]
 
 # --- Waitlist-crossover arm-by-wave models ----------------------------------------
@@ -307,7 +307,7 @@ _STRUCT = [
     _d("lrp77", "dose_response", "Dose-response", Status.ASSOCIATION, "W", "period-resolved intervention dose -> word reading"),
     _d("lrp77a", "dose_response", "Dose-response", Status.ROBUSTNESS, "W", "ability-adjusted sensitivity", base="lrp77"),
     _d("lrp77base", "dose_response", "Dose-response", Status.COMPANION, "W", "pooled-dose-slope comparator", base="lrp77"),
-    # Dose-response coverage for the two largest ITT effects, L and B (#228 item 2);
+    # Dose-response coverage for the two largest available-case modified ITT estimates, L and B (#228 item 2);
     # the W family covers only word reading. Same observational IS->outcome estimand.
     _d("lrp83", "dose_response", "Dose-response", Status.ASSOCIATION, "L", "period-resolved intervention dose -> letter sounds"),
     _d("lrp84", "dose_response", "Dose-response", Status.ASSOCIATION, "B", "period-resolved intervention dose -> phoneme blending"),
@@ -404,14 +404,14 @@ _LEVEL += [
        "levels view; only the t2 group contrast is randomised"),
 ]
 
-# Suite-gap Tier-1 additions (#228): standalone ITTs for the two outcomes that had
+# Suite-gap Tier-1 additions (#228): standalone available-case modified ITT estimates for the two outcomes that had
 # only factor/aligned models (F basic concepts, T receptive grammar), and a site
 # (area) robustness check on the flagship word-reading (W) and letter-sound (L) ITTs.
 _ITT_TIER1 = [
-    _d("lrpitt25", "itt", "ITT suite", Status.MODEL_OF_RECORD, "F", "randomised ITT effect"),
-    _d("lrpitt26", "itt", "ITT suite", Status.MODEL_OF_RECORD, "T", "randomised ITT effect"),
-    _d("lrpitt27", "itt", "Site robustness", Status.ROBUSTNESS, "W", "site (area) adjustment", base="lrpitt10"),
-    _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site (area) adjustment", base="lrpitt07"),
+    _d("lrpitt25", "itt", "ITT suite", Status.MODEL_OF_RECORD, "F", "available-case modified ITT estimate"),
+    _d("lrpitt26", "itt", "ITT suite", Status.MODEL_OF_RECORD, "T", "available-case modified ITT estimate"),
+    _d("lrpitt27", "itt", "Site robustness", Status.ROBUSTNESS, "W", "site-adjusted available-case modified ITT estimate", base="lrpitt10"),
+    _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site-adjusted available-case modified ITT estimate", base="lrpitt07"),
 ]
 
 # Time-to-off-floor survival family (#230 §5): the four-wave generalisation of the

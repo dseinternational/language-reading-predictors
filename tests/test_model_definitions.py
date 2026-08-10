@@ -62,6 +62,15 @@ def test_kinds_and_outcomes_are_valid() -> None:
             )
 
 
+def test_itt_registry_descriptions_name_the_available_case_modified_estimand() -> None:
+    for definition in MODEL_REGISTRY.values():
+        if definition.kind not in {"itt", "joint"}:
+            continue
+        description = f"{definition.family} {definition.role}".lower()
+        assert "available-case modified itt" in description, definition.model_id
+        assert "randomised itt effect" not in description, definition.model_id
+
+
 def test_modality_contrast_is_not_catalogued_as_generalisation() -> None:
     definition = MODEL_REGISTRY["lrp-rli-itt-016"]
     assert definition.family == "Modality contrast"

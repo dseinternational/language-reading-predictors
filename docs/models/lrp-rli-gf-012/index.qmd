@@ -24,7 +24,7 @@ LRPGF12 is [`lrp-rli-gf-009`](../lrp-rli-gf-009) — the **gain-factors** model 
 
 _Causal labelling (DAG guardrails)._
 
-**Only the randomised on-intervention term is causal.** Its **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself is only the on-intervention log-odds contrast. Every other coefficient is an **adjusted association**, latent-GA-confounded. The added `R`/`E` skill terms are emphatically **not** DAG-parent adjustments — they sit downstream of `TR`, so they are entered only to *describe* the review's finding, and read as "associated with", never "drives". The child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does not control latent general ability. Intervention sessions/dose are never conditioned on (a DAG collider); SES is excluded (not a DAG node).
+**Only the randomised on-intervention term is causal.** Its **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is an available-case modified ITT estimate; `beta_trt` itself is only the on-intervention log-odds contrast. Every other coefficient is an **adjusted association**, latent-GA-confounded. The added `R`/`E` skill terms are emphatically **not** DAG-parent adjustments — they sit downstream of `TR`, so they are entered only to *describe* the review's finding, and read as "associated with", never "drives". The child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does not control latent general ability. Intervention sessions/dose are never conditioned on (a DAG collider); SES is excluded (not a DAG node).
 
 ## Model
 

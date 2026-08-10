@@ -1,3 +1,6 @@
+> [!NOTE]
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+
 # Findings — gain_factors family (ANCOVA on each period's gain; a second causal read of the effect)
 
 > [!NOTE]
@@ -5,7 +8,7 @@
 
 ## What these models ask
 
-These models look at each child's **post-period score given their pre-period score** (an ANCOVA — analysis of covariance) and stack every study period together, with a child random intercept (a per-child offset that partially pools stable differences between children — a shrunken stand-in for between-child heterogeneity, **not** a control for latent general ability). The one **causal** number is the **on-intervention effect during the randomised first period** (period 1, when the immediate arm is treated and the waiting-list arm is still an untreated control). It is reported as an **items-scale risk difference** (how many more items, out of the test's total, a treated child gets right at post than they otherwise would have), and it is a genuinely independent second look at the [ITT](202607161800-findings-itt.md) effect using a different model structure. Every other coefficient (own baseline, age, ability, upstream skills, the treatment-by-covariate interactions) is an **adjusted association** describing _who_ progresses — a latent-ability-confounded correlation, not a lever you could pull.
+These models look at each child's **post-period score given their pre-period score** (an ANCOVA — analysis of covariance) and stack every study period together, with a child random intercept (a per-child offset that partially pools stable differences between children — a shrunken stand-in for between-child heterogeneity, **not** a control for latent general ability). The one **causal** number is the **on-intervention effect during the randomised first period** (period 1, when the immediate arm is treated and the waiting-list arm is still an untreated control). It is reported as an **items-scale risk difference** (how many more items, out of the test's total, a treated child gets right at post than they otherwise would have), and it is a genuinely independent second look at the [available-case modified ITT estimate](202607161800-findings-itt.md) using a different model structure. Every other coefficient (own baseline, age, ability, upstream skills, the treatment-by-covariate interactions) is an **adjusted association** describing _who_ progresses — a latent-ability-confounded correlation, not a lever you could pull.
 
 There are 11 primary models (`gf-001–011`, one per outcome) and 8 "treated-only" companions (`gf-101–108`) that look only at children while on the programme and therefore estimate **no** treatment effect — they are association-only checks that let us see whether the same predictor structure holds when the treatment contrast is removed.
 
@@ -47,7 +50,7 @@ Reading the two off-floor rows: for **P** and **N** the more informative summary
 
 ## The one-paragraph story
 
-This model, built quite differently from the ITT model, **reproduces the ITT headline**: **very strong** evidence of benefit on **letter sounds** (+3.3 items) and **word reading** (+2.6 items), and the same fade-out for broad standardised vocabulary (R suggestive-negative but half inside the ROPE; E inconclusive). Getting the same answer from a period-stacked ANCOVA as from the simple randomised comparison is the kind of triangulation that makes the core reading finding credible. The remaining nine outcomes are, at most, suggestive of benefit and mostly inconclusive.
+This model, built quite differently from the ITT model, **reproduces the available-case modified ITT headline**: **very strong** evidence of benefit on **letter sounds** (+3.3 items) and **word reading** (+2.6 items), and the same fade-out for broad standardised vocabulary (R suggestive-negative but half inside the ROPE; E inconclusive). Getting the same answer from a period-stacked ANCOVA as from the fitted randomised-arm comparison is the kind of triangulation that makes the core reading finding credible. The remaining nine outcomes are, at most, suggestive of benefit and mostly inconclusive.
 
 ## Results — all models
 

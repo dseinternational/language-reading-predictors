@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT11 - modified-ITT nonword-reading floor-transition analysis.
+"""LRPITT11 - available-case modified ITT nonword-reading floor-transition analysis.
 
 Nonword reading is heavily floored: 36/50 observed scores (72%) are zero at
 baseline and 34/53 observed scores (~64%) are zero at t2. This reanalysis chose
@@ -29,12 +29,18 @@ SPEC = ModelSpec(
     model_id="lrp-rli-itt-011",
     kind="itt",
     title=(
-        "Modified-ITT effect of group assignment on nonword reading (N) - "
+        "Available-case modified ITT estimate of the assigned-arm contrast in "
+        "nonword reading (N) - "
         "post-hoc floor-rule branch"
     ),
     outcome_symbol="N",
-    design="waitlist_randomised_t1_to_t2_observed_baseline_floor_subgroup",
-    estimand_type="post_hoc_exploratory_available_case_subgroup_risk_difference",
+    design=(
+        "waitlist_randomised_t1_to_t2_available_case_modified_itt_"
+        "observed_baseline_floor_subgroup"
+    ),
+    estimand_type=(
+        "available_case_modified_itt_estimate_post_hoc_subgroup_risk_difference"
+    ),
     causal_status=(
         "randomised_assignment_within_observed_baseline_floor_subgroup_"
         "conditional_on_eligibility_and_outcome_missingness"

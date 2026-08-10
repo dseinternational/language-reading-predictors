@@ -2,20 +2,22 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Available-case modified ITT terminology added by a LLM-based AI tool (Codex/GPT-5).
 
-# Findings 01 — the ITT suite (intention-to-treat)
+# Findings 01 — the available-case modified ITT suite
 
-Reports every model in the `itt` family from the full `reporting` refit of 2026-08-04/05 (run record: `notes/202608050649-reporting-refit-predictive-checks.md`). **28 models, all passing the convergence gate.** Reading conventions are in note 00. Preliminary research data — all estimates provisional.
+Reports every available-case modified ITT model in the `itt` family from the full `reporting` refit of 2026-08-04/05 (run record: `notes/202608050649-reporting-refit-predictive-checks.md`). **28 models, all passing the convergence gate.** Reading conventions are in note 00. Preliminary research data — all estimates provisional.
 
 ## What these models do
 
-The single most important family: the **effect of being assigned to the intervention**, one model per outcome. This is the only place in the suite where randomisation does the identifying work, so it is the only place a plain causal reading is available.
+The single most important family: the **available-case modified ITT estimate of the assigned-arm contrast**, one model per outcome. Randomisation identifies the assigned-arm contrast in the full cohort in principle; a causal reading of the fitted available-case estimate additionally requires the stated selection and missing-outcome assumptions.
 
 **Design.** Each model uses the randomised t1→t2 window — one row per child, before anyone crossed over. The score is a bounded count, modelled with a **Beta-Binomial** likelihood on a logit linear predictor (a Binomial that allows more between-child spread than a plain Binomial). The linear predictor carries the assigned-arm term τ, the child's **own** t1 score on that outcome, and **linear age**.
 
-**The adjustment set is deliberately almost empty**, and this trips people up. Own-baseline and age are in the model as _precision_ terms — they sharpen the estimate — not as confounder control. Randomisation already balances confounders in expectation, so the ITT effect is identified by the **empty** adjustment set. No cross-baselines from other skills are included; adding them would risk conditioning on things the intervention itself moves.
+**The adjustment set is deliberately almost empty**, and this trips people up. Own-baseline and age are in the model as _precision_ terms — they sharpen the estimate — not as confounder control. Randomisation identifies the full-cohort assigned-arm contrast without a confounder adjustment set, but the fitted result remains an **available-case modified ITT estimate** because of loss to follow-up and model-specific observation requirements. The empty adjustment set does not repair that selection. No cross-baselines from other skills are included; adding them would risk conditioning on things the intervention itself moves.
 
-**What is causal here, and what is not.** τ is causal. Every other coefficient in these models is an adjusted association and reading them as levers is the Table-2 fallacy. Even τ's causal reading is conditional: it holds for the **fitted available-case sample** under the assumption that archive inclusion and outcome observation do not depend jointly on assigned arm and potential outcomes. Typically 53–54 children are fitted out of 57 randomised, so this is an available-case effect, not the effect for every randomised child.
+**What is causal here, and what is not.** The available-case modified ITT estimate τ has a causal reading only under the stated selection assumption. Every other coefficient in these models is an adjusted association and reading them as levers is the Table-2 fallacy. The causal interpretation holds for the **fitted available-case sample** only if archive inclusion and outcome observation do not depend jointly on assigned arm and potential outcomes. Typically 53–54 children are fitted out of 57 randomised, so this is not the effect estimate for every randomised child.
 
 **Floored outcomes get a different estimand.** Phonetic spelling (PS) and nonword reading (NW) sit hard on the floor — most children score zero — so a graded count model is the wrong instrument. Those two use the registered **floor rule**: a Bernoulli on the "off the floor at post" indicator, with the treatment effect reported as a **risk difference in percentage points**, not items. Their rows below are marked accordingly.
 
@@ -97,4 +99,4 @@ The letter-sound and word-reading results are the most heavily checked in the su
 
 ## Where this leads
 
-The ITT suite establishes the effects; the rest of the suite asks whether they replicate under other designs and what mechanism carries them. The DiD crossover models (note 05) and the gain-factor ANCOVA (note 03) re-estimate the same effects from different rows and a different identification argument; the mediation family (note 08) tests whether the word-reading gain runs through letter-sound knowledge.
+The available-case modified ITT suite supplies the primary assigned-arm estimates; the rest of the suite asks whether they replicate under other designs and what mechanism carries them. The DiD crossover models (note 05) and the gain-factor ANCOVA (note 03) re-estimate related effects from different rows and a different identification argument; the mediation family (note 08) tests whether the word-reading gain runs through letter-sound knowledge.

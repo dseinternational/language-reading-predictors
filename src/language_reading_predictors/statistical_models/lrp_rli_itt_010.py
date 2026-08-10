@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT10 - ITT effect on word reading (W, EWRSWR).
+"""LRPITT10 - available-case modified ITT estimate for word reading (W, EWRSWR).
 
-Uniform DAG-faithful ITT model (issue #119). Under the locked DAG the effect of
-randomised assignment is identified by the *empty* adjustment set, so the own
+Uniform DAG-faithful available-case modified ITT model (issue #119). Under the
+locked DAG the assigned-arm coefficient requires no adjustment set, so the own
 baseline and linear age are PRECISION terms only and no cross-baselines enter.
 Sign convention: positive ``tau`` means the intervention raises the outcome.
 
@@ -21,9 +21,12 @@ from language_reading_predictors.statistical_models.pipeline import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-010",
     kind="itt",
-    title="ITT effect of group assignment on word reading (W)",
+    title=(
+        "Available-case modified ITT estimate of the assigned-arm contrast in "
+        "word reading (W)"
+    ),
     outcome_symbol="W",
-    model_settings=IttModelSettings(),
+    model_settings=IttModelSettings(missingness_sensitivity=True),
 )
 
 

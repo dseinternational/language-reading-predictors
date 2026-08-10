@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Available-case modified ITT terminology added by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings 05 — the waitlist-crossover (DiD) family
 
@@ -43,9 +45,9 @@ Items scale (percentage points for the two floor-rule outcomes), median with 89%
 
 ‡ **Withheld from release** under the robustness gate — see below. The numbers are shown because this note is a technical record, not a published finding.
 
-**A third independent replication, and the closest agreement yet.** Letter sounds comes out at +3.5 items — the same number as the ITT model to one decimal place — and word reading at +2.2 against +2.4. The taught word sets and blending match too. Broad vocabulary is flat and inconclusive, as everywhere.
+**A third cross-design consistency check, and the closest agreement yet.** Letter sounds comes out at +3.5 items — the same number as the available-case modified ITT estimate to one decimal place — and word reading at +2.2 against +2.4. The taught word sets and blending match too. Broad vocabulary is flat and inconclusive, as everywhere.
 
-The evidence labels sit a rung lower than the ITT suite for several outcomes (WR moderate rather than strong) because this design spends precision on estimating three wave levels jointly rather than one contrast. The _estimates_ agree; the _intervals_ are slightly wider.
+The evidence labels sit a rung lower than the available-case modified ITT suite for several outcomes (WR moderate rather than strong) because this design spends precision on estimating three wave levels jointly rather than one contrast. The _estimates_ agree; the _intervals_ are slightly wider.
 
 **Baseline balance is good, with one qualification worth stating.** Every `arm_gap_t1` is small — the largest is phonetic spelling at −0.26 logits — and on the P(>0) reading every one is inconclusive. Read the ladder against the _favoured_ direction, as note 00 prescribes, and three of the eleven lean **suggestively** toward the waitlist arm starting higher: basic concepts (0.82), phonetic spelling (0.82) and nonword reading (0.75). None resolves, all three are small, and the direction is the conservative one — a waitlist arm starting slightly ahead would bias `tau_t2` down, not up. Randomisation did its job well enough to license reading `tau_t2` as an effect rather than a pre-existing difference, but "perfect balance" would overstate it.
 

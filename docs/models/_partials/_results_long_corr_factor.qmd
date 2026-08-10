@@ -10,8 +10,9 @@ differ across t1–t4? It is a description of how the skills co-occur across wav
 _A measurement instrument — associations, not causes._ Every number here is a **descriptive association**. The latent correlations and the
 slopes derived from them describe how the skill areas go together once measurement
 variation is modelled; they do **not** identify a causal skill-to-skill effect. The
-suite's causal content lives in the randomised ITT/DiD contrasts and the mediation
-models, untouched by this instrument.
+suite's assignment-based causal content lives in the available-case modified ITT
+estimates and randomised-window DiD contrasts, subject to their stated selection and
+missing-data assumptions, and in the mediation models, untouched by this instrument.
 
 _Fragility at n ~ 54._ A four-wave latent model at n ~ 54 is fragile and prior-dependent — the more so than
 the cross-sectional `mm-001`, since it carries a trait correlation matrix and a state

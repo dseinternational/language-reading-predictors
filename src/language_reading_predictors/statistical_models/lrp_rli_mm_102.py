@@ -32,8 +32,8 @@ estimate is prior-attenuated and the association scale is doing quiet work.
 
 Same caveats as LRPMM02: a **measurement / triangulation** model, not causal. Per
 ID-2 the code->W slope is a latent-ability-confounded **adjusted association**,
-and ``beta_G`` is an adjusted-association covariate, not the randomised ITT
-effect.
+and ``beta_G`` is an adjusted-association covariate, not the available-case
+modified ITT estimate.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

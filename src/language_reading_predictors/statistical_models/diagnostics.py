@@ -143,11 +143,15 @@ def _reuse_existing_trace(context: StatisticalFitContext) -> bool:
     source = context.final_output_dir if reuse == "1" else reuse
     trace_path = os.path.join(source, "trace.nc")
     if not os.path.exists(trace_path):
-        rprint(
-            f"[yellow]DSE_LRP_REUSE_TRACE set but no trace at {trace_path}; "
-            "sampling instead.[/yellow]"
+        raise FileNotFoundError(
+            "reuse-trace mode requires the persisted primary trace at "
+            f"{trace_path}; refusing to run fresh NUTS"
         )
-        return False
+    from language_reading_predictors.statistical_models.reporting import (
+        require_reuse_compatibility,
+    )
+
+    require_reuse_compatibility(context, source)
     context.trace = az.from_netcdf(trace_path)
     rprint(f"[cyan]Reusing saved posterior (no sampling): {trace_path}[/cyan]")
     return True

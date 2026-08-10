@@ -1,24 +1,26 @@
 ---
-title: "From question to posterior: one complete ITT model"
-abstract: "An undergraduate route through the canonical taught-receptive-vocabulary ITT model, from estimand and data rows to likelihood, posterior checks, interpretation, and reproducibility."
+title: "From question to posterior: one complete available-case modified ITT model"
+abstract: "An undergraduate route through the canonical taught-receptive-vocabulary available-case modified ITT model, from estimand and data rows to likelihood, posterior checks, interpretation, and reproducibility."
 ---
 
 ::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/GPT-5).
+
+Participant-flow wording updated by a LLM-based AI tool (Codex/GPT-5).
 :::
 
-This chapter follows one deliberately simple model from its research question to its saved report. The canonical example is `lrp-rli-itt-001`, the available-case intention-to-treat (ITT) analysis of taught receptive vocabulary in intervention block 1. It is a useful teaching model because it has one outcome, one randomised comparison, one row per child, and no floor-rule or cross-baseline branch. The more elaborate families reuse parts of this workflow but answer different questions; they must not inherit this model's causal label merely because their code looks similar.
+This chapter follows one deliberately simple model from its research question to its saved report. The canonical example is `lrp-rli-itt-001`, the **available-case modified ITT analysis** of taught receptive vocabulary in intervention block 1. Here ITT expands to intention to treat. It is a useful teaching model because it has one outcome, one randomised comparison, one row per child, and no floor-rule or cross-baseline branch. The more elaborate families reuse parts of this workflow but answer different questions; they must not inherit this model's causal label merely because their code looks similar.
 
 ## 1. Start with the question, not the software
 
 The question is: **among children with the variables observed for this analysis, what is the effect of being randomly assigned to the immediate-intervention arm on the time-2 taught receptive vocabulary score?** The score tests the 24 words taught in block 1. The comparison uses the randomised time-1 to time-2 window, before the wait-list arm receives the intervention.
 
-The estimand is an **available-case randomised offer effect**. “Offer” matters because assignment, rather than attendance or dose received, is compared. “Available-case” matters because the repository contains 54 of the 57 randomised children and the model also requires its analysis variables to be observed. Randomisation supports the causal comparison within that observed analysis set. Extending the result to every randomised child additionally assumes that selection into the analysis is ignorable after the modelled information. It is therefore more precise than calling the fit either “purely associational” or an unqualified “full ITT”.
+The estimand is an **available-case modified ITT randomised offer effect**. “Offer” matters because assignment, rather than attendance or dose received, is compared: the published report says that two children in each arm discontinued the intervention but were followed and included in their assigned groups. “Available-case” matters because three other children were lost to follow-up—one intervention child and two waiting-control children—leaving 54 of the 57 randomised children represented in the repository, and the model also requires its analysis variables to be observed. Randomisation identifies the assigned-arm contrast in the full cohort in principle; it supports a causal interpretation of this fitted available-case estimate only under the stated missingness assumption. Extending the result to every randomised child additionally assumes that loss to follow-up and further selection into the analysis are ignorable after the modelled information. It is therefore more precise than calling the fit either “purely associational” or an unqualified “full ITT”.
 
 ::: {.callout-warning title="First interpretation check"}
-Do not condition the ITT effect on attendance or sessions completed. Those variables occur after assignment and are partly caused by it. Conditioning on them would change the question from the effect of assignment and can introduce selection bias.
+Do not condition the available-case modified ITT estimate on attendance or sessions completed. Those variables occur after assignment and are partly caused by it. Conditioning on them would change the question from the effect of assignment and can introduce selection bias.
 :::
 
 ## 2. The causal diagram licenses one causal coefficient {#sec-dag}
@@ -31,7 +33,7 @@ The distinction carries through the outputs:
 
 | Output or term | What it answers | Interpretation status |
 |---|---|---|
-| `tau` and the average marginal treatment effect in `tau_summary.csv` | What changes when assignment is toggled from wait-list to immediate intervention in the fitted analysis population? | Causal available-case randomised offer effect, subject to the missingness qualification |
+| `tau` and the average marginal treatment effect in `tau_summary.csv` | What changes when assignment is toggled from wait-list to immediate intervention in the fitted analysis population? | Available-case modified ITT randomised offer-effect estimate; causal only subject to the missingness qualification |
 | `gamma_own` | How does the time-1 score predict the time-2 score within this outcome model? | Precision association, not a causal effect of baseline vocabulary |
 | `gamma_A` | How does age predict the time-2 score, holding the other model terms fixed? | Precision association, not a causal effect of age |
 | `kappa` | How much extra variation is needed beyond a Binomial model? | Likelihood nuisance parameter, not an educational effect |
@@ -177,7 +179,7 @@ PSIS-LOO assesses predictive performance when one observation is left out approx
 
 ## 11. Read the generated report in a fixed order
 
-1. Confirm the model ID, outcome, analysis rows, assignment coding, and available-case qualification in `config.json`, `analysis_set.csv`, and `model_recipe.md`.
+1. Confirm the model ID, outcome, analysis rows, assignment coding, and available-case modified ITT qualification in `config.json`, `analysis_set.csv`, and `model_recipe.md`.
 2. Read the convergence gate. Stop if it fails; a future amber qualification must be a separate trace-bound reviewed artefact and is never a clean pass.
 3. Read posterior-predictive coverage and distribution checks. Qualify or revise the working likelihood if discrepancies are material.
 4. Read the item-scale average marginal effect with its inner 50% and outer 89% intervals and $P(\mathrm{AME}>0)$.
@@ -191,7 +193,7 @@ Before accepting an explanation of this or a related model, ask:
 
 - Does it say randomisation balances baseline characteristics **in expectation**, rather than guaranteeing exact balance in this sample?
 - Does it call the baseline and age terms precision associations, rather than saying they identify or cause the treatment effect?
-- Does it describe the result as available-case and state the missingness qualification?
+- Does it describe the result as an available-case modified ITT estimate and state the missingness qualification?
 - Does it keep attendance and other post-assignment variables out of the ITT adjustment set?
 - Does it interpret an 89% credible interval as posterior uncertainty about the estimand, not as an individual prediction interval or a repeated-sampling confidence interval?
 - Does it report the tail probability as a posterior probability, not a p-value?

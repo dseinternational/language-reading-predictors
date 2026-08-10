@@ -4,6 +4,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
 > Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 > [!WARNING]
 > **Superseded in part on 2026-08-02.** This remains a dated run record, but any interpretation below from a gate-failed fit is withheld under `notes/202608021625-divergence-qualification-policy.md`; percentage-based divergence leniency and model-level exceptions are no longer active.
@@ -28,11 +30,11 @@ Net: **95 / 96 fits usable**; `mm-001`'s structural coefficients set aside.
 
 ## Headline finding
 
-The pattern is coherent across four independent identification strategies (randomised ITT, within-person DiD, gain-factor ANCOVA, and g-formula mediation): **strong-to-very-strong evidence that the reading/phonics intervention improves the directly-taught reading-precursor skills — letter-sound knowledge, word reading, phoneme blending, and taught expressive vocabulary — and inconclusive, probably-negligible effects on broad standardised vocabulary.** The word-reading gain runs through letter-sound knowledge, not through expressive vocabulary.
+The pattern is coherent across four model framings (available-case modified ITT, within-person DiD, gain-factor ANCOVA, and g-formula mediation): **strong-to-very-strong evidence that the reading/phonics intervention improves the directly-taught reading-precursor skills — letter-sound knowledge, word reading, phoneme blending, and taught expressive vocabulary — and inconclusive, probably-negligible effects on broad standardised vocabulary.** These framings share trial data and are not four independent experiments; the available-case modified ITT estimate has a causal reading only under its selection assumption. The word-reading gain runs through letter-sound knowledge, not through expressive vocabulary.
 
 Only τ (ITT), the DiD δ, and the gain-factor on-intervention marginal are **causal**. Every covariate coefficient, mechanism slope, and level-factor post-crossover term is an **adjusted association** (Table-2-fallacy territory) — it describes _who progresses_, not a lever.
 
-## ITT suite — causal τ (risk-difference / probability scale, sample-mean baseline)
+## Available-case modified ITT suite — τ has a causal reading under the selection assumption
 
 | Outcome                        | τ (prob)   | 95 % CI          | P(τ>0)    | Direction evidence | Magnitude vs δ                 | ROPE mass |
 | ------------------------------ | ---------- | ---------------- | --------- | ------------------ | ------------------------------ | --------- |
@@ -74,7 +76,7 @@ The letter-sound and word-reading effects are unmoved by ability, geography, or 
 | **TE** taught expressive | +1.47     | [−0.02, +2.93] | 0.974     | strong       |
 | **R** receptive (std.)   | −0.13     | [−5.26, +4.90] | 0.485     | inconclusive |
 
-The within-person DiD reproduces the randomised ITT ordering — each child acting as its own control, the ceiling respected by the Beta-Binomial logit.
+The within-person DiD reproduces the available-case modified ITT ordering — each child acting as its own control, the ceiling respected by the Beta-Binomial logit.
 
 ## Second replication — gain-factor ANCOVA, on-intervention marginal (the only causal term)
 
@@ -267,7 +269,7 @@ Effective resolution differs sharply across measures (phase-0 window, n=50):
 | Standardised vocab (R / E) | 170         | **31–36 %**         | 0 %      |
 | Nonword decoding (N)       | 6           | —                   | **62 %** |
 
-The **standardised vocabulary measures occupy only ~a third of their scale** in this cohort (normed on a broad population; DS children cluster low) — severe **range restriction**, which attenuates _both_ the detectable ITT effect and the mediator→outcome slope (regression dilution). And the intervention _did_ move vocabulary where it is well-measured (taught TE showed a strong ITT effect). So the honest reading is **"no detectable diffuse transfer to coarse standardised measures,"** not "no vocabulary role" — we cannot distinguish a true null from measure insensitivity. N is measurement-crippled outright (6 items, 62 % floored), so its ≈0 route is uninformative about decoding. Next step: reliability/errors-in-variables treatment (the MM-001 latent-factor model is the natural home once its funnel is fixed).
+The **standardised vocabulary measures occupy only ~a third of their scale** in this cohort (normed on a broad population; DS children cluster low) — severe **range restriction**, which attenuates _both_ the detectable available-case modified ITT estimate and the mediator→outcome slope (regression dilution). And the intervention _did_ move vocabulary where it is well-measured (taught TE had a strong available-case modified ITT estimate under the selection assumption). So the honest reading is **"no detectable diffuse transfer to coarse standardised measures,"** not "no vocabulary role" — we cannot distinguish a true null from measure insensitivity. N is measurement-crippled outright (6 items, 62 % floored), so its ≈0 route is uninformative about decoding. Next step: reliability/errors-in-variables treatment (the MM-001 latent-factor model is the natural home once its funnel is fixed).
 
 ### (3) Is the effect carried by a capable minority? — no; if anything the opposite.
 

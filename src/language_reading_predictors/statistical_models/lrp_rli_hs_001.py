@@ -15,7 +15,7 @@ Between-child framing (``phase_mode="span"``, one row per child), mirroring LRP6
 the coefficients are between-child associations, not within-child change. This is a
 **ranking cross-check, not a causal model** - if the horseshoe broadly agrees with
 the GB order, that is reassurance the ranking is not a tree-method artefact; the
-randomised causal claim continues to live in the ITT suite.
+corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 Construct predictor set: the non-floored measure baselines (letter sounds ``L``,
 receptive/expressive vocabulary ``R``/``E``, blending ``B``, basic concepts ``F``,

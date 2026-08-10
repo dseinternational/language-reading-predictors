@@ -61,7 +61,7 @@ fit's interval quoted beside it.
 
 _Measurement / triangulation, NOT causal._ As with LRPMM02: per the locked DAG's
 **ID-2** the code→W slope is a latent-ability-confounded **adjusted association**, and
-$\beta_G$ is an adjusted-association covariate, not the randomised ITT effect (that
+$\beta_G$ is an adjusted-association covariate, not the available-case modified ITT estimate (that
 lives in [`lrp-rli-itt-010`](../lrp-rli-itt-010/)).
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}

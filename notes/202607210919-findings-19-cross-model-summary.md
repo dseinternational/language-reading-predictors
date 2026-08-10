@@ -16,7 +16,7 @@ The reading and phonics intervention produces **clear, replicated, randomised be
 
 ## 1. The randomised headline, and its triangulation
 
-Three families estimate the intervention's causal effect through different randomised designs, and they **agree**. The table gives each outcome's intention-to-treat effect (ITT `τ`, note 01), the difference-in-differences t2 contrast (`τ_t2`, note 05), and the gain-factor on-intervention marginal (`β_trt`, note 03), on the items scale where available, with the ITT tail probability and evidence label.
+Three families estimate the intervention effect through different randomisation-based analyses, and they **agree** under their respective assumptions. The table gives each outcome's **available-case modified ITT estimate** (`τ`, note 01), the difference-in-differences t2 contrast (`τ_t2`, note 05), and the gain-factor on-intervention marginal (`β_trt`, note 03), on the items scale where available, with the available-case modified ITT tail probability and evidence label.
 
 | Outcome                        | ITT `τ` (items)       | ITT P(helps) | Evidence         | DiD `τ_t2`        | Gain-factor `β_trt` | Verdict             |
 | ------------------------------ | --------------------- | ------------ | ---------------- | ----------------- | ------------------- | ------------------- |
@@ -46,7 +46,7 @@ Two families show a _negative_ blip on standardised vocabulary that must not be 
 
 ## 4. Robustness
 
-The ITT headline is stable under every stress test in note 01. Adjusting `τ` for **general (block-design) ability** (`itt-017–024`) moves nothing: letter-sound knowledge stays +3.5 (very strong), word reading +2.2 (strong). Adjusting for **socio-economic status** on the matched complete-case subset (`itt-013/113` against unadjusted comparators `itt-014/114`) leaves both anchor effects intact — the slight softening of a label there is the halved sample, not the covariate. Adjusting for **study site** (`itt-027/028`) if anything sharpens the effects. The headline is not an artefact of ability, background or site imbalance.
+The available-case modified ITT headline is stable under every stress test in note 01. Adjusting `τ` for **general (block-design) ability** (`itt-017–024`) moves nothing: letter-sound knowledge stays +3.5 (very strong), word reading +2.2 (strong). Adjusting for **socio-economic status** on the matched complete-case subset (`itt-013/113` against unadjusted comparators `itt-014/114`) leaves both anchor estimates intact — the slight softening of a label there is the halved sample, not the covariate. Adjusting for **study site** (`itt-027/028`) if anything sharpens the estimates. The fitted headline is not an artefact of ability, background or site imbalance, but it remains conditional on the available-case assumption and is not a full-57 estimate.
 
 ## 5. The developmental scaffold (associational families)
 

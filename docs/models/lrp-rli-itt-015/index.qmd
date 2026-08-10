@@ -1,5 +1,5 @@
 ---
-title: "LRPITT15: Taught vs not-taught expressive vocabulary (generalisation contrast)"
+title: "LRPITT15: Available-case modified ITT generalisation contrast, expressive vocabulary"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT15 tests whether the assigned-arm contrast is larger for directly-taught than not-taught expressive vocabulary, one component of the trial's broader generalisation claim. Two Block 1 expressive vocabulary outcomes are fitted together as factorised marginals over the randomised window (t1 $\rightarrow$ t2):
+LRPITT15 compares two available-case modified ITT estimates to test whether the assigned-arm contrast is larger for directly-taught than not-taught expressive vocabulary, one component of the trial's broader generalisation claim. Two Block 1 expressive vocabulary outcomes are fitted together as factorised marginals over the randomised window (t1 $\rightarrow$ t2):
 
 - `TE` — directly-taught target words (`b1extau`, $N = 24$);
 - `UE` — not-taught comparison words (`b1exnt`, $N = 12$).

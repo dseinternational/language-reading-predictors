@@ -1,11 +1,13 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 # Future directions for exploring causal and associative predictors of progress
 
 Date: 2026-07-09. A discussion note collecting candidate directions for extending the study's exploration of predictors of progress in language and reading skills, developed after the 2026-07-08 full reporting fit (89/89 models; `notes/202607082140-statistical-models-full-reporting-fit.md`). It is deliberately broader than the suite gap-analysis umbrella (issue #228, which covers coverage asymmetries and unused variables) and the skill-to-skill mediation question (issue #229): the focus here is on _estimands and identification strategies the suite does not yet use at all_, plus two questions the education team raised directly — characterising non-responders, and children who remain at or around floor on phonics/nonword measures at the final timepoint. Everything here is a proposal for consideration, not a committed analysis; numbers quoted are from the reporting-fit output CSVs and `data/rli_data_long.csv` (54 children × 4 timepoints).
 
-All the usual caveats apply and are load-bearing at this sample size: only the randomised terms (ITT τ, DiD δ, gain-factor on-intervention marginal) are causal; everything else is an adjusted association; credible intervals are wide; and a "no reliable pattern" answer is a legitimate, publishable result, not a failure. See `METHODS.md`.
+All the usual caveats apply and are load-bearing at this sample size: only the randomised terms (the available-case modified ITT estimate τ, DiD δ, and the gain-factor on-intervention marginal) have a causal reading under their analysis-set assumptions; everything else is an adjusted association; credible intervals are wide; and a "no reliable pattern" answer is a legitimate, publishable result, not a failure. See `METHODS.md`.
 
 ## 1. Causal machinery the suite does not yet use
 

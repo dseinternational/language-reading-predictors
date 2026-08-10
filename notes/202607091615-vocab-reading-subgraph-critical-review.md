@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 > [!WARNING]
 > This is a **deliberation note, not a decision**. It critically reviews one sub-region of the LOCKED base DAG (`notes/dag-language-reading.dagitty`, locked 2026-06-23) — how expressive vocabulary reaches word reading — against the TD and Down-syndrome (DS) reading literature. Nothing here changes code or edits the `.dagitty` file; every structural change proposed is gated on team sign-off per the locked DAG's reopen protocol. It is a companion to `notes/202607091430-dag-critical-review-td-atypical-literature.md` and issue #233.
@@ -47,7 +49,7 @@ Trace every child of `EV`. `EG` and `EI` are expressive-language sinks (locked n
 
 ## 3. Options for revision — arguments for and against
 
-These are largely independent moves. None disturbs the ITT τ: randomisation identifies `IG → WR` with the empty adjustment set regardless of the internal edges (locked note ID-1). They matter for the **mechanism / mediation / association** models, all already flagged non-point-identified by latent `GA` (ID-2) and reported as adjusted associations.
+These are largely independent moves. None disturbs the full-cohort assigned-arm identification argument: randomisation identifies `IG → WR` with the empty adjustment set regardless of the internal edges (locked note ID-1). The fitted result remains an available-case modified ITT estimate because of the separate analysis-set restriction. The graph changes matter for the **mechanism / mediation / association** models, all already flagged non-point-identified by latent `GA` (ID-2) and reported as adjusted associations.
 
 | #     | Revision                                                                                              | For                                                                                                                                                          | Against                                                                                                                    | Call                                                              |
 | ----- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -61,7 +63,7 @@ These are largely independent moves. None disturbs the ITT τ: randomisation ide
 
 ## 4. Recommendation
 
-The two changes that actually move the vocabulary story are **#1 (flip `SP`)** and **#2 (add `EV → WR`)**, adopted with **#3**. Together they fix the two structural artefacts this review surfaces: expressive vocabulary is currently (a) bottlenecked to reading through the single DS-weak `PA` gateway, and (b) denied the direct reading route its receptive twin is granted — so the suite is **structurally guaranteed to under-read the vocabulary → reading link in DS, independent of the data**. `#6` is a cheap cleanup; `#4` is a documentation fix; `#5` is contingent; `#7` is the principled long-run fix already on the #233 list. None of this touches the ITT effect.
+The two changes that actually move the vocabulary story are **#1 (flip `SP`)** and **#2 (add `EV → WR`)**, adopted with **#3**. Together they fix the two structural artefacts this review surfaces: expressive vocabulary is currently (a) bottlenecked to reading through the single DS-weak `PA` gateway, and (b) denied the direct reading route its receptive twin is granted — so the suite is **structurally guaranteed to under-read the vocabulary → reading link in DS, independent of the data**. `#6` is a cheap cleanup; `#4` is a documentation fix; `#5` is contingent; `#7` is the principled long-run fix already on the #233 list. None of this changes either the full-cohort assigned-arm identification argument or the fitted available-case modified ITT estimate.
 
 ## References and related
 

@@ -40,7 +40,7 @@ reading.
   be confounding. A residual $b_M$ near zero shows adjustment substantially closes it, so
   LRP59's clearly-positive $b_M$ reflects more than the generic ability bleed-through that
   inflates *every* skill–reading correlation.
-- The full **NIE through $T$** is reported too, but the ITT effect on grammar is $\approx 0$,
+- The full **NIE through $T$** is reported too, but the available-case modified ITT estimate for grammar is $\approx 0$,
   so a small NIE is partly "the intervention barely moves $T$", not only "$T$ does not predict
   reading". The $b_M$ comparison is the cleaner negative-control quantity.
 

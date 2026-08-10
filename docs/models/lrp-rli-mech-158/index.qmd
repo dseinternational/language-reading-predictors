@@ -62,8 +62,8 @@ LRP58 carries, so the comparison of slopes between them stays like-for-like.
 _Still an adjusted association, not a mechanism._ Latent general ability ($GA$) is **not** adjusted for, and the child random intercept does **not**
 stand in for it: a zero-mean, predictor-independent random effect absorbs stable residual
 heterogeneity but cannot block $L \leftarrow GA \rightarrow W$. **Residual confounding by $GA$
-remains**, so $f^L$ is an **adjusted association**, never a causal effect. The randomised causal
-claim lives in the ITT suite.
+remains**, so $f^L$ is an **adjusted association**, never a causal effect. The corresponding
+randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

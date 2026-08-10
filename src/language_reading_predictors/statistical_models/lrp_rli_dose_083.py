@@ -4,7 +4,7 @@
 """LRP83 - period-resolved dose-response: intervention dose -> letter sounds (L).
 
 The letter-sound companion to ``lrp-rli-dose-077`` (word reading), added to give the
-dose-response family coverage of the two *largest* ITT effects (L and B), which the
+dose-response family coverage of the two *largest* available-case modified ITT estimates (L and B), which the
 W-only family lacked (#228 item 2). Same observational estimand and causal structure
 as dose-077 -- see that module's docstring for the full treatment; only the outcome
 changes.

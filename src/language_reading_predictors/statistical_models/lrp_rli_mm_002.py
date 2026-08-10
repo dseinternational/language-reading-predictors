@@ -36,8 +36,9 @@ version of that adjustment is exactly mm-001's structural leg). The report also 
 L's and B's **communality** (how well each measures latent code).
 
 **Caveats.** Still ID-2: ``beta_code`` is a latent-ability-confounded **adjusted
-association**, never "code drives reading" (the randomised claim lives in the ITT
-suite). Frame difference from mech-058: this is between-child (``phase_mode="span"``,
+association**, never "code drives reading" (the corresponding randomised-arm result is
+the available-case modified ITT estimate in the ITT suite). Frame difference from
+mech-058: this is between-child (``phase_mode="span"``,
 t1 baselines -> t4 word reading), not mech-058's phase-stacked within-transition frame,
 so it is a close companion, not an identical re-fit. The head-to-head attenuation
 comparison is therefore against **mech-058's observed-L slope** (same adjustment set,

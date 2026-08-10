@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Prior-sensitivity and unadjusted benchmarks for the ITT suite (#141, #341).
+"""Prior sensitivity for the available-case modified ITT suite (#141, #341).
 
-Refits representative single-outcome ITT models across a grid of tau prior SDs and
+Refits representative single-outcome available-case modified ITT models across a grid of tau prior SDs and
 reports whether the headline conclusion is stable — posterior direction
 (``pd = P(AME > 0)``), the logit and items-scale effect, and the interval width —
 rather than a binary significant/not read.
@@ -44,7 +44,7 @@ P/N are an explicit separate run and default to
 ``output/statistical_models/floor_tau_prior_sensitivity/``, so they cannot mix
 with or overwrite the standard archive. Every attempt retains an immutable
 content-addressed manifest. Before running either sweep, fit the corresponding
-primary ITT models with the same sampling configuration; the sensitivity run
+primary available-case modified ITT models with the same sampling configuration; the sensitivity run
 is bound to those models' current config, trace, data, analysis-set counts, and
 sampling metadata and fails closed when a primary artefact is absent or stale.
 """

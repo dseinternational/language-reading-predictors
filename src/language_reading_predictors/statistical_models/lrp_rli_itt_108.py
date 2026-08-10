@@ -3,7 +3,7 @@
 
 """LRPITT08b - chance-floor link sensitivity for phoneme blending (B).
 
-Robustness companion to LRPITT08. It keeps the same randomised ITT design,
+Robustness companion to LRPITT08. It keeps the same available-case modified ITT analysis,
 Beta-Binomial observation family, adjustment set, and priors, but maps the
 inverse-logit mean onto [1/3, 1] to represent chance performance on each
 three-alternative item. Sign convention: positive ``tau`` means the intervention
@@ -18,7 +18,8 @@ SPEC = ModelSpec(
     model_id="lrp-rli-itt-108",
     kind="itt",
     title=(
-        "ITT effect of group assignment on phoneme blending (B): "
+        "Available-case modified ITT estimate of the assigned-arm contrast in "
+        "phoneme blending (B): "
         "three-choice guessing-floor link sensitivity"
     ),
     outcome_symbol="B",

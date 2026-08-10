@@ -1,5 +1,5 @@
 ---
-title: "LRPITT23: Ability-adjusted modified-ITT offer effect on letter-sound knowledge (LS)"
+title: "LRPITT23: Ability-adjusted available-case modified ITT estimate for letter-sound knowledge (LS)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT23 is the **general-ability-adjusted available-case modified-ITT** analysis for letter-sound knowledge (YARC-LSK) (`yarclet`)—
+LRPITT23 is the **general-ability-adjusted available-case modified ITT** analysis for letter-sound knowledge (YARC-LSK) (`yarclet`)—
 the ability-robustness companion to LRPITT07, part of the LRPITT17-24 ability-adjusted
 family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
 nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The

@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT07 - ITT effect on letter-sound knowledge (L, YARC-LSK).
+"""LRPITT07 - available-case modified ITT estimate for letter-sound knowledge (L, YARC-LSK).
 
-Uniform DAG-faithful ITT model (issue #119). Under the locked DAG the effect of
-randomised assignment is identified by the *empty* adjustment set, so the own
+Uniform DAG-faithful available-case modified ITT model (issue #119). Under the
+locked DAG the assigned-arm coefficient requires no adjustment set, so the own
 baseline and linear age are PRECISION terms only and no cross-baselines enter.
 Sign convention: positive ``tau`` means the intervention raises the outcome.
 Letter sounds carried the strongest treatment effect in the earlier joint model.
@@ -17,7 +17,10 @@ from language_reading_predictors.statistical_models.pipeline import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-007",
     kind="itt",
-    title="ITT effect of group assignment on letter-sound knowledge (L)",
+    title=(
+        "Available-case modified ITT estimate of the assigned-arm contrast in "
+        "letter-sound knowledge (L)"
+    ),
     outcome_symbol="L",
     model_settings=IttModelSettings(),
 )

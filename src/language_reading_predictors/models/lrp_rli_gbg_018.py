@@ -17,7 +17,7 @@ This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable word repetition
 is and from what, to inform whether the shared DAG needs a verbal
 / phonological short-term memory node. It is not a causal or
-intention-to-treat estimate.
+available-case modified ITT estimate.
 """
 
 from language_reading_predictors.data_variables import Variables as V

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT12: Joint ITT analysis across the suite outcomes"
+title: "LRPITT12: Joint available-case modified ITT analysis across the suite outcomes"
 
 format:
   html:
@@ -20,9 +20,9 @@ format:
 
 ## Overview
 
-LRPITT12 fits all baseline-bearing LRPITT outcomes in one PyMC graph using the randomised phase only. Because residual correlation is disabled and the priors are independent by outcome, the posterior factorises into a product of outcome-specific marginals. This is a computationally convenient consistency analysis, not a dependence-aware joint posterior. Cross-outcome comparisons therefore use standardised probability-scale average marginal effects and retain an explicit paired-dependence caveat.
+LRPITT12 jointly fits available-case modified ITT estimates for all baseline-bearing LRPITT outcomes in one PyMC graph using the randomised phase only. Because residual correlation is disabled and the priors are independent by outcome, the posterior factorises into a product of outcome-specific marginals. This is a computationally convenient consistency analysis, not a dependence-aware joint posterior. Cross-outcome comparisons therefore use standardised probability-scale average marginal effects and retain an explicit paired-dependence caveat.
 
-Each outcome-specific estimand is an assigned-arm contrast among archived children with that outcome's required analytic variables observed. Randomisation created exchangeability in the original full randomised cohort, whose offer contrasts require no baseline-covariate adjustment, but archive and outcome-variable selection can break it. A causal reading of any fitted contrast requires that its selection did not induce an association between assigned arm and that outcome's potential values; extending any result to all 57 randomised children requires further missing-data assumptions and sensitivity. Own baseline and age remain precision terms, not remedies for selection.
+Each outcome-specific estimand is an available-case modified ITT contrast among archived children with that outcome's required analytic variables observed. Randomisation created exchangeability in the original full randomised cohort, whose offer contrasts require no baseline-covariate adjustment, but archive and outcome-variable selection can break it. A causal reading of any fitted contrast requires that its selection did not induce an association between assigned arm and that outcome's potential values; extending any result to all 57 randomised children requires further missing-data assumptions and sensitivity. Own baseline and age remain precision terms, not remedies for selection.
 
 The proximal conditional logit coefficients should track their single-outcome counterparts closely. The distal outcomes (R, E, UR, UE) carry the tiered $\mathrm{Normal}(0, 0.3)$ prior in the single-outcome suite but the untiered $\mathrm{Normal}(0, 0.5)$ prior here, so they may differ by a **prior-driven** amount that is not Monte Carlo noise (and the multi-outcome model is fit on $n = 53$ versus single-outcome $n = 54$).
 

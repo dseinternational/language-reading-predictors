@@ -14,8 +14,8 @@ empty. The adjustment set is the own baseline + age + ability (blocks) + ``skill
 (R, TR).
 
 Only the randomised on-intervention term is causal — and its **period-1** average
-marginal effect (the genuinely randomised, all-untreated-baseline transition) is the
-ITT-anchor estimand, not the all-transition pool (#247 P2). ``beta_trt`` itself is the
+marginal effect (the genuinely randomised, all-untreated-baseline transition) is an
+available-case modified ITT estimate, not the all-transition pool (#247 P2). ``beta_trt`` itself is the
 on-intervention log-odds contrast. Every other coefficient is an *adjusted association*:
 the child random intercept is a partial, shrunken stand-in for between-child
 heterogeneity — it does **not** control latent general ability, so those slopes remain

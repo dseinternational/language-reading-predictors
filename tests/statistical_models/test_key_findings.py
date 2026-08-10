@@ -99,6 +99,9 @@ def _setup_dir(
                     "arm": "intervention",
                     "G": 1,
                     "randomised_n": 29,
+                    "lost_to_follow_up_n": 1,
+                    "analysed_archive_n": 28,
+                    "discontinued_but_followed_n": 2,
                     "available_t1_n": 28,
                     "fitted_n": 28,
                     "absent_from_archive_n": 1,
@@ -109,6 +112,9 @@ def _setup_dir(
                     "arm": "control",
                     "G": 0,
                     "randomised_n": 28,
+                    "lost_to_follow_up_n": 2,
+                    "analysed_archive_n": 26,
+                    "discontinued_but_followed_n": 2,
                     "available_t1_n": 26,
                     "fitted_n": 26,
                     "absent_from_archive_n": 2,
@@ -430,8 +436,8 @@ def test_itt_golden_sentences(tmp_path):
     texts = [s["text"] for s in payload["sentences"]]
     assert texts[0] == (
         "Best estimate: the model-estimated intervention-minus-comparison contrast "
-        "for Word reading (WR) was **+2.4 items** over the trial period "
-        "(89% credible range -0.3 to +5.9)."
+        "for Word reading (WR) was **+2.4 items** over the trial period in the "
+        "available-case modified ITT analysis (89% credible range -0.3 to +5.9)."
     )
     assert texts[1] == (
         "There is a 94% probability that the true effect is positive — moderate "
@@ -448,8 +454,123 @@ def test_itt_golden_sentences(tmp_path):
     assert "29" not in texts[3]  # fitted arm counts, not published allocation
     assert "28 immediate-intervention" in texts[3]
     assert "26 waiting-list" in texts[3]
+    assert "available-case modified ITT estimate" in texts[3]
     assert "depend jointly on assigned arm and potential outcomes" in texts[3]
-    assert "all 57 randomised children" in texts[3]
+    assert "not the effect for all 57 randomised children" in texts[3]
+
+
+def test_word_reading_key_findings_label_full_57_as_missing_data_sensitivity(
+    tmp_path,
+):
+    from language_reading_predictors.statistical_models.itt_missingness import (
+        DEFAULT_DELTA_ITEMS,
+        MISSINGNESS_SUMMARY_FILENAME,
+        sha256_file,
+    )
+
+    config = _config(
+        "itt",
+        model_id="lrp-rli-itt-010",
+        resolved_run_plan={"score_mean_link": "logit"},
+    )
+    d = _setup_dir(tmp_path, "itt", config=config)
+    analysis = pd.read_csv(d / "analysis_set.csv")
+    control = analysis["G"].eq(0)
+    analysis.loc[control, "fitted_n"] = 25
+    analysis.loc[control, "not_in_fitted_analysis_n"] = 3
+    analysis.loc[control, "excluded_after_archive_n"] = 1
+    analysis.to_csv(d / "analysis_set.csv", index=False)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    rows = [
+        {
+            "scenario": "screening_model_observed_profiles",
+            "scenario_class": "bridge",
+            "estimand_class": "common_profile_standardisation",
+            "target_population": "53 common observed profiles",
+            "effect_items_median": 2.1,
+            "effect_items_lo89": -0.4,
+            "effect_items_hi89": 4.7,
+        },
+        {
+            "scenario": "mar_all_57",
+            "scenario_class": "missing_at_random",
+            "estimand_class": "common_profile_standardisation",
+            "target_population": "all 57 common profiles",
+            "effect_items_median": 1.9,
+            "effect_items_lo89": -0.7,
+            "effect_items_hi89": 4.5,
+        },
+        {
+            "scenario": "jump_to_reference_intervention_nonstarter",
+            "scenario_class": "reference_based",
+            "estimand_class": "randomised_arm_factual_completion",
+            "target_population": "29 intervention versus 28 control profiles",
+            "effect_items_median": 1.6,
+            "effect_items_lo89": -0.9,
+            "effect_items_hi89": 4.2,
+        },
+    ]
+    for delta_i in DEFAULT_DELTA_ITEMS:
+        for delta_c in DEFAULT_DELTA_ITEMS:
+            rows.append(
+                {
+                    "scenario": f"delta_i_{delta_i:+g}_c_{delta_c:+g}",
+                    "scenario_class": "arm_specific_delta_grid",
+                    "estimand_class": "randomised_arm_factual_completion",
+                    "target_population": "29 intervention versus 28 control profiles",
+                    "delta_intervention_items": delta_i,
+                    "delta_control_items": delta_c,
+                    "clipped_intervention_fraction": 1.0 if delta_i == -8 else 0.0,
+                    "clipped_control_fraction": 0.67 if delta_c == -8 else 0.0,
+                    "effect_items_median": 1.9 + delta_i / 29 - 3 * delta_c / 28,
+                    "effect_items_lo89": -1.0,
+                    "effect_items_hi89": 5.0,
+                }
+            )
+    _write_rows(d, MISSINGNESS_SUMMARY_FILENAME, rows)
+    _write_rows(
+        d,
+        "attrition_bounds.csv",
+        [
+            {
+                "outcome": "W",
+                "worst_case_items_lower": -6.29,
+                "worst_case_items_upper": 4.90,
+            }
+        ],
+    )
+    decision = _release.ReleaseEvaluation(
+        status="ok",
+        stage="robustness",
+        config=config,
+    )
+
+    payload = generate_key_findings(d, decision=decision)
+
+    assert [sentence["kind"] for sentence in payload["sentences"]] == [
+        "headline",
+        "confidence",
+        "rope",
+        "sensitivity",
+        "causal",
+    ]
+    sensitivity = payload["sentences"][3]["text"]
+    assert sensitivity.startswith("Missing-outcome sensitivity:")
+    assert "same 53 observed outcomes" in sensitivity
+    assert "all 57 under MAR" in sensitivity
+    assert "factual randomised arms" in sensitivity
+    assert "one intervention non-starter" in sensitivity
+    assert "100%" in sensitivity and "67%" in sensitivity
+    assert "-6.3 to +4.9 items" in sensitivity
+    assert "unrestricted missing outcomes can reverse direction" in sensitivity
+    assert "assumption-dependent secondary estimates" in sensitivity
+    assert "available-case modified ITT analysis" in payload["sentences"][0]["text"]
+    assert payload["sentences"][1]["text"].startswith(
+        "For the 53-outcome available-case modified ITT model of record"
+    )
+    assert payload["itt_missingness_sensitivity_sha256"] == sha256_file(
+        d / MISSINGNESS_SUMMARY_FILENAME
+    )
 
 
 def _blending_config(model_id: str, link: str) -> dict:
@@ -624,6 +745,8 @@ def test_blending_key_findings_show_both_current_links(tmp_path):
     kinds = [sentence["kind"] for sentence in payload["sentences"]]
     assert kinds == ["headline", "sensitivity", "confidence", "causal"]
     texts = _texts(payload)
+    assert "available-case modified ITT estimate" in texts
+    assert "not a full-randomised-cohort ITT estimate" in texts
     assert "Under the ordinary-logit model" in texts
     assert "ordinary logit model gives +1.0 items" in texts
     assert "one-in-three guessing-floor model gives +0.5 items" in texts
@@ -701,6 +824,7 @@ def test_itt_floored_risk_difference_wording(tmp_path):
     payload = generate_key_findings(d)
     assert payload["status"] == "ok"
     headline = payload["sentences"][0]["text"]
+    assert "available-case modified ITT analysis" in headline
     assert "percentage points" in headline
     assert "+18" in headline
     assert "scoring above zero" in headline
@@ -1412,6 +1536,7 @@ def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
 
     payload = generate_key_findings(d)
 
+    assert "available-case modified ITT" in _texts(payload)
     assert "post-hoc, project-agreed smallest-important difference" in _texts(payload)
 
 
@@ -1564,6 +1689,10 @@ def test_key_findings_partial_is_a_self_contained_renderer():
     assert "blending_link_sensitivity_sha256" in text
     assert "response-link" in text
     assert "summary changed" in text
+    assert "itt_missingness_sensitivity_sha256" in text
+    assert "evaluate_publication" in text
+    assert "full-cohort" in text
+    assert "sensitivity is not current" in text
     # Self-contained: must not depend on _setup.qmd helpers so #321 can move it.
     assert "_csv(" not in text
     assert "_json(" not in text
@@ -1927,24 +2056,25 @@ def test_floored_primary_releases_when_no_grid_is_required(tmp_path):
 def test_released_floored_findings_name_the_post_hoc_subgroup(tmp_path):
     """#392 P1a second half: when a floor model *is* released, its causal sentence
     must identify the post-hoc baseline-floor subgroup and the missingness
-    assumption, not read as an ordinary ITT."""
+    assumption, not read as an unqualified full-cohort ITT."""
     d = _setup_dir(tmp_path, "itt", config=_floor_config())
     _write_csv(d, "rope_summary.csv", _rope_row(delta_scale="risk_difference"))
     payload = generate_key_findings(d)
     causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
+    assert "available-case modified ITT estimate" in causal["text"]
     assert "scored at the floor of this measure at baseline" in causal["text"]
     assert "chosen after the data were seen" in causal["text"]
     assert "already off the floor" in causal["text"]
 
 
-def test_ordinary_itt_causal_sentence_is_unchanged_by_the_floor_wording(tmp_path):
+def test_nonfloor_available_case_modified_itt_keeps_its_selection_wording(tmp_path):
     d = _setup_dir(tmp_path, "itt")
     _write_csv(d, "rope_summary.csv", _rope_row())
     causal = next(
         s for s in generate_key_findings(d)["sentences"] if s["kind"] == "causal"
     )
     assert "at the floor of this measure" not in causal["text"]
-    assert "available-case assumption" in causal["text"]
+    assert "available-case modified ITT estimate" in causal["text"]
 
 
 def test_release_gate_does_not_touch_observational_families(tmp_path):

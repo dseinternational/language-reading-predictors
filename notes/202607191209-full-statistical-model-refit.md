@@ -4,6 +4,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
 > Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 > [!WARNING]
 > **Superseded in part on 2026-08-02.** This remains a dated run record, but any interpretation below from a gate-failed fit is withheld under `notes/202608021625-divergence-qualification-policy.md`; no current trace has a reviewed qualification.
@@ -54,7 +56,7 @@ Full per-model table in `output/statistical_models/_sweep_gate_summary.csv`. The
 - **13 divergence-only** — pass r̂ ≤ 1.01, ESS ≥ 400, BFMI ≥ 0.3, fail _only_ on divergences, all well within the METHODS ≤ 1 % guidance (worst is `mech-190` at 31/36 000 = **0.086 %**): the six knee-tests `mech-156/157/188/189/190/191` (for these the small divergence count **is** the finding — the HSGP curve is demanding and the "knee" stays only weakly identified, exactly as the templates warn), plus `mech-095`, the dose models `dose-077/083/084/177`, `did-007` and `hs-001`. **Usable, noted.**
 - **4 genuine concerns** — all the corr_factor / measurement-model family, the known latent-factor funnel: `mm-001` (r̂ 1.019, ESS 354), `mm-002` (r̂ 1.048, ESS 64), `mm-101` (r̂ 1.021, ESS 260), `rlm-mm-001` (r̂ 1.029, ESS 64, 143 div). Their **domain correlations remain usable; the structural/latent legs are held** pending a non-centred reparameterisation / higher `target_accept` — the recurring latent-factor funnel in these correlation models.
 
-### Headline ITT τ — risk-difference scale, 89 % equal-tailed CI (house standard)
+### Headline available-case modified ITT estimate τ — risk-difference scale, 89 % equal-tailed CI (house standard)
 
 Positive τ = intervention helps; only τ is causal. Labels per the evidence ladder (P ≥ 0.75/0.91/0.97/0.99).
 
@@ -72,7 +74,7 @@ Positive τ = intervention helps; only τ is causal. Labels per the evidence lad
 | Standardised receptive vocab (R)  | itt-005 | +0.001     | [−0.022, 0.025] | 0.539  | inconclusive    |
 | Standardised expressive vocab (E) | itt-006 | +0.001     | [−0.018, 0.020] | 0.534  | inconclusive    |
 
-This is the expected coherent picture: strong-to-very-strong ITT benefit on the code-related and directly-taught skills (L, B, W, TE), tapering to moderate/suggestive on the not-taught vocabulary transfer measures, and **inconclusive-and-probably-negligible on broad standardised vocabulary (R, E)** — the standardised measures barely move.
+This is the expected coherent picture: strong-to-very-strong evidence in the available-case modified ITT estimates for benefits on the code-related and directly-taught skills (L, B, W, TE), tapering to moderate/suggestive on the not-taught vocabulary transfer measures, and **inconclusive-and-probably-negligible on broad standardised vocabulary (R, E)** — the standardised measures barely move.
 
 ### Mediation (g-formula)
 

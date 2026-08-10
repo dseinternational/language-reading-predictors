@@ -1,5 +1,5 @@
 ---
-title: "LRPITT14b: Unadjusted modified-ITT offer effect on the SES complete-case subset, letter sounds"
+title: "LRPITT14b: Unadjusted available-case modified ITT estimate on the SES complete-case subset, letter sounds"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT14B is the **unadjusted available-case modified-ITT** analysis for letter-sound knowledge (YARC-LSK) (`yarclet`) on the **SES complete-case subset**—the matched comparator to LRPITT13b. It adjusts for no SES covariates but deliberately restricts to the same rows (`restrict_complete`): LRPITT13b versus LRPITT14B isolates adjustment with the selected sample fixed, while comparison with LRPITT07 isolates the additional complete-case selection. The estimand is the assigned-arm contrast in $L_{\text{post}}$ in that SES-complete fitted sample. A causal reading requires the archive, outcome and SES complete-case selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
+LRPITT14B is the **unadjusted available-case modified ITT** analysis for letter-sound knowledge (YARC-LSK) (`yarclet`) on the **SES complete-case subset**—the matched comparator to LRPITT13b. It adjusts for no SES covariates but deliberately restricts to the same rows (`restrict_complete`): LRPITT13b versus LRPITT14B isolates adjustment with the selected sample fixed, while comparison with LRPITT07 isolates the additional complete-case selection. The estimand is the assigned-arm contrast in $L_{\text{post}}$ in that SES-complete fitted sample. A causal reading requires the archive, outcome and SES complete-case selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
 _Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the offer contrast in the original full randomised cohort requires no baseline-covariate adjustment. Restricting to archived children with observed outcome and SES variables can break that exchangeability; a causal reading of $\tau$ in this complete-case sample requires that selection did not induce an association between assigned arm and potential outcomes, while extension to all 57 requires further missing-data assumptions and sensitivity. The own baseline and linear age are **precision terms only** — they may sharpen $\tau$ but do not identify effects after selection. **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher modelled outcome.
 

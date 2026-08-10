@@ -17,8 +17,9 @@ association against the trait covariates alone, matching the review that motivat
 
 **Estimand and its limits.** Every coefficient is an *adjusted association*, never a
 causal effect: latent general ability is not observed, so the LS -> WR slope is
-latent-GA-confounded. The only randomisation-licensed effect in the study is the ITT
-arm. Report as median + inner 50% + outer 89% credible interval + P(>0), with the
+latent-GA-confounded. The corresponding randomised-arm result is the available-case
+modified ITT estimate in the ITT suite. Report as median + inner 50% + outer 89%
+credible interval + P(>0), with the
 adjusted-association caveat.
 """
 

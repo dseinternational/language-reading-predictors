@@ -91,7 +91,7 @@ _blending_link_summary[
 
 ## Analysis set and estimand
 
-This report estimates the **randomised-arm contrast in this model's fitted analysis set**: children retain their assigned arm, but the repository contains 54 of the 57 randomised children and the model additionally requires its outcome, baseline and any named robustness covariates to be observed. It is therefore an available-case **modified-ITT** analysis, not an unqualified full-population ITT. Randomisation balances the original assigned arms in expectation; it does not guarantee balance after restricting the analysis to archived and observed cases. A causal reading even for the fitted contrast therefore assumes that archive inclusion, outcome observation and any further complete-case restriction did not select children differently between arms according to their potential outcomes, after allowing for the stated pre-treatment information. Interpreting the contrast as the effect for all 57 randomised children requires further assumptions about the missing outcomes and a corresponding attrition sensitivity. Any extra complete-case restriction is stated in the model overview.
+This report estimates the **available-case modified ITT contrast in this model's fitted analysis set**. Of 57 children randomised, the published CONSORT diagram records three losses to follow-up—one intervention child and two waiting-control children—leaving 54 analysed and represented in the repository. It separately records that two children in each arm discontinued the intervention but were followed and included in the analyses; this model likewise retains children under their assigned arm rather than conditioning on adherence. The model additionally requires its outcome, baseline and any named robustness covariates to be observed. It is therefore an available-case modified ITT analysis, not an unqualified full-population ITT. Randomisation balances the original assigned arms in expectation; it does not guarantee balance after loss to follow-up or further observed-data restrictions. A causal reading even for the fitted contrast therefore assumes that loss to follow-up, outcome observation and any further complete-case restriction did not select children differently between arms according to their potential outcomes, after allowing for the stated pre-treatment information. Interpreting the contrast as the effect for all 57 randomised children requires further assumptions about the missing outcomes and a corresponding attrition sensitivity. Any extra complete-case restriction is stated in the model overview.
 
 ```{python}
 # | echo: false
@@ -122,6 +122,55 @@ if _attrition_bounds is not None:
 _attrition_bounds
 ```
 
+```{python}
+# | echo: false
+# | output: asis
+_missingness = _csv("itt_missingness_sensitivity.csv") if _symbol == "W" else None
+if _symbol == "W" and _missingness is not None and _scientific_results_released:
+    print("## Full-randomised-cohort missing-data sensitivity")
+    print(
+        '::: {.callout-caution title="These scenarios add assumptions; they do not recover outcomes"}\n\n'
+        "The model of record above uses the t1 word-reading baseline and 53 observed t2 outcomes. "
+        "This mandatory secondary refits those same 53 outcomes with screening word reading and screening age, the two complete pre-randomisation counterparts to the primary model's t1 word-reading and t1-age precision terms. Its intercept prior is anchored to the all-57 pre-randomisation screening-word-reading mean and does not use t2 outcomes; the prior table below shows the implications on the reported scales. The bridge and MAR rows average both potential-outcome surfaces over common sets of 53 and 57 profiles, respectively. MAR assumes that outcome observation is independent of the unseen t2 score conditional on assigned arm, screening word reading and screening age, together with the fitted logit Beta-Binomial outcome model and covariate overlap; posterior-predictive checks cannot test that identifying assumption. Jump-to-reference and the 25 delta rows answer a different factual-completion question: they compare the 29 assigned-intervention profiles with the 28 assigned-control profiles, modifying only the unavailable outcome in its assigned arm. The zero-delta row is that factual-arm MAR anchor. The no-benefit restriction gives the one intervention non-starter the control mean surface; it is not classical distributional reference-based multiple imputation. The other rows shift the one intervention and three waiting-control missing outcomes on the 79-item scale. Counterfactual response status is not identified. The fixed shifts are diagnostic identifying restrictions, not estimated parameters or a probability distribution over departures from MAR. Predictions that reach a physical test bound are clipped, and the clipped fractions are reported.\n\n:::"
+    )
+```
+
+```{python}
+# | echo: false
+_missingness[
+    [
+        "scenario",
+        "scenario_class",
+        "estimand_class",
+        "target_population",
+        "delta_intervention_items",
+        "delta_control_items",
+        "effect_items_median",
+        "effect_items_lo50",
+        "effect_items_hi50",
+        "effect_items_lo89",
+        "effect_items_hi89",
+        "prob_effect_positive",
+        "clipped_intervention_fraction",
+        "clipped_control_fraction",
+    ]
+] if _missingness is not None and _scientific_results_released else None
+```
+
+```{python}
+# | echo: false
+_missingness_ppc = _csv("itt_missingness_ppc.csv") if _symbol == "W" else None
+_missingness_ppc if _missingness is not None and _scientific_results_released else None
+```
+
+```{python}
+# | echo: false
+_missingness_prior = (
+    _csv("itt_missingness_prior_check.csv") if _symbol == "W" else None
+)
+_missingness_prior if _missingness is not None and _scientific_results_released else None
+```
+
 ## Results
 
 ```{python}
@@ -129,7 +178,7 @@ _attrition_bounds
 # | output: asis
 print(
     f"This section reports the estimated adjusted randomised-arm contrast on {outcome_label} "
-    "within the fitted available-case modified-ITT analysis set "
+    "within the fitted available-case modified ITT analysis set "
     "and how much of it is large enough to matter in practice (the ROPE summary). Take "
     "the **direction** from `P(intervention helps)`, not from whether an interval clears "
     "zero."

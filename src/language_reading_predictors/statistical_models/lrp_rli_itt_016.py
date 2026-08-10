@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT16 - modality contrast: taught expressive (TE) vs taught receptive (TR).
+"""LRPITT16 - available-case modified ITT modality estimate (TE versus TR).
 
 The generalisation contrasts LRPITT15 (expressive: TE vs UE) and LRPITT15b/115
 (receptive: TR vs UR) each compare taught vs not-taught *within* a modality. Neither
@@ -35,7 +35,10 @@ from language_reading_predictors.statistical_models.pipeline import fit_joint
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-016",
     kind="joint",
-    title="Modality contrast: taught expressive (TE) vs taught receptive (TR) vocabulary, block 1",
+    title=(
+        "Available-case modified ITT estimate: taught expressive (TE) versus "
+        "taught receptive (TR) vocabulary contrast, block 1"
+    ),
     extra={
         "outcomes": ("TE", "TR"),
         # DAG-faithful spec, mirroring the single-outcome suite (own baseline +

@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Regenerate the ITT randomised-contrast figures straight from saved traces.
+"""Regenerate available-case modified ITT contrast figures from saved traces.
 
 Two figure families are redrawn from ``trace.nc`` with no resampling, so colour
-or layout changes can be backfilled onto existing single-outcome ITT fits:
+or layout changes can be backfilled onto existing single-outcome available-case modified ITT fits:
 
 * the predicted-scores panel + icon array (``predicted_scores``); and
 * the intervention-vs-no-intervention overlap curves (``arm_overlap_mean`` and,
@@ -21,7 +21,7 @@ Targets:
     regenerate_itt_contrast_figures.py lrp-rli-itt-010    # one model (all its -<config> dirs)
     regenerate_itt_contrast_figures.py lrp-rli-itt-010-reporting  # one specific fit dir
 
-Only ``kind='itt'`` single-outcome fits are eligible; joint (multi-outcome) ITT
+Only ``kind='itt'`` single-outcome fits are eligible; joint (multi-outcome) available-case modified ITT
 fits and any model declaring a treatment-effect moderator are skipped with a
 note. Honours the output-root override (``DSE_LRP_OUTPUT_DIR`` or
 ``--output-dir``).
@@ -62,8 +62,13 @@ _PARTIALS_SRC = _REPO_ROOT / "docs" / "models" / "_partials"
 # Reference-population and contrast-status strings, kept in step with the two
 # ITT call sites in pipeline.py so backfilled CSVs read identically to fresh fits.
 _GRADED = {
-    "population": "new child; covariate profiles drawn from the fitted ITT analysis rows",
-    "contrast_status": "randomised contrast (ITT)",
+    "population": (
+        "new child; covariate profiles drawn from the fitted available-case modified "
+        "ITT analysis rows"
+    ),
+    "contrast_status": (
+        "randomised assigned-arm contrast (available-case modified ITT estimate)"
+    ),
     "event_label": "off the floor at follow-up",
 }
 _FLOOR = {
@@ -71,7 +76,10 @@ _FLOOR = {
         "new child; covariate profiles drawn from the baseline-floored "
         "at-risk analysis rows"
     ),
-    "contrast_status": "randomised contrast (floor-rule subgroup ITT)",
+    "contrast_status": (
+        "randomised assigned-arm contrast (post-hoc subgroup available-case modified "
+        "ITT estimate)"
+    ),
     "event_label": "off the floor at t2",
 }
 
@@ -200,7 +208,9 @@ def main() -> None:
         if status.startswith("ok"):
             n_ok += 1
         _console.print(f"  {d.name}: {status}")
-    _console.print(f"Regenerated contrast figures for {n_ok} ITT fit(s).")
+    _console.print(
+        f"Regenerated contrast figures for {n_ok} available-case modified ITT fit(s)."
+    )
 
 
 if __name__ == "__main__":

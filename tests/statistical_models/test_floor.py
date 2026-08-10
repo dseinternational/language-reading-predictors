@@ -355,9 +355,10 @@ def test_floor_specs_override_generic_itt_estimand_metadata():
 
     for spec in (P_SPEC, N_SPEC):
         assert spec.design == (
-            "waitlist_randomised_t1_to_t2_observed_baseline_floor_subgroup"
+            "waitlist_randomised_t1_to_t2_available_case_modified_itt_"
+            "observed_baseline_floor_subgroup"
         )
         assert spec.estimand_type == (
-            "post_hoc_exploratory_available_case_subgroup_risk_difference"
+            "available_case_modified_itt_estimate_post_hoc_subgroup_risk_difference"
         )
         assert "observed_baseline_floor_subgroup" in spec.causal_status

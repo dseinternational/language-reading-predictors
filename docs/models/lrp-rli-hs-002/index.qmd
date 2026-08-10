@@ -30,7 +30,7 @@ the GB *cluster* ranking at construct level.
 
 _Ranking cross-check, NOT causal._ Agreement with the gradient-boosting order is reassurance the ranking is not a
 tree-method artefact — not a causal claim. Every coefficient is an adjusted
-association; the randomised causal effect lives in the ITT suite.
+association; the corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 _Concurrent level, n ~ 215 over 54 children._ One row per child × timepoint (`phase_mode="levels"`) with a subject random
 intercept. A high naive association is partly same-wave same-construct

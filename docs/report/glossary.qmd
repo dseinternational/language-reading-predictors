@@ -10,7 +10,7 @@ Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/
 
 **Analysis set.** The children or child-period rows that actually contribute to a fit after applying the model's observation and completeness rules. It can be smaller than the randomised population.
 
-**Average marginal effect (AME).** The average change in a predicted outcome when one exposure is toggled while retaining every fitted row's other observed characteristics. In the canonical ITT model, assignment is toggled for each child and the differences are averaged per posterior draw.
+**Average marginal effect (AME).** The average change in a predicted outcome when one exposure is toggled while retaining every fitted row's other observed characteristics. In the canonical available-case modified ITT model, assignment is toggled for each fitted child and the differences are averaged per posterior draw.
 
 **Bayesian fraction of missing information (BFMI).** A diagnostic of whether the sampler moves adequately through the posterior's energy distribution. The project gate requires a minimum per-chain BFMI of 0.3.
 
@@ -38,7 +38,7 @@ Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/
 
 **Likelihood.** The probability model for the observed data conditional on parameters. It is one modelling assumption and must be checked against replicated data.
 
-**Linear predictor ($\eta$).** The additive combination of intercept and predictor terms before the inverse-link transformation. In the canonical ITT model it is on the logit scale.
+**Linear predictor ($\eta$).** The additive combination of intercept and predictor terms before the inverse-link transformation. In the canonical available-case modified ITT model it is on the logit scale.
 
 **Logit.** The log-odds transform, $\log[p/(1-p)]$, which maps a proportion between 0 and 1 to the real line. The inverse-logit maps a linear predictor back to a proportion.
 

@@ -21,7 +21,7 @@ This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable average
 articulation is and from what, to inform whether the shared DAG
 needs a speech-sound accuracy node. It is not a causal or
-intention-to-treat estimate.
+available-case modified ITT estimate.
 """
 
 from language_reading_predictors.data_variables import Variables as V

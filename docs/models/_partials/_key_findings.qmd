@@ -33,6 +33,10 @@ _kf_blending_required = False
 _kf_blending_ready = True
 _kf_blending_reason = ""
 _kf_blending_sha256 = None
+_kf_missingness_required = False
+_kf_missingness_ready = True
+_kf_missingness_reason = ""
+_kf_missingness_sha256 = None
 if _kf_gate_is_clean:
     try:
         with open(_kf_config_path) as _kf_config_fh:
@@ -60,6 +64,34 @@ if _kf_gate_is_clean:
         _kf_blending_sha256 = _kf_blending_status.get("summary_sha256")
         if not _kf_blending_ready:
             _scientific_results_released = False
+    if (
+        isinstance(_kf_config, dict)
+        and _kf_config.get("model_id") == "lrp-rli-itt-010"
+        and _kf_config.get("kind") == "itt"
+        and _kf_config.get("outcome_symbol") == "W"
+    ):
+        from language_reading_predictors.statistical_models.itt_missingness import (
+            MISSINGNESS_SUMMARY_FILENAME as _KF_MISSINGNESS_FILENAME,
+            sha256_file as _kf_sha256_file,
+        )
+        from language_reading_predictors.statistical_models.release import (
+            evaluate_publication as _kf_evaluate_publication,
+        )
+
+        _kf_missingness_required = True
+        _kf_missingness_decision = _kf_evaluate_publication(
+            _KFPath("."), config=_kf_config
+        )
+        _kf_missingness_ready = bool(_kf_missingness_decision.publishable)
+        _kf_missingness_reason = str(
+            _kf_missingness_decision.reason or "the fit-level release check failed"
+        )
+        if _kf_missingness_ready:
+            _kf_missingness_sha256 = _kf_sha256_file(
+                _KFPath(".") / _KF_MISSINGNESS_FILENAME
+            )
+        else:
+            _scientific_results_released = False
 
 if not _kf_gate_is_clean:
     _kf_gate_checks = (
@@ -85,6 +117,15 @@ elif _kf_blending_required and not _kf_blending_ready:
         f"({_kf_blending_reason}). Rebuild the pair and regenerate key findings."
         "\n\n:::"
     )
+elif _kf_missingness_required and not _kf_missingness_ready:
+    print(
+        '::: {.callout-important title="Findings withheld: full-cohort '
+        'sensitivity is not current"}\n\n'
+        "Word reading requires the complete trace-backed screening-baseline, MAR, "
+        "jump-to-reference and delta-grid bundle before any stored finding is "
+        f"released ({_kf_missingness_reason}). Repair or rerun the bundle and "
+        "regenerate the key findings.\n\n:::"
+    )
 elif not _kf_path.exists():
     print(
         '::: {.callout-note title="Key findings"}\n\n'
@@ -107,6 +148,18 @@ else:
             "The stored phoneme-blending key findings are not bound to the current "
             "paired sensitivity file. Regenerate `key_findings.json` before "
             "interpreting or releasing this report.\n\n:::"
+        )
+    elif _kf_missingness_required and _kf.get(
+        "itt_missingness_sensitivity_sha256"
+    ) != _kf_missingness_sha256:
+        _scientific_results_released = False
+        print(
+            '::: {.callout-important title="Findings withheld: missingness '
+            'summary changed"}\n\n'
+            "The stored word-reading key findings are not bound to the current "
+            "full-randomised-cohort sensitivity table. Regenerate "
+            "`key_findings.json` before interpreting or releasing this report."
+            "\n\n:::"
         )
     elif _kf_status == "gate_failed":
         # A secondary fit can fail even when diagnostics_summary.json records a

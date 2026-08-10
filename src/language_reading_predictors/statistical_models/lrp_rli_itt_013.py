@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT13 - SES-adjusted ITT for word reading (W) (migrates LRP60).
+"""LRPITT13 - SES-adjusted available-case modified ITT estimate for word reading (W).
 
 SES-robustness companion to LRPITT10: the uniform LRPITT spec (own baseline +
 linear age, no cross-baselines) plus linear adjustment for parental education and
@@ -13,8 +13,8 @@ helps.
 
 The SES adjusters (parental education, age first exposed to books) are
 **precision covariates**: they are measured pre-randomisation and are balanced
-across arms in expectation, so they cannot confound the randomised effect and
-only sharpen tau — the identical causal status to the ``blocks``/``area``
+across arms in expectation, so they cannot confound the available-case modified
+ITT estimate and only sharpen tau — the identical causal status to the ``blocks``/``area``
 adjusters. Their prior-table role is therefore ``precision``, not a cross-baseline
 association (#384 review).
 """
@@ -33,7 +33,10 @@ SES_ADJUSTERS = (
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-013",
     kind="itt",
-    title="SES-adjusted ITT effect of group assignment on word reading (W)",
+    title=(
+        "SES-adjusted available-case modified ITT estimate of the assigned-arm "
+        "contrast in word reading (W)"
+    ),
     outcome_symbol="W",
     adjustment=list(SES_ADJUSTERS),
     model_settings=IttModelSettings(adjust_for=SES_ADJUSTERS),

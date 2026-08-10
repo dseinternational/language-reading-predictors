@@ -39,8 +39,9 @@ to dose-077 - only the functional form (HSGP curve vs period-varying slope) chan
 **Strictly observational.** Session dose was not randomised (how much a child attended
 reflects ability, attendance and availability) and IS is a partial collider, so the
 curve is an ADJUSTED ASSOCIATION / sensitivity view, never a treatment effect. Residual
-confounding by latent general ability (GA) remains. The randomised causal claim lives
-in the ITT suite; read this as "children who attended more scored higher, and here is
+confounding by latent general ability (GA) remains. The corresponding randomised-arm
+result is an available-case modified ITT estimate in the ITT suite; read this as
+"children who attended more scored higher, and here is
 whether that relationship bends", not "more sessions cause faster progress".
 """
 

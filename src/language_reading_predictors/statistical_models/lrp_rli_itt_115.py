@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT15b - generalisation contrast (receptive): taught vs not-taught.
+"""LRPITT15b - available-case modified ITT generalisation estimate (receptive).
 
 Receptive companion to LRPITT15: the two Block 1 receptive outcomes — directly
 taught (``TR`` = b1retau) and not-taught (``UR`` = b1rent) — fitted as factorised
@@ -19,7 +19,10 @@ from language_reading_predictors.statistical_models.pipeline import fit_joint
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-115",
     kind="joint",
-    title="Generalisation contrast (receptive): taught vs not-taught vocabulary, block 1",
+    title=(
+        "Available-case modified ITT estimate: receptive taught-versus-not-taught "
+        "vocabulary contrast, block 1"
+    ),
     # LKJ residual correlation is OFF (same spec as LRPITT15) because an earlier
     # dependence sensitivity mixed poorly. The factorised fit is more stable, but
     # it does not estimate within-child covariance and is not automatically

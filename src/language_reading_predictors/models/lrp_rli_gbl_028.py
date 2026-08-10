@@ -14,7 +14,7 @@ This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable total words is
 and from what, to inform whether the shared DAG needs a
 spontaneous connected speech node. It is not a causal or
-intention-to-treat estimate. The language-sample measures are
+available-case modified ITT estimate. The language-sample measures are
 recorded at t1–t2 only, so this level model is doubly exploratory
 (≈106 rows, two waves) and no gain model is fitted. The other
 language-sample measures are absent from the default predictor

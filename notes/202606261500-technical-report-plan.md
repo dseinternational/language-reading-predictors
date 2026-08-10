@@ -10,6 +10,8 @@
 > drafting time; reading-science and method citations must have DOIs verified per
 > `METHODS.md` before they enter the report.
 >
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+>
 > Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
 
 > [!WARNING]
@@ -120,7 +122,7 @@ artifacts are named so chapters reuse what exists rather than reinvent.
   also **seeds the secondary publication**. _Reuses:_ findings notes; `tau_forest.png`,
   `rope_summary.csv`.
 - **One-row-per-outcome evidence table** — the at-a-glance spine: one row per outcome ×
-  {ITT τ, DiD, evidence label}. Also a seed for the secondary publication. _Reuses:_
+  {available-case modified ITT estimate τ, DiD, evidence label}. Also a seed for the secondary publication. _Reuses:_
   `tau_summary.csv`, `did_summary.csv`, `rope_summary.csv`.
 
 ### Part I — Question, design, causal frame
@@ -170,7 +172,7 @@ artifacts are named so chapters reuse what exists rather than reinvent.
 
 ### Part IV — The causal core `[CAUSAL]`
 
-- **Ch 8. The headline ITT effects** — one section per outcome (word reading;
+- **Ch 8. The headline available-case modified ITT estimates** — one section per outcome (word reading;
   letter-sounds; blending; receptive/expressive vocabulary; grammar/expressive language;
   floored outcomes — phonetic spelling, nonword reading). Each section: plain lead →
   formal numbers (the mandated sentence-shape) → detail in footnotes. One headline model

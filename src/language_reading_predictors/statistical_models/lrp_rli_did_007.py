@@ -19,8 +19,8 @@ useful, publishable negative result.
 
 The session slopes are observational intensive-margin associations, potentially
 confounded by general ability and attendance selection. Cumulative sessions are
-not conditioned on. The causal intervention contrast is reported by the ITT and
-binary arm-by-wave models, not by these dose coefficients.
+not conditioned on. The corresponding available-case modified ITT estimate and the
+binary arm-by-wave contrast are reported by their own models, not by these dose coefficients.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT22: Ability-adjusted modified-ITT offer effect on expressive vocabulary (EV)"
+title: "LRPITT22: Ability-adjusted available-case modified ITT estimate for expressive vocabulary (EV)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT22 is the **general-ability-adjusted available-case modified-ITT** analysis for expressive vocabulary (EOWPVT) (`eowpvt`)—
+LRPITT22 is the **general-ability-adjusted available-case modified ITT** analysis for expressive vocabulary (EOWPVT) (`eowpvt`)—
 the ability-robustness companion to LRPITT06, part of the LRPITT17-24 ability-adjusted
 family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
 nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The

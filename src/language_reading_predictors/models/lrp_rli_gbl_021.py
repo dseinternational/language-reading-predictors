@@ -15,7 +15,7 @@ This is an exploratory gradient-boosting discovery model on the
 same footing as LRPGBG12–22: it asks how predictable vowel
 articulation is and from what, to inform whether the shared DAG
 needs a speech-sound accuracy node. It is not a causal or
-intention-to-treat estimate.
+available-case modified ITT estimate.
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -63,4 +63,3 @@ class LRPGBL21(LevelModel):
     notes = (
         "Exploratory model for deappvo (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
     )
-

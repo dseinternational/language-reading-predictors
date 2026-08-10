@@ -43,8 +43,11 @@ The instinct to set these two aside is sound, but the reason given —
 were being conflated:
 
 1. **Floored baseline → degenerate `gamma_own`.** This is real but _irrelevant to
-   exclusion_. The locked DAG (#115) identifies the ITT effect τ from the **empty
-   adjustment set**; `gamma_own` is a **precision term only**, not needed for
+   exclusion_. The locked DAG (#115) identifies the full-cohort assigned-arm
+   contrast from the **empty adjustment set** in principle; the fitted graded τ
+   remains an **available-case modified ITT estimate**, and the floor-rule branch
+   further restricts the estimand to the observed baseline-floored subgroup.
+   `gamma_own` is a **precision term only**, not needed for confounding
    identification. Dropping a noisy precision term costs nothing causal. So a
    degenerate own‑baseline coupling is a reason to **simplify the linear
    predictor** (age‑only), not to drop the outcome.

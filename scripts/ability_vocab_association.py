@@ -4,7 +4,7 @@
 """Consolidate the baseline non-verbal ability -> vocabulary adjusted association (issue #186, Q4).
 
 Surfaces ``gamma_blocks`` -- the block-design (non-verbal ability) coefficient the
-ability-adjusted ITT models (LRPITT17-22) already fit -- across the six vocabulary
+ability-adjusted available-case modified ITT models (LRPITT17-22) already fit -- across the six vocabulary
 outcomes as a single Q4 read-out. ``gamma_blocks`` is the *partial* association of
 baseline non-verbal ability with each vocabulary outcome, holding the child's own
 baseline, linear age and randomised arm fixed.
@@ -46,7 +46,7 @@ from language_reading_predictors.statistical_models.reporting import (
     favoured_direction,
 )
 
-# The ability-adjusted ITT family (LRPITT17-24), restricted to the six vocabulary
+# The ability-adjusted available-case modified ITT family (LRPITT17-24), restricted to the six vocabulary
 # outcomes (LRPITT23/24 are the L/W reading companions -- add them with --models
 # for prognostic context).
 DEFAULT_MODELS = (
@@ -85,7 +85,7 @@ def summarise_gamma(
     items-scale average marginal effect of a +1 SD shift: since ``eta`` already
     carries ``g * z(blocks)``, a +1 SD shift adds ``g`` to the linear predictor, so
     the per-draw AME is ``mean_i[expit(eta_i + g) - expit(eta_i)] * n_trials`` (the
-    same AME logic the ITT/ROPE reporting uses for tau).
+    same AME logic the available-case modified ITT/ROPE reporting uses for tau).
     """
     g = np.asarray(g, dtype=float).reshape(-1)
     prob_pos = float((g > 0).mean())

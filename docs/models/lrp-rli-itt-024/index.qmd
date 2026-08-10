@@ -1,5 +1,5 @@
 ---
-title: "LRPITT24: Ability-adjusted modified-ITT offer effect on word reading (WR)"
+title: "LRPITT24: Ability-adjusted available-case modified ITT estimate for word reading (WR)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT24 is the **general-ability-adjusted available-case modified-ITT** analysis for word reading (EWRSWR) (`ewrswr`)—
+LRPITT24 is the **general-ability-adjusted available-case modified ITT** analysis for word reading (EWRSWR) (`ewrswr`)—
 the ability-robustness companion to LRPITT10, part of the LRPITT17-24 ability-adjusted
 family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
 nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The

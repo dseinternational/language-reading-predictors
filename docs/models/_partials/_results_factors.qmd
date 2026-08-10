@@ -175,12 +175,12 @@ if treatment_marginal is not None:
         print(
             f"On the items scale the treatment average marginal effect — averaged over the "
             f"**period-1 (randomised) transition only**, the genuinely all-untreated-baseline "
-            f"contrast that anchors the ITT effect — is a median of "
+            f"contrast that defines this available-case modified ITT estimate — is a median of "
             f"**{_t.trt_items_median:+.1f} items** "
             f"(50% CrI {_t.trt_items_lo50:+.1f} to {_t.trt_items_hi50:+.1f}; "
             f"89% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
             f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
-            f"the on-intervention log-odds contrast, not the marginal ITT effect.\n"
+            f"the on-intervention log-odds contrast, not the marginal available-case modified ITT estimate.\n"
         )
 print(
     _img(

@@ -623,6 +623,7 @@ underdispersed
 underdispersion
 unfittable
 ungated
+UKDA
 unidimensionality
 univariates
 unmodelled

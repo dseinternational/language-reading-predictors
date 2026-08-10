@@ -199,8 +199,8 @@ The present study addresses that gap by re-analysing the RLI randomised trial
 [@burgoyne2012] with a deliberate two-step methodology: gradient-boosting models to
 screen which baseline characteristics carry predictive signal for each outcome, followed
 by Bayesian models built on an explicit causal diagram (DAG) to estimate interpretable
-quantities with quantified uncertainty — distinguishing the one effect the randomisation
-identifies as **causal** (the intention-to-treat effect of the intervention) from the
+quantities with quantified uncertainty — distinguishing the full-cohort assigned-arm effect that randomisation
+identifies in principle from the current **available-case modified ITT estimate**, whose causal reading additionally requires the stated selection assumption, and from the
 many baseline-to-outcome **associations** that are predictive but not causal. This is
 well matched to the literature reviewed above: the reading and language profile of Down
 syndrome is heterogeneous and language-constrained; intervention gains are real but

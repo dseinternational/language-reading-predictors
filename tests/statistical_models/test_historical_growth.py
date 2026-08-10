@@ -253,7 +253,7 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
     cfg = json.loads((tmp_path / "config.json").read_text())
     assert cfg["study_id"] == "rli"
     assert cfg["family"] == "itt"
-    assert cfg["estimand_type"] == "causal_available_case_randomised_effect"
+    assert cfg["estimand_type"] == "available_case_modified_itt_estimate"
     assert cfg["spec_extra"] == {}
     assert cfg["model_settings"]["source"] == "typed"
     assert cfg["model_settings"]["adjust_for"] == ["age"]

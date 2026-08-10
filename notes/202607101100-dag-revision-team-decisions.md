@@ -36,7 +36,7 @@ The authoritative machine-readable graph is `dag/dag-language-reading.dagitty` (
 
 ## 3. What this changes for identification — and what it does not
 
-**Robust (no change).** The primary causal estimand is untouched. `IG` is randomised and parent-less, so the **intention-to-treat effect `IG -> WR` is still identified by the empty adjustment set**; none of edits 2–6 opens a back-door from `IG`. The whole ITT/joint suite (LRP-RLI-ITT-\*, the DiD/waitlist family) is therefore unaffected in its identification. A bonus: `HS`, `RW` and `SP` at baseline are pre-randomisation child characteristics, so they are now available as **optional precision covariates** for ITT (they cannot bias τ; they can tighten it).
+**Robust (no change).** The primary full-cohort assigned-arm estimand is untouched. `IG` is randomised and parent-less, so that estimand is identified by the empty confounder adjustment set; none of edits 2–6 opens a back-door from `IG`. The fitted result remains an **available-case modified ITT estimate**, however, and its causal reading additionally requires the stated selection assumption. The whole ITT/joint suite (LRP-RLI-ITT-\*, the DiD/waitlist family) is therefore unaffected in its confounding identification. A bonus: `HS`, `RW` and `SP` at baseline are pre-randomisation child characteristics, so they are now available as **optional precision covariates** for ITT (they can tighten τ but do not repair selection).
 
 **Changed (adjustment sets must be re-derived).** Every observational coupling — mechanism slopes, mediation decompositions, adjusted associations — is only ever an adjusted association, never causal (per `METHODS.md`), and the _correct_ adjustment set now differs:
 

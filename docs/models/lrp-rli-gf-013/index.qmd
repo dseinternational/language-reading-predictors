@@ -24,7 +24,7 @@ LRPGF13 is [`lrp-rli-gf-010`](../lrp-rli-gf-010) — the **gain-factors** model 
 
 _Causal labelling (DAG guardrails)._
 
-**Only the randomised on-intervention term is causal.** Its **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is the ITT-anchor estimand; `beta_trt` itself is only the on-intervention log-odds contrast. Every other coefficient is an **adjusted association**, latent-GA-confounded.
+**Only the randomised on-intervention term is causal.** Its **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is an available-case modified ITT estimate; `beta_trt` itself is only the on-intervention log-odds contrast. Every other coefficient is an **adjusted association**, latent-GA-confounded.
 
 The three skill terms carry **two distinct roles**, and must not be read as one block:
 

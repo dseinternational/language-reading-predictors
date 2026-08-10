@@ -1,3 +1,8 @@
+> [!NOTE]
+> Participant-flow wording updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+
 # Predictors of progress in language and reading skills for children with Down syndrome
 
 > [!WARNING]
@@ -11,7 +16,9 @@ All children with Down syndrome experience delays in language and reading develo
 
 This project draws together data collected on a variety of language, reading and other measures in studies of children with Down syndrome. We are using a variety of machine learning and modern statistical techniques to describe what these data show, and to estimate the influences of multiple factors on rates of language and literacy learning.
 
-The first data set that we are exploring is from a longitudinal study of children with Down syndrome who took part in the [Reading and Language Intervention (RLI) trial](https://www.down-syndrome.org/resources/reading-language-intervention/), which followed 54 children across four timepoints. The RCT component of this study was [previously reported](https://doi.org/10.1111/j.1469-7610.2012.02557.x), as were analyses of [speech production accuracy](https://doi.org/10.1111/jir.12890) and an associated [investigation of teaching blending skills](https://doi.org/10.1177/0265659012474674).
+The first data set that we are exploring is from the [Reading and Language Intervention (RLI) trial](https://www.down-syndrome.org/resources/reading-language-intervention/). Of 57 children randomised, the original report records three losses to follow-up—one from the immediate-intervention arm and two from the waiting-control arm—leaving 54 children analysed (28 and 26 respectively), whose longitudinal records are represented in this repository at four scheduled timepoints. Two additional children in each arm discontinued the intervention after moving school but were followed and retained in the analyses under their assigned groups. The RCT component of this study was [previously reported](https://doi.org/10.1111/j.1469-7610.2012.02557.x), as were analyses of [speech production accuracy](https://doi.org/10.1111/jir.12890) and an associated [investigation of teaching blending skills](https://doi.org/10.1177/0265659012474674).
+
+Accordingly, this repository describes its current randomised-window Bayesian estimates as **available-case modified ITT estimates**, not full-57 ITT estimates. Randomisation identifies the assigned-arm contrast in the full cohort in principle, but causal interpretation of each fitted estimate also requires the stated assumptions about loss to follow-up and any further model-specific observed-data selection. Explicit full-57 missing-data sensitivity estimands are labelled separately.
 
 With this data set, we are using gradient boosting (machine learning algorithms that combine multiple decision trees) to train models that predict gains and achievement levels from the available variables. We then analyse these trained models to understand which variables contribute to the best predictions. This offers a data-driven approach to identifying predictors that may be important for different outcomes. The second phase of our exploration takes these candidate predictors and develops statistical models to estimate the independent and joint effects of selected predictors on outcomes of interest. We use Bayesian inference to obtain full posterior probability distributions for all parameters in our models in order to quantify uncertainty in our estimates.
 

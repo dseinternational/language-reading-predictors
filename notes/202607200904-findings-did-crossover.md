@@ -14,7 +14,7 @@ This is family note 04 in the suite. It reports every model in the **difference-
 
 The trial is a **waitlist-crossover randomised design**: about 54 children with Down syndrome were randomly assigned either to start a reading/phonics intervention immediately or to start it after a wait, and were tested at four timepoints. The DiD family uses that crossover structure directly. Each model jointly fits the bounded post-scores at three waves (t1, t2, t3) for one skill, on a proportion-correct (logit) scale via a Beta-Binomial likelihood, and estimates a separate **immediate-minus-waitlist arm gap at each wave** plus a child random intercept (which partially pools stable between-child differences but does **not** stand in for latent general ability, and is not an exact fixed-effect control).
 
-The question it answers that the others do not: it reads the intervention effect _through the within-person crossover trajectory_ — the immediate arm pulls ahead at t2, then the waitlist arm catches up once it too receives the intervention — rather than through a single post-baseline comparison (ITT) or a period-stacked gain model (gain-factors). It is a **longitudinal sensitivity analysis alongside the randomised ITT, not an independent experiment**: agreement between the DiD t2 contrast and its ITT sibling is a parameterisation cross-check on shared data, not a replication.
+The question it answers that the others do not: it reads the intervention effect _through the within-person crossover trajectory_ — the immediate arm pulls ahead at t2, then the waitlist arm catches up once it too receives the intervention — rather than through a single post-baseline comparison (ITT) or a period-stacked gain model (gain-factors). It is a **longitudinal sensitivity analysis alongside the available-case modified ITT estimate, not an independent experiment**: agreement between the DiD t2 contrast and its available-case modified ITT sibling is a parameterisation cross-check on shared data, not a replication.
 
 The family has four wave-contrasts, and telling them apart is the whole point:
 
@@ -81,7 +81,7 @@ The table gives the headline `tau_t2` (t2 randomised contrast). Item columns are
 
 ## What the family concludes
 
-The DiD re-analysis **triangulates cleanly with the randomised ITT** on the causal `tau_t2` contrast, outcome by outcome (ITT items in brackets):
+The DiD re-analysis **triangulates cleanly with the available-case modified ITT estimates** on the causal `tau_t2` contrast, outcome by outcome (available-case modified ITT items in brackets):
 
 - L: DiD +3.5 items, very strong ≈ **ITT +3.5, very strong** — near-identical.
 - W: DiD +2.2 items, moderate ≈ **ITT +2.4, strong** — same magnitude, DiD interval a touch wider so one rung lower on the ladder.
@@ -93,7 +93,7 @@ The DiD re-analysis **triangulates cleanly with the randomised ITT** on the caus
 - P: DiD +2.3 pp off-floor, inconclusive ≈ **ITT +4.1 pp, inconclusive** — same (flat, floored).
 - R and E: DiD flat/inconclusive ≈ **ITT flat/inconclusive** — agreement on the null-ish result.
 
-The consistent theme is that the DiD `tau_t2` sits within a whisker of the ITT τ but is typically one evidence-rung softer, because a three-wave joint fit spends more of its precision than the single ITT comparison — which is exactly the expected behaviour of a sensitivity analysis. The **crossover picture** is coherent: the immediate arm pulls ahead at t2 on the code and taught skills, and by t3 the waitlist arm has partly (L, B) or fully (TE, TR) caught up once it too is taught — visible in the positive `delta_crossover` associations and the shrinking t3 arm gaps. The dose companions add an observational layer: for word reading the residual session-intensity gradient is strongly positive, whereas for letter-sounds the association is carried by treatment presence rather than by intensity — both associational and both consistent with a code-focused benefit.
+The consistent theme is that the DiD `tau_t2` sits within a whisker of the available-case modified ITT estimate τ but is typically one evidence-rung softer, because a three-wave joint fit spends more of its precision than the single-window available-case modified ITT comparison — which is exactly the expected behaviour of a sensitivity analysis. The **crossover picture** is coherent: the immediate arm pulls ahead at t2 on the code and taught skills, and by t3 the waitlist arm has partly (L, B) or fully (TE, TR) caught up once it too is taught — visible in the positive `delta_crossover` associations and the shrinking t3 arm gaps. The dose companions add an observational layer: for word reading the residual session-intensity gradient is strongly positive, whereas for letter-sounds the association is carried by treatment presence rather than by intensity — both associational and both consistent with a code-focused benefit.
 
 ## Caveats and convergence
 

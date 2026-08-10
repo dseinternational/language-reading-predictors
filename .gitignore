@@ -3,6 +3,7 @@
 
 outputs/
 output/
+data/generated/
 figures/
 _freeze/
 _temp/

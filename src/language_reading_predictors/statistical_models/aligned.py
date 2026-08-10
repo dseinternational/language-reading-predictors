@@ -17,7 +17,7 @@ cross-sectional Beta-Binomial regression of the aligned post-score on its own on
 baseline, age-at-onset and cognitive ability, optionally with a cohort indicator and
 the cumulative session dose. One row per child, so there is **no child random
 intercept**. The cohort contrast is a **per-protocol association**, not the
-randomised ITT effect (it is confounded by age-at-onset and cohort/timing), and the
+available-case modified ITT estimate (it is confounded by age-at-onset and cohort/timing), and the
 dose term is a collider descendant of group and ability -- a sensitivity variant.
 """
 
@@ -214,14 +214,14 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
     )
     estimand = (
         "The cohort contrast at the two arms' own onset-aligned endpoints -- a "
-        "per-protocol association, NOT the randomised ITT effect (it is confounded by "
+        "per-protocol association, NOT an available-case modified ITT estimate (it is confounded by "
         "age-at-onset and cohort/timing). With the dose variant, the cumulative-session "
         "covariate is a collider descendant of group and ability, a sensitivity variant."
     )
     causal_status = (
         "Associational / per-protocol: no randomised contrast is estimated. The cohort "
         "term is confounded by age-at-onset and cohort/timing and the dose term is a "
-        "collider descendant; neither is the ITT treatment effect."
+        "collider descendant; neither is an available-case modified ITT estimate."
     )
     analysis_population = (
         "Available-case children with onset-aligned pre and post scores (the "

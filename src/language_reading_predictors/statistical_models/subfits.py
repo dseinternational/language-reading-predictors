@@ -46,6 +46,7 @@ from __future__ import annotations
 import hashlib
 import os
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Any, Literal, Sequence
 
 import numpy as np
@@ -140,6 +141,7 @@ class SubfitResult:
     convergence_scope: ConvergenceScope
     posterior_predictive: tuple[str, ...] = ()
     trace_file: str | None = None
+    trace_sha256: str | None = None
     failure_type: str | None = None
     failure: str | None = None
 
@@ -179,6 +181,7 @@ class SubfitResult:
             "random_seed": self.sampling.get("random_seed"),
             "posterior_predictive": ", ".join(self.posterior_predictive),
             "trace_file": self.trace_file,
+            "trace_sha256": self.trace_sha256,
             "failure_type": self.failure_type,
             "failure": self.failure,
         }
@@ -373,6 +376,124 @@ def _classify_failure(convergence: dict[str, Any]) -> tuple[str | None, str | No
     )
 
 
+def _sha256_file(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _stored_text(value: Any) -> str:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return ""
+    return str(value).strip()
+
+
+def _require_subfit_reuse_compatibility(
+    source: str | Path,
+    *,
+    label: str,
+    role: SubfitRole,
+    trace_filename: str,
+    sampling: dict[str, Any],
+    data: SubfitData,
+    convergence_scope: ConvergenceScope,
+    posterior_predictive: tuple[str, ...],
+) -> None:
+    """Fail unless one persisted provenance row matches this named sub-fit."""
+
+    source = Path(source)
+    provenance_path = source / f"{PROVENANCE_TABLE}.csv"
+    try:
+        frame = pd.read_csv(provenance_path)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            "reuse-trace mode requires prior sub-fit provenance at "
+            f"{provenance_path}"
+        ) from exc
+    except (OSError, UnicodeDecodeError, pd.errors.ParserError, ValueError) as exc:
+        raise ValueError(
+            f"reuse-trace prior sub-fit provenance is unreadable: {provenance_path}"
+        ) from exc
+    required = set(PROVENANCE_COLUMNS)
+    if not required.issubset(frame.columns):
+        missing = ", ".join(sorted(required - set(frame.columns)))
+        raise ValueError(
+            "reuse-trace prior sub-fit provenance lacks required columns: " + missing
+        )
+    rows = frame.loc[
+        frame["label"].astype(str).eq(label)
+        & frame["trace_file"].astype(str).eq(trace_filename)
+    ]
+    if len(rows) != 1:
+        raise ValueError(
+            "reuse-trace requires exactly one prior provenance row for "
+            f"{label!r} and {trace_filename!r}"
+        )
+    if data.digest is None:
+        raise ValueError("reuse-trace cannot verify this sub-fit's fitted data")
+
+    expected = SubfitResult(
+        label=label,
+        role=role,
+        trace=None,
+        convergence={},
+        sampling=sampling,
+        data=data,
+        convergence_scope=convergence_scope,
+        posterior_predictive=posterior_predictive,
+        trace_file=trace_filename,
+    ).provenance_row()
+    row = rows.iloc[0]
+    text_fields = (
+        "label",
+        "role",
+        "convergence_scope",
+        "observed_nodes",
+        "identity_keys",
+        "data_digest",
+        "sampler",
+        "random_seed",
+        "posterior_predictive",
+        "trace_file",
+    )
+    numeric_fields = (
+        "n_children",
+        "n_obs",
+        "draws",
+        "tune",
+        "chains",
+        "cores",
+        "target_accept",
+    )
+    mismatched = [
+        field
+        for field in text_fields
+        if _stored_text(row.get(field)) != _stored_text(expected.get(field))
+    ]
+    for column in numeric_fields:
+        stored = pd.to_numeric(row.get(column), errors="coerce")
+        wanted = pd.to_numeric(expected.get(column), errors="coerce")
+        if pd.isna(stored) or pd.isna(wanted) or not np.isclose(float(stored), float(wanted)):
+            mismatched.append(column)
+
+    trace_path = source / trace_filename
+    recorded_sha256 = _stored_text(row.get("trace_sha256"))
+    if (
+        len(recorded_sha256) != 64
+        or not trace_path.is_file()
+        or _sha256_file(trace_path) != recorded_sha256
+    ):
+        mismatched.append("trace_sha256")
+    if mismatched:
+        fields = ", ".join(dict.fromkeys(mismatched))
+        raise ValueError(
+            "reuse-trace sub-fit compatibility check failed for "
+            f"{label!r}: {fields}"
+        )
+
+
 def run_subfit(
     ctx: Any,
     built: Any,
@@ -394,7 +515,10 @@ def run_subfit(
     (the floor-rule secondaries need ``y_post`` for their predictive summaries).
     ``trace_filename`` persists the sub-fit trace next to the primary's and
     records it on the artefact manifest, which is what makes a published
-    secondary estimate independently auditable.
+    secondary estimate independently auditable. In ``--reuse-trace`` mode, a
+    named persisted sub-fit is loaded from the previous publication and its
+    posterior predictive is regenerated; a missing named trace fails closed
+    instead of silently running fresh NUTS under a no-sampling command.
 
     Sampling failures propagate. A sub-fit that cannot be sampled is not a
     warn-and-continue artefact, and the two callers that tolerate one (the SES
@@ -423,18 +547,57 @@ def run_subfit(
     data = describe_fitted_data(built)
     pp = tuple(posterior_predictive or ())
 
-    with built.model:
-        trace = pm.sample(
-            draws=s.draws,
-            tune=s.tune,
-            chains=s.chains,
-            cores=s.cores,
-            target_accept=s.target_accept,
-            nuts_sampler=NUTS_SAMPLER,
-            return_inferencedata=True,
-            random_seed=s.random_seed,
-            progressbar=False,
+    trace = None
+    reuse = os.environ.get("DSE_LRP_REUSE_TRACE")
+    if reuse and trace_filename is None:
+        raise FileNotFoundError(
+            "reuse-trace mode cannot reuse an unnamed sub-fit; refusing to run "
+            f"fresh NUTS for {label!r}"
         )
+    if reuse:
+        import arviz as az
+
+        from language_reading_predictors.statistical_models.reporting import (
+            require_reuse_compatibility,
+        )
+
+        source = getattr(ctx, "final_output_dir", None) if reuse == "1" else reuse
+        if source is None:
+            raise FileNotFoundError(
+                f"cannot resolve the saved sub-fit directory for {trace_filename}"
+            )
+        source_path = os.path.join(str(source), trace_filename)
+        if not os.path.isfile(source_path):
+            raise FileNotFoundError(
+                "reuse-trace mode requires the persisted sub-fit trace at "
+                f"{source_path}; refusing to replace it with a new NUTS sample"
+            )
+        require_reuse_compatibility(ctx, source)
+        _require_subfit_reuse_compatibility(
+            source,
+            label=label,
+            role=role,
+            trace_filename=trace_filename,
+            sampling=sampling,
+            data=data,
+            convergence_scope=convergence_scope,
+            posterior_predictive=pp,
+        )
+        trace = az.from_netcdf(source_path)
+
+    with built.model:
+        if trace is None:
+            trace = pm.sample(
+                draws=s.draws,
+                tune=s.tune,
+                chains=s.chains,
+                cores=s.cores,
+                target_accept=s.target_accept,
+                nuts_sampler=NUTS_SAMPLER,
+                return_inferencedata=True,
+                random_seed=s.random_seed,
+                progressbar=False,
+            )
         if pp:
             trace = pm.sample_posterior_predictive(
                 trace,
@@ -455,8 +618,11 @@ def run_subfit(
     )
     failure_type, failure = _classify_failure(convergence)
 
+    trace_sha256 = None
     if trace_filename is not None:
-        trace.to_netcdf(os.path.join(ctx.output_dir, trace_filename))
+        output_trace_path = os.path.join(ctx.output_dir, trace_filename)
+        trace.to_netcdf(output_trace_path)
+        trace_sha256 = _sha256_file(output_trace_path)
         record_artifact(
             ctx,
             os.path.splitext(trace_filename)[0],
@@ -474,6 +640,7 @@ def run_subfit(
         convergence_scope=convergence_scope,
         posterior_predictive=pp,
         trace_file=trace_filename,
+        trace_sha256=trace_sha256,
         failure_type=failure_type,
         failure=failure,
     )
@@ -499,3 +666,43 @@ def record_subfit(ctx: Any, result: SubfitResult) -> None:
         log.frame(),
         required_columns=PROVENANCE_COLUMNS,
     )
+
+
+def refresh_subfit_trace_hash(
+    ctx: Any, *, label: str, trace_filename: str
+) -> str:
+    """Rebind provenance after a family augments an already persisted trace.
+
+    ``run_subfit`` owns the initial persistence, but a family may subsequently add
+    registered groups to that same NetCDF file. The provenance row must then name
+    the final bytes, otherwise reuse correctly rejects the family's own completed
+    trace as stale.
+    """
+
+    output_dir = getattr(ctx, "output_dir", None)
+    log = _log_of(ctx)
+    if output_dir is None or log is None:
+        raise ValueError("cannot refresh sub-fit trace provenance without a fit log")
+    trace_path = Path(output_dir) / trace_filename
+    if not trace_path.is_file():
+        raise FileNotFoundError(f"cannot refresh missing sub-fit trace: {trace_path}")
+    matches = [
+        index
+        for index, result in enumerate(log.results)
+        if result.label == label and result.trace_file == trace_filename
+    ]
+    if len(matches) != 1:
+        raise ValueError(
+            "cannot uniquely identify the sub-fit provenance row for "
+            f"{label!r} and {trace_filename!r}"
+        )
+    digest = _sha256_file(trace_path)
+    index = matches[0]
+    log.results[index] = replace(log.results[index], trace_sha256=digest)
+    save_table(
+        ctx,
+        PROVENANCE_TABLE,
+        log.frame(),
+        required_columns=PROVENANCE_COLUMNS,
+    )
+    return digest

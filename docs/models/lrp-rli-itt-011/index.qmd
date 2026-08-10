@@ -1,5 +1,5 @@
 ---
-title: "LRPITT11: modified-ITT analysis of nonword reading (NW) — floor-rule branch"
+title: "LRPITT11: Available-case modified ITT analysis of nonword reading (NW) — floor-rule branch"
 
 format:
   html:
@@ -22,7 +22,7 @@ format:
 
 **In plain terms.** Among children whose nonword-reading score was observed to be zero before randomisation, did those offered the intervention become more likely to score above zero at t2? Random assignment would support a causal contrast for a pre-treatment subgroup whose eligibility and follow-up outcomes were observed for the original randomised cohort. This fitted subgroup is selected by archive inclusion, observed baseline eligibility and observed t2 outcome, so a causal reading requires that selection did not induce an association between assigned arm and potential off-floor outcomes. Extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity; the subgroup estimand is also post-hoc.
 
-LRPITT11 is an available-case, modified-ITT reanalysis of nonword reading (`nonword`) over the randomised t1 $\rightarrow$ t2 phase. At baseline, 36/50 observed scores (72%) were zero; at t2, 34/53 observed scores (about 64%) were zero. The transition estimand requires baseline floor status even though baseline is not a regression covariate.
+LRPITT11 is an available-case modified ITT reanalysis of nonword reading (`nonword`) over the randomised t1 $\rightarrow$ t2 phase. At baseline, 36/50 observed scores (72%) were zero; at t2, 34/53 observed scores (about 64%) were zero. The transition estimand requires baseline floor status even though baseline is not a regression covariate.
 
 _Post-hoc floored-outcome estimand — exploratory headline._ The floor rule and its 40% threshold were adopted after inspecting these outcome distributions and earlier model results. It is therefore **post-hoc and data-adaptive**, not pre-registered or prospectively specified. Applying the mechanical gate without arm labels reduces treatment-effect-driven selection, but does not change that evidential status. This model:
 

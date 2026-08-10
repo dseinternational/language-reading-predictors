@@ -1,5 +1,5 @@
 ---
-title: "LRPITT08B: Guessing-floor link sensitivity for phoneme blending (PA)"
+title: "LRPITT08B: Available-case modified ITT guessing-floor link sensitivity for phoneme blending (PA)"
 
 format:
   html:
@@ -20,9 +20,9 @@ format:
 
 ## Overview
 
-**In plain terms.** This is the mandatory response-link companion to `lrp-rli-itt-008`. It asks how much the estimated randomised-arm contrast in phoneme blending changes when the model respects the test's one-in-three guessing level. It is a robustness analysis, not a second independent experiment or a replacement outcome.
+**In plain terms.** This is the mandatory response-link companion to `lrp-rli-itt-008`. It asks how much the available-case modified ITT estimate for phoneme blending changes when the model respects the test's one-in-three guessing level. It is a robustness analysis, not a second independent experiment or a replacement outcome.
 
-The analysis rows, treatment coding, own-baseline and age precision terms, priors, sampling configuration, diagnostics and available-case causal assumptions match the primary B model. Random assignment created exchangeability in the original cohort, but conditioning on archive inclusion and observed analytic variables can break it. Reading even the fitted-sample contrast causally therefore assumes that selection did not depend jointly on assigned arm and potential outcomes; extending it to all 57 randomised children requires further missing-data assumptions and sensitivity.
+The analysis rows, treatment coding, own-baseline and age precision terms, priors, sampling configuration, diagnostics and available-case causal assumptions match the primary B model. This is therefore an available-case modified ITT sensitivity analysis. Random assignment created exchangeability in the original cohort, but conditioning on archive inclusion and observed analytic variables can break it. Reading even the fitted-sample contrast causally therefore assumes that selection did not depend jointly on assigned arm and potential outcomes; extending it to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
 ## Model
 

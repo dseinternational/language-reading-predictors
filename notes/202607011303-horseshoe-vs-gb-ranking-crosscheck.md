@@ -4,6 +4,7 @@
 
 ::: {.callout-note}
 Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 ::: {.callout-important}
@@ -21,9 +22,11 @@ reporting tier before any figure enters a report, and treat the statistical
 claims as a starting point for review.
 :::
 
-**Status: pilot findings for discussion (issue #116, Phase E).** The randomised
-causal claim continues to live in the ITT suite; everything here is an _adjusted
-association ranking_, cross-checked across two very different methods.
+**Status: pilot findings for discussion (issue #116, Phase E).** The
+randomisation-based claim continues to live in the available-case modified ITT
+suite, with a causal reading conditional on its selection assumption; everything
+here is an _adjusted association ranking_, cross-checked across two very different
+methods.
 
 ## What this is
 
