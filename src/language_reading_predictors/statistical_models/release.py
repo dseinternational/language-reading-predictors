@@ -737,18 +737,24 @@ def _load_config(output_dir: Path) -> dict[str, Any] | None:
 RELEASE_DECISION_FILENAME = "release_decision.json"
 
 PublicationStatus = Literal[
-    "ok", "not_available", "gate_failed", "artifacts_incomplete", "robustness_unresolved"
+    "ok",
+    "not_available",
+    "inputs_unresolved",
+    "gate_failed",
+    "artifacts_incomplete",
+    "robustness_unresolved",
 ]
 """What a fit is permitted to publish, in the vocabulary ``key_findings.json`` uses."""
 
 ReleaseStage = Literal["inputs", "computation", "artifacts", "robustness"]
 """Which stage of the decision settled it.
 
-``inputs`` the fit's own summary files are missing or unreadable; ``computation``
-the sampling-quality gate failed; ``artifacts`` a required output is not on disk;
-``robustness`` the treatment-effect sensitivity evidence does not support a causal
-headline. The order is the order below: a fit that did not converge is not asked
-whether its prior sensitivity is acceptable.
+``inputs`` the fit's own summary files are missing or unreadable, or its recorded
+scientific-input contract is unresolved; ``computation`` the sampling-quality gate
+failed; ``artifacts`` a required output is not on disk; ``robustness`` the
+treatment-effect sensitivity evidence does not support a causal headline. The order
+is the order below: a fit that did not converge is not asked whether its prior
+sensitivity is acceptable.
 """
 
 
@@ -773,6 +779,8 @@ class ReleaseEvaluation:
     reason: str = ""
     #: Human-readable sampling-quality checks that failed, when ``computation`` decided.
     failing_checks: tuple[str, ...] = ()
+    #: Scientific input-validity blockers recorded by the fit-time contract.
+    input_failures: tuple[str, ...] = ()
     #: Required artefacts absent from the fit or invalid under a family contract.
     missing_artifacts: tuple[str, ...] = ()
     #: The robustness verdict, when the fit is in scope for that gate.
@@ -820,6 +828,8 @@ class ReleaseEvaluation:
             record["publication_qualification"] = self.publication_qualification
         if self.reason:
             record["reason"] = self.reason
+        if self.input_failures:
+            record["input_failures"] = list(self.input_failures)
         if self.failing_checks:
             record["failing_checks"] = list(self.failing_checks)
         if self.missing_artifacts:
@@ -1503,6 +1513,46 @@ def _itt_missingness_release_failures(
     return tuple(computation_failures), tuple(artifact_failures)
 
 
+def _publication_input_failures(config: Mapping[str, Any]) -> tuple[str, ...]:
+    """Validate the fit-time scientific-input snapshot, failing closed.
+
+    RLI predates the multi-study input contract and has no unresolved catalogue
+    entry.  Every non-RLI fit must carry a stored contract; consulting the current
+    catalogue here would let an old fit silently inherit a later sign-off without
+    refitting against the now-authoritative inputs.
+    """
+
+    study_id = str(config.get("study_id") or "rli")
+    if study_id == "rli":
+        return ()
+
+    contract = config.get("publication_input_contract")
+    if not isinstance(contract, Mapping):
+        return (
+            f"{study_id}: the fit has no valid publication input contract; "
+            "regenerate or refit it under the current fail-closed metadata policy",
+        )
+    if contract.get("study_id") != study_id:
+        return (
+            f"{study_id}: the publication input contract names a different study",
+        )
+
+    raw_blockers = contract.get("blockers")
+    if not isinstance(raw_blockers, list) or any(
+        not isinstance(item, str) or not item.strip() for item in raw_blockers
+    ):
+        return (f"{study_id}: the publication input contract has invalid blockers",)
+    blockers = tuple(item.strip() for item in raw_blockers)
+    ready = contract.get("publication_ready")
+    if ready is True and not blockers:
+        return ()
+    if ready is False and blockers:
+        return blockers
+    return (
+        f"{study_id}: the publication input contract is internally inconsistent",
+    )
+
+
 def evaluate_publication(
     output_dir: str | Path,
     *,
@@ -1515,9 +1565,10 @@ def evaluate_publication(
     object settles it:
 
     1. **inputs** — ``diagnostics_summary.json`` and ``config.json`` must be
-       present and readable. The diagnostics file is checked first because the
-       sampling-quality gate outranks everything: findings from an unconverged fit
-       must not reach a reader even if every other artefact is perfect.
+       present and readable, and non-RLI fits must carry a resolved fit-time
+       scientific-input contract. The diagnostics file is checked first because
+       the sampling-quality gate outranks everything: findings from an unconverged
+       fit must not reach a reader even if every other artefact is perfect.
     2. **computation** — the automatic sampling-quality gate must pass cleanly.
     3. **artifacts** — every artefact the fit recorded as *required* must be on
        disk. A required output that vanished between its write and finalisation is
@@ -1610,6 +1661,19 @@ def evaluate_publication(
                 if config is None
                 else "config.json is missing"
             ),
+            config=config,
+            **qualification,
+        )
+
+    input_failures = _publication_input_failures(config)
+    if input_failures:
+        return ReleaseEvaluation(
+            status="inputs_unresolved",
+            stage="inputs",
+            reason=(
+                "publication inputs are unresolved: " + "; ".join(input_failures)
+            ),
+            input_failures=input_failures,
             config=config,
             **qualification,
         )

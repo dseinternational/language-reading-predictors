@@ -2964,6 +2964,68 @@ def write_model_recipe(context: StatisticalFitContext) -> str | None:
     return path
 
 
+def _publication_input_contract(context: StatisticalFitContext) -> dict | None:
+    """Snapshot non-RLI input validity for the fit-level release decision."""
+
+    spec = context.spec
+    if spec.study_id == "rli":
+        return None
+
+    from language_reading_predictors.statistical_models.datasets import (
+        publication_input_contract,
+        resolve_dataset,
+    )
+
+    try:
+        _dataset, catalogue = resolve_dataset(spec.study_id)
+    except KeyError as exc:
+        return {
+            "schema_version": 1,
+            "study_id": spec.study_id,
+            "publication_ready": False,
+            "dataset": {},
+            "measures": {},
+            "blockers": [str(exc)],
+        }
+
+    candidates: list[str] = []
+
+    def add(value: object) -> None:
+        if isinstance(value, str):
+            candidates.append(value)
+        elif isinstance(value, Mapping):
+            for nested in value.values():
+                add(nested)
+        elif isinstance(value, Sequence):
+            for nested in value:
+                add(nested)
+
+    add(spec.outcome_symbol)
+    for key in ("measure", "measures", "outcomes", "predictor_measures"):
+        add(spec.extra.get(key))
+    add(spec.extra.get("domains"))
+
+    prepared = context.prepared
+    for name in ("measures", "outcomes", "outcome"):
+        add(getattr(prepared, name, None))
+    for name in (
+        "counts",
+        "indicators",
+        "n_trials",
+        "post_counts",
+        "pre_logit",
+        "predictors",
+    ):
+        values = getattr(prepared, name, None)
+        if isinstance(values, Mapping):
+            add(tuple(values))
+
+    selected = tuple(
+        dict.fromkeys(symbol for symbol in candidates if symbol in catalogue)
+    )
+    return publication_input_contract(spec.study_id, selected)
+
+
 def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None) -> None:
     """Persist a reconstructable ``config.json`` and basic report metrics."""
     out = context.output_dir
@@ -2998,6 +3060,10 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "causal_status": spec.causal_status,
         "dataset_ref": spec.dataset_ref,
         "audit_baseline": spec.audit_baseline,
+        # Fit-time snapshot of unresolved dataset lineage, bounded-count
+        # denominators and instrument identities.  The release evaluator reads this
+        # stored contract rather than silently inheriting later catalogue changes.
+        "publication_input_contract": _publication_input_contract(context),
         # Preserve both what the module requested and what preprocessing/factory
         # resolution actually used. This is deliberately separate from ``extra``
         # below, which contains post-fit summaries supplied by the pipeline.
@@ -6272,9 +6338,11 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
         return _write_key_findings(out, payload)
 
     if not decision.publishable:
-        # ``not_available`` (unreadable inputs) and ``artifacts_incomplete``.
+        # Unreadable/unresolved inputs and incomplete required artefacts.
         payload["status"] = decision.status
         payload["reason"] = decision.reason
+        if decision.input_failures:
+            payload["input_failures"] = list(decision.input_failures)
         if decision.missing_artifacts:
             payload["missing_artifacts"] = list(decision.missing_artifacts)
         return _write_key_findings(out, payload)

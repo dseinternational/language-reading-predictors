@@ -22,6 +22,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -104,6 +105,57 @@ def test_backup_directories_are_excluded_too(regen, tmp_path, monkeypatch):
 
     names = [d.name for d in regen.resolve_targets("all")]
     assert names == ["lrp-rli-itt-010-reporting"]
+
+
+def test_regeneration_refreshes_release_decision_and_findings(
+    regen, tmp_path, monkeypatch
+):
+    """A legacy non-RLI fit must not retain a stale publishable decision."""
+    from language_reading_predictors import paths as _paths
+
+    root = tmp_path / "models"
+    fit = root / "lrp-rlm-hg-001-reporting"
+    fit.mkdir(parents=True)
+    (fit / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "passed": True,
+                "checks": {
+                    "rhat": True,
+                    "ess": True,
+                    "divergences": True,
+                    "bfmi": True,
+                },
+                "divergences": 0,
+                "max_rhat": 1.001,
+                "min_ess": 1000.0,
+                "bfmi_per_chain": [0.8, 0.9],
+            }
+        )
+    )
+    (fit / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": "lrp-rlm-hg-001",
+                "kind": "historical_growth",
+                "study_id": "rlm",
+                "config_name": "reporting",
+            }
+        )
+    )
+    (fit / "release_decision.json").write_text(
+        json.dumps({"status": "ok", "publishable": True})
+    )
+    monkeypatch.setattr(_paths, "stat_models_dir", lambda: root)
+    monkeypatch.setattr(sys, "argv", ["regenerate_key_findings.py", fit.name])
+
+    regen.main()
+
+    decision = json.loads((fit / "release_decision.json").read_text())
+    findings = json.loads((fit / "key_findings.json").read_text())
+    assert decision["status"] == "inputs_unresolved"
+    assert decision["publishable"] is False
+    assert findings["status"] == "inputs_unresolved"
 
 
 @pytest.mark.parametrize(("module_name", "published"), _WALKERS)

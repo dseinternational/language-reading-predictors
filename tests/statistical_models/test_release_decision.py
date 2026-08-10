@@ -857,6 +857,83 @@ def test_an_unreadable_config_stops_at_the_inputs_stage(tmp_path):
     assert "could not be parsed" in decision.reason
 
 
+def test_non_rli_fit_without_input_contract_fails_closed(tmp_path):
+    d = _fit_dir(tmp_path)
+    config = json.loads((d / "config.json").read_text())
+    config["study_id"] = "rlm"
+    (d / "config.json").write_text(json.dumps(config))
+
+    decision = evaluate_publication(d)
+
+    assert (decision.status, decision.stage) == ("inputs_unresolved", "inputs")
+    assert "no valid publication input contract" in decision.reason
+    assert decision.input_failures
+
+
+def test_unresolved_fit_time_input_contract_withholds_findings(tmp_path):
+    d = _fit_dir(tmp_path)
+    config = json.loads((d / "config.json").read_text())
+    config.update(
+        {
+            "study_id": "rlm",
+            "publication_input_contract": {
+                "schema_version": 1,
+                "study_id": "rlm",
+                "publication_ready": False,
+                "dataset": {},
+                "measures": {},
+                "blockers": ["dataset source provenance is unresolved"],
+            },
+        }
+    )
+    (d / "config.json").write_text(json.dumps(config))
+
+    decision = evaluate_publication(d)
+    payload = generate_key_findings(d, decision=decision)
+
+    assert (decision.status, decision.stage) == ("inputs_unresolved", "inputs")
+    assert decision.as_dict()["input_failures"] == [
+        "dataset source provenance is unresolved"
+    ]
+    assert payload["status"] == "inputs_unresolved"
+    assert payload["input_failures"] == ["dataset source provenance is unresolved"]
+    assert payload["sentences"] == []
+
+
+def test_resolved_fit_time_input_contract_allows_later_stages(tmp_path):
+    d = _fit_dir(tmp_path)
+    config = json.loads((d / "config.json").read_text())
+    config.update(
+        {
+            "study_id": "rlm",
+            "publication_input_contract": {
+                "schema_version": 1,
+                "study_id": "rlm",
+                "publication_ready": True,
+                "dataset": {"source_provenance_confirmed": True},
+                "measures": {},
+                "blockers": [],
+            },
+        }
+    )
+    (d / "config.json").write_text(json.dumps(config))
+
+    decision = evaluate_publication(d)
+
+    assert decision.status == "ok"
+
+
+def test_sampling_gate_outranks_unresolved_scientific_inputs(tmp_path):
+    d = _fit_dir(tmp_path, gate_passed=False)
+    config = json.loads((d / "config.json").read_text())
+    config["study_id"] = "rlm"
+    (d / "config.json").write_text(json.dumps(config))
+
+    decision = evaluate_publication(d)
+
+    assert (decision.status, decision.stage) == ("gate_failed", "computation")
+
+
 def test_a_failed_gate_stops_at_the_computation_stage(tmp_path):
     decision = evaluate_publication(_fit_dir(tmp_path, gate_passed=False))
     assert (decision.status, decision.stage) == ("gate_failed", "computation")
@@ -1041,7 +1118,13 @@ def test_an_incomplete_fit_reaches_the_findings_payload(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "status", ["gate_failed", "robustness_unresolved", "artifacts_incomplete"]
+    "status",
+    [
+        "gate_failed",
+        "inputs_unresolved",
+        "robustness_unresolved",
+        "artifacts_incomplete",
+    ],
 )
 def test_the_partial_renders_every_withholding_status(status):
     """A withhold the reader sees as a soft note is not a withhold.
