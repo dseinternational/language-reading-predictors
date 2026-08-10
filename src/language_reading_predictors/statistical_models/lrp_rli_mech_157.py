@@ -18,7 +18,8 @@ the always-in precision term and W_pre the autoregressive baseline. Identical to
 only the mechanism's functional form changes.
 
 Residual confounding by latent general ability (GA) remains, so f^E is an ADJUSTED
-ASSOCIATION, not a causal effect. The randomised causal claim lives in the ITT suite.
+ASSOCIATION, not a causal effect. The corresponding randomised-arm result is an
+available-case modified ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

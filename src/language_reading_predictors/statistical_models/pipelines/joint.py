@@ -1,9 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Joint-outcome orchestration (LRP-RLI-ITT-012 and the contrast companions).
+"""Joint available-case modified ITT orchestration and contrast companions.
 
-``fit_joint`` fits the ITT suite's outcomes jointly — optionally with an LKJ
+``fit_joint`` fits the available-case modified ITT suite's outcomes jointly — optionally with an LKJ
 residual correlation — and writes the per-outcome tau summaries, the contrast
 matrix and the taught-vs-not-taught generalisation contrasts. It shares the ITT
 family's analysis-set and PPC-calibration audits, imported from

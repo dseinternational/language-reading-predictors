@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Available-case modified ITT terminology added by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings 03 — the gain-factor family (period-stacked ANCOVA)
 
@@ -11,7 +13,7 @@ Reports every model in the `gain_factors` family from the 2026-08-04/05 `reporti
 
 Two jobs at once, and it is important to keep them apart.
 
-1. **Re-estimate the intervention effect from more data than the ITT suite uses.** The ITT models use only the randomised t1→t2 window — one row per child. These stack **every** adjacent-wave transition, on- and off-intervention, giving roughly three times the rows, with a child random intercept to handle repeated observations from the same child.
+1. **Re-estimate the intervention effect from more data than the available-case modified ITT suite uses.** The available-case modified ITT models use only the randomised t1→t2 window — one row per fitted child. These stack **every** adjacent-wave transition, on- and off-intervention, giving roughly three times the rows, with a child random intercept to handle repeated observations from the same child.
 2. **Describe who progresses.** Each model carries the child's own baseline, upstream skills, age and non-verbal ability, so it reports which characteristics travel with larger gains.
 
 **Design.** ANCOVA on the period's post-score given its own pre-score — conditional change, never raw change scores, which avoids Lord's paradox and regression to the mean. Beta-Binomial likelihood on a logit predictor, non-centred child random intercept.
@@ -46,11 +48,11 @@ Treatment effect is the period-1 on-intervention marginal, median with 89% range
 
 † `gf-012`/`gf-013` add broad vocabulary as an adjuster to the taught-word models.
 
-**This is an independent replication of the ITT result, and it holds.** Letter sounds and word reading come out at +3.3 and +2.6 items against the ITT's +3.5 and +2.4 — agreement well inside the uncertainty, from a different set of rows and a different identification argument. That is the most important thing this family contributes.
+**This is a cross-design consistency check against the available-case modified ITT estimates, and it holds.** Letter sounds and word reading come out at +3.3 and +2.6 items against the available-case modified ITT estimates of +3.5 and +2.4 — agreement well inside the uncertainty, from a different set of rows and a different identification argument. That is the most important thing this family contributes.
 
 The ordering is the same too: letter sounds strongest, then word reading, then the taught word sets and basic concepts, with broad vocabulary flat.
 
-**Where it differs from the ITT suite, the differences are inside the noise.** RV moves from +0.2 to −1.5 and EV from +0.2 to +1.1 — both inconclusive in both families, with intervals spanning ±3–5 items. The floored outcomes are noisier here than in the ITT models (NW +10 pp → +2.5 pp) and inconclusive in this family; the ITT floor-rule branch is the registered estimand for those two, and this family's version should be read as a supporting check, not a competing number.
+**Where it differs from the available-case modified ITT suite, the differences are inside the noise.** RV moves from +0.2 to −1.5 and EV from +0.2 to +1.1 — both inconclusive in both families, with intervals spanning ±3–5 items. The floored outcomes are noisier here than in the available-case modified ITT models (NW +10 pp → +2.5 pp) and inconclusive in this family; the available-case modified ITT floor-rule branch is the registered estimand for those two, and this family's version should be read as a supporting check, not a competing number.
 
 ## The eight treated-only companions
 

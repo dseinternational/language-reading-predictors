@@ -6,8 +6,8 @@
 Regenerates the two figures in
 ``notes/202606261304-evidence-strength-and-rope-reporting.md``:
 
-1. **Type-S / Type-M design analysis** of the ITT suite (Gelman & Carlin 2014):
-   for each graded single-outcome ITT model, the posterior mean ``tau`` and
+1. **Type-S / Type-M design analysis** of the available-case modified ITT suite
+   (Gelman & Carlin 2014): for each graded single-outcome estimate, the posterior mean ``tau`` and
    posterior SD ``s`` drive the sign-error (Type-S) and magnitude-exaggeration
    (Type-M) curves at the study's n.
 2. **ROPE-anchored continuous reporting** for letter sounds (L) vs word reading
@@ -53,7 +53,7 @@ from language_reading_predictors.statistical_models.sampling_quality import (
 matplotlib.use("Agg")
 warnings.filterwarnings("ignore")
 
-# Graded single-outcome ITT models, by module / symbol. Floored P, N (off-floor
+# Graded single-outcome available-case modified ITT models, by module / symbol. Floored P, N (off-floor
 # Bernoulli tau) are excluded — they live on a probability scale.
 GRADED = [
     ("lrp-rli-itt-007", "L"),
@@ -234,7 +234,10 @@ def figure_design_analysis(results, out_png, out_pdf):
         ax.set_xlim(0.4, 4.0)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
-    fig.suptitle("Type-S / Type-M design analysis of the ITT suite", y=0.97)
+    fig.suptitle(
+        "Type-S / Type-M design analysis of the available-case modified ITT suite",
+        y=0.97,
+    )
     fig.savefig(out_png, dpi=300, bbox_inches="tight")
     fig.savefig(out_pdf, bbox_inches="tight")
     plt.close(fig)

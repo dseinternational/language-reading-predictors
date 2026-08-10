@@ -13,6 +13,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -49,6 +50,22 @@ from language_reading_predictors.statistical_models.provenance import (
 MODELS = discover_models()
 
 
+def _completed_run_status(ctx) -> str:
+    """Read the fit-level release record for the CLI summary table."""
+
+    path = os.path.join(ctx.output_dir, "release_decision.json")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            decision = json.load(handle)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return "UNKNOWN: release decision unavailable"
+    if decision.get("publishable") is not True:
+        return f"WITHHELD: {decision.get('status') or 'release gate failed'}"
+    if decision.get("scientific_publication_eligible") is not True:
+        return "ok (development-only)"
+    return "ok"
+
+
 def main() -> None:
     # Apply the shared DSE matplotlib house style so Bayesian figures match the
     # GB ones (scripts/fit_model.py does the same). Without this every figure
@@ -81,6 +98,16 @@ def main() -> None:
         type=float,
         default=None,
         help="Override NUTS target_accept (default: preset from --config)",
+    )
+    parser.add_argument(
+        "--rli-randomised-archive",
+        type=str,
+        default=None,
+        help=(
+            "Checksum-pinned 57-row UKDS RLI archive used only by the mandatory "
+            "word-reading missing-data sensitivity. If omitted, the primary fit "
+            "runs but its release is withheld as incomplete."
+        ),
     )
     parser.add_argument(
         "--reuse-trace",
@@ -124,10 +151,18 @@ def main() -> None:
             "of sampling; artefacts are re-emitted from the existing draws.[/cyan]"
         )
 
-    run_options = StatisticalRunOptions(target_accept=args.target_accept)
+    run_options = StatisticalRunOptions(
+        target_accept=args.target_accept,
+        rli_randomised_archive=args.rli_randomised_archive,
+    )
     if run_options.target_accept is not None:
         rprint(
             f"[yellow]Overriding target_accept -> {run_options.target_accept}[/yellow]"
+        )
+    if run_options.rli_randomised_archive is not None:
+        rprint(
+            "[yellow]Using the explicitly supplied RLI randomised archive for "
+            "the word-reading missing-data sensitivity.[/yellow]"
         )
 
     # The registry is keyed on the canonical CLI id (``lrp-rli-itt-001``) since #168
@@ -210,7 +245,7 @@ def main() -> None:
                     "mechanism": spec.mechanism_symbol or "-",
                     "n_obs": int(prepared.n_obs) if prepared is not None else None,
                     "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
-                    "status": "ok",
+                    "status": _completed_run_status(ctx),
                 }
             )
         for model_id, exc in failed:

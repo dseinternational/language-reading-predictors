@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT12 - Factorised multi-outcome ITT model (migrates LRP55).
+"""LRPITT12 - factorised multi-outcome available-case modified ITT estimates.
 
 One PyMC graph over the single-outcome treatment effects, acting as a consistency
 check on the single-outcome LRPITT models. With residual correlation disabled,
@@ -30,7 +30,10 @@ LRPITT12_OUTCOMES: tuple[str, ...] = (
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-012",
     kind="joint",
-    title="Joint ITT model over the LRPITT suite outcomes (TR, TE, UR, UE, R, E, L, B, P, W)",
+    title=(
+        "Joint available-case modified ITT estimates over the LRPITT suite outcomes "
+        "(TR, TE, UR, UE, R, E, L, B, P, W)"
+    ),
     extra={
         "outcomes": LRPITT12_OUTCOMES,
         # DAG-faithful, mirroring the single-outcome suite's *structure*: own

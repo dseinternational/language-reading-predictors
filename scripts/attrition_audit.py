@@ -3,9 +3,10 @@
 
 """Analysis-set and outcome-missingness audit for the RLI trial (#230/#341).
 
-The published trial randomised 57 children, but the archived modelling dataset
-contains 54. The first table therefore distinguishes absence from the dataset
-from within-dataset outcome missingness. The second counts, per outcome and wave,
+The published trial randomised 57 children, lost three to follow-up and analysed
+54; four additional intervention discontinuers were followed and analysed by
+assignment. The first table distinguishes those events from within-dataset
+outcome missingness. The second counts, per outcome and wave,
 how many archived children have a non-missing score and how many are lost across
 the windows the headline estimands use —
 
@@ -37,6 +38,9 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.itt_audit import (
     CONTROL_G,
     INTERVENTION_G,
+    RLI_ANALYSED_BY_G,
+    RLI_DISCONTINUED_BUT_FOLLOWED_BY_G,
+    RLI_LOST_TO_FOLLOW_UP_BY_G,
     RLI_RANDOMISED_BY_G,
 )
 from language_reading_predictors.statistical_models.measures import MEASURES
@@ -94,6 +98,15 @@ def analysis_set_audit(df: pd.DataFrame) -> pd.DataFrame:
             {
                 "arm": arm,
                 "randomised_n": randomised_n,
+                "lost_to_follow_up_n": RLI_LOST_TO_FOLLOW_UP_BY_G[
+                    INTERVENTION_G if code == 1 else CONTROL_G
+                ],
+                "discontinued_but_followed_n": RLI_DISCONTINUED_BUT_FOLLOWED_BY_G[
+                    INTERVENTION_G if code == 1 else CONTROL_G
+                ],
+                "published_analysed_n": RLI_ANALYSED_BY_G[
+                    INTERVENTION_G if code == 1 else CONTROL_G
+                ],
                 "dataset_n": dataset_n,
                 "absent_from_dataset_n": randomised_n - dataset_n,
             }
@@ -102,6 +115,11 @@ def analysis_set_audit(df: pd.DataFrame) -> pd.DataFrame:
         {
             "arm": "total",
             "randomised_n": sum(v[1] for v in RANDOMISED_BY_GROUP.values()),
+            "lost_to_follow_up_n": sum(RLI_LOST_TO_FOLLOW_UP_BY_G.values()),
+            "discontinued_but_followed_n": sum(
+                RLI_DISCONTINUED_BUT_FOLLOWED_BY_G.values()
+            ),
+            "published_analysed_n": sum(RLI_ANALYSED_BY_G.values()),
             "dataset_n": int(observed_group.size),
             "absent_from_dataset_n": (
                 sum(v[1] for v in RANDOMISED_BY_GROUP.values())
@@ -169,12 +187,13 @@ def main() -> None:
     out_path = out_dir / "attrition_audit.csv"
     table.to_csv(out_path, index=False)
 
-    print("\n=== published randomised allocation -> archived dataset ===")
+    print("\n=== published trial flow -> archived analysed dataset ===")
     print(analysis_set.to_string(index=False))
     print(
         "\nThe outcome table below is conditional on the "
-        f"{n_subjects}-child archived dataset; it cannot audit outcomes for the "
-        "three randomised children who are absent from that file."
+        f"{n_subjects}-child archived analysed dataset; it cannot audit outcomes "
+        "for the three children lost to follow-up. The four children who stopped "
+        "intervention but were followed remain represented by assigned arm."
     )
     print("\n=== within-dataset outcome missingness by wave + window attrition ===")
     print(table.to_string(index=False))

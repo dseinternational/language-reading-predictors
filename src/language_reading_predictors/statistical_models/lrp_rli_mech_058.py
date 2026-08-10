@@ -28,7 +28,8 @@ correlated random effects (Mundlak terms), child fixed effects, or a genuine RI-
 None is fitted here.
 
 So **residual confounding by GA remains**, and ``f^L`` is an **adjusted association**,
-not a causal effect. The randomised causal claim lives in the ITT suite.
+not a causal effect. The corresponding randomised-arm result is an available-case modified
+ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

@@ -43,7 +43,7 @@ $IS \to TR$ and $IS \to WR$ make sessions a genuine confounder of $TR \to W$ (th
 LRP58 already carries for $L \to W$).
 
 _Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^{TR}$ is an **adjusted
-association**, not a causal effect. The randomised causal claim lives in the ITT suite.
+association**, not a causal effect. The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

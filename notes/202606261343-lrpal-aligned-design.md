@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 Date: 2026-06-26
 
@@ -45,7 +47,7 @@ incomplete). Data: Burgoyne et al. 2012, the RLI RCT
 
 Aligning by onset buys a like-for-like dose comparison but **spends the
 randomisation**: the immediate-vs-wait-list contrast at the aligned endpoints
-(`beta_cohort`) is no longer the ITT effect. The two arms reach their aligned
+(`beta_cohort`) is not the available-case modified ITT estimate. The two arms reach their aligned
 window at different calendar times and **different ages** (see Decision 2), so
 `beta_cohort` is a confounded cohort/timing association. Accordingly the pipeline
 flags **no** term causal (`causal_terms=()`): every coefficient — cohort, own
@@ -59,7 +61,8 @@ months older** (immediate onset ≈ 83.8 mo at t1; wait-list onset ≈ 87.4 mo a
 Age enters as **age-at-onset** (the age at each arm's own pre-wave), not a fixed
 wave age. In the W exemplar `gamma_A` is negative and credible, so the cohort
 contrast must be read net of this age gap — it is the main reason `beta_cohort`
-(+0.19 logit, about +1.9 words) is _weaker_ than the randomised ITT τ (about +0.44).
+(+0.19 logit, about +1.9 words) is _weaker_ than the available-case modified ITT
+estimate τ (about +0.44).
 
 ### Decision 3 — one row per child, **no random intercept**
 
@@ -89,12 +92,12 @@ randomised contrast relabelled.
 
 P is heavily floored, so `lrpal05` uses `likelihood="bernoulli_offfloor"` (a
 Bernoulli on aligned post > 0, no `kappa`); its cohort marginal is an off-floor
-risk difference. Same rule as the ITT suite and the gain/level factor families.
+risk difference. Same rule as the available-case modified ITT suite and the gain/level factor families.
 
 ## What this is — and is not
 
 - **Not randomised:** every LRPAL coefficient is an association; `beta_cohort` is a
-  per-protocol cohort contrast, not the ITT effect.
+  per-protocol cohort contrast, not the available-case modified ITT estimate.
 - **Complements, does not replace:** triangulates the randomised LRPITT (between-arm)
   and LRPDID (within-person) effects with a per-protocol, dose-aligned view.
 - **Dose is never a primary adjustment** — collider; sensitivity variant only.
@@ -116,7 +119,7 @@ emitted by `fit_itt`) is **deliberately not wired into `fit_aligned`**, for thre
 reasons:
 
 1. **It would mis-frame a confounded association as a treatment benefit.**
-   `rope_summary` reports `P(benefit ≥ δ)` for the randomised ITT effect; LRPAL's
+   `rope_summary` reports `P(benefit ≥ δ)` for the available-case modified ITT estimate; LRPAL's
    `beta_cohort` is a per-protocol cohort association (Decision 1), not a treatment
    effect, so a "probability of a _meaningful benefit_" card on it would contradict
    the model's own causal stance.
@@ -140,7 +143,7 @@ suite-wide change, out of scope here.
 ## Validation (dev config)
 
 - **`lrpal01` (W):** `beta_cohort` = +0.19 (items ≈ +1.9 words, CrI −1.2..+5.0,
-  P ≈ 0.87) — weaker than the ITT τ (~+0.44) because `gamma_A` = −0.17 (P ≈ 0.017)
+  P ≈ 0.87) — weaker than the available-case modified ITT estimate τ (~+0.44) because `gamma_A` = −0.17 (P ≈ 0.017)
   absorbs the age-at-onset gap. `gamma_own` = +1.21 (P ≈ 1).
 - **`lrpal05` (P, off-floor):** all-association, `gamma_ability` = +0.45 (P ≈ 0.97)
   — ability tracks coming off the spelling floor.

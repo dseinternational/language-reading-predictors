@@ -13,6 +13,9 @@ import numpy as np
 import pandas as pd
 
 from language_reading_predictors.statistical_models import blending_sensitivity as bs
+from language_reading_predictors.statistical_models.itt_missingness import (
+    MISSINGNESS_RENDERED_SCIENTIFIC_ARTIFACTS,
+)
 from language_reading_predictors.statistical_models.sensitivity import sha256_file
 
 
@@ -124,7 +127,9 @@ def test_bound_scientific_artifacts_match_the_itt_results_partial():
         re.findall(r'_(?:csv|img|has)\("([^\"]+\.(?:csv|png))"', partial)
     )
 
-    assert consumed | {"prior_pushforward.csv"} == set(
+    missingness_artifacts = set(MISSINGNESS_RENDERED_SCIENTIFIC_ARTIFACTS)
+    assert missingness_artifacts <= consumed
+    assert (consumed - missingness_artifacts) | {"prior_pushforward.csv"} == set(
         bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
     )
     assert "analysis_set.csv" in consumed

@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 **Issue:** #134 (the DAG-sanctioned successor to the closed LRP66 / #97).
 **Model:** `lrpmm01` (kind `corr_factor`).
@@ -57,8 +59,9 @@ covariate**, not a factor indicator.
 This is a **measurement / triangulation** model, **not** causal. Per **ID-2**
 every factor->gain slope is a latent-ability-confounded **adjusted association**;
 the factor model improves the measurement match, it does not identify effects. The
-randomised causal claim continues to live in the ITT suite (`lrpitt10` for word
-reading) and the `gain_factors` randomised term - this model does not carry it.
+randomised causal claim continues to live in the available-case modified ITT
+suite (`lrpitt10` for word reading, conditional on its selection assumption) and
+the `gain_factors` randomised term - this model does not carry it.
 `GA` stays diagnostic/latent (never an implementable adjustment set).
 
 At **n ~ 51** a correlated-factor latent model is fragile and prior-dependent -

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT15b: Taught vs not-taught receptive vocabulary (generalisation contrast)"
+title: "LRPITT15b: Available-case modified ITT generalisation contrast, receptive vocabulary"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT15b is the *receptive*-modality companion to LRPITT15: it tests whether the assigned-arm contrast is larger for directly-taught than not-taught receptive vocabulary, one component of the broader generalisation claim. Two Block 1 receptive vocabulary outcomes are fitted together as factorised marginals over the randomised window (t1 $\rightarrow$ t2):
+LRPITT15b is the *receptive*-modality companion to LRPITT15: it compares two available-case modified ITT estimates to test whether the assigned-arm contrast is larger for directly-taught than not-taught receptive vocabulary, one component of the broader generalisation claim. Two Block 1 receptive vocabulary outcomes are fitted together as factorised marginals over the randomised window (t1 $\rightarrow$ t2):
 
 - `TR` — directly-taught target words (`b1retau`, $N = 24$);
 - `UR` — not-taught comparison words (`b1rent`, $N = 12$).

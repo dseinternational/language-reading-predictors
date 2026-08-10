@@ -29,7 +29,7 @@ associations**, never causal. The **arm x window** change intercepts are
 mandatory, not polish: the waitlist crossover makes the randomised arm a
 confounder of every transition-2+ coupling (the waitlist arm's block-1
 catch-up lands exactly in window 2). Their window-1 cell contrast is a
-randomised latent ITT contrast, written to ``itt_window1_contrast.csv`` as a
+randomised latent-change contrast, compared with the available-case modified ITT estimate and written to ``itt_window1_contrast.csv`` as a
 consistency check against LRP-RLI-ITT-001/002. Sessions stay out (ID-3
 collider).
 

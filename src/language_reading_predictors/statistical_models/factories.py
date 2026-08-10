@@ -7,7 +7,7 @@ Model factories for the statistical models.
 One ``build_*`` factory per model family (keyed by :class:`ModelSpec.kind`), the
 most-used being:
 
-- :func:`build_itt_model` — the LRPITT ITT suite (one outcome, RCT phase) and its
+- :func:`build_itt_model` — the LRPITT available-case modified ITT suite (one outcome, RCT phase) and its
   SES-adjusted companions; the floored outcomes use its ``bernoulli_offfloor``
   likelihood mode for the post-hoc off-floor exploratory estimand.
 - :func:`build_joint_model` — the joint model (LRPITT12) and the two-outcome
@@ -278,7 +278,7 @@ class BuiltModel:
 
 
 # ---------------------------------------------------------------------------
-# ITT factory (LRPITT suite)
+# Available-case modified ITT factory (LRPITT suite)
 # ---------------------------------------------------------------------------
 
 
@@ -304,8 +304,8 @@ def build_itt_model(
     kappa_sigma: float | None = None,
 ) -> BuiltModel:
     """
-    Build the single-outcome ITT model used by the LRPITT suite (and its SES
-    companions).
+    Build the single-outcome available-case modified ITT model used by the
+    LRPITT suite and its companions.
 
     The linear predictor is
 
@@ -354,8 +354,9 @@ def build_itt_model(
         legacy behaviour of conditioning on every *other* ITT outcome
         (``ITT_OUTCOMES``). Pass an explicit (possibly empty) iterable to
         condition on a chosen subset instead. The LRPITT suite passes ``()`` —
-        under the locked DAG the ITT effect is identified by the empty adjustment
-        set, so cross-baselines are dropped. Every requested symbol must be in
+        under the locked DAG the assigned-arm coefficient identifies the
+        available-case modified ITT estimate without an adjustment set, so
+        cross-baselines are dropped. Every requested symbol must be in
         ``prepared.pre_logit``; ``own`` is removed if present.
     use_age_linear
         If True, add a plain linear age main effect ``gamma_A * A_std``
@@ -652,7 +653,7 @@ def build_joint_model(
     use_age_linear: bool = False,
 ) -> BuiltModel:
     """
-    Build the multi-outcome Beta-Binomial model (LRPITT12; LRPITT15/15b/16).
+    Build the joint available-case modified ITT model (LRPITT12; LRPITT15/15b/16).
 
     For each child i and outcome k, the model is
 
@@ -668,8 +669,9 @@ def build_joint_model(
     ``use_cross_baselines`` (default True): include the off-diagonal cross-baseline
     couplings (the historical LRP55 behaviour). The DAG-faithful LRPITT joint
     (LRPITT12) and the generalisation contrasts (LRPITT15/15b) set this **False**,
-    so the joint mirrors the single-outcome suite — the ITT effect is identified by
-    the empty adjustment set, with own baseline + linear age as precision terms.
+    so the joint mirrors the single-outcome suite — each assigned-arm coefficient
+    identifies an available-case modified ITT estimate without an adjustment set,
+    with own baseline + linear age as precision terms.
 
     ``use_age_linear`` (default False): add a per-outcome linear age term
     ``gamma_A_k * A_std_i`` (the suite's age precision term); mutually exclusive
@@ -4738,7 +4740,7 @@ def build_level_factors_model(
 
     **Level-model caveat (baked into the parameterisation + report):** after t2
     the waitlist crosses over, so the group effect across the four timepoints is
-    *not* a clean ITT contrast. The focal ``group x time`` interaction is therefore
+    *not* an available-case modified ITT estimate. The focal ``group x time`` interaction is therefore
     modelled as a per-timepoint group effect ``b_grp[t]`` (dims ``phase`` = the
     timepoint index) — read as trajectory divergence — and the **clean randomised
     contrast lives only at t2** (``b_grp[1]``). ``ability x time`` is likewise a
@@ -5235,8 +5237,8 @@ def build_lcsm_model(
     coupling (verified d-separation, ``notes/202607141030-time-lagged-model-designs.md``).
     The window-1 cell contrast is exposed as the deterministic
     ``itt_w1_contrast`` (immediate - waitlist, per outcome): a randomised
-    latent ITT contrast on the change scale, reported as a consistency check
-    against the ITT suite. The intervention-dose covariate stays **omitted**:
+    latent randomised contrast on the change scale, reported as a consistency check
+    against the available-case modified ITT suite. The intervention-dose covariate stays **omitted**:
     it is the locked DAG's ``IS`` collider, so conditioning on it would reopen
     the latent-``GA`` backdoor onto the couplings (ID-3); the arm x window
     cells derive from randomised ``IG`` + design timing instead.

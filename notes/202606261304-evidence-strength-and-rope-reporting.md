@@ -2,6 +2,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 > [!IMPORTANT]
 > **Current policy (issue #179).** The evidence ladder in force is claim-oriented:
@@ -178,7 +180,7 @@ Both failures share one driver: a true signal that is small relative to the nois
 
 ### Results for our suite
 
-Each graded single-outcome ITT model was refit; we took the posterior mean `τ̂`
+Each graded single-outcome available-case modified ITT model was refit; we took the posterior mean `τ̂`
 and posterior SD `s` (logit scale) and ran the analysis. The implementation was
 checked against the textbook landmark — a true effect estimated with 50 % power is
 exaggerated ≈ 1.4× when significant — which it reproduces.
@@ -224,7 +226,7 @@ warn about):
 |                           3.0 |     0.85 |      0.0 % |     1.09 |
 |                           4.0 |     0.98 |      0.0 % |     1.01 |
 
-![Type-S / Type-M design analysis of the ITT suite](assets/202606261304-type-s-m-design-analysis.png)
+![Type-S / Type-M design analysis of the available-case modified ITT suite](assets/202606261304-type-s-m-design-analysis.png)
 
 _Figure 1. The universal Type-M (top) and Type-S (bottom) curves for our n ≈ 54
 precision, with each outcome placed at its own `τ̂/s` (scenario A) and the
@@ -524,7 +526,7 @@ block, folding into issue #125) is a separate step.
 
 ## 8. Reproduction
 
-The numbers come from refitting the graded single-outcome ITT models
+The numbers come from refitting the graded single-outcome available-case modified ITT models
 (`build_itt_model`, dev config) and computing, per draw: the design-analysis
 quantities from `τ̂` and `s` (closed form, §3), and the items-scale average
 marginal effect via the existing `reporting.tau_summary_itt` machinery

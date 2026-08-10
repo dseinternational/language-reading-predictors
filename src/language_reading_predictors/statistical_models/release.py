@@ -80,6 +80,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal, Mapping
@@ -779,11 +780,25 @@ class ReleaseEvaluation:
     #: The fit's ``config.json``, loaded once so callers need not re-read it.
     #: ``None`` when it is unreadable, ``{}`` when it is absent.
     config: Mapping[str, Any] | None = None
+    #: Named sampling preset used for the fit, when it can be resolved.
+    sampling_preset: str | None = None
+    #: True for dev/test or an absent, unknown or inconsistent preset. Such fits may
+    #: render local diagnostics but must not be used as publication-grade results.
+    development_only: bool = True
+    #: Explanation for ``development_only``; kept separate from ``reason`` because a
+    #: clean local diagnostic fit still has ``status='ok'``.
+    publication_qualification: str = ""
 
     @property
     def publishable(self) -> bool:
-        """May this fit's key-findings box carry scientific sentences?"""
+        """May this local fit report render its scientific tables and sentences?"""
         return self.status == "ok"
+
+    @property
+    def scientific_publication_eligible(self) -> bool:
+        """May this fit be used as a publication-grade scientific result?"""
+
+        return self.publishable and not self.development_only
 
     @property
     def note(self) -> str:
@@ -796,7 +811,13 @@ class ReleaseEvaluation:
             "status": self.status,
             "stage": self.stage,
             "publishable": self.publishable,
+            "scientific_publication_eligible": self.scientific_publication_eligible,
+            "development_only": self.development_only,
         }
+        if self.sampling_preset is not None:
+            record["sampling_preset"] = self.sampling_preset
+        if self.publication_qualification:
+            record["publication_qualification"] = self.publication_qualification
         if self.reason:
             record["reason"] = self.reason
         if self.failing_checks:
@@ -813,7 +834,12 @@ class ReleaseEvaluation:
     def summary(self) -> str:
         """One line for the console at finalisation."""
         if self.publishable:
-            return "ok" + (" (with note)" if self.note else "")
+            qualifiers = []
+            if self.note:
+                qualifiers.append("with note")
+            if self.development_only:
+                qualifiers.append("development-only")
+            return "ok" + (f" ({', '.join(qualifiers)})" if qualifiers else "")
         return f"{self.status} at the {self.stage} stage: {self.reason}"
 
 
@@ -958,6 +984,525 @@ def _mediation_t3_release_failures(
     return tuple(computation_failures), tuple(artifact_failures)
 
 
+_MISSINGNESS_DIAGNOSTIC_FIELDS = (
+    "max_rhat",
+    "min_ess",
+    "min_bfmi",
+    "n_divergences",
+)
+_MISSINGNESS_RHAT_MAX = 1.01
+_MISSINGNESS_ESS_MIN = 400.0
+_MISSINGNESS_BFMI_MIN = 0.3
+_PUBLICATION_CONFIGS = frozenset({"rep-lite", "reporting"})
+_DIAGNOSTIC_CONFIGS = frozenset({"dev", "test"})
+
+
+def _stored_bool(value: Any) -> bool | None:
+    """Parse a persisted Boolean without treating arbitrary truthy text as evidence."""
+
+    normalised = str(value).strip().casefold()
+    if normalised in {"true", "1", "yes"}:
+        return True
+    if normalised in {"false", "0", "no"}:
+        return False
+    return None
+
+
+def _missingness_diagnostics(record: Mapping[str, Any]) -> dict[str, float | int] | None:
+    """Read the four unrounded missingness-subfit gate signals from one record."""
+
+    values: dict[str, float | int] = {}
+    for name in _MISSINGNESS_DIAGNOSTIC_FIELDS:
+        value = pd.to_numeric(record.get(name), errors="coerce")
+        if pd.isna(value) or not np.isfinite(float(value)):
+            return None
+        if name == "n_divergences":
+            integer = int(value)
+            if float(value) != float(integer) or integer < 0:
+                return None
+            values[name] = integer
+        else:
+            values[name] = float(value)
+    return values
+
+
+def _missingness_diagnostics_pass(values: Mapping[str, float | int]) -> bool:
+    """Apply the same unrounded release thresholds as the primary trace gate."""
+
+    return bool(
+        float(values["max_rhat"]) <= _MISSINGNESS_RHAT_MAX
+        and float(values["min_ess"]) >= _MISSINGNESS_ESS_MIN
+        and float(values["min_bfmi"]) >= _MISSINGNESS_BFMI_MIN
+        and int(values["n_divergences"]) == 0
+    )
+
+
+def _missingness_diagnostics_match(
+    left: Mapping[str, float | int], right: Mapping[str, float | int]
+) -> bool:
+    """Whether two serialisations carry the same unrounded gate evidence."""
+
+    return bool(
+        int(left["n_divergences"]) == int(right["n_divergences"])
+        and all(
+            np.isclose(
+                float(left[name]),
+                float(right[name]),
+                rtol=1e-10,
+                atol=1e-12,
+            )
+            for name in ("max_rhat", "min_ess", "min_bfmi")
+        )
+    )
+
+
+def _missingness_trace_diagnostics(
+    trace_path: Path,
+) -> tuple[dict[str, float | int] | None, str | None]:
+    """Recompute the mandatory subfit gate from its persisted NetCDF trace."""
+
+    if not trace_path.is_file():
+        return None, "missing"
+    trace = None
+    try:
+        import arviz as az
+
+        from language_reading_predictors.statistical_models.diagnostics import (
+            subfit_convergence,
+        )
+
+        trace = az.from_netcdf(trace_path)
+        groups = {
+            str(group).strip("/")
+            for group in getattr(trace, "groups", ())
+            if str(group).strip("/")
+        }
+        required_groups = {"prior", "prior_predictive"}
+        if not required_groups.issubset(groups):
+            missing = ", ".join(
+                f"/{group}" for group in sorted(required_groups - groups)
+            )
+            return None, f"missing required trace group(s): {missing}"
+        prior_vars = set(getattr(trace["prior"], "data_vars", {}))
+        prior_predictive_vars = set(
+            getattr(trace["prior_predictive"], "data_vars", {})
+        )
+        if not {"p0_target", "p1_target"}.issubset(prior_vars):
+            return None, "the /prior group lacks the registered target probabilities"
+        if "y_post" not in prior_predictive_vars:
+            return None, "the /prior_predictive group lacks the registered outcome"
+        verdict = subfit_convergence(
+            trace,
+            label="ITT screening-baseline missingness release check",
+            var_names=[
+                "alpha",
+                "tau",
+                "beta_screening_age",
+                "beta_screening_word",
+                "kappa",
+            ],
+        )
+    except Exception as exc:  # noqa: BLE001 - unreadable trace is an artefact failure
+        return None, f"{type(exc).__name__}: {exc}"
+    finally:
+        with suppress(Exception):
+            if trace is not None:
+                trace.close()
+    diagnostics = _missingness_diagnostics(verdict)
+    if diagnostics is None:
+        return None, "the trace sampling-quality signals could not be computed"
+    return diagnostics, None
+
+
+def _sampling_preset_qualification(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str | None, bool, str]:
+    """Resolve whether a clean fit is publication-grade or development-only.
+
+    ``ReleaseEvaluation.publishable`` predates this distinction and means that a local
+    report may render its scientific tables.  Keeping that meaning preserves the
+    established ``--config dev --render`` diagnostic workflow.  The separate
+    ``scientific_publication_eligible`` property fails closed for diagnostic, missing,
+    unknown or directory-inconsistent presets.
+
+    Stored fits created before ``config_name`` was added remain decidable from the
+    long-standing ``<model-id>-<preset>`` directory convention. New staging
+    directories do not have that suffix, but their freshly written config always does.
+    """
+
+    explicit = config.get("config_name")
+    config_name = str(explicit).strip() if explicit is not None else ""
+    inferred = _config_name(output_dir, str(config.get("model_id") or ""))
+    if not config_name:
+        config_name = inferred
+    known = _PUBLICATION_CONFIGS | _DIAGNOSTIC_CONFIGS
+    mismatch = bool(config_name and inferred in known and inferred != config_name)
+    if config_name in _PUBLICATION_CONFIGS and not mismatch:
+        return config_name, False, ""
+    if mismatch:
+        reason = (
+            f"the saved sampling preset {config_name!r} disagrees with the fit "
+            f"directory preset {inferred!r}"
+        )
+    elif config_name in _DIAGNOSTIC_CONFIGS:
+        reason = (
+            f"the saved sampling preset {config_name!r} is diagnostic-only; only "
+            "'rep-lite' and 'reporting' fits are eligible for scientific publication"
+        )
+    else:
+        reason = (
+            "the sampling preset is absent or unrecognised, so publication-grade "
+            "sampling cannot be verified"
+        )
+    return config_name or None, True, reason
+
+
+def _itt_missingness_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Require the trace-bound all-57 W sensitivity declared by the ITT plan."""
+
+    registered_primary = (
+        config.get("model_id") == "lrp-rli-itt-010"
+        and config.get("kind") == "itt"
+        and config.get("outcome_symbol") == "W"
+    )
+    if not registered_primary:
+        return (), ()
+    plan = config.get("resolved_run_plan") or {}
+    if not isinstance(plan, Mapping):
+        return (), ("config.json (ITT run plan is unreadable)",)
+    if not bool(plan.get("missingness_sensitivity_required_for_release")):
+        return (), ("config.json (word-reading missingness sensitivity is undeclared)",)
+
+    from language_reading_predictors.statistical_models.itt_missingness import (
+        MISSINGNESS_PROVENANCE_FILENAME,
+        MISSINGNESS_PPC_FILENAME,
+        MISSINGNESS_PRIOR_FILENAME,
+        MISSINGNESS_PRIOR_DRAWS,
+        MISSINGNESS_SCENARIOS,
+        MISSINGNESS_SUBFIT_LABEL,
+        MISSINGNESS_SUMMARY_FILENAME,
+        MISSINGNESS_TRACE_FILENAME,
+        OBSERVED_CONTROL_N,
+        OBSERVED_INTERVENTION_N,
+        LOST_TO_FOLLOW_UP_N,
+        WITHIN_ARCHIVE_W_MISSING_N,
+        RLI_ARCHIVE_DOI,
+        RLI_ARCHIVE_CSV_SHA256,
+        RLI_LOCAL_WIDE_SHA256,
+        RLI_RECONCILIATION_DIGEST,
+        RANDOMISED_CONTROL_N,
+        RANDOMISED_INTERVENTION_N,
+        RANDOMISED_N,
+        WORD_READING_N,
+        DEFAULT_DELTA_ITEMS,
+        SCREENING_ALPHA_SIGMA,
+        SCREENING_COVARIATES,
+        sha256_file,
+        validate_missingness_prior_check,
+        validate_missingness_summary,
+    )
+
+    computation_failures: list[str] = []
+    artifact_failures: list[str] = []
+    stored_diagnostics: list[
+        tuple[str, dict[str, float | int], bool | None]
+    ] = []
+    saved_missingness_plan = plan.get("missingness_plan") or {}
+    expected_plan = {
+        "source_csv_sha256": RLI_ARCHIVE_CSV_SHA256,
+        "source_doi": RLI_ARCHIVE_DOI,
+        "local_wide_sha256": RLI_LOCAL_WIDE_SHA256,
+        "reconciliation_digest": RLI_RECONCILIATION_DIGEST,
+        "screening_covariates": list(SCREENING_COVARIATES),
+        "randomised_n": RANDOMISED_N,
+        "randomised_intervention_n": RANDOMISED_INTERVENTION_N,
+        "randomised_control_n": RANDOMISED_CONTROL_N,
+        "observed_intervention_n": OBSERVED_INTERVENTION_N,
+        "observed_control_n": OBSERVED_CONTROL_N,
+        "lost_to_follow_up_n": LOST_TO_FOLLOW_UP_N,
+        "within_archive_w_missing_n": WITHIN_ARCHIVE_W_MISSING_N,
+        "word_reading_n": WORD_READING_N,
+        "delta_items": list(DEFAULT_DELTA_ITEMS),
+        "scenarios": list(MISSINGNESS_SCENARIOS),
+        "common_estimand_class": "common_profile_standardisation",
+        "completion_estimand_class": "randomised_arm_factual_completion",
+        "intercept_prior_anchor": "mean_all_57_screening_word_reading_logit",
+        "intercept_prior_sigma": SCREENING_ALPHA_SIGMA,
+        "prior_predictive_draws": MISSINGNESS_PRIOR_DRAWS,
+        "trace_filename": MISSINGNESS_TRACE_FILENAME,
+        "summary_filename": MISSINGNESS_SUMMARY_FILENAME,
+        "ppc_filename": MISSINGNESS_PPC_FILENAME,
+        "prior_check_filename": MISSINGNESS_PRIOR_FILENAME,
+        "provenance_filename": MISSINGNESS_PROVENANCE_FILENAME,
+    }
+    if not isinstance(saved_missingness_plan, Mapping) or any(
+        saved_missingness_plan.get(key) != value for key, value in expected_plan.items()
+    ):
+        artifact_failures.append("config.json (invalid word-reading missingness plan)")
+    trace_path = output_dir / MISSINGNESS_TRACE_FILENAME
+    summary = _read_csv(output_dir, MISSINGNESS_SUMMARY_FILENAME)
+    if summary is None or summary.empty:
+        artifact_failures.append(MISSINGNESS_SUMMARY_FILENAME)
+    else:
+        for error in validate_missingness_summary(
+            summary,
+            trace_path=trace_path,
+            require_converged=False,
+        ):
+            artifact_failures.append(f"{MISSINGNESS_SUMMARY_FILENAME} ({error})")
+        required_diagnostic_columns = {
+            *_MISSINGNESS_DIAGNOSTIC_FIELDS,
+            "converged",
+        }
+        if not required_diagnostic_columns.issubset(summary.columns):
+            artifact_failures.append(
+                f"{MISSINGNESS_SUMMARY_FILENAME} (missing raw subfit diagnostics)"
+            )
+        else:
+            summary_values = _missingness_diagnostics(summary.iloc[0])
+            rows_agree = summary_values is not None and all(
+                (values := _missingness_diagnostics(row)) is not None
+                and _missingness_diagnostics_match(values, summary_values)
+                for _, row in summary.iterrows()
+            )
+            declared = {_stored_bool(value) for value in summary["converged"]}
+            if not rows_agree or len(declared) != 1 or None in declared:
+                artifact_failures.append(
+                    f"{MISSINGNESS_SUMMARY_FILENAME} "
+                    "(inconsistent or invalid raw subfit diagnostics)"
+                )
+            else:
+                stored_diagnostics.append(
+                    (
+                        MISSINGNESS_SUMMARY_FILENAME,
+                        summary_values,
+                        next(iter(declared)),
+                    )
+                )
+
+    provenance_payload, provenance_error = _read_json(
+        output_dir / MISSINGNESS_PROVENANCE_FILENAME
+    )
+    if provenance_error is not None or not isinstance(provenance_payload, Mapping):
+        artifact_failures.append(MISSINGNESS_PROVENANCE_FILENAME)
+    else:
+        source = provenance_payload.get("source") or {}
+        analysis = provenance_payload.get("analysis") or {}
+        trace = provenance_payload.get("trace") or {}
+        outputs = provenance_payload.get("outputs") or {}
+        if (
+            not isinstance(source, Mapping)
+            or source.get("csv_sha256") != RLI_ARCHIVE_CSV_SHA256
+            or source.get("local_wide_sha256") != RLI_LOCAL_WIDE_SHA256
+            or source.get("reconciled_included_n") != 54
+            or source.get("reconciliation_digest") != RLI_RECONCILIATION_DIGEST
+        ):
+            artifact_failures.append(
+                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid source binding)"
+            )
+        if (
+            not isinstance(analysis, Mapping)
+            or analysis.get("observed_outcome_n") != 53
+            or analysis.get("target_profile_n") != RANDOMISED_N
+            or analysis.get("randomised_by_arm")
+            != {"intervention": RANDOMISED_INTERVENTION_N, "control": RANDOMISED_CONTROL_N}
+            or analysis.get("observed_outcome_by_arm")
+            != {"intervention": OBSERVED_INTERVENTION_N, "control": OBSERVED_CONTROL_N}
+            or analysis.get("lost_to_follow_up_n") != LOST_TO_FOLLOW_UP_N
+            or analysis.get("within_archive_word_reading_missing_n")
+            != WITHIN_ARCHIVE_W_MISSING_N
+            or analysis.get("screening_covariates") != list(SCREENING_COVARIATES)
+            or analysis.get("delta_items_grid") != list(DEFAULT_DELTA_ITEMS)
+        ):
+            artifact_failures.append(
+                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid analysis contract)"
+            )
+        actual_trace_sha256 = sha256_file(trace_path) if trace_path.is_file() else None
+        if (
+            not isinstance(trace, Mapping)
+            or trace.get("file") != MISSINGNESS_TRACE_FILENAME
+            or trace.get("sha256") != actual_trace_sha256
+        ):
+            artifact_failures.append(
+                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid trace binding)"
+            )
+        if isinstance(trace, Mapping):
+            trace_values = _missingness_diagnostics(trace)
+            trace_declared = _stored_bool(trace.get("converged"))
+            if trace_values is None or trace_declared is None:
+                artifact_failures.append(
+                    f"{MISSINGNESS_PROVENANCE_FILENAME} "
+                    "(invalid raw subfit diagnostics)"
+                )
+            else:
+                stored_diagnostics.append(
+                    (
+                        MISSINGNESS_PROVENANCE_FILENAME,
+                        trace_values,
+                        trace_declared,
+                    )
+                )
+        summary_path = output_dir / MISSINGNESS_SUMMARY_FILENAME
+        ppc_path = output_dir / MISSINGNESS_PPC_FILENAME
+        prior_path = output_dir / MISSINGNESS_PRIOR_FILENAME
+        if (
+            not isinstance(outputs, Mapping)
+            or outputs.get("summary_file") != MISSINGNESS_SUMMARY_FILENAME
+            or outputs.get("summary_sha256")
+            != (sha256_file(summary_path) if summary_path.is_file() else None)
+            or outputs.get("ppc_file") != MISSINGNESS_PPC_FILENAME
+            or outputs.get("ppc_sha256")
+            != (sha256_file(ppc_path) if ppc_path.is_file() else None)
+            or outputs.get("prior_check_file") != MISSINGNESS_PRIOR_FILENAME
+            or outputs.get("prior_check_sha256")
+            != (sha256_file(prior_path) if prior_path.is_file() else None)
+        ):
+            artifact_failures.append(
+                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid output binding)"
+            )
+
+    prior_check = _read_csv(output_dir, MISSINGNESS_PRIOR_FILENAME)
+    if prior_check is None or prior_check.empty:
+        artifact_failures.append(MISSINGNESS_PRIOR_FILENAME)
+    else:
+        for error in validate_missingness_prior_check(prior_check):
+            artifact_failures.append(f"{MISSINGNESS_PRIOR_FILENAME} ({error})")
+
+    bounds = _read_csv(output_dir, "attrition_bounds.csv")
+    required_bounds = {
+        "outcome",
+        "observed_intervention_n",
+        "observed_control_n",
+        "missing_intervention_n",
+        "missing_control_n",
+        "n_trials",
+    }
+    if bounds is None or len(bounds) != 1 or not required_bounds.issubset(bounds.columns):
+        artifact_failures.append("attrition_bounds.csv")
+    else:
+        row = bounds.iloc[0]
+        numeric_contract = {
+            "observed_intervention_n": OBSERVED_INTERVENTION_N,
+            "observed_control_n": OBSERVED_CONTROL_N,
+            "missing_intervention_n": 1,
+            "missing_control_n": 3,
+            "n_trials": WORD_READING_N,
+        }
+        if str(row.get("outcome")) != "W" or any(
+            not np.isclose(
+                float(pd.to_numeric(row.get(key), errors="coerce")),
+                float(value),
+            )
+            for key, value in numeric_contract.items()
+        ):
+            artifact_failures.append("attrition_bounds.csv (invalid W count contract)")
+
+    ppc = _read_csv(output_dir, MISSINGNESS_PPC_FILENAME)
+    required_ppc = {
+        "arm",
+        "n",
+        "observed_mean_items",
+        "posterior_predictive_mean_items",
+        "mean_absolute_prediction_error_items",
+        "coverage_50",
+        "coverage_89",
+    }
+    if ppc is None or len(ppc) != 3 or not required_ppc.issubset(ppc.columns):
+        artifact_failures.append(MISSINGNESS_PPC_FILENAME)
+    else:
+        expected_n = {"all": 53, "intervention": 28, "control": 25}
+        observed_n = dict(
+            zip(
+                ppc["arm"].astype(str),
+                pd.to_numeric(ppc["n"], errors="coerce"),
+                strict=True,
+            )
+        )
+        numeric_ppc = ppc[list(required_ppc - {"arm"})].apply(
+            pd.to_numeric, errors="coerce"
+        )
+        if observed_n != expected_n or not np.isfinite(
+            numeric_ppc.to_numpy(dtype=float)
+        ).all():
+            artifact_failures.append(f"{MISSINGNESS_PPC_FILENAME} (invalid values)")
+        elif not (
+            numeric_ppc["coverage_50"].between(0.0, 1.0).all()
+            and numeric_ppc["coverage_89"].between(0.0, 1.0).all()
+        ):
+            artifact_failures.append(f"{MISSINGNESS_PPC_FILENAME} (invalid coverage)")
+
+    subfits = _read_csv(output_dir, "subfit_provenance.csv")
+    if subfits is None or subfits.empty or "label" not in subfits.columns:
+        artifact_failures.append("subfit_provenance.csv")
+    else:
+        rows = subfits.loc[subfits["label"].astype(str) == MISSINGNESS_SUBFIT_LABEL]
+        if len(rows) != 1:
+            artifact_failures.append(
+                "subfit_provenance.csv (no unique ITT missingness row)"
+            )
+        else:
+            row = rows.iloc[0]
+            if str(row.get("role", "")).strip() != "sensitivity":
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid ITT missingness role)"
+                )
+            if str(row.get("trace_file", "")).strip() != MISSINGNESS_TRACE_FILENAME:
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid ITT missingness trace binding)"
+                )
+            subfit_values = _missingness_diagnostics(row)
+            subfit_declared = _stored_bool(row.get("converged"))
+            if subfit_values is None or subfit_declared is None:
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid raw ITT missingness diagnostics)"
+                )
+            else:
+                stored_diagnostics.append(
+                    ("subfit_provenance.csv", subfit_values, subfit_declared)
+                )
+            n_obs = pd.to_numeric(row.get("n_obs"), errors="coerce")
+            n_children = pd.to_numeric(row.get("n_children"), errors="coerce")
+            if not (
+                pd.notna(n_obs)
+                and pd.notna(n_children)
+                and float(n_obs) == 53.0
+                and float(n_children) == 53.0
+                and bool(str(row.get("data_digest", "")).strip())
+            ):
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid ITT missingness data identity)"
+                )
+    if not trace_path.is_file():
+        artifact_failures.append(MISSINGNESS_TRACE_FILENAME)
+    trace_diagnostics, trace_diagnostics_error = _missingness_trace_diagnostics(
+        trace_path
+    )
+    if trace_diagnostics_error is not None or trace_diagnostics is None:
+        if trace_path.is_file():
+            artifact_failures.append(
+                f"{MISSINGNESS_TRACE_FILENAME} ({trace_diagnostics_error})"
+            )
+    else:
+        trace_passed = _missingness_diagnostics_pass(trace_diagnostics)
+        if not trace_passed:
+            computation_failures.append(
+                "ITT screening-baseline missingness sub-fit failed the raw "
+                "sampling-quality thresholds"
+            )
+        for label, values, declared in stored_diagnostics:
+            if not _missingness_diagnostics_match(values, trace_diagnostics):
+                artifact_failures.append(
+                    f"{label} (raw subfit diagnostics do not match the trace)"
+                )
+            elif declared != _missingness_diagnostics_pass(values):
+                artifact_failures.append(
+                    f"{label} (stored convergence verdict contradicts raw diagnostics)"
+                )
+    return tuple(computation_failures), tuple(artifact_failures)
+
+
 def evaluate_publication(
     output_dir: str | Path,
     *,
@@ -979,6 +1524,8 @@ def evaluate_publication(
        a withheld release, not a warning (#394 design point 3).
     4. **robustness** — for the families the treatment-effect gate covers, the
        prior-sensitivity and floor-grid evidence must support a causal headline.
+       The saved sampling-preset name also distinguishes publication-grade
+       ``rep-lite`` / ``reporting`` fits from local ``dev`` / ``test`` diagnostics.
 
     Reads only artefacts already in ``output_dir``, so a stored fit can be
     re-decided without refitting — the contract ``evaluate_release`` and
@@ -996,6 +1543,22 @@ def evaluate_publication(
         else:
             config = loaded if loaded is not None else {}
 
+    if isinstance(config, Mapping):
+        sampling_preset, development_only, publication_qualification = (
+            _sampling_preset_qualification(output_dir, config)
+        )
+    else:
+        sampling_preset, development_only, publication_qualification = (
+            None,
+            True,
+            "config.json is unreadable, so publication-grade sampling cannot be verified",
+        )
+    qualification = {
+        "sampling_preset": sampling_preset,
+        "development_only": development_only,
+        "publication_qualification": publication_qualification,
+    }
+
     diag, diag_error = _read_json(output_dir / "diagnostics_summary.json")
     if diag_error == "missing":
         return ReleaseEvaluation(
@@ -1006,6 +1569,7 @@ def evaluate_publication(
                 "cannot be checked"
             ),
             config=config,
+            **qualification,
         )
     if diag_error is not None:
         return ReleaseEvaluation(
@@ -1016,6 +1580,7 @@ def evaluate_publication(
                 "gate cannot be checked"
             ),
             config=config,
+            **qualification,
         )
 
     # Local import: ``reporting`` reaches this module through its own function-local
@@ -1033,6 +1598,7 @@ def evaluate_publication(
             reason="the automatic sampling-quality gate failed",
             failing_checks=tuple(failing),
             config=config,
+            **qualification,
         )
 
     if not config:
@@ -1045,27 +1611,36 @@ def evaluate_publication(
                 else "config.json is missing"
             ),
             config=config,
+            **qualification,
         )
 
     t3_gate_failures, t3_artifact_failures = _mediation_t3_release_failures(
         output_dir, config
     )
-    if t3_gate_failures:
+    itt_missingness_gate_failures, itt_missingness_artifact_failures = (
+        _itt_missingness_release_failures(output_dir, config)
+    )
+    gate_failures = tuple(
+        sorted({*t3_gate_failures, *itt_missingness_gate_failures})
+    )
+    if gate_failures:
         return ReleaseEvaluation(
             status="gate_failed",
             stage="computation",
             reason=(
-                "the required natural-mediation temporal-ordering sensitivity "
-                "did not pass its trace-backed sampling-quality gate"
+                "a required trace-backed secondary sensitivity did not pass its "
+                "sampling-quality gate"
             ),
-            failing_checks=t3_gate_failures,
+            failing_checks=gate_failures,
             config=config,
+            **qualification,
         )
 
     missing = tuple(
         sorted(
             {
                 *t3_artifact_failures,
+                *itt_missingness_artifact_failures,
                 *_recorded_required_artifacts(output_dir, artifacts),
             }
         )
@@ -1080,6 +1655,7 @@ def evaluate_publication(
             ),
             missing_artifacts=missing,
             config=config,
+            **qualification,
         )
 
     robustness = _robustness_decision(output_dir, config)
@@ -1090,9 +1666,14 @@ def evaluate_publication(
             reason=robustness.reason,
             robustness=robustness,
             config=config,
+            **qualification,
         )
     return ReleaseEvaluation(
-        status="ok", stage="robustness", robustness=robustness, config=config
+        status="ok",
+        stage="robustness",
+        robustness=robustness,
+        config=config,
+        **qualification,
     )
 
 

@@ -335,7 +335,9 @@ def test_scale_and_population_columns_are_explicit(cmp_mod, out_root):
     df = cmp_mod.build_triangulation("dev")
     w = {r["outcome"]: r for _, r in df.iterrows()}["W"]
     assert w["itt_scale"] == "items" and w["did_scale"] == "items" and w["gf_scale"] == "items"
-    assert w["itt_population"] == "t2 available-case children (both arms)"
+    assert w["itt_population"] == (
+        "t2 available-case modified ITT analysis rows (both arms)"
+    )
     assert w["did_population"] == "t2 wave rows (both arms), arm-gap pushforward"
     assert w["gf_population"] == "period-1 randomised transition rows (both arms)"
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Intention-to-treat orchestration (the LRP-RLI-ITT suite + SES companions).
+"""Available-case modified ITT orchestration (the LRP-RLI-ITT suite + companions).
 
 ``fit_itt`` is the family entry point: it resolves the typed run plan, prepares
 the analysis rows, builds the model, runs the shared primary-fit sequence and
@@ -16,6 +16,7 @@ this module is orchestration only (#394 step 5).
 
 from __future__ import annotations
 
+import os
 from collections.abc import Sequence
 
 import numpy as np
@@ -236,7 +237,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
 
     # Treatment-effect summary on both scales.
-    section_header("Treatment-effect summary")
+    section_header("Available-case modified ITT estimate summary")
     tau_s = _report.tau_summary_itt(
         ctx.trace,
         ci_prob=ctx.reporting.ci_prob,
@@ -321,9 +322,12 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         moderators=tau_moderators,
         delta=delta_items,
         population=(
-            "new child; covariate profiles drawn from the fitted ITT analysis rows"
+            "new child; covariate profiles drawn from the fitted available-case "
+            "modified ITT analysis rows"
         ),
-        contrast_status="randomised contrast (ITT)",
+        contrast_status=(
+            "randomised assigned-arm contrast (available-case modified ITT estimate)"
+        ),
         split=True,
         score_mean_link=score_mean_link,
     )
@@ -340,9 +344,12 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         term="tau",
         moderators=tau_moderators,
         population=(
-            "new child; covariate profiles drawn from the fitted ITT analysis rows"
+            "new child; covariate profiles drawn from the fitted available-case "
+            "modified ITT analysis rows"
         ),
-        contrast_status="randomised contrast (ITT)",
+        contrast_status=(
+            "randomised assigned-arm contrast (available-case modified ITT estimate)"
+        ),
         score_mean_link=score_mean_link,
     )
 
@@ -355,12 +362,49 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         tau_mod_df = pd.DataFrame([tau_mod_s])
         save_table(ctx, "tau_moderation_summary", tau_mod_df)
 
+    missingness_metadata: dict[str, object] | None = None
+    if plan.missingness_sensitivity_required_for_release:
+        from language_reading_predictors.statistical_models.itt_missingness import (
+            missingness_source_path,
+            run_missingness_subfit,
+        )
+
+        archive_option = getattr(
+            getattr(ctx, "run_options", None), "rli_randomised_archive", None
+        )
+        archive_path = missingness_source_path(archive_option)
+        if archive_path is None:
+            if os.environ.get("DSE_LRP_REUSE_TRACE"):
+                raise FileNotFoundError(
+                    "reuse-trace mode cannot rebuild the mandatory word-reading "
+                    "missingness bundle without --rli-randomised-archive; the "
+                    "previous complete output has not been replaced"
+                )
+            missingness_metadata = {
+                "status": "not_run",
+                "reason": "--rli-randomised-archive was not supplied",
+            }
+            rprint(
+                "[yellow]Required word-reading missing-data sensitivity not run: "
+                "supply --rli-randomised-archive. The primary fit is retained, "
+                "but its scientific release will be withheld as incomplete.[/yellow]"
+            )
+        else:
+            section_header("Full-randomised-cohort missing-data sensitivity")
+            missingness_metadata = run_missingness_subfit(
+                ctx,
+                archive_path,
+                plan=plan.missingness_plan,
+                runner=run_subfit,
+            )
+
     write_run_metadata(
         ctx,
         extra={
             "loo_elpd": float(ctx.loo.elpd),
             "tau_summary": tau_s,
             "adjust_for": list(adjust_for),
+            "itt_missingness_sensitivity": missingness_metadata,
         },
     )
 
@@ -519,7 +563,10 @@ def fit_itt_floor_rule(
         overlay_vars=itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
     )
 
-    section_header("Off-floor treatment-effect summary (post-hoc exploratory headline)")
+    section_header(
+        "Off-floor available-case modified ITT estimate "
+        "(post-hoc exploratory headline)"
+    )
     off = _report.tau_summary_offfloor(
         ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G
     )
@@ -599,7 +646,10 @@ def fit_itt_floor_rule(
             "new child; covariate profiles drawn from the baseline-floored "
             "at-risk analysis rows"
         ),
-        contrast_status="randomised contrast (floor-rule subgroup ITT)",
+        contrast_status=(
+            "randomised assigned-arm contrast (post-hoc subgroup available-case "
+            "modified ITT estimate)"
+        ),
         event_label="off the floor at t2",
         split=True,
     )
@@ -619,7 +669,10 @@ def fit_itt_floor_rule(
             "new child; covariate profiles drawn from the baseline-floored "
             "at-risk analysis rows"
         ),
-        contrast_status="randomised contrast (floor-rule subgroup ITT)",
+        contrast_status=(
+            "randomised assigned-arm contrast (post-hoc subgroup available-case "
+            "modified ITT estimate)"
+        ),
         event_label="off the floor at t2",
     )
 

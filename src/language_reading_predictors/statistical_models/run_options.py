@@ -24,17 +24,22 @@ class StatisticalRunOptions:
     """Command-level overrides that apply to exactly one model invocation."""
 
     target_accept: float | None = None
+    rli_randomised_archive: str | None = None
 
     def __post_init__(self) -> None:
-        if self.target_accept is None:
-            return
-        value = float(self.target_accept)
-        if not 0.0 < value < 1.0:
-            raise ValueError(
-                "target_accept must be in the open interval (0, 1); "
-                f"got {self.target_accept!r}"
-            )
-        object.__setattr__(self, "target_accept", value)
+        if self.target_accept is not None:
+            value = float(self.target_accept)
+            if not 0.0 < value < 1.0:
+                raise ValueError(
+                    "target_accept must be in the open interval (0, 1); "
+                    f"got {self.target_accept!r}"
+                )
+            object.__setattr__(self, "target_accept", value)
+        if self.rli_randomised_archive is not None:
+            archive = str(self.rli_randomised_archive).strip()
+            if not archive:
+                raise ValueError("rli_randomised_archive must be a non-empty path")
+            object.__setattr__(self, "rli_randomised_archive", archive)
 
 
 _DEFAULT_OPTIONS = StatisticalRunOptions()

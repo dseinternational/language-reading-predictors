@@ -63,3 +63,24 @@ def test_report_glossary_is_substantive_and_causal_status_is_explicit():
         "**Tail probability.**",
     ):
         assert term in glossary
+
+
+def test_itt_user_facing_documents_use_the_canonical_estimand_label():
+    documents = [
+        *sorted(
+            (REPOSITORY_ROOT / "docs" / "models").glob(
+                "lrp-rli-itt-*/index.qmd"
+            )
+        ),
+        REPOSITORY_ROOT / "docs" / "models" / "_partials" / "_results_itt.qmd",
+        REPOSITORY_ROOT / "docs" / "models" / "_partials" / "_results_joint.qmd",
+        REPOSITORY_ROOT / "docs" / "models" / "_partials" / "_results_floored.qmd",
+        REPOSITORY_ROOT / "docs" / "report" / "_caveats-causal.qmd",
+        REPOSITORY_ROOT / "docs" / "report" / "chapters" / "methods-models.qmd",
+        REPOSITORY_ROOT / "docs" / "report" / "glossary.qmd",
+    ]
+
+    for document in documents:
+        # Markdown emphasis may split the visible phrase but must not change it.
+        visible_text = document.read_text(encoding="utf-8").replace("**", "")
+        assert "available-case modified itt" in visible_text.lower(), document

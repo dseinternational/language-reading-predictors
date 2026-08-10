@@ -231,7 +231,7 @@ SP/RW are DAG-only nodes (no outcome measure) and so are absent here."""
 LRPITT_OUTCOMES: tuple[str, ...] = (
     "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
 )
-"""The eleven RCT-phase outcomes of the uniform DAG-faithful ITT suite (#119),
+"""The eleven RCT-phase outcomes of the available-case modified ITT suite (#119),
 in LRPITT01-LRPITT11 order: taught/not-taught receptive & expressive vocabulary,
 standardised receptive & expressive vocabulary, letter sounds, blending,
 phonetic spelling, word reading, and nonword reading.

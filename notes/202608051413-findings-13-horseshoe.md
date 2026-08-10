@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 
 # Findings 13 — the horseshoe ranking family
@@ -39,7 +42,7 @@ This family's most useful output is not any individual ranking — it is the con
 
 This is an important and easily-missed result. It corroborates the adjusted family (note 12) directly, and it is a caution against reading the level-based associations elsewhere in the suite as though they told us who will progress. They tell us who is ahead, which is a different and much easier question.
 
-It also gives the ITT results their proper context: the intervention produced a detectable gain in a setting where **baseline characteristics predict gain barely at all**. The treatment signal is not competing with a strong prognostic signal; it is one of the few things in this study that moves the gain measures.
+It also gives the available-case modified ITT estimates their proper context: assignment produced a detectable fitted-sample gain in a setting where **baseline characteristics predict gain barely at all**. The treatment signal is not competing with a strong prognostic signal; it is one of the few things in this study that moves the gain measures.
 
 ## `rlm-hs-001` — the historical Byrne cohort
 

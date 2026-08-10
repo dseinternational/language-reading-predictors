@@ -69,9 +69,9 @@ directly: the legacy pair generates indicator data ~1.4× more dispersed than ob
 while the communality scale is calibrated at ~1.0 by construction.
 
 _Measurement / triangulation, NOT causal._ As with LRPMM01: per the locked DAG's **ID-2**, every factor → gain slope is a
-**latent-ability-confounded adjusted association**. The randomised causal claim lives in the
-ITT suite (`lrp-rli-itt-010` for word reading) and the `gain_factors` randomised term, not
-here.
+**latent-ability-confounded adjusted association**. The corresponding randomised-arm result
+is the available-case modified ITT estimate in `lrp-rli-itt-010`; the `gain_factors`
+randomised term is also outside this model.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

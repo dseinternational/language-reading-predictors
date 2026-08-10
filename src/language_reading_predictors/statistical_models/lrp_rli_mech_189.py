@@ -18,7 +18,8 @@ TE -> W. Group G(=IG) is the always-in precision term and W_pre the autoregressi
 baseline.
 
 Residual confounding by latent general ability (GA) remains, so f^TE is an ADJUSTED
-ASSOCIATION, not a causal effect. The randomised causal claim lives in the ITT suite.
+ASSOCIATION, not a causal effect. The corresponding randomised-arm result is an
+available-case modified ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

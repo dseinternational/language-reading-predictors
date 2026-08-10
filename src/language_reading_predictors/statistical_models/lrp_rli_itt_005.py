@@ -1,10 +1,10 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT05 - ITT effect on standardised receptive vocabulary (R, ROWPVT).
+"""LRPITT05 - available-case modified ITT estimate for standardised receptive vocabulary (R, ROWPVT).
 
-Uniform DAG-faithful ITT model (issue #119). Under the locked DAG the effect of
-randomised assignment is identified by the *empty* adjustment set, so the own
+Uniform DAG-faithful available-case modified ITT model (issue #119). Under the
+locked DAG the assigned-arm coefficient requires no adjustment set, so the own
 baseline and linear age are PRECISION terms only and no cross-baselines enter.
 Sign convention: positive ``tau`` means the intervention raises the outcome.
 Supersedes LRP53.
@@ -17,7 +17,10 @@ from language_reading_predictors.statistical_models.pipeline import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-005",
     kind="itt",
-    title="ITT effect of group assignment on standardised receptive vocabulary (R)",
+    title=(
+        "Available-case modified ITT estimate of the assigned-arm contrast in "
+        "standardised receptive vocabulary (R)"
+    ),
     outcome_symbol="R",
     model_settings=IttModelSettings(),
 )

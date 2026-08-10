@@ -155,7 +155,7 @@ if _floor_sensitivity_status["ready"]:
 
 ## Analysis set and estimand
 
-This is an available-case **modified-ITT reanalysis**, not a full ITT of all 57 randomised children. The repository contains 54 children, the outcome-specific frame additionally requires an observed t2 score, and the transition estimand includes only children whose t1 score was observed at zero. Randomisation supports the offer-effect contrast within that observed baseline-floor subgroup; extending it to children with missing outcomes or unknown floor eligibility assumes their exclusion is ignorable.
+This is an **available-case modified ITT reanalysis**, not a full ITT of all 57 randomised children. The published CONSORT diagram records three losses to follow-up—one intervention child and two waiting-control children—leaving 54 analysed and represented in the repository; it separately records that two children per arm who discontinued the intervention were followed and included under assignment. The outcome-specific frame additionally requires an observed t2 score, and the transition estimand includes only children whose t1 score was observed at zero. Randomisation supports the offer-effect contrast within that observed baseline-floor subgroup; extending it to children lost to follow-up, children with missing outcomes or children with unknown floor eligibility assumes their exclusion is ignorable.
 
 ```{python}
 # | echo: false
@@ -167,14 +167,14 @@ _csv("analysis_set.csv")
 _csv("baseline_floor_eligibility.csv")
 ```
 
-The next sensitivity holds observed t2 off-floor status fixed and assigns every missing t1 floor status in all ways that can minimise or maximise the raw intervention-minus-control risk difference. It is an eligibility bound, not a posterior interval and not a correction for the three randomised children absent from the repository.
+The next sensitivity holds observed t2 off-floor status fixed and assigns every missing t1 floor status in all ways that can minimise or maximise the raw intervention-minus-control risk difference. It is an eligibility bound, not a posterior interval and not a correction for the three randomised children lost to follow-up and absent from the repository.
 
 ```{python}
 # | echo: false
 _csv("floor_eligibility_sensitivity.csv")
 ```
 
-The next table stays on the **same binary transition estimand** while allowing every missing fact to take its most adverse or favourable value. The archive-only row covers a known baseline zero with missing t2, missing baseline eligibility with observed t2, and children missing both scores. The full-randomised row additionally lets each of the three participants absent from the repository be baseline-floored or not and, if eligible, remain at zero or move above it. These are sharp worst/best-case identification bounds, not posterior intervals; their width shows exactly what the data alone cannot resolve.
+The next table stays on the **same binary transition estimand** while allowing every missing fact to take its most adverse or favourable value. The archive-only row covers a known baseline zero with missing t2, missing baseline eligibility with observed t2, and children missing both scores. The full-randomised row additionally lets each of the three participants lost to follow-up and absent from the repository be baseline-floored or not and, if eligible, remain at zero or move above it. These are sharp worst/best-case identification bounds, not posterior intervals; their width shows exactly what the data alone cannot resolve.
 
 ```{python}
 # | echo: false

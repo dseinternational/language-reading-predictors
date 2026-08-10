@@ -10,6 +10,7 @@ import json
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 import arviz as az
@@ -1714,7 +1715,8 @@ def did_summary(
     The legacy ``beta_period``/``delta`` branch remains readable so existing traces
     fail gracefully during the refit transition. Its ``delta_items_*`` quantity is
     a fitted-row model-implied treated-versus-untreated toggle, not a four-cell DiD
-    cross-difference and not automatically comparable with the randomised ITT.
+    cross-difference and not automatically comparable with the corresponding
+    available-case modified ITT estimate.
 
     When the posterior contains child-specific ``delta_i`` draws, ``child_idx`` is
     required and must map each fitted row to the corresponding ``child`` position.
@@ -2799,6 +2801,157 @@ def _resolved_run_plan(context: StatisticalFitContext):
     return None
 
 
+_REUSE_CONFIG_FIELDS = (
+    "model_id",
+    "kind",
+    "outcome_symbol",
+    "mechanism_symbol",
+    "adjustment",
+    "spec_extra",
+    "model_settings",
+    "resolved_run_plan",
+    "effective_model_settings",
+    "config_name",
+    "sampling",
+    "data_sha256",
+    "n_obs",
+    "n_children",
+    "n_phases",
+    "n_waves",
+    "dropped_rows",
+    "dropped_by_reason",
+    "fitted_subject_identity",
+    "fitted_data_identity",
+    "model_recipe_file",
+)
+
+
+def _sha256_path(path: str | Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _fitted_data_identity(context: StatisticalFitContext) -> dict[str, Any]:
+    """Strong row-and-observation identity used to authorise trace reuse."""
+
+    from language_reading_predictors.statistical_models.subfits import (
+        describe_fitted_data,
+    )
+
+    return _json_safe(asdict(describe_fitted_data(context)))
+
+
+def _reuse_compatibility_contract(
+    context: StatisticalFitContext,
+) -> dict[str, Any]:
+    """Current scientific-fit contract that a reused posterior must match."""
+
+    spec = context.spec
+    plan = _resolved_run_plan(context)
+    resolved_plan = plan.as_dict() if plan is not None else None
+    recipe_path = Path(context.output_dir) / "model_recipe.md"
+    return {
+        "model_id": spec.model_id,
+        "kind": spec.kind,
+        "outcome_symbol": spec.outcome_symbol,
+        "mechanism_symbol": spec.mechanism_symbol,
+        "adjustment": _json_safe(spec.adjustment),
+        "spec_extra": _json_safe(spec.extra),
+        "model_settings": (
+            _json_safe(declared_settings_dict(spec))
+            if spec.kind == "itt" or spec.model_settings is not None
+            else None
+        ),
+        "resolved_run_plan": _json_safe(resolved_plan),
+        "effective_model_settings": _json_safe(_effective_model_settings(context)),
+        "config_name": getattr(context.reporting, "config_name", None),
+        "sampling": {
+            "draws": context.sampling.draws,
+            "tune": context.sampling.tune,
+            "chains": context.sampling.chains,
+            "target_accept": context.sampling.target_accept,
+            "random_seed": context.sampling.random_seed,
+        },
+        "data_sha256": getattr(context.prepared, "data_sha256", None),
+        "n_obs": context.prepared.n_obs if context.prepared else None,
+        "n_children": context.prepared.n_children if context.prepared else None,
+        "n_phases": context.prepared.n_phases if context.prepared else None,
+        "n_waves": (
+            getattr(context.prepared, "n_waves", None) if context.prepared else None
+        ),
+        "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
+        "dropped_by_reason": (
+            dict(getattr(context.prepared, "dropped_by_reason", {}) or {})
+            if context.prepared
+            else None
+        ),
+        "fitted_subject_identity": fitted_subject_identity(context.prepared),
+        "fitted_data_identity": _fitted_data_identity(context),
+        "model_recipe_file": recipe_path.name if recipe_path.is_file() else None,
+    }
+
+
+def require_reuse_compatibility(
+    context: StatisticalFitContext, source_dir: str | Path
+) -> None:
+    """Fail unless a prior publication matches the current scientific contract."""
+
+    source = Path(source_dir)
+    config_path = source / "config.json"
+    try:
+        with open(config_path, encoding="utf-8") as handle:
+            previous = json.load(handle)
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"reuse-trace mode requires prior run metadata at {config_path}"
+        ) from exc
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            f"reuse-trace prior run metadata is unreadable: {config_path}"
+        ) from exc
+    if not isinstance(previous, Mapping):
+        raise ValueError("reuse-trace prior config.json is not a JSON object")
+
+    current = _reuse_compatibility_contract(context)
+    current_data = current.get("fitted_data_identity") or {}
+    if not isinstance(current_data, Mapping) or not current_data.get("digest"):
+        raise ValueError(
+            "reuse-trace cannot verify the current fitted rows and observations"
+        )
+    mismatched = [
+        field
+        for field in _REUSE_CONFIG_FIELDS
+        if _json_safe(previous.get(field)) != _json_safe(current.get(field))
+    ]
+
+    recipe_name = current.get("model_recipe_file")
+    if recipe_name is not None:
+        previous_recipe = source / str(recipe_name)
+        current_recipe = Path(context.output_dir) / str(recipe_name)
+        if not previous_recipe.is_file() or not current_recipe.is_file():
+            mismatched.append("model_recipe_file")
+        elif _sha256_path(previous_recipe) != _sha256_path(current_recipe):
+            mismatched.append("model_recipe_sha256")
+
+    trace_path = source / "trace.nc"
+    recorded_trace_sha256 = previous.get("trace_sha256")
+    if (
+        not isinstance(recorded_trace_sha256, str)
+        or not trace_path.is_file()
+        or _sha256_path(trace_path) != recorded_trace_sha256
+    ):
+        mismatched.append("trace_sha256")
+    if mismatched:
+        fields = ", ".join(dict.fromkeys(mismatched))
+        raise ValueError(
+            "reuse-trace compatibility check failed for the prior publication: "
+            + fields
+        )
+
+
 def write_model_recipe(context: StatisticalFitContext) -> str | None:
     """Write the human-readable recipe generated from a typed run plan, if any."""
     plan = _resolved_run_plan(context)
@@ -2820,6 +2973,8 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
     recipe_path = write_model_recipe(context)
     _plan = _resolved_run_plan(context)
     resolved_plan = _plan.as_dict() if _plan is not None else None
+    reuse_contract = _reuse_compatibility_contract(context)
+    trace_path = Path(out) / "trace.nc"
     cfg = {
         "model_id": spec.model_id,
         # Canonical model-ID scheme (#168 Phase 1); legacy id stays primary.
@@ -2869,7 +3024,16 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         # counts, this lets companion fits prove that their primary analysis rows
         # match without writing raw subject identifiers to the artefact bundle.
         "fitted_subject_identity": fitted_subject_identity(context.prepared),
+        "fitted_data_identity": reuse_contract["fitted_data_identity"],
         "ci_prob": context.reporting.ci_prob,
+        # Persist the named sampling preset independently of its numeric settings.
+        # ``dev`` and ``test`` can occasionally clear the numerical convergence
+        # thresholds by chance, but they remain diagnostic presets; the publication
+        # gate needs the name to distinguish them from ``rep-lite`` / ``reporting``.
+        # ``getattr`` preserves lightweight historical test/sweep contexts that predate
+        # ``ReportingConfiguration.config_name``; stored legacy fits are resolved from
+        # their ``<model-id>-<preset>`` directory suffix by the release evaluator.
+        "config_name": getattr(context.reporting, "config_name", None),
         "sampling": {
             "draws": context.sampling.draws,
             "tune": context.sampling.tune,
@@ -2880,6 +3044,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "output_root": str(_paths.output_root()),
         "data_path": getattr(context.prepared, "data_path", None),
         "data_sha256": getattr(context.prepared, "data_sha256", None),
+        "trace_sha256": _sha256_path(trace_path) if trace_path.is_file() else None,
         "provenance": run_provenance(),
         "environment_lock_file": os.path.basename(environment_path),
         "environment_lock_sha256": environment_sha256,
@@ -4062,6 +4227,9 @@ def _kf_itt_analysis_population(output_dir) -> dict[str, int]:
         "arm",
         "G",
         "randomised_n",
+        "lost_to_follow_up_n",
+        "analysed_archive_n",
+        "discontinued_but_followed_n",
         "available_t1_n",
         "fitted_n",
         "absent_from_archive_n",
@@ -4083,9 +4251,11 @@ def _kf_itt_analysis_population(output_dir) -> dict[str, int]:
     if set(work["G"]) != {0, 1} or work["G"].duplicated().any():
         raise _KeyFindingsUnavailable("analysis_set.csv does not identify both arms")
     if not (
-        (work["randomised_n"] - work["available_t1_n"])
-        .eq(work["absent_from_archive_n"])
+        (work["randomised_n"] - work["analysed_archive_n"])
+        .eq(work["lost_to_follow_up_n"])
         .all()
+        and work["analysed_archive_n"].eq(work["available_t1_n"]).all()
+        and work["lost_to_follow_up_n"].eq(work["absent_from_archive_n"]).all()
         and (work["randomised_n"] - work["fitted_n"])
         .eq(work["not_in_fitted_analysis_n"])
         .all()
@@ -4101,6 +4271,10 @@ def _kf_itt_analysis_population(output_dir) -> dict[str, int]:
     return {
         "randomised": int(work["randomised_n"].sum()),
         "archived": int(work["available_t1_n"].sum()),
+        "lost_to_follow_up": int(work["lost_to_follow_up_n"].sum()),
+        "discontinued_but_followed": int(
+            work["discontinued_but_followed_n"].sum()
+        ),
         "fitted": int(work["fitted_n"].sum()),
         "fitted_intervention": int(indexed.loc[1, "fitted_n"]),
         "fitted_control": int(indexed.loc[0, "fitted_n"]),
@@ -4119,6 +4293,15 @@ def _kf_itt_causal_sentence(
     ordinary ITT sentence, which understates both.
     """
 
+    label = (
+        "This is a post-hoc subgroup available-case modified ITT estimate, not a "
+        "full-randomised-cohort ITT estimate. "
+        if floor_rule
+        else (
+            "This is an available-case modified ITT estimate, not a "
+            "full-randomised-cohort ITT estimate. "
+        )
+    )
     scope = (
         (
             "Random assignment supports a cause-and-effect reading only within the "
@@ -4146,12 +4329,17 @@ def _kf_itt_causal_sentence(
         )
     )
     return (
-        scope
+        label
+        + scope
         + f"{population['fitted']} fitted children "
         f"({population['fitted_intervention']} immediate-intervention and "
         f"{population['fitted_control']} waiting-list), archive inclusion, outcome "
         "observation and any complete-case restriction must not depend jointly on "
-        "assigned arm and potential outcomes." + tail
+        "assigned arm and potential outcomes. The "
+        f"{population['lost_to_follow_up']} children absent from the analysed archive "
+        "were lost to follow-up; this is distinct from the "
+        f"{population['discontinued_but_followed']} children who stopped intervention "
+        "but were followed and retained by assignment." + tail
     )
 
 
@@ -4219,6 +4407,91 @@ def _kf_rope_sentence(rope: Mapping, *, is_rd: bool) -> str:
     )
 
 
+def _kf_itt_missingness_sentence(output_dir, config: Mapping) -> str | None:
+    """The mandatory full-57 word-reading sensitivity, when registered."""
+
+    if str(config.get("model_id")) != "lrp-rli-itt-010":
+        return None
+    frame = _kf_csv(output_dir, "itt_missingness_sensitivity.csv")
+    if frame is None or "scenario" not in frame.columns:
+        raise _KeyFindingsUnavailable(
+            "itt_missingness_sensitivity.csv is absent or malformed"
+        )
+    indexed = frame.set_index(frame["scenario"].astype(str), drop=False)
+    required = (
+        "screening_model_observed_profiles",
+        "mar_all_57",
+        "jump_to_reference_intervention_nonstarter",
+    )
+    if any(scenario not in indexed.index for scenario in required):
+        raise _KeyFindingsUnavailable(
+            "the bridge, MAR or jump-to-reference missingness row is absent"
+        )
+    bridge = indexed.loc[required[0]]
+    mar = indexed.loc[required[1]]
+    j2r = indexed.loc[required[2]]
+    grid = frame.loc[frame["scenario_class"].astype(str) == "arm_specific_delta_grid"]
+    if len(grid) != 25:
+        raise _KeyFindingsUnavailable("the 25-row missingness delta grid is incomplete")
+    grid_medians = pd.to_numeric(grid["effect_items_median"], errors="coerce")
+    if not np.isfinite(grid_medians.to_numpy(dtype=float)).all():
+        raise _KeyFindingsUnavailable("the missingness delta grid is non-numeric")
+    delta_i = pd.to_numeric(grid["delta_intervention_items"], errors="coerce")
+    delta_c = pd.to_numeric(grid["delta_control_items"], errors="coerce")
+    factual_mar = grid.loc[delta_i.eq(0.0) & delta_c.eq(0.0)]
+    if len(factual_mar) != 1:
+        raise _KeyFindingsUnavailable(
+            "the factual-arm zero-delta MAR completion is absent"
+        )
+    factual_mar = factual_mar.iloc[0]
+    clipping = grid[
+        ["clipped_intervention_fraction", "clipped_control_fraction"]
+    ].apply(pd.to_numeric, errors="coerce")
+    if not np.isfinite(clipping.to_numpy(dtype=float)).all():
+        raise _KeyFindingsUnavailable("the missingness clipping audit is non-numeric")
+    bounds = _kf_csv(output_dir, "attrition_bounds.csv")
+    needed_bounds = {"outcome", "worst_case_items_lower", "worst_case_items_upper"}
+    if bounds is None or not needed_bounds.issubset(bounds.columns):
+        raise _KeyFindingsUnavailable("the word-reading sharp attrition bounds are absent")
+    word_bounds = bounds.loc[bounds["outcome"].astype(str).eq("W")]
+    if len(word_bounds) != 1:
+        raise _KeyFindingsUnavailable("the word-reading sharp-bound row is not unique")
+    sharp_lo = _kf_float(word_bounds.iloc[0]["worst_case_items_lower"])
+    sharp_hi = _kf_float(word_bounds.iloc[0]["worst_case_items_upper"])
+
+    def _effect(row: Mapping) -> str:
+        return (
+            f"{_kf_float(row['effect_items_median']):+.1f} items "
+            f"(89% credible range {_kf_float(row['effect_items_lo89']):+.1f} to "
+            f"{_kf_float(row['effect_items_hi89']):+.1f})"
+        )
+
+    return (
+        "Missing-outcome sensitivity: refitting the same 53 observed outcomes with "
+        f"screening word reading and age gave {_effect(bridge)} over common observed "
+        f"profiles; common-profile standardisation over all 57 under MAR gave "
+        f"{_effect(mar)}. MAR here assumes outcome observation is independent of the "
+        "unseen t2 score conditional on assigned arm, screening word reading and "
+        "screening age, together with the fitted outcome model and covariate overlap; "
+        "the observed data cannot test that assumption. The reference and delta "
+        "analyses instead complete the factual randomised arms (29 intervention "
+        f"versus 28 control): their zero-delta MAR anchor was {_effect(factual_mar)}, "
+        "and giving the one intervention non-starter the control mean surface gave "
+        f"{_effect(j2r)}. Across the fixed arm-specific delta grid, posterior "
+        f"medians ranged from {float(grid_medians.min()):+.1f} to "
+        f"{float(grid_medians.max()):+.1f} items; up to "
+        f"{100 * float(clipping['clipped_intervention_fraction'].max()):.0f}% of "
+        "missing-intervention and "
+        f"{100 * float(clipping['clipped_control_fraction'].max()):.0f}% of "
+        "missing-control profile predictions reached a physical test bound. The "
+        f"model-free extreme-case benchmark spans {sharp_lo:+.1f} to {sharp_hi:+.1f} "
+        "items, so unrestricted missing outcomes can reverse direction. These are "
+        "assumption-dependent secondary estimates, not recovered outcomes; the "
+        "mean-surface no-benefit restriction is not distributional reference-based "
+        "multiple imputation."
+    )
+
+
 def _kf_has_factor_term(output_dir, term: str) -> bool:
     """Whether ``factor_summary.csv`` carries a row for ``term``.
 
@@ -4276,8 +4549,7 @@ def _kf_strongest_factor(output_dir, *, exclude_roles: tuple[str, ...] = ("causa
 
 
 def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """ITT suite (incl. the floored off-floor primaries): rope card first, tau
-    summary as the no-agreed-delta fallback (F / T)."""
+    """Available-case modified ITT suite: rope card first, then tau fallback."""
     outcome_label = _kf_outcome_label(config)
     population = _kf_itt_analysis_population(output_dir)
     blending_evidence = _kf_blending_link_evidence(output_dir, config)
@@ -4294,7 +4566,7 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
         )
         sentences.append(
             _kf_sentence(
-                f"{link_prefix}best estimate: the model-estimated "
+                f"{link_prefix}available-case modified ITT estimate: the model-estimated "
                 f"intervention-minus-comparison contrast for {outcome_label} was "
                 f"**{_kf_float(blending_row['effect_items_median']):+.1f} items** "
                 "over the trial period "
@@ -4318,14 +4590,18 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
         rope = _kf_csv_row(output_dir, "rope_summary.csv")
         if rope is not None:
             headline, is_rd = _kf_headline_from_rope(
-                rope, outcome_label, "over the trial period"
+                rope,
+                outcome_label,
+                "over the trial period in the available-case modified ITT analysis",
             )
             sentences.append(_kf_sentence(headline, "headline"))
-            sentences.append(
-                _kf_sentence(
-                    _kf_direction_words(rope["pd"], is_rd=is_rd), "confidence"
+            direction = _kf_direction_words(rope["pd"], is_rd=is_rd)
+            if str(config.get("model_id")) == "lrp-rli-itt-010":
+                direction = (
+                    "For the 53-outcome available-case modified ITT model of record, "
+                    f"{direction[0].lower()}{direction[1:]}"
                 )
-            )
+            sentences.append(_kf_sentence(direction, "confidence"))
             sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
         else:
             tau = _kf_csv_row(output_dir, "tau_summary.csv")
@@ -4343,7 +4619,7 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
                 hi = _kf_float(tau["tau_prob_hi"]) * n
                 sentences.append(
                     _kf_sentence(
-                        "Best estimate: the model-estimated "
+                        "Available-case modified ITT estimate: the model-estimated "
                         f"intervention-minus-comparison contrast for {outcome_label} "
                         f"was **{med:+.1f} items** over the trial period "
                         f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
@@ -4363,6 +4639,9 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
                     "note",
                 )
             )
+    missingness_sentence = _kf_itt_missingness_sentence(output_dir, config)
+    if missingness_sentence is not None:
+        sentences.append(_kf_sentence(missingness_sentence, "sensitivity"))
     sentences.append(
         _kf_sentence(
             _kf_itt_causal_sentence(
@@ -4735,7 +5014,7 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
 
 
 def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Joint ITT: range across outcomes, never a cherry-picked single result."""
+    """Joint available-case modified ITT: report the range across outcomes."""
     df = _kf_csv(output_dir, "joint_treatment_marginal.csv")
     if df is None:
         raise _KeyFindingsUnavailable(
@@ -4752,7 +5031,8 @@ def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
     highs = [_kf_float(v) for v in df["items_hi"]]
     sentences = [
         _kf_sentence(
-            f"Across the {len(df)} outcomes, the best estimates ranged from "
+            f"Across the {len(df)} outcomes, the joint available-case modified ITT "
+            f"estimates ranged from "
             f"**{min(medians):+.1f} to {max(medians):+.1f} items**; the individual "
             f"89% credible ranges extended from {min(lows):+.1f} to "
             f"{max(highs):+.1f} items overall.",
@@ -4797,8 +5077,9 @@ def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
             )
     sentences.append(
         _kf_sentence(
-            "These are randomised-arm contrasts in the fitted available-case "
-            "population. Their cause-and-effect reading assumes archive inclusion, "
+            "These are available-case modified ITT estimates of randomised-arm "
+            "contrasts, not full-randomised-cohort ITT estimates. Their cause-and-effect "
+            "reading assumes archive inclusion, "
             "outcome observation and any complete-case restriction do not depend "
             "jointly on arm and potential outcomes; without further missing-data "
             "assumptions they are not effects for all 57 randomised children.",
@@ -6042,6 +6323,15 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
             payload["blending_link_sensitivity_sha256"] = sha256_file(
                 os.path.join(out, BLENDING_SENSITIVITY_FILENAME)
             )
+    if str(config.get("model_id")) == "lrp-rli-itt-010":
+        from language_reading_predictors.statistical_models.itt_missingness import (
+            MISSINGNESS_SUMMARY_FILENAME,
+            sha256_file,
+        )
+
+        payload["itt_missingness_sensitivity_sha256"] = sha256_file(
+            os.path.join(out, MISSINGNESS_SUMMARY_FILENAME)
+        )
     return _write_key_findings(out, payload)
 
 

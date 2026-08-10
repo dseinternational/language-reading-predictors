@@ -1,6 +1,9 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 
 # Decision: a diagnosed robustness gap withholds the key-findings causal headline (#392 P1)
@@ -65,7 +68,7 @@ The per-fit checks deliberately do not call `evaluate_standard_sensitivity`. Tha
 
 No estimand, prior, likelihood, analysis population or sampling setting moves. Nothing is refitted. The gate reads artefacts already in the output directory, so it can be applied to stored fits by regenerating their key findings.
 
-The expected practical consequence on the current suite is **small, and concentrated where it should be**. `notes/202607261700-psense-coverage-backfill.md` measured every ITT headline `tau`: 28 clear, 15 potential prior-data conflict, and **zero** in the prior-dominant class. Under this policy the 15 are released with an attenuation note, not withheld. The models this actually bites are the P/N floor primaries missing their grid — which is the case #392 raised.
+The expected practical consequence on the current suite is **small, and concentrated where it should be**. `notes/202607261700-psense-coverage-backfill.md` measured every available-case modified ITT headline `tau`: 28 clear, 15 potential prior-data conflict, and **zero** in the prior-dominant class. Under this policy the 15 are released with an attenuation note, not withheld. The models this actually bites are the P/N floor primaries missing their grid — which is the case #392 raised.
 
 ## Scope, and what is deliberately left
 

@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT23 - general-ability-adjusted ITT for letter-sound knowledge (YARC-LSK) (L).
+"""LRPITT23 - ability-adjusted available-case modified ITT estimate for letter-sound knowledge (L).
 
 Ability-robustness companion to LRPITT07, part of the LRPITT17-24 ability-adjusted
 family (parallel to the SES-adjusted LRPITT13/13b). Adds the baseline nonverbal
@@ -10,7 +10,7 @@ linear precision covariate, on top of the own baseline and linear age the unifor
 LRPITT spec already carries.
 
 Block design is a child trait measured *before* randomisation, so - like SES - it
-cannot confound the randomised effect; randomisation balances it across arms in
+cannot confound the available-case modified ITT estimate; randomisation balances it across arms in
 expectation. This adjustment is a precision / chance-imbalance robustness check, not
 confounding control (the immediate-intervention arm started ~0.27 SD higher in block
 design, and ability is prognostic of the outcomes - most strongly for vocabulary).
@@ -34,7 +34,10 @@ ABILITY_ADJUSTER = (V.BLOCKS,)
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-023",
     kind="itt",
-    title="Ability-adjusted ITT effect of group assignment on letter-sound knowledge (YARC-LSK) (L)",
+    title=(
+        "Ability-adjusted available-case modified ITT estimate of the assigned-arm "
+        "contrast in letter-sound knowledge (YARC-LSK) (L)"
+    ),
     outcome_symbol="L",
     adjustment=list(ABILITY_ADJUSTER),
     model_settings=IttModelSettings(adjust_for=ABILITY_ADJUSTER),

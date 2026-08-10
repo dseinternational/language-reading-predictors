@@ -1,5 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
+> [!NOTE]
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+
 # Persistent floor-sitters on nonword reading and phonetic spelling: the descriptive cut
 
 > [!NOTE]
@@ -77,7 +80,7 @@ Any report figure must state which denominator it uses. This note uses **non-mis
 
 ## The causal caveat, kept visible
 
-By t4 both arms have been treated, so "still at floor despite intervention" is **prognostic, not evidence of failure**: the untreated counterfactual is unknowable and could be worse. Floor status mostly reflects incomplete letter-sound foundations — the outcome the intervention moves most (ITT τ = +0.110, `P(τ>0) = 0.999`) — which points towards continue-and-extend, not screen-out. The survival model in Phase 2 inherits this framing: treatment enters as a hazard shift on time-to-off-floor, read as a prognostic association anchored on the immediate arm's randomised period, not as a licence to gate-keep.
+By t4 both arms have been treated, so "still at floor despite intervention" is **prognostic, not evidence of failure**: the untreated counterfactual is unknowable and could be worse. Floor status mostly reflects incomplete letter-sound foundations — the outcome with the largest available-case modified ITT estimate (τ = +0.110, `P(τ>0) = 0.999`, under the stated selection assumption) — which points towards continue-and-extend, not screen-out. The survival model in Phase 2 inherits this framing: treatment enters as a hazard shift on time-to-off-floor, read as a prognostic association anchored on the immediate arm's randomised period, not as a licence to gate-keep.
 
 ## Reproducing this cut
 

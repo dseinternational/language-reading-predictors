@@ -1,5 +1,5 @@
 ---
-title: "LRPITT27: Site-adjusted modified-ITT offer effect on word reading (WR)"
+title: "LRPITT27: Site-adjusted available-case modified ITT estimate for word reading (WR)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT27 is the **site-adjusted available-case modified-ITT** analysis for word reading (EWRSWR) (`ewrswr`)—the site-robustness companion to LRPITT10. It adds study site (`area`: 1 = North, 2 = South; 30 / 24 children in the repository). Unlike the SES covariates, `area` is fully observed, so it causes no additional exclusion beyond the word-reading analytic requirement; LRPITT27 and LRPITT10 use the same outcome-available rows. The estimand is the assigned-arm contrast in $W_{\text{post}}$ in that fitted sample. A causal reading requires archive, outcome and analytic-variable selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
+LRPITT27 is the **site-adjusted available-case modified ITT** analysis for word reading (EWRSWR) (`ewrswr`)—the site-robustness companion to LRPITT10. It adds study site (`area`: 1 = North, 2 = South; 30 / 24 children in the repository). Unlike the SES covariates, `area` is fully observed, so it causes no additional exclusion beyond the word-reading analytic requirement; LRPITT27 and LRPITT10 use the same outcome-available rows. The estimand is the assigned-arm contrast in $W_{\text{post}}$ in that fitted sample. A causal reading requires archive, outcome and analytic-variable selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
 _Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the offer contrast in the original full randomised cohort requires no baseline-covariate adjustment. This fit instead conditions on archive inclusion and observed outcome and analytic variables; a causal reading of $\tau$ in the fitted sample requires that selection did not induce an association between assigned arm and potential outcomes, while extension to all 57 requires further missing-data assumptions and sensitivity. The own baseline, linear age and site term are **precision / robustness terms only** — they may sharpen $\tau$ and probe its stability but do not identify effects after selection. **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher modelled outcome.
 

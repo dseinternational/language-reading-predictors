@@ -1,5 +1,5 @@
 ---
-title: "LRPITT19: Ability-adjusted modified-ITT offer effect on not-taught receptive vocabulary (UR)"
+title: "LRPITT19: Ability-adjusted available-case modified ITT estimate for not-taught receptive vocabulary (UR)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT19 is the **general-ability-adjusted available-case modified-ITT** analysis for not-taught receptive vocabulary, block 1 (b1rent) (`b1rent`)—
+LRPITT19 is the **general-ability-adjusted available-case modified ITT** analysis for not-taught receptive vocabulary, block 1 (b1rent) (`b1rent`)—
 the ability-robustness companion to LRPITT03, part of the LRPITT17-24 ability-adjusted
 family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
 nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The

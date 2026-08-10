@@ -91,7 +91,7 @@ Only divergence-only flags, all far under the ≤ 1 % METHODS guidance, healthy 
 
 ## Findings notes (per family, undergraduate-accessible)
 
-- [ITT](202607161800-findings-itt.md) — the headline causal analysis (27 models)
+- [ITT](202607161800-findings-itt.md) — the headline available-case modified ITT analysis, causal only under the selection assumption (27 models)
 - [joint](202607161800-findings-joint.md) — all outcomes together + taught-vs-not-taught contrasts (4)
 - [gain_factors](202607161800-findings-gain_factors.md) — ANCOVA second causal read (19)
 - [level_factors](202607161800-findings-level_factors.md) — score levels at each wave (11)

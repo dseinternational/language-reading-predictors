@@ -90,12 +90,13 @@ class ModelSpec:
     def __post_init__(self) -> None:
         """Fill the shared RLI ITT audit metadata when a spec omits it.
 
-        The trial randomised 57 children, while the modelling file begins with the
-        54-child t1 analytic cohort.  The randomised arm coefficient therefore has a
-        causal interpretation for the fitted available-case population under an
-        ignorable-selection assumption; it must not be labelled as an unqualified
-        full-population ITT.  Centralising these defaults prevents the 31 registered
-        ITT/joint modules from drifting in their saved metadata.
+        The trial randomised 57 children and analysed 54 after three losses to
+        follow-up. The repository contains those 54, including four children who
+        discontinued intervention but were followed. The randomised arm coefficient
+        is therefore an available-case modified ITT estimate. A causal interpretation
+        for the fitted population requires an ignorable-selection assumption; the
+        estimate must not be labelled as a full-57 ITT estimate. Centralising these defaults prevents
+        the registered ITT/joint modules from drifting in their saved metadata.
         """
 
         if self.kind not in {"itt", "joint"}:
@@ -103,13 +104,16 @@ class ModelSpec:
         if self.family is None:
             self.family = "itt"
         if self.design is None:
-            self.design = "waitlist_randomised_t1_to_t2_available_case"
+            self.design = "waitlist_randomised_t1_to_t2_available_case_modified_itt"
         if self.estimand_type is None:
-            self.estimand_type = "causal_available_case_randomised_effect"
+            self.estimand_type = "available_case_modified_itt_estimate"
         if self.causal_status is None:
             self.causal_status = "randomised_assignment_conditional_on_observed_analysis_set"
         if self.dataset_ref is None:
-            self.dataset_ref = "rli:rli_data_long.csv; 54 available of 57 randomised"
+            self.dataset_ref = (
+                "rli:rli_data_long.csv; 54 analysed after 3 losses to follow-up "
+                "from 57 randomised"
+            )
 
     @property
     def banner(self) -> str:

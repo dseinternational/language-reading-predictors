@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPDID11 jointly models whether each child is off the phonetic-spelling floor at t1, t2 and t3, with a separate immediate-minus-waitlist gap at each wave. It is a longitudinal sensitivity analysis alongside the randomised floor-rule ITT (LRPITT09), not an independent replication.
+LRPDID11 jointly models whether each child is off the phonetic-spelling floor at t1, t2 and t3, with a separate immediate-minus-waitlist gap at each wave. It is a longitudinal sensitivity analysis alongside the available-case modified ITT floor-rule estimate (LRPITT09), not an independent replication.
 
 _The estimand is off-floor prevalence, not floor exit._ Phonetic spelling is heavily floored (a large share of period post-scores are
 zero). On the graded count scale a handful of dispersed tail values, not the arm

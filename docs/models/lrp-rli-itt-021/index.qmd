@@ -1,5 +1,5 @@
 ---
-title: "LRPITT21: Ability-adjusted modified-ITT offer effect on receptive vocabulary (RV)"
+title: "LRPITT21: Ability-adjusted available-case modified ITT estimate for receptive vocabulary (RV)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT21 is the **general-ability-adjusted available-case modified-ITT** analysis for receptive vocabulary (ROWPVT) (`rowpvt`)—
+LRPITT21 is the **general-ability-adjusted available-case modified ITT** analysis for receptive vocabulary (ROWPVT) (`rowpvt`)—
 the ability-robustness companion to LRPITT05, part of the LRPITT17-24 ability-adjusted
 family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
 nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The

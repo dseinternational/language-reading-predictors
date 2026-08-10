@@ -24,7 +24,7 @@ LRPMM02 is the measurement-error-corrected counterpart of the letter-sound → w
 
 _Identification — why the full three-factor model is kept._ A standalone one-factor / two-indicator code model (L + B alone) is **under-identified** (4 parameters vs 3 covariance elements). So LRPMM02 keeps [LRPMM01](../lrp-rli-mm-001/)'s full, identified three-factor measurement model (code {L, B} / vocabulary {R, E} / grammar {F, T}) — the cross-factor correlations and the other indicators supply the covariances that pin the code factor's loadings and residuals — but the **structural leg regresses word reading on the code factor only**, isolating the code→reading slope.
 
-_Measurement / triangulation, NOT causal._ Per the locked DAG's **ID-2**, `beta_code` is a **latent-ability-confounded adjusted association**, never "code drives reading" — the errors-in-variables correction removes *measurement* attenuation, not confounding. The randomised causal claim lives in the ITT suite (`lrp-rli-itt-010`). At n ~ 51 the model is expected to be fragile and prior-dependent; intervals are reported only after a clean gate.
+_Measurement / triangulation, NOT causal._ Per the locked DAG's **ID-2**, `beta_code` is a **latent-ability-confounded adjusted association**, never "code drives reading" — the errors-in-variables correction removes *measurement* attenuation, not confounding. The corresponding randomised-arm result is the available-case modified ITT estimate in `lrp-rli-itt-010`. At n ~ 51 the model is expected to be fragile and prior-dependent; intervals are reported only after a clean gate.
 
 _What differs from LRPMM01, and from mech-058._
 

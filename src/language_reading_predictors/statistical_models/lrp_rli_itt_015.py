@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT15 - generalisation contrast (expressive): taught vs not-taught (migrates LRP76).
+"""LRPITT15 - available-case modified ITT generalisation estimate (expressive).
 
 A within-data test of whether gains are larger in directly-taught than not-taught
 skills, one component of the trial's broader generalisation claim. The two Block 1
@@ -26,7 +26,10 @@ from language_reading_predictors.statistical_models.pipeline import fit_joint
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-015",
     kind="joint",
-    title="Generalisation contrast (expressive): taught vs not-taught vocabulary, block 1",
+    title=(
+        "Available-case modified ITT estimate: expressive taught-versus-not-taught "
+        "vocabulary contrast, block 1"
+    ),
     # Two-outcome joint Beta-Binomial over the randomised window.
     # ``difference=("TE","UE")`` asks the pipeline to summarise the headline
     # probability-scale AME[TE] - AME[UE], with tau[TE] - tau[UE] retained as a

@@ -19,8 +19,9 @@ This is the **identification-neutral but better-fitting** measurement match the
 locked DAG defers to (#115): a single ``g`` is the wrong granularity for the
 observed same-construct clustering. It is a **measurement / triangulation** model,
 **not** causal - per ID-2 every factor->gain slope is a latent-ability-confounded
-**adjusted association**, and the randomised causal claim continues to live in the
-ITT suite (``lrp-rli-itt-010`` for word reading) and the ``gain_factors`` randomised term.
+**adjusted association**. The corresponding randomised-arm result is the available-case
+modified ITT estimate in ``lrp-rli-itt-010``; the ``gain_factors`` randomised term is
+also outside this model.
 
 At n ~ 51 a latent model is fragile and prior-dependent; the wide intervals are
 the honest result, exactly as the closed LRP66 reported. The unique contribution

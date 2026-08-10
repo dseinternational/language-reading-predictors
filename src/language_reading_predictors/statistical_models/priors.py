@@ -150,8 +150,8 @@ def gamma_age_prior() -> Continuous:
 
     Used by the LRPITT suite (``build_itt_model(use_age_linear=True)``) for the
     plain linear age term ``gamma_A * A_std``. Age is a *precision* covariate
-    only — under the locked DAG the ITT effect ``tau`` is identified by the empty
-    adjustment set, so age (like the own baseline) sharpens ``tau`` without
+    only — under the locked DAG the available-case modified ITT estimate ``tau``
+    requires no adjustment set, so age (like the own baseline) sharpens ``tau`` without
     licensing the causal claim. ``A_std`` is unit-SD standardised age, so the
     same weakly-regularising ``Normal(0, 0.3)`` scale as the cross-baseline
     couplings is appropriate; a dedicated constructor (rather than reusing

@@ -1,5 +1,5 @@
 ---
-title: "LRPITT18: Ability-adjusted modified-ITT offer effect on taught expressive vocabulary (TE)"
+title: "LRPITT18: Ability-adjusted available-case modified ITT estimate for taught expressive vocabulary (TE)"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-LRPITT18 is the **general-ability-adjusted available-case modified-ITT** analysis for taught expressive vocabulary, block 1 (b1extau) (`b1extau`)—
+LRPITT18 is the **general-ability-adjusted available-case modified ITT** analysis for taught expressive vocabulary, block 1 (b1extau) (`b1extau`)—
 the ability-robustness companion to LRPITT02, part of the LRPITT17-24 ability-adjusted
 family. It uses the uniform LRPITT spec plus a linear adjustment for **baseline
 nonverbal cognitive ability** - block design (`blocks`), recorded at t1 only. The

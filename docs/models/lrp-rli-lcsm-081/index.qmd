@@ -37,8 +37,9 @@ from those derivations:
    randomised arm a confounder of every transition-2+ coupling (the waitlist
    arm's block-1 catch-up lands exactly in window 2), so each measure's change
    intercept is an arm × window cell rather than a pooled constant. The
-   window-1 cell contrast is a randomised latent ITT contrast, reported below
-   as a consistency check against the ITT suite. Sessions stay out of the
+   window-1 cell contrast is an available-case modified ITT estimate on the
+   latent-change scale, reported below as a consistency check against the ITT
+   suite. Sessions stay out of the
    change equations (the `IS` collider, ID-3).
 2. **The adjuster block completes the measured backdoor set.** With the `TR`
    process plus time-invariant hearing (`hs`) and prior-wave phonological

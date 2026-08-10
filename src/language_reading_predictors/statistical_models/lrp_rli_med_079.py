@@ -24,7 +24,7 @@ Interpretation:
   near zero shows the adjustment substantially closes it, so LRP59's clearly-positive
   ``b_M`` reflects more than the generic ability bleed-through that inflates *every*
   skill-reading correlation.
-- The full **NIE through `T`** is reported too, but read it with care: the ITT effect
+- The full **NIE through `T`** is reported too, but read it with care: the available-case modified ITT estimate
   on grammar is near zero (`tau_T` ~ 0), so a small NIE is partly "the intervention
   barely moves `T`", not only "`T` does not predict reading". The ``b_M`` comparison is
   the cleaner negative-control quantity.

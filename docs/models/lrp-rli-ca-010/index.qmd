@@ -39,8 +39,9 @@ Its companion [`lrp-rli-ca-011`](../lrp-rli-ca-011) adds same-wave nonword decod
 ask whether the association survives holding decoding fixed.
 
 _Estimand: descriptive association (no causal warrant)._ Every coefficient is an
-**adjusted association**, latent-general-ability-confounded — the only randomisation-licensed
-effect in the study is the ITT arm. Read with the measurement-error and
+**adjusted association**, latent-general-ability-confounded — the corresponding
+randomised-arm result is an available-case modified ITT estimate in the ITT suite.
+Read with the measurement-error and
 collinearity/regularisation caveats in the Results section.
 
 ## Design

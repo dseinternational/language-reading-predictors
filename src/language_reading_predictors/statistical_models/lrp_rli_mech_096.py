@@ -38,7 +38,8 @@ Design (mirrors LRP72, moderator removed):
 
 GA (latent general ability) is unblockable and the child random intercept does not
 stand in for it, so ``beta_mech`` is an **adjusted association**, never a causal
-decoding effect. The randomised warrant lives in the ITT suite.
+decoding effect. The corresponding randomised-arm result is an available-case modified
+ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

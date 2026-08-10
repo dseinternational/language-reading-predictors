@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT28 - site-adjusted ITT for letter-sound knowledge (L) (#228 Tier-1).
+"""LRPITT28 - site-adjusted available-case modified ITT estimate for letter-sound knowledge (L).
 
 Site-robustness companion to LRPITT07: the uniform LRPITT spec (own baseline +
 linear age, no cross-baselines) plus a linear adjustment for study site (``area``:
@@ -22,7 +22,10 @@ SITE_ADJUSTERS = (V.AREA,)
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-028",
     kind="itt",
-    title="Site-adjusted ITT effect of group assignment on letter-sound knowledge (L)",
+    title=(
+        "Site-adjusted available-case modified ITT estimate of the assigned-arm "
+        "contrast in letter-sound knowledge (L)"
+    ),
     outcome_symbol="L",
     adjustment=list(SITE_ADJUSTERS),
     model_settings=IttModelSettings(adjust_for=SITE_ADJUSTERS),

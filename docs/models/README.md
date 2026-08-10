@@ -10,6 +10,10 @@
 > Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/GPT-5).
 >
 > Phoneme-blending link-sensitivity documentation updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> Participant-flow wording updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 # Model inventory
 
@@ -45,7 +49,7 @@ intervention benefit (`G = 2 − group`).
 | Layer | Family (id prefix)                                            | Purpose                                                                                                                     |
 | ----- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)   | Rank predictors of each outcome's gain and level                                                                            |
-| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)         | Available-case modified ITT arm effect (+ joint graph, SES, ability/site robustness, generalisation)                        |
+| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)         | Available-case modified ITT estimate (+ joint graph, SES, ability/site robustness, generalisation)                          |
 | 2     | Gain factors (`lrp-rli-gf`)                                   | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                        |
 | 2     | Level factors (`lrp-rli-lf`)                                  | Companion levels view: group×time and ability×time per timepoint                                                            |
 | 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity |
@@ -165,7 +169,7 @@ to `output/statistical_models/models/{model_id}-{config}/`.
 
 ### ITT suite — `lrp-rli-itt-001–lrp-rli-itt-028` plus registered companions (`kind="itt"` / `"joint"`)
 
-**Purpose.** The headline randomised layer estimates `τ`, the assigned-arm contrast during t1→t2. Randomisation identifies the full randomised-sample arm contrast before exclusions or missing outcomes—the own baseline and linear age enter as _precision_ terms, not as an identification set—and attendance/dose is never conditioned on. The repository nevertheless contains 54 of the 57 randomised children (28 immediate-intervention, 26 wait-list), after which each model applies outcome- and covariate-observation requirements. The resulting sequence is `57 randomised → 54 available → model-specific fitted sample` (commonly 54, 53 where a t2 score is unavailable, and smaller in the floor subgroups). The suite is therefore an **available-case modified ITT**, not a full ITT of all randomised children. A causal reading even among the fitted children requires that selection into the fitted sample does not induce an arm–potential-outcome association; extending that contrast to all 57 randomised children additionally requires a defensible missingness or transportability assumption. Every report must state fitted denominators and exclusions by arm.
+**Purpose.** The headline randomised layer estimates `τ`, the assigned-arm contrast during t1→t2. Randomisation identifies the full randomised-sample arm contrast before missing outcomes—the own baseline and linear age enter as _precision_ terms, not as an identification set—and attendance/dose is never conditioned on. Of 57 children randomised (29 immediate intervention, 28 waiting control), the published CONSORT diagram records three losses to follow-up: one intervention child who moved school and two waiting-control children, one who moved school and one whose reason is recorded as “refused to participate in testing, school withdrawn”. This left 54 children analysed (28 and 26), who are represented in the repository. Two additional children in each arm discontinued the intervention after moving school but were followed and retained in their assigned groups. Each model then applies outcome- and covariate-observation requirements, giving the sequence `57 randomised → 3 lost to follow-up → 54 analysed and available → model-specific fitted sample` (commonly 54, 53 where a t2 score is unavailable, and smaller in the floor subgroups). The suite is therefore an **available-case modified ITT**, not a full ITT of all randomised children: it handles observed non-adherence by assigned group, but it does not recover the three missing follow-up outcomes. A causal reading even among the fitted children requires that loss to follow-up and any further observed-data restriction do not induce an arm–potential-outcome association; extending that contrast to all 57 randomised children additionally requires a defensible missingness or transportability assumption. Every report must state fitted denominators and exclusions by arm.
 
 **Outcome hierarchy and floor rule.** The published 2012 trial (DOI [10.1111/j.1469-7610.2012.02557.x](https://doi.org/10.1111/j.1469-7610.2012.02557.x)) described four primary outcomes: `W`, `L`, `B` and `TE`. This project designates `W` as the single headline primary for the current reanalysis; that is a transparent reanalysis hierarchy, not the original trial hierarchy. The floor branch for `P` and `N` uses an arm-blind threshold based on the observed t2 zero prevalence. It reports the resulting `Pr(post > 0 | observed pre = 0)` risk difference as an exploratory headline, because the rule and 40 % threshold were adopted after inspecting this trial's outcome distribution. It is therefore a **post-hoc, data-adaptive exploratory estimand**, not a prospectively pre-specified trial primary. Because observed baseline-floor status is pre-randomisation, the subgroup contrast retains randomised causal logic among children with observed floor status and post-score, subject to the same missingness assumption. The graded analyses remain flagged, detection-limited secondaries. Design notes: `notes/202606251321-lrpitt-suite-design.md`, `notes/202606251124-lrpitt-floored-outcomes-nonword-spelling.md`.
 
@@ -175,31 +179,33 @@ to `output/statistical_models/models/{model_id}-{config}/`.
 
 **Phoneme-blending response link.** `lrp-rli-itt-008` remains the primary phoneme-blending model and uses the suite's ordinary logit mean. Because its ten items each have three response alternatives, `lrp-rli-itt-108` is the mandatory registered robustness companion: it constrains the expected score to be at least the one-third guessing floor. Neither fit is release-ready on its own. Their fitted rows and run provenance must match, both traces must pass the clean convergence gate, and `scripts/blending_link_sensitivity.py` must build and validate the paired trace-backed bundle before either report's key findings are regenerated or published.
 
-| Model                     | Outcome             | Purpose                                                                                        |
-| ------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
-| `lrp-rli-itt-001`         | `TR`                | ITT on taught receptive vocabulary (block 1)                                                   |
-| `lrp-rli-itt-002`         | `TE`                | ITT on taught expressive vocabulary (block 1)                                                  |
-| `lrp-rli-itt-003`         | `UR`                | ITT on not-taught receptive vocabulary (block 1)                                               |
-| `lrp-rli-itt-004`         | `UE`                | ITT on not-taught expressive vocabulary (block 1)                                              |
-| `lrp-rli-itt-005`         | `R`                 | ITT on standardised receptive vocabulary                                                       |
-| `lrp-rli-itt-006`         | `E`                 | ITT on standardised expressive vocabulary                                                      |
-| `lrp-rli-itt-007`         | `L`                 | ITT on letter-sound knowledge                                                                  |
-| `lrp-rli-itt-008`         | `B`                 | ITT on phoneme blending                                                                        |
-| `lrp-rli-itt-108`         | `B`                 | Mandatory one-third guessing-floor response-link companion to `lrp-rli-itt-008`                |
-| `lrp-rli-itt-009`         | `P`                 | ITT on phonetic spelling — floor-rule branch                                                   |
-| `lrp-rli-itt-010`         | `W`                 | **Modified ITT on word reading** (headline primary in this reanalysis; supersedes LRP52)       |
-| `lrp-rli-itt-011`         | `N`                 | ITT on nonword reading — floor-rule branch                                                     |
-| `lrp-rli-itt-012`         | joint               | Factorised joint graph over the ten original baseline-bearing suite outcomes                   |
-| `lrp-rli-itt-013` / `13b` | `W` / `L`           | SES-adjusted ITT (mother's education etc.)                                                     |
-| `lrp-rli-itt-014` / `14b` | `W` / `L`           | Unadjusted ITT on the SES complete-case subset — matched comparator to `lrp-rli-itt-013`/`13b` |
-| `lrp-rli-itt-015` / `15b` | contrast            | Generalisation: taught vs not-taught vocabulary, expressive (`15`) and receptive (`15b`)       |
-| `lrp-rli-itt-016`         | contrast            | Active modality contrast: taught expressive (`TE`) vs taught receptive (`TR`)                  |
-| `lrp-rli-itt-017–020`     | `TR`,`TE`,`UR`,`UE` | Ability-adjusted (block-design) robustness across the taught/untaught vocabulary family        |
-| `lrp-rli-itt-021` / `22`  | `R` / `E`           | Ability-adjusted robustness, standardised vocabulary                                           |
-| `lrp-rli-itt-023` / `24`  | `L` / `W`           | Ability-adjusted robustness, letter sounds and word reading                                    |
-| `lrp-rli-itt-025`         | `F`                 | ITT on basic concepts (CELF) — effect only (no agreed δ, so no meaningful-benefit table)       |
-| `lrp-rli-itt-026`         | `T`                 | ITT on receptive grammar (TROG-2) — effect only (no agreed δ)                                  |
-| `lrp-rli-itt-027` / `28`  | `W` / `L`           | Site-adjusted (`area`, North/South) robustness — `area` complete, so no matched comparator     |
+**Word-reading missing outcomes.** `lrp-rli-itt-010` remains the 53-outcome, t1-baseline model of record. Its release additionally requires a converged, trace-backed screening-baseline sub-fit supplied with the checksum-pinned 57-row UK Data Service archive. The sub-fit persists its pre-randomisation-screening-anchored prior and prior-predictive checks; reports a matched common-profile bridge over the same 53 observed outcomes; and standardises both treatment surfaces over all 57 screening profiles under conditional MAR. The no-benefit and complete item-delta grid `{-8, -4, 0, +4, +8}` instead complete the factual randomised arms, using denominators 29 and 28 and modifying only the one intervention and three control missing outcomes in their assigned arms. The zero-delta cell is the factual-arm MAR anchor; the intervention non-starter no-benefit row is a mean-surface restriction, not classical distributional reference-based imputation. The grid is a broad diagnostic stress test, not a fitted distribution over missing outcomes, and boundary clipping is reported beside model-free sharp bounds. These are secondary identifying-assumption sensitivities, not alternative primary results. The importer keeps the external archive gitignored because its ReShare item-level licence is blank, and the loader reconciles the 54 included rows to the repository across 71 fields. The local raw CSV retains upstream source identifiers; returned model data and emitted artefacts omit them, and no subject-ID crosswalk is persisted.
+
+| Model                     | Outcome             | Purpose                                                                                       |
+| ------------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `lrp-rli-itt-001`         | `TR`                | Available-case modified ITT analysis of taught receptive vocabulary (block 1)                 |
+| `lrp-rli-itt-002`         | `TE`                | Available-case modified ITT analysis of taught expressive vocabulary (block 1)                |
+| `lrp-rli-itt-003`         | `UR`                | Available-case modified ITT analysis of not-taught receptive vocabulary (block 1)             |
+| `lrp-rli-itt-004`         | `UE`                | Available-case modified ITT analysis of not-taught expressive vocabulary (block 1)            |
+| `lrp-rli-itt-005`         | `R`                 | Available-case modified ITT analysis of standardised receptive vocabulary                     |
+| `lrp-rli-itt-006`         | `E`                 | Available-case modified ITT analysis of standardised expressive vocabulary                    |
+| `lrp-rli-itt-007`         | `L`                 | Available-case modified ITT analysis of letter-sound knowledge                                |
+| `lrp-rli-itt-008`         | `B`                 | Available-case modified ITT analysis of phoneme blending                                      |
+| `lrp-rli-itt-108`         | `B`                 | Mandatory one-third guessing-floor response-link companion to `lrp-rli-itt-008`               |
+| `lrp-rli-itt-009`         | `P`                 | Available-case modified ITT analysis of phonetic spelling — floor-rule branch                 |
+| `lrp-rli-itt-010`         | `W`                 | **Available-case modified ITT analysis of word reading** (headline primary; supersedes LRP52) |
+| `lrp-rli-itt-011`         | `N`                 | Available-case modified ITT analysis of nonword reading — floor-rule branch                   |
+| `lrp-rli-itt-012`         | joint               | Factorised joint available-case modified ITT graph over ten baseline-bearing outcomes         |
+| `lrp-rli-itt-013` / `13b` | `W` / `L`           | SES-adjusted available-case modified ITT analyses                                             |
+| `lrp-rli-itt-014` / `14b` | `W` / `L`           | Unadjusted available-case modified ITT analyses on the matched SES complete-case subsets      |
+| `lrp-rli-itt-015` / `15b` | contrast            | Available-case modified ITT generalisation contrasts, expressive (`15`) and receptive (`15b`) |
+| `lrp-rli-itt-016`         | contrast            | Available-case modified ITT modality contrast: taught expressive versus receptive vocabulary  |
+| `lrp-rli-itt-017–020`     | `TR`,`TE`,`UR`,`UE` | Ability-adjusted available-case modified ITT robustness across the vocabulary family          |
+| `lrp-rli-itt-021` / `22`  | `R` / `E`           | Ability-adjusted available-case modified ITT robustness, standardised vocabulary              |
+| `lrp-rli-itt-023` / `24`  | `L` / `W`           | Ability-adjusted available-case modified ITT robustness, letter sounds and word reading       |
+| `lrp-rli-itt-025`         | `F`                 | Available-case modified ITT analysis of basic concepts (effect only; no agreed δ)             |
+| `lrp-rli-itt-026`         | `T`                 | Available-case modified ITT analysis of receptive grammar (effect only; no agreed δ)          |
+| `lrp-rli-itt-027` / `28`  | `W` / `L`           | Site-adjusted available-case modified ITT robustness; `area` is complete                      |
 
 ### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-013` (+ `…b`, `…m`) (`kind="gain_factors"`)
 
@@ -260,7 +266,7 @@ The gain-factors naming note applies here too: "factors" means observed regressi
 
 ### Waitlist-crossover arm-by-wave sensitivity — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-101`, `lrp-rli-did-102`, `lrp-rli-did-107`) (`kind="did"`)
 
-**Purpose.** A longitudinal sensitivity analysis alongside the randomised ITT. The binary-treatment models jointly model bounded t1/t2/t3 levels with a separate immediate-minus-waitlist gap at each wave: `arm_gap_t1` checks baseline balance, `tau_t2` is the randomised causal contrast, `arm_gap_t3` is a post-crossover association and `delta_crossover = tau_t2 - arm_gap_t3` describes closure of the arm gap rather than a second treatment effect. A child random intercept partially pools stable between-child differences but does not make every child a fixed-effect control. No model conditions on each period's start outcome: t2 is already treatment-affected for the immediate arm when used as the P2 baseline. The heavily floored outcomes (`P`, `N`) use a Bernoulli on wave-specific off-floor status, so their contrasts concern off-floor **prevalence**, not coming off the floor. Dose variants retain the P1/P2 transition frame, adjust for randomised arm, current treatment, t1 outcome and t1 age, and estimate observational treated-centred session-dose associations. The current design decision is `notes/202607151800-did-arm-wave-redesign.md`; it supersedes the historical restricted-model decision in `notes/202606260702-did-crossover-design.md`.
+**Purpose.** A longitudinal sensitivity analysis alongside the available-case modified ITT estimates. The binary-treatment models jointly model bounded t1/t2/t3 levels with a separate immediate-minus-waitlist gap at each wave: `arm_gap_t1` checks baseline balance, `tau_t2` is the randomised causal contrast, `arm_gap_t3` is a post-crossover association and `delta_crossover = tau_t2 - arm_gap_t3` describes closure of the arm gap rather than a second treatment effect. A child random intercept partially pools stable between-child differences but does not make every child a fixed-effect control. No model conditions on each period's start outcome: t2 is already treatment-affected for the immediate arm when used as the P2 baseline. The heavily floored outcomes (`P`, `N`) use a Bernoulli on wave-specific off-floor status, so their contrasts concern off-floor **prevalence**, not coming off the floor. Dose variants retain the P1/P2 transition frame, adjust for randomised arm, current treatment, t1 outcome and t1 age, and estimate observational treated-centred session-dose associations. The current design decision is `notes/202607151800-did-arm-wave-redesign.md`; it supersedes the historical restricted-model decision in `notes/202606260702-did-crossover-design.md`.
 
 | Model             | Outcome | Purpose                                                                                                                                                        |
 | ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -354,9 +360,10 @@ the wave-unrolled DAG (#250; design `notes/202607141030-time-lagged-model-design
 | `lrp-rli-dose-077` | `dose_response` | Period-resolved observational dose-response of intervention sessions → word reading; `lrp-rli-dose-177` adds an ability-adjusted sensitivity, `lrp-rli-dose-277` is the pooled (no-period-variation) comparator                     |
 
 `lrp-rli-dose-077`'s dose terms are observational (sessions = a DAG collider as exposure): an adjusted
-within-child association, never "more sessions cause more gain". Only the randomised ITT/DiD
-contrasts carry the causal claim — in the lagged suite that is solely `lcsm-081/082`'s window-1
-arm contrast (`itt_window1_contrast.csv`), reported as an ITT-suite consistency check.
+within-child association, never "more sessions cause more gain". Only the available-case modified ITT
+estimate and the randomised-window DiD contrasts carry a causal interpretation under their stated
+selection and missing-data assumptions — in the lagged suite that is solely `lcsm-081/082`'s window-1
+arm contrast (`itt_window1_contrast.csv`), reported as an available-case modified ITT consistency check.
 
 ### Joint growth curves — `lrp-rli-gc-069`, `lrp-rli-gc-070` (`kind="growth"`)
 

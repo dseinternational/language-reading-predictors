@@ -352,10 +352,10 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
         # The marginal treatment effect is averaged over the **period-1** rows only
         # (#247 P2): period 1 is the genuinely randomised, all-untreated-baseline
-        # transition, so its switch-on-vs-off contrast is the causal ITT-anchor
-        # estimand. The post-crossover transitions (phase >= 1) carry no untreated
+        # transition, so its switch-on-vs-off contrast is the available-case
+        # modified ITT estimate. The post-crossover transitions (phase >= 1) carry no untreated
         # observations and baselines that may already be treatment-affected, so
-        # pooling them yields a model-based transported contrast, not the ITT effect.
+        # pooling them yields a model-based transported contrast, not that estimate.
         # The logit-scale beta_trt posterior itself is unchanged; only its
         # probability/items-scale marginalisation is restricted.
         p1_mask = built.prepared.phase == 0

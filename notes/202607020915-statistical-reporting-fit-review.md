@@ -60,16 +60,16 @@ size and uncertainty of the estimate.
 
 ## Model-family guide
 
-| Family                           | Plain-language question                                                                       | Causal interpretation?                                                                    |
-| -------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| ITT                              | Did assignment to the intervention group improve the outcome?                                 | Yes, for `tau`, subject to diagnostics and the randomized design.                         |
-| Joint ITT                        | Do the ITT effects look similar when outcomes are modelled together?                          | Yes for the joint `tau` estimates, but still outcome by outcome.                          |
-| DiD                              | Does the waitlist crossover reproduce the intervention contrast within children over time?    | Yes for the DiD treatment contrast; dose variants are more conditional.                   |
-| Gain factors                     | Does intervention status predict post-score after accounting for pre-score and other factors? | Yes for the randomized treatment term in the main models. Other terms are associations.   |
-| Level factors                    | How do score levels differ across time and group?                                             | The randomized early time contrast is the cleanest; later contrasts are more descriptive. |
-| Aligned                          | What is associated with gains after aligning children by intervention onset?                  | No. Cohort and dose terms are not randomized here.                                        |
-| Mechanism and mediation          | Are changes in one skill statistically consistent with carrying part of the reading effect?   | Treat as exploratory model-based associations, not proof of mechanism.                    |
-| Horseshoe and measurement models | Which predictors or latent domains look most important after regularization or pooling?       | No. These are ranking and measurement-structure checks.                                   |
+| Family                            | Plain-language question                                                                        | Causal interpretation?                                                                    |
+| --------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Available-case modified ITT       | Among fitted observed cases, did assignment to the intervention group improve the outcome?     | Yes for `tau`, subject to diagnostics, randomisation and the available-case assumption.   |
+| Joint available-case modified ITT | Do the available-case modified ITT estimates look similar when outcomes are modelled together? | Yes for the joint `tau` estimates under the same available-case qualification.            |
+| DiD                               | Does the waitlist crossover reproduce the intervention contrast within children over time?     | Yes for the DiD treatment contrast; dose variants are more conditional.                   |
+| Gain factors                      | Does intervention status predict post-score after accounting for pre-score and other factors?  | Yes for the randomized treatment term in the main models. Other terms are associations.   |
+| Level factors                     | How do score levels differ across time and group?                                              | The randomized early time contrast is the cleanest; later contrasts are more descriptive. |
+| Aligned                           | What is associated with gains after aligning children by intervention onset?                   | No. Cohort and dose terms are not randomized here.                                        |
+| Mechanism and mediation           | Are changes in one skill statistically consistent with carrying part of the reading effect?    | Treat as exploratory model-based associations, not proof of mechanism.                    |
+| Horseshoe and measurement models  | Which predictors or latent domains look most important after regularization or pooling?        | No. These are ranking and measurement-structure checks.                                   |
 
 ## Run Completeness And Diagnostics
 
@@ -110,7 +110,7 @@ size and uncertainty of the estimate.
 
 ## Cross-model Findings
 
-The randomized ITT suite shows the clearest intervention signal for letter-sound knowledge (`L`), blending (`B`), word reading (`W`), and taught vocabulary (`TR`/`TE`). Untaught receptive/expressive vocabulary (`R`/`E`) and phoneme-level outcomes (`P`/`N`) are weak or inconclusive in the primary ITT models.
+The available-case modified ITT suite shows the clearest intervention signal for letter-sound knowledge (`L`), blending (`B`), word reading (`W`), and taught vocabulary (`TR`/`TE`) among the fitted observed cases. Untaught receptive/expressive vocabulary (`R`/`E`) and phoneme-level outcomes (`P`/`N`) are weak or inconclusive in the primary available-case modified ITT models.
 
 The waitlist-crossover DiD models broadly agree for the reading-code outcomes: positive item-scale contrasts for `W`, `L`, `B`, and taught expressive vocabulary, but not for untaught receptive vocabulary. Dose-response variants are positive, especially for `L`, but some dose models failed the divergence gate and need refitting before being used as evidence.
 
@@ -131,9 +131,10 @@ The most accessible interpretation is:
 - Evidence is weaker for broader untaught vocabulary and phoneme-level outcomes.
   That does not prove no effect; it means the current fitted models leave more
   uncertainty.
-- The strongest causal claims should come from the randomized ITT, DiD, and main
-  gain-factor treatment terms, not from every positive coefficient in the
-  report.
+- The strongest randomisation-based claims should come from the available-case
+  modified ITT estimate, DiD, and main gain-factor treatment terms under their
+  respective analysis-set assumptions, not from every positive coefficient in
+  the report.
 - Baseline skill is a dominant predictor in many companion models. That is
   useful for understanding who scores higher later, but it is not an
   intervention effect.

@@ -58,7 +58,7 @@ Two design features follow from machinery that landed after the spec was merged
    2–3 (the first transition has no prior change) — both **post-crossover**,
    exactly where the verified d-separation result says the randomised arm
    confounds every pooled coupling. The window-1 cell contrast is reported
-   below as the usual ITT-suite consistency check.
+   below as the usual available-case modified ITT consistency check.
 2. **No adjuster covariate block.** Unlike LCSM-081's reverse couplings, no
    fittable verified measured backdoor set exists for couplings *into* reading
    (the LCSM-082 derivation put it at ~13 nodes), so the model keeps LRP67's

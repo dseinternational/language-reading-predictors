@@ -11,7 +11,7 @@ by out-of-fold permutation importance.
 
 This is a nonparametric cross-check of the Bayesian `gamma_blocks` read-out
 (`scripts/ability_vocab_association.py`). The interpretations differ on purpose:
-unlike the ANCOVA-on-logit ITT models, the GB model does not privilege the child's
+unlike the ANCOVA-on-logit available-case modified ITT models, the GB model does not privilege the child's
 own baseline vocabulary as an anchor, so a mid-pack `blocks` here reflects the
 **marginal** predictive contribution of non-verbal ability (larger, and shared with
 baseline vocabulary), not the **incremental** value beyond baseline that the

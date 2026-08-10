@@ -1,5 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
+> [!NOTE]
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+
 # Review: item-difficulty non-exchangeability, the Beta-Binomial working likelihood, and the negative age association
 
 > [!NOTE]
@@ -95,7 +98,7 @@ Recorded 2026-07-26; owners in brackets.
 
 1. **Keep the Beta-Binomial as the default working likelihood** for bounded-count outcomes. The CMB probe found overdispersion (ν = 0.50), vindicating the family's direction; the items-scale treatment estimand is invariant to the swap. No suite-wide likelihood change.
 2. **Adopt `scripts/ppc_coverage_sweep.py` as a standing diagnostic** after full reporting sweeps, read _relatively_ (a measure drifting from its peers), with the discreteness and in-sample-random-effect caveats stated in §4. [rerun with future sweeps]
-3. **Blending (`B`) headline is link-sensitive and needs a stated sensitivity.** The ≈ 1-item, strong-evidence ITT effect halves to ≈ 0.5 items, moderate evidence, under the mechanically-motivated guessing-floor link, and LOO cannot separate the links. Whether to promote the chance-floor variant to a registered model (a `link=` option in `factories.py` plus guard tests) — or at minimum to caveat `B`'s items-scale effect and its ROPE reading in reports — is a substantive call. [Frank / education lead]
+3. **Blending (`B`) headline is link-sensitive and needs a stated sensitivity.** The ≈ 1-item, strong-evidence available-case modified ITT estimate halves to ≈ 0.5 items, moderate evidence, under the mechanically-motivated guessing-floor link, and LOO cannot separate the links. Whether to promote the chance-floor variant to a registered model (a `link=` option in `factories.py` plus guard tests) — or at minimum to caveat `B`'s items-scale estimate and its ROPE reading in reports — is a substantive call. [Frank / education lead]
 4. **No Conway–Maxwell-binomial adoption; the ordinal / item-response route is closed.** Settled 2026-07-26: Frank confirmed the original scoring sheets are not readily available, so no item-level data can be assembled for a Rasch or ordinal measurement model (§7). Revisit only if item-level records surface, per the value-ordered agenda in §7. [closed]
 5. **Propose one reporting-guardrail sentence for `METHODS.md`**: items-scale effects are averages over the realised score distribution; items are not equal-interval ability units and are not comparable across measures. Not made in this change. [future docs change]
 6. **The negative word-reading age association stands as substantive** (§3): not a difficulty-ladder or likelihood artefact; developmental-timing versus trajectory-selection remains unresolvable cross-sectionally. Attribution corrected: −0.12 (P = 0.99) is the stacked gain-factors figure; the single-window ITT posterior is −0.08 (P(< 0) = 0.83).

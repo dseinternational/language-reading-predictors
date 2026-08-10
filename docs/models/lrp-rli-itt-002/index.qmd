@@ -1,5 +1,5 @@
 ---
-title: "LRPITT02: Modified-ITT analysis of taught expressive vocabulary, block 1 (TE)"
+title: "LRPITT02: Available-case modified ITT analysis of taught expressive vocabulary, block 1 (TE)"
 
 format:
   html:
@@ -22,7 +22,7 @@ format:
 
 **In plain terms.** Did the children offered the intervention say more of the vocabulary they were directly taught than those who were not — and how large, and how certain, is that difference? This model estimates the assigned-arm contrast among children in the fitted observed-data analysis set. Randomisation created exchangeability in the original full randomised cohort, but conditioning on archive inclusion and observed analytic variables can break it. A causal reading of the fitted contrast therefore requires selection not to induce an association between assigned arm and potential outcomes; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
 
-LRPITT02 is the available-case modified-ITT analysis for taught expressive vocabulary, block 1 (`b1extau`). The estimand is the assigned-arm contrast in the post-score $TE_{\text{post}}$ in the model-specific fitted sample, using the RCT phase only (time 1 $\rightarrow$ time 2).
+LRPITT02 is the available-case modified ITT analysis for taught expressive vocabulary, block 1 (`b1extau`). The estimand is the assigned-arm contrast in the post-score $TE_{\text{post}}$ in the model-specific fitted sample, using the RCT phase only (time 1 $\rightarrow$ time 2).
 This model supersedes the pre-#168 taught-expressive ITT model (legacy id LRP74, which conditioned on the standardised-vocabulary cross-baseline — unrelated to the current `lrp-rli-med-074`, which reuses the number 74).
 
 _Identification and sign convention._ Under the locked causal DAG, $G$ is a randomised root, so the offer contrast in the original full randomised cohort requires no baseline-covariate adjustment. This fit instead conditions on archive inclusion and observed analytic variables; a causal reading of $\tau$ in the fitted sample requires that selection did not induce an association between assigned arm and potential outcomes, and extending it to all 57 randomised children requires further missing-data assumptions and sensitivity. The own baseline $\gamma_{\text{own}}$ and linear age $\gamma_A$ are **precision terms only** — they may sharpen $\tau$ but do not identify effects after selection — and no cross-baseline conditioning is used. Attendance or sessions are never conditioned on (a DAG collider). **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the intervention arm has the higher modelled outcome.

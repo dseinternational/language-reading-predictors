@@ -3,6 +3,8 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers from the `reporting`-config refit under the median + inner-50% + outer-89% equal-tailed credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. Only the credible-interval brackets changed when we moved from 95% to 89% — medians, direction probabilities and evidence labels are unchanged. Preliminary.
 >
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+>
 > Supersession warning added by a LLM-based AI tool (Codex/GPT-5).
 
 > [!WARNING]
@@ -61,7 +63,7 @@ For **word reading (W, both `dose-077` and `dose-177`)** and **letter sounds (L,
 
 ## The one-paragraph story
 
-More sessions go with higher scores across all three outcomes, and for word reading the pooled association is clearly and strongly positive (+1.3 words per ≈31 extra sessions, 99.8% positive). The link is strongest for word reading, intermediate for letter sounds, weakest for phoneme blending, and — for word reading and letter sounds — appears concentrated in the early (period-1) transition, though the evidence for genuine period-to-period variation is thin. But this is the one family where the direction of causation is genuinely ambiguous: abler and better-attending children both do more sessions _and_ score higher. Adjusting word reading for general ability barely moves the slope, which is reassuring but not decisive. So everything here is reported as an association and used only to triangulate alongside the randomised ITT and DiD estimates — never to claim a dose effect.
+More sessions go with higher scores across all three outcomes, and for word reading the pooled association is clearly and strongly positive (+1.3 words per ≈31 extra sessions, 99.8% positive). The link is strongest for word reading, intermediate for letter sounds, weakest for phoneme blending, and — for word reading and letter sounds — appears concentrated in the early (period-1) transition, though the evidence for genuine period-to-period variation is thin. But this is the one family where the direction of causation is genuinely ambiguous: abler and better-attending children both do more sessions _and_ score higher. Adjusting word reading for general ability barely moves the slope, which is reassuring but not decisive. So everything here is reported as an association and used only to triangulate alongside the available-case modified ITT and DiD estimates — never to claim a dose effect.
 
 ## What is causal
 

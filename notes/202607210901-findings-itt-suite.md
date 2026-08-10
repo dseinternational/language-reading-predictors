@@ -7,9 +7,9 @@ This note is one of a set of per-family notes from the full 2026-07-21 re-fit of
 
 ## What this family probes
 
-The study is a **waitlist-crossover randomised trial**: children with Down syndrome were randomly assigned either to receive a reading and phonics intervention immediately or to receive it after a wait, and were tested at four timepoints. Because assignment was random, the difference in outcomes between the two assigned arms is a genuine **causal** effect of _being offered the intervention_. That quantity is the **intention-to-treat (ITT) effect**, written τ (tau). It is one of only three causal quantities in the whole statistical suite; everything else across the study is an adjusted association.
+The study is a **waitlist-crossover randomised trial**: children with Down syndrome were randomly assigned either to receive a reading and phonics intervention immediately or to receive it after a wait, and were tested at four timepoints. Randomisation identifies the full-cohort assigned-arm effect of _being offered the intervention_ in principle. The fitted τ (tau), however, is an **available-case modified ITT estimate** because it excludes children without the required observations; its causal reading additionally requires the stated selection assumption, and it is not a full-57 estimate. It is one of only three randomisation-based quantities in the whole statistical suite; everything else across the study is an adjusted association.
 
-The ITT suite answers the headline question directly and one outcome at a time: **did assignment to the intervention change this skill, and by how much?** Each model estimates τ from the first randomised comparison. Crucially, the DAG-faithful (causal-diagram-faithful) core models adjust for **only** the outcome's own baseline score and a linear age term, and they do so purely as _precision_ terms — they sharpen the estimate but are not what identifies the effect. Randomisation is what identifies the ITT effect, so the causal adjustment set is empty; deliberately, no other skill's baseline is conditioned on (conditioning on a downstream skill would bias the randomised comparison). This is the clean single-number answer the other families do not give: the difference-in-differences and gain-factor families re-derive the same effect through the crossover and through period-stacked gain models, and the mechanism and mediation families ask _how_ the effect propagates, but τ here is the primary randomised estimate.
+The available-case modified ITT suite answers the headline question directly and one outcome at a time: **among children in the fitted observed-data sample, what is the assigned-arm contrast for this skill?** Each model estimates τ from the first randomised comparison. Crucially, the DAG-faithful (causal-diagram-faithful) core models adjust for **only** the outcome's own baseline score and a linear age term, and they do so purely as _precision_ terms — they sharpen the estimate but are not what identifies the full-cohort assigned-arm contrast. Randomisation supplies that confounding identification in principle, so the causal adjustment set is empty; the fitted τ nevertheless remains an **available-case modified ITT estimate**, whose causal reading additionally requires the stated selection assumption and which is not a full-57 estimate. Deliberately, no other skill's baseline is conditioned on (conditioning on a downstream skill would bias the randomised comparison). This is the clean single-number answer the other families do not give: the difference-in-differences and gain-factor families re-derive related effects through the crossover and through period-stacked gain models, and the mechanism and mediation families ask _how_ the effect propagates, but τ here is the primary fitted assigned-arm estimate.
 
 Three sets of robustness members sit alongside the core, each re-estimating the same τ with one extra covariate added to check the headline effect survives — the point is agreement, not novelty:
 
@@ -36,7 +36,7 @@ Full conventions are in the shared reading guide; in brief, and tuned to this fa
 
 All numbers below are the model's own gate-interlocked key-findings values. Every one of the 27 models **passes** the convergence gate.
 
-### Core DAG-faithful ITT suite (τ is CAUSAL)
+### Core DAG-faithful available-case modified ITT suite (τ is causal under the selection assumption)
 
 These estimate τ with the empty causal adjustment set (own baseline and linear age as precision terms only). Grouped by outcome, from the clearest signal to the flat measures.
 
@@ -78,7 +78,7 @@ For PS and NW the estimand is a binary off-floor risk difference: among children
 
 Both directions are favourable, but because the floor rule is post-hoc and the subgroups are small (N = 36 and 41), these off-floor headlines should be read as exploratory and not quoted as settled.
 
-### General-ability robustness (itt-017–024; τ is CAUSAL, ability is an association)
+### General-ability robustness (itt-017–024; available-case modified ITT τ is causal under the selection assumption)
 
 Each adds a block-design cognitive score to a core outcome. The block-design coefficient is an _adjusted association_ (not a lever); τ stays the causal quantity. The finding is **agreement**: every adjusted τ lands within a whisker of its core counterpart.
 
@@ -95,7 +95,7 @@ Each adds a block-design cognitive score to a core outcome. The block-design coe
 
 LS stays _very strong_ at +3.5 items, WR _strong_ at +2.2 items, TE _strong_, TR and UR _moderate_, UE _suggestive_, and RV and EV stay flat and _inconclusive_. The headline effects are not an artefact of any cognitive-ability imbalance between the arms.
 
-### SES robustness on the complete-case subset (itt-013/014 for WR, itt-113/114 for LS; τ is CAUSAL, SES is an association)
+### SES robustness on the complete-case subset (itt-013/014 for WR, itt-113/114 for LS; available-case modified ITT τ is causal under the stricter selection assumption)
 
 Each adjusted model is paired with an unadjusted comparator on the **identical** complete-case subset, so the adjustment's effect can be separated from the sample restriction's effect. The samples are roughly halved (N = 33–34).
 
@@ -108,7 +108,7 @@ Each adjusted model is paired with an unadjusted comparator on the **identical**
 
 Word reading is +2.5 items adjusted (itt-013, _moderate_) versus +2.4 unadjusted-on-subset (itt-014, _strong_); letter-sound knowledge is +3.4 adjusted (itt-113, _very strong_) versus +3.9 unadjusted-on-subset (itt-114, _very strong_). The effects survive SES adjustment; the slight softening of itt-013's label to _moderate_ reflects the halved sample, not the adjustment. Both corroborate the core WR (itt-010) and LS (itt-007) results.
 
-### Study-site robustness (itt-027 for WR, itt-028 for LS; τ is CAUSAL, site is an association)
+### Study-site robustness (itt-027 for WR, itt-028 for LS; available-case modified ITT τ is causal under the selection assumption)
 
 | ID      | What it adds        | Outcome (max) | N   | τ, items — median [89% CI] | P(helps) | Evidence    | Corroborates core |
 | ------- | ------------------- | ------------- | --- | -------------------------- | -------- | ----------- | ----------------- |

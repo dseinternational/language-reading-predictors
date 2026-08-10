@@ -77,9 +77,9 @@ No headline causal estimand sits on a flagged model: the four divergence-only fi
 
 Everything below is read per the `METHODS.md` / #179 standard set out in the primer: posterior **median**, 95 % **credible interval**, tail probability, and the fixed evidence ladder. Only `τ`, the DiD `δ` and the gain-factor on-intervention marginal are **causal**; everything else is an adjusted association. Causal `τ`/`δ` figures are on the **probability (risk-difference) scale** at sample-mean baseline unless noted.
 
-### The headline causal question — modified-ITT effects and flagged floor secondaries (`lrp-rli-itt-001…011`, `025`, `026`)
+### The headline causal question — available-case modified ITT estimates and flagged floor secondaries (`lrp-rli-itt-001…011`, `025`, `026`)
 
-The modified-ITT effect `τ` is the study's headline available-case randomised contrast for the graded outcomes. It is not a full-cohort ITT for all 57 randomised children. The P/N rows below are the **graded, detection-limited secondaries from this superseded run**, not their current post-hoc binary transition headlines.
+The **available-case modified ITT estimate** `τ` is the study's headline fitted randomised-arm contrast for the graded outcomes. It is not a full-cohort ITT estimate for all 57 randomised children. The P/N rows below are the **graded, detection-limited secondaries from this superseded run**, not their current post-hoc binary transition headlines.
 
 Both a 90 % and a 95 % equal-tailed credible interval are shown: the 90 % is the tighter everyday band, the 95 % the more conservative one; read them together, not either alone.
 
@@ -105,7 +105,7 @@ Plainly: the strongest, clearest benefit is on **letter-sound knowledge** — ab
 
 ### Robustness — the story survives adjustment
 
-The ITT effect is identified by an empty adjustment set, but we re-ran the key outcomes adding potential confounders to check the result does not depend on them. It doesn't.
+Randomisation identifies the full-cohort assigned-arm contrast with an empty confounder adjustment set in principle; the fitted result remains an **available-case modified ITT estimate** under the stated selection assumption. We re-ran the key outcomes adding potential confounders to check that the fitted result did not depend on them. It did not.
 
 - **General-ability adjusted** (block-design, `itt-017…024`) reproduces the suite almost exactly: L very strong (0.999), W strong (0.980), TE strong (0.982), TR moderate (0.957), UE suggestive (0.777), R/E inconclusive (0.55 / 0.54).
 - **SES-adjusted** (mother's education etc., `itt-013` W 0.967, `itt-113` L 0.993) and the **matched SES complete-case** comparators (`itt-014` W 0.977, `itt-114` L 0.998) — holds.

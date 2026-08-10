@@ -16,8 +16,8 @@ Predictors are ranked by posterior ``P(|beta| > delta)`` and compared to the GB
 Between-child framing (``phase_mode="span"``, one row per child), mirroring hs-001: the
 coefficients are between-child associations, not within-child change. This is a
 **ranking cross-check, not a causal model** - if the horseshoe broadly agrees with the
-GB order, that is reassurance the ranking is not a tree-method artefact; the randomised
-causal claim continues to live in the ITT suite.
+GB order, that is reassurance the ranking is not a tree-method artefact; the corresponding
+randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 Construct predictor set: the non-floored measure baselines OTHER than the outcome
 (word reading ``W``, receptive/expressive vocabulary ``R``/``E``, blending ``B``, basic

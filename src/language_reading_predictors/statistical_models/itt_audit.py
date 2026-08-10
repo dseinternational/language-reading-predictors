@@ -3,9 +3,10 @@
 
 """Analysis-set and attrition diagnostics for the RLI randomised comparison.
 
-The modelling data begin at the 54-child t1 analytic cohort, whereas the trial
-randomised 57 children (29 immediate intervention, 28 wait-list control).  These
-helpers keep that distinction visible in every ITT artefact and provide a simple,
+The trial randomised 57 children (29 immediate intervention, 28 wait-list
+control), lost three to follow-up, and analysed 54. Four other children stopped
+intervention but were followed and analysed by assignment. These helpers keep
+those distinct events visible in every ITT artefact and provide a simple,
 model-free extreme-case bound for the marginal post-score contrast.
 
 The bound is deliberately not an imputation model: each missing randomised
@@ -29,10 +30,15 @@ INTERVENTION_G = 1
 CONTROL_G = 0
 ARM_LABELS = {INTERVENTION_G: "intervention", CONTROL_G: "control"}
 
-# Burgoyne et al. (2012) CONSORT flow: 29 immediate, 28 waiting control were
-# randomised; the repository's t1 data contain 28 and 26 respectively.
+# Burgoyne et al. (2012) CONSORT flow. Discontinuation is not attrition here:
+# two children per arm stopped intervention but were followed and analysed.
 RLI_RANDOMISED_BY_G = {INTERVENTION_G: 29, CONTROL_G: 28}
-RLI_AVAILABLE_T1_BY_G = {INTERVENTION_G: 28, CONTROL_G: 26}
+RLI_LOST_TO_FOLLOW_UP_BY_G = {INTERVENTION_G: 1, CONTROL_G: 2}
+RLI_ANALYSED_BY_G = {INTERVENTION_G: 28, CONTROL_G: 26}
+RLI_DISCONTINUED_BUT_FOLLOWED_BY_G = {INTERVENTION_G: 2, CONTROL_G: 2}
+# Compatibility name retained for stored-table readers. It is the paper's
+# analysed/archive cohort, not an unexplained t1 availability state.
+RLI_AVAILABLE_T1_BY_G = RLI_ANALYSED_BY_G
 
 
 def analysis_set_table(
@@ -40,7 +46,7 @@ def analysis_set_table(
     *,
     outcome_symbol: str | None = None,
 ) -> pd.DataFrame:
-    """Return randomised, t1-available and fitted counts by trial arm.
+    """Return published trial-flow and model-fitted counts by arm.
 
     ``prepared`` may already be a complete-case or subgroup restriction.  When an
     ``outcome_symbol`` is supplied, a row counts as fitted only when its post-score is
@@ -59,7 +65,7 @@ def analysis_set_table(
     rows: list[dict[str, int | str]] = []
     for g in (INTERVENTION_G, CONTROL_G):
         randomised_n = RLI_RANDOMISED_BY_G[g]
-        available_n = RLI_AVAILABLE_T1_BY_G[g]
+        available_n = RLI_ANALYSED_BY_G[g]
         fitted_n = int(np.sum((G == g) & keep))
         if fitted_n > available_n:
             raise ValueError(
@@ -71,6 +77,11 @@ def analysis_set_table(
                 "arm": ARM_LABELS[g],
                 "G": g,
                 "randomised_n": randomised_n,
+                "lost_to_follow_up_n": RLI_LOST_TO_FOLLOW_UP_BY_G[g],
+                "analysed_archive_n": available_n,
+                "discontinued_but_followed_n": (
+                    RLI_DISCONTINUED_BUT_FOLLOWED_BY_G[g]
+                ),
                 "available_t1_n": available_n,
                 "fitted_n": fitted_n,
                 "absent_from_archive_n": randomised_n - available_n,

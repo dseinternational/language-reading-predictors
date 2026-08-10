@@ -57,6 +57,67 @@ def test_typed_defaults_resolve_to_the_single_outcome_teaching_model():
         "pre_required": None,
     }
     assert plan.factory_kwargs()["score_mean_link"] == "logit"
+    recipe = plan.recipe_markdown(title="Teaching example")
+    assert "available-case modified ITT analysis" in recipe
+    assert "all 57" not in recipe
+
+
+def test_word_reading_primary_resolves_the_full_missingness_recipe():
+    spec = ModelSpec(
+        model_id="lrp-rli-itt-010",
+        kind="itt",
+        title="Word reading",
+        outcome_symbol="W",
+        model_settings=IttModelSettings(missingness_sensitivity=True),
+    )
+
+    plan = resolve_itt_run_plan(spec)
+
+    assert plan.missingness_sensitivity_required_for_release is True
+    assert plan.missingness_plan is not None
+    assert plan.missingness_plan.randomised_n == 57
+    assert plan.missingness_plan.observed_intervention_n == 28
+    assert plan.missingness_plan.observed_control_n == 25
+    assert plan.missingness_plan.screening_covariates == (
+        "screening_age",
+        "screening_word_reading",
+    )
+    assert plan.missingness_plan.delta_items == (-8.0, -4.0, 0.0, 4.0, 8.0)
+    assert plan.missingness_plan.lost_to_follow_up_n == 3
+    assert plan.missingness_plan.within_archive_w_missing_n == 1
+    assert plan.missingness_plan.word_reading_n == 79
+    assert len(plan.missingness_plan.reconciliation_digest) == 64
+    assert plan.missingness_plan.trace_filename == "trace_screening_missingness.nc"
+    assert plan.missingness_plan.common_estimand_class == (
+        "common_profile_standardisation"
+    )
+    assert plan.missingness_plan.completion_estimand_class == (
+        "randomised_arm_factual_completion"
+    )
+    assert plan.missingness_plan.intercept_prior_anchor == (
+        "mean_all_57_screening_word_reading_logit"
+    )
+    assert plan.missingness_plan.intercept_prior_sigma == 1.0
+    assert plan.missingness_plan.prior_predictive_draws == 1000
+    assert plan.missingness_plan.prior_check_filename == (
+        "itt_missingness_prior_check.csv"
+    )
+    recipe = plan.recipe_markdown(title="Word reading")
+    assert "headline word-reading model remains an available-case modified ITT" in recipe
+    assert "MAR standardisation over all 57 randomised profiles" in recipe
+
+
+def test_missingness_sensitivity_cannot_be_attached_to_another_itt():
+    spec = ModelSpec(
+        model_id="lrp-rli-itt-007",
+        kind="itt",
+        title="Letter sounds",
+        outcome_symbol="L",
+        model_settings=IttModelSettings(missingness_sensitivity=True),
+    )
+
+    with pytest.raises(ValueError, match="registered only"):
+        resolve_itt_run_plan(spec)
 
 
 def test_blending_guessing_floor_link_is_explicit_in_the_build_contract():

@@ -10,15 +10,22 @@ test that does sample uses a two-parameter toy model.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 from types import SimpleNamespace
 
+import arviz as az
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
 
 from language_reading_predictors.statistical_models.artifacts import ArtifactLog
+from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.reporting import (
+    _reuse_compatibility_contract,
+)
 from language_reading_predictors.statistical_models.subfits import (
     PROVENANCE_COLUMNS,
     PROVENANCE_TABLE,
@@ -28,6 +35,7 @@ from language_reading_predictors.statistical_models.subfits import (
     _classify_failure,
     describe_fitted_data,
     record_subfit,
+    refresh_subfit_trace_hash,
     run_subfit,
 )
 
@@ -61,6 +69,10 @@ def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None):
     prepared = SimpleNamespace(
         n_children=n_children,
         n_obs=len(observed),
+        n_phases=1,
+        dropped_rows=0,
+        dropped_by_reason={},
+        data_sha256="a" * 64,
         subject_ids=np.asarray(
             subject_ids if subject_ids is not None else range(len(observed))
         ),
@@ -68,6 +80,71 @@ def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None):
     if phase is not None:
         prepared.phase = np.asarray(phase)
     return SimpleNamespace(model=model, prepared=prepared)
+
+
+def _write_reuse_contract(
+    ctx,
+    built,
+    source,
+    *,
+    label="reused toy sub-fit",
+    role="sensitivity",
+    trace_filename="trace_toy_subfit.nc",
+):
+    ctx.model = built.model
+    ctx.prepared = built.prepared
+    ctx.reporting = SimpleNamespace(config_name="reporting", ci_prob=0.89)
+    ctx.resolved_plan = None
+    ctx.spec = ModelSpec(
+        model_id="lrp-rli-hg-999",
+        kind="historical_growth",
+        title="sub-fit reuse contract",
+    )
+    primary_trace = source / "trace.nc"
+    primary_trace.write_bytes(b"primary trace")
+    config = {
+        **_reuse_compatibility_contract(ctx),
+        "trace_sha256": hashlib.sha256(primary_trace.read_bytes()).hexdigest(),
+    }
+    (source / "config.json").write_text(json.dumps(config))
+
+    subfit_trace = source / trace_filename
+    data = describe_fitted_data(built)
+    sampling = {
+        "sampler": "nutpie",
+        "draws": int(ctx.sampling.draws),
+        "tune": int(ctx.sampling.tune),
+        "chains": int(ctx.sampling.chains),
+        "cores": int(ctx.sampling.cores),
+        "target_accept": float(ctx.sampling.target_accept),
+        "random_seed": ctx.sampling.random_seed,
+    }
+    row = SubfitResult(
+        label=label,
+        role=role,
+        trace=None,
+        convergence={},
+        sampling=sampling,
+        data=data,
+        convergence_scope="free_rvs",
+        trace_file=trace_filename,
+        trace_sha256=hashlib.sha256(subfit_trace.read_bytes()).hexdigest(),
+    ).provenance_row()
+    pd.DataFrame([row]).to_csv(source / "subfit_provenance.csv", index=False)
+
+
+def _persisted_toy_trace(path):
+    rng = np.random.default_rng(47)
+    trace = az.from_dict(
+        {
+            "posterior": {"p": rng.beta(3.0, 4.0, size=(2, 50))},
+            "sample_stats": {
+                "diverging": np.zeros((2, 50), dtype=bool),
+                "energy": rng.normal(size=(2, 50)),
+            },
+        },
+    )
+    trace.to_netcdf(path)
 
 
 def _verdict(**over):
@@ -350,3 +427,140 @@ def test_the_convergence_scope_selects_the_parameters_scanned(monkeypatch):
     run_subfit(ctx, _built(), label="scoped", role="wave")
     run_subfit(ctx, _built(), label="unscoped", role="wave", convergence_scope="all")
     assert seen == [["p"], None]
+
+
+def test_reuse_trace_loads_a_persisted_subfit_without_sampling(tmp_path, monkeypatch):
+    source = tmp_path / "published"
+    staging = tmp_path / "staging"
+    source.mkdir()
+    staging.mkdir()
+    ctx = _ctx(staging, draws=50, tune=50, chains=2)
+    ctx.final_output_dir = str(source)
+    built = _built()
+
+    _persisted_toy_trace(source / "trace_toy_subfit.nc")
+    _write_reuse_contract(ctx, built, source)
+
+    monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
+    monkeypatch.setattr(
+        pm,
+        "sample",
+        lambda **_kwargs: pytest.fail("reuse-trace must not call NUTS"),
+    )
+    result = run_subfit(
+        ctx,
+        built,
+        label="reused toy sub-fit",
+        role="sensitivity",
+        trace_filename="trace_toy_subfit.nc",
+    )
+
+    assert result.trace.posterior.sizes["draw"] == 50
+    assert (staging / "trace_toy_subfit.nc").is_file()
+
+
+def test_reuse_trace_rejects_subfit_provenance_drift_before_sampling(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "published"
+    staging = tmp_path / "staging"
+    source.mkdir()
+    staging.mkdir()
+    ctx = _ctx(staging, draws=50, tune=50, chains=2)
+    ctx.final_output_dir = str(source)
+    built = _built()
+
+    _persisted_toy_trace(source / "trace_toy_subfit.nc")
+    _write_reuse_contract(ctx, built, source)
+    provenance_path = source / "subfit_provenance.csv"
+    provenance = pd.read_csv(provenance_path)
+    provenance.loc[0, "data_digest"] = "not-the-current-fitted-data"
+    provenance.to_csv(provenance_path, index=False)
+
+    monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
+    monkeypatch.setattr(
+        pm,
+        "sample",
+        lambda **_kwargs: pytest.fail("an incompatible reuse must not call NUTS"),
+    )
+    with pytest.raises(ValueError, match="data_digest"):
+        run_subfit(
+            ctx,
+            built,
+            label="reused toy sub-fit",
+            role="sensitivity",
+            trace_filename="trace_toy_subfit.nc",
+        )
+
+
+def test_refresh_subfit_trace_hash_rebinds_the_final_augmented_bytes(tmp_path):
+    ctx = _ctx(tmp_path)
+    os.makedirs(ctx.output_dir, exist_ok=True)
+    trace_path = tmp_path / "trace_toy_subfit.nc"
+    trace_path.write_bytes(b"initial bytes")
+    record_subfit(
+        ctx,
+        _result(
+            label="augmented sub-fit",
+            role="sensitivity",
+            trace_file=trace_path.name,
+            trace_sha256=hashlib.sha256(b"initial bytes").hexdigest(),
+        ),
+    )
+
+    trace_path.write_bytes(b"final bytes with attached prior groups")
+    final_digest = refresh_subfit_trace_hash(
+        ctx,
+        label="augmented sub-fit",
+        trace_filename=trace_path.name,
+    )
+
+    expected = hashlib.sha256(trace_path.read_bytes()).hexdigest()
+    assert final_digest == expected
+    assert ctx.subfits.results[0].trace_sha256 == expected
+    row = pd.read_csv(tmp_path / "subfit_provenance.csv").iloc[0]
+    assert row["trace_sha256"] == expected
+
+
+def test_reuse_trace_fails_closed_when_persisted_subfit_is_absent(
+    tmp_path, monkeypatch
+):
+    source = tmp_path / "published"
+    staging = tmp_path / "staging"
+    source.mkdir()
+    staging.mkdir()
+    ctx = _ctx(staging)
+    ctx.final_output_dir = str(source)
+    monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
+    monkeypatch.setattr(
+        pm,
+        "sample",
+        lambda **_kwargs: pytest.fail("reuse-trace must not call NUTS"),
+    )
+
+    with pytest.raises(FileNotFoundError, match="persisted sub-fit trace"):
+        run_subfit(
+            ctx,
+            _built(),
+            label="missing reused toy sub-fit",
+            role="sensitivity",
+            trace_filename="trace_toy_subfit.nc",
+        )
+
+
+def test_reuse_trace_fails_closed_for_an_unnamed_subfit(monkeypatch):
+    ctx = _ctx(None)
+    monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
+    monkeypatch.setattr(
+        pm,
+        "sample",
+        lambda **_kwargs: pytest.fail("reuse-trace must not sample an unnamed sub-fit"),
+    )
+
+    with pytest.raises(FileNotFoundError, match="cannot reuse an unnamed sub-fit"):
+        run_subfit(
+            ctx,
+            _built(),
+            label="unnamed toy sub-fit",
+            role="sensitivity",
+        )

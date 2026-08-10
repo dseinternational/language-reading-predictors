@@ -118,7 +118,7 @@ def test_resolve_primary_is_per_protocol_association():
     }
     assert plan.factory_kwargs()["use_cohort"] is True
     assert "per-protocol" in plan.causal_status.lower()
-    assert "not the randomised itt" in plan.estimand.lower()
+    assert "not an available-case modified itt estimate" in plan.estimand.lower()
 
 
 def test_resolve_dose_variant_requests_include_dose():

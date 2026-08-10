@@ -18,7 +18,8 @@ which omitted it: IS -> TR and IS -> WR make sessions a genuine confounder of TR
 precision term and W_pre the autoregressive baseline.
 
 Residual confounding by latent general ability (GA) remains, so f^TR is an ADJUSTED
-ASSOCIATION, not a causal effect. The randomised causal claim lives in the ITT suite.
+ASSOCIATION, not a causal effect. The corresponding randomised-arm result is an
+available-case modified ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

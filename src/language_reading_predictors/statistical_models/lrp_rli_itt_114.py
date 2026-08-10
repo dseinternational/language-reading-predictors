@@ -3,7 +3,7 @@
 
 """LRPITT14b - matched complete-case comparator to LRPITT13b (letter-sound).
 
-Letter-sound analogue of LRPITT14: the unadjusted ITT on the SES complete-case
+Letter-sound analogue of LRPITT14: the unadjusted available-case modified ITT estimate on the SES complete-case
 subset, the matched comparator that isolates the SES adjustment in LRPITT13b
 (sample held fixed). Sign convention: positive tau => intervention helps.
 """
@@ -16,7 +16,10 @@ from language_reading_predictors.statistical_models.pipeline import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-114",
     kind="itt",
-    title="Unadjusted ITT on the SES complete-case subset, letter-sound knowledge (matched comparator to LRPITT13b)",
+    title=(
+        "Unadjusted available-case modified ITT estimate on the SES complete-case "
+        "subset, letter-sound knowledge (matched comparator to LRPITT13b)"
+    ),
     outcome_symbol="L",
     adjustment=[],
     model_settings=IttModelSettings(restrict_complete=SES_ADJUSTERS),

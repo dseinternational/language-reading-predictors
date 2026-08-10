@@ -2,13 +2,16 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); Decision 4 extended by a LLM-based AI tool (Claude Code/Opus 5) on 2026-08-02 to record the group×ability caveat (#389 finding 1, closing out #271 item 5).
+>
+> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 
 Date: 2026-06-26
 
 ## Scope
 
-Two statistical-model families that answer a different question from the ITT
-suite. Where `LRPITT01–11` ask "did randomisation raise outcome X?", these ask
+Two statistical-model families that answer a different question from the
+available-case modified ITT suite. Where `LRPITT01–11` ask "among the fitted
+observed cases, did assignment raise outcome X?", these ask
 **"what is each outcome's progress associated with, and which part of that is
 causal?"** — one interpretable per-outcome factor decomposition, fit eight times
 (W/R/E/L/P/B/F/T):
@@ -56,9 +59,11 @@ reasons, all pointing the same way:
 
 1. **SES is not a node in the consolidated DAG**
    (`notes/202606231600-dag-revision-consolidated.md`). The word-reading parent
-   set is `{A, GA, IG, IS, LS, NW, PA, PS, RV, TR}`; the ITT effect is identified
-   by the _empty_ adjustment set. There is no arrow for an SES coefficient to
-   estimate.
+   set is `{A, GA, IG, IS, LS, NW, PA, PS, RV, TR}`; randomisation identifies the
+   full-cohort assigned-arm contrast with the _empty_ adjustment set in principle.
+   The fitted result remains an **available-case modified ITT estimate**, because
+   the analysis starts from the archived cases and applies outcome-specific
+   observation requirements. There is no arrow for an SES coefficient to estimate.
 2. **It was found statistically redundant** in the gradient-boosting selection
    (its variance is absorbed by ability + baselines).
 3. **Conditioning on it costs data:** SES is incomplete, so requiring it dropped
@@ -160,7 +165,7 @@ probability scale). The same branch is available to the level family.
 
 ### Decision 6 — reporting follows the ROPE convention (#130)
 
-The causal term is reported the same way the ITT suite reports `tau` after
+The causal term is reported the same way the available-case modified ITT suite reports `tau` after
 [#130](https://github.com/dseinternational/language-reading-predictors/pull/130)
 (`notes/202606261304-evidence-strength-and-rope-reporting.md`): the **median** effect
 on the items scale (transformation-invariant) with intervals, and **direction**
@@ -194,12 +199,13 @@ other coefficient stays an adjusted association.
   on the DAG (a descendant of both group and ability); conditioning on it would
   open a back-door. A dose variant is deferred and, if built, will use a Mundlak
   within/between split with a "within-child dose weak/inconclusive" headline.
-- **Not a substitute for the ITT suite:** these triangulate and decompose; the
-  randomised effect of record remains `LRPITT01–11`.
+- **Not a substitute for the available-case modified ITT suite:** these triangulate and decompose; the
+  fitted assigned-arm estimates of record remain `LRPITT01–11`, subject to their
+  available-case selection assumption.
 
 ## Validation (dev config)
 
-- **`lrpgf01` (W):** `beta_trt = +0.44` reproduces the ITT τ ≈ +0.35 — the gain
+- **`lrpgf01` (W):** `beta_trt = +0.44` reproduces the available-case modified ITT estimate τ ≈ +0.35 — the gain
   ANCOVA recovers the randomised effect, as it should.
 - **`lrpgf04` (L):** `beta_trt = +0.53` (P ≈ 0.997) — the strongest on-intervention
   signal, consistent with letter sounds being directly taught.

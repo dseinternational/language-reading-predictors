@@ -7,8 +7,8 @@ Measurement-sensitivity audit of the RLI outcome measures.
 Motivation
 ----------
 
-The ITT models (LRPITT suite) show a robust word-reading and letter-sound
-effect but no credible vocabulary effect. Before that null is read as "the
+The available-case modified ITT estimates (LRPITT suite) show a robust
+word-reading and letter-sound contrast but no credible vocabulary contrast. Before that null is read as "the
 vocabulary component does not work", we need to know whether each outcome even
 had the *range and reliability* to register a change in the randomised window
 (t1 -> t2). A measure that is floored, ceilinged, or barely moves cannot show a

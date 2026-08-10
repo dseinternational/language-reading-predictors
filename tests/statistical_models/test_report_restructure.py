@@ -128,6 +128,18 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
             }
         )
     )
+    (tmp_path / "release_decision.json").write_text(
+        json.dumps(
+            {
+                "status": "gate_failed",
+                "publishable": False,
+                "scientific_publication_eligible": False,
+                "development_only": True,
+                "sampling_preset": "dev",
+                "publication_qualification": "dev is diagnostic-only",
+            }
+        )
+    )
     (tmp_path / "index.qmd").write_text(
         "---\n"
         'title: "Failed-gate fixture"\n'
@@ -165,6 +177,8 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
     assert "R-hat" in html
     assert "divergent transitions" in html
     assert "Findings withheld" in html
+    assert "Development-only fit" in html
+    assert "not eligible for scientific publication" in html
     assert "SECRET FINDING MUST NOT RENDER" not in html
     assert "FULL CONVERGENCE CONTENT" in html
     assert "ANALYST PPC CONTENT" in html

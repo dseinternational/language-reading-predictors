@@ -13,7 +13,7 @@ scripts/fit_statistical_model.py all``). Produces, under
   (B) is excluded; read its mandatory LRPITT08/LRPITT08B paired sensitivity instead.
 - ``triangulation_consistency.csv`` — per-outcome cross-*design* consistency of the
   randomised on-intervention effect on each family's **canonical items-scale AME**
-  (#391 finding 5): the single-outcome ITT t2 AME, the waitlist-crossover t2 arm-gap
+  (#391 finding 5): the single-outcome available-case modified ITT t2 AME, the waitlist-crossover t2 arm-gap
   items pushforward and the gain-factor period-1 marginal, with explicit
   ``scale``/``population`` columns; whether the analyses agree in direction and
   their intervals overlap. The raw logit coefficients survive only as clearly
@@ -61,7 +61,7 @@ from language_reading_predictors.statistical_models.reporting import (
     convergence_gate_clean_passed,
 )
 
-# Heavily-floored outcomes whose exploratory ITT headline is the binary off-floor
+# Heavily-floored outcomes whose exploratory available-case modified ITT headline is the binary off-floor
 # effect (a risk difference), not the graded logit tau shown in the joint. Any of
 # these appearing in a forest/CSV of graded taus is flagged so the artefact does
 # not misrepresent it.
@@ -79,12 +79,12 @@ RESPONSE_LINK_SCOPE = (
 )
 
 
-# Single-outcome ITT models (LRPITT suite, #119) overlaid on the LRPITT12 joint, on
+# Single-outcome available-case modified ITT models (LRPITT suite, #119) overlaid on the LRPITT12 joint, on
 # the outcomes the joint also carries. Response-link-sensitive B is excluded, as are
 # the floored outcomes P (lrp-rli-itt-009) and N
 # (lrp-rli-itt-011) are excluded from the graded overlay: their exploratory headline is the
 # binary off-floor effect, read from their own reports rather than compared to the
-# joint's graded tau. F/T have standalone ITTs but are not outcomes in this joint fit.
+# joint's graded tau. F/T have standalone available-case modified ITT estimates but are not outcomes in this joint fit.
 ITT_IDS: list[tuple[str, str]] = [
     ("lrp-rli-itt-010", "W"),
     ("lrp-rli-itt-005", "R"),
@@ -205,7 +205,7 @@ def _gate_ok(model_id: str, config: str) -> bool:
 
 
 def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
-    """Compare like-link single-outcome and joint ITT coefficients.
+    """Compare like-link single-outcome and joint available-case modified ITT coefficients.
 
     B is intentionally absent: its scientific conclusion is conditional on the
     mandatory ordinary-logit versus guessing-floor pair, which the joint model does
@@ -260,7 +260,7 @@ def build_itt_vs_joint(config: str) -> pd.DataFrame | None:
 # ---------------------------------------------------------------------------
 
 # Per shared graded outcome, the three analyses on the same logit scale:
-# single-outcome ITT tau, waitlist-crossover randomised t2 arm contrast, and gain-factor
+# single-outcome available-case modified ITT tau, waitlist-crossover randomised t2 arm contrast, and gain-factor
 # on-intervention beta_trt. These are not statistically independent designs: they
 # reuse the same trial data, and the DiD additionally imposes crossover/history
 # assumptions. The registry-derived catalogue avoids silently omitting newly completed
@@ -277,9 +277,9 @@ _TRIANGULATION_OUTCOME_ORDER: tuple[str, ...] = (
 
 
 def _triangulation_outcomes() -> list[tuple[str, str, str, str]]:
-    """Build the complete non-floored ITT/DiD/gain-factor catalogue.
+    """Build the non-floored available-case modified ITT/DiD/gain-factor catalogue.
 
-    Select only the primary member of each family: model-of-record ITTs, ordinary
+    Select only the primary member of each family: model-of-record available-case modified ITT estimates, ordinary
     waitlist-crossover arm-by-wave DiDs (not dose or heterogeneity variants), and
     full-sample gain-factor models (not treated-only companions). Outcomes must be
     present in all three families and must share the graded logit estimand.
@@ -339,7 +339,7 @@ TRIANGULATION_OUTCOMES: list[tuple[str, str, str, str]] = _triangulation_outcome
 
 
 def _itt_effect(model_id: str, config: str, outcome: str) -> dict | None:
-    """Single-outcome ITT effect from ``tau_summary.csv``, or None if absent.
+    """Available-case modified ITT estimate from ``tau_summary.csv``, if present.
 
     The primary block is the **items-scale AME** at the randomised t2
     comparison: ``tau_prob_*`` is the probability-scale average marginal effect
@@ -357,7 +357,7 @@ def _itt_effect(model_id: str, config: str, outcome: str) -> dict | None:
     out: dict = {
         "estimand": "itt_t2_ame_items",
         "scale": "items",
-        "population": "t2 available-case children (both arms)",
+        "population": "t2 available-case modified ITT analysis rows (both arms)",
         "logit_term": "tau",
         "logit_median": float(row["tau_logit_median"]),
         "logit_lo": float(row["tau_logit_lo"]),
@@ -473,7 +473,7 @@ def _gain_factor_effect(model_id: str, config: str) -> dict | None:
 
 
 _TRIANGULATION_DESIGNS: tuple[tuple[str, str], ...] = (
-    ("itt", "ITT t2 items-scale AME"),
+    ("itt", "Available-case modified ITT t2 items-scale AME"),
     ("did", "crossover-model t2 arm-gap items"),
     ("gf", "gain-factor period-1 items-scale AME"),
 )
@@ -484,7 +484,8 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
 
     #391 finding 5 (decision 2026-07-22): the triangulation consumes each
     family's **canonical items-scale average marginal effect over its randomised
-    comparison** — the single-outcome ITT t2 AME (``tau_prob_* x n_items``), the
+    comparison** — the single-outcome available-case modified ITT t2 AME
+    (``tau_prob_* x n_items``), the
     crossover model's t2 arm-gap items pushforward (``tau_t2_items_*``) and the
     gain-factor period-1 marginal (``trt_items_*`` from
     ``treatment_marginal.csv``) — with explicit ``{design}_scale`` and
@@ -500,10 +501,10 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
     **non-collapsible**: a more-adjusted conditional log-odds effect (the
     gain-factor coefficient, with its child intercept, baseline, ability, skill
     and confounder conditioning) is systematically larger in magnitude than the
-    marginal ITT ``tau`` even under an identical truth, so a logit-scale
+    marginal available-case modified ITT ``tau`` even under an identical truth, so a logit-scale
     magnitude comparison across these designs is apples-to-oranges no matter
     which gain-factor column it reads. The marginal items quantities remove that
-    artefact; what remains is a *population* difference (the ITT and crossover
+    artefact; what remains is a *population* difference (the available-case modified ITT and crossover
     marginals average over t2 level rows, the gain-factor marginal over
     period-1 transition rows), which the population columns state and which is
     why the flags are still read qualitatively.
@@ -595,7 +596,7 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
 
 
 def tau_forest(config: str, out_path: str) -> bool:
-    """Forest plot of the LRPITT12 joint taus, overlaid with the LRPITT single-outcome
+    """Forest plot of the LRPITT12 joint estimates, overlaid with the single-outcome
     fits on the shared (non-floored) outcomes.
 
     The response-link-sensitive B row is omitted; its paired LRPITT08/LRPITT08B
@@ -640,7 +641,8 @@ def tau_forest(config: str, out_path: str) -> bool:
         ],
         fmt="o",
         color="#1f77b4",
-        label="LRPITT12 (joint)" + ("" if joint_ok else " — REVIEW: not converged"),
+        label="LRPITT12 (joint available-case modified ITT)"
+        + ("" if joint_ok else " — REVIEW: not converged"),
         capsize=3,
     )
     # Univariate overlay, offset vertically for readability.
@@ -662,7 +664,7 @@ def tau_forest(config: str, out_path: str) -> bool:
             xerr=[uni_lo, uni_hi],
             fmt="s",
             color="#ff7f0e",
-            label="LRPITT (single-outcome)",
+            label="LRPITT (single-outcome available-case modified ITT)",
             capsize=3,
         )
     ax.axvline(0.0, color="k", lw=0.75, ls="--")
@@ -1711,7 +1713,10 @@ def main() -> None:
         itt_joint.to_csv(path, index=False)
         print(f"Wrote {path}")
     else:
-        print("Skipping ITT-vs-joint comparison: one or more runs missing.")
+        print(
+            "Skipping available-case modified ITT versus joint comparison: "
+            "one or more runs missing."
+        )
 
     triangulation = build_triangulation(args.config)
     if triangulation is not None:

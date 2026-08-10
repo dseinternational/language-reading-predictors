@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Registry-wide construction checks for the randomised ITT model family.
+"""Registry-wide checks for the available-case modified ITT model family.
 
 These tests deliberately stop before prior or posterior sampling.  Their job is
 to catch drift between a registered ``ModelSpec``, preprocessing, and the PyMC
@@ -10,6 +10,9 @@ study data through the same effective options used by the fitting pipeline.
 """
 
 from __future__ import annotations
+
+import ast
+from pathlib import Path
 
 import pytest
 
@@ -76,6 +79,27 @@ def _build_joint(spec: ModelSpec):
 
 
 _REGISTERED_SPECS = _registered_specs()
+_STATISTICAL_MODELS_DIR = Path(__file__).resolve().parents[2] / "src" / (
+    "language_reading_predictors/statistical_models"
+)
+
+
+@pytest.mark.parametrize(
+    "model_id,spec",
+    _REGISTERED_SPECS,
+    ids=[model_id for model_id, _ in _REGISTERED_SPECS],
+)
+def test_registered_itt_family_titles_name_the_available_case_modified_estimand(
+    model_id: str, spec: ModelSpec
+):
+    assert "available-case modified itt" in spec.title.lower(), model_id
+
+
+def test_registered_itt_module_descriptions_name_the_available_case_modified_estimand():
+    for source_path in sorted(_STATISTICAL_MODELS_DIR.glob("lrp_rli_itt_*.py")):
+        module = ast.parse(source_path.read_text(encoding="utf-8"))
+        description = ast.get_docstring(module) or ""
+        assert "available-case modified itt" in description.lower(), source_path.name
 
 
 @pytest.mark.parametrize(

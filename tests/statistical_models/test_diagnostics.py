@@ -5,12 +5,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
 import arviz as az
 import numpy as np
 import pandas as pd
+import pymc as pm
 import pytest
 import xarray as xr
 
@@ -18,6 +21,100 @@ from language_reading_predictors.statistical_models import diagnostics as diag
 from language_reading_predictors.statistical_models import (
     sampling_quality as sampling_quality_mod,
 )
+from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.reporting import (
+    _reuse_compatibility_contract,
+)
+
+
+def _primary_reuse_context(tmp_path):
+    source = tmp_path / "published"
+    current = tmp_path / "current"
+    source.mkdir()
+    current.mkdir()
+    observed = np.asarray([2, 4, 3])
+    with pm.Model() as model:
+        p = pm.Beta("p", 2.0, 2.0)
+        pm.Binomial("y", n=5, p=p, observed=observed)
+    context = SimpleNamespace(
+        spec=ModelSpec(
+            model_id="lrp-rli-hg-999",
+            kind="historical_growth",
+            title="primary reuse contract",
+        ),
+        prepared=SimpleNamespace(
+            subject_ids=np.asarray(["S1", "S2", "S3"], dtype=object),
+            n_obs=3,
+            n_children=3,
+            n_phases=1,
+            n_waves=None,
+            dropped_rows=0,
+            dropped_by_reason={},
+            data_sha256="a" * 64,
+        ),
+        model=model,
+        reporting=SimpleNamespace(config_name="reporting", ci_prob=0.89),
+        sampling=SimpleNamespace(
+            draws=6000,
+            tune=6000,
+            chains=6,
+            cores=5,
+            target_accept=0.95,
+            random_seed=47,
+        ),
+        resolved_plan=None,
+        output_dir=str(current),
+        final_output_dir=str(source),
+    )
+    trace_path = source / "trace.nc"
+    trace_path.write_bytes(b"persisted posterior bytes")
+    config = {
+        **_reuse_compatibility_contract(context),
+        "trace_sha256": hashlib.sha256(trace_path.read_bytes()).hexdigest(),
+    }
+    (source / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    return context, source
+
+
+def test_reuse_trace_never_falls_back_to_fresh_sampling(tmp_path, monkeypatch):
+    context = SimpleNamespace(final_output_dir=str(tmp_path))
+    monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
+    monkeypatch.setattr(
+        diag.pm,
+        "sample",
+        lambda **_kwargs: pytest.fail("reuse-trace must never run fresh NUTS"),
+    )
+
+    with pytest.raises(FileNotFoundError, match="refusing to run fresh NUTS"):
+        diag.sample_posterior(context)
+
+
+@pytest.mark.parametrize("field", ["config_name", "trace_sha256"])
+def test_primary_reuse_rejects_contract_or_trace_hash_drift_before_loading(
+    tmp_path, monkeypatch, field
+):
+    context, source = _primary_reuse_context(tmp_path)
+    config_path = source / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config[field] = "dev" if field == "config_name" else "0" * 64
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
+    monkeypatch.setattr(
+        diag.az,
+        "from_netcdf",
+        lambda *_args, **_kwargs: pytest.fail(
+            "an incompatible primary trace must not be loaded"
+        ),
+    )
+    monkeypatch.setattr(
+        diag.pm,
+        "sample",
+        lambda **_kwargs: pytest.fail("reuse-trace must never run fresh NUTS"),
+    )
+
+    with pytest.raises(ValueError, match=field):
+        diag.sample_posterior(context)
 
 
 def test_run_psense_removes_stale_summary_when_recomputation_fails(

@@ -62,7 +62,7 @@ the $L$ main slope is read **only with** the moderation.
 
 _Adjusted association, not causal._ Latent general ability ($GA$) is not adjusted for, so $f^L$, $\gamma_{\text{mod}}$ and
 $\gamma_{\text{int}}$ are **latent-GA-confounded adjusted associations**, never causal effects. The
-randomised causal claim lives in the ITT suite.
+corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

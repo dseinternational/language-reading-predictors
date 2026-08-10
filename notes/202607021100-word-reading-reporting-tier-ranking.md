@@ -4,6 +4,7 @@
 
 ::: {.callout-note}
 Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
 :::
 
 ::: {.callout-warning}
@@ -16,9 +17,10 @@ for review. `n ≈ 53` children, so intervals are wide throughout.
 **Status: reporting-tier findings (issue #116, flagship word-reading slice).**
 Supersedes the dev/`--quick`-tier pilot in
 [`202607011303-horseshoe-vs-gb-ranking-crosscheck.md`](202607011303-horseshoe-vs-gb-ranking-crosscheck.md).
-The randomised causal claim continues to live in the ITT suite; everything here
-is an _adjusted association ranking_, cross-checked across two very different
-methods. This is one outcome (word reading) — the outcome for which we have both
+The randomisation-based claim continues to live in the available-case modified
+ITT suite, with a causal reading conditional on its selection assumption;
+everything here is an _adjusted association ranking_, cross-checked across two
+very different methods. This is one outcome (word reading) — the outcome for which we have both
 a gradient-boosting model and a horseshoe cross-check. The remaining GB models
 are retuned + swept in the #116 follow-up.
 

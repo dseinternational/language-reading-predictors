@@ -1,7 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""LRPITT27 - site-adjusted ITT for word reading (W) (#228 Tier-1).
+"""LRPITT27 - site-adjusted available-case modified ITT estimate for word reading (W).
 
 Site-robustness companion to LRPITT10: the uniform LRPITT spec (own baseline +
 linear age, no cross-baselines) plus a linear adjustment for study site (``area``:
@@ -23,7 +23,10 @@ SITE_ADJUSTERS = (V.AREA,)
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-027",
     kind="itt",
-    title="Site-adjusted ITT effect of group assignment on word reading (W)",
+    title=(
+        "Site-adjusted available-case modified ITT estimate of the assigned-arm "
+        "contrast in word reading (W)"
+    ),
     outcome_symbol="W",
     adjustment=list(SITE_ADJUSTERS),
     model_settings=IttModelSettings(adjust_for=SITE_ADJUSTERS),

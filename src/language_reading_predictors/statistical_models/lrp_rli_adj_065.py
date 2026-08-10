@@ -24,9 +24,10 @@ gain ``W_post | W_pre`` (pre = T1), holding the other measured T1 baselines
 constant, *across children*.
 
 This is an association, NOT a causal effect: n ~ 51, observational contrasts
-between children. The randomised word-reading ITT (now ``lrp-rli-itt-010``, which supersedes
-LRP52; the randomised gain-side coefficient lives in ``lrp-rli-gf-001``) carries the causal
-claim about the programme; LRP65 is about *which starting skills go with more gain*.
+between children. The corresponding randomised-arm result is the available-case modified
+ITT estimate in ``lrp-rli-itt-010`` (which supersedes LRP52); the randomised gain-side
+coefficient lives in ``lrp-rli-gf-001``. LRP65 is about *which starting skills go with
+more gain*.
 
 Estimand <-> design (the decision the DAG gate settles)
 -------------------------------------------------------

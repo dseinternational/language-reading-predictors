@@ -46,7 +46,7 @@ $G\,(= IG)$ is the always-in precision term. The causal paths $PA \to WR$ and $P
 are preserved ($NW$, $PS$ are descendants of $PA$ and are never adjusted).
 
 _Adjusted association, not causal._ Residual confounding by latent general ability ($GA$) remains, so $f^B$ is an **adjusted
-association**, not a causal effect. The randomised causal claim lives in the ITT suite.
+association**, not a causal effect. The corresponding randomised-arm result is an available-case modified ITT estimate in the ITT suite.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

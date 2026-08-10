@@ -5,8 +5,8 @@ ranking. Every predictor enters as a standardised term (per 1 SD, logit scale)
 and the coefficients share a regularized (Finnish) horseshoe prior, so noise
 predictors collapse toward zero while genuinely predictive ones escape via the
 heavy local tail. Predictors are ranked by posterior `P(|beta| > delta)`. These
-are **adjusted associations, not causal effects** — the randomised causal claim
-lives in the ITT suite, not here.
+are **adjusted associations, not causal effects** — the corresponding randomised-arm
+result is an available-case modified ITT estimate in the ITT suite, not here.
 
 ### Predictor ranking
 

@@ -9,7 +9,7 @@ Date: 2026-06-26
 
 A new statistical-model family (`kind="did"`, modules `lrpdid01–06`) that
 estimates the intervention effect a **second way** — within-person, using the
-waitlist arm's crossover — as a triangulation of the randomised ITT effect
+waitlist arm's crossover — as a triangulation of the available-case modified ITT estimate
 (the `LRPITT01–11` suite). This note records the design decisions a future reader
 might question, because several are non-obvious and a couple of tempting
 shortcuts are wrong.

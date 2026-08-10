@@ -486,8 +486,9 @@ uncertainty by widening the posterior. State plainly what it does **not** do:
   leg of the LRP causal apparatus (the locked DAG, the mediation g-formula, the
   moderation analyses); the identification assumptions that license a causal
   reading remain entirely that apparatus's job. Per the project's standing
-  honesty convention, only the randomised ITT term is causal; everything
-  observational stays an _adjusted association_, never "X drives Y".
+  honesty convention, only the available-case modified ITT term has a causal
+  reading under its selection assumption; everything observational stays an
+  _adjusted association_, never "X drives Y".
 - It does **not** establish **temporal ordering.** Better-measured cross-sectional
   associations are still cross-sectional. The CLPM cautions in
   still apply.

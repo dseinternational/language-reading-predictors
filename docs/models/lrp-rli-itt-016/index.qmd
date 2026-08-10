@@ -1,5 +1,5 @@
 ---
-title: "LRPITT16: Modality contrast — taught expressive (TE) vs taught receptive (TR) vocabulary"
+title: "LRPITT16: Available-case modified ITT modality contrast — taught expressive vs receptive vocabulary"
 
 format:
   html:
@@ -20,7 +20,7 @@ format:
 
 ## Overview
 
-The generalisation contrasts [LRPITT15](../lrp-rli-itt-015) (expressive: TE vs UE) and [LRPITT15b](../lrp-rli-itt-115) (receptive: TR vs UR) each compare taught versus not-taught *within* a modality. Neither asks whether the assigned-arm difference for directly-taught words is larger in the **expressive** modality than in the **receptive** modality. LRPITT16 supplies that missing contrast: the two Block 1 *taught* outcomes — expressive taught target words $TE$ and receptive taught target words $TR$ — are fitted together as factorised marginals over the randomised window, and the headline quantity is the difference between their probability-scale average marginal effects, $\mathrm{AME}_{TE} - \mathrm{AME}_{TR}$.
+The available-case modified ITT generalisation contrasts [LRPITT15](../lrp-rli-itt-015) (expressive: TE vs UE) and [LRPITT15b](../lrp-rli-itt-115) (receptive: TR vs UR) each compare taught versus not-taught *within* a modality. Neither asks whether the assigned-arm difference for directly-taught words is larger in the **expressive** modality than in the **receptive** modality. LRPITT16 supplies that missing contrast: the two Block 1 *taught* outcomes — expressive taught target words $TE$ and receptive taught target words $TR$ — are fitted together as factorised marginals over the randomised window, and the headline quantity is the difference between their probability-scale average marginal effects, $\mathrm{AME}_{TE} - \mathrm{AME}_{TR}$.
 
 A positive contrast means the model estimates a larger assigned-arm difference in expected proportion correct for taught expressive words than for taught receptive words. This is a modality contrast, not a taught-versus-untaught generalisation contrast. The conditional logit-coefficient difference is retained as a secondary summary.
 

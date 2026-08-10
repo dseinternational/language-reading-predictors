@@ -25,7 +25,7 @@ forward — **not** a final results write-up.
   (low ESS — the child-random-intercept models need the longer reporting chains).
   Where a model is REVIEW, I report the _direction_ but treat magnitudes and tail
   probabilities as indicative only.
-- **Causal discipline.** Only randomised terms are causal: the ITT `tau`, the gain
+- **Causal discipline.** Only randomised terms have a causal reading under their analysis-set assumptions: the available-case modified ITT estimate `tau`, the gain
   family's `beta_trt` (identified by the period-1 randomised contrast), and the level
   family's `b_grp_time[1]` (the t2 contrast). Everything else — own baseline, age,
   ability, cross-skills, mechanism slopes, mediator paths — is an _adjusted
@@ -118,7 +118,7 @@ Per-outcome τ (logit), pd, with intervals that exclude zero flagged:
 ## Gain-factor models (LRPGF) — causal term `beta_trt` (on-intervention, period-1 identified)
 
 `beta_trt` pools every on-intervention period with a child random intercept, so it is
-related to but **not identical** to the single-period ITT τ. Everything else is an
+related to but **not identical** to the single-period available-case modified ITT estimate τ. Everything else is an
 adjusted association. **All REVIEW except LRPGF05** (ESS 50–110), so magnitudes are
 unreliable here — read direction, not size.
 
@@ -151,7 +151,7 @@ unreliable here — read direction, not size.
 ### GF cross-model take
 
 Direction agrees with the ITT/joint: **W positive, R/E null, P negligible.** The
-GF `beta_trt` magnitudes run a touch larger than the ITT τ (clearest for W) but the
+GF `beta_trt` magnitudes run a touch larger than the available-case modified ITT estimate τ (clearest for W) but the
 very low ESS on the graded GF fits makes magnitude comparison premature — this is
 exactly what the reporting-config refit is for. The recurring adjusted associations
 (autoregressive own-baseline, positive cross-skill couplings, negative age) are
