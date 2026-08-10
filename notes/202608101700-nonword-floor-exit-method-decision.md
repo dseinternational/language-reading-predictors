@@ -5,9 +5,11 @@
 
 # Method decision — word reading and subsequent nonword floor exit
 
-**Date:** 2026-08-10  
-**Issue:** #433  
-**Status at decision time:** Pre-fit specification for a promotion probe; no production model is authorised by this note.
+**Date:** 2026-08-10
+
+**Issue:** #433
+
+**Status at decision time:** Pre-fit specification for a promotion probe; no production model was authorised by this note. The subsequent probe failed the locked magnitude-stability condition; see [`202608101730-nonword-floor-exit-promotion-decision.md`](202608101730-nonword-floor-exit-promotion-decision.md).
 
 ## Why a new probe is necessary
 

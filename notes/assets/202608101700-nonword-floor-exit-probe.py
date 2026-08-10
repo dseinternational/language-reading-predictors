@@ -272,8 +272,8 @@ def _fit(
             random_seed=seed,
             progressbar=False,
             compute_convergence_checks=False,
-            idata_kwargs={"log_likelihood": True},
         )
+        trace = pm.compute_log_likelihood(trace, model=model, progressbar=False)
     return model, trace
 
 
@@ -538,10 +538,10 @@ def run_grid(
         for prior_index, prior_sd in enumerate(SLOPE_PRIOR_SDS):
             traces = {}
             gates = {}
-            for model_index, (model_name, include_wr) in enumerate(
-                (("null", False), ("full", True))
-            ):
-                seed = SEED + 100 * population_index + 10 * prior_index + model_index
+            for model_name, include_wr in (("null", False), ("full", True)):
+                # The full and null fits in one comparison share every sampler
+                # setting, including the seed. The graphs differ only by ``b_wr``.
+                seed = SEED + 100 * population_index + 10 * prior_index
                 model, trace = _fit(
                     prepared,
                     include_word_reading=include_wr,
