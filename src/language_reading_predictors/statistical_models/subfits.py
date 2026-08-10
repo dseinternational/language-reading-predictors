@@ -473,8 +473,8 @@ def _require_subfit_reuse_compatibility(
         if _stored_text(row.get(field)) != _stored_text(expected.get(field))
     ]
     for column in numeric_fields:
-        stored = pd.to_numeric(row.get(column), errors="coerce")
-        wanted = pd.to_numeric(expected.get(column), errors="coerce")
+        stored = pd.to_numeric(_stored_text(row.get(column)), errors="coerce")
+        wanted = pd.to_numeric(_stored_text(expected.get(column)), errors="coerce")
         if pd.isna(stored) or pd.isna(wanted) or not np.isclose(float(stored), float(wanted)):
             mismatched.append(column)
 
@@ -549,12 +549,12 @@ def run_subfit(
 
     trace = None
     reuse = os.environ.get("DSE_LRP_REUSE_TRACE")
-    if reuse and trace_filename is None:
-        raise FileNotFoundError(
-            "reuse-trace mode cannot reuse an unnamed sub-fit; refusing to run "
-            f"fresh NUTS for {label!r}"
-        )
     if reuse:
+        if trace_filename is None:
+            raise FileNotFoundError(
+                "reuse-trace mode cannot reuse an unnamed sub-fit; refusing to run "
+                f"fresh NUTS for {label!r}"
+            )
         import arviz as az
 
         from language_reading_predictors.statistical_models.reporting import (
