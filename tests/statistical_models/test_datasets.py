@@ -20,6 +20,7 @@ from language_reading_predictors.statistical_models.datasets import (
     RLM_MEASURES,
     DatasetSpec,
     StudyMeasure,
+    publication_input_contract,
     resolve_dataset,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -245,6 +246,24 @@ def test_rlm_dataset_registered():
     assert measures["basread"].n_trials == 90
     assert measures["basread"].n_trials_confirmed
     assert dataset.group_labels[1] == "Down syndrome"
+    assert dataset.source_provenance_confirmed is False
+
+
+def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
+    confirmed = publication_input_contract("rlm", ("basread",))
+    assert confirmed["publication_ready"] is False
+    assert len(confirmed["blockers"]) == 1
+    assert "96-participant" in confirmed["blockers"][0]
+
+    provisional = publication_input_contract("rlm", ("basread", "basnum"))
+    assert any("basnum" in blocker for blocker in provisional["blockers"])
+    assert provisional["measures"]["basnum"]["n_trials_confirmed"] is False
+
+    identity = publication_input_contract("rlm", ("basmat",))
+    assert any("instrument identity" in blocker for blocker in identity["blockers"])
+    assert (
+        identity["measures"]["basmat"]["instrument_identity_confirmed"] is False
+    )
 
 
 # Ceilings per the #338 research + data-owner sign-off (2026-07-16). Confirmed

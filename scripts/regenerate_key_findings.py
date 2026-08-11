@@ -20,12 +20,17 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from types import SimpleNamespace
 
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.reporting import (
     generate_key_findings,
+)
+from language_reading_predictors.statistical_models.release import (
+    evaluate_publication,
+    write_release_decision,
 )
 
 _console = Console()
@@ -76,7 +81,9 @@ def main() -> None:
     if not targets:
         raise SystemExit(f"No fit output directories matched {args.target!r}.")
     for d in targets:
-        payload = generate_key_findings(d)
+        decision = evaluate_publication(d)
+        write_release_decision(SimpleNamespace(output_dir=str(d)), decision)
+        payload = generate_key_findings(d, decision=decision)
         detail = (
             f"{len(payload['sentences'])} sentences"
             if payload["status"] == "ok"

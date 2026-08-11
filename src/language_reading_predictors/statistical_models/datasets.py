@@ -42,7 +42,9 @@ class StudyMeasure:
     column; ``n_trials`` is the Beta-Binomial denominator (the test ceiling).
     ``n_trials_confirmed`` records whether that ceiling is the instrument's true
     maximum (as opposed to an observed-max placeholder), mirroring the same flag
-    on :class:`measures.Measure`.
+    on :class:`measures.Measure`. ``instrument_identity_confirmed`` is separate:
+    a denominator can be documented for a named scale while the source column's
+    actual scale identity remains unresolved.
     """
 
     symbol: str
@@ -50,6 +52,8 @@ class StudyMeasure:
     n_trials: int
     label: str
     n_trials_confirmed: bool = False
+    instrument_identity_confirmed: bool = False
+    instrument_identity_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -59,6 +63,8 @@ class DatasetSpec:
     A neutral description of a longitudinal dataset, deliberately free of any
     intervention semantics (no treatment / randomised-phase fields): those belong
     to the RLI ``PreparedData`` path, not to descriptive historical cohorts.
+    Source-lineage confirmation is nevertheless publication-relevant metadata and
+    is snapshotted into each fit's release contract.
     """
 
     study_id: str
@@ -70,6 +76,8 @@ class DatasetSpec:
     group_labels: dict[int, str] = field(default_factory=dict)
     design: str = "historical_cohort"
     source: str = ""
+    source_provenance_confirmed: bool = False
+    source_provenance_note: str = ""
 
 
 # --- Byrne, MacDonald & Buckley reading-language-memory study (study_id="rlm") ---
@@ -129,6 +137,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=90,
         label="BAS word reading",
         n_trials_confirmed=True,
+        instrument_identity_confirmed=True,
     ),
     "basspel": StudyMeasure(
         symbol="basspel",
@@ -136,6 +145,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=18,
         label="BAS spelling",
         n_trials_confirmed=False,
+        instrument_identity_confirmed=True,
     ),
     "woco": StudyMeasure(
         symbol="woco",
@@ -143,6 +153,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=31,
         label="WORD reading comprehension",
         n_trials_confirmed=False,
+        instrument_identity_confirmed=True,
     ),
     "bpvs": StudyMeasure(
         symbol="bpvs",
@@ -150,6 +161,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=32,
         label="BPVS receptive vocabulary",
         n_trials_confirmed=True,
+        instrument_identity_confirmed=True,
     ),
     "trog": StudyMeasure(
         symbol="trog",
@@ -157,6 +169,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=20,
         label="TROG receptive grammar",
         n_trials_confirmed=True,
+        instrument_identity_confirmed=True,
     ),
     "basdig": StudyMeasure(
         symbol="basdig",
@@ -164,6 +177,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=34,
         label="BAS recall of digits",
         n_trials_confirmed=True,
+        instrument_identity_confirmed=True,
     ),
     "bassim": StudyMeasure(
         symbol="bassim",
@@ -171,6 +185,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=21,
         label="BAS similarities/verbal reasoning",
         n_trials_confirmed=True,
+        instrument_identity_confirmed=True,
     ),
     "basnum": StudyMeasure(
         symbol="basnum",
@@ -178,6 +193,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=60,
         label="BAS number skills",
         n_trials_confirmed=False,
+        instrument_identity_confirmed=True,
     ),
     "basmat": StudyMeasure(
         symbol="basmat",
@@ -185,6 +201,12 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=28,
         label="BAS matrices/non-verbal reasoning",
         n_trials_confirmed=True,
+        instrument_identity_confirmed=False,
+        instrument_identity_note=(
+            "The repository column is named basmat, but the cohort literature also "
+            "identifies Raven Coloured Progressive Matrices; confirm whether this is "
+            "the 28-item BAS Matrices scale or the 36-item Raven measure."
+        ),
     ),
 }
 
@@ -202,6 +224,11 @@ RLM_DATASET = DatasetSpec(
     group_labels=RLM_GROUP_LABELS,
     design="historical_cohort",
     source="Byrne, MacDonald & Buckley (2002)",
+    source_provenance_confirmed=False,
+    source_provenance_note=(
+        "Reconcile the separate 96-participant raw export with the prepared "
+        "97-participant analysis extract before publication."
+    ),
 )
 
 
@@ -219,3 +246,69 @@ def resolve_dataset(study_id: str) -> tuple[DatasetSpec, dict[str, StudyMeasure]
             f"Unknown study_id {study_id!r}; known: {sorted(_DATASETS)}"
         )
     return _DATASETS[study_id]
+
+
+def publication_input_contract(
+    study_id: str, measure_symbols: tuple[str, ...]
+) -> dict[str, object]:
+    """Return the publication-relevant input snapshot for one fitted study.
+
+    The release evaluator must read the evidence that belonged to the fit, not the
+    current mutable catalogue.  ``write_run_metadata`` therefore persists this
+    contract in ``config.json`` and stored fits can be re-decided without silently
+    inheriting a later manual or provenance sign-off.
+    """
+
+    dataset, measures = resolve_dataset(study_id)
+    selected = tuple(dict.fromkeys(measure_symbols))
+    unknown = sorted(set(selected) - set(measures))
+    if unknown:
+        raise KeyError(
+            f"Unknown {study_id!r} measure symbol(s) in publication contract: "
+            f"{', '.join(unknown)}"
+        )
+
+    blockers: list[str] = []
+    if not dataset.source_provenance_confirmed:
+        detail = dataset.source_provenance_note or "source provenance is unverified"
+        blockers.append(f"dataset source provenance is unresolved: {detail}")
+
+    measure_records: dict[str, dict[str, object]] = {}
+    for symbol in selected:
+        measure = measures[symbol]
+        record: dict[str, object] = {
+            "label": measure.label,
+            "n_trials": measure.n_trials,
+            "n_trials_confirmed": measure.n_trials_confirmed,
+            "instrument_identity_confirmed": measure.instrument_identity_confirmed,
+        }
+        if measure.instrument_identity_note:
+            record["instrument_identity_note"] = measure.instrument_identity_note
+        measure_records[symbol] = record
+        if not measure.n_trials_confirmed:
+            blockers.append(
+                f"{symbol}: the bounded-count denominator is not confirmed "
+                "against the instrument"
+            )
+        if not measure.instrument_identity_confirmed:
+            detail = (
+                measure.instrument_identity_note
+                or "the source instrument identity is unverified"
+            )
+            blockers.append(f"{symbol}: instrument identity is unresolved: {detail}")
+
+    if not selected:
+        blockers.append("no fitted study measures were recorded")
+
+    return {
+        "schema_version": 1,
+        "study_id": study_id,
+        "publication_ready": not blockers,
+        "dataset": {
+            "source": dataset.source,
+            "source_provenance_confirmed": dataset.source_provenance_confirmed,
+            "source_provenance_note": dataset.source_provenance_note,
+        },
+        "measures": measure_records,
+        "blockers": blockers,
+    }

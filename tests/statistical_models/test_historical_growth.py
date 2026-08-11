@@ -135,6 +135,11 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
     assert cfg["causal_status"] == "none"
     assert cfg["dataset_ref"] == "rlm:reading_language_memory_data_long"
     assert cfg["audit_baseline"] == "table2_complete_case_summary"
+    contract = cfg["publication_input_contract"]
+    assert contract["study_id"] == "rlm"
+    assert contract["publication_ready"] is False
+    assert set(contract["measures"]) == {"basread"}
+    assert any("source provenance" in item for item in contract["blockers"])
 
 
 def test_non_itt_typed_settings_reach_config_json(tmp_path):
@@ -172,6 +177,44 @@ def test_non_itt_typed_settings_reach_config_json(tmp_path):
         "waves": [1, 2, 3],
     }
     assert cfg["spec_extra"] == {"legacy_marker": "not typed settings"}
+
+
+def test_rlm_input_contract_includes_predictors_not_only_the_outcome(tmp_path):
+    spec = ModelSpec(
+        model_id="lrp-rlm-adj-001",
+        kind="adjusted",
+        title="input contract fixture",
+        outcome_symbol="basread",
+        study_id="rlm",
+        extra={"predictor_measures": ("bpvs", "basnum")},
+    )
+    prepared = SimpleNamespace(
+        n_obs=20,
+        n_children=20,
+        n_phases=1,
+        dropped_rows=0,
+        outcome="basread",
+        n_trials={"basread": 90},
+        predictors={"bpvs": np.zeros(20), "basnum": np.zeros(20), "age": np.zeros(20)},
+    )
+    ctx = SimpleNamespace(
+        spec=spec,
+        prepared=prepared,
+        reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.89),
+        sampling=SimpleNamespace(
+            draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
+        ),
+        output_dir=str(tmp_path),
+    )
+
+    write_run_metadata(ctx)
+
+    contract = json.loads((tmp_path / "config.json").read_text())[
+        "publication_input_contract"
+    ]
+    assert set(contract["measures"]) == {"basread", "bpvs", "basnum"}
+    assert "age" not in contract["measures"]
+    assert any("basnum" in blocker for blocker in contract["blockers"])
 
 
 # --- #164 Phase A models (lrp-rlm-hg-001..009), with their #338 wave windows:

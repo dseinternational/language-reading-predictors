@@ -193,6 +193,21 @@ else:
             f"The fit passed its sampling-quality checks, but {_kf_reason}, so no "
             f"cause-and-effect statement is released.{_kf_next}\n\n:::"
         )
+    elif _kf_status == "inputs_unresolved":
+        # #338/#409: a computationally clean Byrne fit is still unpublishable
+        # when its source lineage, instrument identity or bounded-count denominator
+        # is unresolved. Treat this as a hard withhold, not a missing-summary note.
+        _scientific_results_released = False
+        _kf_inputs = "; ".join(_kf.get("input_failures", [])) or (
+            _kf.get("reason") or "required scientific inputs are unresolved"
+        )
+        print(
+            '::: {.callout-important title="Findings withheld: scientific inputs '
+            'are unresolved"}\n\n'
+            f"The fit passed its sampling-quality checks, but {_kf_inputs}. "
+            "Resolve the input evidence and regenerate the fit-level release "
+            "decision before interpreting or publishing these results.\n\n:::"
+        )
     elif _kf_status == "artifacts_incomplete":
         # #394 design point 3: a required output is absent or invalid, so what the
         # report would render is not a complete, auditable fit. Like the
