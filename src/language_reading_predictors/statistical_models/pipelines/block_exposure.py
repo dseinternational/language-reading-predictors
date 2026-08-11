@@ -19,9 +19,13 @@ from language_reading_predictors.models._reporting import (
     section_header,
 )
 from language_reading_predictors.statistical_models import (
+    block_exposure as _block_exposure,
     diagnostics as _diag,
     factories as _factories,
     reporting as _report,
+)
+from language_reading_predictors.statistical_models.adjustment import (
+    effective_adjustment,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -29,15 +33,12 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.factories import default_of
 from language_reading_predictors.statistical_models.figure_artifacts import (
     save_association_forest,
     save_forest_plot,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
-    split_confounders_by_timing,
-    split_covariates_by_wave,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
     marginal_pushforward_rows,
@@ -57,29 +58,6 @@ from language_reading_predictors.statistical_models.runtime import (
 )
 
 
-def _bx_coef_names(
-    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
-) -> list[str]:
-    """Interpretable block-exposure coefficients (alpha/alpha_time/kappa/sigma_child excluded)."""
-    extra = spec.extra
-    adj = extra.get("adjust_for", ()) if adjust_for is None else adjust_for
-    names = ["delta", "gamma_A"]
-    if extra.get("ability_covariate"):
-        names.append("gamma_ability")
-    names += [f"gamma_{c}" for c in adj]
-    return names
-
-
-def _bx_diag_vars(
-    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
-) -> list[str]:
-    off_floor = spec.extra.get("likelihood") == "bernoulli_offfloor"
-    tail: list[str] = [] if off_floor else ["kappa"]
-    if spec.extra.get("use_child_re", True):
-        tail.append("sigma_child")
-    return ["alpha", "alpha_time", *_bx_coef_names(spec, adjust_for), *tail]
-
-
 def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Block-2 taught-vocabulary staggered block-active exposure fit (LRPBX, #228 item 5).
 
@@ -89,85 +67,69 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     summary flags no causal term.
     """
     require_spec(spec, "block_exposure", outcome=True)
+
+    # Resolve the complete family contract before ``make_context`` can reset the
+    # output directory and before preparation reads the RLI data (#394 pillar 4).
+    plan = _block_exposure.resolve_block_exposure_run_plan(spec)
     ctx = make_context(spec, config)
-    extra = spec.extra
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    sym = spec.outcome_symbol
-    ability_covariate = extra.get("ability_covariate")
-    likelihood = extra.get("likelihood", "beta_binomial")
-    off_floor = likelihood == "bernoulli_offfloor"
-    obs_node = "y_offfloor" if off_floor else "y_post"
-    baseline_covariates = (ability_covariate,) if ability_covariate else ()
-    # Revised-DAG raw-covariate confounders, split by timing exactly as the
-    # level-factor path (#247, A1 2026-07-13): language-proximal SP/RW (deapp_c/erbto)
-    # read at the pre-randomisation baseline, hearing (hs) contemporaneous. Re-filter
-    # after loading so a constant ``_missing`` indicator the loader drops is not gated.
-    adjust_for = tuple(extra.get("adjust_for", ()))
-    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
-    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
-    prepared = load_and_prepare(
-        phase_mode="levels",
-        outcomes=(sym,),
-        baseline_covariates=(*baseline_covariates, *baseline_adj),
-        covariates=pre_adj,
-        post_covariates=post_adj,
-        drop_ceiling_violations=tuple(extra.get("drop_ceiling_violations", ())),
-    )
-    adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
+    sym = plan.outcome_symbol
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    # A constant ``_missing`` indicator may be removed by the loader. The effective
+    # adjustment set, factory, diagnostic names and report table must all agree.
+    adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
     print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_block_exposure_model(
         prepared,
-        outcome_symbol=sym,
-        ability_covariate=ability_covariate,
-        adjust_for=adjust_for,
-        use_child_re=bool(extra.get("use_child_re", True)),
-        likelihood=likelihood,
-        delta_prior_sigma=extra.get(
-            "delta_prior_sigma",
-            default_of(_factories.build_block_exposure_model, "delta_prior_sigma"),
-        ),
+        **plan.factory_kwargs(effective_adjustment=adjust_for),
     )
     attach_built(ctx, built)
+    diag_vars = plan.diagnostic_vars(effective_adjustment=adjust_for)
+    coef_names = plan.coefficient_names(effective_adjustment=adjust_for)
 
     render_model_graph(ctx)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, sym, node=obs_node)
+    _diag.save_prior_predictive_plot(ctx, sym, node=plan.observation_node)
 
-    run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_bx_diag_vars(spec, adjust_for))
+    _diag.summary_diagnostics(ctx, var_names=diag_vars)
 
-    run_ppc(ctx, var_names=[obs_node])
+    run_ppc(ctx, var_names=[plan.observation_node])
 
     section_header("Extended diagnostics")
     # ``delta`` is the focal (association) effect — gets the prior-sensitivity +
     # forest evidence, exactly as the level-factor group term does.
-    _diag.write_diagnostics_summary(ctx, var_names=_bx_diag_vars(spec, adjust_for))
-    _diag.run_extended_diagnostics(ctx, causal_term="delta")
+    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
     _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_bx_diag_vars(spec, adjust_for))
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
     save_forest_plot(
-        ctx, ["delta"], name="delta_forest.png",
+        ctx, [plan.focal_term], name="delta_forest.png",
         title="Block-active exposure effect (forest, reference line at 0)",
     )
-    _diag.run_psense(ctx, var_names=["delta"])
+    _diag.run_psense(ctx, var_names=[plan.focal_term])
 
     section_header("Factor summary")
     # No randomised contrast: block-active exposure is an association (parallel trends),
     # so no term is flagged causal.
     fs = _report.factor_summary(
-        ctx.trace, _bx_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob,
+        ctx.trace,
+        coef_names,
+        ci_prob=ctx.reporting.ci_prob,
         causal_terms=(),
     )
     save_table(ctx, "factor_summary", fs)
-    save_association_forest(ctx, _bx_coef_names(spec, adjust_for), ())
+    save_association_forest(ctx, coef_names, ())
     print_table(
         ranked_dataframe_table(
             fs,
@@ -184,7 +146,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     bx_s = _report.block_exposure_summary(
         ctx.trace,
         ci_prob=ctx.reporting.ci_prob,
-        n_trials=1 if off_floor else MEASURES[sym].n_trials,
+        n_trials=1 if plan.off_floor else MEASURES[sym].n_trials,
     )
     bx_df = pd.DataFrame([bx_s])
     save_table(ctx, "block_exposure_summary", bx_df)
@@ -206,8 +168,8 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
         ctx,
         marginal_pushforward_rows(
             ctx,
-            [("delta", "the block-active exposure association")],
-            n_trials=1 if off_floor else MEASURES[sym].n_trials,
+            [(plan.focal_term, "the block-active exposure association")],
+            n_trials=1 if plan.off_floor else MEASURES[sym].n_trials,
             convention="forward",
             eta_name="eta_base",
         ),
@@ -215,6 +177,15 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
 
     write_run_metadata(
         ctx,
-        extra={"loo_elpd": float(ctx.loo.elpd), "block_exposure_summary": bx_s},
+        extra={
+            "loo_elpd": float(ctx.loo.elpd),
+            "block_exposure_summary": bx_s,
+            "effective_adjustment": effective_adjustment(
+                spec,
+                built.prepared,
+                adjust_for=adjust_for,
+                ability_covariate=plan.ability_covariate,
+            ),
+        },
     )
     return finalize_report(ctx)
