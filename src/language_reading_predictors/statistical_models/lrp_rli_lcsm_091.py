@@ -56,6 +56,7 @@ landed after it was written (#250, ``notes/202607141030-time-lagged-model-design
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_lcsm
 
 SPEC = ModelSpec(
@@ -66,20 +67,20 @@ SPEC = ModelSpec(
         "change as within-child predictors of subsequent reading (W) change"
     ),
     outcome_symbol="W",
-    extra={
+    model_settings=LcsmModelSettings(
         # LRP67's measure set, kept for the side-by-side g-vs-h comparison.
-        "outcomes": ["W", "L", "E"],
+        outcomes=("W", "L", "E"),
         # Prior-level couplings retained (the spec keeps the level terms) ...
-        "couplings": {"W": ["L", "E"]},
+        couplings=(("W", ("L", "E")),),
         # ... plus the new prior-change couplings, the headline h_L / h_E.
-        "lagged_change_couplings": {"W": ["L", "E"]},
+        lagged_change_couplings=(("W", ("L", "E")),),
         # Mandatory with pooled post-crossover couplings (see module docstring).
-        "arm_window_intercepts": True,
+        arm_window_intercepts=True,
         # Shared association scale (prior-critical-review 2026-07-07, rec. 3).
-        "coupling_prior_sigma": 0.3,
-        "use_process_noise": True,
-        "shared_process_noise": False,
-    },
+        coupling_prior_sigma=0.3,
+        use_process_noise=True,
+        shared_process_noise=False,
+    ),
 )
 
 

@@ -95,6 +95,10 @@ from language_reading_predictors.statistical_models.level_factors import (
     LevelFactorsRunPlan,
     resolve_level_factors_run_plan,
 )
+from language_reading_predictors.statistical_models.lcsm import (
+    LcsmRunPlan,
+    resolve_lcsm_run_plan,
+)
 from language_reading_predictors.statistical_models.long_corr_factor import (
     LongCorrFactorRunPlan,
     resolve_long_corr_factor_run_plan,
@@ -2824,6 +2828,14 @@ def _adjusted_run_plan(context: StatisticalFitContext) -> AdjustedRunPlan:
     return resolve_adjusted_run_plan(context.spec)
 
 
+def _lcsm_run_plan(context: StatisticalFitContext) -> LcsmRunPlan:
+    """Return the LCSM plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, LcsmRunPlan):
+        return resolved_plan
+    return resolve_lcsm_run_plan(context.spec)
+
+
 def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
     """Return the growth plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
@@ -2972,6 +2984,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _aligned_run_plan(context)
     if context.spec.kind == "adjusted":
         return _adjusted_run_plan(context)
+    if context.spec.kind == "lcsm":
+        return _lcsm_run_plan(context)
     if context.spec.kind == "growth":
         return _growth_run_plan(context)
     if context.spec.kind == "historical_growth":

@@ -13,6 +13,7 @@ the pre-specified "does the reverse edge earn its place predictively" readout
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_lcsm
 
 SPEC = ModelSpec(
@@ -23,23 +24,26 @@ SPEC = ModelSpec(
         "prior word-reading terms (LOO baseline for LCSM-081)"
     ),
     outcome_symbol="TE",
-    extra={
-        "outcomes": ["TE", "TR", "W"],
+    model_settings=LcsmModelSettings(
+        outcomes=("TE", "TR", "W"),
         # As LCSM-081 but with the W -> TE / W -> TR reverse couplings removed;
         # the TR -> TE adjuster coupling stays (it is a confounder term, not
         # the hypothesis under test).
-        "couplings": {"TE": ["TR"]},
-        "arm_window_intercepts": True,
-        "covariate_block": [
-            "hs", "hs_missing",
-            "erbto", "erbto_missing",
-            "deapp_c", "deapp_c_missing",
-        ],
-        "covariate_targets": ["TE", "TR"],
-        "coupling_prior_sigma": 0.3,
-        "use_process_noise": True,
-        "shared_process_noise": False,
-    },
+        couplings=(("TE", ("TR",)),),
+        arm_window_intercepts=True,
+        covariate_block=(
+            "hs",
+            "hs_missing",
+            "erbto",
+            "erbto_missing",
+            "deapp_c",
+            "deapp_c_missing",
+        ),
+        covariate_targets=("TE", "TR"),
+        coupling_prior_sigma=0.3,
+        use_process_noise=True,
+        shared_process_noise=False,
+    ),
 )
 
 
