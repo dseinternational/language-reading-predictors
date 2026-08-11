@@ -2792,12 +2792,26 @@ def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
 
 def _historical_growth_run_plan(
     context: StatisticalFitContext,
-) -> HistoricalGrowthRunPlan:
+) -> HistoricalGrowthRunPlan | None:
     """Return the historical-growth plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
     if isinstance(resolved_plan, HistoricalGrowthRunPlan):
         return resolved_plan
-    return resolve_historical_growth_run_plan(context.spec)
+    spec = context.spec
+    if (
+        spec.study_id == "rli"
+        and spec.family is None
+        and spec.outcome_symbol is None
+        and spec.model_settings is None
+        and not spec.extra
+    ):
+        # Some shared reporting and trace-reuse callers use a minimal ModelSpec
+        # solely to identify a generic fit.  That placeholder predates the typed
+        # historical-growth family and contains no declaration from which a valid
+        # RLM recipe can be reconstructed.  Real family fits attach their resolved
+        # plan; substantive legacy declarations still take the strict path below.
+        return None
+    return resolve_historical_growth_run_plan(spec)
 
 
 def _historical_joint_run_plan(

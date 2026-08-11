@@ -218,6 +218,31 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     assert "PSIS-LOO" in text
 
 
+def test_reporting_does_not_reconstruct_a_bare_generic_reuse_spec():
+    spec = ModelSpec(
+        model_id="lrp-rli-hg-999",
+        kind="historical_growth",
+        title="generic reuse fixture",
+    )
+    ctx = SimpleNamespace(spec=spec, resolved_plan=None)
+
+    assert R._resolved_run_plan(ctx) is None
+
+
+def test_reporting_strictly_resolves_a_substantive_historical_growth_spec():
+    spec = ModelSpec(
+        model_id="lrp-rli-hg-999",
+        kind="historical_growth",
+        title="invalid declared family",
+        outcome_symbol="basread",
+        family="historical_growth",
+    )
+    ctx = SimpleNamespace(spec=spec, resolved_plan=None)
+
+    with pytest.raises(KeyError, match="Unknown study_id 'rli'"):
+        R._resolved_run_plan(ctx)
+
+
 def test_pipeline_has_no_direct_historical_growth_setting_reads():
     from language_reading_predictors.statistical_models.pipelines import (
         historical_growth as P,
