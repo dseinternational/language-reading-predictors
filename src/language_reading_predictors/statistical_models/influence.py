@@ -44,7 +44,9 @@ from language_reading_predictors.statistical_models.itt import (
     declared_settings_dict,
     resolve_itt_run_plan,
 )
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
+from language_reading_predictors.statistical_models.joint import (
+    resolve_joint_run_plan,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
     load_and_prepare,
@@ -341,9 +343,9 @@ def _prepare_itt(spec: ModelSpec):
 
 def _prepare_joint(spec: ModelSpec):
     """Mirror the registered joint-model preparation contract."""
-    outcomes = tuple(spec.extra.get("outcomes") or ITT_OUTCOMES)
-    prepared = load_and_prepare(phase_mode="itt", outcomes=outcomes)
-    return prepared, outcomes
+    plan = resolve_joint_run_plan(spec)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    return prepared, plan
 
 
 def _validate_reference_alignment(prepared, reference: InfluenceReference) -> None:
@@ -396,7 +398,7 @@ def build_influence_model(
                 **plan.factory_kwargs(effective_adjustment=adjust_for),
             )
     else:
-        prepared, outcomes = _prepare_joint(spec)
+        prepared, plan = _prepare_joint(spec)
         _validate_reference_alignment(prepared, reference)
         full_ids = np.asarray(prepared.subject_ids).astype(str)
         keep = ~np.isin(full_ids, excluded)
@@ -405,14 +407,7 @@ def build_influence_model(
             raise ValueError("excluding the flagged child leaves fewer than two trial arms")
         built = _factories.build_joint_model(
             reduced,
-            outcomes=outcomes,
-            use_age_gp=spec.extra.get("use_age_gp", False),
-            partial_pool_age_gp=spec.extra.get("partial_pool_age_gp", True),
-            use_residual_correlation=spec.extra.get(
-                "use_residual_correlation", False
-            ),
-            use_cross_baselines=spec.extra.get("use_cross_baselines", True),
-            use_age_linear=spec.extra.get("use_age_linear", False),
+            **plan.factory_kwargs(),
         )
 
     if built.prepared.n_obs != len(full_ids) - len(excluded):
@@ -731,11 +726,15 @@ def summarise_influence_refit(
         ),
         "resolved_run_plan_json": (
             json.dumps(
-                _json_normalise(resolve_itt_run_plan(spec).as_dict()),
+                _json_normalise(
+                    (
+                        resolve_itt_run_plan(spec)
+                        if spec.kind == "itt"
+                        else resolve_joint_run_plan(spec)
+                    ).as_dict()
+                ),
                 sort_keys=True,
             )
-            if spec.kind == "itt"
-            else ""
         ),
         "reference_config_file": "config.json",
         "reference_pareto_file": "pareto_k.csv",

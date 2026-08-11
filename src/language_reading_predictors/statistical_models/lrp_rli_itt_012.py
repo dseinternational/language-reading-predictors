@@ -20,6 +20,7 @@ flag for a sensitivity fit). Sign convention: positive tau => intervention helps
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.joint import JointModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_joint
 
 # The ten baseline-bearing suite outcomes (LRPITT_OUTCOMES minus post-only N).
@@ -34,8 +35,8 @@ SPEC = ModelSpec(
         "Joint available-case modified ITT estimates over the LRPITT suite outcomes "
         "(TR, TE, UR, UE, R, E, L, B, P, W)"
     ),
-    extra={
-        "outcomes": LRPITT12_OUTCOMES,
+    model_settings=JointModelSettings(
+        outcomes=LRPITT12_OUTCOMES,
         # DAG-faithful, mirroring the single-outcome suite's *structure*: own
         # baseline + linear age as precision terms, no cross-baselines. NOTE the
         # joint model keeps the common Normal(0, 0.5) tau prior for every outcome;
@@ -45,13 +46,13 @@ SPEC = ModelSpec(
         # the proximal outcomes, but a distal tau_k may differ from its tiered
         # single-outcome counterpart by a prior-driven amount. LKJ residual + age
         # GP off.
-        "use_cross_baselines": False,
-        "use_age_linear": True,
-        "use_age_gp": False,
-        "use_residual_correlation": False,
-        "joint_structure": "factorised_outcome_marginals",
-        "loo_unit": "child",
-    },
+        use_cross_baselines=False,
+        use_age_linear=True,
+        use_age_gp=False,
+        use_residual_correlation=False,
+        joint_structure="factorised_outcome_marginals",
+        loo_unit="child",
+    ),
 )
 
 

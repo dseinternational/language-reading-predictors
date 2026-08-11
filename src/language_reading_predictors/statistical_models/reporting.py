@@ -55,6 +55,10 @@ from language_reading_predictors.statistical_models.itt import (
     declared_settings_dict,
     resolve_itt_run_plan,
 )
+from language_reading_predictors.statistical_models.joint import (
+    JointRunPlan,
+    resolve_joint_run_plan,
+)
 from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
     apply_score_mean_link,
@@ -2630,13 +2634,15 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
             }
         )
     elif spec.kind == "joint":
-        outcomes = list(spec_extra.get("outcomes") or getattr(prepared, "pre_logit", {}))
-        use_cross_baselines = bool(spec_extra.get("use_cross_baselines", True))
-        use_age_gp = bool(spec_extra.get("use_age_gp", False))
-        use_age_linear = bool(spec_extra.get("use_age_linear", False))
+        plan = _joint_run_plan(context)
+        outcomes = list(plan.outcomes)
+        use_cross_baselines = plan.use_cross_baselines
+        use_age_gp = plan.use_age_gp
+        use_age_linear = plan.use_age_linear
+        settings = plan.as_dict()
         settings.update(
             {
-                "likelihood": "beta_binomial",
+                "likelihood": plan.likelihood,
                 "floor_rule": False,
                 "outcomes": outcomes,
                 "baseline_terms": {
@@ -2648,9 +2654,9 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
                     "gp" if use_age_gp else "linear" if use_age_linear else "none"
                 ),
                 "use_age_gp": use_age_gp,
-                "partial_pool_age_gp": bool(spec_extra.get("partial_pool_age_gp", True)),
+                "partial_pool_age_gp": plan.partial_pool_age_gp,
                 "use_age_linear": use_age_linear,
-                "use_residual_correlation": bool(spec_extra.get("use_residual_correlation", False)),
+                "use_residual_correlation": plan.use_residual_correlation,
             }
         )
 
@@ -2704,7 +2710,7 @@ def _itt_analysis_set_metadata(context: StatisticalFitContext) -> dict:
         }
 
     records = []
-    outcomes = tuple(context.spec.extra.get("outcomes") or prepared.post_counts)
+    outcomes = _joint_run_plan(context).outcomes
     for symbol in outcomes:
         table = analysis_set_table(prepared, outcome_symbol=symbol)
         table.insert(0, "outcome", symbol)
@@ -2726,6 +2732,14 @@ def _gain_factors_run_plan(context: StatisticalFitContext) -> GainFactorsRunPlan
     if isinstance(resolved_plan, GainFactorsRunPlan):
         return resolved_plan
     return resolve_gain_factors_run_plan(context.spec)
+
+
+def _joint_run_plan(context: StatisticalFitContext) -> JointRunPlan:
+    """Return the joint plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, JointRunPlan):
+        return resolved_plan
+    return resolve_joint_run_plan(context.spec)
 
 
 def _level_factors_run_plan(context: StatisticalFitContext) -> LevelFactorsRunPlan:
@@ -2784,6 +2798,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
     does not enumerate them."""
     if context.spec.kind == "itt":
         return _itt_run_plan(context)
+    if context.spec.kind == "joint":
+        return _joint_run_plan(context)
     if context.spec.kind == "gain_factors":
         return _gain_factors_run_plan(context)
     if context.spec.kind == "level_factors":
