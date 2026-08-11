@@ -199,11 +199,50 @@ def test_build_rlm_joint_growth(tmp_path):
     assert np.allclose(corr, np.swapaxes(corr, -1, -2))
 
 
+def test_build_rlm_joint_growth_within_child_layer_is_double_centred(tmp_path):
+    from language_reading_predictors.statistical_models.datasets import (
+        RLM_MEASURES,
+    )
+
+    from .test_datasets import _dataset
+
+    path = _write_battery_csv(tmp_path)
+    panel = load_longitudinal_panel(
+        _dataset(path),
+        [RLM_MEASURES[m] for m in ("basread", "bpvs", "basdig")],
+        waves=(1, 2, 3),
+    )
+    built = build_rlm_joint_growth_model(
+        panel,
+        measures=("basread", "bpvs", "basdig"),
+        within_correlation=True,
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert {"sigma_within", "within_corr_chol", "z_within"}.issubset(names)
+    assert "kappa" not in names
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=2)
+
+    corr = pp.prior["within_corr"].values[0]
+    assert np.allclose(np.diagonal(corr, axis1=-2, axis2=-1), 1.0)
+    assert np.allclose(corr, np.swapaxes(corr, -1, -2))
+
+    offsets = pp.prior["within_offset"].values[0]
+    subject_col = panel.dataset.subject_col
+    group_col = panel.dataset.group_col
+    wave_col = panel.dataset.wave_col
+    for _subject, idx in panel.long.groupby(subject_col).indices.items():
+        assert np.allclose(offsets[:, idx, :].mean(axis=1), 0.0, atol=1e-6)
+    for _cell, idx in panel.long.groupby([group_col, wave_col]).indices.items():
+        assert np.allclose(offsets[:, idx, :].mean(axis=1), 0.0, atol=1e-6)
+
+
 _PHASE_BD_SPECS = {
     "lrp-rlm-adj-001": ("adjusted", "basread"),
     "lrp-rlm-hs-001": ("horseshoe", "basread"),
     "lrp-rlm-mm-001": ("corr_factor", None),
     "lrp-rlm-jc-001": ("historical_joint", None),
+    "lrp-rlm-jc-002": ("historical_joint", None),
 }
 
 

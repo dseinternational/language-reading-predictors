@@ -491,25 +491,30 @@ on_ `basread` level, so between-group contrasts touching that group carry the se
 caveat. Roadmap: the phased Byrne suite is tracked in #338 and mapped in
 `notes/202607131600-byrne-comparable-models-plan.md`.
 
-### Byrne Phase B/D — `lrp-rlm-jc-001`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001`, `lrp-rlm-hs-001` (`study_id="rlm"`)
+### Byrne Phase B/D — `lrp-rlm-jc-001/002`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001`, `lrp-rlm-hs-001` (`study_id="rlm"`)
 
 **Purpose.** The Byrne suite's joint/measurement structure (Phase B) and predictor views
 (Phase D), ported from the RLI observational families per the plan and the 2026-07-16
 decisions (pooled three-group frames with non-interpretable group-nuisance terms; Phase D
 horizon w1→w3, the audited core window; mm-001 on the wave-3 full battery,
-measurement-only). All four are associations or descriptive quantities in an observational
+measurement-only). All five are associations or descriptive quantities in an observational
 cohort — nothing causal exists here.
 
 | Model             | Kind               | Purpose                                                                                                                                                                                                                                         |
 | ----------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `lrp-rlm-jc-001`  | `historical_joint` | Joint correlated growth over `basread`/`bpvs`/`basdig`: per-measure supported-cell grids + LKJ-correlated per-child stable offsets; headline = the 3×3 between-child stable-level correlation matrix (n = 71, waves 1–3 core + extension waves) |
+| `lrp-rlm-jc-002`  | `historical_joint` | Balanced waves 1–3 companion over the same confirmed measures: adds double-centred wave-specific latent deviations; target = the 3×3 within-child latent-logit correlation matrix, interpreted only where both residual scales resolve (n = 71) |
 | `lrp-rlm-mm-001`  | `corr_factor`      | Wave-3 correlated domain-factor measurement model: reading {`basread`,`basspel`,`woco`}, language {`bpvs`,`trog`}, memory {`basdig`, single indicator, fixed reliability 0.8}, ability {`bassim`,`basmat`,`basnum`}; measurement-only (n = 75)  |
 | `lrp-rlm-adj-001` | `adjusted`         | Wave-1 predictors of w1→w3 word-reading gain, mutually adjusted + bivariate comparison + prior-sensitivity sweep (pooled, n = 69)                                                                                                               |
 | `lrp-rlm-hs-001`  | `horseshoe`        | Regularised-horseshoe ranking cross-check over the identical frame; no GB comparison exists for this cohort — the partner is `lrp-rlm-adj-001`                                                                                                  |
 
-**Notes.** `lrp-rlm-jc-001` computes no PSIS-LOO (one likelihood node per measure); the
-correlation matrix is shared across groups (stated assumption) while the random-effect
-scales stay group-indexed. `lrp-rlm-mm-001` states its single-indicator memory reliability
+**Notes.** `lrp-rlm-jc-001/002` compute no PSIS-LOO (one likelihood node per measure); the
+correlation matrices are shared across groups (stated assumption) while the random-effect
+scales stay group-indexed. RLMJC02 excludes the attrition-selected extension tail so each
+child contributes exactly three waves. Its logistic-normal residual supplies the
+extra-Binomial variance; a development fit that also retained Beta-Binomial
+overdispersion was rejected as prior-dominated. A wider residual-scale prior remains
+a required sensitivity before interpretation. `lrp-rlm-mm-001` states its single-indicator memory reliability
 assumption and pooled-loadings (invariance) assumption up front. Phase D excludes `basmat`
 (no wave-1 value) and the reading-route `basspel`/`woco`; a Down-syndrome-only companion is
 deferred (n = 21 with seven slopes sits at the prior). Remaining phases: C (lagged coupling,

@@ -1,13 +1,12 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Results
 
-Descriptive joint group-by-wave growth for the historical cohort: each measure
-keeps its own fitted group-by-wave cells, and the per-child stable offsets are
-correlated across measures. These are **natural-history** estimates — `readgrp`
-is a cohort factor, so between-group contrasts describe how the groups differ,
-not what caused the difference, and the cross-measure correlations are
-between-child associations, not within-child couplings.
+Descriptive joint group-by-wave growth for the historical cohort: each measure keeps its own fitted group-by-wave cells, and the per-child stable offsets are correlated across measures. A companion model additionally correlates wave-specific departures after removing those stable levels and the group-by-wave means. These are **natural-history** estimates — `readgrp` is a cohort factor, so between-group contrasts describe how the groups differ, not what caused the difference, and neither correlation identifies direction or causation.
 
-### Cross-measure correlation of stable child levels (headline)
+### Cross-measure correlation of stable child levels
 
 The posterior correlation matrix of the per-child stable offsets — do children
 who sit persistently higher on one measure also sit persistently higher on the
@@ -30,6 +29,30 @@ mat = _csv("measure_correlation.csv", index_col=0)
 mat if mat is not None else "No correlation matrix."
 ```
 
+```{python}
+# | echo: false
+from IPython.display import Markdown, display
+
+within = _csv("within_measure_correlation_summary.csv")
+if within is not None:
+    display(Markdown("### Cross-measure correlation of within-child departures (companion headline)"))
+    scale = _csv("within_scale_summary.csv")
+    if scale is not None:
+        display(Markdown("#### Residual-scale identifiability"))
+        display(Markdown("A correlation is not substantively interpretable when either measure's wave-specific residual variance collapses to zero. `prob_above_minimum` is the posterior probability that the residual standard deviation exceeds the deliberately small 0.05-logit identifiability threshold; `resolvable` requires at least 0.95 support. This is not a minimum important effect threshold."))
+        display(scale)
+    display(Markdown("The latent within-child correlation asks whether a wave when a child is above their own stable level on one measure is also an above-level wave on another, after removing the group-by-wave mean. `median` is the posterior correlation on the logit scale; `lo50`/`hi50` and `lo`/`hi` are the inner 50% and outer 89% credible intervals; `prob_pos` is its posterior probability of being positive. `pair_resolvable` must be true before interpreting a row; false means at least one residual scale is not distinguishable from measurement noise."))
+    display(within)
+    within_mat = _csv("within_measure_correlation.csv", index_col=0)
+    if within_mat is not None:
+        display(within_mat)
+    comparison = _csv("between_within_correlation_comparison.csv")
+    if comparison is not None:
+        display(Markdown("#### Matched between-versus-within comparison"))
+        display(Markdown("`within_minus_between_median` compares the two latent-logit correlations for the same measure pair and balanced rows; its 89% interval and `prob_within_gt_between` quantify uncertainty. A difference is descriptive and does not identify a mechanism."))
+        display(comparison)
+```
+
 ### Per-measure fitted cells and growth
 
 One block per measure: posterior fitted group-by-wave cells against the
@@ -47,8 +70,6 @@ _jc_labels = _jc_extra.get("measure_labels") or {}
 
 ```{python}
 # | echo: false
-from IPython.display import Markdown, display
-
 for _m in _jc_measures:
     display(Markdown(f"#### {_jc_labels.get(_m, _m)} (`{_m}`)"))
     _cells = _csv(f"posterior_cell_summary_{_m}.csv")

@@ -4,11 +4,13 @@
 """Byrne joint correlated-growth orchestration (``kind="historical_joint"``, #338).
 
 ``fit_rlm_joint_growth`` fits a small measure set jointly and reports the
-between-child cross-measure correlation matrix of the stable child levels — the
-headline — plus per-measure fitted cells and common-window growth through the
-shared historical summaries. LOO is not computed: the model carries one
-likelihood node per measure, so a single pointwise PSIS-LOO is not defined for
-it. Descriptive throughout; the cohort is observational.
+between-child cross-measure correlation matrix of the stable child levels. The
+within-child companion also reports the correlation matrix of wave-specific
+departures from those levels and their matched contrast. Per-measure fitted
+cells and common-window growth use the shared historical summaries. LOO is not
+computed: the model carries one likelihood node per measure, so a single
+pointwise PSIS-LOO is not defined for it. Descriptive throughout; the cohort is
+observational.
 """
 
 from __future__ import annotations
@@ -58,8 +60,17 @@ from language_reading_predictors.statistical_models.runtime import (
 )
 
 
+# Correlation is not interpretable when either latent residual variance collapses
+# to zero. A 0.05-logit SD moves a probability by at most 1.25 percentage points
+# (at p=0.5), so this is a deliberately small practical-identifiability threshold,
+# not a minimum scientifically important coupling. Require 95% posterior support
+# above it for both measures before headlining their correlation.
+_MIN_RESOLVABLE_WITHIN_SD = 0.05
+_MIN_RESOLVABLE_PROB = 0.95
+
+
 def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """Byrne joint correlated growth fit (#338 Phase B, ``lrp-rlm-jc-001``).
+    """Byrne joint correlated growth fits (#338 Phase B; #409 C2(ii)).
 
     Fits :func:`factories.build_rlm_joint_growth_model` over a small measure set
     and reports the between-child cross-measure correlation matrix of the
@@ -195,6 +206,164 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         )
     )
 
+    if plan.within_correlation:
+        # --- Wave-specific correlation after stable child levels (jc-002) ---
+        section_header("Within-child cross-measure correlation")
+        within_draws = post["within_corr"]
+        within_df = pd.DataFrame(
+            within_draws.mean(dim=("chain", "draw")).values,
+            index=mnames,
+            columns=mnames,
+        )
+        save_table(ctx, "within_measure_correlation", within_df, index=True)
+        within_stacked = within_draws.stack(sample=("chain", "draw"))
+        scale_stacked = post["sigma_within"].stack(sample=("chain", "draw"))
+        scale_rows = []
+        scale_resolvable: dict[str, bool] = {}
+        for i, measure in enumerate(mnames):
+            values = np.asarray(scale_stacked.isel(measure=i).values).reshape(-1)
+            prob_gt = float(np.mean(values > _MIN_RESOLVABLE_WITHIN_SD))
+            resolved = prob_gt >= _MIN_RESOLVABLE_PROB
+            scale_resolvable[measure] = resolved
+            scale_rows.append(
+                {
+                    "measure": measure,
+                    "label": labels[measure],
+                    "median": float(np.median(values)),
+                    "mean": float(np.mean(values)),
+                    "lo": float(np.quantile(values, lo_q)),
+                    "hi": float(np.quantile(values, 1 - lo_q)),
+                    "lo50": float(np.quantile(values, 0.25)),
+                    "hi50": float(np.quantile(values, 0.75)),
+                    "minimum_resolvable_sd": _MIN_RESOLVABLE_WITHIN_SD,
+                    "prob_above_minimum": prob_gt,
+                    "resolvable": resolved,
+                }
+            )
+        scale_summary_df = pd.DataFrame(scale_rows)
+        save_table(ctx, "within_scale_summary", scale_summary_df)
+        within_rows = []
+        comparison_rows = []
+        for i, mi in enumerate(mnames):
+            for j, mj in enumerate(mnames):
+                if j <= i:
+                    continue
+                between_pair = np.asarray(
+                    corr_stacked.isel(measure=i, measure_b=j).values
+                ).reshape(-1)
+                within_pair = np.asarray(
+                    within_stacked.isel(measure=i, measure_b=j).values
+                ).reshape(-1)
+                difference = within_pair - between_pair
+                within_rows.append(
+                    {
+                        "measure_i": mi,
+                        "measure_j": mj,
+                        "label_i": labels[mi],
+                        "label_j": labels[mj],
+                        "median": float(np.median(within_pair)),
+                        "mean": float(np.mean(within_pair)),
+                        "lo": float(np.quantile(within_pair, lo_q)),
+                        "hi": float(np.quantile(within_pair, 1 - lo_q)),
+                        "lo50": float(np.quantile(within_pair, 0.25)),
+                        "hi50": float(np.quantile(within_pair, 0.75)),
+                        "prob_pos": float(np.mean(within_pair > 0)),
+                        "scale_i_resolvable": scale_resolvable[mi],
+                        "scale_j_resolvable": scale_resolvable[mj],
+                        "pair_resolvable": (
+                            scale_resolvable[mi] and scale_resolvable[mj]
+                        ),
+                    }
+                )
+                comparison_rows.append(
+                    {
+                        "measure_i": mi,
+                        "measure_j": mj,
+                        "label_i": labels[mi],
+                        "label_j": labels[mj],
+                        "between_median": float(np.median(between_pair)),
+                        "between_lo": float(np.quantile(between_pair, lo_q)),
+                        "between_hi": float(
+                            np.quantile(between_pair, 1 - lo_q)
+                        ),
+                        "between_lo50": float(
+                            np.quantile(between_pair, 0.25)
+                        ),
+                        "between_hi50": float(
+                            np.quantile(between_pair, 0.75)
+                        ),
+                        "within_median": float(np.median(within_pair)),
+                        "within_lo": float(np.quantile(within_pair, lo_q)),
+                        "within_hi": float(np.quantile(within_pair, 1 - lo_q)),
+                        "within_lo50": float(np.quantile(within_pair, 0.25)),
+                        "within_hi50": float(np.quantile(within_pair, 0.75)),
+                        "within_minus_between_median": float(
+                            np.median(difference)
+                        ),
+                        "within_minus_between_lo": float(
+                            np.quantile(difference, lo_q)
+                        ),
+                        "within_minus_between_hi": float(
+                            np.quantile(difference, 1 - lo_q)
+                        ),
+                        "within_minus_between_lo50": float(
+                            np.quantile(difference, 0.25)
+                        ),
+                        "within_minus_between_hi50": float(
+                            np.quantile(difference, 0.75)
+                        ),
+                        "prob_within_gt_between": float(
+                            np.mean(difference > 0)
+                        ),
+                        "pair_resolvable": (
+                            scale_resolvable[mi] and scale_resolvable[mj]
+                        ),
+                    }
+                )
+        within_summary_df = pd.DataFrame(within_rows)
+        comparison_df = pd.DataFrame(comparison_rows)
+        save_table(
+            ctx, "within_measure_correlation_summary", within_summary_df
+        )
+        save_table(
+            ctx, "between_within_correlation_comparison", comparison_df
+        )
+        print_table(
+            ranked_dataframe_table(
+                scale_summary_df,
+                title="Within-child residual-scale identifiability",
+                columns=[
+                    "label",
+                    "median",
+                    "lo",
+                    "hi",
+                    "prob_above_minimum",
+                    "resolvable",
+                ],
+                rank_column=False,
+                precision=3,
+            )
+        )
+        print_table(
+            ranked_dataframe_table(
+                within_summary_df,
+                title=(
+                    "Within-child cross-measure correlations - "
+                    f"{int(hdi * 100)}% CI"
+                ),
+                columns=[
+                    "label_i",
+                    "label_j",
+                    "median",
+                    "lo",
+                    "hi",
+                    "prob_pos",
+                ],
+                rank_column=False,
+                precision=3,
+            )
+        )
+
     # --- Per-measure fitted cells + growth (shared historical summaries) ----
     section_header("Per-measure growth summaries")
     # One estimand-scale prior row per measure per contrast (#381), accumulated
@@ -240,6 +409,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             "measure_labels": {m: measures[m].label for m in measure_syms},
             "waves": list(plan.waves),
             "extension_waves": list(plan.extension_waves),
+            "within_correlation": plan.within_correlation,
             "n_subjects": panel.n_subjects,
             "loo_elpd": None,
         },

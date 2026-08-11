@@ -5,13 +5,15 @@
 
 The registered ``kind="historical_joint"`` model jointly fits several bounded
 measures from the Byrne reading-language-memory cohort and reports the
-between-child correlation of their stable levels.  This module replaces the
-family's free-form ``ModelSpec.extra`` boundary with immutable settings and a
-validated plan resolved before an output transaction is opened or study data are
-loaded (#394 pillar 4).
+between-child correlation of their stable levels.  Its within-child companion
+also estimates the correlation of wave-specific departures from those stable
+levels.  This module replaces the family's free-form ``ModelSpec.extra``
+boundary with immutable settings and a validated plan resolved before an output
+transaction is opened or study data are loaded (#394 pillar 4).
 
-The migration is behaviour-preserving: the selected rows, likelihoods, priors,
-fitted equation, diagnostic variables and output tables do not change.
+The original ``lrp-rlm-jc-001`` path remains behaviour-preserving: its selected
+rows, likelihoods, priors, fitted equation, diagnostic variables and output
+tables do not change.
 """
 
 from __future__ import annotations
@@ -44,6 +46,9 @@ _LEGACY_KEYS = frozenset(
         "sigma_subject_prior_sigma",
         "kappa_prior_sigma",
         "lkj_eta",
+        "within_correlation",
+        "sigma_within_prior_sigma",
+        "within_lkj_eta",
         # Global sampler setting resolved by ``make_context``, not this family.
         "target_accept",
     }
@@ -95,6 +100,9 @@ class HistoricalJointModelSettings:
     sigma_subject_prior_sigma: float = 1.0
     kappa_prior_sigma: float = 50.0
     lkj_eta: float = 2.0
+    within_correlation: bool = False
+    sigma_within_prior_sigma: float = 0.5
+    within_lkj_eta: float = 2.0
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "measures", _tuple_of_strings(self.measures, name="measures"))
@@ -116,8 +124,20 @@ class HistoricalJointModelSettings:
             "sigma_subject_prior_sigma",
             "kappa_prior_sigma",
             "lkj_eta",
+            "sigma_within_prior_sigma",
+            "within_lkj_eta",
         ):
             object.__setattr__(self, name, _positive_float(getattr(self, name), name=name))
+        if not isinstance(self.within_correlation, bool):
+            raise TypeError(
+                "within_correlation must be a boolean, got "
+                f"{self.within_correlation!r}"
+            )
+        if self.within_correlation and self.extension_waves:
+            raise ValueError(
+                "within_correlation requires a balanced complete-case window; "
+                "extension_waves must be empty"
+            )
 
     @classmethod
     def from_legacy_extra(
@@ -150,6 +170,9 @@ class HistoricalJointModelSettings:
             sigma_subject_prior_sigma=extra.get("sigma_subject_prior_sigma", 1.0),
             kappa_prior_sigma=extra.get("kappa_prior_sigma", 50.0),
             lkj_eta=extra.get("lkj_eta", 2.0),
+            within_correlation=extra.get("within_correlation", False),
+            sigma_within_prior_sigma=extra.get("sigma_within_prior_sigma", 0.5),
+            within_lkj_eta=extra.get("within_lkj_eta", 2.0),
         )
 
 
@@ -168,8 +191,11 @@ class HistoricalJointRunPlan:
     observation_nodes: tuple[str, ...]
     eta_prior_sigma: float
     sigma_subject_prior_sigma: float
-    kappa_prior_sigma: float
+    kappa_prior_sigma: float | None
     lkj_eta: float
+    within_correlation: bool
+    sigma_within_prior_sigma: float
+    within_lkj_eta: float
     compute_loo: bool
     loo_unit: str
     loo_reason: str
@@ -193,23 +219,53 @@ class HistoricalJointRunPlan:
 
     def factory_kwargs(self) -> dict[str, Any]:
         """Arguments for ``build_rlm_joint_growth_model``."""
-        return {
+        kwargs: dict[str, Any] = {
             "measures": self.measures,
             "eta_prior_sigma": self.eta_prior_sigma,
             "sigma_subject_prior_sigma": self.sigma_subject_prior_sigma,
-            "kappa_prior_sigma": self.kappa_prior_sigma,
             "lkj_eta": self.lkj_eta,
         }
+        if self.within_correlation:
+            kwargs.update(
+                {
+                    "within_correlation": True,
+                    "sigma_within_prior_sigma": self.sigma_within_prior_sigma,
+                    "within_lkj_eta": self.within_lkj_eta,
+                }
+            )
+        else:
+            kwargs["kappa_prior_sigma"] = self.kappa_prior_sigma
+        return kwargs
 
     def diagnostic_vars(self) -> list[str]:
         """Curated summary and power-sensitivity parameters."""
-        return ["eta_cell", "sigma_subject", "kappa", "measure_corr_pairs"]
+        names = ["eta_cell", "sigma_subject"]
+        if self.within_correlation:
+            names.extend(["sigma_within", "within_corr_pairs"])
+        else:
+            names.append("kappa")
+        names.append("measure_corr_pairs")
+        return names
 
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language account generated from the validated run plan."""
         measures = ", ".join(self.measures)
         core_waves = ", ".join(str(wave) for wave in self.waves)
         extension = ", ".join(str(wave) for wave in self.extension_waves) if self.extension_waves else "none"
+        likelihood_terms = (
+            "Binomial counts with a logistic-normal wave-specific residual; the "
+            "residual supplies the extra-Binomial variance, so no Beta-Binomial "
+            "concentration term is fitted"
+            if self.within_correlation
+            else "Beta-Binomial counts with group-specific overdispersion"
+        )
+        correlation_terms = (
+            "one between-measure correlation matrix for stable child levels and "
+            "one correlation matrix for wave-specific within-child departures, "
+            "both shared across groups"
+            if self.within_correlation
+            else "one between-measure correlation matrix shared across groups"
+        )
         return (
             "Note: Generated from the validated historical-joint run plan; "
             "template drafted by a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -223,10 +279,10 @@ class HistoricalJointRunPlan:
             "## Terms\n\n"
             f"Measures: {measures}. Complete-case core waves: {core_waves}. "
             f"Available-case extension waves: {extension}. Likelihood: "
-            f"{self.likelihood}, with one observation node per measure. The model "
-            "uses measure-specific group-by-wave means, group-specific child-level "
-            "scales and overdispersion, and one between-measure correlation matrix "
-            "shared across groups.\n\n"
+            f"{self.likelihood}, with one observation node per measure: "
+            f"{likelihood_terms}. The model uses measure-specific group-by-wave "
+            "means, group-specific child-level scales and "
+            f"{correlation_terms}.\n\n"
             "## Uncertainty and checks\n\n"
             "Interpret the posterior only after the convergence gate, "
             "posterior-predictive checks and prior-sensitivity diagnostics pass. "
@@ -277,34 +333,64 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
     loo_reason = (
         "the model has one likelihood node per measure, so no single pooled pointwise predictive unit is defined"
     )
-    design = (
-        "Joint descriptive Beta-Binomial growth model for a historical cohort. "
-        "Each measure has its own group-by-wave mean, group-specific child-level "
-        "scale and group-specific overdispersion; stable child deviations are "
-        "correlated across measures through a shared LKJ correlation matrix."
-    )
-    estimand = (
-        "The headline is the between-child correlation matrix of stable measure "
-        "levels. Per-measure group-by-wave levels and growth contrasts are "
-        "secondary descriptive summaries. The correlation is shared across "
-        "cohort groups and does not estimate within-child coupling or direction."
-    )
+    if settings.within_correlation:
+        design = (
+            "Joint descriptive logistic-normal Binomial growth model for a balanced "
+            "historical cohort panel. Each measure has its own group-by-wave mean "
+            "and group-specific child-level scale. Stable child deviations and "
+            "wave-specific within-child deviations have separate cross-measure LKJ "
+            "correlation matrices shared across groups; the wave-specific residual "
+            "supplies the extra-Binomial variance."
+        )
+        estimand = (
+            "The headline is the within-child correlation matrix of wave-specific "
+            "departures from each child's stable level and the group-by-wave mean, "
+            "on the latent logit scale. The matched between-child stable-level "
+            "correlation matrix is reported alongside it. Both are symmetric "
+            "descriptive associations shared across cohort groups; neither estimates "
+            "direction."
+        )
+    else:
+        design = (
+            "Joint descriptive Beta-Binomial growth model for a historical cohort. "
+            "Each measure has its own group-by-wave mean, group-specific child-level "
+            "scale and group-specific overdispersion; stable child deviations are "
+            "correlated across measures through a shared LKJ correlation matrix."
+        )
+        estimand = (
+            "The headline is the between-child correlation matrix of stable measure "
+            "levels. Per-measure group-by-wave levels and growth contrasts are "
+            "secondary descriptive summaries. The correlation is shared across "
+            "cohort groups and does not estimate within-child coupling or direction."
+        )
     causal_status = (
         "Descriptive only: cohort group is observational, no coefficient is a "
         "treatment effect, and the cross-measure correlations must not be read "
         "causally."
     )
-    analysis_population = (
-        "Children observed on every selected measure at every complete-case core "
-        "wave. Retained children contribute extension-wave rows only when every "
-        "selected measure is observed at that extension wave."
-    )
-    missing_data_assumption = (
-        "Complete-case selection is applied jointly across measures and core waves; "
-        "extension waves are available-case among that retained cohort. The "
-        "descriptive summaries therefore apply to the selected observed cohort, "
-        "not automatically to all recruited children."
-    )
+    if settings.within_correlation:
+        analysis_population = (
+            "Children observed on every selected measure at every complete-case core "
+            "wave. Extension waves are excluded so every retained child contributes "
+            "the same number of observations to the within-child estimand."
+        )
+        missing_data_assumption = (
+            "Complete-case selection is applied jointly across measures and core "
+            "waves. The descriptive summaries therefore apply to the balanced "
+            "selected cohort, not automatically to all recruited children."
+        )
+    else:
+        analysis_population = (
+            "Children observed on every selected measure at every complete-case core "
+            "wave. Retained children contribute extension-wave rows only when every "
+            "selected measure is observed at that extension wave."
+        )
+        missing_data_assumption = (
+            "Complete-case selection is applied jointly across measures and core "
+            "waves; extension waves are available-case among that retained cohort. "
+            "The descriptive summaries therefore apply to the selected observed "
+            "cohort, not automatically to all recruited children."
+        )
 
     return HistoricalJointRunPlan(
         model_id=spec.model_id,
@@ -314,12 +400,21 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         waves=settings.waves,
         extension_waves=settings.extension_waves,
         complete_case=True,
-        likelihood="beta_binomial",
+        likelihood=(
+            "logistic_normal_binomial"
+            if settings.within_correlation
+            else "beta_binomial"
+        ),
         observation_nodes=tuple(f"score_{measure}" for measure in settings.measures),
         eta_prior_sigma=settings.eta_prior_sigma,
         sigma_subject_prior_sigma=settings.sigma_subject_prior_sigma,
-        kappa_prior_sigma=settings.kappa_prior_sigma,
+        kappa_prior_sigma=(
+            None if settings.within_correlation else settings.kappa_prior_sigma
+        ),
         lkj_eta=settings.lkj_eta,
+        within_correlation=settings.within_correlation,
+        sigma_within_prior_sigma=settings.sigma_within_prior_sigma,
+        within_lkj_eta=settings.within_lkj_eta,
         compute_loo=False,
         loo_unit="not_defined_multiple_likelihood_nodes",
         loo_reason=loo_reason,
