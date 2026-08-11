@@ -84,6 +84,10 @@ from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
     write_environment_lock,
 )
+from language_reading_predictors.statistical_models.survival import (
+    SurvivalRunPlan,
+    resolve_survival_run_plan,
+)
 
 # House reporting coverage: median + inner 50% + outer 89% equal-tailed
 # (notes/202607172359-credible-interval-standard.md). The single source of truth for
@@ -2832,6 +2836,14 @@ def _mechanism_run_plan(context: StatisticalFitContext) -> MechanismRunPlan:
     return resolve_mechanism_run_plan(context.spec)
 
 
+def _survival_run_plan(context: StatisticalFitContext) -> SurvivalRunPlan:
+    """Return the survival plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, SurvivalRunPlan):
+        return resolved_plan
+    return resolve_survival_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2860,6 +2872,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _historical_joint_run_plan(context)
     if context.spec.kind == "mechanism":
         return _mechanism_run_plan(context)
+    if context.spec.kind == "survival":
+        return _survival_run_plan(context)
     return None
 
 

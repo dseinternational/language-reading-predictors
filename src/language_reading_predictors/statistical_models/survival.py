@@ -51,7 +51,9 @@ caveat, and ``METHODS.md``).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Collection, Mapping
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
@@ -61,6 +63,7 @@ import pytensor.tensor as pt
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import priors as _priors
+from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import (
     BuiltModel,
 )
@@ -69,6 +72,211 @@ from language_reading_predictors.statistical_models.preprocessing import (
     Standardiser,
     standardise,
 )
+
+# The family-owned settings formerly read directly from ``ModelSpec.extra`` in
+# ``pipelines/survival.py``.  ``target_accept`` remains a centrally resolved sampler
+# option rather than a scientific model setting.
+_LEGACY_KEYS = frozenset({"hazard_link", "use_treatment", "target_accept"})
+_SURVIVAL_OUTCOMES = frozenset({"P", "N"})
+_HAZARD_LINKS = frozenset({"cloglog", "logit"})
+
+
+@dataclass(frozen=True, slots=True)
+class SurvivalModelSettings:
+    """Immutable declaration for one discrete-time off-floor survival model."""
+
+    hazard_link: Literal["cloglog", "logit"] = "cloglog"
+    use_treatment: bool = True
+
+    def __post_init__(self) -> None:
+        if self.hazard_link not in _HAZARD_LINKS:
+            raise ValueError("hazard_link must be 'cloglog' or 'logit'")
+        if not isinstance(self.use_treatment, bool):
+            raise TypeError("use_treatment must be a boolean")
+
+    @classmethod
+    def from_legacy_extra(
+        cls, extra: Mapping[str, Any], *, model_id: str
+    ) -> SurvivalModelSettings:
+        """Strictly translate the former ``spec.extra`` declaration."""
+        unknown = sorted(set(extra) - _LEGACY_KEYS)
+        if unknown:
+            raise ValueError(
+                f"{model_id}: unknown survival setting(s): {', '.join(unknown)}. "
+                "Declare SurvivalModelSettings so misspellings fail fast."
+            )
+        return cls(
+            hazard_link=extra.get("hazard_link", "cloglog"),
+            use_treatment=extra.get("use_treatment", True),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class SurvivalRunPlan:
+    """Concrete, validated instructions for a complete survival-family fit."""
+
+    model_id: str
+    settings_source: str
+    study_id: str
+    outcome_symbol: str
+    hazard_link: Literal["cloglog", "logit"]
+    use_treatment: bool
+    likelihood: str
+    observation_node: str
+    compute_loo: bool
+    loo_unit: str
+    focal_term: str | None
+    design: str
+    estimand: str
+    causal_status: str
+    analysis_population: str
+    missing_data_assumption: str
+
+    def as_dict(self) -> dict[str, Any]:
+        """Return the JSON-ready run-plan contract for ``config.json``."""
+        return asdict(self)
+
+    def prepare_kwargs(self) -> dict[str, str]:
+        """Arguments for :func:`prepare_survival`."""
+        return {"symbol": self.outcome_symbol}
+
+    def factory_kwargs(self) -> dict[str, str | bool]:
+        """Arguments for :func:`build_survival_model`."""
+        return {
+            "hazard_link": self.hazard_link,
+            "use_treatment": self.use_treatment,
+        }
+
+    def diagnostic_vars(self, covariates: Collection[str]) -> tuple[str, ...]:
+        """Curated diagnostics in the same order as the prepared covariates."""
+        return (
+            "alpha",
+            *(f"beta_{name}" for name in covariates),
+            *(("tau",) if self.use_treatment else ()),
+        )
+
+    def recipe_markdown(self, *, title: str) -> str:
+        """Plain-language recipe generated from the validated plan."""
+        treatment = (
+            "The intervention-aligned treatment-on indicator enters as `tau`; because "
+            "the wait-list arm crosses over, this pooled coefficient is prognostic and "
+            "not a clean randomised treatment effect."
+            if self.use_treatment
+            else "This comparator omits the intervention-aligned treatment term."
+        )
+        return (
+            "Note: Generated from the validated survival run plan; template drafted "
+            "by a LLM-based AI tool (Codex/GPT-5).\n\n"
+            f"# Model recipe: {title}\n\n"
+            f"Model ID: `{self.model_id}`.\n\n"
+            f"## Design\n\n{self.design}\n\n"
+            f"## Estimand\n\n{self.estimand}\n\n"
+            f"## Causal status\n\n{self.causal_status}\n\n"
+            f"## Analysis population\n\n{self.analysis_population}\n\n"
+            f"## Missing data\n\n{self.missing_data_assumption}\n\n"
+            "## Terms\n\n"
+            f"Outcome: `{self.outcome_symbol}`. Hazard link: `{self.hazard_link}`. "
+            "Baseline predictors: letter-sound knowledge, word reading and age, "
+            f"standardised across children. {treatment}\n\n"
+            "## Uncertainty and checks\n\n"
+            f"The observation node is `{self.observation_node}` and PSIS-LOO uses "
+            f"the `{self.loo_unit}` unit. Interpret the posterior only after the "
+            "zero-divergence convergence gate, posterior-predictive checks and "
+            "power-scaling sensitivity diagnostics pass. The saved `config.json` "
+            "contains the same resolved run plan in machine-readable form.\n"
+        )
+
+
+def declared_survival_settings(
+    spec: ModelSpec,
+) -> tuple[SurvivalModelSettings, str]:
+    """Return typed settings and their source, rejecting mixed declarations."""
+    settings = spec.model_settings
+    if settings is not None:
+        if spec.extra:
+            raise ValueError(
+                f"{spec.model_id}: survival settings cannot be split between "
+                "model_settings and extra"
+            )
+        if not isinstance(settings, SurvivalModelSettings):
+            raise TypeError(
+                f"{spec.model_id}: kind='survival' requires "
+                f"SurvivalModelSettings, got {type(settings).__name__}"
+            )
+        return settings, "typed"
+    return (
+        SurvivalModelSettings.from_legacy_extra(
+            spec.extra,
+            model_id=spec.model_id,
+        ),
+        "legacy_extra",
+    )
+
+
+def resolve_survival_run_plan(spec: ModelSpec) -> SurvivalRunPlan:
+    """Resolve and validate the survival contract before context or data I/O."""
+    if spec.kind != "survival":
+        raise ValueError(
+            f"{spec.model_id}: expected kind 'survival', got {spec.kind!r}"
+        )
+    if spec.study_id != "rli":
+        raise ValueError(
+            f"{spec.model_id}: survival currently requires study_id='rli', got "
+            f"{spec.study_id!r}"
+        )
+    if spec.outcome_symbol not in _SURVIVAL_OUTCOMES:
+        raise ValueError(
+            f"{spec.model_id}: survival outcome_symbol must be one of "
+            f"{sorted(_SURVIVAL_OUTCOMES)!r}, got {spec.outcome_symbol!r}"
+        )
+
+    settings, source = declared_survival_settings(spec)
+    estimand = (
+        "The interval-specific probability of first moving above the floor. The "
+        "headline tau is the pooled intervention-aligned log-hazard shift across "
+        "the immediate and post-crossover intervals."
+        if settings.use_treatment
+        else "The interval-specific probability of first moving above the floor, "
+        "without an intervention-aligned treatment coefficient."
+    )
+    return SurvivalRunPlan(
+        model_id=spec.model_id,
+        settings_source=source,
+        study_id=spec.study_id,
+        outcome_symbol=spec.outcome_symbol,
+        hazard_link=settings.hazard_link,
+        use_treatment=settings.use_treatment,
+        likelihood="bernoulli_discrete_time_hazard",
+        observation_node="y_event",
+        compute_loo=True,
+        loo_unit="person_period_row",
+        focal_term="tau" if settings.use_treatment else None,
+        design=(
+            "Discrete-time first-off-floor survival model. Children at the outcome "
+            "floor at wave 1 contribute one Bernoulli person-period row for each "
+            "observed interval while they remain at risk, with an interval-specific "
+            f"baseline hazard under a {settings.hazard_link} link."
+        ),
+        estimand=estimand,
+        causal_status=(
+            "Prognostic association, not a causal treatment effect: the first "
+            "interval is randomisation-anchored, but both arms are treated after the "
+            "wait-list crossover and the fitted treatment coefficient pools those "
+            "periods."
+        ),
+        analysis_population=(
+            f"RLI children at the {spec.outcome_symbol} floor at wave 1 who have an "
+            "observed wave-2 outcome and can therefore contribute at least one "
+            "person-period row."
+        ),
+        missing_data_assumption=(
+            "An unobserved next-wave outcome censors later follow-up. Missing baseline "
+            "letter-sound, word-reading or age values are mean-imputed after "
+            "child-level standardisation; interpretation assumes those operations do "
+            "not create informative selection beyond the fitted predictors."
+        ),
+    )
+
 
 #: The three wave-to-wave intervals (start wave, end wave); interval label = index + 1.
 _INTERVALS: tuple[tuple[int, int], ...] = ((1, 2), (2, 3), (3, 4))
@@ -154,7 +362,9 @@ def prepare_survival(symbol: str, df: pd.DataFrame | None = None) -> SurvivalPan
     event: list[int] = []
     treated: list[int] = []
     G_rows: list[int] = []
-    cov_rows: dict[str, list[float]] = {name: [] for name, _ in _COVARIATES}
+    # Pandas may surface a missing scalar as ``None`` or ``NaN``; NumPy performs
+    # the existing float coercion after row construction.
+    cov_rows: dict[str, list[Any]] = {name: [] for name, _ in _COVARIATES}
 
     n_at_risk = 0
     for sid, g in df.groupby(V.SUBJECT_ID):
