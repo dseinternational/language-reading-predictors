@@ -1,0 +1,59 @@
+---
+title: "RLMJC02: Byrne within-child joint coupling — word reading, receptive vocabulary, digit recall"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMJC02 is the balanced-core within-child companion to `lrp-rlm-jc-001` (#409 C2(ii)). BAS word reading, BPVS receptive vocabulary and BAS recall of digits are fitted together over waves 1–3 for the 71 children observed on every measure at every wave. It separates two descriptive questions: do children with persistently higher levels on one measure also sit higher on another, and is a wave when a child is above their own stable level on one measure also an above-level wave on another?
+
+_Descriptive natural-history, not an intervention effect._ `readgrp` is a cohort factor, not a randomised condition, and every quantity is descriptive (`causal_status="none"`). Within-child co-movement removes stable between-child differences but does not establish direction: a positive correlation does not show that changing one skill changes another, and common time-varying causes remain possible.
+
+_Window, frame and assumptions._ The model uses only the balanced complete-case waves 1–3 core. Waves 4–5 are excluded because they would give better-observed children more influence and mix the common three-group period with an attrition-selected tail whose final wave contains only the Down syndrome group. The stable-level and within-child correlation matrices are each shared across the three reading groups as a parsimony assumption. The wave-specific logistic-normal residual supplies the extra-Binomial variance; adding a separate Beta-Binomial concentration made the correlation prior-dominated in the development probe. Interpretation still requires clean computational diagnostics, posterior-predictive checks and a prior-sensitivity fit with a wider within-scale prior.
+
+## Model
+
+For child $i$ in group $g[i]$, measure $m$ and wave $t$:
+
+$$
+\text{score}_{imt} \sim \mathrm{Binomial}(N_m,\ p_{imt}),
+\qquad
+\operatorname{logit}(p_{imt}) = \eta_{m,\,\text{cell}(g[i],t)} + u_{im} + d_{imt},
+$$
+
+$$
+(u_{i1},u_{i2},u_{i3}) \sim \mathrm{MVN}\!\left(0,\operatorname{diag}(\sigma_{m,g[i]})R_B\operatorname{diag}(\sigma_{m,g[i]})\right),
+$$
+
+$$
+(d_{i1t},d_{i2t},d_{i3t}) \sim \mathrm{MVN}\!\left(0,\operatorname{diag}(\omega_m)R_W\operatorname{diag}(\omega_m)\right).
+$$
+
+$R_B$ is the between-child stable-level correlation matrix and $R_W$ is the within-child wave-specific correlation matrix, each with an LKJ(2) prior. The latent deviations $d_{imt}$ are constrained to average to zero within child and within group-by-wave cell, separating them from $u_{im}$ and $\eta$. The within-scale prior is $\omega_m \sim \mathrm{HalfNormal}(0.5)$ on the logit scale; a HalfNormal(1.0) sensitivity checks whether the correlation conclusions depend on that regularisation. Confirmed ceilings are `basread` 90, `bpvs` 32 and `basdig` 34.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_historical_joint.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

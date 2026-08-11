@@ -1549,6 +1549,105 @@ def test_horseshoe_findings_do_not_claim_threshold_was_pre_specified(tmp_path):
     assert "pre-specified" not in _texts(payload)
 
 
+def test_historical_joint_within_companion_headlines_dynamic_correlation(tmp_path):
+    d = _setup_dir(tmp_path, "historical_joint")
+    _write_csv(
+        d,
+        "within_measure_correlation_summary.csv",
+        {
+            "measure_i": "basread",
+            "measure_j": "bpvs",
+            "label_i": "BAS word reading",
+            "label_j": "BPVS receptive vocabulary",
+            "median": 0.48,
+            "mean": 0.47,
+            "lo50": 0.35,
+            "hi50": 0.60,
+            "lo": 0.12,
+            "hi": 0.76,
+            "prob_pos": 0.98,
+        },
+    )
+    _write_csv(
+        d,
+        "between_within_correlation_comparison.csv",
+        {
+            "measure_i": "basread",
+            "measure_j": "bpvs",
+            "within_minus_between_median": -0.18,
+            "within_minus_between_lo": -0.51,
+            "within_minus_between_hi": 0.13,
+            "prob_within_gt_between": 0.17,
+        },
+    )
+
+    payload = generate_key_findings(d)
+
+    assert payload["status"] == "ok"
+    assert "clearest within-child coupling" in payload["sentences"][0]["text"]
+    assert "inner 50% range" in payload["sentences"][0]["text"]
+    assert "within-minus-between correlation" in _texts(payload)
+    assert "does not identify direction" in _texts(payload)
+
+
+def test_historical_joint_within_companion_withholds_unresolved_correlations(tmp_path):
+    d = _setup_dir(tmp_path, "historical_joint")
+    _write_csv(
+        d,
+        "within_measure_correlation_summary.csv",
+        {
+            "measure_i": "basread",
+            "measure_j": "bpvs",
+            "label_i": "BAS word reading",
+            "label_j": "BPVS receptive vocabulary",
+            "median": 0.48,
+            "lo50": 0.35,
+            "hi50": 0.60,
+            "lo": 0.12,
+            "hi": 0.76,
+            "prob_pos": 0.98,
+            "pair_resolvable": False,
+        },
+    )
+    _write_rows(
+        d,
+        "within_scale_summary.csv",
+        [
+            {
+                "measure": "basread",
+                "label": "BAS word reading",
+                "median": 0.31,
+                "lo50": 0.29,
+                "hi50": 0.34,
+                "lo": 0.26,
+                "hi": 0.38,
+                "minimum_resolvable_sd": 0.05,
+                "prob_above_minimum": 1.0,
+                "resolvable": True,
+            },
+            {
+                "measure": "bpvs",
+                "label": "BPVS receptive vocabulary",
+                "median": 0.04,
+                "lo50": 0.02,
+                "hi50": 0.06,
+                "lo": 0.00,
+                "hi": 0.10,
+                "minimum_resolvable_sd": 0.05,
+                "prob_above_minimum": 0.35,
+                "resolvable": False,
+            },
+        ],
+    )
+
+    payload = generate_key_findings(d)
+
+    assert payload["status"] == "ok"
+    assert "did not resolve a within-child correlation" in _texts(payload)
+    assert "not substantively identified" in _texts(payload)
+    assert "clearest within-child coupling" not in _texts(payload)
+
+
 def test_mechanism_findings_headline_interaction_when_present(tmp_path):
     """#404 review: a moderated mechanism fit headlines gamma_int (median, 50%/89%
     intervals, tail probability) ahead of the unmoderated curve contrast."""

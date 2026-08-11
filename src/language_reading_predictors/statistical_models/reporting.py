@@ -5735,6 +5735,115 @@ def _kf_build_historical_growth(output_dir, config: Mapping) -> list[dict[str, s
 
 def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
     """Byrne joint correlated growth: cross-measure coupling headline (#338)."""
+    within = _kf_csv(output_dir, "within_measure_correlation_summary.csv")
+    if within is not None:
+        scales = _kf_csv(output_dir, "within_scale_summary.csv")
+        if scales is not None and "pair_resolvable" in within.columns:
+            resolvable_pairs = within[
+                within["pair_resolvable"]
+                .astype(str)
+                .str.lower()
+                .isin({"true", "1"})
+            ]
+            if resolvable_pairs.empty:
+                strongest = scales.iloc[
+                    pd.to_numeric(
+                        scales["prob_above_minimum"], errors="coerce"
+                    ).argmax()
+                ]
+                threshold = _kf_float(strongest["minimum_resolvable_sd"])
+                return [
+                    _kf_sentence(
+                        "The model did not resolve a within-child correlation: "
+                        "no measure pair had both wave-specific residual standard "
+                        f"deviations supported above {threshold:.2f} logits.",
+                        "headline",
+                    ),
+                    _kf_sentence(
+                        f"The best-resolved residual scale was "
+                        f"{_kf_plain_label(strongest['label'])}, median "
+                        f"{_kf_float(strongest['median']):.2f} logits (inner 50% "
+                        f"range {_kf_float(strongest['lo50']):.2f} to "
+                        f"{_kf_float(strongest['hi50']):.2f}; 89% credible range "
+                        f"{_kf_float(strongest['lo']):.2f} to "
+                        f"{_kf_float(strongest['hi']):.2f}).",
+                        "confidence",
+                    ),
+                    _kf_sentence(
+                        "When a residual scale is not distinguishable from "
+                        "measurement noise, its correlation is not substantively "
+                        "identified. This is a descriptive information limit, not "
+                        "evidence that skills are causally unrelated.",
+                        "causal",
+                    ),
+                ]
+            within = resolvable_pairs
+        row = _kf_most_resolved_row(within, prob_col="prob_pos")
+        pair = (
+            f"{_kf_plain_label(row.get('label_i', row['measure_i']))} and "
+            f"{_kf_plain_label(row.get('label_j', row['measure_j']))}"
+        )
+        sentences = [
+            _kf_sentence(
+                f"The clearest within-child coupling was between {pair}: a "
+                f"wave-specific latent-logit correlation of "
+                f"**{_kf_float(row['median']):+.2f}** (inner 50% range "
+                f"{_kf_float(row['lo50']):+.2f} to "
+                f"{_kf_float(row['hi50']):+.2f}; 89% credible range "
+                f"{_kf_float(row['lo']):+.2f} to "
+                f"{_kf_float(row['hi']):+.2f}).",
+                "headline",
+            ),
+            _kf_sentence(
+                _kf_association_direction(
+                    row["prob_pos"],
+                    positive_claim=(
+                        "waves above a child's stable level on one measure tend "
+                        "also to be above-level waves on the other"
+                    ),
+                    negative_claim=(
+                        "waves above a child's stable level on one measure tend "
+                        "to be below-level waves on the other"
+                    ),
+                ),
+                "confidence",
+            ),
+        ]
+        comparison = _kf_csv(
+            output_dir, "between_within_correlation_comparison.csv"
+        )
+        if comparison is not None:
+            matched = comparison[
+                (comparison["measure_i"].astype(str) == str(row["measure_i"]))
+                & (
+                    comparison["measure_j"].astype(str)
+                    == str(row["measure_j"])
+                )
+            ]
+            if not matched.empty:
+                comp = matched.iloc[0]
+                sentences.append(
+                    _kf_sentence(
+                        "For that pair, the within-minus-between correlation was "
+                        f"{_kf_float(comp['within_minus_between_median']):+.2f} "
+                        f"(89% credible range "
+                        f"{_kf_float(comp['within_minus_between_lo']):+.2f} to "
+                        f"{_kf_float(comp['within_minus_between_hi']):+.2f}; "
+                        f"P(within > between) = "
+                        f"{_kf_float(comp['prob_within_gt_between']):.2f}).",
+                        "highlight",
+                    )
+                )
+        sentences.append(
+            _kf_sentence(
+                "This is descriptive within-child co-movement in a historical "
+                "cohort - it does not identify direction, a treatment effect or "
+                "a mechanism, and the residual scale must pass prior sensitivity.",
+                "causal",
+            )
+        )
+        return sentences
+
     df = _kf_csv(output_dir, "measure_correlation_summary.csv")
     if df is None:
         raise _KeyFindingsUnavailable("measure_correlation_summary.csv is not present")

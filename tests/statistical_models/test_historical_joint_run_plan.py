@@ -58,6 +58,10 @@ def _registered_spec() -> ModelSpec:
     return importlib.import_module("language_reading_predictors.statistical_models.lrp_rlm_jc_001").SPEC
 
 
+def _within_registered_spec() -> ModelSpec:
+    return importlib.import_module("language_reading_predictors.statistical_models.lrp_rlm_jc_002").SPEC
+
+
 def test_settings_reject_unknown_legacy_key():
     with pytest.raises(ValueError, match="unknown historical_joint setting.*lkj_etta"):
         HJ.HistoricalJointModelSettings.from_legacy_extra(
@@ -89,6 +93,13 @@ def test_settings_accept_global_target_accept_without_owning_it():
         ({"sigma_subject_prior_sigma": True}, "positive finite"),
         ({"kappa_prior_sigma": float("inf")}, "positive finite"),
         ({"lkj_eta": -1.0}, "positive finite"),
+        ({"sigma_within_prior_sigma": 0.0}, "positive finite"),
+        ({"within_lkj_eta": float("nan")}, "positive finite"),
+        ({"within_correlation": "yes"}, "must be a boolean"),
+        (
+            {"within_correlation": True, "extension_waves": (4,)},
+            "balanced complete-case window",
+        ),
     ],
 )
 def test_settings_reject_misshaped_or_incoherent_values(kwargs, message):
@@ -223,3 +234,39 @@ def test_registered_model_is_typed_and_preserves_the_legacy_contract():
     }
     for field in _META_FIELDS:
         assert isinstance(typed.as_dict()[field], str) and typed.as_dict()[field]
+
+
+def test_registered_within_companion_resolves_balanced_dynamic_contract():
+    registered = _within_registered_spec()
+    assert isinstance(registered.model_settings, HJ.HistoricalJointModelSettings)
+    assert registered.extra == {}
+
+    plan = HJ.resolve_historical_joint_run_plan(registered)
+
+    assert plan.within_correlation is True
+    assert plan.prepare_kwargs() == {
+        "waves": (1, 2, 3),
+        "complete_case": True,
+        "extension_waves": (),
+    }
+    assert plan.factory_kwargs() == {
+        "measures": ("basread", "bpvs", "basdig"),
+        "eta_prior_sigma": 1.5,
+        "sigma_subject_prior_sigma": 1.0,
+        "lkj_eta": 2.0,
+        "within_correlation": True,
+        "sigma_within_prior_sigma": 0.5,
+        "within_lkj_eta": 2.0,
+    }
+    assert plan.diagnostic_vars() == [
+        "eta_cell",
+        "sigma_subject",
+        "sigma_within",
+        "within_corr_pairs",
+        "measure_corr_pairs",
+    ]
+    assert plan.kappa_prior_sigma is None
+    assert plan.likelihood == "logistic_normal_binomial"
+    assert "within-child correlation matrix" in plan.estimand
+    assert "Extension waves are excluded" in plan.analysis_population
+    assert plan.causal_status.startswith("Descriptive only")

@@ -6637,8 +6637,11 @@ def build_rlm_joint_growth_model(
     sigma_subject_prior_sigma: float = 1.0,
     kappa_prior_sigma: float = 50.0,
     lkj_eta: float = 2.0,
+    within_correlation: bool = False,
+    sigma_within_prior_sigma: float = 0.5,
+    within_lkj_eta: float = 2.0,
 ) -> BuiltModel:
-    """Byrne joint correlated group-by-wave growth model (#338 Phase B, jc-001).
+    """Byrne joint correlated group-by-wave growth models (#338/#409).
 
     The multivariate extension of :func:`build_historical_growth_model`: each
     measure keeps its own supported-cell population grid, group-indexed
@@ -6656,6 +6659,16 @@ def build_rlm_joint_growth_model(
     explicit assumption, stated in the report); the scales are group-indexed
     per the #338 heterogeneity decision. Descriptive natural-history only -
     ``readgrp`` is a cohort factor and nothing here is causal.
+
+    When ``within_correlation=True``, a second LKJ-correlated latent deviation
+    is added for each child-wave row. The deviations are double-centred so they
+    average to zero within child and within group-by-wave cell, separating them
+    from the stable child offsets and population cell means. This path requires
+    a balanced panel and reports ``within_corr`` on the latent logit scale. Its
+    likelihood is Binomial rather than Beta-Binomial: the logistic-normal
+    residual supplies the extra-Binomial variance. Fitting both residual scales
+    made the correlation prior-dominated in the development probe, matching the
+    registered joint-mechanism precedent.
 
     The panel must be loaded with all ``measures`` (complete-case core plus
     extension rows require every measure observed on a row), so all measures
@@ -6708,6 +6721,20 @@ def build_rlm_joint_growth_model(
         .map(group_index)
         .to_numpy(dtype=int)
     )
+    if within_correlation:
+        if df.duplicated([subj, wave_c]).any():
+            raise ValueError(
+                "within_correlation requires exactly one row per child and wave"
+            )
+        subject_wave_sets = {
+            tuple(sorted(int(wave) for wave in frame[wave_c]))
+            for _subject, frame in df.groupby(subj, sort=False)
+        }
+        if len(subject_wave_sets) != 1:
+            raise ValueError(
+                "within_correlation requires a balanced panel with the same waves "
+                "for every child"
+            )
 
     coords = {
         "measure": list(measures),
@@ -6730,9 +6757,11 @@ def build_rlm_joint_growth_model(
             sigma=sigma_subject_prior_sigma,
             dims=("measure", "group"),
         )
-        kappa = pm.HalfNormal(
-            "kappa", sigma=kappa_prior_sigma, dims=("measure", "group")
-        )
+        kappa = None
+        if not within_correlation:
+            kappa = pm.HalfNormal(
+                "kappa", sigma=kappa_prior_sigma, dims=("measure", "group")
+            )
 
         # Correlated per-child stable offsets across measures. The environment's
         # LKJCorr returns the CHOLESKY FACTOR L, not the correlation matrix R,
@@ -6771,22 +6800,83 @@ def build_rlm_joint_growth_model(
             dims=("subject", "measure"),
         )
 
+        within_offset = None
+        if within_correlation:
+            sigma_within = pm.HalfNormal(
+                "sigma_within",
+                sigma=sigma_within_prior_sigma,
+                dims="measure",
+            )
+            within_chol = pm.LKJCorr(
+                "within_corr_chol", n=M, eta=within_lkj_eta
+            )
+            within_corr = pm.Deterministic(
+                "within_corr",
+                within_chol @ within_chol.T,
+                dims=("measure", "measure_b"),
+            )
+            if len(iu):
+                pm.Deterministic(
+                    "within_corr_pairs",
+                    pt.stack(
+                        [
+                            within_corr[i, j]
+                            for i, j in zip(iu, ju, strict=True)
+                        ]
+                    ),
+                )
+            z_within = pm.Normal(
+                "z_within", mu=0.0, sigma=1.0, dims=("obs", "measure")
+            )
+            raw_within = z_within @ within_chol.T
+            subject_means = pt.stack(
+                [
+                    raw_within[subject_idx == s].mean(axis=0)
+                    for s in range(len(subject_ids))
+                ]
+            )
+            centred_on_subject = raw_within - subject_means[subject_idx]
+            cell_means = pt.stack(
+                [
+                    centred_on_subject[obs_cell_idx == c].mean(axis=0)
+                    for c in range(len(cells))
+                ]
+            )
+            centred_within = centred_on_subject - cell_means[obs_cell_idx]
+            within_offset = pm.Deterministic(
+                "within_offset",
+                centred_within * sigma_within,
+                dims=("obs", "measure"),
+            )
+
         for mi, m in enumerate(measures):
             n_trials = int(panel.n_trials[m])
             observed = df[m].to_numpy(dtype=int)
             eta_obs = (
                 eta_cell[mi, obs_cell_idx] + subject_offset[subject_idx, mi]
             )
+            if within_offset is not None:
+                eta_obs = eta_obs + within_offset[:, mi]
             p_obs = pm.math.sigmoid(eta_obs)
-            kappa_obs = kappa[mi, group_idx]
-            pm.BetaBinomial(
-                f"score_{m}",
-                n=n_trials,
-                alpha=p_obs * kappa_obs,
-                beta=(1.0 - p_obs) * kappa_obs,
-                observed=observed,
-                dims="obs",
-            )
+            if within_correlation:
+                pm.Binomial(
+                    f"score_{m}",
+                    n=n_trials,
+                    p=p_obs,
+                    observed=observed,
+                    dims="obs",
+                )
+            else:
+                assert kappa is not None
+                kappa_obs = kappa[mi, group_idx]
+                pm.BetaBinomial(
+                    f"score_{m}",
+                    n=n_trials,
+                    alpha=p_obs * kappa_obs,
+                    beta=(1.0 - p_obs) * kappa_obs,
+                    observed=observed,
+                    dims="obs",
+                )
             pm.Deterministic(
                 f"fitted_mean_items_obs_{m}", n_trials * p_obs, dims="obs"
             )
