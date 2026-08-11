@@ -50,6 +50,10 @@ from language_reading_predictors.statistical_models.growth import (
     GrowthRunPlan,
     resolve_growth_run_plan,
 )
+from language_reading_predictors.statistical_models.historical_joint import (
+    HistoricalJointRunPlan,
+    resolve_historical_joint_run_plan,
+)
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     declared_settings_dict,
@@ -2782,6 +2786,16 @@ def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
     return resolve_growth_run_plan(context.spec)
 
 
+def _historical_joint_run_plan(
+    context: StatisticalFitContext,
+) -> HistoricalJointRunPlan:
+    """Return the historical-joint plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, HistoricalJointRunPlan):
+        return resolved_plan
+    return resolve_historical_joint_run_plan(context.spec)
+
+
 def _mechanism_run_plan(context: StatisticalFitContext) -> MechanismRunPlan:
     """Return the mechanism plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
@@ -2812,6 +2826,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _aligned_run_plan(context)
     if context.spec.kind == "growth":
         return _growth_run_plan(context)
+    if context.spec.kind == "historical_joint":
+        return _historical_joint_run_plan(context)
     if context.spec.kind == "mechanism":
         return _mechanism_run_plan(context)
     return None

@@ -81,6 +81,7 @@ files = [
   "src/language_reading_predictors/statistical_models/documentation.py",
   "src/language_reading_predictors/statistical_models/gain_factors.py",
   "src/language_reading_predictors/statistical_models/growth.py",
+  "src/language_reading_predictors/statistical_models/historical_joint.py",
   "src/language_reading_predictors/statistical_models/itt.py",
   "src/language_reading_predictors/statistical_models/joint.py",
   "src/language_reading_predictors/statistical_models/level_factors.py",
