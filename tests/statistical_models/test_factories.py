@@ -200,16 +200,27 @@ def test_ps_is_outcome_only_not_a_word_reading_predictor():
         FLOORED,
         MODEL_REGISTRY,
     )
+    from language_reading_predictors.statistical_models.adjusted import (
+        resolve_adjusted_run_plan,
+    )
+    from language_reading_predictors.statistical_models.horseshoe import (
+        resolve_horseshoe_run_plan,
+    )
 
     # PS is floored, so it is excluded from the "non-floored baseline" predictor
     # sets the word-reading models use.
     assert "P" in FLOORED
     # The explicit word-reading predictor models must not list P.
-    assert "P" not in lrp_rli_hs_001.SPEC.extra["predictors"]  # W-gain ranking
-    assert "P" not in lrp_rli_hs_002.SPEC.extra["predictors"]  # W-level ranking
+    assert "P" not in resolve_horseshoe_run_plan(
+        lrp_rli_hs_001.SPEC
+    ).predictors  # W-gain ranking
+    assert "P" not in resolve_horseshoe_run_plan(
+        lrp_rli_hs_002.SPEC
+    ).predictors  # W-level ranking
     adj = lrp_rli_adj_065.get_spec()  # baseline predictors of W gain (ADJ-065)
-    assert "P" not in adj.extra["predictor_symbols"]
-    assert "P" not in adj.extra["language_composite_symbols"]
+    adj_plan = resolve_adjusted_run_plan(adj)
+    assert "P" not in adj_plan.predictor_symbols
+    assert "P" not in adj_plan.language_composite_symbols
     assert "P" not in adj.adjustment
     # PS still exists as an outcome in the suite.
     assert any(d.outcome == "P" for d in MODEL_REGISTRY.values())

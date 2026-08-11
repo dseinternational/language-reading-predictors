@@ -75,6 +75,7 @@ select = ["E4", "E7", "E9", "F", "B905", "RUF012"]
 [tool.mypy]
 python_version = "3.14"
 files = [
+  "src/language_reading_predictors/statistical_models/adjusted.py",
   "src/language_reading_predictors/statistical_models/aligned.py",
   "src/language_reading_predictors/statistical_models/block_exposure.py",
   "src/language_reading_predictors/statistical_models/concurrent.py",

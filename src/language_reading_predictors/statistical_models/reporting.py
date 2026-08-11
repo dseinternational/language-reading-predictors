@@ -34,6 +34,10 @@ from language_reading_predictors.statistical_models.aligned import (
     AlignedRunPlan,
     resolve_aligned_run_plan,
 )
+from language_reading_predictors.statistical_models.adjusted import (
+    AdjustedRunPlan,
+    resolve_adjusted_run_plan,
+)
 from language_reading_predictors.statistical_models.block_exposure import (
     BlockExposureRunPlan,
     resolve_block_exposure_run_plan,
@@ -2812,6 +2816,14 @@ def _aligned_run_plan(context: StatisticalFitContext) -> AlignedRunPlan:
     return resolve_aligned_run_plan(context.spec)
 
 
+def _adjusted_run_plan(context: StatisticalFitContext) -> AdjustedRunPlan:
+    """Return the adjusted-association plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, AdjustedRunPlan):
+        return resolved_plan
+    return resolve_adjusted_run_plan(context.spec)
+
+
 def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
     """Return the growth plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
@@ -2958,6 +2970,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _concurrent_run_plan(context)
     if context.spec.kind == "aligned":
         return _aligned_run_plan(context)
+    if context.spec.kind == "adjusted":
+        return _adjusted_run_plan(context)
     if context.spec.kind == "growth":
         return _growth_run_plan(context)
     if context.spec.kind == "historical_growth":
