@@ -87,6 +87,10 @@ from language_reading_predictors.statistical_models.level_factors import (
     LevelFactorsRunPlan,
     resolve_level_factors_run_plan,
 )
+from language_reading_predictors.statistical_models.long_corr_factor import (
+    LongCorrFactorRunPlan,
+    resolve_long_corr_factor_run_plan,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismRunPlan,
     resolve_mechanism_run_plan,
@@ -2884,6 +2888,16 @@ def _horseshoe_run_plan(context: StatisticalFitContext) -> HorseshoeRunPlan:
     return resolve_horseshoe_run_plan(context.spec)
 
 
+def _long_corr_factor_run_plan(
+    context: StatisticalFitContext,
+) -> LongCorrFactorRunPlan:
+    """Return the longitudinal-factor plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, LongCorrFactorRunPlan):
+        return resolved_plan
+    return resolve_long_corr_factor_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2920,6 +2934,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _dose_response_run_plan(context)
     if context.spec.kind == "horseshoe":
         return _horseshoe_run_plan(context)
+    if context.spec.kind == "long_corr_factor":
+        return _long_corr_factor_run_plan(context)
     return None
 
 
