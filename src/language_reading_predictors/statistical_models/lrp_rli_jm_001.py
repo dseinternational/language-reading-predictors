@@ -59,6 +59,9 @@ parameterisation that ``mech-096`` / ``mech-101`` use.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.joint_mechanism import (
+    JointMechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_joint_mechanism
 
 SPEC = ModelSpec(
@@ -74,20 +77,20 @@ SPEC = ModelSpec(
     design="per-wave cross-sectional bivariate levels, LKJ residual correlation",
     estimand_type="association",
     causal_status="none",
-    extra={
-        "design": "levels",
-        "outcome_symbols": ("W", "N"),
+    model_settings=JointMechanismModelSettings(
+        design="levels",
+        outcome_symbols=("W", "N"),
         # contrast[0] - contrast[1] is the reported Delta; contrast[1] is also the
         # focal outcome whose slope share_retained partials.
-        "contrast": ("N", "W"),
+        contrast=("N", "W"),
         # Matched to ca-010 / ca-011: non-verbal ability and hearing as t1 baselines
         # broadcast across the waves; age via the confounder set; group as a flagged
         # non-interpretable nuisance.
-        "covariates": ("blocks", "hs"),
-        "confounder_symbols": ("G", "A"),
-        "include_group": True,
-        "predictor_slope_sigma": 0.3,
-    },
+        covariates=("blocks", "hs"),
+        confounder_symbols=("G", "A"),
+        include_group=True,
+        predictor_slope_sigma=0.3,
+    ),
 )
 
 

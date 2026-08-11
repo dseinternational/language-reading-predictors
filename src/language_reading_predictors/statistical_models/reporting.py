@@ -87,6 +87,10 @@ from language_reading_predictors.statistical_models.joint import (
     JointRunPlan,
     resolve_joint_run_plan,
 )
+from language_reading_predictors.statistical_models.joint_mechanism import (
+    JointMechanismRunPlan,
+    resolve_joint_mechanism_run_plan,
+)
 from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
     apply_score_mean_link,
@@ -2788,6 +2792,16 @@ def _joint_run_plan(context: StatisticalFitContext) -> JointRunPlan:
     return resolve_joint_run_plan(context.spec)
 
 
+def _joint_mechanism_run_plan(
+    context: StatisticalFitContext,
+) -> JointMechanismRunPlan:
+    """Return the joint-mechanism plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, JointMechanismRunPlan):
+        return resolved_plan
+    return resolve_joint_mechanism_run_plan(context.spec)
+
+
 def _level_factors_run_plan(context: StatisticalFitContext) -> LevelFactorsRunPlan:
     """Return the level-factor plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
@@ -2972,6 +2986,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _itt_run_plan(context)
     if context.spec.kind == "joint":
         return _joint_run_plan(context)
+    if context.spec.kind == "joint_mechanism":
+        return _joint_mechanism_run_plan(context)
     if context.spec.kind == "gain_factors":
         return _gain_factors_run_plan(context)
     if context.spec.kind == "level_factors":

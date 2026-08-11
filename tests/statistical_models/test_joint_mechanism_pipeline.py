@@ -28,12 +28,15 @@ import xarray as xr
 
 from language_reading_predictors.statistical_models.lrp_rli_jm_001 import SPEC as JM001
 from language_reading_predictors.statistical_models.lrp_rli_jm_002 import SPEC as JM002
+from language_reading_predictors.statistical_models.joint_mechanism import (
+    JointMechanismModelSettings,
+    resolve_joint_mechanism_run_plan,
+)
 from language_reading_predictors.statistical_models.pipelines import (
     joint_mechanism as _jm_pipeline,
 )
 from language_reading_predictors.statistical_models.pipelines.joint_mechanism import (
     _JM_SLOPE_REQUIRED,
-    _jm_diag_vars,
     _jm_marginal_ppc,
     _jm_slope_rows,
     _jm_standard_artefacts,
@@ -179,23 +182,11 @@ def test_diag_vars_include_the_dependence_block_per_design():
         "sigma_u_resid", "sigma_u_child", "rho_outcome",
         "beta_mech_focal_given_held", "share_retained",
     }
-    levels = _jm_diag_vars(
-        available,
-        design="levels",
-        adjust_for=("hs",),
-        confounder_symbols=("G", "A"),
-        include_group=True,
-    )
+    levels = resolve_joint_mechanism_run_plan(JM001).diagnostic_vars(available)
     assert {"sigma_u_resid", "rho_outcome", "share_retained"} <= set(levels)
     assert "beta_group_nuisance" in levels and "beta_G" not in levels
 
-    transition = _jm_diag_vars(
-        available,
-        design="transition",
-        adjust_for=("hs",),
-        confounder_symbols=("G", "A"),
-        include_group=True,
-    )
+    transition = resolve_joint_mechanism_run_plan(JM002).diagnostic_vars(available)
     assert {"sigma_u_child", "rho_outcome", "gamma_own", "kappa"} <= set(transition)
     assert "beta_G" in transition and "beta_group_nuisance" not in transition
 
@@ -208,21 +199,26 @@ def test_registered_specs_declare_their_designs_and_comparators():
     assert JM001.estimand_type == JM002.estimand_type == "association"
     assert JM001.causal_status == JM002.causal_status == "none"
 
-    assert JM001.extra["design"] == "levels"
+    assert isinstance(JM001.model_settings, JointMechanismModelSettings)
+    assert isinstance(JM002.model_settings, JointMechanismModelSettings)
+    assert JM001.extra == JM002.extra == {}
+    levels = resolve_joint_mechanism_run_plan(JM001)
+    transition = resolve_joint_mechanism_run_plan(JM002)
+    assert levels.design == "levels"
     # ca-010 / ca-011 adjust for block design and hearing at a Normal(0, 0.3) slope.
-    assert tuple(JM001.extra["covariates"]) == ("blocks", "hs")
-    assert JM001.extra["predictor_slope_sigma"] == 0.3
+    assert levels.declared_adjustment == ("blocks", "hs")
+    assert levels.predictor_slope_sigma == 0.3
 
-    assert JM002.extra["design"] == "transition"
+    assert transition.design == "transition"
     # mech-096 / mech-101 share {G, A, HS, IS, SP} + own baseline.
-    assert tuple(JM002.extra["adjust_for"]) == (
+    assert transition.declared_adjustment == (
         "hs",
         "hs_missing",
         "attend",
         "deapp_c",
         "deapp_c_missing",
     )
-    assert JM001.extra["contrast"] == JM002.extra["contrast"] == ("N", "W")
+    assert levels.contrast == transition.contrast == ("N", "W")
 
 
 # --- artefact contract: the four outputs the #427 review found silently absent ----
