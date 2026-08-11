@@ -28,22 +28,27 @@ tuned. n ~ 54; intervals are wide.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_horseshoe
 
-_PREDICTORS = ["W", "R", "E", "B", "F", "T", "age", "blocks", "behav"]
+_PREDICTORS = ("W", "R", "E", "B", "F", "T", "age", "blocks", "behav")
 
 SPEC = ModelSpec(
     model_id="lrp-rli-hs-003",
     kind="horseshoe",
     title="Regularized-horseshoe ranking cross-check - letter-sound gain",
     outcome_symbol="L",
+    model_settings=HorseshoeModelSettings(
+        gain=True,
+        predictors=_PREDICTORS,
+        covariates=("blocks", "behav"),
+        delta=0.1,
+        gb_reference="lrp-rli-gbg-009",
+    ),
     extra={
-        "gain": True,
-        "predictors": _PREDICTORS,
-        "covariates": ["blocks", "behav"],
-        "delta": 0.1,
         "target_accept": 0.99,
-        "gb_reference": "lrp-rli-gbg-009",
     },
 )
 

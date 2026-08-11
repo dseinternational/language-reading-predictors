@@ -26,20 +26,26 @@ pilot. Params are weakly-informative priors, not tuned. n ~ 54; intervals are wi
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_horseshoe
 
-_PREDICTORS = ["L", "R", "E", "B", "F", "T", "age", "blocks", "behav"]
+_PREDICTORS = ("L", "R", "E", "B", "F", "T", "age", "blocks", "behav")
 
 SPEC = ModelSpec(
     model_id="lrp-rli-hs-001",
     kind="horseshoe",
     title="Regularized-horseshoe ranking cross-check - word-reading gain",
     outcome_symbol="W",
+    model_settings=HorseshoeModelSettings(
+        gain=True,
+        predictors=_PREDICTORS,
+        covariates=("blocks", "behav"),
+        delta=0.1,
+        gb_reference="lrp-rli-gbg-012",
+    ),
     extra={
-        "gain": True,
-        "predictors": _PREDICTORS,
-        "covariates": ["blocks", "behav"],
-        "delta": 0.1,
         # Lifted from the family's 0.99 to 0.999: at 0.99 this fit held a single
         # divergence in 36,000 draws, and a horseshoe ranking is zero-divergence-only
         # under notes/202608021625-divergence-qualification-policy.md, so there is no
@@ -47,7 +53,6 @@ SPEC = ModelSpec(
         # ESS 9,491) and the ranking is unmoved — identical rank order, max change in
         # p_abs_gt_delta 0.008. Its hs-002/003/004 siblings still pass at 0.99.
         "target_accept": 0.999,
-        "gb_reference": "lrp-rli-gbg-012",
     },
 )
 

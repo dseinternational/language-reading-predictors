@@ -66,6 +66,10 @@ from language_reading_predictors.statistical_models.historical_joint import (
     HistoricalJointRunPlan,
     resolve_historical_joint_run_plan,
 )
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeRunPlan,
+    resolve_horseshoe_run_plan,
+)
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     declared_settings_dict,
@@ -2872,6 +2876,14 @@ def _dose_response_run_plan(
     return resolve_dose_response_run_plan(context.spec)
 
 
+def _horseshoe_run_plan(context: StatisticalFitContext) -> HorseshoeRunPlan:
+    """Return the horseshoe plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, HorseshoeRunPlan):
+        return resolved_plan
+    return resolve_horseshoe_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2906,6 +2918,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _block_exposure_run_plan(context)
     if context.spec.kind == "dose_response":
         return _dose_response_run_plan(context)
+    if context.spec.kind == "horseshoe":
+        return _horseshoe_run_plan(context)
     return None
 
 
