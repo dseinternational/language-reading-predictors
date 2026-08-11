@@ -30,6 +30,9 @@ design behaving, not a power failure.
 """
 
 from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.statistical_models.block_exposure import (
+    BlockExposureModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_block_exposure
 
@@ -41,15 +44,15 @@ SPEC = ModelSpec(
         "vocabulary (UE2)"
     ),
     outcome_symbol="UE2",
-    extra={
+    model_settings=BlockExposureModelSettings(
         # Identical to LRPBX03 in every respect except delta_prior_sigma.
-        "ability_covariate": V.BLOCKS,
-        "adjust_for": ("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
-        "use_child_re": True,
+        ability_covariate=V.BLOCKS,
+        adjust_for=("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
+        use_child_re=True,
         # The single free variable (#382 rec 4): the focal exposure effect's
         # prior widens from the distal-tier Normal(0, 0.3) to Normal(0, 0.5).
-        "delta_prior_sigma": 0.5,
-    },
+        delta_prior_sigma=0.5,
+    ),
 )
 
 

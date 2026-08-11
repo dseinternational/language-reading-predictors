@@ -17,6 +17,9 @@ so the only difference is the outcome.
 """
 
 from language_reading_predictors.data_variables import Variables as V
+from language_reading_predictors.statistical_models.block_exposure import (
+    BlockExposureModelSettings,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_block_exposure
 
@@ -25,11 +28,11 @@ SPEC = ModelSpec(
     kind="block_exposure",
     title="Block-2 not-taught expressive vocabulary, block-active exposure (UE2)",
     outcome_symbol="UE2",
-    extra={
-        "ability_covariate": V.BLOCKS,
-        "adjust_for": ("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
-        "use_child_re": True,
-    },
+    model_settings=BlockExposureModelSettings(
+        ability_covariate=V.BLOCKS,
+        adjust_for=("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
+        use_child_re=True,
+    ),
 )
 
 

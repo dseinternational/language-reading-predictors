@@ -34,6 +34,10 @@ from language_reading_predictors.statistical_models.aligned import (
     AlignedRunPlan,
     resolve_aligned_run_plan,
 )
+from language_reading_predictors.statistical_models.block_exposure import (
+    BlockExposureRunPlan,
+    resolve_block_exposure_run_plan,
+)
 from language_reading_predictors.statistical_models.concurrent import (
     ConcurrentRunPlan,
     resolve_concurrent_run_plan,
@@ -2844,6 +2848,16 @@ def _survival_run_plan(context: StatisticalFitContext) -> SurvivalRunPlan:
     return resolve_survival_run_plan(context.spec)
 
 
+def _block_exposure_run_plan(
+    context: StatisticalFitContext,
+) -> BlockExposureRunPlan:
+    """Return the block-exposure plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, BlockExposureRunPlan):
+        return resolved_plan
+    return resolve_block_exposure_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2874,6 +2888,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _mechanism_run_plan(context)
     if context.spec.kind == "survival":
         return _survival_run_plan(context)
+    if context.spec.kind == "block_exposure":
+        return _block_exposure_run_plan(context)
     return None
 
 
