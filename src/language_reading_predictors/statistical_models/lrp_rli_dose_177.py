@@ -25,6 +25,9 @@ dose, which would block the path being estimated.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.dose_response import (
+    DoseResponseModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_dose_response
 
 SPEC = ModelSpec(
@@ -33,14 +36,16 @@ SPEC = ModelSpec(
     title="Dose-response (ability-adjusted sensitivity) - LRP77 + baseline-skill cluster",
     outcome_symbol="W",
     adjustment=["G", "A", "W_pre", "L_pre", "E_pre", "B_pre"],
-    extra={
-        "adjust_baseline_symbol": "W",
-        "dose_covariate": "attend",
+    model_settings=DoseResponseModelSettings(
+        adjust_baseline_symbol="W",
+        dose_covariate="attend",
         # No cumulative-dose (attend_cumul) control — IS collider (#269).
-        "period_varying_dose": True,
-        "use_subject_random_intercept": True,
-        "ability_adjust_symbols": ("L", "E", "B"),
-        "outcomes": ("W", "L", "E", "B"),
+        period_varying_dose=True,
+        use_subject_random_intercept=True,
+        ability_adjust_symbols=("L", "E", "B"),
+        outcomes=("W", "L", "E", "B"),
+    ),
+    extra={
         # The worst of the dose family at the reporting preset's 0.95 — 23 divergences,
         # unsurprising given the extra baseline-skill cluster on the same funnelled
         # dose-slope geometry. 0.99 clears it (0 divergences, R-hat 1.002, min ESS

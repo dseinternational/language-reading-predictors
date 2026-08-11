@@ -23,7 +23,9 @@ from language_reading_predictors.models._reporting import (
 )
 from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
+    dose_response as _dose_response,
     factories as _factories,
+    reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -63,41 +65,24 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     """
     require_spec(spec, "dose_response")
 
+    # Resolve family settings before ``make_context`` can reset the output
+    # directory and before preparation reads RLI data (#394 pillar 4).
+    plan = _dose_response.resolve_dose_response_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    dose_cov = spec.extra.get("dose_covariate", "attend")
-    # Default OFF (issue #269): the cumulative-dose (attend_cumul) control conditions
-    # on the IS collider; only the flagged sensitivity variant sets it.
-    dose_stage_cov = spec.extra.get("dose_stage_covariate")
-    ability = tuple(spec.extra.get("ability_adjust_symbols", ()))
-    outcomes = tuple(spec.extra.get("outcomes", (spec.outcome_symbol or "W",)))
-    cov_cols = tuple(c for c in (dose_cov, dose_stage_cov) if c)
-    prepared = load_and_prepare(
-        phase_mode="all", outcomes=outcomes, covariates=cov_cols
-    )
+    prepared = load_and_prepare(**plan.prepare_kwargs())
     ctx.prepared = prepared
 
     print_header(ctx)
 
     section_header("Build model")
 
-    period_varying = spec.extra.get("period_varying_dose", True)
-    adjust_group = spec.extra.get("adjust_group", True)
-    adjust_age = spec.extra.get("adjust_age", True)
     built = _factories.build_dose_response_model(
         prepared,
-        outcome_symbol=spec.outcome_symbol or "W",
-        adjust_baseline_symbol=spec.extra.get("adjust_baseline_symbol", "W"),
-        dose_covariate=dose_cov,
-        dose_stage_covariate=dose_stage_cov,
-        period_varying_dose=period_varying,
-        use_subject_random_intercept=spec.extra.get(
-            "use_subject_random_intercept", True
-        ),
-        adjust_group=adjust_group,
-        adjust_age=adjust_age,
-        ability_adjust_symbols=ability,
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
 
@@ -105,38 +90,28 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
+    _diag.save_prior_predictive_plot(ctx, plan.outcome_symbol)
 
-    run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
-    dose_vars = ["alpha", "gamma_own", "kappa"]
-    if spec.extra.get("use_subject_random_intercept", True):
-        dose_vars.append("sigma_child")
-    if adjust_group:
-        dose_vars.append("beta_G")
-    if adjust_age:
-        dose_vars.append("gamma_A")
-    if period_varying:
-        dose_vars.extend(["mu_dose", "sigma_dose", "beta_dose_phase"])
-    else:
-        dose_vars.append("beta_dose")
-    if dose_stage_cov is not None:
-        dose_vars.append("gamma_dose_stage")
-    dose_vars.extend(f"gamma_{s}_pre" for s in ability)
+    dose_vars = plan.diagnostic_vars()
     _diag.summary_diagnostics(ctx, var_names=dose_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=dose_vars)
 
-    run_ppc(ctx)
+    run_ppc(ctx, var_names=[plan.observation_node])
 
     section_header("Extended diagnostics")
-    _dose_effect = "mu_dose" if period_varying else "beta_dose"
     _diag.write_diagnostics_summary(ctx, var_names=dose_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term=_dose_effect)
+    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
 
     section_header("Dose-slope summary")
-    write_dose_slope_summary(ctx, period_varying=period_varying)
+    write_dose_slope_summary(
+        ctx,
+        period_varying=plan.period_varying_dose,
+        dose_covariate=plan.dose_covariate,
+    )
 
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=dose_vars)
@@ -145,8 +120,8 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         extra={
             "loo_elpd": float(ctx.loo.elpd),
             "adjustment": spec.adjustment,
-            "period_varying_dose": period_varying,
-            "ability_adjust_symbols": list(ability),
+            "period_varying_dose": plan.period_varying_dose,
+            "ability_adjust_symbols": list(plan.ability_adjust_symbols),
         },
     )
 
@@ -179,7 +154,10 @@ def _summarise_draws(
 
 
 def write_dose_slope_summary(
-    ctx: StatisticalFitContext, *, period_varying: bool
+    ctx: StatisticalFitContext,
+    *,
+    period_varying: bool,
+    dose_covariate: str = "attend",
 ) -> None:
     """Posterior dose slope (overall + per-period) on the per-1-SD logit scale."""
     post = ctx.trace.posterior
@@ -206,7 +184,6 @@ def write_dose_slope_summary(
         rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), ci_prob)})
 
     df = pd.DataFrame(rows)
-    dose_covariate = ctx.spec.extra.get("dose_covariate", "attend")
     dose_scaler = ctx.prepared.covariate_scalers[dose_covariate]
     # Persist the original standardisation so downstream named-confounder
     # calibration can put slopes from separately fitted outcomes onto one common

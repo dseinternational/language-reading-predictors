@@ -31,7 +31,7 @@ earlier version adjusted via ``dose_stage_covariate`` — reopening the latent-G
 back door. That term is **dropped** from the headline here (#269); so nothing
 downstream of, or aggregating, the focal dose is conditioned on. It remains
 available only as a **flagged sensitivity option** (set
-``extra["dose_stage_covariate"] = "attend_cumul"``, the dose-response analogue of
+``DoseResponseModelSettings(dose_stage_covariate="attend_cumul")``, the dose-response analogue of
 the aligned family's cumulative-session collider sensitivity) — read any movement
 of the slope under it as a back-door sensitivity, not a better estimate. Dose has
 one parent,
@@ -62,6 +62,9 @@ G=0 = waitlist control; positive = benefit), per the #117 sign convention.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.dose_response import (
+    DoseResponseModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_dose_response
 
 SPEC = ModelSpec(
@@ -70,15 +73,17 @@ SPEC = ModelSpec(
     title="Period-resolved dose-response: intervention dose -> word reading (W)",
     outcome_symbol="W",
     adjustment=["G", "A", "W_pre"],
-    extra={
-        "adjust_baseline_symbol": "W",
-        "dose_covariate": "attend",
+    model_settings=DoseResponseModelSettings(
+        adjust_baseline_symbol="W",
+        dose_covariate="attend",
         # No cumulative-dose (attend_cumul) control: it conditions on the IS collider
         # and reopens the latent-GA backdoor (#269). It is available only as a flagged
         # sensitivity option (set dose_stage_covariate="attend_cumul").
-        "period_varying_dose": True,
-        "use_subject_random_intercept": True,
-        "outcomes": ("W",),
+        period_varying_dose=True,
+        use_subject_random_intercept=True,
+        outcomes=("W",),
+    ),
+    extra={
         # The period-varying dose slope over a subject random intercept is a mildly
         # funnelled geometry: at the reporting preset's 0.95 this fit returned 8
         # divergences, which the strict gate requires to be zero and which the

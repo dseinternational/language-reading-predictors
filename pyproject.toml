@@ -80,6 +80,7 @@ files = [
   "src/language_reading_predictors/statistical_models/concurrent.py",
   "src/language_reading_predictors/statistical_models/did.py",
   "src/language_reading_predictors/statistical_models/documentation.py",
+  "src/language_reading_predictors/statistical_models/dose_response.py",
   "src/language_reading_predictors/statistical_models/gain_factors.py",
   "src/language_reading_predictors/statistical_models/growth.py",
   "src/language_reading_predictors/statistical_models/historical_growth.py",

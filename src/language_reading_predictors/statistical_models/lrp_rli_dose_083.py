@@ -28,6 +28,9 @@ ability->dose edge -- read the slope with that in mind. G is coded ``G = 2 - gro
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.dose_response import (
+    DoseResponseModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_dose_response
 
 SPEC = ModelSpec(
@@ -36,12 +39,14 @@ SPEC = ModelSpec(
     title="Period-resolved dose-response: intervention dose -> letter sounds (L)",
     outcome_symbol="L",
     adjustment=["G", "A", "L_pre"],
+    model_settings=DoseResponseModelSettings(
+        adjust_baseline_symbol="L",
+        dose_covariate="attend",
+        period_varying_dose=True,
+        use_subject_random_intercept=True,
+        outcomes=("L",),
+    ),
     extra={
-        "adjust_baseline_symbol": "L",
-        "dose_covariate": "attend",
-        "period_varying_dose": True,
-        "use_subject_random_intercept": True,
-        "outcomes": ("L",),
         # Same period-varying dose geometry as LRP77: 3 divergences at the reporting
         # preset's 0.95, 0 at 0.99 (R-hat 1.002, min ESS 3,960). See
         # notes/202608050649-reporting-refit-predictive-checks.md.

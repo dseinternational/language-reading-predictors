@@ -46,6 +46,10 @@ from language_reading_predictors.statistical_models.did import (
     DiDRunPlan,
     resolve_did_run_plan,
 )
+from language_reading_predictors.statistical_models.dose_response import (
+    DoseResponseRunPlan,
+    resolve_dose_response_run_plan,
+)
 from language_reading_predictors.statistical_models.gain_factors import (
     GainFactorsRunPlan,
     resolve_gain_factors_run_plan,
@@ -2858,6 +2862,16 @@ def _block_exposure_run_plan(
     return resolve_block_exposure_run_plan(context.spec)
 
 
+def _dose_response_run_plan(
+    context: StatisticalFitContext,
+) -> DoseResponseRunPlan:
+    """Return the dose-response plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, DoseResponseRunPlan):
+        return resolved_plan
+    return resolve_dose_response_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2890,6 +2904,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _survival_run_plan(context)
     if context.spec.kind == "block_exposure":
         return _block_exposure_run_plan(context)
+    if context.spec.kind == "dose_response":
+        return _dose_response_run_plan(context)
     return None
 
 
