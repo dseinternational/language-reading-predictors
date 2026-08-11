@@ -3,7 +3,7 @@
 # Findings — is there a minimum word-reading level before letter sounds, blending or nonword reading can progress?
 
 > [!NOTE]
-> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); 2026-08-08 issue-decision updates by Codex/GPT-5. Asks one question of the existing data in three forms: descriptively (do children who read no words progress at all?), by band contrast, and by fitting a **free-breakpoint threshold model** against smooth alternatives and comparing them by PSIS-LOO. All fits are exploratory scratch fits from `notes/assets/202607241900-wr-threshold-probe.py`, not registered models — they bypass the production convergence gate, though every one is clean (0 divergences, max R-hat 1.01, min bulk ESS 581). **Nothing here is causal.** Latent general ability is unobserved and unblockable; the only randomisation-licensed effect in the study is the ITT arm. Preliminary — n ≈ 52 children, 143–162 child-period transitions, exploratory study.
+> Drafted by a LLM-based AI tool (Claude Code/Opus 4.8); 2026-08-08 and 2026-08-10 issue-decision updates by Codex/GPT-5. Asks one question of the existing data in three forms: descriptively (do children who read no words progress at all?), by band contrast, and by fitting a **free-breakpoint threshold model** against smooth alternatives and comparing them by PSIS-LOO. All fits are exploratory scratch fits from `notes/assets/202607241900-wr-threshold-probe.py`, not registered models — they bypass the production convergence gate, though every one is clean (0 divergences, max R-hat 1.01, min bulk ESS 581). **Nothing here is causal.** Latent general ability is unobserved and unblockable; the only randomisation-licensed effect in the study is the ITT arm. Preliminary — n ≈ 52 children, 143–162 child-period transitions, exploratory study.
 
 ## Why this note exists
 
@@ -16,6 +16,12 @@ The practical question behind it is a teaching one: **must a child be reading so
 The companion note ([word-reading bands](202607241600-findings-word-reading-bands.md)) asked what word-reading standing _goes with_ and found, descriptively, that children in the top word-reading half were far more likely to leave the nonword floor. This note asks the sharper version of that: is the relationship a **prerequisite** — nothing happens below some level of reading, then progress becomes possible — or an ordinary **gradient**?
 
 Reproducible asset: [`202607241900-wr-threshold-probe.py`](assets/202607241900-wr-threshold-probe.py). CSVs land in `output/notes/202607241900-wr-threshold/`.
+
+## Promotion-status correction (2026-08-10)
+
+The graded nonword finding below does **not** unblock a production model. Its `18 ± 4.4` expected-log-predictive-density comparison concerns a graded Beta-Binomial outcome among transitions with `N_pre <= 4`; it is not evidence that the proposed Bernoulli true-floor-exit model distinguishes `log1p(W_pre)` from a genuine no-exposure null. The raw floor-exit counts are descriptive only. The pre-fit method decision in [`202608101700-nonword-floor-exit-method-decision.md`](202608101700-nonword-floor-exit-method-decision.md) therefore required a fresh two-population by two-prior Bernoulli promotion grid before registration.
+
+That grid is now complete. All eight fits passed cleanly and all four full models beat their matched nulls by 8.3 to 13.3 expected log predictive-density units, with no unreliable Pareto values. The association's direction is stable, but its practical magnitude is not: widening the transformed-slope prior from `Normal(0, 0.3)` to `Normal(0, 1)` moves the median zero-to-five-word floor-exit risk difference from +0.245 to +0.390 in the full population, a 0.145 change that exceeds the pre-specified 0.10 tolerance. The locked rule therefore returns **do not promote**. See [`202608101730-nonword-floor-exit-promotion-decision.md`](202608101730-nonword-floor-exit-promotion-decision.md) for intervals, diagnostics, row identities and the full audit.
 
 ## The answer in one paragraph
 
@@ -123,7 +129,7 @@ Applying the project's descriptive-claims discipline:
 
 ## What would be worth building
 
-**One descriptive model is now unblocked.** The nonword result is the only one here strong enough to be worth registering, and its shape (concave, off-floor) is not what the current `mechanism` family fits by default. #428 adopts the `WR_t → NW_{t+1}` edge, but the wide backdoor set means the model specified in #433 must still ship with `causal_status="none"` and `estimand_type="descriptive"`.
+**Do not register the descriptive model.** The Bernoulli promotion probe confirms that word reading is predictively useful for conditional transition prediction, but the zero-to-five-word risk difference changes by about 15 percentage points under the pre-specified slope-prior sensitivity. That fails the locked stability rule. #433 should close when the decision merges; a future model would need independently justified prior elicitation or new data, not a post-hoc choice of the more convenient magnitude. The wide backdoor set and latent general-ability problem remain, so even a future candidate would still require `causal_status="none"` and `estimand_type="descriptive"`.
 
 **Nothing further for letter sounds or blending.** The existing `lcsm-082` already estimates the reading → blending coupling. The optional reverse-coupling LCSM for letter sounds in #429 is not planned: `med-176` already addresses direction, while a second fit would inherit the same latent-general-ability problem and is not currently tied to an independent per-transition estimand.
 
