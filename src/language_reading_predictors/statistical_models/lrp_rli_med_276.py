@@ -30,6 +30,9 @@ intrinsically under-powered.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -46,7 +49,7 @@ SPEC = ModelSpec(
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
     ],
     # Outcome at t3 (mediator W stays at t2): the less-ceilinged ceiling-sensitivity.
-    extra={"outcome_time": 3},
+    model_settings=MediationModelSettings(outcome_time=3),
 )
 
 

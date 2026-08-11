@@ -42,6 +42,9 @@ STRONG CAVEATS specific to this model:
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -59,7 +62,7 @@ SPEC = ModelSpec(
     ],
     # N is outside ITT_OUTCOMES, so name the symbols the model loads (outcome +
     # mediator + confounders); restricts the complete-case mask to them.
-    extra={"outcomes": ("W", "N", "E", "R")},
+    model_settings=MediationModelSettings(outcomes=("W", "N", "E", "R")),
 )
 
 

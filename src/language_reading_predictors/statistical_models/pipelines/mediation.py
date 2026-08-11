@@ -29,6 +29,8 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
+    mediation_settings as _settings,
+    reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -36,12 +38,9 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_lagged_outcome,
-    split_confounders_by_timing,
-    split_covariates_by_wave,
 )
 from language_reading_predictors.statistical_models.publication import (
     print_header,
@@ -65,8 +64,8 @@ def _raw_covariate_confounders(confounders: Iterable[str]) -> tuple[str, ...]:
     """The confounders that are raw covariates, needing ``covariates=`` loading.
 
     A mediation adjustment set mixes two kinds of confounder: bounded-count skill
-    measures (E, R, ...) that arrive via ``prepared.pre_logit`` (they are in
-    ``ITT_OUTCOMES`` or ``spec.extra['outcomes']``), and revised-DAG raw covariates
+    measures (E, R, ...) that arrive via ``prepared.pre_logit`` (they are in the
+    default or typed outcome set), and revised-DAG raw covariates
     (hearing ``hs``/``hs_missing``, speech ``deapp_c``, phonological memory
     ``erbto`` + missing indicators; #246) that must be requested as ``covariates``.
     A symbol is a raw covariate exactly when it is not a bounded-count measure.
@@ -83,10 +82,7 @@ def _fit_t3_sensitivity(
     ctx: StatisticalFitContext,
     spec: ModelSpec,
     *,
-    confounders: tuple[str, ...],
-    mediator_kind: str,
-    outcome_kind: str,
-    route_symbols: tuple[str, ...],
+    plan: _settings.MediationRunPlan,
 ):
     """Temporal-ordering sensitivity fit for the mediation models (issue #84).
 
@@ -99,27 +95,24 @@ def _fit_t3_sensitivity(
     """
     from language_reading_predictors.statistical_models import mediation as _med
 
-    outcome_symbol = spec.outcome_symbol or "W"
-    # Match the primary fit's load set so a mediator/confounder outside
-    # ITT_OUTCOMES (TE, N) is present in the lagged-outcome frame too.
-    _extra_outcomes = spec.extra.get("outcomes")
-    _lag_kwargs = (
-        {"outcomes": tuple(_extra_outcomes)} if _extra_outcomes is not None else {}
+    outcome_symbol = plan.outcome_symbol
+    lag_kwargs = (
+        {"outcomes": plan.outcomes} if plan.outcomes is not None else {}
     )
     prepared_t3 = load_and_prepare_lagged_outcome(
         outcome_symbol,
         outcome_time=_T3_SENSITIVITY_TIME,
-        covariates=_raw_covariate_confounders(confounders),
-        **_lag_kwargs,
+        covariates=_raw_covariate_confounders(plan.effective_confounders),
+        **lag_kwargs,
     )
     built_t3, med_t3 = _factories.build_mediation_model(
         prepared_t3,
-        mediator_symbol=spec.mechanism_symbol or "L",
+        mediator_symbol=plan.mediator_symbol,
         outcome_symbol=outcome_symbol,
-        confounder_symbols=confounders,
-        mediator_kind=mediator_kind,
-        outcome_kind=outcome_kind,
-        route_symbols=route_symbols,
+        confounder_symbols=plan.effective_confounders,
+        mediator_kind=plan.mediator_kind,
+        outcome_kind=plan.outcome_kind,
+        route_symbols=plan.route_symbols,
     )
     # Gate this temporal-ordering sensitivity sub-fit (bypasses the primary gate).
     # ``convergence_scope="all"`` keeps the scan this fit has always used: every
@@ -148,6 +141,24 @@ def _fit_t3_sensitivity(
     return df_t3
 
 
+def _prepare_mediation_data(plan: _settings.MediationRunPlan):
+    """Execute the single-mediator loader contract from a resolved plan."""
+    if plan.entrypoint != "single":
+        raise ValueError("prepare_mediation_data does not accept a period-stacked plan")
+    kwargs = plan.prepare_kwargs()
+    if plan.outcome_time is not None:
+        outcome_symbol = kwargs.pop("outcome_symbol")
+        prepared = load_and_prepare_lagged_outcome(outcome_symbol, **kwargs)
+    else:
+        prepared = load_and_prepare(**kwargs)
+    confounders = tuple(
+        symbol
+        for symbol in plan.declared_confounders
+        if symbol in prepared.covariates or symbol in prepared.pre_logit
+    )
+    return prepared, confounders
+
+
 def prepare_mediation_data(spec: ModelSpec):
     """Load the exact rows and fitted confounder set for a mediation spec.
 
@@ -155,60 +166,7 @@ def prepare_mediation_data(spec: ModelSpec):
     mediation sample and its mediator standardiser without refitting the posterior.
     """
     require_spec(spec, "mediation")
-    # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
-    mediator_symbol = spec.mechanism_symbol or "L"
-    # Drop the structural markers and the mediator's own baseline ({mediator}_t1,
-    # handled inside the factory) from the adjustment set; the rest are confounders.
-    # The set mixes bounded-count skill measures (E, R — arriving via pre_logit) and
-    # revised-DAG RAW covariates (hearing ``hs``/``hs_missing``, speech ``deapp_c``,
-    # phonological memory ``erbto`` + indicators; #246), which must be requested as
-    # covariates and are taken from the t1 pre-row (treatment-unaffected). Models
-    # with no raw covariates get ``covariates=()`` — a no-op, so LRP59/62/64/66 and
-    # the #263 mediation family are unchanged unless a spec adds raw confounders.
-    confounders = tuple(
-        s
-        for s in spec.adjustment
-        if s not in ("G", "A", "W_pre", f"{mediator_symbol}_t1")
-    )
-    _raw_cov = _raw_covariate_confounders(confounders)
-    # A mediator or confounder outside ``ITT_OUTCOMES`` (e.g. taught-expressive TE,
-    # nonword N) must be requested via ``extra["outcomes"]`` so it is loaded; this
-    # also restricts the complete-case mask to the symbols the model uses (mirrors
-    # fit_itt).
-    _extra_outcomes = spec.extra.get("outcomes")
-    _outcome_time = spec.extra.get("outcome_time")
-    if _outcome_time is not None:
-        # Longitudinal-ordering primary fit (LRP76): the mediator stays at t2 but
-        # the outcome is taken from a later wave (t3/t4), so the mediator strictly
-        # precedes the outcome — promoting the temporal-ordering check from a
-        # sensitivity to the primary estimand. The t2 -> t{outcome_time} increment
-        # is NOT randomised (both arms treated after t2), so this is a
-        # triangulation design, read under stated assumptions, not a cleaner τ.
-        _lag_outcomes = (
-            tuple(_extra_outcomes) if _extra_outcomes is not None else ITT_OUTCOMES
-        )
-        prepared = load_and_prepare_lagged_outcome(
-            spec.outcome_symbol or "W",
-            outcome_time=int(_outcome_time),
-            outcomes=_lag_outcomes,
-            covariates=_raw_cov,
-        )
-    elif _extra_outcomes is not None:
-        prepared = load_and_prepare(
-            phase_mode="itt",
-            outcomes=tuple(_extra_outcomes),
-            covariates=_raw_cov,
-            drop_missing_pre=bool(spec.extra.get("drop_missing_pre", True)),
-        )
-    else:
-        prepared = load_and_prepare(phase_mode="itt", covariates=_raw_cov)
-    # A missing-indicator can be constant on the ITT-phase rows (SP/RW are near-
-    # complete at t1) and be dropped by the loader; keep only confounders actually
-    # present, so no vacuous coefficient is fitted for a dropped covariate.
-    confounders = tuple(
-        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
-    )
-    return prepared, confounders
+    return _prepare_mediation_data(_settings.resolve_mediation_run_plan(spec))
 
 
 def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -216,43 +174,37 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
 
+    plan = _settings.resolve_mediation_run_plan(spec)
+    if plan.entrypoint != "single":
+        raise ValueError(
+            f"{spec.model_id}: period-stacked settings require "
+            "fit_mediation_period_stacked"
+        )
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    mediator_symbol = spec.mechanism_symbol or "L"
-    _outcome_time = spec.extra.get("outcome_time")
-    prepared, confounders = prepare_mediation_data(spec)
+    prepared, confounders = _prepare_mediation_data(plan)
+    if confounders != plan.effective_confounders:
+        plan = plan.with_effective_confounders(confounders)
+        ctx.resolved_plan = plan
+        _report.write_model_recipe(ctx)
     ctx.prepared = prepared
 
     print_header(ctx)
 
     section_header("Build model")
 
-    mediator_kind = spec.extra.get("mediator_kind", "beta_binomial")
-    route_symbols = tuple(spec.extra.get("route_symbols", ()))
-    # Off-floor (Bernoulli) OUTCOME for a heavily-floored outcome such as nonword N
-    # (#228 item 12): the outcome leg becomes a Bernoulli on the off-floor indicator
-    # (node "y_offfloor") and the g-formula reports NIE/NDE on the off-floor
-    # risk-difference scale. Default "beta_binomial" keeps every existing med model
-    # byte-identical.
-    outcome_kind = spec.extra.get("outcome_kind", "beta_binomial")
+    outcome_kind = plan.outcome_kind
     off_floor = outcome_kind == "bernoulli_offfloor"
-    outcome_node = "y_offfloor" if off_floor else "y_post"
+    mediator_node, outcome_node = plan.observation_nodes
     built, med_data = _factories.build_mediation_model(
         prepared,
-        mediator_symbol=mediator_symbol,
-        outcome_symbol=spec.outcome_symbol or "W",
-        confounder_symbols=confounders,
-        mediator_kind=mediator_kind,
-        route_symbols=route_symbols,
-        outcome_kind=outcome_kind,
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
 
-    # The mediator observed node differs by kind: Beta-Binomial "{mediator}_post"
-    # vs the Gaussian composite "M_post".
-    is_gaussian = mediator_kind == "gaussian_composite"
-    mediator_node = "M_post" if is_gaussian else f"{mediator_symbol}_post"
     # Diagnose every scalar coefficient the model actually built (deterministics
     # and the observed mediator/outcome nodes are not free RVs), so the list
     # tracks the fitted confounder set instead of a hand-maintained constant.
@@ -264,9 +216,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.run_prior_predictive(ctx, draws=1000)
     # The mediator likelihood is the FIRST observed RV, so name the outcome node
     # explicitly — else the plot overlays mediator draws on the outcome's counts.
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node=outcome_node)
+    _diag.save_prior_predictive_plot(ctx, plan.outcome_symbol, node=outcome_node)
 
-    run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
@@ -284,7 +236,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.save_prior_posterior_plot(ctx, var_names=coef_vars)
 
     section_header("Mediation decomposition (g-formula)")
-    _interventional = spec.extra.get("estimand") == "interventional"
+    _interventional = plan.estimand == "interventional"
     med_df = _med.decompose(
         ctx.trace,
         med_data,
@@ -376,15 +328,12 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Skipped when the primary fit is ALREADY longitudinal (outcome_time set, LRP76)
     # — the sensitivity would double-lag and duplicate the primary estimand.
     med_df_t3 = None
-    if _outcome_time is None and not _interventional:
+    if plan.outcome_time is None and not _interventional:
         section_header("Temporal-ordering sensitivity (outcome at t3)")
         med_df_t3 = _fit_t3_sensitivity(
             ctx,
             spec,
-            confounders=confounders,
-            mediator_kind=mediator_kind,
-            outcome_kind=outcome_kind,
-            route_symbols=route_symbols,
+            plan=plan,
         )
         save_table(ctx, "mediation_summary_t3", med_df_t3)
         print_table(
@@ -392,7 +341,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
                 med_df_t3,
                 title=(
                     "Temporal-ordering sensitivity "
-                    f"(outcome {spec.outcome_symbol or 'W'} at t3; NOT randomised)"
+                    f"(outcome {plan.outcome_symbol} at t3; NOT randomised)"
                 ),
                 columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
                 rank_column=False,
@@ -405,16 +354,14 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # separately (#246 review, P2). A raw covariate can be dropped by the loader
     # when its missing-indicator is constant on the ITT rows; recording only
     # ``spec.adjustment`` would then imply a coefficient that was never estimated.
-    _requested_raw = _raw_covariate_confounders(
-        s for s in spec.adjustment if s not in ("G", "A", "W_pre", f"{mediator_symbol}_t1")
-    )
+    _requested_raw = plan.raw_covariates
     _extra_meta = {
         "adjustment": spec.adjustment,
         "effective_confounders": list(confounders),
         "dropped_confounders": [c for c in _requested_raw if c not in confounders],
         "estimand": "interventional" if _interventional else "natural",
         "outcome_kind": outcome_kind,
-        "companion_of": spec.extra.get("companion_of"),
+        "companion_of": plan.companion_of,
         "n_obs": prepared.n_obs,
         "mediation": _summary,
     }
@@ -422,8 +369,8 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         _extra_meta["mediation_t3_sensitivity"] = {
             r["quantity"]: r for r in med_df_t3.to_dict("records")
         }
-    if _outcome_time is not None:
-        _extra_meta["outcome_time"] = int(_outcome_time)
+    if plan.outcome_time is not None:
+        _extra_meta["outcome_time"] = plan.outcome_time
     if is_calibration is not None:
         _extra_meta["is_calibration"] = is_calibration.iloc[0].to_dict()
     write_run_metadata(ctx, extra=_extra_meta)
@@ -453,45 +400,38 @@ def fit_mediation_period_stacked(
     require_spec(spec, "mediation")
     from language_reading_predictors.statistical_models import mediation as _med
 
+    plan = _settings.resolve_mediation_run_plan(spec)
+    if plan.entrypoint != "period_stacked":
+        raise ValueError(
+            f"{spec.model_id}: single-mediator settings require fit_mediation"
+        )
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    mediator_symbol = spec.mechanism_symbol or "L"
-    outcome_symbol = spec.outcome_symbol or "W"
-    # Structural markers aside, the adjustment list is the confounder set; the
-    # raw covariates take the gain-factor timing split (hearing contemporaneous,
-    # speech/phonological memory at the t1 baseline — the A1 timing decision).
-    confounders = tuple(
-        s
-        for s in spec.adjustment
-        if s not in ("T", "A", "W_pre", f"{mediator_symbol}_pre")
-    )
-    raw_cov = _raw_covariate_confounders(confounders)
-    pre_adj, post_adj = split_covariates_by_wave(raw_cov)
-    baseline_adj, post_adj = split_confounders_by_timing(post_adj)
-    measure_confounders = tuple(c for c in confounders if c not in raw_cov)
-    prepared = load_and_prepare(
-        phase_mode="all",
-        outcomes=(outcome_symbol, mediator_symbol, *measure_confounders),
-        covariates=pre_adj,
-        post_covariates=post_adj,
-        baseline_covariates=baseline_adj,
-    )
+    mediator_symbol = plan.mediator_symbol
+    outcome_symbol = plan.outcome_symbol
+    prepared = load_and_prepare(**plan.period_prepare_kwargs())
     ctx.prepared = prepared
     # Keep only confounders actually present (a constant ``_missing`` indicator
     # is dropped by the loader and gets no coefficient).
     confounders = tuple(
-        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
+        symbol
+        for symbol in plan.declared_confounders
+        if symbol in prepared.covariates or symbol in prepared.pre_logit
     )
+    if confounders != plan.effective_confounders:
+        plan = plan.with_effective_confounders(confounders)
+        ctx.resolved_plan = plan
+        _report.write_model_recipe(ctx)
 
     print_header(ctx)
 
     section_header("Build model")
     built, med_data = _factories.build_period_stacked_mediation_model(
         prepared,
-        mediator_symbol=mediator_symbol,
-        outcome_symbol=outcome_symbol,
-        confounder_symbols=confounders,
+        **plan.period_factory_kwargs(),
     )
     attach_built(ctx, built)
 
@@ -507,7 +447,7 @@ def fit_mediation_period_stacked(
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome_symbol, node="y_post")
 
-    run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
@@ -594,9 +534,7 @@ def fit_mediation_period_stacked(
             "unmeasured mediator-outcome confounder that strong would null the NIE."
         )
 
-    _requested_raw = _raw_covariate_confounders(
-        s for s in spec.adjustment if s not in ("T", "A", "W_pre", f"{mediator_symbol}_pre")
-    )
+    _requested_raw = plan.raw_covariates
     write_run_metadata(
         ctx,
         extra={
@@ -630,65 +568,35 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     require_spec(spec, "mediation_multi")
     from language_reading_predictors.statistical_models import mediation as _med
 
+    plan = _settings.resolve_mediation_multi_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    # Phase 0 only (t1 -> t2): the single randomised contrast. One row per child.
-    mediators = tuple(spec.extra.get("mediators", ("L", "E")))
-    # Drop the structural symbols and the two mediator baselines ({m}_t1) from the
-    # adjustment set; whatever remains are the measured mediator-outcome confounders
-    # C. Keyed off ``mediators`` so a non-(L, E) pair excludes its own baselines
-    # (LRP64 -> L_t1/E_t1; LRP66 -> L_t1/B_t1). The set mixes bounded-count measures
-    # (E, R — via pre_logit) and revised-DAG raw covariates (hs/deapp_c/erbto; #246 —
-    # requested as covariates, taken from the t1 pre-row); ``covariates=()`` is a
-    # no-op for models with no raw confounders.
-    _mediator_baselines = tuple(f"{m}_t1" for m in mediators)
-    confounders = tuple(
-        s
-        for s in spec.adjustment
-        if s not in ("G", "A", "W_pre", *_mediator_baselines)
-    )
-    _raw_cov = _raw_covariate_confounders(confounders)
-    _calibration = spec.extra.get("named_confounder_calibration")
-    _calibration_symbol = (
-        str(_calibration.get("symbol", "attend")) if _calibration else None
-    )
-    # A named-confounder calibration needs the observed covariate but must not add
-    # it to the fitted natural-effects model: IS is treatment-affected, so
-    # conditioning on it would not identify the NDE/NIE. It is loaded only for the
-    # post-fit, treated-arm omitted-variable-bias benchmark (#335).
-    _loaded_cov = tuple(
-        dict.fromkeys(
-            [*_raw_cov, *([_calibration_symbol] if _calibration_symbol else [])]
-        )
-    )
-    # A floored second mediator (e.g. nonword decoding N, med-081) is not in the
-    # default ITT outcome set, so load exactly the requested outcomes when given.
-    _load_outcomes = spec.extra.get("outcomes")
-    if _load_outcomes is not None:
-        prepared = load_and_prepare(
-            phase_mode="itt", covariates=_loaded_cov, outcomes=tuple(_load_outcomes)
-        )
-    else:
-        prepared = load_and_prepare(phase_mode="itt", covariates=_loaded_cov)
+    mediators = plan.mediators
+    calibration = plan.named_confounder_calibration
+    calibration_symbol = calibration.symbol if calibration else None
+    prepared = load_and_prepare(**plan.prepare_kwargs())
     # Drop any missing-indicator constant on the ITT-phase rows (see fit_mediation).
     confounders = tuple(
-        c for c in confounders if c in prepared.covariates or c in prepared.pre_logit
+        symbol
+        for symbol in plan.declared_confounders
+        if symbol in prepared.covariates or symbol in prepared.pre_logit
     )
+    if confounders != plan.effective_confounders:
+        plan = plan.with_effective_confounders(confounders)
+        ctx.resolved_plan = plan
+        _report.write_model_recipe(ctx)
     ctx.prepared = prepared
 
     print_header(ctx)
 
     section_header("Build model")
 
-    second_offfloor = bool(spec.extra.get("second_mediator_offfloor", False))
     built, med_data = _factories.build_two_mediator_model(
         prepared,
-        outcome_symbol=spec.outcome_symbol or "W",
-        mediator_symbols=mediators,
-        confounder_symbols=confounders,
-        chain=bool(spec.extra.get("chain", False)),
-        second_mediator_offfloor=second_offfloor,
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
 
@@ -703,9 +611,9 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.run_prior_predictive(ctx, draws=1000)
     # The mediator likelihood is the FIRST observed RV, so name the outcome node
     # explicitly — else the plot overlays mediator draws on the outcome's counts.
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W", node="y_post")
+    _diag.save_prior_predictive_plot(ctx, plan.outcome_symbol, node="y_post")
 
-    run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=coef_vars)
@@ -714,8 +622,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=coef_vars)
 
-    _m2_node = f"{mediators[1]}_offfloor" if second_offfloor else f"{mediators[1]}_post"
-    run_ppc(ctx, var_names=[f"{mediators[0]}_post", _m2_node, "y_post"])
+    run_ppc(ctx, var_names=list(plan.observation_nodes))
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
@@ -728,7 +635,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         ctx.trace,
         med_data,
         hdi_prob=ctx.reporting.ci_prob,
-        order=tuple(spec.extra.get("order", ("L", "E"))),
+        order=plan.order,
     )
     save_table(ctx, "mediation_summary", med_df)
     print_table(
@@ -749,7 +656,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         ctx.trace,
         med_data,
         ci_prob=ctx.reporting.ci_prob,
-        order=tuple(spec.extra.get("order", ("L", "E"))),
+        order=plan.order,
     )
     save_table(ctx, "mediation_sensitivity", sens_sweep)
     save_table(ctx, "mediation_sensitivity_summary", sens_summary)
@@ -787,13 +694,13 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
                 )
 
     calibration_df = None
-    if _calibration_symbol:
+    if calibration_symbol:
         section_header("Named-confounder calibration (intervention sessions)")
         calibration_df = _med.calibrate_session_confounding(
             built.prepared,
             med_data,
             sens_summary,
-            session_symbol=_calibration_symbol,
+            session_symbol=calibration_symbol,
         )
         save_table(ctx, "mediation_is_calibration", calibration_df)
         for conclusion in calibration_df["conclusion"]:
@@ -801,11 +708,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
     # Requested vs actually-fitted confounders, recorded separately (#246 review, P2).
-    _requested_raw = _raw_covariate_confounders(
-        s
-        for s in spec.adjustment
-        if s not in ("G", "A", "W_pre", *(f"{m}_t1" for m in mediators))
-    )
+    _requested_raw = plan.raw_covariates
     write_run_metadata(
         ctx,
         extra={

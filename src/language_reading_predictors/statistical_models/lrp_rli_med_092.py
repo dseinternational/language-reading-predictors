@@ -47,6 +47,9 @@ deliverable — never a replacement.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import (
     fit_mediation_period_stacked,
 )
@@ -67,7 +70,7 @@ SPEC = ModelSpec(
         "T", "A", "E", "R", "L_pre", "W_pre",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
     ],
-    extra={},
+    model_settings=MediationModelSettings(period_stacked=True),
 )
 
 

@@ -35,6 +35,9 @@ from language_reading_predictors.statistical_models.mediation_calibration import
     IS_CALIBRATION_SOURCES,
     generate_is_calibration,
 )
+from language_reading_predictors.statistical_models.mediation_settings import (
+    resolve_mediation_run_plan,
+)
 from language_reading_predictors.statistical_models.pipeline import (
     prepare_mediation_data,
 )
@@ -96,15 +99,12 @@ def regenerate_one(output_dir: Path, models: dict) -> pd.DataFrame:
         raise ValueError(f"{model_id} is not an IS-calibration target")
     module = models[model_id]
     spec = module.SPEC
+    plan = resolve_mediation_run_plan(spec)
     prepared, confounders = prepare_mediation_data(spec)
+    plan = plan.with_effective_confounders(confounders)
     built, med_data = _factories.build_mediation_model(
         prepared,
-        mediator_symbol=spec.mechanism_symbol or "L",
-        outcome_symbol=spec.outcome_symbol or "W",
-        confounder_symbols=confounders,
-        mediator_kind=spec.extra.get("mediator_kind", "beta_binomial"),
-        route_symbols=tuple(spec.extra.get("route_symbols", ())),
-        outcome_kind=spec.extra.get("outcome_kind", "beta_binomial"),
+        **plan.factory_kwargs(),
     )
     sweep = pd.read_csv(sensitivity_path)
     sensitivity_summary = pd.read_csv(summary_path).iloc[0].to_dict()

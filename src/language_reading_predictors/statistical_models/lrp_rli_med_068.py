@@ -42,6 +42,9 @@ outcome are the same wave (no temporal precedence); ``n ~ 53`` means wide interv
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -59,7 +62,7 @@ SPEC = ModelSpec(
     ],
     # TE is outside ITT_OUTCOMES, so name the symbols the model loads (outcome +
     # mediator + confounders); restricts the complete-case mask to them.
-    extra={"outcomes": ("W", "TE", "L", "R")},
+    model_settings=MediationModelSettings(outcomes=("W", "TE", "L", "R")),
 )
 
 

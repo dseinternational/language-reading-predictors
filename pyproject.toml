@@ -92,6 +92,7 @@ files = [
   "src/language_reading_predictors/statistical_models/level_factors.py",
   "src/language_reading_predictors/statistical_models/long_corr_factor.py",
   "src/language_reading_predictors/statistical_models/mechanism.py",
+  "src/language_reading_predictors/statistical_models/mediation_settings.py",
   "src/language_reading_predictors/statistical_models/output_transaction.py",
   "src/language_reading_predictors/statistical_models/provenance.py",
   "src/language_reading_predictors/statistical_models/stages.py",

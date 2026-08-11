@@ -100,6 +100,12 @@ from language_reading_predictors.statistical_models.mechanism import (
     resolve_mechanism_run_plan,
     validate_mechanism_run_plan,
 )
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationMultiRunPlan,
+    MediationRunPlan,
+    resolve_mediation_multi_run_plan,
+    resolve_mediation_run_plan,
+)
 from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
     write_environment_lock,
@@ -2910,6 +2916,28 @@ def _corr_factor_run_plan(context: StatisticalFitContext) -> CorrFactorRunPlan:
     return resolve_corr_factor_run_plan(context.spec)
 
 
+def _mediation_run_plan(
+    context: StatisticalFitContext,
+) -> MediationRunPlan | MediationMultiRunPlan | None:
+    """Return the mediation plan resolved before loading or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, (MediationRunPlan, MediationMultiRunPlan)):
+        return resolved_plan
+    spec = context.spec
+    if (
+        spec.outcome_symbol is None
+        and spec.mechanism_symbol is None
+        and spec.model_settings is None
+        and not spec.extra
+    ):
+        # Metadata-only audit fixtures predate typed declarations and intentionally
+        # carry no model recipe. Real fits attach a plan before context creation.
+        return None
+    if context.spec.kind == "mediation_multi":
+        return resolve_mediation_multi_run_plan(context.spec)
+    return resolve_mediation_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2950,6 +2978,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _long_corr_factor_run_plan(context)
     if context.spec.kind == "corr_factor":
         return _corr_factor_run_plan(context)
+    if context.spec.kind in {"mediation", "mediation_multi"}:
+        return _mediation_run_plan(context)
     return None
 
 

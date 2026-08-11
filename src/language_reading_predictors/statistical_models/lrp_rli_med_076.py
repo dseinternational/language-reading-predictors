@@ -36,6 +36,9 @@ an adjusted association under a stated forward direction.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -52,7 +55,7 @@ SPEC = ModelSpec(
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
     ],
     # Primary outcome taken at t4 (mediator stays at t2): mediator precedes outcome.
-    extra={"outcome_time": 4},
+    model_settings=MediationModelSettings(outcome_time=4),
 )
 
 
