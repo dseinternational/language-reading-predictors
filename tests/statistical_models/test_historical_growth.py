@@ -10,7 +10,6 @@ plus a check that the new ModelSpec dataset/estimand metadata reaches config.jso
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from types import SimpleNamespace
 
 import numpy as np
@@ -21,6 +20,10 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
 from language_reading_predictors.statistical_models.factories import (
     build_historical_growth_model,
+)
+from language_reading_predictors.statistical_models.historical_growth import (
+    HistoricalGrowthModelSettings,
+    resolve_historical_growth_run_plan,
 )
 from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -143,20 +146,17 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
 
 
 def test_non_itt_typed_settings_reach_config_json(tmp_path):
-    """A future typed family records its settings object, not legacy ``extra``."""
-
-    @dataclass(frozen=True, slots=True)
-    class HistoricalSettings:
-        measure: str
-        waves: tuple[int, ...]
+    """Historical growth records its typed settings and resolved plan, not legacy ``extra``."""
 
     spec = ModelSpec(
         model_id="lrp-rlm-hg-999",
         kind="historical_growth",
         title="typed metadata test",
         outcome_symbol="basread",
-        model_settings=HistoricalSettings(measure="basread", waves=(1, 2, 3)),
-        extra={"legacy_marker": "not typed settings"},
+        study_id="rlm",
+        model_settings=HistoricalGrowthModelSettings(
+            measure="basread", waves=(1, 2, 3)
+        ),
     )
     ctx = SimpleNamespace(
         spec=spec,
@@ -175,8 +175,14 @@ def test_non_itt_typed_settings_reach_config_json(tmp_path):
         "source": "typed",
         "measure": "basread",
         "waves": [1, 2, 3],
+        "extension_waves": [],
+        "eta_prior_sigma": 1.5,
+        "sigma_subject_prior_sigma": 1.0,
+        "kappa_prior_sigma": 50.0,
     }
-    assert cfg["spec_extra"] == {"legacy_marker": "not typed settings"}
+    assert cfg["spec_extra"] == {}
+    assert cfg["resolved_run_plan"]["settings_source"] == "typed"
+    assert cfg["resolved_run_plan"]["measure"] == "basread"
 
 
 def test_rlm_input_contract_includes_predictors_not_only_the_outcome(tmp_path):
@@ -252,9 +258,12 @@ def test_phase_a_specs_well_formed(model_id, measure, waves, extension_waves):
     # Descriptive, non-causal: readgrp is a cohort factor, never a treatment.
     assert spec.estimand_type == "descriptive"
     assert spec.causal_status == "none"
-    assert tuple(spec.extra["waves"]) == waves
-    assert tuple(spec.extra["extension_waves"]) == extension_waves
-    assert spec.extra["measure"] == measure
+    assert isinstance(spec.model_settings, HistoricalGrowthModelSettings)
+    assert spec.extra == {}
+    plan = resolve_historical_growth_run_plan(spec)
+    assert plan.waves == waves
+    assert plan.extension_waves == extension_waves
+    assert plan.measure == measure
     # The measure the spec names must be registered for the study.
     _dataset_spec, measures = resolve_dataset("rlm")
     assert measure in measures

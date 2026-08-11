@@ -50,6 +50,10 @@ from language_reading_predictors.statistical_models.growth import (
     GrowthRunPlan,
     resolve_growth_run_plan,
 )
+from language_reading_predictors.statistical_models.historical_growth import (
+    HistoricalGrowthRunPlan,
+    resolve_historical_growth_run_plan,
+)
 from language_reading_predictors.statistical_models.historical_joint import (
     HistoricalJointRunPlan,
     resolve_historical_joint_run_plan,
@@ -2786,6 +2790,30 @@ def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
     return resolve_growth_run_plan(context.spec)
 
 
+def _historical_growth_run_plan(
+    context: StatisticalFitContext,
+) -> HistoricalGrowthRunPlan | None:
+    """Return the historical-growth plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, HistoricalGrowthRunPlan):
+        return resolved_plan
+    spec = context.spec
+    if (
+        spec.study_id == "rli"
+        and spec.family is None
+        and spec.outcome_symbol is None
+        and spec.model_settings is None
+        and not spec.extra
+    ):
+        # Some shared reporting and trace-reuse callers use a minimal ModelSpec
+        # solely to identify a generic fit.  That placeholder predates the typed
+        # historical-growth family and contains no declaration from which a valid
+        # RLM recipe can be reconstructed.  Real family fits attach their resolved
+        # plan; substantive legacy declarations still take the strict path below.
+        return None
+    return resolve_historical_growth_run_plan(spec)
+
+
 def _historical_joint_run_plan(
     context: StatisticalFitContext,
 ) -> HistoricalJointRunPlan:
@@ -2826,6 +2854,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _aligned_run_plan(context)
     if context.spec.kind == "growth":
         return _growth_run_plan(context)
+    if context.spec.kind == "historical_growth":
+        return _historical_growth_run_plan(context)
     if context.spec.kind == "historical_joint":
         return _historical_joint_run_plan(context)
     if context.spec.kind == "mechanism":

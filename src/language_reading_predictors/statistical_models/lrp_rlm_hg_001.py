@@ -30,6 +30,9 @@ Supersedes the standalone ``scripts/fit_historical_growth_model.py`` prototype
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.historical_growth import (
+    HistoricalGrowthModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_historical_growth
 
 SPEC = ModelSpec(
@@ -44,12 +47,11 @@ SPEC = ModelSpec(
     causal_status="none",
     dataset_ref="rlm:reading_language_memory_data_long",
     audit_baseline="table2_complete_case_summary",
-    extra={
-        "study_id": "rlm",
-        "measure": "basread",
-        "waves": (1, 2, 3),
-        "extension_waves": (4, 5),
-        "eta_prior_sigma": 1.5,
+    model_settings=HistoricalGrowthModelSettings(
+        measure="basread",
+        waves=(1, 2, 3),
+        extension_waves=(4, 5),
+        eta_prior_sigma=1.5,
         # Widened 0.5 -> 1.0 (#383, prior-critical-review 2026-07-21): under
         # HalfNormal(0.5) the fitted Down-syndrome sigma_subject posteriors ran
         # 1.25-1.39 across the verbal/reading measures — at/beyond the prior's
@@ -61,9 +63,9 @@ SPEC = ModelSpec(
         # evidence. The eta[group, wave] grid stays unanchored at 1.5: the
         # pushforward shows it is well-calibrated on the full-range basread
         # scale (not a low-occupancy outcome), so anchoring it is not warranted.
-        "sigma_subject_prior_sigma": 1.0,
-        "kappa_prior_sigma": 50.0,
-    },
+        sigma_subject_prior_sigma=1.0,
+        kappa_prior_sigma=50.0,
+    ),
 )
 
 

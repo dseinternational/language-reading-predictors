@@ -35,6 +35,9 @@ flag any miscalibration.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.historical_growth import (
+    HistoricalGrowthModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_historical_growth
 
 SPEC = ModelSpec(
@@ -49,17 +52,16 @@ SPEC = ModelSpec(
     causal_status="none",
     dataset_ref="rlm:reading_language_memory_data_long",
     audit_baseline="table2_complete_case_summary",
-    extra={
-        "study_id": "rlm",
-        "measure": "bpvs",
-        "waves": (1, 2, 3),
-        "extension_waves": (4, 5),
-        "eta_prior_sigma": 1.5,
+    model_settings=HistoricalGrowthModelSettings(
+        measure="bpvs",
+        waves=(1, 2, 3),
+        extension_waves=(4, 5),
+        eta_prior_sigma=1.5,
         # Widened 0.5 -> 1.0 (#383): DS sigma_subject posteriors sat at/beyond
         # the HalfNormal(0.5) 99th percentile — see lrp_rlm_hg_001.py.
-        "sigma_subject_prior_sigma": 1.0,
-        "kappa_prior_sigma": 50.0,
-    },
+        sigma_subject_prior_sigma=1.0,
+        kappa_prior_sigma=50.0,
+    ),
 )
 
 

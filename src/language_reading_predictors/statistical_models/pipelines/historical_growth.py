@@ -22,6 +22,7 @@ from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
     historical as _historical,
+    reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -29,7 +30,9 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.factories import default_of
+from language_reading_predictors.statistical_models.historical_growth import (
+    resolve_historical_growth_run_plan,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
 )
@@ -63,22 +66,21 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     """
     require_spec(spec, "historical_growth")
 
+    # Resolve every family setting before ``make_context`` starts an output
+    # transaction or the panel loader reads study data (#394 pillar 4).
+    plan = resolve_historical_growth_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    study_id = spec.extra.get("study_id", spec.study_id)
-    measure = spec.extra.get("measure", spec.outcome_symbol or "basread")
-    waves = tuple(spec.extra.get("waves", (1, 2, 3)))
-    extension_waves = tuple(spec.extra.get("extension_waves", ()))
+    study_id = plan.study_id
+    measure = plan.measure
     dataset, measures = _datasets.resolve_dataset(study_id)
-    if measure not in measures:
-        raise KeyError(f"measure {measure!r} not registered for study {study_id!r}")
     panel = load_longitudinal_panel(
         dataset,
         [measures[measure]],
-        waves=waves,
-        complete_case=True,
-        extension_waves=extension_waves,
+        **plan.prepare_kwargs(),
     )
     ctx.prepared = panel
 
@@ -87,49 +89,26 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     section_header("Build model")
     built = _factories.build_historical_growth_model(
         panel,
-        measure=measure,
-        eta_prior_sigma=spec.extra.get(
-            "eta_prior_sigma",
-            default_of(_factories.build_historical_growth_model, "eta_prior_sigma"),
-        ),
-        sigma_subject_prior_sigma=spec.extra.get(
-            "sigma_subject_prior_sigma",
-            default_of(
-                _factories.build_historical_growth_model, "sigma_subject_prior_sigma"
-            ),
-        ),
-        kappa_prior_sigma=spec.extra.get(
-            "kappa_prior_sigma",
-            default_of(_factories.build_historical_growth_model, "kappa_prior_sigma"),
-        ),
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
 
     render_model_graph(ctx)
 
-    diag_vars = ["eta_cell", "sigma_subject", "kappa"]
-    diag_vars += [
-        v
-        for v in (
-            "growth_first_next_items",
-            "growth_next_last_items",
-            "growth_first_last_items",
-        )
-        if v in ctx.model.named_vars
-    ]
+    diag_vars = plan.diagnostic_vars(ctx.model.named_vars)
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, measure, node="score")
+    _diag.save_prior_predictive_plot(ctx, measure, node=plan.observation_node)
 
-    run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    run_ppc(ctx, var_names=["score"])
+    run_ppc(ctx, var_names=[plan.observation_node])
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -172,8 +151,8 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             "measure": measure,
             "measure_label": measure_label,
             "n_trials": panel.n_trials[measure],
-            "waves": list(waves),
-            "extension_waves": list(extension_waves),
+            "waves": list(plan.waves),
+            "extension_waves": list(plan.extension_waves),
             "groups": dict(
                 zip(panel.group_codes, panel.group_labels, strict=True)
             ),
