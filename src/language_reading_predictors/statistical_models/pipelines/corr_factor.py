@@ -27,8 +27,10 @@ from language_reading_predictors.models._reporting import (
     section_header,
 )
 from language_reading_predictors.statistical_models import (
+    corr_factor as _corr_factor,
     diagnostics as _diag,
     factories as _factories,
+    reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -36,7 +38,6 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.factories import default_of
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
@@ -47,7 +48,6 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
-from language_reading_predictors.statistical_models.reporting import coef_row
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -56,13 +56,6 @@ from language_reading_predictors.statistical_models.runtime import (
     run_sampling_and_loo,
     write_run_metadata,
 )
-
-
-_DEFAULT_DOMAINS = {
-    "vocabulary": ("R", "E"),
-    "code": ("L", "B"),
-    "grammar": ("F", "T"),
-}
 
 
 def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -76,65 +69,21 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     latent-ability-confounded adjusted association; #115 ID-2).
     """
     require_spec(spec, "corr_factor")
-
-    # #383 settings coherence, checked BEFORE make_context resets the output
-    # directory (the #455 principle): each loading parameterisation has knobs the
-    # other would silently ignore, so a spec mixing them is declaring settings the
-    # fitted model does not use.
-    _loading_prior = str(
-        spec.extra.get(
-            "loading_prior",
-            default_of(_factories.build_correlated_factor_model, "loading_prior"),
-        )
-    )
-    if _loading_prior not in {"communality", "free"}:
-        raise ValueError(
-            f"Spec {spec.model_id}: loading_prior must be 'communality' or 'free'; "
-            f"got {_loading_prior!r}"
-        )
-    _free_knobs = sorted(
-        k for k in ("loading_mu", "loading_sigma", "residual_sigma") if k in spec.extra
-    )
-    _comm_knobs = sorted(k for k in ("comm_alpha", "comm_beta") if k in spec.extra)
-    if _loading_prior == "communality" and _free_knobs:
-        raise ValueError(
-            f"Spec {spec.model_id}: {_free_knobs} only apply to "
-            "loading_prior='free'; the communality parameterisation would silently "
-            "ignore them. Set loading_prior='free' or drop the knobs."
-        )
-    if _loading_prior == "free" and _comm_knobs:
-        raise ValueError(
-            f"Spec {spec.model_id}: {_comm_knobs} only apply to "
-            "loading_prior='communality'; the free parameterisation would silently "
-            "ignore them. Drop the knobs or use the default parameterisation."
-        )
-
+    plan = _corr_factor.resolve_corr_factor_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
     # The correlated-factor CFA is a small-n latent model; even with the factor
     # scores marginalised out of the measurement likelihood a few boundary
     # divergences survive at the tier-default target_accept, so lift it via the spec
     # (the strict gate requires zero), as the horseshoe fit does for its funnel.
 
     section_header("Prepare data")
-    domains = {
-        k: tuple(v) for k, v in (spec.extra.get("domains") or _DEFAULT_DOMAINS).items()
-    }
-    outcome = spec.outcome_symbol or "W"
-    structural_covs = tuple(spec.extra.get("structural_covariates", ("blocks",)))
-    # #228 item 14 (errors-in-variables mechanism): optionally regress the outcome on a
-    # SUBSET of the fitted factors (e.g. just "code") and/or add the randomised arm G as
-    # an adjusted-association covariate. Defaults reproduce mm-001/101 exactly.
-    _sf = spec.extra.get("structural_factors")
-    structural_factors = tuple(_sf) if _sf is not None else None
-    use_group = bool(spec.extra.get("use_group", False))
-    indicator_syms = tuple(dict.fromkeys(s for v in domains.values() for s in v))
-    measure_outcomes = tuple(dict.fromkeys((outcome, *indicator_syms)))
-    prepared = load_and_prepare(
-        phase_mode="span",
-        post_time=int(spec.extra.get("post_time", 4)),
-        outcomes=measure_outcomes,
-        covariates=structural_covs,
-    )
+    domains = plan.domain_mapping()
+    outcome = plan.outcome_symbol
+    assert outcome is not None
+    structural_covs = plan.structural_covariates
+    prepared = load_and_prepare(**plan.rli_prepare_kwargs())
     ctx.prepared = prepared
     # A structural covariate can go constant on the fitted span rows — e.g. an
     # ``erbto_missing`` indicator that is all-zero because phonological memory is
@@ -145,6 +94,9 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     _dropped_structural = tuple(c for c in structural_covs if c not in prepared.covariates)
     if _dropped_structural:
         structural_covs = tuple(c for c in structural_covs if c in prepared.covariates)
+        plan = plan.with_active_structural_covariates(structural_covs)
+        ctx.resolved_plan = plan
+        _report.write_model_recipe(ctx)
         rprint(
             "[yellow]fit_correlated_factor: dropped constant structural covariate(s) "
             f"{list(_dropped_structural)} (not in prepared.covariates on the fitted "
@@ -155,71 +107,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     section_header("Build model")
     built = _factories.build_correlated_factor_model(
         prepared,
-        outcome_symbol=outcome,
-        domains=domains,
-        structural_covariates=structural_covs,
-        structural_factors=structural_factors,
-        use_group=use_group,
-        use_age=spec.extra.get("use_age", True),
-        loading_prior=_loading_prior,
-        comm_alpha=spec.extra.get(
-            "comm_alpha",
-            default_of(_factories.build_correlated_factor_model, "comm_alpha"),
-        ),
-        comm_beta=spec.extra.get(
-            "comm_beta",
-            default_of(_factories.build_correlated_factor_model, "comm_beta"),
-        ),
-        loading_mu=spec.extra.get(
-            "loading_mu",
-            default_of(_factories.build_correlated_factor_model, "loading_mu"),
-        ),
-        loading_sigma=spec.extra.get(
-            "loading_sigma",
-            default_of(_factories.build_correlated_factor_model, "loading_sigma"),
-        ),
-        residual_sigma=spec.extra.get(
-            "residual_sigma",
-            default_of(_factories.build_correlated_factor_model, "residual_sigma"),
-        ),
-        predictor_slope_sigma=spec.extra.get(
-            "predictor_slope_sigma",
-            default_of(
-                _factories.build_correlated_factor_model, "predictor_slope_sigma"
-            ),
-        ),
-        focal_slope_sigma=spec.extra.get(
-            "focal_slope_sigma",
-            default_of(_factories.build_correlated_factor_model, "focal_slope_sigma"),
-        ),
+        **plan.rli_factory_kwargs(),
     )
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    summary_vars = [
-        # ``communality`` is the free RV under the default communality
-        # parameterisation (#383) and a Deterministic under the legacy free pair;
-        # either way it is a reported quantity, so gate it explicitly alongside
-        # the derived lambda_load / sigma_indicator.
-        "alpha", "gamma_own", "kappa", "beta_factor", "lambda_load", "sigma_indicator",
-        "communality",
-        # The headline factor correlations MUST be in the gated set: they are what
-        # the report releases, and the global checks (divergences, BFMI) are not a
-        # substitute for parameter-specific R-hat / ESS on them. ``factor_corr``
-        # itself is unusable for this — its constant unit diagonal has undefined
-        # R-hat and zero variance — so the factory exposes the unique off-diagonals
-        # as ``factor_corr_pairs``. ``factor_z`` is the latent-score offset the
-        # structural leg consumes; gate it too.
-        "factor_z",
-    ]
-    # Only present when there are >= 2 domains (a single factor has no off-diagonal).
-    if len(domains) > 1:
-        summary_vars.append("factor_corr_pairs")
-    if spec.extra.get("use_age", True):
-        summary_vars.append("beta_age")
-    summary_vars += [f"beta_{c}" for c in structural_covs]
-    if use_group:
-        summary_vars.append("beta_G")
+    summary_vars = plan.diagnostic_vars()
 
     section_header("Prior predictive")
     # Draw the full prior, not just the two observed nodes (#381). Restricting
@@ -237,7 +130,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # a single-target PSIS-LOO ambiguous, so LOO is skipped here as in the
     # mediation family; this is a measurement / triangulation model, not a
     # predictive one, and #134 turns on the loadings / communalities, not on LOO.
-    run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=summary_vars)
@@ -254,11 +147,11 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # ``y_post`` is a check of the structural leg *conditional on the observed
     # indicators*. Together they do not certify the joint model. See the
     # predictive-simulation caveat in ``build_correlated_factor_model``.
-    run_ppc(ctx, var_names=["Z_obs", "y_post"])
+    run_ppc(ctx, var_names=list(plan.observation_nodes))
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
-    _diag.run_extended_diagnostics(ctx)
+    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
     _diag.save_trace(ctx)
     # Indicator-scale prior check (#381). Only ``Z_obs`` is the indicator matrix;
     # ``y_post`` is the structural outcome and is covered by the ordinary
@@ -315,18 +208,24 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     section_header("Structural slopes (factor -> gain)")
     # The structural leg regresses on all domain factors (beta_factor dims "domain")
     # unless structural_factors isolated a subset (dims "struct_domain", #228 item 14).
-    struct_names = list(structural_factors) if structural_factors is not None else dnames
-    _bf_dim = "struct_domain" if structural_factors is not None else "domain"
+    struct_names = (
+        list(plan.structural_factors)
+        if plan.structural_factors is not None
+        else dnames
+    )
+    _bf_dim = "struct_domain" if plan.structural_factors is not None else "domain"
     struct_rows = [
-        coef_row(f"beta_{d}", post["beta_factor"].isel({_bf_dim: k}).values, hdi)
+        _report.coef_row(
+            f"beta_{d}", post["beta_factor"].isel({_bf_dim: k}).values, hdi
+        )
         for k, d in enumerate(struct_names)
     ]
     extra_terms = (
-        (["beta_G"] if use_group else [])
-        + (["beta_age"] if spec.extra.get("use_age", True) else [])
+        (["beta_G"] if plan.use_group else [])
+        + (["beta_age"] if plan.use_age else [])
         + [f"beta_{c}" for c in structural_covs]
     )
-    struct_rows += [coef_row(t, post[t].values, hdi) for t in extra_terms]
+    struct_rows += [_report.coef_row(t, post[t].values, hdi) for t in extra_terms]
     struct_df = pd.DataFrame(struct_rows)
     save_table(ctx, "structural_summary", struct_df)
     print_table(
@@ -370,36 +269,23 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     )
 
     require_spec(spec, "corr_factor")
-    e = spec.extra
-    wave = int(e.get("wave", 3))
-    domains = {k: tuple(v) for k, v in e["domains"].items()}
-    reliability = float(e.get("single_indicator_reliability", 0.8))
-    lkj_eta = float(e.get("lkj_eta", 2.0))
-    comm_alpha = float(
-        e.get("comm_alpha", default_of(_factories.build_rlm_corr_factor_model, "comm_alpha"))
-    )
-    comm_beta = float(
-        e.get("comm_beta", default_of(_factories.build_rlm_corr_factor_model, "comm_beta"))
-    )
-
+    plan = _corr_factor.resolve_corr_factor_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
     lo_q = (1.0 - hdi) / 2.0
 
     section_header("Prepare data")
-    symbols = tuple(dict.fromkeys(s for syms in domains.values() for s in syms))
-    battery = load_rlm_wave_battery(wave=wave, measure_symbols=symbols)
+    domains = plan.domain_mapping()
+    battery = load_rlm_wave_battery(**plan.rlm_prepare_kwargs())
     ctx.prepared = battery
     print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_rlm_corr_factor_model(
         battery,
-        domains=domains,
-        single_indicator_reliability=reliability,
-        comm_alpha=comm_alpha,
-        comm_beta=comm_beta,
-        lkj_eta=lkj_eta,
+        **plan.rlm_factory_kwargs(),
     )
     attach_built(ctx, built)
     render_model_graph(ctx)
@@ -408,9 +294,9 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_dist_overlay(ctx)
 
-    run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
-    diag_vars = ["lambda_free", "sigma_free", "factor_corr_pairs"]
+    diag_vars = plan.diagnostic_vars()
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity (#381), as in the RLI ``corr_factor`` family:
@@ -423,11 +309,11 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    run_ppc(ctx, var_names=["Z_obs"])
+    run_ppc(ctx, var_names=list(plan.observation_nodes))
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx)
+    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
     _diag.save_trace(ctx)
     # Indicator-scale prior check (#381) — the measurement families' stand-in for
     # the estimand pushforward the outcome families get. AFTER save_trace, which
@@ -481,9 +367,9 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         ctx,
         extra={
             "study_id": "rlm",
-            "wave": wave,
+            "wave": plan.wave,
             "domains": {k: list(v) for k, v in domains.items()},
-            "single_indicator_reliability": reliability,
+            "single_indicator_reliability": plan.single_indicator_reliability,
             "n_children": battery.n_children,
             "structural_leg": False,
         },

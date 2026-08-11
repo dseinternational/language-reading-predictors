@@ -42,6 +42,10 @@ from language_reading_predictors.statistical_models.concurrent import (
     ConcurrentRunPlan,
     resolve_concurrent_run_plan,
 )
+from language_reading_predictors.statistical_models.corr_factor import (
+    CorrFactorRunPlan,
+    resolve_corr_factor_run_plan,
+)
 from language_reading_predictors.statistical_models.did import (
     DiDRunPlan,
     resolve_did_run_plan,
@@ -2898,6 +2902,14 @@ def _long_corr_factor_run_plan(
     return resolve_long_corr_factor_run_plan(context.spec)
 
 
+def _corr_factor_run_plan(context: StatisticalFitContext) -> CorrFactorRunPlan:
+    """Return the correlated-factor plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, CorrFactorRunPlan):
+        return resolved_plan
+    return resolve_corr_factor_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2936,6 +2948,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _horseshoe_run_plan(context)
     if context.spec.kind == "long_corr_factor":
         return _long_corr_factor_run_plan(context)
+    if context.spec.kind == "corr_factor":
+        return _corr_factor_run_plan(context)
     return None
 
 

@@ -78,6 +78,7 @@ files = [
   "src/language_reading_predictors/statistical_models/aligned.py",
   "src/language_reading_predictors/statistical_models/block_exposure.py",
   "src/language_reading_predictors/statistical_models/concurrent.py",
+  "src/language_reading_predictors/statistical_models/corr_factor.py",
   "src/language_reading_predictors/statistical_models/did.py",
   "src/language_reading_predictors/statistical_models/documentation.py",
   "src/language_reading_predictors/statistical_models/dose_response.py",

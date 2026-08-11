@@ -32,6 +32,9 @@ See ``notes/202606291700-correlated-domain-factor-measurement-model.md``.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.corr_factor import (
+    CorrFactorModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_correlated_factor
 
 SPEC = ModelSpec(
@@ -42,14 +45,16 @@ SPEC = ModelSpec(
         "(vocabulary / code / grammar) - reading-gain structural leg"
     ),
     outcome_symbol="W",
+    model_settings=CorrFactorModelSettings(
+        domains=(
+            ("vocabulary", ("R", "E")),
+            ("code", ("L", "B")),
+            ("grammar", ("F", "T")),
+        ),
+        structural_covariates=("blocks",),
+        use_age=True,
+    ),
     extra={
-        "domains": {
-            "vocabulary": ("R", "E"),
-            "code": ("L", "B"),
-            "grammar": ("F", "T"),
-        },
-        "structural_covariates": ("blocks",),
-        "use_age": True,
         # Small-n latent-factor geometry. Two independent things were needed:
         #
         # 1. The factory MARGINALISES the factor scores out of the measurement

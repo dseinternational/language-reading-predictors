@@ -26,6 +26,9 @@ associations only; nothing causal exists in this cohort.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.corr_factor import (
+    CorrFactorModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_rlm_corr_factor
 
 SPEC = ModelSpec(
@@ -42,17 +45,20 @@ SPEC = ModelSpec(
     estimand_type="descriptive",
     causal_status="none",
     dataset_ref="rlm:reading_language_memory_data_long",
+    model_settings=CorrFactorModelSettings(
+        wave=3,
+        domains=(
+            ("reading", ("basread", "basspel", "woco")),
+            ("language", ("bpvs", "trog")),
+            ("memory", ("basdig",)),
+            ("ability", ("bassim", "basmat", "basnum")),
+        ),
+        single_indicator_reliability=0.8,
+        lkj_eta=2.0,
+        comm_alpha=2.0,
+        comm_beta=2.0,
+    ),
     extra={
-        "study_id": "rlm",
-        "wave": 3,
-        "domains": {
-            "reading": ("basread", "basspel", "woco"),
-            "language": ("bpvs", "trog"),
-            "memory": ("basdig",),
-            "ability": ("bassim", "basmat", "basnum"),
-        },
-        "single_indicator_reliability": 0.8,
-        "lkj_eta": 2.0,
         # Communality parameterisation (#409 item B, the gate rescue): the free
         # parameter is each indicator's communality c ~ Beta(comm_alpha, comm_beta),
         # with lambda = sqrt(c) and sigma = sqrt(1 - c) so lambda**2 + sigma**2 = 1
@@ -60,8 +66,6 @@ SPEC = ModelSpec(
         # over-parameterised lambda-sigma ridge / Heywood corner that gate-failed the
         # earlier free HalfNormal build (143 divergences, R-hat 1.03). Beta(2, 2) is a
         # weakly-informative communality prior centred at 0.5 — flagged for review.
-        "comm_alpha": 2.0,
-        "comm_beta": 2.0,
         # Retain target_accept=0.99 as a conservative sampling setting for the
         # near-collinear wave-3 domains (factor correlations 0.81-0.95). The current
         # reporting fit passes the full convergence gate with zero divergences; this
