@@ -27,6 +27,7 @@ from language_reading_predictors.models._reporting import (
 )
 from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
+    reporting as _report,
     survival as _survival,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
@@ -107,10 +108,16 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     the estimand is prognostic (both arms are treated by t4).
     """
     require_spec(spec, "survival", outcome=True)
+
+    # Resolve the complete family contract before ``make_context`` can reset the
+    # output directory and before preparation reads the RLI data (#394 pillar 4).
+    plan = _survival.resolve_survival_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    panel = _survival.prepare_survival(spec.outcome_symbol)
+    panel = _survival.prepare_survival(**plan.prepare_kwargs())
     ctx.prepared = panel
     print_header(ctx)
     rprint(
@@ -129,21 +136,15 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 f"  [yellow]{k} row(s) had a missing baseline {name}; mean-imputed (z=0).[/yellow]"
             )
 
-    hazard_link = spec.extra.get("hazard_link", "cloglog")
-    use_treatment = bool(spec.extra.get("use_treatment", True))
+    hazard_link = plan.hazard_link
+    use_treatment = plan.use_treatment
 
     section_header("Build model")
-    built = _survival.build_survival_model(
-        panel, hazard_link=hazard_link, use_treatment=use_treatment
-    )
+    built = _survival.build_survival_model(panel, **plan.factory_kwargs())
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    diag_vars = (
-        ["alpha"]
-        + [f"beta_{n}" for n in panel.covariates]
-        + (["tau"] if use_treatment else [])
-    )
+    diag_vars = plan.diagnostic_vars(panel.covariates)
 
     # Reference adoption of the shared primary-fit lifecycle (#394 design 2):
     # the invariant sequence lives in ``stages.run_primary_fit`` and the family
@@ -151,18 +152,21 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
-            diagnostic_vars=tuple(diag_vars),
-            ppc_var_names=("y_event",),
+            diagnostic_vars=diag_vars,
+            ppc_var_names=(plan.observation_node,),
             plot_prior_predictive=lambda c: _diag.save_prior_predictive_rate_plot(
-                c, spec.outcome_symbol, node="y_event"
+                c, plan.outcome_symbol, node=plan.observation_node
             ),
-            extended_term="tau" if use_treatment else None,
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
         ),
     )
 
     section_header("Off-floor hazard summary")
     summary = _survival_summary(
-        ctx.trace, ci_prob=ctx.reporting.ci_prob, hazard_link=hazard_link,
+        ctx.trace,
+        ci_prob=ctx.reporting.ci_prob,
+        hazard_link=hazard_link,
         use_treatment=use_treatment,
     )
     save_table(ctx, "survival_summary", summary)
@@ -170,7 +174,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ranked_dataframe_table(
             summary,
             title=(
-                f"Off-floor discrete-time hazard ({spec.outcome_symbol}, {hazard_link}); "
+                f"Off-floor discrete-time hazard ({plan.outcome_symbol}, {hazard_link}); "
                 "positive = raises Pr(off-floor); prognostic, not a randomised effect"
             ),
             columns=list(summary.columns),

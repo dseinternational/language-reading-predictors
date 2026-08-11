@@ -16,6 +16,9 @@ interval, not a randomised effect of record (see METHODS.md and the descriptive 
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipeline import fit_survival
+from language_reading_predictors.statistical_models.survival import (
+    SurvivalModelSettings,
+)
 
 SPEC = ModelSpec(
     model_id="lrp-rli-surv-011",
@@ -26,10 +29,10 @@ SPEC = ModelSpec(
     design="discrete-time off-floor hazard (person-period)",
     estimand_type="descriptive",
     causal_status="none",
-    extra={
-        "hazard_link": "cloglog",
-        "use_treatment": True,
-    },
+    model_settings=SurvivalModelSettings(
+        hazard_link="cloglog",
+        use_treatment=True,
+    ),
 )
 
 
