@@ -26,12 +26,16 @@ from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
     historical as _historical,
+    reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
     StatisticalFitContext,
     make_context,
+)
+from language_reading_predictors.statistical_models.historical_joint import (
+    resolve_historical_joint_run_plan,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
@@ -65,25 +69,23 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     pointwise PSIS-LOO is not defined for it (documented in the report).
     """
     require_spec(spec, "historical_joint")
-    e = spec.extra
-    study_id = e.get("study_id", spec.study_id)
-    measure_syms = tuple(e.get("measures", ("basread", "bpvs", "basdig")))
-    waves = tuple(e.get("waves", (1, 2, 3)))
-    extension_waves = tuple(e.get("extension_waves", ()))
 
+    # Resolve every family setting before ``make_context`` starts an output
+    # transaction or the panel loader reads study data (#394 pillar 4).
+    plan = resolve_historical_joint_run_plan(spec)
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
+
+    study_id = plan.study_id
+    measure_syms = plan.measures
 
     section_header("Prepare data")
     dataset, measures = _datasets.resolve_dataset(study_id)
-    for m in measure_syms:
-        if m not in measures:
-            raise KeyError(f"measure {m!r} not registered for study {study_id!r}")
     panel = load_longitudinal_panel(
         dataset,
         [measures[m] for m in measure_syms],
-        waves=waves,
-        complete_case=True,
-        extension_waves=extension_waves,
+        **plan.prepare_kwargs(),
     )
     ctx.prepared = panel
     print_header(ctx)
@@ -91,11 +93,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     section_header("Build model")
     built = _factories.build_rlm_joint_growth_model(
         panel,
-        measures=measure_syms,
-        eta_prior_sigma=e.get("eta_prior_sigma", 1.5),
-        sigma_subject_prior_sigma=e.get("sigma_subject_prior_sigma", 1.0),
-        kappa_prior_sigma=e.get("kappa_prior_sigma", 50.0),
-        lkj_eta=e.get("lkj_eta", 2.0),
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
     render_model_graph(ctx)
@@ -106,17 +104,19 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     # pooled overlay: these scales have different maxima and pooling their counts has
     # no interpretable predictive distribution (same reasoning as the joint family's
     # symbol-suffixed checks).
-    for _sym in measure_syms:
+    for _sym, _node in zip(
+        measure_syms, plan.observation_nodes, strict=True
+    ):
         _diag.save_prior_predictive_plot(
             ctx,
             _sym,
-            node=f"score_{_sym}",
+            node=_node,
             filename_stem=f"prior_predictive_check_{_sym.lower()}",
         )
 
-    run_sampling_and_loo(ctx, compute_loo=False)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
-    diag_vars = ["eta_cell", "sigma_subject", "kappa", "measure_corr_pairs"]
+    diag_vars = plan.diagnostic_vars()
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381). This family
@@ -136,7 +136,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     _diag.compute_log_likelihood_and_prior(ctx, strict=False)
     _diag.run_psense(ctx, var_names=diag_vars)
 
-    run_ppc(ctx, var_names=[f"score_{m}" for m in measure_syms])
+    run_ppc(ctx, var_names=list(plan.observation_nodes))
 
     section_header("Extended diagnostics")
     _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
@@ -238,8 +238,8 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             "study_id": study_id,
             "measures": list(measure_syms),
             "measure_labels": {m: measures[m].label for m in measure_syms},
-            "waves": list(waves),
-            "extension_waves": list(extension_waves),
+            "waves": list(plan.waves),
+            "extension_waves": list(plan.extension_waves),
             "n_subjects": panel.n_subjects,
             "loo_elpd": None,
         },
