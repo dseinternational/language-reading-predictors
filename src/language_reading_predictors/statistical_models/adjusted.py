@@ -32,6 +32,7 @@ _FAMILY_KEYS = frozenset(
         "use_age_predictor",
         "pre_wave",
         "post_wave",
+        "group_codes",
         "predictor_slope_sigma",
         "prior_sensitivity_sigmas",
         "study_id",
@@ -73,6 +74,25 @@ def _optional_positive_int(value: Any, *, name: str) -> int | None:
     return value
 
 
+def _optional_positive_ints(
+    value: Any, *, name: str
+) -> tuple[int, ...] | None:
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
+        raise TypeError(f"{name} must be a sequence of integers or None")
+    out = tuple(value)
+    if not out:
+        raise ValueError(f"{name} cannot be empty")
+    if any(isinstance(item, bool) or not isinstance(item, int) for item in out):
+        raise TypeError(f"{name} must contain integers")
+    if any(item < 1 for item in out):
+        raise ValueError(f"{name} must contain positive integers")
+    if len(out) != len(set(out)):
+        raise ValueError(f"{name} contains duplicates")
+    return out
+
+
 @dataclass(frozen=True, slots=True)
 class AdjustedModelSettings:
     """Immutable declaration shared by the intervention and Byrne ports."""
@@ -87,6 +107,7 @@ class AdjustedModelSettings:
     use_age_predictor: bool = True
     pre_wave: int | None = None
     post_wave: int | None = None
+    group_codes: tuple[int, ...] | None = None
     predictor_slope_sigma: float = 0.3
     prior_sensitivity_sigmas: tuple[float, ...] = (0.5, 0.7)
 
@@ -115,6 +136,11 @@ class AdjustedModelSettings:
                 name,
                 _optional_positive_int(getattr(self, name), name=name),
             )
+        object.__setattr__(
+            self,
+            "group_codes",
+            _optional_positive_ints(self.group_codes, name="group_codes"),
+        )
         object.__setattr__(
             self,
             "predictor_slope_sigma",
@@ -157,6 +183,7 @@ class AdjustedModelSettings:
             use_age_predictor=extra.get("use_age_predictor", True),
             pre_wave=extra.get("pre_wave"),
             post_wave=extra.get("post_wave"),
+            group_codes=extra.get("group_codes"),
             predictor_slope_sigma=extra.get("predictor_slope_sigma", 0.3),
             prior_sensitivity_sigmas=extra.get(
                 "prior_sensitivity_sigmas", (0.5, 0.7)
@@ -184,6 +211,7 @@ class AdjustedRunPlan:
     use_age_predictor: bool
     pre_wave: int | None
     post_wave: int | None
+    group_codes: tuple[int, ...] | None
     predictor_slope_sigma: float
     prior_sensitivity_sigmas: tuple[float, ...]
     observation_nodes: tuple[str, ...]
@@ -261,6 +289,7 @@ class AdjustedRunPlan:
             "include_age": self.use_age_predictor,
             "pre_wave": self.pre_wave,
             "post_wave": self.post_wave,
+            "group_codes": self.group_codes,
         }
 
     def rlm_factory_kwargs(self, predictors: Sequence[str]) -> dict[str, Any]:
@@ -294,17 +323,30 @@ class AdjustedRunPlan:
                 f"One row per RLI child from t1 to t{self.post_time}; the final "
                 "bounded score is conditioned on its own t1 score."
             )
+            sensitivity_checks = (
+                "Every bivariate, prior-width and SES sensitivity refit"
+            )
         else:
+            population = (
+                "all observational reading groups"
+                if self.group_codes is None
+                else "group code(s) " + ", ".join(map(str, self.group_codes))
+            )
             terms = (
                 f"Wave-{self.pre_wave} predictors: "
                 f"{', '.join(self.predictor_measures)}; age: "
-                f"{self.use_age_predictor}; observational group indicators are "
-                "nuisance terms."
+                f"{self.use_age_predictor}; population: {population}. "
+                + (
+                    "Observational group indicators are nuisance terms."
+                    if self.group_codes is None or len(self.group_codes) > 1
+                    else "No group nuisance term is fitted within one selected group."
+                )
             )
             design = (
                 f"One row per Byrne child from wave {self.pre_wave} to wave "
-                f"{self.post_wave}, pooled across observational reading groups."
+                f"{self.post_wave}, restricted to {population}."
             )
+            sensitivity_checks = "Every bivariate and prior-width sensitivity refit"
         return (
             "Note: Generated from the validated adjusted-association run plan; "
             "template drafted by a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -319,8 +361,8 @@ class AdjustedRunPlan:
             f"{self.predictor_slope_sigma:g}; sensitivity SDs: "
             f"{', '.join(f'{value:g}' for value in self.prior_sensitivity_sigmas)}.\n\n"
             "## Uncertainty and checks\n\nRelease requires the convergence gate, "
-            "child-level PSIS-LOO and posterior-predictive checks. Every bivariate, "
-            "prior-width and SES sensitivity refit records its own convergence and "
+            "child-level PSIS-LOO and posterior-predictive checks. "
+            f"{sensitivity_checks} records its own convergence and "
             "row provenance. The saved `config.json` contains the same resolved run "
             "plan.\n"
         )
@@ -372,6 +414,7 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
             "predictor_measures": settings.predictor_measures,
             "pre_wave": settings.pre_wave,
             "post_wave": settings.post_wave,
+            "group_codes": settings.group_codes,
         }
         supplied = [name for name, value in rlm_only.items() if value is not None]
         if supplied:
@@ -408,6 +451,7 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         predictor_measures: tuple[str, ...] = ()
         pre_wave = None
         post_wave = None
+        group_codes = None
         population = (
             f"Available RLI children with t1 predictors and {spec.outcome_symbol} "
             f"observed through t{post_time}."
@@ -446,9 +490,29 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         post_wave = 3 if settings.post_wave is None else settings.post_wave
         if post_wave <= pre_wave:
             raise ValueError("post_wave must be later than pre_wave")
+        from language_reading_predictors.statistical_models.datasets import (
+            resolve_dataset,
+        )
+
+        dataset, _measures = resolve_dataset("rlm")
+        group_codes = settings.group_codes
+        if group_codes is not None:
+            unknown_groups = sorted(set(group_codes) - set(dataset.group_labels))
+            if unknown_groups:
+                raise ValueError(
+                    "unknown RLM group_codes: "
+                    + ", ".join(map(str, unknown_groups))
+                )
+        group_description = (
+            "all observational reading groups"
+            if group_codes is None
+            else ", ".join(
+                dataset.group_labels[code] for code in group_codes
+            )
+        )
         population = (
-            f"Complete-case Byrne children observed at waves {pre_wave} and "
-            f"{post_wave} with every declared baseline predictor."
+            f"Complete-case Byrne children in {group_description}, observed at "
+            f"waves {pre_wave} and {post_wave} with every declared baseline predictor."
         )
         missing = (
             "Complete-case analysis assumes included children are conditionally "
@@ -472,6 +536,7 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         use_age_predictor=settings.use_age_predictor,
         pre_wave=pre_wave,
         post_wave=post_wave,
+        group_codes=group_codes,
         predictor_slope_sigma=settings.predictor_slope_sigma,
         prior_sensitivity_sigmas=settings.prior_sensitivity_sigmas,
         observation_nodes=("y_post",),

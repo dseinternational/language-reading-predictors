@@ -22,6 +22,9 @@ from language_reading_predictors.statistical_models.lrp_rli_adj_065 import get_s
 from language_reading_predictors.statistical_models.lrp_rlm_adj_001 import (
     SPEC as RLM_SPEC,
 )
+from language_reading_predictors.statistical_models.lrp_rlm_adj_002 import (
+    SPEC as RLM_DS_SPEC,
+)
 from language_reading_predictors.statistical_models.pipelines import (
     adjusted as pipeline,
 )
@@ -48,11 +51,18 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
     rli = get_spec()
     assert isinstance(rli.model_settings, AdjustedModelSettings)
     assert isinstance(RLM_SPEC.model_settings, AdjustedModelSettings)
-    assert rli.extra == RLM_SPEC.extra == {}
+    assert isinstance(RLM_DS_SPEC.model_settings, AdjustedModelSettings)
+    assert rli.extra == RLM_SPEC.extra == RLM_DS_SPEC.extra == {}
     rli_plan = resolve_adjusted_run_plan(rli)
     rlm_plan = resolve_adjusted_run_plan(RLM_SPEC)
+    rlm_ds_plan = resolve_adjusted_run_plan(RLM_DS_SPEC)
     assert (rli_plan.port, rlm_plan.port) == ("rli", "rlm")
+    assert rlm_ds_plan.port == "rlm"
     assert rli_plan.settings_source == rlm_plan.settings_source == "typed"
+    assert rlm_ds_plan.settings_source == "typed"
+    assert rlm_ds_plan.group_codes == (1,)
+    assert rlm_ds_plan.predictor_measures == ("basdig", "bpvs", "bassim")
+    assert rlm_ds_plan.use_age_predictor is False
 
 
 @pytest.mark.parametrize(
@@ -155,11 +165,30 @@ def test_rlm_plan_maps_loader_and_factory_contracts():
         "include_age": False,
         "pre_wave": 1,
         "post_wave": 3,
+        "group_codes": None,
     }
     assert plan.rlm_factory_kwargs(("bpvs",)) == {
         "predictors": ("bpvs",),
         "predictor_slope_sigma": 0.3,
     }
+
+
+def test_rlm_group_subset_is_validated_and_propagated_before_io():
+    plan = resolve_adjusted_run_plan(RLM_DS_SPEC)
+    assert plan.rlm_prepare_kwargs()["group_codes"] == (1,)
+    assert "Down syndrome" in plan.analysis_population
+    recipe = plan.recipe_markdown(title="DS-only adjusted")
+    assert "group code(s) 1" in recipe
+    assert "No group nuisance term" in recipe
+    assert "SES sensitivity" not in recipe
+
+    with pytest.raises(ValueError, match="unknown RLM group_codes"):
+        resolve_adjusted_run_plan(
+            _spec(
+                study_id="rlm",
+                settings=AdjustedModelSettings(group_codes=(99,)),
+            )
+        )
 
 
 def test_active_covariates_are_recorded_and_drive_ses_loader():
@@ -186,6 +215,7 @@ def test_active_covariates_are_recorded_and_drive_ses_loader():
     ("study_id", "settings", "message"),
     [
         ("rli", AdjustedModelSettings(pre_wave=1), "RLM-only"),
+        ("rli", AdjustedModelSettings(group_codes=(1,)), "RLM-only"),
         (
             "rlm",
             AdjustedModelSettings(predictor_symbols=("L",)),

@@ -12,6 +12,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -41,8 +45,10 @@ _Frame and exclusions._ One row per child, complete-case on the outcome at both 
 predictor at wave 1 (n = 69: 21 Down syndrome / 29 average readers / 19
 reading-matched). `basmat` is excluded (wave-3+ only — no wave-1 value);
 `basspel` and `woco` are excluded as reading-route measures too close to the
-outcome. A Down-syndrome-only companion is deferred: at n = 21 with seven
-slopes the mutually adjusted posteriors would sit at the prior. Predictors are
+outcome. The Down-syndrome-only companion `lrp-rlm-adj-002` instead uses a
+pre-specified reduced three-skill set without age: carrying this full
+seven-slope specification into its 22 complete cases would leave the mutually
+adjusted posteriors largely determined by their priors. Predictors are
 standardised Haldane logits (age: standardised months), so slopes are per-SD
 on the logit scale; the items-scale translation is reported alongside.
 

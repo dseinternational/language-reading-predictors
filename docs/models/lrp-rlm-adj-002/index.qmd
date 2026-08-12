@@ -1,0 +1,54 @@
+---
+title: "RLMADJ02: Byrne Down-syndrome-only predictors of word-reading gain, waves 1-3"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMADJ02 is the reduced Down-syndrome-only companion requested in #409 D3. It asks whether wave-1 verbal memory (`basdig`), receptive vocabulary (`bpvs`) and verbal reasoning (`bassim`) distinguish subsequent BAS word-reading gain within the Byrne cohort's Down syndrome group. Wave-3 word reading is conditioned on wave-1 word reading and the three standardised wave-1 predictors are entered together. The complete-case frame contains 22 of the 24 children with Down syndrome.
+
+_Adjusted associations only._ This historical cohort has no intervention, and restricting it to one group does not create a causal design. Each coefficient is a between-child conditional association: it describes children who differed at baseline, conditional on the other named skills and baseline word reading. It does not say what would happen if memory, vocabulary or reasoning were changed.
+
+_Why this set is deliberately small._ The pooled parent model, `lrp-rlm-adj-001`, contains five skill predictors, age and the own baseline. Carrying that seven-slope specification into about 21 Down syndrome rows would leave the mutually adjusted posteriors largely determined by their priors. This companion pre-specifies three confirmed-ceiling measures and excludes age as an additional slope. Its estimates therefore are not age-adjusted; that narrower conditional question is the price of keeping the model estimable. The three selected instruments have confirmed denominators, but the unresolved 96-versus-97 participant extract lineage still blocks publication through the fit-level input gate.
+
+## Model
+
+For child $i$ with wave-1 word-reading logit $b_i$ and standardised wave-1 predictors $z_{k,i}$:
+
+$$
+y_i \sim \mathrm{BetaBinomial}(90,\ p_i,\ \kappa),
+\qquad
+\operatorname{logit}(p_i) = \alpha + \gamma_{\text{own}} b_i +
+\beta_{\text{basdig}}z_{\text{basdig},i} +
+\beta_{\text{bpvs}}z_{\text{bpvs},i} +
+\beta_{\text{bassim}}z_{\text{bassim},i}.
+$$
+
+Here $y_i$ is wave-3 BAS word reading out of 90. The three mutually adjusted slopes have $\mathrm{Normal}(0, 0.3)$ priors and are reported per one-standard-deviation predictor difference on both the logit and expected-word scales. No group nuisance coefficient is fitted because every row belongs to the Down syndrome group. Baseline-only bivariate refits and slope-prior sensitivity refits at prior standard deviations 0.5 and 0.7 remain required companions.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_adjusted.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
