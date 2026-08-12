@@ -10,7 +10,9 @@ the predictor-slope prior scale, and a complete-case SES fit. ``fit_rlm_adjusted
 is the same family on the Byrne (RLM) span frame, pooled across three groups with
 non-interpretable group-nuisance dummies; ``definitions.KINDS`` keys both as
 ``adjusted``, and they publish the same ``predictor_associations.csv`` schema, so
-they live together here.
+they live together here. RLM plans may target all three observational groups or
+a pre-specified subset; nuisance dummies are fitted only when the selected frame
+contains more than one group.
 
 Nothing in either cohort is randomised. Every predictor slope is an adjusted
 association, and the natural-scale contrasts translate a +1 SD difference into
@@ -488,7 +490,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
 def rlm_nuisance_names(frame) -> list[str]:
     """The group-nuisance coefficient names the RLM factories create."""
-    codes = sorted(frame.group_labels)
+    codes = sorted(set(np.asarray(frame.group_code, dtype=int)))
     counts = {c: int((frame.group_code == c).sum()) for c in codes}
     reference = max(counts, key=lambda c: (counts[c], -c))
     return [
@@ -545,8 +547,8 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     """Byrne between-child adjusted fit (#338 Phase D, ``lrp-rlm-adj-001``).
 
     The RLI ``fit_adjusted`` shape on the Byrne span frame: the mutually-adjusted
-    wave-1-predictors -> later-wave outcome regression (pooled three-group with
-    non-interpretable group-nuisance dummies, per the 2026-07-16 sign-off), the
+    wave-1-predictors -> later-wave outcome regression (all declared groups or a
+    pre-specified subset, with non-interpretable nuisance dummies when needed), the
     per-predictor bivariate comparison fits, a slope-prior sensitivity sweep and
     the items-scale +1 SD contrasts. Writes ``predictor_associations.csv``,
     ``predicted_gain_words.csv`` and ``prior_sensitivity.csv`` so the shared
@@ -736,6 +738,13 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             "post_wave": post_wave,
             "predictors": headline,
             "group_nuisance_terms": nuisance,
+            "group_codes": sorted(set(frame.group_code.astype(int))),
+            "group_labels": {
+                str(code): frame.group_labels[code]
+                for code in sorted(set(frame.group_code.astype(int)))
+            },
+            "source_n_children": frame.source_n_children,
+            "eligible_n_children": frame.eligible_n_children,
             "n_children": frame.n_children,
             "predictor_slope_sigma": sigma0,
         },

@@ -17,8 +17,10 @@ bivariate (baseline-only-adjusted) comparison fit per predictor and a
 slope-prior sensitivity sweep are reported alongside, per the RLI family
 convention.
 
-Down-syndrome-only companion fits are deliberately deferred: at n = 21 with
-seven slopes the mutually adjusted posteriors would sit at the prior.
+The pre-specified Down-syndrome-only companion ``lrp-rlm-adj-002`` uses a
+reduced three-skill set without age: carrying this full seven-slope
+specification into that 22-child complete-case frame would leave the mutually
+adjusted posteriors largely determined by their priors.
 ``basmat`` is excluded (wave-3+ only - no wave-1 value exists); ``basspel`` and
 ``woco`` are excluded as reading-route measures too close to the outcome
 (their conditional slopes would mostly re-express the baseline).

@@ -6326,7 +6326,7 @@ def _rlm_group_nuisance(frame, eta):
     composition exactly as ``beta_group_nuisance`` does in the RLI concurrent
     family - flagged non-interpretable, never a group effect estimate.
     """
-    codes = sorted(frame.group_labels)
+    codes = sorted(set(np.asarray(frame.group_code, dtype=int)))
     counts = {c: int((frame.group_code == c).sum()) for c in codes}
     reference = max(counts, key=lambda c: (counts[c], -c))
     for code in codes:

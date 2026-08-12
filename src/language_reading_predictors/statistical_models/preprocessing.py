@@ -1741,6 +1741,9 @@ class RlmSpanFrame:
     n_obs: int
     n_children: int
     dropped_rows: int
+    dropped_by_reason: dict[str, int] = field(default_factory=dict)
+    source_n_children: int = 0
+    eligible_n_children: int = 0
     n_phases: int = 1
 
 
@@ -1801,12 +1804,16 @@ def load_rlm_span_frame(
     include_age: bool = True,
     pre_wave: int = 1,
     post_wave: int = 3,
+    group_codes: Sequence[int] | None = None,
     path: str | Path | None = None,
 ) -> RlmSpanFrame:
     """Load the Byrne one-row-per-child span frame (#338 Phase D).
 
     Complete-case on the outcome at both waves and on every predictor at
     ``pre_wave`` - the mutually-adjusted regression frame, with no imputation.
+    ``group_codes`` optionally defines the target cohort before missing-data
+    exclusions; deliberate exclusions are recorded separately from incomplete
+    cases rather than inflating ``dropped_rows``.
     """
     from language_reading_predictors.statistical_models.datasets import (
         resolve_dataset,
@@ -1815,6 +1822,31 @@ def load_rlm_span_frame(
     dataset, measures = resolve_dataset("rlm")
     csv_path = Path(path) if path is not None else Path(dataset.path)
     df = pd.read_csv(csv_path)
+
+    if group_codes is None:
+        selected_groups = tuple(sorted(dataset.group_labels))
+    else:
+        selected_groups = tuple(group_codes)
+        if any(
+            isinstance(code, bool) or not isinstance(code, (int, np.integer))
+            for code in selected_groups
+        ):
+            raise TypeError("group_codes must contain integers")
+        selected_groups = tuple(int(code) for code in selected_groups)
+        if len(selected_groups) != len(set(selected_groups)):
+            raise ValueError("group_codes contains duplicates")
+    if not selected_groups:
+        raise ValueError("group_codes cannot be empty")
+    unknown_groups = sorted(set(selected_groups) - set(dataset.group_labels))
+    if unknown_groups:
+        raise ValueError(
+            "Unknown RLM group code(s): " + ", ".join(map(str, unknown_groups))
+        )
+    n_source = int(df[dataset.subject_col].nunique())
+    df = df[df[dataset.group_col].isin(selected_groups)].copy()
+    n_eligible = int(df[dataset.subject_col].nunique())
+    if n_eligible == 0:
+        raise ValueError("No RLM children belong to the requested group_codes")
 
     for sym in (outcome, *predictor_measures):
         if sym not in measures:
@@ -1827,8 +1859,9 @@ def load_rlm_span_frame(
         columns={outcome: "_post"}
     )
     wide = pre.join(post[["_post"]], how="inner")
-    n_before = int(df[dataset.subject_col].nunique())
     wide = wide.dropna()
+    if wide.empty:
+        raise ValueError("No complete RLM span rows remain after required-value checks")
 
     n_out = measures[outcome].n_trials
     if len(wide) and float(wide[[outcome, "_post"]].to_numpy().max()) > n_out:
@@ -1856,7 +1889,7 @@ def load_rlm_span_frame(
         post_wave=int(post_wave),
         subject_ids=wide.index.to_numpy(),
         group_code=wide[dataset.group_col].to_numpy(dtype=int),
-        group_labels=dict(dataset.group_labels),
+        group_labels={code: dataset.group_labels[code] for code in selected_groups},
         pre_logit={outcome: logit_safe(wide[outcome].to_numpy(), n_out)},
         post_counts={outcome: wide["_post"].to_numpy(dtype=np.int64)},
         n_trials={outcome: n_out},
@@ -1865,7 +1898,13 @@ def load_rlm_span_frame(
         predictor_labels=labels,
         n_obs=len(wide),
         n_children=len(wide),
-        dropped_rows=n_before - len(wide),
+        dropped_rows=n_eligible - len(wide),
+        dropped_by_reason={
+            "design_group_exclusion": n_source - n_eligible,
+            "missing_required_values": n_eligible - len(wide),
+        },
+        source_n_children=n_source,
+        eligible_n_children=n_eligible,
     )
 
 

@@ -70,6 +70,39 @@ def test_span_frame_complete_case(tmp_path):
     assert frame.post_counts["basread"].dtype.kind == "i"
 
 
+def test_span_frame_group_subset_precedes_complete_case_filter(tmp_path):
+    path = _write_battery_csv(tmp_path, drop_one=True)
+    frame = load_rlm_span_frame(
+        path=path,
+        predictor_measures=("basdig", "bpvs", "bassim"),
+        include_age=False,
+        group_codes=(1,),
+    )
+    assert frame.n_obs == 3
+    assert set(frame.group_code) == {1}
+    assert frame.group_labels == {1: "Down syndrome"}
+    assert set(frame.predictors) == {"basdig", "bpvs", "bassim"}
+    assert frame.source_n_children == 12
+    assert frame.eligible_n_children == 4
+    assert frame.dropped_rows == 1
+    assert frame.dropped_by_reason == {
+        "design_group_exclusion": 8,
+        "missing_required_values": 1,
+    }
+
+    model = build_rlm_adjusted_model(frame)
+    names = {variable.name for variable in model.model.free_RVs}
+    assert not any(name.startswith("beta_group_nuisance_") for name in names)
+
+
+def test_span_frame_rejects_unknown_or_empty_group_subset(tmp_path):
+    path = _write_battery_csv(tmp_path)
+    with pytest.raises(ValueError, match="cannot be empty"):
+        load_rlm_span_frame(path=path, group_codes=())
+    with pytest.raises(ValueError, match="Unknown RLM group code"):
+        load_rlm_span_frame(path=path, group_codes=(99,))
+
+
 def test_duplicate_subject_wave_row_raises(tmp_path):
     # #358 review: a duplicated (subject, wave) row would silently multiply rows
     # through the wide-frame join - it must be rejected at load.
