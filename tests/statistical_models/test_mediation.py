@@ -14,6 +14,7 @@ than a hardcoded ``{E, R}``.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -34,6 +35,9 @@ from language_reading_predictors.statistical_models.mediation import (
     decompose_two_mediator,
     sensitivity_sweep,
     sensitivity_sweep_two_mediator,
+)
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
 )
 from language_reading_predictors.statistical_models.mediation_calibration import (
     SlopeEstimate,
@@ -249,15 +253,18 @@ def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch):
         kind="mediation",
         outcome_symbol="N",
         mechanism_symbol="L",
-        extra={"outcomes": ("N", "L", "W")},
+        adjustment=["W"],
+        model_settings=pipeline._settings.MediationModelSettings(
+            outcomes=("N", "L", "W"),
+            outcome_kind="bernoulli_offfloor",
+        ),
     )
+    plan = pipeline._settings.resolve_mediation_run_plan(spec)
+    plan = plan.with_effective_confounders(("W",))
     result = pipeline._fit_t3_sensitivity(
         SimpleNamespace(reporting=SimpleNamespace(ci_prob=0.89)),
         spec,
-        confounders=("W",),
-        mediator_kind="beta_binomial",
-        outcome_kind="bernoulli_offfloor",
-        route_symbols=(),
+        plan=plan,
     )
 
     named_vars = set(captured["built"].model.named_vars)
@@ -333,13 +340,23 @@ def test_code_route_interventional_specs_mirror_their_parents():
         assert companion.mechanism_symbol == parent.mechanism_symbol
         assert companion.adjustment == parent.adjustment
         assert companion.adjustment is not parent.adjustment
-        assert companion.extra == {
-            **parent.extra,
-            "estimand": "interventional",
-            "companion_of": parent.model_id,
-        }
+        assert companion.extra == parent.extra == {}
+        parent_settings = parent.model_settings
+        companion_settings = companion.model_settings
+        assert isinstance(parent_settings, MediationModelSettings)
+        assert isinstance(companion_settings, MediationModelSettings)
+        assert companion_settings.estimand == "interventional"
+        assert companion_settings.companion_of == parent.model_id
+        assert replace(
+            companion_settings,
+            estimand=parent_settings.estimand,
+            companion_of=parent_settings.companion_of,
+        ) == parent_settings
         assert "W" in parent.adjustment
-        assert "W" in parent.extra["outcomes"]
+        assert parent_settings.outcomes is not None
+        assert companion_settings.outcomes is not None
+        assert "W" in parent_settings.outcomes
+        assert "W" in companion_settings.outcomes
 
 
 def test_decompose_gaussian_composite(tmp_path):

@@ -34,6 +34,10 @@ from language_reading_predictors.statistical_models.aligned import (
     AlignedRunPlan,
     resolve_aligned_run_plan,
 )
+from language_reading_predictors.statistical_models.adjusted import (
+    AdjustedRunPlan,
+    resolve_adjusted_run_plan,
+)
 from language_reading_predictors.statistical_models.block_exposure import (
     BlockExposureRunPlan,
     resolve_block_exposure_run_plan,
@@ -42,9 +46,17 @@ from language_reading_predictors.statistical_models.concurrent import (
     ConcurrentRunPlan,
     resolve_concurrent_run_plan,
 )
+from language_reading_predictors.statistical_models.corr_factor import (
+    CorrFactorRunPlan,
+    resolve_corr_factor_run_plan,
+)
 from language_reading_predictors.statistical_models.did import (
     DiDRunPlan,
     resolve_did_run_plan,
+)
+from language_reading_predictors.statistical_models.dose_response import (
+    DoseResponseRunPlan,
+    resolve_dose_response_run_plan,
 )
 from language_reading_predictors.statistical_models.gain_factors import (
     GainFactorsRunPlan,
@@ -62,6 +74,10 @@ from language_reading_predictors.statistical_models.historical_joint import (
     HistoricalJointRunPlan,
     resolve_historical_joint_run_plan,
 )
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeRunPlan,
+    resolve_horseshoe_run_plan,
+)
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     declared_settings_dict,
@@ -71,6 +87,10 @@ from language_reading_predictors.statistical_models.joint import (
     JointRunPlan,
     resolve_joint_run_plan,
 )
+from language_reading_predictors.statistical_models.joint_mechanism import (
+    JointMechanismRunPlan,
+    resolve_joint_mechanism_run_plan,
+)
 from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
     apply_score_mean_link,
@@ -79,10 +99,24 @@ from language_reading_predictors.statistical_models.level_factors import (
     LevelFactorsRunPlan,
     resolve_level_factors_run_plan,
 )
+from language_reading_predictors.statistical_models.lcsm import (
+    LcsmRunPlan,
+    resolve_lcsm_run_plan,
+)
+from language_reading_predictors.statistical_models.long_corr_factor import (
+    LongCorrFactorRunPlan,
+    resolve_long_corr_factor_run_plan,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismRunPlan,
     resolve_mechanism_run_plan,
     validate_mechanism_run_plan,
+)
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationMultiRunPlan,
+    MediationRunPlan,
+    resolve_mediation_multi_run_plan,
+    resolve_mediation_run_plan,
 )
 from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
@@ -2758,6 +2792,16 @@ def _joint_run_plan(context: StatisticalFitContext) -> JointRunPlan:
     return resolve_joint_run_plan(context.spec)
 
 
+def _joint_mechanism_run_plan(
+    context: StatisticalFitContext,
+) -> JointMechanismRunPlan:
+    """Return the joint-mechanism plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, JointMechanismRunPlan):
+        return resolved_plan
+    return resolve_joint_mechanism_run_plan(context.spec)
+
+
 def _level_factors_run_plan(context: StatisticalFitContext) -> LevelFactorsRunPlan:
     """Return the level-factor plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
@@ -2788,6 +2832,22 @@ def _aligned_run_plan(context: StatisticalFitContext) -> AlignedRunPlan:
     if isinstance(resolved_plan, AlignedRunPlan):
         return resolved_plan
     return resolve_aligned_run_plan(context.spec)
+
+
+def _adjusted_run_plan(context: StatisticalFitContext) -> AdjustedRunPlan:
+    """Return the adjusted-association plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, AdjustedRunPlan):
+        return resolved_plan
+    return resolve_adjusted_run_plan(context.spec)
+
+
+def _lcsm_run_plan(context: StatisticalFitContext) -> LcsmRunPlan:
+    """Return the LCSM plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, LcsmRunPlan):
+        return resolved_plan
+    return resolve_lcsm_run_plan(context.spec)
 
 
 def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
@@ -2858,6 +2918,64 @@ def _block_exposure_run_plan(
     return resolve_block_exposure_run_plan(context.spec)
 
 
+def _dose_response_run_plan(
+    context: StatisticalFitContext,
+) -> DoseResponseRunPlan:
+    """Return the dose-response plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, DoseResponseRunPlan):
+        return resolved_plan
+    return resolve_dose_response_run_plan(context.spec)
+
+
+def _horseshoe_run_plan(context: StatisticalFitContext) -> HorseshoeRunPlan:
+    """Return the horseshoe plan resolved before loading, or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, HorseshoeRunPlan):
+        return resolved_plan
+    return resolve_horseshoe_run_plan(context.spec)
+
+
+def _long_corr_factor_run_plan(
+    context: StatisticalFitContext,
+) -> LongCorrFactorRunPlan:
+    """Return the longitudinal-factor plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, LongCorrFactorRunPlan):
+        return resolved_plan
+    return resolve_long_corr_factor_run_plan(context.spec)
+
+
+def _corr_factor_run_plan(context: StatisticalFitContext) -> CorrFactorRunPlan:
+    """Return the correlated-factor plan resolved before loading."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, CorrFactorRunPlan):
+        return resolved_plan
+    return resolve_corr_factor_run_plan(context.spec)
+
+
+def _mediation_run_plan(
+    context: StatisticalFitContext,
+) -> MediationRunPlan | MediationMultiRunPlan | None:
+    """Return the mediation plan resolved before loading or reconstruct it."""
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, (MediationRunPlan, MediationMultiRunPlan)):
+        return resolved_plan
+    spec = context.spec
+    if (
+        spec.outcome_symbol is None
+        and spec.mechanism_symbol is None
+        and spec.model_settings is None
+        and not spec.extra
+    ):
+        # Metadata-only audit fixtures predate typed declarations and intentionally
+        # carry no model recipe. Real fits attach a plan before context creation.
+        return None
+    if context.spec.kind == "mediation_multi":
+        return resolve_mediation_multi_run_plan(context.spec)
+    return resolve_mediation_run_plan(context.spec)
+
+
 def _resolved_run_plan(context: StatisticalFitContext):
     """The typed run plan for whichever families have been converted, else None.
 
@@ -2868,6 +2986,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _itt_run_plan(context)
     if context.spec.kind == "joint":
         return _joint_run_plan(context)
+    if context.spec.kind == "joint_mechanism":
+        return _joint_mechanism_run_plan(context)
     if context.spec.kind == "gain_factors":
         return _gain_factors_run_plan(context)
     if context.spec.kind == "level_factors":
@@ -2878,6 +2998,10 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _concurrent_run_plan(context)
     if context.spec.kind == "aligned":
         return _aligned_run_plan(context)
+    if context.spec.kind == "adjusted":
+        return _adjusted_run_plan(context)
+    if context.spec.kind == "lcsm":
+        return _lcsm_run_plan(context)
     if context.spec.kind == "growth":
         return _growth_run_plan(context)
     if context.spec.kind == "historical_growth":
@@ -2890,6 +3014,16 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _survival_run_plan(context)
     if context.spec.kind == "block_exposure":
         return _block_exposure_run_plan(context)
+    if context.spec.kind == "dose_response":
+        return _dose_response_run_plan(context)
+    if context.spec.kind == "horseshoe":
+        return _horseshoe_run_plan(context)
+    if context.spec.kind == "long_corr_factor":
+        return _long_corr_factor_run_plan(context)
+    if context.spec.kind == "corr_factor":
+        return _corr_factor_run_plan(context)
+    if context.spec.kind in {"mediation", "mediation_multi"}:
+        return _mediation_run_plan(context)
     return None
 
 

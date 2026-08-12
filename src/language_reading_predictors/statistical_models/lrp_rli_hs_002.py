@@ -26,22 +26,27 @@ weakly-informative priors, not tuned.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_horseshoe
 
-_PREDICTORS = ["L", "R", "E", "B", "F", "T", "age"]
+_PREDICTORS = ("L", "R", "E", "B", "F", "T", "age")
 
 SPEC = ModelSpec(
     model_id="lrp-rli-hs-002",
     kind="horseshoe",
     title="Regularized-horseshoe ranking cross-check - word-reading level",
     outcome_symbol="W",
+    model_settings=HorseshoeModelSettings(
+        gain=False,
+        predictors=_PREDICTORS,
+        covariates=(),
+        delta=0.1,
+        gb_reference="lrp-rli-gbl-012",
+    ),
     extra={
-        "gain": False,
-        "predictors": _PREDICTORS,
-        "covariates": [],
-        "delta": 0.1,
         "target_accept": 0.99,
-        "gb_reference": "lrp-rli-gbl-012",
     },
 )
 

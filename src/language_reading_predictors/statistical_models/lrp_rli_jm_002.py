@@ -43,6 +43,9 @@ feed decoding".
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.joint_mechanism import (
+    JointMechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_joint_mechanism
 
 SPEC = ModelSpec(
@@ -58,15 +61,15 @@ SPEC = ModelSpec(
     design="phase-stacked bivariate ANCOVA, LKJ child random intercept",
     estimand_type="association",
     causal_status="none",
-    extra={
-        "design": "transition",
-        "outcome_symbols": ("W", "N"),
-        "contrast": ("N", "W"),
+    model_settings=JointMechanismModelSettings(
+        design="transition",
+        outcome_symbols=("W", "N"),
+        contrast=("N", "W"),
         # Matched to mech-096 / mech-101 so the re-reported Delta is like-for-like.
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "confounder_symbols": ("G", "A"),
-        "include_group": True,
-    },
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        confounder_symbols=("G", "A"),
+        include_group=True,
+    ),
 )
 
 

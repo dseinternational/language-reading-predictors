@@ -40,6 +40,7 @@ patterns are reported as-is.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_lcsm
 
 SPEC = ModelSpec(
@@ -50,30 +51,33 @@ SPEC = ModelSpec(
         "expressive (TE) and receptive (TR) vocabulary change"
     ),
     outcome_symbol="TE",
-    extra={
+    model_settings=LcsmModelSettings(
         # Measure symbols (TE/TR taught vocabulary, W word reading).
-        "outcomes": ["TE", "TR", "W"],
+        outcomes=("TE", "TR", "W"),
         # Target -> sources: prior W into both taught-vocabulary changes, with
         # prior TR as the DAG-named measured confounder of the TE coupling.
-        "couplings": {"TE": ["W", "TR"], "TR": ["W"]},
+        couplings=(("TE", ("W", "TR")), ("TR", ("W",))),
         # Crossover-aware arm x window change intercepts (mandatory; see module
         # docstring) with the window-1 ITT consistency contrast.
-        "arm_window_intercepts": True,
+        arm_window_intercepts=True,
         # Shared adjuster block on the taught-vocabulary change equations:
         # hearing (time-invariant dummies) + prior-wave phonological memory
         # (erbto = RW) and speech production (deapp_c = SP), missing-indicator
         # policy throughout. Completes the verified measured backdoor set.
-        "covariate_block": [
-            "hs", "hs_missing",
-            "erbto", "erbto_missing",
-            "deapp_c", "deapp_c_missing",
-        ],
-        "covariate_targets": ["TE", "TR"],
+        covariate_block=(
+            "hs",
+            "hs_missing",
+            "erbto",
+            "erbto_missing",
+            "deapp_c",
+            "deapp_c_missing",
+        ),
+        covariate_targets=("TE", "TR"),
         # Shared association scale (prior-critical-review 2026-07-07, rec. 3).
-        "coupling_prior_sigma": 0.3,
-        "use_process_noise": True,
-        "shared_process_noise": False,
-    },
+        coupling_prior_sigma=0.3,
+        use_process_noise=True,
+        shared_process_noise=False,
+    ),
 )
 
 

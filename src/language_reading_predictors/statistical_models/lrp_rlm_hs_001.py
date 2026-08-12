@@ -16,6 +16,9 @@ causal; a which-predictors-carry-signal read only.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_rlm_horseshoe
 
 SPEC = ModelSpec(
@@ -32,16 +35,17 @@ SPEC = ModelSpec(
     estimand_type="association",
     causal_status="none",
     dataset_ref="rlm:reading_language_memory_data_long",
+    model_settings=HorseshoeModelSettings(
+        predictor_measures=("bpvs", "trog", "basdig", "bassim", "basnum"),
+        use_age_predictor=True,
+        pre_wave=1,
+        post_wave=3,
+        delta=0.1,
+        tau0=0.1,
+        slab_scale=2.0,
+        slab_df=4.0,
+    ),
     extra={
-        "study_id": "rlm",
-        "predictor_measures": ("bpvs", "trog", "basdig", "bassim", "basnum"),
-        "use_age_predictor": True,
-        "pre_wave": 1,
-        "post_wave": 3,
-        "delta": 0.1,
-        "tau0": 0.1,
-        "slab_scale": 2.0,
-        "slab_df": 4.0,
         # The horseshoe's global-local funnel needs smaller steps than the
         # tier defaults, matching the RLI horseshoe fits.
         "target_accept": 0.99,

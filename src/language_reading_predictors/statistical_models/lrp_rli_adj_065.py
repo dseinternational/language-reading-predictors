@@ -231,6 +231,9 @@ def render_dag(output_dir: str | None = None, *, fmt: str = "svg") -> str:
 # graphviz available - no sampler dependencies needed for the review gate.
 def get_spec() -> "ModelSpec":
     """Return the LRP65 model specification (built lazily; see note above)."""
+    from language_reading_predictors.statistical_models.adjusted import (
+        AdjustedModelSettings,
+    )
     from language_reading_predictors.statistical_models.context import ModelSpec
 
     return ModelSpec(
@@ -241,17 +244,17 @@ def get_spec() -> "ModelSpec":
         adjustment=[
             "L", "lang", "B", "A", "W_pre", "blocks", "behav", "hs", "deapp_c", "erbto"
         ],
-        extra={
+        model_settings=AdjustedModelSettings(
             # Headline = genuinely between-child: one row per child, T1 baselines,
             # full-study gain (W at last wave conditioned on W_T1). No phase
             # dimension and no child random intercept (one obs per child).
-            "design": "between_child",
-            "post_time": 4,
+            design="between_child",
+            post_time=4,
             # Standardised T1 predictors of interest (letter sounds, blending).
-            "predictor_symbols": ["L", "B"],
+            predictor_symbols=("L", "B"),
             # Equal-weight language composite (receptive + expressive + concepts).
-            "language_composite_symbols": ["R", "E", "F"],
-            "use_age_predictor": True,
+            language_composite_symbols=("R", "E", "F"),
+            use_age_predictor=True,
             # Continuous covariates entered to test independent signal. The revised
             # 2026-07-10 DAG adds three upstream traits — hearing (HS = hs), speech
             # production (SP = deapp_c) and phonological memory (RW = erbto) — as
@@ -259,7 +262,7 @@ def get_spec() -> "ModelSpec":
             # missing-indicator method) to test whether any carries independent
             # word-reading-gain signal net of the language/letter-sound cluster (#247).
             # A constant _missing indicator on the fitted rows is dropped by the loader.
-            "covariates": [
+            covariates=(
                 "blocks",
                 "behav",
                 "hs",
@@ -268,9 +271,9 @@ def get_spec() -> "ModelSpec":
                 "deapp_c_missing",
                 "erbto",
                 "erbto_missing",
-            ],
+            ),
             # SES sensitivity fit on the SES-complete subset (not the headline model).
-            "ses_covariates": ["mumedupost16"],
+            ses_covariates=("mumedupost16",),
             # Fixed weakly-informative slope prior + the sensitivity sweep that
             # checks the which-predictors-clear-zero conclusion is stable.
             # Reconciled 0.5 -> 0.3 to match the shared association scale
@@ -278,9 +281,9 @@ def get_spec() -> "ModelSpec":
             # The sweep now brackets from the looser side, so the null-predictor
             # conclusion is shown stable even when the prior is loosened back
             # toward (and past) the old default.
-            "predictor_slope_sigma": 0.3,
-            "prior_sensitivity_sigmas": [0.5, 0.7],
-        },
+            predictor_slope_sigma=0.3,
+            prior_sensitivity_sigmas=(0.5, 0.7),
+        ),
     )
 
 

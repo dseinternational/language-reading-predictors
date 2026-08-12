@@ -24,22 +24,27 @@ subject random intercept needs). Weakly-informative priors, not tuned.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_horseshoe
 
-_PREDICTORS = ["W", "R", "E", "B", "F", "T", "age"]
+_PREDICTORS = ("W", "R", "E", "B", "F", "T", "age")
 
 SPEC = ModelSpec(
     model_id="lrp-rli-hs-004",
     kind="horseshoe",
     title="Regularized-horseshoe ranking cross-check - letter-sound level",
     outcome_symbol="L",
+    model_settings=HorseshoeModelSettings(
+        gain=False,
+        predictors=_PREDICTORS,
+        covariates=(),
+        delta=0.1,
+        gb_reference="lrp-rli-gbl-009",
+    ),
     extra={
-        "gain": False,
-        "predictors": _PREDICTORS,
-        "covariates": [],
-        "delta": 0.1,
         "target_accept": 0.99,
-        "gb_reference": "lrp-rli-gbl-009",
     },
 )
 

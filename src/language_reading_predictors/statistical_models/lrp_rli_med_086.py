@@ -69,6 +69,9 @@ on the NIE sensitivity surface is the right response, not adjustment.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -90,14 +93,14 @@ SPEC = ModelSpec(
         "G", "A", "L_t1", "B", "W",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
     ],
-    extra={
+    model_settings=MediationModelSettings(
         # Off-floor (Bernoulli) outcome: NIE/NDE on the off-floor risk-difference scale.
-        "outcome_kind": "bernoulli_offfloor",
+        outcome_kind="bernoulli_offfloor",
         # N is not in ITT_OUTCOMES (floored), while B and W must be loaded so their
         # t1 baselines are available as confounders. This restricts the complete-case
         # mask to N + L + B + W.
-        "outcomes": ("N", "L", "B", "W"),
-    },
+        outcomes=("N", "L", "B", "W"),
+    ),
 )
 
 

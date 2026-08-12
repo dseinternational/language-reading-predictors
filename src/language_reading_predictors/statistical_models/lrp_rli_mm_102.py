@@ -37,6 +37,9 @@ modified ITT estimate.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.corr_factor import (
+    CorrFactorModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_correlated_factor
 
 SPEC = ModelSpec(
@@ -47,24 +50,30 @@ SPEC = ModelSpec(
         "mechanism (beta_code at Normal(0, 1))"
     ),
     outcome_symbol="W",
+    model_settings=CorrFactorModelSettings(
+        domains=(
+            ("vocabulary", ("R", "E")),
+            ("code", ("L", "B")),
+            ("grammar", ("F", "T")),
+        ),
+        structural_factors=("code",),
+        use_group=True,
+        use_age=True,
+        structural_covariates=(
+            "hs",
+            "hs_missing",
+            "deapp_c",
+            "deapp_c_missing",
+            "erbto",
+            "erbto_missing",
+        ),
+        focal_slope_sigma=1.0,
+    ),
     extra={
         # Identical to LRPMM02 in every respect except focal_slope_sigma.
-        "domains": {
-            "vocabulary": ("R", "E"),
-            "code": ("L", "B"),
-            "grammar": ("F", "T"),
-        },
-        "structural_factors": ("code",),
-        "use_group": True,
-        "use_age": True,
-        "structural_covariates": (
-            "hs", "hs_missing", "deapp_c", "deapp_c_missing",
-            "erbto", "erbto_missing",
-        ),
         # The single free variable: the focal beta_code prior moves from the
         # association-scale N(0, 0.3) to the primary-mechanism N(0, 1); beta_G
         # deliberately stays at the association scale (recommendation 1).
-        "focal_slope_sigma": 1.0,
         "target_accept": 0.999,
     },
 )

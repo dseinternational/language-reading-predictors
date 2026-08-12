@@ -60,6 +60,9 @@ here. A weaker-assumption target, not a defensible one.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -78,11 +81,11 @@ SPEC = ModelSpec(
         "G", "A", "E", "R", "W_pre",
         "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
     ],
-    extra={
-        "mediator_kind": "gaussian_composite",
+    model_settings=MediationModelSettings(
+        mediator_kind="gaussian_composite",
         # Code-based-route composite. P dropped per the measurement-sensitivity audit.
-        "route_symbols": ("L", "B"),
-    },
+        route_symbols=("L", "B"),
+    ),
 )
 
 

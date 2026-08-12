@@ -44,6 +44,9 @@ ID-2 every factor->gain slope is a latent-ability-confounded **adjusted associat
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.corr_factor import (
+    CorrFactorModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_correlated_factor
 
 SPEC = ModelSpec(
@@ -54,18 +57,20 @@ SPEC = ModelSpec(
         "(legacy free loading / residual pair)"
     ),
     outcome_symbol="W",
+    model_settings=CorrFactorModelSettings(
+        domains=(
+            ("vocabulary", ("R", "E")),
+            ("code", ("L", "B")),
+            ("grammar", ("F", "T")),
+        ),
+        structural_covariates=("blocks",),
+        use_age=True,
+        loading_prior="free",
+    ),
     extra={
-        "domains": {
-            "vocabulary": ("R", "E"),
-            "code": ("L", "B"),
-            "grammar": ("F", "T"),
-        },
-        "structural_covariates": ("blocks",),
-        "use_age": True,
         # The legacy geometry at its knob DEFAULTS (HalfNormal(1) pair): LRPMM01
         # uses the factory-default communality parameterisation, so this companion
         # varies only the geometry, not the knob values.
-        "loading_prior": "free",
         # Matched to LRPMM01 so the loading-prior geometry is the ONLY difference
         # between the fits.
         "target_accept": 0.999,

@@ -27,7 +27,13 @@ from dataclasses import replace
 from language_reading_predictors.statistical_models.lrp_rli_med_087 import (
     SPEC as PARENT_SPEC,
 )
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
+
+PARENT_SETTINGS = PARENT_SPEC.model_settings
+assert isinstance(PARENT_SETTINGS, MediationModelSettings)
 
 SPEC = replace(
     PARENT_SPEC,
@@ -37,11 +43,11 @@ SPEC = replace(
         "letter-sound knowledge (L) - companion to MED-087"
     ),
     adjustment=list(PARENT_SPEC.adjustment),
-    extra={
-        **PARENT_SPEC.extra,
-        "estimand": "interventional",
-        "companion_of": PARENT_SPEC.model_id,
-    },
+    model_settings=replace(
+        PARENT_SETTINGS,
+        estimand="interventional",
+        companion_of=PARENT_SPEC.model_id,
+    ),
 )
 
 

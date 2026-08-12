@@ -34,6 +34,7 @@ is absorbed by the Beta-Binomial.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipeline import fit_lcsm
 
 SPEC = ModelSpec(
@@ -44,25 +45,28 @@ SPEC = ModelSpec(
         "cross-couplings with letter-sounds (L) adjustment"
     ),
     outcome_symbol="W",
-    extra={
-        "outcomes": ["W", "B", "L"],
+    model_settings=LcsmModelSettings(
+        outcomes=("W", "B", "L"),
         # Reciprocal pair plus the shared letter-sound confounder couplings.
-        "couplings": {"W": ["B", "L"], "B": ["W", "L"]},
+        couplings=(("W", ("B", "L")), ("B", ("W", "L"))),
         # The SD-standardised dominance readout compares these two directions.
-        "dominance_pair": ["W", "B"],
-        "arm_window_intercepts": True,
+        dominance_pair=("W", "B"),
+        arm_window_intercepts=True,
         # B (= PA) is an HS/SP/RW child in the lagged graph; the block is shared
         # across both target equations (parameter-sparing default at n~54).
-        "covariate_block": [
-            "hs", "hs_missing",
-            "erbto", "erbto_missing",
-            "deapp_c", "deapp_c_missing",
-        ],
-        "covariate_targets": ["W", "B"],
-        "coupling_prior_sigma": 0.3,
-        "use_process_noise": True,
-        "shared_process_noise": False,
-    },
+        covariate_block=(
+            "hs",
+            "hs_missing",
+            "erbto",
+            "erbto_missing",
+            "deapp_c",
+            "deapp_c_missing",
+        ),
+        covariate_targets=("W", "B"),
+        coupling_prior_sigma=0.3,
+        use_process_noise=True,
+        shared_process_noise=False,
+    ),
 )
 
 

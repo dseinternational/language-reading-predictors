@@ -46,6 +46,9 @@ See ``notes/202607142330-lrp313-longitudinal-corr-factor.md``.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.long_corr_factor import (
+    LongCorrFactorModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import (
     fit_longitudinal_corr_factor,
 )
@@ -58,12 +61,14 @@ SPEC = ModelSpec(
         "(per-wave latent skill correlations)"
     ),
     outcome_symbol=None,
+    model_settings=LongCorrFactorModelSettings(
+        domains=(
+            ("vocabulary", ("R", "E", "TR", "TE")),
+            ("code", ("L", "B")),
+            ("grammar", ("F", "T")),
+        ),
+    ),
     extra={
-        "domains": {
-            "vocabulary": ("R", "E", "TR", "TE"),
-            "code": ("L", "B"),
-            "grammar": ("F", "T"),
-        },
         # Small-n latent geometry: even fully marginalised a few boundary divergences
         # can survive at the tier-default target_accept, so lift it (as mm-001 does at
         # 0.999) to clear the strict zero-divergence gate.

@@ -25,6 +25,9 @@ seven slopes the mutually adjusted posteriors would sit at the prior.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.adjusted import (
+    AdjustedModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_rlm_adjusted
 
 SPEC = ModelSpec(
@@ -41,15 +44,14 @@ SPEC = ModelSpec(
     estimand_type="association",
     causal_status="none",
     dataset_ref="rlm:reading_language_memory_data_long",
-    extra={
-        "study_id": "rlm",
-        "predictor_measures": ("bpvs", "trog", "basdig", "bassim", "basnum"),
-        "use_age_predictor": True,
-        "pre_wave": 1,
-        "post_wave": 3,
-        "predictor_slope_sigma": 0.3,
-        "prior_sensitivity_sigmas": (0.5, 0.7),
-    },
+    model_settings=AdjustedModelSettings(
+        predictor_measures=("bpvs", "trog", "basdig", "bassim", "basnum"),
+        use_age_predictor=True,
+        pre_wave=1,
+        post_wave=3,
+        predictor_slope_sigma=0.3,
+        prior_sensitivity_sigmas=(0.5, 0.7),
+    ),
 )
 
 

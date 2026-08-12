@@ -50,6 +50,9 @@ only at treatment descendants — MED-187 plus #324 remain the right response.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -71,10 +74,10 @@ SPEC = ModelSpec(
         "G", "A", "W_pre", "L_t1", "W",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
     ],
-    extra={
+    model_settings=MediationModelSettings(
         # Restrict the complete-case mask to B + L + baseline-W availability.
-        "outcomes": ("B", "L", "W"),
-    },
+        outcomes=("B", "L", "W"),
+    ),
 )
 
 

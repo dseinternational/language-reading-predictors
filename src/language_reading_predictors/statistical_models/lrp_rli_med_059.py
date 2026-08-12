@@ -57,6 +57,9 @@ and rough magnitude with LRP52's tau_W.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -75,7 +78,7 @@ SPEC = ModelSpec(
         "G", "A", "E", "R", "L_t1", "W_pre",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing",
     ],
-    extra={},
+    model_settings=MediationModelSettings(),
 )
 
 

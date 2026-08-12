@@ -24,6 +24,8 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
+    lcsm as _lcsm,
+    reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -31,7 +33,6 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.factories import default_of
 from language_reading_predictors.statistical_models.figure_artifacts import (
     write_panel_child_fit,
 )
@@ -57,7 +58,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Latent change-score model (LRP67 + the lagged coupling suite, #250).
 
     Fits the coupled McArdle latent change-score model with process noise and
-    reports the per-target coupling tables. ``spec.extra`` selects the shape:
+    reports the per-target coupling tables. The typed run plan selects the shape:
     the LRP67 default couples every other measure into the reading change; the
     lagged reverse-coupling models (LCSM-081/181/082) pass an explicit
     ``couplings`` map plus ``arm_window_intercepts`` (the crossover-aware
@@ -69,41 +70,21 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     latent-change terms (``h_{src}``) to the named targets' change equations.
     """
     require_spec(spec, "lcsm")
+    plan = _lcsm.resolve_lcsm_run_plan(spec)
 
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
 
     section_header("Prepare data")
-    outcomes = tuple(spec.extra.get("outcomes", ("W", "L", "E")))
-    reading_symbol = spec.outcome_symbol or "W"
-    couplings_in = spec.extra.get("couplings")
-    couplings: dict[str, tuple[str, ...]] = (
-        {tgt: tuple(srcs) for tgt, srcs in couplings_in.items()}
-        if couplings_in
-        else {reading_symbol: tuple(s for s in outcomes if s != reading_symbol)}
-    )
-    lagged_in = spec.extra.get("lagged_change_couplings")
-    lagged_change_couplings: dict[str, tuple[str, ...]] = (
-        {tgt: tuple(srcs) for tgt, srcs in lagged_in.items()} if lagged_in else {}
-    )
-    arm_window = bool(spec.extra.get("arm_window_intercepts", False))
-    covariate_block = tuple(spec.extra.get("covariate_block", ()))
-    covariate_targets = tuple(spec.extra.get("covariate_targets", ()))
-    # Loader needs from the covariate block: the hearing dummies come via
-    # include_hearing; everything else names a per-wave source column (its
-    # ``_missing`` companion is derived, not loaded).
-    include_hearing = any(n in ("hs", "hs_missing") for n in covariate_block)
-    wave_cov_cols = tuple(
-        dict.fromkeys(
-            n
-            for n in covariate_block
-            if n not in ("hs", "hs_missing") and not n.endswith("_missing")
-        )
-    )
-    panel = load_wave_panel(
-        outcomes=outcomes,
-        wave_covariates=wave_cov_cols,
-        include_hearing=include_hearing,
-    )
+    outcomes = plan.outcomes
+    reading_symbol = plan.reading_symbol
+    couplings = plan.coupling_mapping()
+    lagged_change_couplings = plan.lagged_coupling_mapping()
+    arm_window = plan.arm_window_intercepts
+    covariate_block = plan.covariate_block
+    covariate_targets = plan.covariate_targets
+    panel = load_wave_panel(**plan.prepare_kwargs())
     ctx.prepared = panel
 
     print_header(ctx)
@@ -111,18 +92,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Build model")
     built = _factories.build_lcsm_model(
         panel,
-        reading_symbol=reading_symbol,
-        couplings=couplings,
-        lagged_change_couplings=lagged_change_couplings or None,
-        arm_window_intercepts=arm_window,
-        covariate_block=covariate_block,
-        covariate_targets=covariate_targets,
-        coupling_prior_sigma=spec.extra.get(
-            "coupling_prior_sigma",
-            default_of(_factories.build_lcsm_model, "coupling_prior_sigma"),
-        ),
-        use_process_noise=spec.extra.get("use_process_noise", True),
-        shared_process_noise=spec.extra.get("shared_process_noise", False),
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
 
@@ -131,24 +101,10 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Coupling parameter names mirror the factory's rule: single target keeps
     # LRP67's ``g_{src}``; multiple targets carry the target (``g_{src}_{tgt}``).
     single_target = len(couplings) == 1
-    coupling_names = {
-        (src, tgt): (f"g_{src}" if single_target else f"g_{src}_{tgt}")
-        for tgt, srcs in couplings.items()
-        for src in srcs
-    }
+    coupling_names = plan.coupling_names()
     # Lagged change-on-change names mirror the factory's rule on the lag map.
-    single_lag_target = len(lagged_change_couplings) == 1
-    lagged_names = {
-        (src, tgt): (f"h_{src}" if single_lag_target else f"h_{src}_{tgt}")
-        for tgt, srcs in lagged_change_couplings.items()
-        for src in srcs
-    }
-    diag_vars = list(coupling_names.values())
-    diag_vars += list(lagged_names.values())
-    diag_vars += [f"b_{name}" for name in covariate_block]
-    diag_vars += ["a_change", "b_self", "d_age", "sigma1", "kappa"]
-    if spec.extra.get("use_process_noise", True):
-        diag_vars.append("sigma_proc")
+    lagged_names = plan.lagged_names()
+    diag_vars = plan.diagnostic_vars()
 
     section_header("Prior predictive")
     _diag.run_prior_predictive(ctx, draws=1000)
@@ -167,7 +123,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ),
         )
 
-    run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
@@ -294,7 +250,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # direction's coupling by the model's own latent scales (g* = g *
     # sd(prior source levels) / sd(target changes)) and report |g*_AB| - |g*_BA|.
     dom_rows: list[dict] = []
-    dominance_pair = spec.extra.get("dominance_pair")
+    dominance_pair = plan.dominance_pair
     if dominance_pair:
         a, b = dominance_pair
         section_header(f"Reciprocal dominance: {a} <-> {b}")

@@ -37,6 +37,9 @@ skill.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationMultiModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation_multi
 
 SPEC = ModelSpec(
@@ -52,13 +55,13 @@ SPEC = ModelSpec(
         "G", "A", "E", "R", "W_pre", "L_t1",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
     ],
-    extra={
-        "mediators": ("L", "N"),
-        "order": ("L", "N"),
-        "chain": True,  # add the L -> N edge; draw N conditional on simulated L
-        "second_mediator_offfloor": True,  # N is post-only / ~72% floored -> Bernoulli leg
-        "outcomes": ("W", "L", "N"),  # load N (floored, outside the default ITT set)
-    },
+    model_settings=MediationMultiModelSettings(
+        mediators=("L", "N"),
+        order=("L", "N"),
+        chain=True,  # add the L -> N edge; draw N conditional on simulated L
+        second_mediator_offfloor=True,  # N is post-only / ~72% floored -> Bernoulli leg
+        outcomes=("W", "L", "N"),  # load N (floored, outside the default ITT set)
+    ),
 )
 
 

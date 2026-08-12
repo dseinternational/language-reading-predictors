@@ -31,6 +31,7 @@ from language_reading_predictors.models._reporting import (
     section_header,
 )
 from language_reading_predictors.statistical_models import (
+    adjusted as _adjusted,
     diagnostics as _diag,
     factories as _factories,
     reporting as _report,
@@ -41,7 +42,6 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.factories import default_of
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
@@ -174,61 +174,46 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     trace / diagnostics / LOO / PPC artefacts.
     """
     require_spec(spec, "adjusted")
-    e = spec.extra
-    outcome = spec.outcome_symbol or "W"
-    post_time = int(e.get("post_time", 4))
-    predictor_symbols = list(e.get("predictor_symbols", ["L", "B"]))
-    lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
-    covariates = list(e.get("covariates", ["blocks", "behav"]))
-    ses_covs = list(e.get("ses_covariates", ["mumedupost16"]))
-    # The slope-prior default is sourced from the factory signature (single source
-    # of truth) so this fallback cannot drift from the reconciled scale — prior-
-    # critical-review 2026-07-07, recommendation 3; #209 review. The sweep default
-    # brackets that scale from the looser side (no factory param mirrors it).
-    sigma0 = float(
-        e.get(
-            "predictor_slope_sigma",
-            default_of(_factories.build_adjusted_model, "predictor_slope_sigma"),
-        )
-    )
-    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
-    use_age = bool(e.get("use_age_predictor", True))
+    plan = _adjusted.resolve_adjusted_run_plan(spec)
+    if plan.port != "rli":
+        raise ValueError(f"{spec.model_id}: RLM settings require fit_rlm_adjusted")
+    outcome = plan.outcome_symbol
+    post_time = plan.post_time
+    assert post_time is not None
+    lang_symbols = plan.language_composite_symbols
+    ses_covs = list(plan.ses_covariates)
+    sigma0 = plan.predictor_slope_sigma
+    prior_sens = list(plan.prior_sensitivity_sigmas)
 
     # 94% intervals (the brief's convention) rather than the project-wide 95%.
     ctx = make_context(spec, config, ci_prob=0.89)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
 
     section_header("Prepare data")
-    measure_outcomes = tuple(
-        dict.fromkeys([outcome, *predictor_symbols, *lang_symbols])
-    )
-    prepared = load_and_prepare(
-        phase_mode="span",
-        post_time=post_time,
-        outcomes=measure_outcomes,
-        covariates=tuple(covariates),
-    )
+    prepared = load_and_prepare(**plan.rli_prepare_kwargs())
     ctx.prepared = prepared
     # Drop any covariate the loader removed as constant on the fitted rows (e.g. a
     # `_missing` indicator that is all-zero once the complete cases are kept) so the
     # model never requests a coefficient for a term that was never estimated (#247).
-    covariates = [c for c in covariates if c in prepared.covariates]
-    # Headline predictor key order: skills, language composite, age, tested covariates.
-    headline = (
-        list(predictor_symbols)
-        + ["lang"]
-        + (["age"] if use_age else [])
-        + covariates
+    covariates = tuple(
+        symbol
+        for symbol in plan.declared_covariates
+        if symbol in prepared.covariates
     )
+    if covariates != plan.active_covariates:
+        plan = plan.with_active_covariates(covariates)
+        ctx.resolved_plan = plan
+        _report.write_model_recipe(ctx)
+    # Headline predictor key order: skills, language composite, age, tested covariates.
+    headline = list(plan.headline_predictors())
     print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_adjusted_model(
         prepared,
-        outcome_symbol=outcome,
-        predictors=headline,
-        language_composite_symbols=lang_symbols,
-        predictor_slope_sigma=sigma0,
+        **plan.rli_factory_kwargs(),
     )
     attach_built(ctx, built)
 
@@ -238,7 +223,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome)
 
-    run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     section_header("Summary diagnostics")
     beta_names = [f"beta_{k}" for k in headline]
@@ -270,10 +255,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     for k in headline:
         b = _factories.build_adjusted_model(
             prepared,
-            outcome_symbol=outcome,
-            predictors=[k],
-            language_composite_symbols=lang_symbols,
-            predictor_slope_sigma=sigma0,
+            **plan.rli_factory_kwargs(predictors=(k,)),
         )
         res = run_subfit(
             ctx, b, label=f"{spec.model_id} bivariate {k}", role="bivariate"
@@ -369,10 +351,10 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         else:
             b = _factories.build_adjusted_model(
                 prepared,
-                outcome_symbol=outcome,
-                predictors=headline,
-                language_composite_symbols=lang_symbols,
-                predictor_slope_sigma=sig,
+                **{
+                    **plan.rli_factory_kwargs(),
+                    "predictor_slope_sigma": sig,
+                },
             )
             res = run_subfit(
                 ctx,
@@ -401,10 +383,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ses_error = None
     try:
         prepared_ses = load_and_prepare(
-            phase_mode="span",
-            post_time=post_time,
-            outcomes=measure_outcomes,
-            covariates=tuple(covariates + ses_covs),
+            **plan.rli_prepare_kwargs(include_ses=True),
         )
         # Re-filter against the SES-complete subset: a `_missing` indicator can go
         # constant on this smaller subset even if it survived the headline fit, and the
@@ -412,16 +391,15 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # ``build_adjusted_model`` would KeyError on the dropped term (#287 review). The
         # non-covariate predictors (skills / lang / age) are always kept.
         ses_headline = [
-            k for k in headline if k not in covariates or k in prepared_ses.covariates
+            k
+            for k in headline
+            if k not in plan.active_covariates or k in prepared_ses.covariates
         ]
         ses_covs_fit = [c for c in ses_covs if c in prepared_ses.covariates]
         ses_predictors = ses_headline + ses_covs_fit
         b = _factories.build_adjusted_model(
             prepared_ses,
-            outcome_symbol=outcome,
-            predictors=ses_predictors,
-            language_composite_symbols=lang_symbols,
-            predictor_slope_sigma=sigma0,
+            **plan.rli_factory_kwargs(predictors=ses_predictors),
         )
         res = run_subfit(
             ctx, b, label=f"{spec.model_id} SES complete-case", role="sensitivity"
@@ -580,41 +558,31 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     )
 
     require_spec(spec, "adjusted")
-    e = spec.extra
-    outcome = spec.outcome_symbol or "basread"
-    predictor_measures = tuple(
-        e.get("predictor_measures", ("bpvs", "trog", "basdig", "bassim", "basnum"))
-    )
-    include_age = bool(e.get("use_age_predictor", True))
-    pre_wave = int(e.get("pre_wave", 1))
-    post_wave = int(e.get("post_wave", 3))
-    sigma0 = float(
-        e.get(
-            "predictor_slope_sigma",
-            default_of(_factories.build_rlm_adjusted_model, "predictor_slope_sigma"),
-        )
-    )
-    prior_sens = list(e.get("prior_sensitivity_sigmas", [0.5, 0.7]))
+    plan = _adjusted.resolve_adjusted_run_plan(spec)
+    if plan.port != "rlm":
+        raise ValueError(f"{spec.model_id}: RLI settings require fit_adjusted")
+    outcome = plan.outcome_symbol
+    pre_wave = plan.pre_wave
+    post_wave = plan.post_wave
+    assert pre_wave is not None and post_wave is not None
+    sigma0 = plan.predictor_slope_sigma
+    prior_sens = list(plan.prior_sensitivity_sigmas)
 
     # 94% intervals, matching the RLI adjusted-family convention.
     ctx = make_context(spec, config, ci_prob=0.89)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
 
     section_header("Prepare data")
-    frame = load_rlm_span_frame(
-        outcome=outcome,
-        predictor_measures=predictor_measures,
-        include_age=include_age,
-        pre_wave=pre_wave,
-        post_wave=post_wave,
-    )
+    frame = load_rlm_span_frame(**plan.rlm_prepare_kwargs())
     ctx.prepared = frame
     headline = list(frame.predictors)
     print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_rlm_adjusted_model(
-        frame, predictors=headline, predictor_slope_sigma=sigma0
+        frame, **plan.rlm_factory_kwargs(headline)
     )
     attach_built(ctx, built)
     render_model_graph(ctx)
@@ -623,11 +591,10 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _diag.run_prior_predictive(ctx, draws=1000)
     _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
 
-    run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
-    beta_names = [f"beta_{k}" for k in headline]
     nuisance = rlm_nuisance_names(frame)
-    diag_vars = ["alpha", "gamma_own", "kappa", *beta_names, *nuisance]
+    diag_vars = plan.diagnostic_vars(headline, nuisance)
     section_header("Summary diagnostics")
     _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381).
@@ -649,7 +616,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     biv_converged: dict[str, object] = {}
     for k in headline:
         b = _factories.build_rlm_adjusted_model(
-            frame, predictors=[k], predictor_slope_sigma=sigma0
+            frame, **plan.rlm_factory_kwargs((k,))
         )
         res = run_subfit(
             ctx, b, label=f"{spec.model_id} bivariate {k}", role="bivariate"
@@ -733,7 +700,11 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             t, sig_converged = ctx.trace, _primary_converged
         else:
             b = _factories.build_rlm_adjusted_model(
-                frame, predictors=headline, predictor_slope_sigma=float(sig)
+                frame,
+                **{
+                    **plan.rlm_factory_kwargs(headline),
+                    "predictor_slope_sigma": float(sig),
+                },
             )
             res = run_subfit(
                 ctx, b, label=f"{spec.model_id} sigma={sig}", role="prior_sweep"

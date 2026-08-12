@@ -47,6 +47,9 @@ never a causal route; ``n ~ 53`` -> wide intervals.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationMultiModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation_multi
 
 SPEC = ModelSpec(
@@ -62,11 +65,11 @@ SPEC = ModelSpec(
         "G", "A", "E", "R", "W_pre", "L_t1", "B_t1",
         "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
     ],
-    extra={
-        "mediators": ("L", "B"),
-        "order": ("L", "B"),
-        "chain": True,  # add the L -> B edge; draw B conditional on simulated L
-    },
+    model_settings=MediationMultiModelSettings(
+        mediators=("L", "B"),
+        order=("L", "B"),
+        chain=True,  # add the L -> B edge; draw B conditional on simulated L
+    ),
 )
 
 

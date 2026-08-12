@@ -391,11 +391,23 @@ def _map_adjustment(entries, outcome_symbol: str) -> set[str]:
 
 def _med_case(spec, unrolled, unrolled4):
     """(graph, mediator nodes, outcome node, mapped fitted set) for a MED spec."""
-    if spec.mechanism_symbol is not None:
-        mediator_symbols = (spec.mechanism_symbol,)
+    from language_reading_predictors.statistical_models.mediation_settings import (
+        resolve_mediation_multi_run_plan,
+        resolve_mediation_run_plan,
+    )
+
+    if spec.kind == "mediation_multi":
+        plan = resolve_mediation_multi_run_plan(spec)
+        mediator_symbols = plan.mediators
+        outcome_wave = 2
     else:
-        mediator_symbols = spec.extra.get("mediators") or spec.extra["route_symbols"]
-    outcome_wave = spec.extra.get("outcome_time", 2)
+        plan = resolve_mediation_run_plan(spec)
+        mediator_symbols = (
+            plan.route_symbols
+            if plan.mediator_kind == "gaussian_composite"
+            else (plan.mediator_symbol,)
+        )
+        outcome_wave = plan.outcome_time or 2
     g = unrolled4 if outcome_wave == 4 else unrolled
     ms = {f"{SYMBOL_TO_NODE[s]}_2" for s in mediator_symbols}
     y = f"{SYMBOL_TO_NODE[spec.outcome_symbol]}_{outcome_wave}"

@@ -29,6 +29,7 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.statistical_models import (
     diagnostics as _diag,
     factories as _factories,
+    joint_mechanism as _joint_mechanism,
     reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import (
@@ -44,7 +45,6 @@ from language_reading_predictors.statistical_models.plotting import save_styled_
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
     load_and_prepare,
-    split_covariates_by_wave,
 )
 from language_reading_predictors.statistical_models.publication import (
     print_header,
@@ -70,11 +70,6 @@ _JM_TERM_LABELS: dict[str, str] = {
     "beta_mech_focal_given_held": "beta(LS->W) holding nonword decoding fixed",
     "share_retained": "share of beta(LS->W) retained when decoding is held fixed",
 }
-
-#: Fewest usable rows a wave needs before the levels design will fit it. A bivariate
-#: residual covariance on a handful of children is prior-dominated, and reporting a
-#: correlation from it would misrepresent what the joint fit adds.
-_JM_MIN_WAVE_ROWS = 10
 
 #: Columns every ``joint_mechanism_slopes.csv`` row carries. The house standard is
 #: median + inner 50% + outer 89% + tail probability (METHODS.md; #421 acceptance
@@ -170,33 +165,6 @@ def _jm_slope_rows(
     ):
         _add(term, _JM_TERM_LABELS[term], _jm_term_summary(trace, term, ci_prob))
     return rows
-
-
-def _jm_diag_vars(
-    trace_or_model_names: set[str],
-    *,
-    design: str,
-    adjust_for: tuple[str, ...],
-    confounder_symbols: tuple[str, ...],
-    include_group: bool,
-) -> list[str]:
-    """Reported parameters for the convergence gate and the prior-vs-posterior panel."""
-    names = ["alpha", "beta_mech", "delta_ls_decoding"]
-    if include_group or "G" in confounder_symbols:
-        names.append("beta_group_nuisance" if design == "levels" else "beta_G")
-    if "A" in confounder_symbols:
-        names.append("gamma_A")
-    names += [f"gamma_{c}" for c in adjust_for]
-    if design == "levels":
-        names += [
-            "sigma_u_resid",
-            "rho_outcome",
-            "beta_mech_focal_given_held",
-            "share_retained",
-        ]
-    else:
-        names += ["gamma_own", "alpha_phase", "kappa", "sigma_u_child", "rho_outcome"]
-    return [n for n in names if n in trace_or_model_names]
 
 
 def _jm_marginal_ppc(
@@ -408,31 +376,16 @@ def fit_joint_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     intercept supplying the cross-outcome covariance.
     """
     require_spec(spec, "joint_mechanism")
-    e = spec.extra
-    design = str(e.get("design", "levels"))
-    if design not in {"levels", "transition"}:
-        raise ValueError(
-            f"{spec.model_id}: joint-mechanism design must be 'levels' or "
-            f"'transition'; got {design!r}"
-        )
-    if design == "levels":
-        return _fit_joint_mechanism_levels(spec, config)
-    return _fit_joint_mechanism_transition(spec, config)
-
-
-def _jm_common_settings(spec: ModelSpec) -> dict:
-    e = spec.extra
-    return {
-        "mechanism_symbol": spec.mechanism_symbol or "L",
-        "outcome_symbols": tuple(e.get("outcome_symbols", ("W", "N"))),
-        "contrast": tuple(e.get("contrast", ("N", "W"))),
-        "confounder_symbols": tuple(e.get("confounder_symbols", ("G", "A"))),
-        "include_group": bool(e.get("include_group", True)),
-    }
+    plan = _joint_mechanism.resolve_joint_mechanism_run_plan(spec)
+    if plan.design == "levels":
+        return _fit_joint_mechanism_levels(spec, config, plan)
+    return _fit_joint_mechanism_transition(spec, config, plan)
 
 
 def _fit_joint_mechanism_levels(
-    spec: ModelSpec, config: str
+    spec: ModelSpec,
+    config: str,
+    plan: _joint_mechanism.JointMechanismRunPlan,
 ) -> StatisticalFitContext:
     """Per-wave levels/concurrent bivariate fit (#421 Tier 3 (1); ``jm-001``).
 
@@ -441,38 +394,32 @@ def _fit_joint_mechanism_levels(
     the trace / gate / PPC artefacts, every wave's convergence is recorded in
     ``joint_mechanism_fit_diagnostics.csv``, and no wave is silently dropped.
     """
-    e = spec.extra
-    s = _jm_common_settings(spec)
-    outcome_symbols = s["outcome_symbols"]
-    contrast = s["contrast"]
+    outcome_symbols = plan.outcome_symbols
+    contrast = plan.contrast
     # Trait covariates are t1-measured, so they broadcast from baseline across the
     # four timepoint rows — exactly as ca-010 / ca-011 enter them, which is what
     # makes the identified share_retained a like-for-like replacement.
-    covariates = tuple(e.get("covariates", ()))
-    predictor_slope_sigma = float(e.get("predictor_slope_sigma", 0.3))
+    covariates = plan.declared_adjustment
+    predictor_slope_sigma = plan.predictor_slope_sigma
+    assert predictor_slope_sigma is not None
 
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
     ci = ctx.reporting.ci_prob
 
     section_header("Prepare data")
-    prepared_all = load_and_prepare(
-        phase_mode="levels",
-        outcomes=(*outcome_symbols, s["mechanism_symbol"]),
-        baseline_covariates=covariates,
-    )
+    prepared_all = load_and_prepare(**plan.prepare_kwargs())
     covariates = tuple(c for c in covariates if c in prepared_all.covariates)
+    if covariates != plan.active_adjustment:
+        plan = plan.with_active_adjustment(covariates)
+        ctx.resolved_plan = plan
+        _report.write_model_recipe(ctx)
 
     def _build(sub):
         return _factories.build_joint_mechanism_model(
             sub,
-            design="levels",
-            mechanism_symbol=s["mechanism_symbol"],
-            outcome_symbols=outcome_symbols,
-            contrast=contrast,
-            adjust_for=covariates,
-            confounder_symbols=s["confounder_symbols"],
-            include_group=s["include_group"],
-            predictor_slope_sigma=predictor_slope_sigma,
+            **plan.factory_kwargs(),
         )
 
     # Usable rows at a wave: the exposure observed (it is never imputed — imputing
@@ -484,25 +431,26 @@ def _fit_joint_mechanism_levels(
     skipped: list[str] = []
     for w in wave_indices:
         sub = _subset_prepared(prepared_all, prepared_all.phase == w)
-        usable = ~np.isnan(sub.post_counts[s["mechanism_symbol"]])
+        usable = ~np.isnan(sub.post_counts[plan.mechanism_symbol])
         any_outcome = np.zeros(sub.n_obs, dtype=bool)
         for symbol in outcome_symbols:
             any_outcome |= ~np.isnan(sub.post_counts[symbol])
         n_usable = int(np.count_nonzero(usable & any_outcome))
-        if n_usable < _JM_MIN_WAVE_ROWS:
+        assert plan.min_wave_rows is not None
+        if n_usable < plan.min_wave_rows:
             skipped.append(f"t{w + 1} ({n_usable} usable rows)")
             continue
         wave_subsets[w] = sub
     if skipped:
         rprint(
             "[yellow]Joint mechanism: skipped "
-            f"{', '.join(skipped)} — fewer than {_JM_MIN_WAVE_ROWS} rows with the "
+            f"{', '.join(skipped)} — fewer than {plan.min_wave_rows} rows with the "
             "exposure and at least one outcome observed.[/yellow]"
         )
     if not wave_subsets:
         raise ValueError(
-            f"{spec.model_id}: no timepoint has at least {_JM_MIN_WAVE_ROWS} rows "
-            f"with the exposure {s['mechanism_symbol']!r} and an outcome observed."
+            f"{spec.model_id}: no timepoint has at least {plan.min_wave_rows} rows "
+            f"with the exposure {plan.mechanism_symbol!r} and an outcome observed."
         )
     # Build after the data filter, so a specification error (a bad contrast, a missing
     # covariate) raises rather than being swallowed as "this wave is not fittable".
@@ -533,24 +481,13 @@ def _fit_joint_mechanism_levels(
                     else f"prior_predictive_check_{symbol.lower()}"
                 )
                 _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
-            run_sampling_and_loo(ctx)
+            run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
             trace = ctx.trace
             model_names = {rv.name for rv in ctx.model.free_RVs} | set(
                 ctx.trace.posterior.data_vars
             )
-            diag_vars = _jm_diag_vars(
-                model_names,
-                design="levels",
-                adjust_for=covariates,
-                confounder_symbols=s["confounder_symbols"],
-                include_group=s["include_group"],
-            )
-            psense_vars = [
-                v
-                for v in ("beta_mech", "delta_ls_decoding", "rho_outcome",
-                          "beta_mech_focal_given_held")
-                if v in ctx.trace.posterior
-            ]
+            diag_vars = plan.diagnostic_vars(model_names)
+            psense_vars = plan.psense_vars(set(ctx.trace.posterior.data_vars))
             gate = _jm_standard_artefacts(
                 ctx,
                 outcome_symbols=outcome_symbols,
@@ -610,11 +547,11 @@ def _fit_joint_mechanism_levels(
             ),
             "joint_dependence": "lkj_residual_within_wave",
             "likelihood": "binomial",
-            "mechanism_symbol": s["mechanism_symbol"],
+            "mechanism_symbol": plan.mechanism_symbol,
             "outcome_symbols": list(outcome_symbols),
             "contrast": list(contrast),
             "covariates": list(covariates),
-            "include_group_nuisance": s["include_group"],
+            "include_group_nuisance": plan.include_group,
             "predictor_slope_sigma": predictor_slope_sigma,
             "diagnostic_anchor_timepoint": primary_wave + 1,
             "timepoints": [w + 1 for w in sorted(wave_built)],
@@ -623,7 +560,7 @@ def _fit_joint_mechanism_levels(
                 not diagnostics_df.empty
                 and diagnostics_df["converged"].eq(True).all()
             ),
-            "matched_comparators": ["lrp-rli-ca-010", "lrp-rli-ca-011"],
+            "matched_comparators": list(plan.matched_comparators),
             "output_contract": (
                 "joint_mechanism_slopes.csv carries median + inner 50% + outer "
                 "reporting interval + P(>0) per wave for both slopes, their "
@@ -678,7 +615,9 @@ def _plot_joint_mechanism_by_wave(
 
 
 def _fit_joint_mechanism_transition(
-    spec: ModelSpec, config: str
+    spec: ModelSpec,
+    config: str,
+    plan: _joint_mechanism.JointMechanismRunPlan,
 ) -> StatisticalFitContext:
     """Phase-stacked ANCOVA companion (#421 Tier 3 (1); ``jm-002``).
 
@@ -686,39 +625,31 @@ def _fit_joint_mechanism_transition(
     re-reported on its original parameterisation, with a bivariate child random
     intercept (LKJ) carrying the cross-outcome covariance the separate fits cannot.
     """
-    e = spec.extra
-    s = _jm_common_settings(spec)
-    outcome_symbols = s["outcome_symbols"]
-    contrast = s["contrast"]
-    adjust_for = tuple(e.get("adjust_for", ()))
+    outcome_symbols = plan.outcome_symbols
+    contrast = plan.contrast
+    adjust_for = plan.declared_adjustment
 
     ctx = make_context(spec, config)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
     ci = ctx.reporting.ci_prob
 
     section_header("Prepare data")
-    pre_adj, post_adj = split_covariates_by_wave(adjust_for)
-    prepared = load_and_prepare(
-        phase_mode="all",
-        outcomes=(*outcome_symbols, s["mechanism_symbol"]),
-        covariates=pre_adj,
-        post_covariates=post_adj,
-    )
+    prepared = load_and_prepare(**plan.prepare_kwargs())
     ctx.prepared = prepared
     # Drop any adjuster the loader dropped as constant on the fitted rows.
     adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
+    if adjust_for != plan.active_adjustment:
+        plan = plan.with_active_adjustment(adjust_for)
+        ctx.resolved_plan = plan
+        _report.write_model_recipe(ctx)
 
     print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_joint_mechanism_model(
         prepared,
-        design="transition",
-        mechanism_symbol=s["mechanism_symbol"],
-        outcome_symbols=outcome_symbols,
-        contrast=contrast,
-        adjust_for=adjust_for,
-        confounder_symbols=s["confounder_symbols"],
-        include_group=s["include_group"],
+        **plan.factory_kwargs(),
     )
     attach_built(ctx, built)
     render_model_graph(ctx)
@@ -733,23 +664,13 @@ def _fit_joint_mechanism_transition(
         )
         _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
 
-    run_sampling_and_loo(ctx)
+    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
 
     model_names = {rv.name for rv in ctx.model.free_RVs} | set(
         ctx.trace.posterior.data_vars
     )
-    diag_vars = _jm_diag_vars(
-        model_names,
-        design="transition",
-        adjust_for=adjust_for,
-        confounder_symbols=s["confounder_symbols"],
-        include_group=s["include_group"],
-    )
-    psense_vars = [
-        v
-        for v in ("beta_mech", "delta_ls_decoding", "rho_outcome")
-        if v in ctx.trace.posterior
-    ]
+    diag_vars = plan.diagnostic_vars(model_names)
+    psense_vars = plan.psense_vars(set(ctx.trace.posterior.data_vars))
     gate = _jm_standard_artefacts(
         ctx,
         outcome_symbols=outcome_symbols,
@@ -783,11 +704,11 @@ def _fit_joint_mechanism_transition(
             ),
             "joint_dependence": "lkj_child_intercept",
             "likelihood": "beta_binomial",
-            "mechanism_symbol": s["mechanism_symbol"],
+            "mechanism_symbol": plan.mechanism_symbol,
             "outcome_symbols": list(outcome_symbols),
             "contrast": list(contrast),
             "adjust_for": list(adjust_for),
-            "matched_comparators": ["lrp-rli-mech-096", "lrp-rli-mech-101"],
+            "matched_comparators": list(plan.matched_comparators),
             "output_contract": (
                 "joint_mechanism_slopes.csv carries median + inner 50% + outer "
                 "reporting interval + P(>0) for both slopes, their identified "

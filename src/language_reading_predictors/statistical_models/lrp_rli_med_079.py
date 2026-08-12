@@ -35,6 +35,9 @@ Design mirrors LRP59 exactly, swapping the mediator L -> T: phase 0 only, mediat
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation
 
 SPEC = ModelSpec(
@@ -47,6 +50,7 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="T",  # the negative-control mediator (grammar, DAG-severed from WR)
     adjustment=["G", "A", "E", "R", "W_pre", "T_t1"],
+    model_settings=MediationModelSettings(),
 )
 
 

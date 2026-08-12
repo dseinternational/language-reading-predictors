@@ -67,6 +67,10 @@ doi:10.1093/biostatistics/kxac002), which latent GA violates here.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mediation_settings import (
+    MediationMultiModelSettings,
+    NamedConfounderCalibration,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_mediation_multi
 
 SPEC = ModelSpec(
@@ -86,14 +90,16 @@ SPEC = ModelSpec(
         "G", "A", "R", "W_pre", "L_t1", "E_t1",
         "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
     ],
-    extra={
-        "mediators": ("L", "E"),
+    model_settings=MediationMultiModelSettings(
+        mediators=("L", "E"),
         # Path-specific split ordering for the exploratory NIE_L / NIE_E (L first).
-        "order": ("L", "E"),
+        order=("L", "E"),
         # Post-fit calibration only: attend is loaded but deliberately NOT added to
         # the natural-effects model because it is treatment-affected (#335).
-        "named_confounder_calibration": {"symbol": "attend", "label": "IS"},
-    },
+        named_confounder_calibration=NamedConfounderCalibration(
+            symbol="attend", label="IS"
+        ),
+    ),
 )
 
 

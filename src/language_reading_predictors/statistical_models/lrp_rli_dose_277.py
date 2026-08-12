@@ -13,6 +13,9 @@ cautiously at this n because the dynamic companions were not estimable.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.dose_response import (
+    DoseResponseModelSettings,
+)
 from language_reading_predictors.statistical_models.pipeline import fit_dose_response
 
 SPEC = ModelSpec(
@@ -21,15 +24,15 @@ SPEC = ModelSpec(
     title="Dose-response (pooled dose slope) - no-period-variation comparator to LRP77",
     outcome_symbol="W",
     adjustment=["G", "A", "W_pre"],
-    extra={
-        "adjust_baseline_symbol": "W",
-        "dose_covariate": "attend",
+    model_settings=DoseResponseModelSettings(
+        adjust_baseline_symbol="W",
+        dose_covariate="attend",
         # No cumulative-dose (attend_cumul) control — IS collider (#269). Matching
         # dose-077 keeps the period-varying-vs-pooled nested LOO test clean.
-        "period_varying_dose": False,
-        "use_subject_random_intercept": True,
-        "outcomes": ("W",),
-    },
+        period_varying_dose=False,
+        use_subject_random_intercept=True,
+        outcomes=("W",),
+    ),
 )
 
 
