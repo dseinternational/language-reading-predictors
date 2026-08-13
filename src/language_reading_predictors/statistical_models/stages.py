@@ -14,7 +14,7 @@ historical monolithic pipeline.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from rich import print as rprint
 
@@ -55,11 +55,11 @@ class PrimaryFitPlan:
     :meth:`SharedFitStages.run_primary_fit`. A family declares only what varies:
     the curated diagnostic variables, the posterior-predictive nodes (the last
     one is the primary outcome node), its prior-predictive figure, which
-    variables get power-scaling sensitivity, the term the extended diagnostics
-    focus on, and the LOO / LOO-PIT / trace-persistence policy. Deliberately a
-    flat value object rather than a base class with overridable methods: a
-    reader should be able to see a family's whole execution profile in one
-    declaration.
+    variables get power-scaling sensitivity, whether that sensitivity belongs
+    in the standard summary slot, the term the extended diagnostics focus on,
+    and the LOO / LOO-PIT / trace-persistence policy. Deliberately a flat value
+    object rather than a base class with overridable methods: a reader should be
+    able to see a family's whole execution profile in one declaration.
     """
 
     diagnostic_vars: tuple[str, ...]
@@ -76,6 +76,16 @@ class PrimaryFitPlan:
 
     psense_vars: tuple[str, ...] | None = None
     """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
+
+    psense_timing: Literal["before_ppc", "family_tail"] = "before_ppc"
+    """Where power scaling runs: here before PPC, or in the explicit family tail.
+
+    A few established families persist their trace and write diagnostic figures
+    before power scaling. They declare ``family_tail`` and retain that late
+    sensitivity block explicitly after
+    :meth:`SharedFitStages.run_primary_fit`, so lifecycle adoption cannot
+    silently reorder their published artefacts.
+    """
 
     prepare_psense: ContextHook | None = None
     """Optional preparation immediately before power scaling, such as attaching
@@ -143,12 +153,12 @@ class SharedFitStages:
         """Execute the invariant primary-fit sequence for a built, attached model.
 
         Prior prediction, posterior sampling with optional PSIS-LOO, the
-        human-readable summary diagnostics, power-scaling sensitivity, posterior
-        prediction, the all-free-variable convergence gate, the extended
-        diagnostics, and trace persistence — in that order, once, for every
-        family that adopts a :class:`PrimaryFitPlan`. Family scientific
-        summaries and exceptional audits stay explicit in the family pipeline,
-        before and after this call.
+        human-readable summary diagnostics, optional power-scaling sensitivity,
+        posterior prediction, the all-free-variable convergence gate, the
+        extended diagnostics, and trace persistence — in that order, once, for
+        every family that adopts a :class:`PrimaryFitPlan`. Family scientific
+        summaries, exceptional audits and explicitly deferred sensitivity stay
+        visible in the family pipeline before or after this call.
         """
 
         diag_vars = list(plan.diagnostic_vars)
@@ -162,12 +172,13 @@ class SharedFitStages:
 
         section_header("Summary diagnostics")
         _diag.summary_diagnostics(ctx, var_names=diag_vars)
-        if plan.prepare_psense is not None:
-            plan.prepare_psense(ctx)
-        psense_vars = (
-            list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
-        )
-        _diag.run_psense(ctx, var_names=psense_vars)
+        if plan.psense_timing == "before_ppc":
+            if plan.prepare_psense is not None:
+                plan.prepare_psense(ctx)
+            psense_vars = (
+                list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
+            )
+            _diag.run_psense(ctx, var_names=psense_vars)
 
         self.posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
 

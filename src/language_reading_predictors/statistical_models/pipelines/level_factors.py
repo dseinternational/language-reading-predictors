@@ -59,10 +59,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -105,19 +105,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
-
-    run_sampling_and_loo(ctx)
-
     _lf_diag = plan.diag_vars(effective_adjustment=adjust_for)
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_lf_diag)
-
-    run_ppc(ctx, var_names=[obs_node])
-
-    section_header("Extended diagnostics")
     # For the shipped group-by-time LF models the flagged-causal term is the t2
     # element of the per-timepoint group vector, ``b_grp_time`` (``b_grp_time[1]``,
     # which reporting.level_t2_marginal_effect reads into the causal ROPE card), so
@@ -125,9 +113,20 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # rather than being skipped (issue #273). Names come from the plan (#389
     # finding 6): the run plan is the single source of truth.
     _causal_lf = plan.causal_vector
-    _diag.write_diagnostics_summary(ctx, var_names=_lf_diag)
-    _diag.run_extended_diagnostics(ctx, causal_term=_causal_lf)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(_lf_diag),
+            ppc_var_names=(obs_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, spec.outcome_symbol, node=obs_node
+            ),
+            psense_timing="family_tail",
+            extended_term=_causal_lf,
+        ),
+    )
+    # Preserve the family's established post-trace order: overlay, forest, then
+    # power scaling. The plan opts out of the standard pre-PPC sensitivity slot.
     _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag)
     save_forest_plot(ctx, [_causal_lf])
     _diag.run_psense(ctx, var_names=[_causal_lf])

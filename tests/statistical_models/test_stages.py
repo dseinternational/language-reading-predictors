@@ -291,6 +291,37 @@ def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
     ]
 
 
+def test_run_primary_fit_can_leave_late_psense_to_the_family(monkeypatch):
+    """Late-sensitivity families must reach trace persistence without power scaling.
+
+    Their family pipeline then writes its established post-trace overlay and
+    forest before calling ``run_psense``. This opt-out preserves that artefact
+    order while the invariant lifecycle moves to the shared runner.
+    """
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    runner.run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=("alpha", "tau"),
+            psense_timing="family_tail",
+            prepare_psense=lambda _ctx: events.append("must_not_prepare_psense"),
+            extended_term="tau",
+        ),
+    )
+
+    assert "must_not_prepare_psense" not in events
+    assert not any(event.startswith("psense") for event in events)
+    assert events[-3:] == [
+        "gate['alpha', 'tau']",
+        "extended[tau,loo_pit=True]",
+        "save_trace",
+    ]
+
+
 def test_run_primary_fit_supports_termless_extended_diagnostics(monkeypatch):
     """Associational families run the extended block without a focal term."""
     events = []
