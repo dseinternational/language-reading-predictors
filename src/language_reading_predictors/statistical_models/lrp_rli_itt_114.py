@@ -11,7 +11,7 @@ subset, the matched comparator that isolates the SES adjustment in LRPITT13b
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.lrp_rli_itt_013 import SES_ADJUSTERS
-from language_reading_predictors.statistical_models.pipeline import fit_itt
+from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-114",

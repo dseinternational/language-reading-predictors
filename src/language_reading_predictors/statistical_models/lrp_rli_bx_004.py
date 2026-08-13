@@ -22,7 +22,7 @@ from language_reading_predictors.statistical_models.block_exposure import (
     BlockExposureModelSettings,
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_block_exposure
+from language_reading_predictors.statistical_models.pipelines.block_exposure import fit_block_exposure
 
 SPEC = ModelSpec(
     model_id="lrp-rli-bx-004",

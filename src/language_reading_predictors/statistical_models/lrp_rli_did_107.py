@@ -21,7 +21,7 @@ not conditioned on.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_did
+from language_reading_predictors.statistical_models.pipelines.did import fit_did
 
 SPEC = ModelSpec(
     model_id="lrp-rli-did-107",

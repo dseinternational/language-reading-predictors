@@ -62,7 +62,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.joint_mechanism import (
     JointMechanismModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_joint_mechanism
+from language_reading_predictors.statistical_models.pipelines.joint_mechanism import fit_joint_mechanism
 
 SPEC = ModelSpec(
     model_id="lrp-rli-jm-001",

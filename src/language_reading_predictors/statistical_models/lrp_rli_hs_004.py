@@ -27,7 +27,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.horseshoe import (
     HorseshoeModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_horseshoe
+from language_reading_predictors.statistical_models.pipelines.horseshoe import fit_horseshoe
 
 _PREDICTORS = ("W", "R", "E", "B", "F", "T", "age")
 

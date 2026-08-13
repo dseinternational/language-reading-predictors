@@ -3,9 +3,9 @@
 
 """Rich-based formatting helpers for model pipeline console output.
 
-This module preserves the public surface that ``base_pipeline``,
-``statistical_models.pipeline``, and the ``scripts/*`` entry points have
-historically imported from here, but the primitives (banner, section
+This module preserves the public surface that ``base_pipeline``, the statistical
+family pipeline modules, and the ``scripts/*`` entry points have historically
+imported from here, but the primitives (banner, section
 header, key/value and dataframe tables, value formatter) now live in
 :mod:`dse_research_utils.console`. The functions below are thin shims that
 delegate to the shared implementation; ML-specific composers

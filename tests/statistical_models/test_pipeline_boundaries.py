@@ -1,18 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Structural guards for the family-split boundaries (#394 steps 5-6).
+"""Structural guards for the family-owned pipeline boundaries (#394 and #521).
 
-The split only stays possible while the dependency edges point one way: the
-shared artefact and presentation modules, and the family orchestration modules
-under ``pipelines/``, must not reach back into ``pipeline.py``. A back-edge would
-reintroduce the import cycle that kept every family inside the monolith, and it
-would do so silently — nothing else in the suite would fail. These tests make it
-fail here instead.
+The split only stays possible while the dependency edges point one way: model
+modules call their family orchestration module under ``pipelines/``, which calls
+the shared artefact, presentation and lifecycle modules beneath it. The retired
+``pipeline.py`` facade must not return, because it would restore a central import
+edge across every family.
 
-Now that the split is complete, two further properties are pinned: ``pipeline.py``
-holds re-exports and nothing else, and every registered family kind has an
-orchestration module to its name.
+The tests pin direct model-to-family imports, the family entry points, complete
+``ModelSpec.kind`` coverage and the prohibition on family-local posterior
+sampling.
 """
 
 from __future__ import annotations
@@ -23,15 +22,15 @@ import pathlib
 
 import pytest
 
-from language_reading_predictors.statistical_models import definitions, pipeline
+from language_reading_predictors.statistical_models import definitions
 
-PACKAGE = pathlib.Path(pipeline.__file__).parent
-MONOLITH = "language_reading_predictors.statistical_models.pipeline"
+PACKAGE = pathlib.Path(definitions.__file__).parent
+RETIRED_FACADE = "language_reading_predictors.statistical_models.pipeline"
 
 # The shared layer ``pipelines/*`` is built on: artefact production, presentation,
 # the stage binding, the samplers and the posterior summaries. Each was carved out
 # of ``pipeline.py`` (or, for ``diagnostics`` and ``reporting``, predates it) and
-# must stay below it.
+# must stay below the family pipelines.
 SHARED_MODULES = (
     "adjustment",
     "artifacts",
@@ -48,13 +47,11 @@ SHARED_MODULES = (
     "subfits",
 )
 
-# Every family that has moved out of the monolith, and the entry points
-# ``pipeline.py`` must keep re-exporting for it. Most families have exactly one.
-# Mediation is the outlier, with three fit functions and a data-preparation helper
-# that ``scripts/regenerate_mediation_calibration.py`` imports by name; adjusted
-# and horseshoe each carry a second entry point for the Byrne (RLM) cohort, which
-# ``definitions.KINDS`` keys as the same family.
-MIGRATED_FAMILIES: dict[str, tuple[str, ...]] = {
+# Every family-owned entry point. Most families have exactly one. Mediation is
+# the outlier, with three fit functions and a data-preparation helper used by a
+# maintenance script; adjusted, correlated-factor and horseshoe families also
+# carry Byrne (RLM) cohort entry points under the same ``ModelSpec.kind``.
+FAMILY_ENTRY_POINTS: dict[str, tuple[str, ...]] = {
     "adjusted": ("fit_adjusted", "fit_rlm_adjusted"),
     "aligned": ("fit_aligned",),
     "block_exposure": ("fit_block_exposure",),
@@ -83,9 +80,14 @@ MIGRATED_FAMILIES: dict[str, tuple[str, ...]] = {
     "survival": ("fit_survival",),
 }
 
-MIGRATED_ENTRY_POINTS = sorted(
-    (family, entry) for family, entries in MIGRATED_FAMILIES.items() for entry in entries
+DIRECT_ENTRY_POINTS = sorted(
+    (family, entry) for family, entries in FAMILY_ENTRY_POINTS.items() for entry in entries
 )
+
+# ``mediation_multi`` is a distinct ``ModelSpec.kind`` but the same family module:
+# its two-mediator decomposition shares the g-formula machinery with the
+# single-mediator fits, so ``pipelines/mediation.py`` owns both entry points.
+KIND_MODULES = {"mediation_multi": "mediation"}
 
 
 def _package_of(path: pathlib.Path) -> str:
@@ -146,7 +148,7 @@ BACK_EDGES = [
 @pytest.mark.parametrize("package,source", BACK_EDGES)
 def test_the_guard_detects_every_spelling_of_a_back_edge(package, source):
     """The guard is only worth having if no spelling slips past it."""
-    assert MONOLITH in _imported_modules(source, package)
+    assert RETIRED_FACADE in _imported_modules(source, package)
 
 
 @pytest.mark.parametrize(
@@ -159,69 +161,98 @@ def test_the_guard_detects_every_spelling_of_a_back_edge(package, source):
     ],
 )
 def test_the_guard_does_not_flag_permitted_edges(package, source):
-    assert MONOLITH not in _imported_modules(source, package)
+    assert RETIRED_FACADE not in _imported_modules(source, package)
 
 
-def test_shared_artifact_modules_do_not_import_the_monolith():
+def test_source_modules_do_not_import_the_retired_facade():
+    """No package source can retain a dependency on the deleted module."""
+    sources = sorted(PACKAGE.parent.rglob("*.py"))
+    offenders = [path.name for path in sources if RETIRED_FACADE in _imports_of(path)]
+    assert not offenders, f"source modules importing the retired facade: {offenders}"
+
+
+def test_shared_artifact_modules_do_not_import_the_retired_facade():
     for name in SHARED_MODULES:
         path = PACKAGE / f"{name}.py"
         assert path.exists(), f"{name}.py is missing"
-        assert MONOLITH not in _imports_of(path), (
-            f"{name}.py imports pipeline.py; the shared layer must stay below it"
+        assert RETIRED_FACADE not in _imports_of(path), (
+            f"{name}.py imports the retired facade; the shared layer must stay below families"
         )
 
 
-def test_family_pipelines_do_not_import_the_monolith():
+def test_family_pipelines_do_not_import_the_retired_facade():
     modules = sorted((PACKAGE / "pipelines").glob("*.py"))
     present = {p.stem for p in modules} - {"__init__"}
-    assert present == set(MIGRATED_FAMILIES), (
-        "pipelines/ and MIGRATED_FAMILIES disagree; update the guard when a "
-        f"family moves. Only in package: {sorted(present - set(MIGRATED_FAMILIES))}; "
-        f"only in guard: {sorted(set(MIGRATED_FAMILIES) - present)}"
+    assert present == set(FAMILY_ENTRY_POINTS), (
+        "pipelines/ and FAMILY_ENTRY_POINTS disagree; update the guard when a "
+        f"family moves. Only in package: {sorted(present - set(FAMILY_ENTRY_POINTS))}; "
+        f"only in guard: {sorted(set(FAMILY_ENTRY_POINTS) - present)}"
     )
     for path in modules:
-        assert MONOLITH not in _imports_of(path), (
-            f"pipelines/{path.name} imports pipeline.py; family modules must not"
+        assert RETIRED_FACADE not in _imports_of(path), (
+            f"pipelines/{path.name} imports the retired facade; family modules must not"
         )
 
 
-@pytest.mark.parametrize("family,entry", MIGRATED_ENTRY_POINTS)
-def test_pipeline_re_exports_the_migrated_family_entry_points(family, entry):
-    """``pipeline.py`` stays a working facade until every caller has migrated."""
+@pytest.mark.parametrize("family,entry", DIRECT_ENTRY_POINTS)
+def test_family_modules_expose_the_registered_entry_points(family, entry):
+    """Each documented entry point is owned by its family module."""
     module = importlib.import_module(
         f"language_reading_predictors.statistical_models.pipelines.{family}"
     )
-    assert getattr(pipeline, entry) is getattr(module, entry)
+    assert callable(getattr(module, entry))
 
 
-def test_migrated_families_are_no_longer_defined_in_the_monolith():
-    source = pathlib.Path(pipeline.__file__).read_text(encoding="utf-8")
-    entries = [f"def {entry}(" for _, entry in MIGRATED_ENTRY_POINTS]
-    for entry in [*entries, "def fit_itt_floor_rule("]:
-        assert entry not in source, f"{entry!r} is back in pipeline.py"
-
-
-def test_the_facade_holds_re_exports_and_nothing_else():
-    """#394 acceptance criterion 1: no family-specific statistical calculations.
-
-    Stated structurally, because "no statistical code" is otherwise a matter of
-    opinion: the facade may contain imports and nothing else. A function, class
-    or module-level constant appearing here is the first step back towards a
-    monolith, and it should have to be argued for by editing this test.
-    """
-    tree = ast.parse(pathlib.Path(pipeline.__file__).read_text(encoding="utf-8"))
-    offenders = [
-        getattr(node, "name", type(node).__name__)
-        for node in tree.body
-        if not isinstance(node, (ast.Import, ast.ImportFrom, ast.Expr))
+def test_registered_model_modules_import_family_pipelines_directly():
+    """#521 acceptance: every registered model bypasses the retired facade."""
+    paths = {
+        model_id: PACKAGE / f"{model_id.replace('-', '_')}.py"
+        for model_id in definitions.MODEL_REGISTRY
+    }
+    missing = [
+        str(path.relative_to(PACKAGE)) for path in paths.values() if not path.exists()
     ]
-    assert not offenders, f"pipeline.py is no longer a pure facade: {offenders}"
+    assert not missing, f"registered models with no module: {missing}"
+
+    imports = {model_id: _imports_of(path) for model_id, path in paths.items()}
+    offenders = [
+        paths[model_id].name
+        for model_id, imported in imports.items()
+        if RETIRED_FACADE in imported
+    ]
+    assert not offenders, f"registered models importing the retired facade: {offenders}"
+
+    missing_direct = []
+    for model_id, definition in definitions.MODEL_REGISTRY.items():
+        family = KIND_MODULES.get(definition.kind, definition.kind)
+        expected = f"{SM}.pipelines.{family}"
+        if expected not in imports[model_id]:
+            missing_direct.append(f"{paths[model_id].name}: {expected}")
+    assert not missing_direct, f"models missing their direct family import: {missing_direct}"
 
 
-# ``mediation_multi`` is a distinct ``ModelSpec.kind`` but the same family module:
-# its two-mediator decomposition shares the g-formula machinery with the
-# single-mediator fits, so ``pipelines/mediation.py`` owns both entry points.
-KIND_MODULES = {"mediation_multi": "mediation"}
+def test_maintenance_scripts_import_family_pipelines_directly():
+    """The retired facade is not kept alive by a standalone maintenance caller."""
+    scripts = sorted((PACKAGE.parents[2] / "scripts").glob("*.py"))
+    offenders = [path.name for path in scripts if RETIRED_FACADE in _imports_of(path)]
+    assert not offenders, f"scripts importing the retired facade: {offenders}"
+
+
+def test_test_modules_do_not_import_the_retired_facade():
+    """Tests exercise the owning family module rather than a compatibility seam."""
+    this_file = pathlib.Path(__file__).resolve()
+    tests = [
+        path
+        for path in sorted((PACKAGE.parents[2] / "tests").rglob("*.py"))
+        if path.resolve() != this_file
+    ]
+    offenders = [path.name for path in tests if RETIRED_FACADE in _imports_of(path)]
+    assert not offenders, f"tests importing the retired facade: {offenders}"
+
+
+def test_compatibility_facade_is_retired():
+    """The aggregate facade has no documented external consumer and stays absent."""
+    assert not (PACKAGE / "pipeline.py").exists()
 
 
 def test_every_registered_family_kind_has_an_orchestration_module():

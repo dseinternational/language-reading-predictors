@@ -34,7 +34,7 @@ its main effect + interaction. target_accept 0.999 per LRP58/LRP93.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_mechanism
+from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-061",

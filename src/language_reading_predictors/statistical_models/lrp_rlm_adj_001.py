@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.adjusted import (
     AdjustedModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_rlm_adjusted
+from language_reading_predictors.statistical_models.pipelines.adjusted import fit_rlm_adjusted
 
 SPEC = ModelSpec(
     model_id="lrp-rlm-adj-001",

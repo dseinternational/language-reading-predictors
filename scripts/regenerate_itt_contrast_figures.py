@@ -60,7 +60,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _PARTIALS_SRC = _REPO_ROOT / "docs" / "models" / "_partials"
 
 # Reference-population and contrast-status strings, kept in step with the two
-# ITT call sites in pipeline.py so backfilled CSVs read identically to fresh fits.
+# ITT call sites in pipelines/itt.py so backfilled CSVs match fresh fits.
 _GRADED = {
     "population": (
         "new child; covariate profiles drawn from the fitted available-case modified "

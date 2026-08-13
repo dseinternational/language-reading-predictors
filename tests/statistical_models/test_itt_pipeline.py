@@ -24,7 +24,6 @@ import xarray as xr
 
 from language_reading_predictors.statistical_models import (
     diagnostics as _diagnostics,
-    pipeline,
     runtime,
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -599,7 +598,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
         ),
     )
 
-    ctx = pipeline.fit_itt(spec, config="dev")
+    ctx = itt_pipeline.fit_itt(spec, config="dev")
     out = Path(ctx.output_dir)
 
     assert load_calls == [
@@ -684,7 +683,7 @@ def test_fit_itt_rejects_an_invalid_plan_before_context_or_data(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="mutually exclusive"):
-        pipeline.fit_itt(spec, config="dev")
+        itt_pipeline.fit_itt(spec, config="dev")
 
     assert calls == []
 
@@ -747,7 +746,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
         model_settings=IttModelSettings.for_floor_outcome(),
     )
 
-    ctx = pipeline.fit_itt(spec, config="dev")
+    ctx = itt_pipeline.fit_itt(spec, config="dev")
     out = Path(ctx.output_dir)
 
     assert load_calls == [
@@ -902,7 +901,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
 
     monkeypatch.setattr(itt_pipeline._report, "tau_difference_summary", difference)
 
-    ctx = pipeline.fit_joint(SPEC, config="dev")
+    ctx = joint_pipeline.fit_joint(SPEC, config="dev")
     out = Path(ctx.output_dir)
 
     assert load_calls == [{"phase_mode": "itt", "outcomes": ("TE", "UE")}]
@@ -999,7 +998,7 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
         model_settings=IttModelSettings(),
     )
 
-    pipeline.fit_itt(spec, config="dev")
+    itt_pipeline.fit_itt(spec, config="dev")
 
     assert events == [
         "prepare",

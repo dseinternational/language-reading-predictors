@@ -289,7 +289,7 @@ def get_spec() -> "ModelSpec":
 
 def fit(config: str = "dev"):
     # Lazy import: ``fit_adjusted`` is added in Step 2, after the DAG review.
-    from language_reading_predictors.statistical_models.pipeline import fit_adjusted
+    from language_reading_predictors.statistical_models.pipelines.adjusted import fit_adjusted
 
     return fit_adjusted(get_spec(), config=config)
 

@@ -15,7 +15,7 @@ interval, not a randomised effect of record (see METHODS.md and the descriptive 
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_survival
+from language_reading_predictors.statistical_models.pipelines.survival import fit_survival
 from language_reading_predictors.statistical_models.survival import (
     SurvivalModelSettings,
 )

@@ -56,7 +56,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.corr_factor import (
     CorrFactorModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_correlated_factor
+from language_reading_predictors.statistical_models.pipelines.corr_factor import fit_correlated_factor
 
 SPEC = ModelSpec(
     model_id="lrp-rli-mm-002",

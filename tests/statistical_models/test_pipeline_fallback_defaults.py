@@ -126,7 +126,7 @@ def test_corr_factor_loading_settings_coherence(extra, match):
     """fit_correlated_factor rejects loading knobs its parameterisation ignores,
     before make_context resets the output directory (#383, the #455 principle)."""
     from language_reading_predictors.statistical_models.context import ModelSpec
-    from language_reading_predictors.statistical_models.pipeline import (
+    from language_reading_predictors.statistical_models.pipelines.corr_factor import (
         fit_correlated_factor,
     )
 
@@ -158,7 +158,7 @@ def test_lcf_loading_settings_coherence(extra, match):
     """fit_longitudinal_corr_factor rejects loading knobs its parameterisation
     ignores, before make_context resets the output directory (#383 follow-up)."""
     from language_reading_predictors.statistical_models.context import ModelSpec
-    from language_reading_predictors.statistical_models.pipeline import (
+    from language_reading_predictors.statistical_models.pipelines.long_corr_factor import (
         fit_longitudinal_corr_factor,
     )
 

@@ -21,7 +21,7 @@ flag for a sensitivity fit). Sign convention: positive tau => intervention helps
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.joint import JointModelSettings
-from language_reading_predictors.statistical_models.pipeline import fit_joint
+from language_reading_predictors.statistical_models.pipelines.joint import fit_joint
 
 # The ten baseline-bearing suite outcomes (LRPITT_OUTCOMES minus post-only N).
 LRPITT12_OUTCOMES: tuple[str, ...] = (

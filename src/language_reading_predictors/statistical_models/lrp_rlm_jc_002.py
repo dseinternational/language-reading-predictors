@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.historical_joint import (
     HistoricalJointModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_rlm_joint_growth
+from language_reading_predictors.statistical_models.pipelines.historical_joint import fit_rlm_joint_growth
 
 SPEC = ModelSpec(
     model_id="lrp-rlm-jc-002",

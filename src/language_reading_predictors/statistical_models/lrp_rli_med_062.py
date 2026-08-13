@@ -63,7 +63,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_mediation
+from language_reading_predictors.statistical_models.pipelines.mediation import fit_mediation
 
 SPEC = ModelSpec(
     model_id="lrp-rli-med-062",

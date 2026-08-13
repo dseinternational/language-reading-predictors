@@ -44,7 +44,7 @@ companion was dropped as not estimable at this sample size; see the dated note.
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
-from language_reading_predictors.statistical_models.pipeline import fit_lcsm
+from language_reading_predictors.statistical_models.pipelines.lcsm import fit_lcsm
 
 SPEC = ModelSpec(
     model_id="lrp-rli-lcsm-067",
