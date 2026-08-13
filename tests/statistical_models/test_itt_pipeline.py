@@ -177,8 +177,6 @@ def fast_pipeline(monkeypatch, tmp_path):
         monkeypatch.setattr(module, "write_analysis_audit", write_analysis_audit)
         monkeypatch.setattr(module, "write_ppc_calibration", write_ppc_audit)
         monkeypatch.setattr(module, "finalize_report", lambda ctx: ctx)
-    monkeypatch.setattr(itt_pipeline, "run_sampling_and_loo", sample_and_loo)
-    monkeypatch.setattr(itt_pipeline, "run_ppc", lambda *args, **kwargs: None)
     # ``emit_priors`` is reached through the shared stage binding, not the family
     # module, so it is stubbed where ``shared_stages()`` resolves it.
     monkeypatch.setattr(runtime, "emit_priors", lambda *args, **kwargs: None)
@@ -231,7 +229,7 @@ def fast_pipeline(monkeypatch, tmp_path):
     monkeypatch.setattr(itt_pipeline._diag, "save_trace", save_trace)
 
     class _FastSharedStages:
-        """Exercise joint's declared hooks without invoking expensive shared phases."""
+        """Exercise declared hooks without invoking expensive shared phases."""
 
         @staticmethod
         def run_primary_fit(ctx, plan):
@@ -254,11 +252,17 @@ def fast_pipeline(monkeypatch, tmp_path):
             )
             if plan.custom_posterior_predictive is not None:
                 plan.custom_posterior_predictive(ctx)
+            else:
+                itt_pipeline._diag.sample_posterior_predictive(
+                    ctx, var_names=list(plan.ppc_var_names)
+                )
             if plan.post_ppc_audit is not None:
                 plan.post_ppc_audit(ctx)
-            itt_pipeline._diag.write_diagnostics_summary(
+            gate = itt_pipeline._diag.write_diagnostics_summary(
                 ctx, var_names=list(plan.diagnostic_vars)
             )
+            if plan.post_gate_audit is not None:
+                plan.post_gate_audit(ctx, gate)
             if plan.run_extended:
                 itt_pipeline._diag.run_extended_diagnostics(
                     ctx,
@@ -268,9 +272,10 @@ def fast_pipeline(monkeypatch, tmp_path):
             if plan.post_extended_audit is not None:
                 plan.post_extended_audit(ctx)
             save_trace(ctx)
-            return {}
+            return gate or {}
 
     monkeypatch.setattr(joint_pipeline, "shared_stages", lambda: _FastSharedStages())
+    monkeypatch.setattr(itt_pipeline, "shared_stages", lambda: _FastSharedStages())
     monkeypatch.setattr(
         itt_pipeline._diag,
         "subfit_convergence",
@@ -985,13 +990,11 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
 
 
 def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, monkeypatch):
-    """#394 characterisation: lock the ORDER of the ITT reference family's
-    primary-fit lifecycle milestones, so the planned lifecycle centralisation
-    (pillar 2 — "the invariant primary-fit lifecycle is expressed once and covered
-    by ordering tests") stays behaviour-preserving. Each milestone wrapper records
-    then delegates to whatever ``fast_pipeline`` installed, so this asserts the
-    real fit_itt sequence. Update the expected list only with a *deliberate*
-    lifecycle change (relocation must not reorder it)."""
+    """ITT delegates one primary lifecycle between build and family summaries.
+
+    The shared stage's internal ordering is pinned in ``test_stages.py``; this
+    characterisation keeps the family-specific phases around that call stable.
+    """
     events: list[str] = []
 
     def record(module, name, label):
@@ -1020,13 +1023,7 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
         (itt_pipeline, "load_and_prepare", "prepare"),
         (itt_pipeline._factories, "build_itt_model", "build"),
         (runtime, "emit_priors", "emit_priors"),
-        (itt_pipeline._diag, "run_prior_predictive", "prior_predictive"),
-        (itt_pipeline, "run_sampling_and_loo", "sample+loo"),
-        (itt_pipeline._diag, "summary_diagnostics", "summary"),
-        (itt_pipeline, "run_ppc", "posterior_predictive"),
-        (itt_pipeline._diag, "write_diagnostics_summary", "convergence_gate"),
-        (itt_pipeline._diag, "run_extended_diagnostics", "extended_diagnostics"),
-        (itt_pipeline._diag, "save_trace", "persist_trace"),
+        (itt_pipeline, "shared_stages", "primary_lifecycle"),
         (itt_pipeline, "emit_itt_extras", "sensitivity"),
         (itt_pipeline._report, "write_run_metadata", "metadata"),
         (itt_pipeline, "finalize_report", "finalize"),
@@ -1047,13 +1044,7 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
         "prepare",
         "build",
         "emit_priors",
-        "prior_predictive",
-        "sample+loo",
-        "summary",
-        "posterior_predictive",
-        "convergence_gate",
-        "extended_diagnostics",
-        "persist_trace",
+        "primary_lifecycle",
         "sensitivity",
         "metadata",
         "finalize",

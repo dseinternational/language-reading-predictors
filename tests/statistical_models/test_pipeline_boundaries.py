@@ -92,6 +92,7 @@ PRIMARY_LIFECYCLE_ENTRY_POINTS = (
     ("adjusted", "fit_rlm_adjusted"),
     ("aligned", "fit_aligned"),
     ("block_exposure", "fit_block_exposure"),
+    ("concurrent", "fit_concurrent"),
     ("corr_factor", "fit_correlated_factor"),
     ("corr_factor", "fit_rlm_corr_factor"),
     ("did", "fit_did"),
@@ -102,7 +103,9 @@ PRIMARY_LIFECYCLE_ENTRY_POINTS = (
     ("historical_joint", "fit_rlm_joint_growth"),
     ("horseshoe", "fit_horseshoe"),
     ("horseshoe", "fit_rlm_horseshoe"),
+    ("itt", "fit_itt"),
     ("joint", "fit_joint"),
+    ("joint_mechanism", "fit_joint_mechanism"),
     ("lcsm", "fit_lcsm"),
     ("level_factors", "fit_level_factors"),
     ("long_corr_factor", "fit_longitudinal_corr_factor"),
@@ -112,6 +115,17 @@ PRIMARY_LIFECYCLE_ENTRY_POINTS = (
     ("mediation", "fit_mediation_period_stacked"),
     ("survival", "fit_survival"),
 )
+
+# Public dispatchers whose distinct primary paths must each adopt the lifecycle.
+# ITT's ordinary entry point is itself a primary path and its floor helper is the
+# second; joint mechanism dispatches entirely to its two design implementations.
+PRIMARY_LIFECYCLE_IMPLEMENTATIONS = {
+    ("itt", "fit_itt"): ("fit_itt", "fit_itt_floor_rule"),
+    ("joint_mechanism", "fit_joint_mechanism"): (
+        "_fit_joint_mechanism_levels",
+        "_fit_joint_mechanism_transition",
+    ),
+}
 
 # ``mediation_multi`` is a distinct ``ModelSpec.kind`` but the same family module:
 # its two-mediator decomposition shares the g-formula machinery with the
@@ -184,7 +198,7 @@ def test_the_guard_detects_every_spelling_of_a_back_edge(package, source):
     "package,source",
     [
         (SM, "from . import runtime"),
-        (SM, f"from {SM}.runtime import run_ppc"),
+        (SM, f"from {SM}.runtime import shared_stages"),
         (f"{SM}.pipelines", "from .itt import write_analysis_audit"),
         (f"{SM}.pipelines", "from ..runtime import require_spec"),
     ],
@@ -311,21 +325,49 @@ def test_adopted_primary_entry_points_use_the_shared_lifecycle(family, entry):
     """The incremental adoption ledger cannot silently fall back to manual stages."""
     path = PACKAGE / "pipelines" / f"{family}.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == entry
+    implementations = PRIMARY_LIFECYCLE_IMPLEMENTATIONS.get(
+        (family, entry), (entry,)
     )
-    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+    for implementation in implementations:
+        function = next(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == implementation
+        )
+        calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
 
-    assert any(
-        isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
-        for call in calls
-    ), f"pipelines/{family}.py::{entry} does not declare a PrimaryFitPlan"
-    assert any(
-        isinstance(call.func, ast.Attribute) and call.func.attr == "run_primary_fit"
-        for call in calls
-    ), f"pipelines/{family}.py::{entry} does not call run_primary_fit"
+        assert any(
+            isinstance(call.func, ast.Name)
+            and call.func.id in {"PrimaryFitPlan", "_jm_primary_fit_plan"}
+            for call in calls
+        ), (
+            f"pipelines/{family}.py::{implementation} does not declare a "
+            "PrimaryFitPlan"
+        )
+        assert any(
+            isinstance(call.func, ast.Attribute)
+            and call.func.attr == "run_primary_fit"
+            for call in calls
+        ), f"pipelines/{family}.py::{implementation} does not call run_primary_fit"
+
+
+def test_primary_lifecycle_ledger_covers_every_fit_entry_point():
+    """Completed adoption makes the former incremental ledger exhaustive."""
+    expected = set(DIRECT_ENTRY_POINTS) - {("mediation", "prepare_mediation_data")}
+    assert set(PRIMARY_LIFECYCLE_ENTRY_POINTS) == expected
+
+
+def test_runtime_does_not_offer_partial_primary_lifecycle_escape_hatches():
+    """Completed adoption retires wrappers that let a family rebuild half the order."""
+    tree = ast.parse((PACKAGE / "runtime.py").read_text(encoding="utf-8"))
+    functions = {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+    assert "run_sampling_and_loo" not in functions
+    assert "run_ppc" not in functions
 
 
 @pytest.mark.parametrize(
@@ -546,6 +588,105 @@ def test_longitudinal_factor_declares_stitched_loo_and_pre_trace_sensitivity():
 
     assert _line("run_primary_fit") < _line("write_indicator_prior_check")
     assert _line("write_indicator_prior_check") < _line("save_prior_posterior_plot")
+
+
+def test_concurrent_declares_anchor_interleave_and_gate_audit():
+    """Concurrent retains wave subfits around sampling and its anchor-only labels."""
+    path = PACKAGE / "pipelines" / "concurrent.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "fit_concurrent"
+    )
+    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+    primary_plan = next(
+        call
+        for call in calls
+        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in primary_plan.keywords}
+
+    assert isinstance(keywords["post_sampling_audit"], ast.Name)
+    assert keywords["post_sampling_audit"].id == "_finish_wave_fits"
+    assert isinstance(keywords["post_gate_audit"], ast.Name)
+    assert keywords["post_gate_audit"].id == "_record_primary_convergence"
+    assert isinstance(keywords["summary_header"], ast.Constant)
+    assert keywords["summary_header"].value == "Summary diagnostics (primary wave)"
+    assert isinstance(keywords["extended_header"], ast.Constant)
+    assert keywords["extended_header"].value == "Extended diagnostics (primary wave)"
+
+
+def test_itt_paths_preserve_prior_plot_ppc_audit_and_late_sensitivity():
+    """Ordinary and floor ITT keep their distinct prior/PPC phase contracts."""
+    path = PACKAGE / "pipelines" / "itt.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    functions = {
+        node.name: node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef)
+    }
+
+    ordinary_call = next(
+        node
+        for node in ast.walk(functions["fit_itt"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "PrimaryFitPlan"
+    )
+    ordinary = {keyword.arg: keyword.value for keyword in ordinary_call.keywords}
+    assert isinstance(ordinary["post_ppc_audit"], ast.Name)
+    assert ordinary["post_ppc_audit"].id == "_write_itt_ppc"
+    assert isinstance(ordinary["post_gate_audit"], ast.Name)
+    assert ordinary["post_gate_audit"].id == "_plot_prior_after_gate"
+    assert isinstance(ordinary["psense_timing"], ast.Constant)
+    assert ordinary["psense_timing"].value == "family_tail"
+
+    floor_call = next(
+        node
+        for node in ast.walk(functions["fit_itt_floor_rule"])
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "PrimaryFitPlan"
+    )
+    floor = {keyword.arg: keyword.value for keyword in floor_call.keywords}
+    assert isinstance(floor["ppc_var_names"], ast.Tuple)
+    assert [item.value for item in floor["ppc_var_names"].elts] == ["y_offfloor"]
+    assert isinstance(floor["plot_prior_predictive"], ast.Lambda)
+    assert isinstance(floor["post_ppc_audit"], ast.Name)
+    assert floor["post_ppc_audit"].id == "_write_floor_ppc"
+    assert isinstance(floor["psense_timing"], ast.Constant)
+    assert floor["psense_timing"].value == "family_tail"
+
+
+def test_joint_mechanism_declares_per_outcome_predictive_diagnostics():
+    """Both designs share the declared per-outcome PPC and LOO-PIT profile."""
+    path = PACKAGE / "pipelines" / "joint_mechanism.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_jm_primary_fit_plan"
+    )
+    primary_plan = next(
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "PrimaryFitPlan"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in primary_plan.keywords}
+
+    assert isinstance(keywords["plot_prior_predictive"], ast.Name)
+    assert keywords["plot_prior_predictive"].id == "_plot_prior"
+    assert isinstance(keywords["custom_posterior_predictive"], ast.Name)
+    assert keywords["custom_posterior_predictive"].id == "_run_ppc"
+    assert isinstance(keywords["post_extended_audit"], ast.Name)
+    assert keywords["post_extended_audit"].id == "_write_loo_pit"
+    assert isinstance(keywords["extended_term"], ast.Constant)
+    assert keywords["extended_term"].value == "delta_ls_decoding"
+    assert isinstance(keywords["include_loo_pit"], ast.Constant)
+    assert keywords["include_loo_pit"].value is False
 
 
 def test_no_family_module_samples_a_posterior_of_its_own():

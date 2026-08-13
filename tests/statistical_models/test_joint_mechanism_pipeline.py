@@ -38,8 +38,8 @@ from language_reading_predictors.statistical_models.pipelines import (
 from language_reading_predictors.statistical_models.pipelines.joint_mechanism import (
     _JM_SLOPE_REQUIRED,
     _jm_marginal_ppc,
+    _jm_primary_fit_plan,
     _jm_slope_rows,
-    _jm_standard_artefacts,
     _jm_write_slopes,
 )
 
@@ -302,7 +302,7 @@ def _artefact_ctx(tmp_path, trace) -> SimpleNamespace:
 def _silent_diagnostics(monkeypatch):
     """Stub the plotting/sampling stages so the artefact contract can be checked
     without a fit, recording the calls the review asked to be reinstated."""
-    calls: dict[str, list] = {"psense": [], "loo_pit": []}
+    calls: dict[str, list] = {"loo_pit": []}
     for name in (
         "summary_diagnostics",
         "sample_posterior_predictive",
@@ -312,27 +312,6 @@ def _silent_diagnostics(monkeypatch):
         "save_prior_posterior_plot",
     ):
         monkeypatch.setattr(_jm_pipeline._diag, name, lambda *a, **k: None)
-    clean_gate = {
-        "passed": True,
-        "checks": {
-            "rhat": True,
-            "ess": True,
-            "divergences": True,
-            "bfmi": True,
-        },
-        "divergences": 0,
-        "max_rhat": 1.001,
-        "min_ess": 1000.0,
-        "bfmi_per_chain": [0.8, 0.9],
-    }
-    monkeypatch.setattr(
-        _jm_pipeline._diag, "write_diagnostics_summary", lambda *a, **k: clean_gate
-    )
-    monkeypatch.setattr(
-        _jm_pipeline._diag,
-        "run_psense",
-        lambda ctx, *, var_names: calls["psense"].append(list(var_names)),
-    )
     monkeypatch.setattr(
         _jm_pipeline._diag,
         "save_joint_loo_pit_plot",
@@ -341,40 +320,30 @@ def _silent_diagnostics(monkeypatch):
     return calls
 
 
-def test_standard_artefacts_write_ppc_summary_and_audit_the_priors(
+def test_primary_plan_declares_psense_and_writes_custom_diagnostics(
     tmp_path, _silent_diagnostics
 ):
-    """`ppc_summary.csv` is written, psense runs on the reported coefficients, and
-    the per-outcome LOO-PIT is asked for by name. All three were silently absent
-    from a fit that reported success (#427 review)."""
+    """Coverage, reported-coefficient psense and named LOO-PIT stay declared."""
     ctx = _artefact_ctx(tmp_path, _artefact_trace(exact=False))
 
-    gate = _jm_standard_artefacts(
-        ctx,
+    plan = _jm_primary_fit_plan(
         outcome_symbols=_OUTCOMES,
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech", "delta_ls_decoding"],
     )
+    assert plan.custom_posterior_predictive is not None
+    assert plan.post_extended_audit is not None
+    plan.custom_posterior_predictive(ctx)
+    plan.post_extended_audit(ctx)
 
-    assert gate == {
-        "passed": True,
-        "checks": {
-            "rhat": True,
-            "ess": True,
-            "divergences": True,
-            "bfmi": True,
-        },
-        "divergences": 0,
-        "max_rhat": 1.001,
-        "min_ess": 1000.0,
-        "bfmi_per_chain": [0.8, 0.9],
-    }
+    assert plan.diagnostic_vars == ("beta_mech",)
+    assert plan.psense_vars == ("beta_mech", "delta_ls_decoding")
+    assert plan.extended_term == "delta_ls_decoding"
+    assert plan.include_loo_pit is False
     summary = pd.read_csv(tmp_path / "ppc_summary.csv")
     assert set(summary["level_pct"]) == {50, 90}
     assert {"coverage", "n_total", "n_inside"} <= set(summary.columns)
     assert ctx.tables["ppc_summary"] is not None
-    # Power-scaling sensitivity on the reported coefficients, not skipped.
-    assert _silent_diagnostics["psense"] == [["beta_mech", "delta_ls_decoding"]]
     # One LOO-PIT per outcome, each naming this family's own coefficient — the
     # hard-coded `tau` was what made these silently no-op.
     assert _silent_diagnostics["loo_pit"] == [("W", "beta_mech"), ("N", "beta_mech")]
@@ -389,13 +358,14 @@ def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagno
     'new-child' label, which is exactly what `pm.sample_posterior_predictive` did."""
     ctx = _artefact_ctx(tmp_path, _artefact_trace(exact=True))
 
-    _jm_standard_artefacts(
-        ctx,
+    plan = _jm_primary_fit_plan(
         outcome_symbols=_OUTCOMES,
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech"],
         marginal_ppc=True,
     )
+    assert plan.custom_posterior_predictive is not None
+    plan.custom_posterior_predictive(ctx)
 
     conditional = pd.read_csv(tmp_path / "ppc_summary.csv")
     marginal = pd.read_csv(tmp_path / "ppc_summary_marginal.csv")
