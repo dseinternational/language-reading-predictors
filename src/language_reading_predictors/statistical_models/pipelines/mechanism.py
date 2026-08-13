@@ -60,10 +60,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def _mechanism_run_plan(
@@ -110,15 +110,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
-
-    run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
     _mech_vars = _mechanism.mechanism_diagnostic_vars(plan)
-    _diag.summary_diagnostics(ctx, var_names=_mech_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381). For the
     # HSGP mechanism curve the estimand is the shape, governed by the deliberately
     # tight ``eta_main_prior`` amplitude the prior review flagged; the linear slope
@@ -127,13 +119,19 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _mech_psense_vars = list(_mech_vars)
     if not run_plan.linear_mechanism:
         _mech_psense_vars += ["f_mech__eta", "f_mech__ell"]
-    _diag.run_psense(ctx, var_names=_mech_psense_vars)
-
-    run_ppc(ctx)
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_mech_vars)
-    _diag.run_extended_diagnostics(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(_mech_vars),
+            ppc_var_names=(run_plan.observation_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, spec.outcome_symbol or "W"
+            ),
+            psense_vars=tuple(_mech_psense_vars),
+            # The curve and interaction summaries precede persistence by design.
+            save_trace=False,
+        ),
+    )
 
     # Mechanism curve: f_mech vs mech_post_logit grid (logit-contribution scale only).
     section_header("Mechanism curve")

@@ -48,10 +48,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -106,38 +106,32 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     lagged_names = plan.lagged_names()
     diag_vars = plan.diagnostic_vars()
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
     # One check per measure: ``y_obs`` flattens every measure into a single vector, so
     # a lone overlay would pool scales with different maxima. The headline reading
     # symbol keeps the unsuffixed filename the report partial expects.
-    for _sym in outcomes:
-        _diag.save_prior_predictive_plot(
-            ctx,
-            _sym,
-            node="y_obs",
-            filename_stem=(
-                "prior_predictive_check"
-                if _sym == reading_symbol
-                else f"prior_predictive_check_{_sym.lower()}"
-            ),
-        )
+    def _plot_prior_predictive(c: StatisticalFitContext) -> None:
+        for symbol in outcomes:
+            _diag.save_prior_predictive_plot(
+                c,
+                symbol,
+                node=plan.observation_node,
+                filename_stem=(
+                    "prior_predictive_check"
+                    if symbol == reading_symbol
+                    else f"prior_predictive_check_{symbol.lower()}"
+                ),
+            )
 
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=["y_obs"])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(
-        ctx, causal_term=diag_vars[0] if diag_vars else None
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=(plan.observation_node,),
+            plot_prior_predictive=_plot_prior_predictive,
+            extended_term=diag_vars[0] if diag_vars else None,
+            compute_loo=plan.compute_loo,
+        ),
     )
-    _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     # Per-target coupling table — the headline "what predicts whose change"

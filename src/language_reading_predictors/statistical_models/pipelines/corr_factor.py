@@ -52,10 +52,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -114,7 +114,6 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     summary_vars = plan.diagnostic_vars()
 
-    section_header("Prior predictive")
     # Draw the full prior, not just the two observed nodes (#381). Restricting
     # ``var_names`` to ``["Z_obs", "y_post"]`` left the persisted ``prior`` group
     # completely empty, so ``save_prior_posterior_plot`` below had nothing to
@@ -123,22 +122,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # see. The default (all free RVs + deterministics + observed nodes) is what
     # every other family uses, and ``run_prior_predictive`` falls back to the
     # minimal set on failure.
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
-
     # Two observed nodes (the indicator matrix Z_obs + the structural y_post) make
     # a single-target PSIS-LOO ambiguous, so LOO is skipped here as in the
     # mediation family; this is a measurement / triangulation model, not a
     # predictive one, and #134 turns on the loadings / communalities, not on LOO.
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=summary_vars)
     # Power-scaling prior sensitivity (#381): this family does not compute LOO,
     # so add the log groups explicitly, then power-scale the reported parameters.
-    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
-    _diag.run_psense(ctx, var_names=summary_vars)
-
     # Sample both observed nodes (the indicator matrix + the structural outcome).
     # These are two SEPARATE checks, not a joint predictive draw: the factor scores
     # condition on the observed indicator data (``Z_d``), not on the replicated
@@ -147,12 +136,21 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # ``y_post`` is a check of the structural leg *conditional on the observed
     # indicators*. Together they do not certify the joint model. See the
     # predictive-simulation caveat in ``build_correlated_factor_model``.
-    run_ppc(ctx, var_names=list(plan.observation_nodes))
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(summary_vars),
+            ppc_var_names=plan.observation_nodes,
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, outcome, node="y_post"
+            ),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
+                c, strict=False
+            ),
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
+        ),
+    )
     # Indicator-scale prior check (#381). Only ``Z_obs`` is the indicator matrix;
     # ``y_post`` is the structural outcome and is covered by the ordinary
     # prior-predictive plot above. AFTER save_trace, which is what attaches the
@@ -290,15 +288,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_dist_overlay(ctx)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
     diag_vars = plan.diagnostic_vars()
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity (#381), as in the RLI ``corr_factor`` family:
     # LOO is skipped here, so the log groups have to be added explicitly before the
     # reported loadings, residual scales and factor correlations can be power-scaled.
@@ -306,15 +296,19 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     # since the #383 ``LKJCorr`` fix it does (0 divergences, max R-hat 1.0004), so the
     # exemption no longer applies and a latent-factor model is exactly where an
     # unmeasured prior dependence would matter most.
-    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=list(plan.observation_nodes))
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=plan.observation_nodes,
+            plot_prior_predictive=_diag.save_prior_predictive_dist_overlay,
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
+                c, strict=False
+            ),
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
+        ),
+    )
     # Indicator-scale prior check (#381) — the measurement families' stand-in for
     # the estimand pushforward the outcome families get. AFTER save_trace, which
     # is what attaches the prior/prior_predictive groups to ctx.trace on a fresh

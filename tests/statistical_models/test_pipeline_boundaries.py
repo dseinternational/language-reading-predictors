@@ -89,10 +89,19 @@ DIRECT_ENTRY_POINTS = sorted(
 # added only after their current ordering has been characterised.
 PRIMARY_LIFECYCLE_ENTRY_POINTS = (
     ("aligned", "fit_aligned"),
+    ("corr_factor", "fit_correlated_factor"),
+    ("corr_factor", "fit_rlm_corr_factor"),
+    ("dose_response", "fit_dose_response"),
     ("growth", "fit_growth"),
     ("historical_growth", "fit_historical_growth"),
+    ("historical_joint", "fit_rlm_joint_growth"),
     ("horseshoe", "fit_horseshoe"),
     ("horseshoe", "fit_rlm_horseshoe"),
+    ("lcsm", "fit_lcsm"),
+    ("mechanism", "fit_mechanism"),
+    ("mediation", "fit_mediation"),
+    ("mediation", "fit_mediation_multi"),
+    ("mediation", "fit_mediation_period_stacked"),
     ("survival", "fit_survival"),
 )
 

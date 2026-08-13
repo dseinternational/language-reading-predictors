@@ -54,10 +54,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 # Correlation is not interpretable when either latent residual variance collapses
@@ -109,27 +109,11 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
     # One likelihood node per measure, so emit one check per measure rather than a
     # pooled overlay: these scales have different maxima and pooling their counts has
     # no interpretable predictive distribution (same reasoning as the joint family's
     # symbol-suffixed checks).
-    for _sym, _node in zip(
-        measure_syms, plan.observation_nodes, strict=True
-    ):
-        _diag.save_prior_predictive_plot(
-            ctx,
-            _sym,
-            node=_node,
-            filename_stem=f"prior_predictive_check_{_sym.lower()}",
-        )
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
     diag_vars = plan.diagnostic_vars()
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity on the reported parameters (#381). This family
     # is ``compute_loo=False`` (one likelihood node per measure, so a single pointwise
     # PSIS-LOO is undefined — not a likelihood PyMC cannot evaluate), so the groups
@@ -144,15 +128,27 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     # needs no change. Meanwhile the fit degrades to a warning and gets no psense,
     # which is a *measured and declined* exemption rather than the silent absence it
     # was before.
-    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
-    _diag.run_psense(ctx, var_names=diag_vars)
+    def _plot_prior_predictive(c: StatisticalFitContext) -> None:
+        for symbol, node in zip(measure_syms, plan.observation_nodes, strict=True):
+            _diag.save_prior_predictive_plot(
+                c,
+                symbol,
+                node=node,
+                filename_stem=f"prior_predictive_check_{symbol.lower()}",
+            )
 
-    run_ppc(ctx, var_names=list(plan.observation_nodes))
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=plan.observation_nodes,
+            plot_prior_predictive=_plot_prior_predictive,
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
+                c, strict=False
+            ),
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     hdi = ctx.reporting.ci_prob
