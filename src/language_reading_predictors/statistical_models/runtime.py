@@ -58,14 +58,11 @@ def require_spec(
 # ---------------------------------------------------------------------------
 # Shared pipeline phases (#82)
 #
-# Every fit_* pipeline runs the same scaffold: prepare -> build -> attach ->
-# prior predictive -> sample -> LOO -> summary -> posterior predictive ->
-# (model-specific summaries) -> metadata -> report. The phases that are
-# byte-identical across pipelines live here so a fix to one (the LOO sequence,
-# the PPC draw, the report tail) propagates to every model instead of drifting
-# per-pipeline (the failure mode behind #78). The genuinely per-model phases
-# (prepare, build, summary var_names, the headline summary tables) stay inline
-# in each fit_* function.
+# Every fit_* pipeline runs the invariant primary lifecycle through
+# ``shared_stages().run_primary_fit``. Family preparation, model construction,
+# scientific summaries, metadata and report finalisation remain inline. The old
+# one-phase sampling/PPC wrappers were removed once all primary paths adopted the
+# full lifecycle, so a family cannot quietly reconstruct a partial sequence.
 # ---------------------------------------------------------------------------
 
 
@@ -89,20 +86,6 @@ def attach_built(ctx: StatisticalFitContext, built) -> None:
     """Attach a built model and its prepared data to the run context."""
 
     shared_stages().attach_built(ctx, built)
-
-
-def run_sampling_and_loo(
-    ctx: StatisticalFitContext, *, compute_loo: bool = True
-) -> None:
-    """Sample the posterior (nutpie) and, unless the family opts out, compute PSIS-LOO."""
-
-    shared_stages().sample_and_loo(ctx, compute_loo=compute_loo)
-
-
-def run_ppc(ctx: StatisticalFitContext, *, var_names: list[str] | None = None) -> None:
-    """Draw the posterior predictive for ``var_names`` (the family's likelihood nodes)."""
-
-    shared_stages().posterior_predictive(ctx, var_names=var_names)
 
 
 def write_run_metadata(

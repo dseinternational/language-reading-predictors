@@ -54,9 +54,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
@@ -261,75 +262,76 @@ def _jm_marginal_ppc(
         save_table(ctx, "ppc_summary_marginal", frame, required=False)
 
 
-def _jm_standard_artefacts(
-    ctx: StatisticalFitContext,
+def _jm_primary_fit_plan(
     *,
     outcome_symbols: tuple[str, ...],
     diag_vars: list[str],
     psense_vars: list[str],
     marginal_ppc: bool = False,
-) -> dict | None:
-    """The shared post-sampling artefact set for a joint-mechanism fit.
+    compute_loo: bool = True,
+) -> PrimaryFitPlan:
+    """Declare the joint-mechanism primary lifecycle and custom artefacts.
 
-    Everything the house technical report expects of a published fit, in the order
-    ``stages.py`` uses elsewhere: summary diagnostics, **power-scaling prior
-    sensitivity** (#381 — the mechanism family already audits its reported slopes and
-    this family must not be the one exemption), per-outcome posterior-predictive
-    overlays, the **``ppc_summary.csv`` coverage statistic** (#318), the convergence
-    gate, per-outcome LOO-PIT, the trace and the prior-vs-posterior panel.
+    The shared runner owns the invariant ordering. These hooks retain the family's
+    per-outcome prior/PPC/LOO-PIT views, optional new-child marginal coverage and
+    reported-slope power-scaling set.
 
     The last three were silently absent before the #427 review: the per-outcome
     LOO-PIT calls raised inside :func:`diagnostics.save_joint_loo_pit_plot` because
     the helper hard-required ``posterior['tau']``, which this family does not have.
     ``posterior_var="beta_mech"`` now names the family's own reported coefficient.
     """
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported coefficients (#381). The
-    # share_retained ratio is deliberately excluded: psense summarises a location
-    # shift, which is not a stable description of a ratio whose denominator has
-    # posterior mass on both sides of small values.
-    _diag.run_psense(ctx, var_names=psense_vars)
+    def _plot_prior(c: StatisticalFitContext) -> None:
+        for index, symbol in enumerate(outcome_symbols):
+            stem = (
+                "prior_predictive_check"
+                if index == 0
+                else f"prior_predictive_check_{symbol.lower()}"
+            )
+            _diag.save_prior_predictive_plot(c, symbol, filename_stem=stem)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    for index, symbol in enumerate(outcome_symbols):
-        stem = (
-            "posterior_predictive_check"
-            if index == 0
-            else f"posterior_predictive_check_{symbol.lower()}"
-        )
-        _diag.save_joint_posterior_predictive_plot(ctx, symbol, filename_stem=stem)
-    # Coverage statistic (#318). Per-observation interval coverage is
-    # denominator-agnostic — each flattened child x outcome cell is scored against
-    # its own predictive draws — so it is well defined on the flattened ``y_post``
-    # even though the distribution overlays must be split per outcome above.
-    with guard_optional(ctx, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
-        coverage = _report.ppc_interval_coverage(ctx.trace, node="y_post")
-        save_table(ctx, "ppc_summary", coverage, required=False)
-    if marginal_ppc:
-        _jm_marginal_ppc(ctx, outcome_symbols=outcome_symbols)
+    def _run_ppc(c: StatisticalFitContext) -> None:
+        _diag.sample_posterior_predictive(c, var_names=["y_post"])
+        for index, symbol in enumerate(outcome_symbols):
+            stem = (
+                "posterior_predictive_check"
+                if index == 0
+                else f"posterior_predictive_check_{symbol.lower()}"
+            )
+            _diag.save_joint_posterior_predictive_plot(
+                c, symbol, filename_stem=stem
+            )
+        # Coverage is denominator-agnostic for flattened child x outcome cells;
+        # the per-outcome overlays remain the appropriate figure views.
+        with guard_optional(
+            c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
+        ):
+            coverage = _report.ppc_interval_coverage(c.trace, node="y_post")
+            save_table(c, "ppc_summary", coverage, required=False)
+        if marginal_ppc:
+            _jm_marginal_ppc(c, outcome_symbols=outcome_symbols)
 
-    section_header("Extended diagnostics")
-    gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    # The generic LOO-PIT would pool flattened cells from tests with different
-    # denominators (79 items vs 6); save one calibrated plot per outcome instead.
-    # ``causal_term`` only selects which parameter the rank and ESS-evolution plots
-    # focus on — it carries no causal claim, and nothing in this family is causal.
-    # Naming the headline contrast matters: left unset, the ESS-evolution plot tries
-    # to draw every variable (563 subplots for the transition design) and is skipped
-    # entirely, which is how a required diagnostic goes quietly missing.
-    _diag.run_extended_diagnostics(
-        ctx, causal_term="delta_ls_decoding", include_loo_pit=False
+    def _write_loo_pit(c: StatisticalFitContext) -> None:
+        # The generic LOO-PIT would pool tests with different denominators.
+        for index, symbol in enumerate(outcome_symbols):
+            stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
+            _diag.save_joint_loo_pit_plot(
+                c,
+                symbol,
+                filename_stem=stem,
+                posterior_var="beta_mech",
+            )
+
+    return PrimaryFitPlan(
+        diagnostic_vars=tuple(diag_vars),
+        plot_prior_predictive=_plot_prior,
+        custom_posterior_predictive=_run_ppc,
+        psense_vars=tuple(psense_vars),
+        extended_term="delta_ls_decoding",
+        include_loo_pit=False,
+        post_extended_audit=_write_loo_pit,
+        compute_loo=compute_loo,
     )
-    for index, symbol in enumerate(outcome_symbols):
-        stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
-        _diag.save_joint_loo_pit_plot(
-            ctx, symbol, filename_stem=stem, posterior_var="beta_mech"
-        )
-    _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
-    return gate
 
 
 def _jm_write_slopes(
@@ -472,31 +474,25 @@ def _fit_joint_mechanism_levels(
             section_header(f"Build model (anchor wave t{tp})")
             attach_built(ctx, built)
             render_model_graph(ctx)
-            section_header("Prior predictive")
-            _diag.run_prior_predictive(ctx, draws=1000)
-            for index, symbol in enumerate(outcome_symbols):
-                stem = (
-                    "prior_predictive_check"
-                    if index == 0
-                    else f"prior_predictive_check_{symbol.lower()}"
-                )
-                _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
-            run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-            trace = ctx.trace
             model_names = {rv.name for rv in ctx.model.free_RVs} | set(
-                ctx.trace.posterior.data_vars
+                ctx.model.named_vars
             )
             diag_vars = plan.diagnostic_vars(model_names)
-            psense_vars = plan.psense_vars(set(ctx.trace.posterior.data_vars))
-            gate = _jm_standard_artefacts(
+            psense_vars = plan.psense_vars(model_names)
+            gate = shared_stages().run_primary_fit(
                 ctx,
-                outcome_symbols=outcome_symbols,
-                diag_vars=diag_vars,
-                psense_vars=psense_vars,
-                # One latent residual per child over two cells: the conditional
-                # coverage is structurally 1.00, so publish the new-child version too.
-                marginal_ppc=True,
+                _jm_primary_fit_plan(
+                    outcome_symbols=outcome_symbols,
+                    diag_vars=diag_vars,
+                    psense_vars=psense_vars,
+                    # One latent residual per child over two cells: conditional
+                    # coverage is structurally 1.00, so publish the new-child view.
+                    marginal_ppc=True,
+                    compute_loo=plan.compute_loo,
+                ),
             )
+            _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+            trace = ctx.trace
             convergence = _diag.subfit_convergence(
                 ctx.trace,
                 label=f"{spec.model_id} anchor wave t{tp}",
@@ -654,29 +650,19 @@ def _fit_joint_mechanism_transition(
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    for index, symbol in enumerate(outcome_symbols):
-        stem = (
-            "prior_predictive_check"
-            if index == 0
-            else f"prior_predictive_check_{symbol.lower()}"
-        )
-        _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    model_names = {rv.name for rv in ctx.model.free_RVs} | set(
-        ctx.trace.posterior.data_vars
-    )
+    model_names = {rv.name for rv in ctx.model.free_RVs} | set(ctx.model.named_vars)
     diag_vars = plan.diagnostic_vars(model_names)
-    psense_vars = plan.psense_vars(set(ctx.trace.posterior.data_vars))
-    gate = _jm_standard_artefacts(
+    psense_vars = plan.psense_vars(model_names)
+    gate = shared_stages().run_primary_fit(
         ctx,
-        outcome_symbols=outcome_symbols,
-        diag_vars=diag_vars,
-        psense_vars=psense_vars,
+        _jm_primary_fit_plan(
+            outcome_symbols=outcome_symbols,
+            diag_vars=diag_vars,
+            psense_vars=psense_vars,
+            compute_loo=plan.compute_loo,
+        ),
     )
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     section_header("Decoding-specificity contrast")
     slopes_df = _jm_write_slopes(

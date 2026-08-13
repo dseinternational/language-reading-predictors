@@ -70,10 +70,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
@@ -433,47 +433,58 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
 
     # ---- Fit each wave's mutually-adjusted model --------------------------------
     wave_fits: dict[int, dict] = {}
-    for w in wave_indices:
+
+    def _fit_non_primary_wave(w: int) -> None:
         sub = wave_subsets[w]
         preds = wave_preds[w]
         covs = wave_covariates[w]
         tp = w + 1  # 1-based timepoint for reports
         if not preds:
             rprint(f"[yellow]Concurrent: wave t{tp} has no usable predictors; skipped.[/yellow]")
-            continue
-        if w == primary_wave:
-            section_header(f"Build model (primary wave t{tp})")
-            built = _build(
-                sub, preds, covs, age=include_age, group=include_group
-            )
-            attach_built(ctx, built)
-            render_model_graph(ctx)
-            section_header("Prior predictive")
-            _diag.run_prior_predictive(ctx, draws=1000)
-            _diag.save_prior_predictive_plot(ctx, outcome)
-            run_sampling_and_loo(ctx)
-            trace = ctx.trace
-            convergence = None  # populated below after the full primary gate
-        else:
-            built = _build(
-                sub, preds, covs, age=include_age, group=include_group
-            )
-            res = run_subfit(
-                ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
-            )
-            trace = res.trace
-            convergence = res.convergence
+            return
+        built = _build(sub, preds, covs, age=include_age, group=include_group)
+        res = run_subfit(
+            ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
+        )
         wave_fits[w] = {
-            "trace": trace,
+            "trace": res.trace,
             "prepared": built.prepared,
             "preds": preds,
             "covariates": covs,
             "dropped_covariates": dropped_covariates_by_wave[w],
-            "convergence": convergence,
+            "convergence": res.convergence,
         }
 
-    # ---- Primary-wave diagnostics + standard artefacts --------------------------
-    section_header("Summary diagnostics (primary wave)")
+    # Preserve the established chronological fit order: waves before the anchor
+    # remain before its build/sampling, while later waves run immediately after the
+    # anchor sample and before its summary diagnostics.
+    for w in wave_indices:
+        if w == primary_wave:
+            break
+        _fit_non_primary_wave(w)
+
+    primary_sub = wave_subsets[primary_wave]
+    primary_preds = wave_preds[primary_wave]
+    primary_covs = wave_covariates[primary_wave]
+    section_header(f"Build model (primary wave t{primary_wave + 1})")
+    primary_built = _build(
+        primary_sub,
+        primary_preds,
+        primary_covs,
+        age=include_age,
+        group=include_group,
+    )
+    attach_built(ctx, primary_built)
+    render_model_graph(ctx)
+    wave_fits[primary_wave] = {
+        "trace": None,
+        "prepared": primary_built.prepared,
+        "preds": primary_preds,
+        "covariates": primary_covs,
+        "dropped_covariates": dropped_covariates_by_wave[primary_wave],
+        "convergence": None,
+    }
+
     prim = wave_fits[primary_wave]
     beta_names = [f"beta_{s}" for s in prim["preds"]]
     diag_vars = ["alpha", "kappa", *beta_names]
@@ -482,24 +493,44 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     if include_group:
         diag_vars.append("beta_group_nuisance")
     diag_vars.extend(f"gamma_{name}" for name in prim["covariates"])
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-    run_ppc(ctx)
-    section_header("Extended diagnostics (primary wave)")
-    _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _primary_conv = _diag.subfit_convergence(
-        ctx.trace,
-        label=f"{spec.model_id} primary wave t{primary_wave + 1}",
-        var_names=[rv.name for rv in ctx.model.free_RVs],
+
+    def _finish_wave_fits(c: StatisticalFitContext) -> None:
+        wave_fits[primary_wave]["trace"] = c.trace
+        after_primary = False
+        for w in wave_indices:
+            if w == primary_wave:
+                after_primary = True
+                continue
+            if after_primary:
+                _fit_non_primary_wave(w)
+
+    def _record_primary_convergence(
+        c: StatisticalFitContext, gate: dict
+    ) -> None:
+        primary_conv = _diag.subfit_convergence(
+            c.trace,
+            label=f"{spec.model_id} primary wave t{primary_wave + 1}",
+            var_names=[rv.name for rv in c.model.free_RVs],
+        )
+        primary_conv["converged"] = bool(
+            _report.convergence_gate_clean_passed(gate)
+            and primary_conv.get("converged")
+        )
+        wave_fits[primary_wave]["convergence"] = primary_conv
+
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            summary_header="Summary diagnostics (primary wave)",
+            extended_header="Extended diagnostics (primary wave)",
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, outcome
+            ),
+            post_sampling_audit=_finish_wave_fits,
+            post_gate_audit=_record_primary_convergence,
+        ),
     )
-    _primary_conv["converged"] = bool(
-        _report.convergence_gate_clean_passed(_primary_gate)
-        and _primary_conv.get("converged")
-    )
-    wave_fits[primary_wave]["convergence"] = _primary_conv
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
     # Estimand-scale prior check on the primary wave's adjusted associations
     # (#381) — one row per predictor, on the same ``+1 SD`` forward-shift scale

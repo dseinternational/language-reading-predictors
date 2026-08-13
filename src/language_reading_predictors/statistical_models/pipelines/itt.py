@@ -72,10 +72,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
@@ -200,23 +200,24 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
+    diag_vars = tuple(itt_diag_vars(plan, adjust_for))
 
-    run_sampling_and_loo(ctx)
+    def _write_itt_ppc(c: StatisticalFitContext) -> None:
+        write_ppc_calibration(c, built.prepared, (spec.outcome_symbol,))
 
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=itt_diag_vars(plan, adjust_for))
+    def _plot_prior_after_gate(c: StatisticalFitContext, _gate: dict) -> None:
+        _diag.save_prior_predictive_plot(c, spec.outcome_symbol)
 
-    run_ppc(ctx)
-    write_ppc_calibration(ctx, built.prepared, (spec.outcome_symbol,))
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=itt_diag_vars(plan, adjust_for))
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol)
-    _diag.run_extended_diagnostics(ctx, causal_term="tau")
-
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=diag_vars,
+            post_ppc_audit=_write_itt_ppc,
+            post_gate_audit=_plot_prior_after_gate,
+            psense_timing="family_tail",
+            extended_term="tau",
+        ),
+    )
 
     # Area 1/4 extras that read the attached prior group or the full trace:
     # the prior pushforward to the items scale (estimand-scale prior check), the
@@ -231,7 +232,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
     emit_itt_extras(
         ctx, built, n_trials=n_trials_own,
-        overlay_vars=itt_diag_vars(plan, adjust_for),
+        overlay_vars=list(diag_vars),
         moderators=tau_moderators,
         score_mean_link=score_mean_link,
     )
@@ -529,38 +530,37 @@ def fit_itt_floor_rule(
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
-    run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(
-        ctx,
-        var_names=itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
+    diag_vars = tuple(
+        itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor")
     )
 
-    run_ppc(ctx, var_names=["y_offfloor"])
-    write_ppc_calibration(
-        ctx,
-        built.prepared,
-        (own,),
-        node="y_offfloor",
-    )
+    def _write_floor_ppc(c: StatisticalFitContext) -> None:
+        write_ppc_calibration(
+            c,
+            built.prepared,
+            (own,),
+            node="y_offfloor",
+        )
 
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(
+    shared_stages().run_primary_fit(
         ctx,
-        var_names=itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
+        PrimaryFitPlan(
+            diagnostic_vars=diag_vars,
+            ppc_var_names=("y_offfloor",),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, spec.outcome_symbol or "W"
+            ),
+            post_ppc_audit=_write_floor_ppc,
+            psense_timing="family_tail",
+            extended_term="tau",
+        ),
     )
-    _diag.run_extended_diagnostics(ctx, causal_term="tau")
-    _diag.save_trace(ctx)
 
     # Off-floor estimand is a risk difference (Pr off-floor), so the items scale is
     # n_trials = 1; no age-varying term in the floor-rule model.
     emit_itt_extras(
         ctx, built, n_trials=1, varying_term="",
-        overlay_vars=itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"),
+        overlay_vars=list(diag_vars),
     )
 
     section_header(
