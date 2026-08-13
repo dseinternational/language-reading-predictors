@@ -63,10 +63,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
@@ -221,32 +221,23 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, outcome)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
     beta_names = [f"beta_{k}" for k in headline]
-    _diag.summary_diagnostics(
-        ctx, var_names=["alpha", "gamma_own", "kappa", *beta_names]
-    )
-
-    run_ppc(ctx)
     _adjusted_diag_vars = ["alpha", "gamma_own", "kappa", *beta_names]
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=_adjusted_diag_vars)
-
-    section_header("Extended diagnostics")
     # Capture the primary gate verdict so the sub-fit tables can label their
     # primary-derived rows (the adjusted/mutual associations and the headline-sigma
     # prior-sweep rows come from ``ctx.trace``, which this gate covers) consistently
     # with the sub-fits' own ``subfit_convergence`` flags (this review's finding B1).
-    _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=_adjusted_diag_vars)
+    _primary_gate = shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(_adjusted_diag_vars),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, outcome),
+            # This RLI fit has historically written PPC before power scaling.
+            psense_timing="after_ppc",
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _primary_converged = _report.convergence_gate_clean_passed(_primary_gate)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_adjusted_diag_vars)
 
     # --- Adjusted vs bivariate associations --------------------------------
@@ -589,26 +580,19 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, outcome, node="y_post")
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
     nuisance = rlm_nuisance_names(frame)
     diag_vars = plan.diagnostic_vars(headline, nuisance)
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx)
-
-    section_header("Extended diagnostics")
-    _primary_gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+    _primary_gate = shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, outcome, node="y_post"
+            ),
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _primary_converged = _report.convergence_gate_clean_passed(_primary_gate)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     # --- Adjusted vs bivariate associations --------------------------------
