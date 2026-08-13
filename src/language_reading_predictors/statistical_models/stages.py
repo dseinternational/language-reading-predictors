@@ -79,9 +79,12 @@ class PrimaryFitPlan:
 
     extended_term: str | None = None
     """Focus term for the extended diagnostics (rank / ESS-evolution plots);
-    ``None`` skips the extended block (the gate still runs)."""
+    ``None`` runs the termless diagnostic profile used by associational families."""
 
     include_loo_pit: bool = True
+    run_extended: bool = True
+    """Whether to run the extended diagnostic figures after the convergence gate."""
+
     compute_loo: bool = True
     save_trace: bool = True
 
@@ -164,7 +167,7 @@ class SharedFitStages:
 
         section_header("Extended diagnostics")
         _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-        if plan.extended_term is not None:
+        if plan.run_extended:
             _diag.run_extended_diagnostics(
                 ctx,
                 causal_term=plan.extended_term,

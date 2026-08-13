@@ -48,10 +48,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -97,23 +97,17 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     diag_vars = plan.diagnostic_vars(ctx.model.named_vars)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, measure, node=plan.observation_node)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=[plan.observation_node])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=(plan.observation_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, measure, node=plan.observation_node
+            ),
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     # Descriptive summaries: observed complete-case baseline (the Table 2 audit

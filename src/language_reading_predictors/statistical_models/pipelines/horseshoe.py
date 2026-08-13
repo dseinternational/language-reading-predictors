@@ -52,10 +52,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -93,27 +93,22 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, plan.outcome_symbol)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
     # Coupling term present in the model: gamma_own (gain) or the fixed age slope
     # gamma_A (level) — but the level model suppresses gamma_A when age is itself a
     # horseshoe-ranked predictor (build_horseshoe_model), so only list it then.
     diag_vars = plan.diagnostic_vars()
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=[plan.observation_node])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=(plan.observation_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, plan.outcome_symbol, node=plan.observation_node
+            ),
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     section_header("Predictor ranking")
@@ -186,29 +181,20 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(
-        ctx,
-        plan.outcome_symbol,
-        node=plan.observation_node,
-    )
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
     nuisance = rlm_nuisance_names(frame)
     diag_vars = plan.diagnostic_vars(nuisance=tuple(nuisance))
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=[plan.observation_node])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=(plan.observation_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, plan.outcome_symbol, node=plan.observation_node
+            ),
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     section_header("Predictor ranking")

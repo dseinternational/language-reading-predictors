@@ -3,8 +3,9 @@
 
 """Pure summary computations for the correlated-domain-factor measurement models.
 
-The measurement-headline tables of :func:`pipeline.fit_correlated_factor` (and, as a
-follow-up, the Byrne :func:`pipeline.fit_rlm_corr_factor`) — the loadings /
+The measurement-headline tables of
+:func:`pipelines.corr_factor.fit_correlated_factor` (and, as a follow-up, the
+Byrne :func:`pipelines.corr_factor.fit_rlm_corr_factor`) — the loadings /
 correlations / communalities table and the domain-factor correlation matrix
 (posterior-mean matrix + per-pair summary) — computed as pure functions of the
 posterior. Extracted from the fit orchestration (#394 pillar 6, "separate

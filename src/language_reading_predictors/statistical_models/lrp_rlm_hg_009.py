@@ -12,7 +12,7 @@ rather than the suite's waves 1-3 core: the complete-case core is **waves
 3-4** (children with matrices observed at both), and wave 5 enters as an
 extension wave for the Down syndrome group (the only group followed there).
 It runs through the shared historical-growth pipeline
-(:func:`pipeline.fit_historical_growth`), so it uses the same sampler,
+(:func:`pipelines.historical_growth.fit_historical_growth`), so it uses the same sampler,
 convergence gate, output layout and report conventions.
 
 Because the window starts at wave 3, the observed baseline here is **not** a
