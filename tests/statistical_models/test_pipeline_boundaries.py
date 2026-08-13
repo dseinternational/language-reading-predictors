@@ -89,15 +89,18 @@ DIRECT_ENTRY_POINTS = sorted(
 # added only after their current ordering has been characterised.
 PRIMARY_LIFECYCLE_ENTRY_POINTS = (
     ("aligned", "fit_aligned"),
+    ("block_exposure", "fit_block_exposure"),
     ("corr_factor", "fit_correlated_factor"),
     ("corr_factor", "fit_rlm_corr_factor"),
     ("dose_response", "fit_dose_response"),
+    ("gain_factors", "fit_gain_factors"),
     ("growth", "fit_growth"),
     ("historical_growth", "fit_historical_growth"),
     ("historical_joint", "fit_rlm_joint_growth"),
     ("horseshoe", "fit_horseshoe"),
     ("horseshoe", "fit_rlm_horseshoe"),
     ("lcsm", "fit_lcsm"),
+    ("level_factors", "fit_level_factors"),
     ("mechanism", "fit_mechanism"),
     ("mediation", "fit_mediation"),
     ("mediation", "fit_mediation_multi"),
@@ -318,6 +321,56 @@ def test_adopted_primary_entry_points_use_the_shared_lifecycle(family, entry):
         isinstance(call.func, ast.Attribute) and call.func.attr == "run_primary_fit"
         for call in calls
     ), f"pipelines/{family}.py::{entry} does not call run_primary_fit"
+
+
+@pytest.mark.parametrize(
+    "family,entry",
+    [
+        ("block_exposure", "fit_block_exposure"),
+        ("gain_factors", "fit_gain_factors"),
+        ("level_factors", "fit_level_factors"),
+    ],
+)
+def test_late_psense_families_preserve_their_post_trace_artifact_order(family, entry):
+    """The overlay and forest still precede these families' late power scaling.
+
+    ``run_primary_fit`` ends with trace persistence for ``family_tail`` psense;
+    this structural characterisation pins the explicit family tail that follows.
+    """
+    path = PACKAGE / "pipelines" / f"{family}.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == entry
+    )
+    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+    primary_plan = next(
+        call
+        for call in calls
+        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
+    )
+    psense_timing = next(
+        keyword.value
+        for keyword in primary_plan.keywords
+        if keyword.arg == "psense_timing"
+    )
+    assert isinstance(psense_timing, ast.Constant)
+    assert psense_timing.value == "family_tail"
+
+    def _line(attribute: str) -> int:
+        return next(
+            call.lineno
+            for call in calls
+            if (
+                isinstance(call.func, ast.Attribute) and call.func.attr == attribute
+            )
+            or (isinstance(call.func, ast.Name) and call.func.id == attribute)
+        )
+
+    assert _line("run_primary_fit") < _line("save_prior_posterior_plot")
+    assert _line("save_prior_posterior_plot") < _line("save_forest_plot")
+    assert _line("save_forest_plot") < _line("run_psense")
 
 
 def test_no_family_module_samples_a_posterior_of_its_own():

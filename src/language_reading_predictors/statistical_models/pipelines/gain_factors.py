@@ -63,10 +63,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def _gf_coef_names(
@@ -279,18 +279,6 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol, node=obs_node)
-
-    run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_gf_diag_vars(spec, adjust_for))
-
-    run_ppc(ctx, var_names=[obs_node])
-
-    section_header("Extended diagnostics")
     # The diagnostic FOCAL term, not a causal designation: for a moderation
     # variant beta_trt is still the term whose mixing, ESS evolution, forest and
     # prior sensitivity a reader needs, but it is presented as a model-dependent
@@ -299,10 +287,22 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # — the plot titles here are deliberately neutral ("Rank plot", "Effect
     # posterior"), so focusing them on beta_trt asserts nothing causal.
     _focal_gf = None if treated_only else "beta_trt"
-    _diag.write_diagnostics_summary(ctx, var_names=_gf_diag_vars(spec, adjust_for))
-    _diag.run_extended_diagnostics(ctx, causal_term=_focal_gf)
-    _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag_vars(spec, adjust_for))
+    _gf_diag = _gf_diag_vars(spec, adjust_for)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(_gf_diag),
+            ppc_var_names=(obs_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, spec.outcome_symbol, node=obs_node
+            ),
+            psense_timing="family_tail",
+            extended_term=_focal_gf,
+        ),
+    )
+    # Preserve the family's established post-trace order: overlay, optional
+    # forest, then optional power scaling. Treated-only fits have no focal term.
+    _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag)
     if _focal_gf is not None:
         save_forest_plot(ctx, [_focal_gf])
         _diag.run_psense(ctx, var_names=[_focal_gf])

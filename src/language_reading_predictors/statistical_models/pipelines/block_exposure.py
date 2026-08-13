@@ -52,10 +52,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -95,23 +95,23 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, sym, node=plan.observation_node)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=[plan.observation_node])
-
-    section_header("Extended diagnostics")
     # ``delta`` is the focal (association) effect — gets the prior-sensitivity +
     # forest evidence, exactly as the level-factor group term does.
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=(plan.observation_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, sym, node=plan.observation_node
+            ),
+            psense_timing="family_tail",
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
+        ),
+    )
+    # Preserve the family's established post-trace order: overlay, forest, then
+    # power scaling. The plan opts out of the standard pre-PPC sensitivity slot.
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
     save_forest_plot(
         ctx, [plan.focal_term], name="delta_forest.png",
