@@ -171,13 +171,13 @@ def fast_pipeline(monkeypatch, tmp_path):
         return table
 
     # ``fit_itt`` and ``fit_joint`` own their own module namespaces (#394 step 5),
-    # so each stub is installed on the family module that resolves the name.
+    # so each family-owned writer is stubbed where its pipeline resolves it.
     for module in (itt_pipeline, joint_pipeline):
         monkeypatch.setattr(module, "make_context", make_context)
-        monkeypatch.setattr(module, "run_sampling_and_loo", sample_and_loo)
         monkeypatch.setattr(module, "write_analysis_audit", write_analysis_audit)
         monkeypatch.setattr(module, "write_ppc_calibration", write_ppc_audit)
         monkeypatch.setattr(module, "finalize_report", lambda ctx: ctx)
+    monkeypatch.setattr(itt_pipeline, "run_sampling_and_loo", sample_and_loo)
     monkeypatch.setattr(itt_pipeline, "run_ppc", lambda *args, **kwargs: None)
     # ``emit_priors`` is reached through the shared stage binding, not the family
     # module, so it is stubbed where ``shared_stages()`` resolves it.
@@ -220,6 +220,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         "save_joint_loo_pit_plot",
         "write_diagnostics_summary",
         "run_extended_diagnostics",
+        "run_psense",
         "save_prior_posterior_plot",
     ):
         monkeypatch.setattr(itt_pipeline._diag, name, lambda *args, **kwargs: None)
@@ -228,6 +229,48 @@ def fast_pipeline(monkeypatch, tmp_path):
         Path(ctx.output_dir, "trace.nc").write_text("mock primary trace\n")
 
     monkeypatch.setattr(itt_pipeline._diag, "save_trace", save_trace)
+
+    class _FastSharedStages:
+        """Exercise joint's declared hooks without invoking expensive shared phases."""
+
+        @staticmethod
+        def run_primary_fit(ctx, plan):
+            itt_pipeline._diag.run_prior_predictive(
+                ctx,
+                draws=plan.prior_predictive_draws,
+                var_names=(
+                    list(plan.prior_predictive_var_names)
+                    if plan.prior_predictive_var_names is not None
+                    else None
+                ),
+            )
+            if plan.plot_prior_predictive is not None:
+                plan.plot_prior_predictive(ctx)
+            sample_and_loo(ctx, compute_loo=plan.compute_loo)
+            if plan.post_sampling_audit is not None:
+                plan.post_sampling_audit(ctx)
+            itt_pipeline._diag.summary_diagnostics(
+                ctx, var_names=list(plan.diagnostic_vars)
+            )
+            if plan.custom_posterior_predictive is not None:
+                plan.custom_posterior_predictive(ctx)
+            if plan.post_ppc_audit is not None:
+                plan.post_ppc_audit(ctx)
+            itt_pipeline._diag.write_diagnostics_summary(
+                ctx, var_names=list(plan.diagnostic_vars)
+            )
+            if plan.run_extended:
+                itt_pipeline._diag.run_extended_diagnostics(
+                    ctx,
+                    causal_term=plan.extended_term,
+                    include_loo_pit=plan.include_loo_pit,
+                )
+            if plan.post_extended_audit is not None:
+                plan.post_extended_audit(ctx)
+            save_trace(ctx)
+            return {}
+
+    monkeypatch.setattr(joint_pipeline, "shared_stages", lambda: _FastSharedStages())
     monkeypatch.setattr(
         itt_pipeline._diag,
         "subfit_convergence",

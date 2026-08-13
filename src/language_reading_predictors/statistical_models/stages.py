@@ -53,13 +53,14 @@ class PrimaryFitPlan:
     Everything else about the primary-fit sequence — its order, its section
     headers, which diagnostics run — is invariant and owned by
     :meth:`SharedFitStages.run_primary_fit`. A family declares only what varies:
-    the curated diagnostic variables, the posterior-predictive nodes (the last
-    one is the primary outcome node), its prior-predictive figure, any custom
-    post-PPC audit, which variables get power-scaling sensitivity, where that
-    sensitivity belongs, the term the extended diagnostics focus on, and the
-    LOO / LOO-PIT / trace-persistence policy. Deliberately a flat value object
-    rather than a base class with overridable methods: a reader should be able
-    to see a family's whole execution profile in one declaration.
+    the curated diagnostic variables, any restricted prior-predictive variables,
+    the posterior-predictive nodes (the last is the primary outcome node), its
+    family-specific figures or audits at named phase boundaries, which variables
+    get power-scaling sensitivity, where that sensitivity belongs, the term the
+    extended diagnostics focus on, and the LOO / LOO-PIT / trace-persistence
+    policy. Deliberately a flat value object rather than a base class with
+    overridable methods: a reader should be able to see a family's whole
+    execution profile in one declaration.
     """
 
     diagnostic_vars: tuple[str, ...]
@@ -71,8 +72,17 @@ class PrimaryFitPlan:
 
     prior_predictive_draws: int = 1000
 
+    prior_predictive_var_names: tuple[str, ...] | None = None
+    """Optional explicit prior-predictive variables for multi-node families."""
+
     plot_prior_predictive: ContextHook | None = None
     """Family-specific prior-predictive figure (rate plot, count panel, …)."""
+
+    post_sampling_audit: ContextHook | None = None
+    """Optional family computation after sampling/ordinary LOO and before summary."""
+
+    custom_posterior_predictive: ContextHook | None = None
+    """Optional complete replacement for the standard PPC draw/save operation."""
 
     post_ppc_audit: ContextHook | None = None
     """Optional family audit after PPC and before sensitivity or the gate."""
@@ -80,7 +90,9 @@ class PrimaryFitPlan:
     psense_vars: tuple[str, ...] | None = None
     """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
 
-    psense_timing: Literal["before_ppc", "after_ppc", "family_tail"] = "before_ppc"
+    psense_timing: Literal[
+        "before_ppc", "after_ppc", "before_trace", "family_tail"
+    ] = "before_ppc"
     """Where power scaling runs relative to PPC, or in the explicit family tail.
 
     A few established families persist their trace and write diagnostic figures
@@ -101,6 +113,9 @@ class PrimaryFitPlan:
     include_loo_pit: bool = True
     run_extended: bool = True
     """Whether to run the extended diagnostic figures after the convergence gate."""
+
+    post_extended_audit: ContextHook | None = None
+    """Optional family diagnostics after the generic extended block and before trace."""
 
     compute_loo: bool = True
     save_trace: bool = True
@@ -168,11 +183,20 @@ class SharedFitStages:
         diag_vars = list(plan.diagnostic_vars)
 
         section_header("Prior predictive")
-        _diag.run_prior_predictive(ctx, draws=plan.prior_predictive_draws)
+        if plan.prior_predictive_var_names is None:
+            _diag.run_prior_predictive(ctx, draws=plan.prior_predictive_draws)
+        else:
+            _diag.run_prior_predictive(
+                ctx,
+                draws=plan.prior_predictive_draws,
+                var_names=list(plan.prior_predictive_var_names),
+            )
         if plan.plot_prior_predictive is not None:
             plan.plot_prior_predictive(ctx)
 
         self.sample_and_loo(ctx, compute_loo=plan.compute_loo)
+        if plan.post_sampling_audit is not None:
+            plan.post_sampling_audit(ctx)
 
         section_header("Summary diagnostics")
         _diag.summary_diagnostics(ctx, var_names=diag_vars)
@@ -188,7 +212,11 @@ class SharedFitStages:
         if plan.psense_timing == "before_ppc":
             _run_psense()
 
-        self.posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
+        if plan.custom_posterior_predictive is None:
+            self.posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
+        else:
+            section_header("Posterior predictive")
+            plan.custom_posterior_predictive(ctx)
         if plan.post_ppc_audit is not None:
             plan.post_ppc_audit(ctx)
         if plan.psense_timing == "after_ppc":
@@ -202,6 +230,10 @@ class SharedFitStages:
                 causal_term=plan.extended_term,
                 include_loo_pit=plan.include_loo_pit,
             )
+        if plan.post_extended_audit is not None:
+            plan.post_extended_audit(ctx)
+        if plan.psense_timing == "before_trace":
+            _run_psense()
         if plan.save_trace:
             _diag.save_trace(ctx)
         return gate

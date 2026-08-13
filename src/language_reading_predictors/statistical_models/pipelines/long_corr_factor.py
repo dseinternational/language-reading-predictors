@@ -63,10 +63,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 # The LCF exact child-level log-likelihood and constrained-scale log-prior
 # recovery are substantive numerical algorithms, isolated in ``lcf_inference``
@@ -149,7 +149,6 @@ def fit_longitudinal_corr_factor(
     z_nodes = built.extras["z_nodes"]
     summary_vars = plan.diagnostic_vars()
 
-    section_header("Prior predictive")
     # Dedupe: ``communality`` is itself a free RV under the default
     # parameterisation, so appending it unconditionally would double it. The
     # derived lambda_load / sigma_indicator / within_share are named explicitly —
@@ -159,29 +158,31 @@ def fit_longitudinal_corr_factor(
         free_rv_names=[rv.name for rv in built.model.free_RVs],
         observation_nodes=z_nodes,
     )
-    _diag.run_prior_predictive(ctx, draws=1000, var_names=prior_vars)
-    _diag.save_prior_predictive_dist_overlay(ctx)
 
-    # Automatic single-target LOO is ambiguous with per-pattern observed nodes, so
-    # sampling runs without it and the per-child stitch below computes LOO instead.
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
+    def _stitch_child_loo(c: StatisticalFitContext) -> None:
+        # Automatic single-target LOO is ambiguous with per-pattern observed
+        # nodes, so the plan skips ordinary LOO and stitches the exact per-child
+        # likelihood immediately after sampling.
+        section_header("LOO-PSIS (per-child stitch)")
+        _lcf_stitch_loo(c, built)
 
-    section_header("LOO-PSIS (per-child stitch)")
-    _lcf_stitch_loo(ctx, built)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=summary_vars)
-
-    run_ppc(ctx, var_names=z_nodes)
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=summary_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
     # ``communality`` joins the power-scaled set (#383 follow-up): under the
     # pooled-budget parameterisation it is the free measurement parameter behind
     # the reported loadings table, exactly the place a prior dependence would live.
-    _diag.run_psense(ctx, var_names=plan.psense_vars())
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(summary_vars),
+            ppc_var_names=tuple(z_nodes),
+            prior_predictive_var_names=tuple(prior_vars),
+            plot_prior_predictive=_diag.save_prior_predictive_dist_overlay,
+            post_sampling_audit=_stitch_child_loo,
+            psense_vars=tuple(plan.psense_vars()),
+            psense_timing="before_trace",
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
+        ),
+    )
     # Indicator-scale prior check (#381), pooled across the missingness-pattern
     # blocks: each block is its own observed node but the indicators are shared.
     # AFTER save_trace, which is what attaches the prior/prior_predictive groups
