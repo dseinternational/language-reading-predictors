@@ -67,10 +67,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def _did_diag_vars(spec: ModelSpec) -> list[str]:
@@ -301,36 +301,36 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, spec.outcome_symbol or "W")
+    def _write_did_cell_ppc(c: StatisticalFitContext) -> None:
+        cell_ppc = _report.did_cell_ppc(
+            c.trace,
+            phase=c.prepared.phase,
+            G=c.prepared.G,
+            dose=dose,
+            node="y_offfloor" if off_floor else "y_post",
+            ci_prob=c.reporting.ci_prob,
+        )
+        save_table(c, "did_cell_ppc", cell_ppc)
+        save_did_cell_ppc_plot(c, cell_ppc)
 
-    run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=_did_diag_vars(spec))
-
-    if off_floor:
-        run_ppc(ctx, var_names=["y_offfloor"])
-    else:
-        run_ppc(ctx)
-    did_cell_ppc = _report.did_cell_ppc(
-        ctx.trace,
-        phase=ctx.prepared.phase,
-        G=ctx.prepared.G,
-        dose=dose,
-        node="y_offfloor" if off_floor else "y_post",
-        ci_prob=ctx.reporting.ci_prob,
-    )
-    save_table(ctx, "did_cell_ppc", did_cell_ppc)
-    save_did_cell_ppc_plot(ctx, did_cell_ppc)
-
-    section_header("Extended diagnostics")
+    _did_diag = _did_diag_vars(spec)
     _did_effect = plan.effect_term
-    _diag.write_diagnostics_summary(ctx, var_names=_did_diag_vars(spec))
-    _diag.run_extended_diagnostics(ctx, causal_term=_did_effect)
-    _diag.save_trace(ctx)
-    _diag.save_prior_posterior_plot(ctx, var_names=_did_diag_vars(spec))
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(_did_diag),
+            ppc_var_names=("y_offfloor",) if off_floor else ("y_post",),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, spec.outcome_symbol or "W"
+            ),
+            post_ppc_audit=_write_did_cell_ppc,
+            psense_timing="family_tail",
+            extended_term=_did_effect,
+        ),
+    )
+    did_cell_ppc = ctx.tables["did_cell_ppc"]
+    # Preserve the existing post-trace diagnostic tail.
+    _diag.save_prior_posterior_plot(ctx, var_names=_did_diag)
     _diag.run_psense(ctx, var_names=list(plan.psense_terms))
     if not dose:
         with guard_optional(

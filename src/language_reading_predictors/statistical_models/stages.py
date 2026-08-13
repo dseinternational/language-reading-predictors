@@ -54,12 +54,12 @@ class PrimaryFitPlan:
     headers, which diagnostics run — is invariant and owned by
     :meth:`SharedFitStages.run_primary_fit`. A family declares only what varies:
     the curated diagnostic variables, the posterior-predictive nodes (the last
-    one is the primary outcome node), its prior-predictive figure, which
-    variables get power-scaling sensitivity, whether that sensitivity belongs
-    in the standard summary slot, the term the extended diagnostics focus on,
-    and the LOO / LOO-PIT / trace-persistence policy. Deliberately a flat value
-    object rather than a base class with overridable methods: a reader should be
-    able to see a family's whole execution profile in one declaration.
+    one is the primary outcome node), its prior-predictive figure, any custom
+    post-PPC audit, which variables get power-scaling sensitivity, where that
+    sensitivity belongs, the term the extended diagnostics focus on, and the
+    LOO / LOO-PIT / trace-persistence policy. Deliberately a flat value object
+    rather than a base class with overridable methods: a reader should be able
+    to see a family's whole execution profile in one declaration.
     """
 
     diagnostic_vars: tuple[str, ...]
@@ -74,11 +74,14 @@ class PrimaryFitPlan:
     plot_prior_predictive: ContextHook | None = None
     """Family-specific prior-predictive figure (rate plot, count panel, …)."""
 
+    post_ppc_audit: ContextHook | None = None
+    """Optional family audit after PPC and before sensitivity or the gate."""
+
     psense_vars: tuple[str, ...] | None = None
     """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
 
-    psense_timing: Literal["before_ppc", "family_tail"] = "before_ppc"
-    """Where power scaling runs: here before PPC, or in the explicit family tail.
+    psense_timing: Literal["before_ppc", "after_ppc", "family_tail"] = "before_ppc"
+    """Where power scaling runs relative to PPC, or in the explicit family tail.
 
     A few established families persist their trace and write diagnostic figures
     before power scaling. They declare ``family_tail`` and retain that late
@@ -149,16 +152,17 @@ class SharedFitStages:
 
     def run_primary_fit(
         self, ctx: StatisticalFitContext, plan: PrimaryFitPlan
-    ) -> None:
+    ) -> dict[str, Any]:
         """Execute the invariant primary-fit sequence for a built, attached model.
 
         Prior prediction, posterior sampling with optional PSIS-LOO, the
         human-readable summary diagnostics, optional power-scaling sensitivity,
         posterior prediction, the all-free-variable convergence gate, the
-        extended diagnostics, and trace persistence — in that order, once, for
-        every family that adopts a :class:`PrimaryFitPlan`. Family scientific
-        summaries, exceptional audits and explicitly deferred sensitivity stay
-        visible in the family pipeline before or after this call.
+        extended diagnostics, and trace persistence run once according to the
+        declared family policy. Family scientific summaries, exceptional audits
+        and explicitly deferred sensitivity stay visible in the family pipeline
+        before or after this call. The returned convergence-gate record lets a
+        family label primary-derived rows without re-reading or recomputing it.
         """
 
         diag_vars = list(plan.diagnostic_vars)
@@ -172,7 +176,8 @@ class SharedFitStages:
 
         section_header("Summary diagnostics")
         _diag.summary_diagnostics(ctx, var_names=diag_vars)
-        if plan.psense_timing == "before_ppc":
+
+        def _run_psense() -> None:
             if plan.prepare_psense is not None:
                 plan.prepare_psense(ctx)
             psense_vars = (
@@ -180,10 +185,17 @@ class SharedFitStages:
             )
             _diag.run_psense(ctx, var_names=psense_vars)
 
+        if plan.psense_timing == "before_ppc":
+            _run_psense()
+
         self.posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
+        if plan.post_ppc_audit is not None:
+            plan.post_ppc_audit(ctx)
+        if plan.psense_timing == "after_ppc":
+            _run_psense()
 
         section_header("Extended diagnostics")
-        _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
+        gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
         if plan.run_extended:
             _diag.run_extended_diagnostics(
                 ctx,
@@ -192,6 +204,7 @@ class SharedFitStages:
             )
         if plan.save_trace:
             _diag.save_trace(ctx)
+        return gate
 
     def write_metadata(
         self,

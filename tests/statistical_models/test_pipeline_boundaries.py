@@ -88,10 +88,13 @@ DIRECT_ENTRY_POINTS = sorted(
 # its invariant execution through ``PrimaryFitPlan``; exceptional families are
 # added only after their current ordering has been characterised.
 PRIMARY_LIFECYCLE_ENTRY_POINTS = (
+    ("adjusted", "fit_adjusted"),
+    ("adjusted", "fit_rlm_adjusted"),
     ("aligned", "fit_aligned"),
     ("block_exposure", "fit_block_exposure"),
     ("corr_factor", "fit_correlated_factor"),
     ("corr_factor", "fit_rlm_corr_factor"),
+    ("did", "fit_did"),
     ("dose_response", "fit_dose_response"),
     ("gain_factors", "fit_gain_factors"),
     ("growth", "fit_growth"),
@@ -371,6 +374,102 @@ def test_late_psense_families_preserve_their_post_trace_artifact_order(family, e
     assert _line("run_primary_fit") < _line("save_prior_posterior_plot")
     assert _line("save_prior_posterior_plot") < _line("save_forest_plot")
     assert _line("save_forest_plot") < _line("run_psense")
+
+
+def test_did_preserves_cell_ppc_and_post_trace_sensitivity_order():
+    """DiD's stratified PPC is pre-gate; its power scaling stays post-trace."""
+    path = PACKAGE / "pipelines" / "did.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "fit_did"
+    )
+    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+    primary_plan = next(
+        call
+        for call in calls
+        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in primary_plan.keywords}
+
+    assert isinstance(keywords["post_ppc_audit"], ast.Name)
+    assert keywords["post_ppc_audit"].id == "_write_did_cell_ppc"
+    assert isinstance(keywords["psense_timing"], ast.Constant)
+    assert keywords["psense_timing"].value == "family_tail"
+
+    def _line(attribute: str) -> int:
+        return next(
+            call.lineno
+            for call in calls
+            if (
+                isinstance(call.func, ast.Attribute) and call.func.attr == attribute
+            )
+        )
+
+    assert _line("run_primary_fit") < _line("save_prior_posterior_plot")
+    assert _line("save_prior_posterior_plot") < _line("run_psense")
+
+
+@pytest.mark.parametrize(
+    "entry,expected_timing",
+    [("fit_adjusted", "after_ppc"), ("fit_rlm_adjusted", "before_ppc")],
+)
+def test_adjusted_fits_consume_the_gate_and_preserve_psense_timing(
+    entry, expected_timing
+):
+    """Both adjusted ports reuse the returned gate; only RLI is PPC-first."""
+    path = PACKAGE / "pipelines" / "adjusted.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == entry
+    )
+    assignments = [node for node in ast.walk(function) if isinstance(node, ast.Assign)]
+    gate_assignment = next(
+        node
+        for node in assignments
+        if any(isinstance(target, ast.Name) and target.id == "_primary_gate" for target in node.targets)
+    )
+    assert isinstance(gate_assignment.value, ast.Call)
+    assert isinstance(gate_assignment.value.func, ast.Attribute)
+    assert gate_assignment.value.func.attr == "run_primary_fit"
+
+    primary_plan = next(
+        call
+        for call in ast.walk(gate_assignment.value)
+        if isinstance(call, ast.Call)
+        and isinstance(call.func, ast.Name)
+        and call.func.id == "PrimaryFitPlan"
+    )
+    timings = {
+        keyword.arg: keyword.value
+        for keyword in primary_plan.keywords
+        if keyword.arg == "psense_timing"
+    }
+    if expected_timing == "before_ppc":
+        assert not timings
+    else:
+        assert isinstance(timings["psense_timing"], ast.Constant)
+        assert timings["psense_timing"].value == expected_timing
+
+    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+    clean_pass = next(
+        call
+        for call in calls
+        if isinstance(call.func, ast.Attribute)
+        and call.func.attr == "convergence_gate_clean_passed"
+    )
+    overlay = next(
+        call
+        for call in calls
+        if isinstance(call.func, ast.Attribute)
+        and call.func.attr == "save_prior_posterior_plot"
+    )
+    assert gate_assignment.lineno < clean_pass.lineno < overlay.lineno
 
 
 def test_no_family_module_samples_a_posterior_of_its_own():

@@ -322,6 +322,55 @@ def test_run_primary_fit_can_leave_late_psense_to_the_family(monkeypatch):
     ]
 
 
+def test_run_primary_fit_can_run_psense_after_ppc_and_return_the_gate(monkeypatch):
+    """Adjusted RLI retains PPC-before-psense and consumes the one gate record."""
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    _patch_primary_fit_diag(monkeypatch, events)
+    gate = {"passed": True, "checks": {"rhat": True}}
+    monkeypatch.setattr(
+        stages._diag,
+        "write_diagnostics_summary",
+        lambda _ctx, *, var_names: (events.append(f"gate{var_names}"), gate)[1],
+    )
+
+    returned = runner.run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=("alpha", "beta"),
+            psense_timing="after_ppc",
+        ),
+    )
+
+    assert returned is gate
+    assert events.index("save_ppc") < events.index("psense['alpha', 'beta']")
+    assert events.index("psense['alpha', 'beta']") < events.index(
+        "Extended diagnostics"
+    )
+
+
+def test_run_primary_fit_runs_post_ppc_audit_before_the_gate(monkeypatch):
+    """DiD cell calibration is part of PPC and must precede the convergence gate."""
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    runner.run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=("alpha",),
+            post_ppc_audit=lambda _ctx: events.append("post_ppc_audit"),
+            psense_timing="family_tail",
+        ),
+    )
+
+    assert events.index("save_ppc") < events.index("post_ppc_audit")
+    assert events.index("post_ppc_audit") < events.index("Extended diagnostics")
+    assert not any(event.startswith("psense") for event in events)
+
+
 def test_run_primary_fit_supports_termless_extended_diagnostics(monkeypatch):
     """Associational families run the extended block without a focal term."""
     events = []
