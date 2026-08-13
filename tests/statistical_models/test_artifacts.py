@@ -213,16 +213,21 @@ def test_write_manifest_marks_a_vanished_recorded_write_missing(tmp_path):
     assert manifest["n_missing"] == 1
 
 
-def test_pipeline_writes_tables_only_through_the_artifact_interface():
-    """Characterisation guard (#394): no direct ``to_csv`` in the monolith.
+def test_family_pipelines_write_tables_only_through_the_artifact_interface():
+    """Characterisation guard (#394): no direct ``to_csv`` in family pipelines.
 
-    Every published table in ``pipeline.py`` goes through :func:`save_table`,
-    so a regression back to the inline write-and-register idiom fails here
-    rather than silently re-fragmenting the artefact record.
+    Every published family table goes through :func:`save_table`, so a regression
+    back to the inline write-and-register idiom fails here rather than silently
+    re-fragmenting the artefact record.
     """
     import pathlib
 
-    import language_reading_predictors.statistical_models.pipeline as pipeline_module
+    import language_reading_predictors.statistical_models.pipelines as pipeline_package
 
-    source = pathlib.Path(pipeline_module.__file__).read_text(encoding="utf-8")
-    assert ".to_csv(" not in source
+    pipeline_dir = pathlib.Path(pipeline_package.__file__).parent
+    offenders = [
+        path.name
+        for path in sorted(pipeline_dir.glob("*.py"))
+        if ".to_csv(" in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, f"family pipelines bypassing save_table: {offenders}"

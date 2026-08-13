@@ -38,7 +38,7 @@ from language_reading_predictors.statistical_models.mediation_calibration import
 from language_reading_predictors.statistical_models.mediation_settings import (
     resolve_mediation_run_plan,
 )
-from language_reading_predictors.statistical_models.pipeline import (
+from language_reading_predictors.statistical_models.pipelines.mediation import (
     prepare_mediation_data,
 )
 from language_reading_predictors.statistical_models.registry import discover_models

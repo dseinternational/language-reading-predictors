@@ -22,7 +22,7 @@ association (#384 review).
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.itt import IttModelSettings
-from language_reading_predictors.statistical_models.pipeline import fit_itt
+from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 
 SES_ADJUSTERS = (
     V.MUMEDUPOST16,

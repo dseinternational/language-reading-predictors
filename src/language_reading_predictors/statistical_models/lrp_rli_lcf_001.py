@@ -49,7 +49,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.long_corr_factor import (
     LongCorrFactorModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import (
+from language_reading_predictors.statistical_models.pipelines.long_corr_factor import (
     fit_longitudinal_corr_factor,
 )
 

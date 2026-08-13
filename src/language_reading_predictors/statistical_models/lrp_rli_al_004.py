@@ -13,7 +13,7 @@ no coefficient is a clean treatment effect -- all are associations.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_aligned
+from language_reading_predictors.statistical_models.pipelines.aligned import fit_aligned
 
 SPEC = ModelSpec(
     model_id="lrp-rli-al-004",

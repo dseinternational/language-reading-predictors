@@ -28,7 +28,7 @@ ability.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_level_factors
+from language_reading_predictors.statistical_models.pipelines.level_factors import fit_level_factors
 
 SPEC = ModelSpec(
     model_id="lrp-rli-lf-011",

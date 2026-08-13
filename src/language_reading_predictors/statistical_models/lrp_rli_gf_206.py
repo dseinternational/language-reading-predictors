@@ -19,7 +19,7 @@ settle them.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_gain_factors
+from language_reading_predictors.statistical_models.pipelines.gain_factors import fit_gain_factors
 
 SPEC = ModelSpec(
     model_id="lrp-rli-gf-206",

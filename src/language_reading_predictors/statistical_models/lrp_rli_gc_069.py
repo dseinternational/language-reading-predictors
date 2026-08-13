@@ -41,7 +41,7 @@ rough magnitude of ``gamma_k`` per measure, framed as an adjusted association.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_growth
+from language_reading_predictors.statistical_models.pipelines.growth import fit_growth
 
 SPEC = ModelSpec(
     model_id="lrp-rli-gc-069",

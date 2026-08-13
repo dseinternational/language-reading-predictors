@@ -30,7 +30,7 @@ from language_reading_predictors.statistical_models.lrp_rli_med_086 import (
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_mediation
+from language_reading_predictors.statistical_models.pipelines.mediation import fit_mediation
 
 PARENT_SETTINGS = PARENT_SPEC.model_settings
 assert isinstance(PARENT_SETTINGS, MediationModelSettings)

@@ -31,7 +31,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.dose_response import (
     DoseResponseModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_dose_response
+from language_reading_predictors.statistical_models.pipelines.dose_response import fit_dose_response
 
 SPEC = ModelSpec(
     model_id="lrp-rli-dose-083",

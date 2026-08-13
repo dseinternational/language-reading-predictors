@@ -27,7 +27,7 @@ from language_reading_predictors.statistical_models.concurrent import (
     ConcurrentModelSettings,
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_concurrent
+from language_reading_predictors.statistical_models.pipelines.concurrent import fit_concurrent
 
 SPEC = ModelSpec(
     model_id="lrp-rli-ca-011",

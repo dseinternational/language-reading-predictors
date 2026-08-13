@@ -18,7 +18,7 @@ term is non-randomised and every coefficient is an association.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_aligned
+from language_reading_predictors.statistical_models.pipelines.aligned import fit_aligned
 
 SPEC = ModelSpec(
     model_id="lrp-rli-al-101",

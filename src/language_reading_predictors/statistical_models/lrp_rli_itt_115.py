@@ -18,7 +18,7 @@ from language_reading_predictors.statistical_models.joint import (
     JointContrastSettings,
     JointModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_joint
+from language_reading_predictors.statistical_models.pipelines.joint import fit_joint
 
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-115",

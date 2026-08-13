@@ -37,7 +37,7 @@ could follow, as LRP70 does for LRP69.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_growth
+from language_reading_predictors.statistical_models.pipelines.growth import fit_growth
 
 SPEC = ModelSpec(
     model_id="lrp-rli-gc-085",

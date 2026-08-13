@@ -38,7 +38,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.historical_growth import (
     HistoricalGrowthModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_historical_growth
+from language_reading_predictors.statistical_models.pipelines.historical_growth import fit_historical_growth
 
 SPEC = ModelSpec(
     model_id="lrp-rlm-hg-006",

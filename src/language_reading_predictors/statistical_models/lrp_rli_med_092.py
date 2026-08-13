@@ -50,7 +50,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
-from language_reading_predictors.statistical_models.pipeline import (
+from language_reading_predictors.statistical_models.pipelines.mediation import (
     fit_mediation_period_stacked,
 )
 

@@ -71,7 +71,7 @@ from language_reading_predictors.statistical_models.mediation_settings import (
     MediationMultiModelSettings,
     NamedConfounderCalibration,
 )
-from language_reading_predictors.statistical_models.pipeline import fit_mediation_multi
+from language_reading_predictors.statistical_models.pipelines.mediation import fit_mediation_multi
 
 SPEC = ModelSpec(
     model_id="lrp-rli-med-064",

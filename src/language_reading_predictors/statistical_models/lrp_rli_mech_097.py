@@ -29,7 +29,7 @@ the negative-control forest is like-for-like. GA is unblockable; the slope is an
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.pipeline import fit_mechanism
+from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-097",
