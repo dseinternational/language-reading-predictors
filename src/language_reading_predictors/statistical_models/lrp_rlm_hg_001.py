@@ -7,7 +7,7 @@ The first non-RLI, package-level statistical model: a descriptive group-by-wave
 growth model for BAS word reading over waves 1-4 (plus the Down-syndrome-only
 wave-5 tail) of the Byrne, MacDonald & Buckley reading-language-memory study
 (``study_id="rlm"``). It runs through the shared statistical-model pipeline
-(:func:`pipeline.fit_historical_growth`) so it uses the same sampler,
+(:func:`pipelines.historical_growth.fit_historical_growth`) so it uses the same sampler,
 convergence gate, output layout and report conventions as the intervention
 models.
 

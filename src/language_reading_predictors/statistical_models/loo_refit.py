@@ -19,7 +19,8 @@ exact LOO would need.
 **Why this module exists rather than a local helper in the comparison script.** A
 spliced exact elpd value is only meaningful if the refit is the *same model* as the
 original. This module therefore builds through
-:func:`mechanism.build_mechanism_for_plan`, the same call ``pipeline.fit_mechanism``
+:func:`mechanism.build_mechanism_for_plan`, the same call
+``pipelines.mechanism.fit_mechanism``
 uses, and refuses to proceed when it cannot prove the refit is aligned with the fit:
 see the guards in :meth:`MechanismSamplingWrapper.sample`.
 

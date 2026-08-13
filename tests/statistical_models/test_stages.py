@@ -268,6 +268,7 @@ def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
         psense_vars=("tau",),
         compute_loo=False,
         extended_term=None,
+        run_extended=False,
         save_trace=False,
     )
     runner.run_primary_fit(ctx, plan)
@@ -286,6 +287,21 @@ def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
         "Extended diagnostics",
         "gate['alpha']",
     ]
+
+
+def test_run_primary_fit_supports_termless_extended_diagnostics(monkeypatch):
+    """Associational families run the extended block without a focal term."""
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    runner.run_primary_fit(
+        ctx,
+        PrimaryFitPlan(diagnostic_vars=("alpha",), extended_term=None),
+    )
+
+    assert "extended[None,loo_pit=True]" in events
 
 
 def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):

@@ -7,7 +7,7 @@ A descriptive group-by-wave growth model for BPVS receptive vocabulary (``bpvs``
 over waves 1-4 (plus the Down-syndrome-only wave-5 tail) of the Byrne, MacDonald & Buckley
 reading-language-memory study (``study_id="rlm"``), the per-measure sibling of
 ``lrp-rlm-hg-001`` (word reading). It runs through the shared historical-growth
-pipeline (:func:`pipeline.fit_historical_growth`), so it uses the same sampler,
+pipeline (:func:`pipelines.historical_growth.fit_historical_growth`), so it uses the same sampler,
 convergence gate, output layout and report conventions.
 
 **Extended follow-up window (#338).** The complete-case core stays the paper's

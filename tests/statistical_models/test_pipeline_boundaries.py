@@ -84,6 +84,18 @@ DIRECT_ENTRY_POINTS = sorted(
     (family, entry) for family, entries in FAMILY_ENTRY_POINTS.items() for entry in entries
 )
 
+# Incremental #521 adoption ledger. Each listed primary entry point must express
+# its invariant execution through ``PrimaryFitPlan``; exceptional families are
+# added only after their current ordering has been characterised.
+PRIMARY_LIFECYCLE_ENTRY_POINTS = (
+    ("aligned", "fit_aligned"),
+    ("growth", "fit_growth"),
+    ("historical_growth", "fit_historical_growth"),
+    ("horseshoe", "fit_horseshoe"),
+    ("horseshoe", "fit_rlm_horseshoe"),
+    ("survival", "fit_survival"),
+)
+
 # ``mediation_multi`` is a distinct ``ModelSpec.kind`` but the same family module:
 # its two-mediator decomposition shares the g-formula machinery with the
 # single-mediator fits, so ``pipelines/mediation.py`` owns both entry points.
@@ -169,6 +181,17 @@ def test_source_modules_do_not_import_the_retired_facade():
     sources = sorted(PACKAGE.parent.rglob("*.py"))
     offenders = [path.name for path in sources if RETIRED_FACADE in _imports_of(path)]
     assert not offenders, f"source modules importing the retired facade: {offenders}"
+
+
+def test_source_docstrings_do_not_name_retired_facade_entry_points():
+    """Documentation must point at the family owner, not deleted ``pipeline.fit_*``."""
+    sources = sorted(PACKAGE.rglob("*.py"))
+    offenders = [
+        path.name
+        for path in sources
+        if "pipeline.fit_" in path.read_text(encoding="utf-8")
+    ]
+    assert not offenders, f"source docstrings naming retired entry points: {offenders}"
 
 
 def test_shared_artifact_modules_do_not_import_the_retired_facade():
@@ -264,6 +287,28 @@ def test_every_registered_family_kind_has_an_orchestration_module():
         if KIND_MODULES.get(kind, kind) not in modules
     }
     assert not missing, f"family kinds with no module under pipelines/: {sorted(missing)}"
+
+
+@pytest.mark.parametrize("family,entry", PRIMARY_LIFECYCLE_ENTRY_POINTS)
+def test_adopted_primary_entry_points_use_the_shared_lifecycle(family, entry):
+    """The incremental adoption ledger cannot silently fall back to manual stages."""
+    path = PACKAGE / "pipelines" / f"{family}.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == entry
+    )
+    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+
+    assert any(
+        isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
+        for call in calls
+    ), f"pipelines/{family}.py::{entry} does not declare a PrimaryFitPlan"
+    assert any(
+        isinstance(call.func, ast.Attribute) and call.func.attr == "run_primary_fit"
+        for call in calls
+    ), f"pipelines/{family}.py::{entry} does not call run_primary_fit"
 
 
 def test_no_family_module_samples_a_posterior_of_its_own():

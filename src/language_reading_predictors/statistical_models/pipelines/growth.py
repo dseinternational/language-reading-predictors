@@ -53,10 +53,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -108,36 +108,30 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # age0 × ability interaction on the growth rate.
         diag_vars.extend(["gamma_age", "gamma_int"])
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
     # One check per measure: ``y_obs`` flattens (child, wave, outcome) into a single
     # vector, so a lone overlay would pool scales with different maxima. The first
     # outcome keeps the unsuffixed filename the report partial expects.
-    for _i, _sym in enumerate(outcomes):
-        _diag.save_prior_predictive_plot(
-            ctx,
-            _sym,
-            node="y_obs",
-            filename_stem=(
-                "prior_predictive_check"
-                if _i == 0
-                else f"prior_predictive_check_{_sym.lower()}"
-            ),
-        )
+    def _plot_prior_predictive(c: StatisticalFitContext) -> None:
+        for index, symbol in enumerate(outcomes):
+            _diag.save_prior_predictive_plot(
+                c,
+                symbol,
+                node="y_obs",
+                filename_stem=(
+                    "prior_predictive_check"
+                    if index == 0
+                    else f"prior_predictive_check_{symbol.lower()}"
+                ),
+            )
 
-    run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=["y_obs"])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term=None)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=("y_obs",),
+            plot_prior_predictive=_plot_prior_predictive,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     # Headline Q5 output: baseline non-verbal ability -> trajectory shape. The
