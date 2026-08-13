@@ -49,10 +49,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -88,23 +88,22 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, plan.outcome_symbol)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
     dose_vars = plan.diagnostic_vars()
-    _diag.summary_diagnostics(ctx, var_names=dose_vars)
-    # Power-scaling prior sensitivity on the reported parameters (#381).
-    _diag.run_psense(ctx, var_names=dose_vars)
-
-    run_ppc(ctx, var_names=[plan.observation_node])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=dose_vars)
-    _diag.run_extended_diagnostics(ctx, causal_term=plan.focal_term)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(dose_vars),
+            ppc_var_names=(plan.observation_node,),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, plan.outcome_symbol
+            ),
+            extended_term=plan.focal_term,
+            compute_loo=plan.compute_loo,
+            # The trace is intentionally persisted after the dose-slope summary,
+            # preserving this family's established artefact order.
+            save_trace=False,
+        ),
+    )
 
     section_header("Dose-slope summary")
     write_dose_slope_summary(

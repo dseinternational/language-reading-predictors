@@ -53,10 +53,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_ppc,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
@@ -212,27 +212,24 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
     # The mediator likelihood is the FIRST observed RV, so name the outcome node
     # explicitly — else the plot overlays mediator draws on the outcome's counts.
-    _diag.save_prior_predictive_plot(ctx, plan.outcome_symbol, node=outcome_node)
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=coef_vars)
     # Power-scaling prior sensitivity (#381): this family does not compute LOO,
     # so add the log groups explicitly, then power-scale the reported parameters.
-    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
-    _diag.run_psense(ctx, var_names=coef_vars)
-
-    run_ppc(ctx, var_names=[mediator_node, outcome_node])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(coef_vars),
+            ppc_var_names=(mediator_node, outcome_node),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, plan.outcome_symbol, node=outcome_node
+            ),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
+                c, strict=False
+            ),
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=coef_vars)
 
     section_header("Mediation decomposition (g-formula)")
@@ -443,25 +440,22 @@ def fit_mediation_period_stacked(
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    _diag.save_prior_predictive_plot(ctx, outcome_symbol, node="y_post")
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=diag_vars)
     # Power-scaling prior sensitivity (#381): this family does not compute LOO,
     # so add the log groups explicitly, then power-scale the reported parameters.
-    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
-    _diag.run_psense(ctx, var_names=diag_vars)
-
-    run_ppc(ctx, var_names=[mediator_node, "y_post"])
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            ppc_var_names=(mediator_node, "y_post"),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, outcome_symbol, node="y_post"
+            ),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
+                c, strict=False
+            ),
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     section_header("Mediation decomposition (period-stacked g-formula)")
@@ -607,27 +601,24 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
     # The mediator likelihood is the FIRST observed RV, so name the outcome node
     # explicitly — else the plot overlays mediator draws on the outcome's counts.
-    _diag.save_prior_predictive_plot(ctx, plan.outcome_symbol, node="y_post")
-
-    run_sampling_and_loo(ctx, compute_loo=plan.compute_loo)
-
-    section_header("Summary diagnostics")
-    _diag.summary_diagnostics(ctx, var_names=coef_vars)
     # Power-scaling prior sensitivity (#381): this family does not compute LOO,
     # so add the log groups explicitly, then power-scale the reported parameters.
-    _diag.compute_log_likelihood_and_prior(ctx, strict=False)
-    _diag.run_psense(ctx, var_names=coef_vars)
-
-    run_ppc(ctx, var_names=list(plan.observation_nodes))
-
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=coef_vars)
-    _diag.run_extended_diagnostics(ctx)
-    _diag.save_trace(ctx)
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(coef_vars),
+            ppc_var_names=plan.observation_nodes,
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, plan.outcome_symbol, node="y_post"
+            ),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
+                c, strict=False
+            ),
+            compute_loo=plan.compute_loo,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=coef_vars)
 
     section_header("Two-mediator decomposition (g-formula)")

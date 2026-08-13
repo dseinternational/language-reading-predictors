@@ -266,6 +266,7 @@ def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
     plan = PrimaryFitPlan(
         diagnostic_vars=("alpha",),
         psense_vars=("tau",),
+        prepare_psense=lambda _ctx: events.append("prepare_psense"),
         compute_loo=False,
         extended_term=None,
         run_extended=False,
@@ -280,6 +281,7 @@ def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
         "sample",
         "Summary diagnostics",
         "summary['alpha']",
+        "prepare_psense",
         "psense['tau']",
         "Posterior predictive",
         "ppc_sample['y_post']",

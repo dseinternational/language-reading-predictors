@@ -77,6 +77,10 @@ class PrimaryFitPlan:
     psense_vars: tuple[str, ...] | None = None
     """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
 
+    prepare_psense: ContextHook | None = None
+    """Optional preparation immediately before power scaling, such as attaching
+    log-density groups for a family that deliberately skips ordinary PSIS-LOO."""
+
     extended_term: str | None = None
     """Focus term for the extended diagnostics (rank / ESS-evolution plots);
     ``None`` runs the termless diagnostic profile used by associational families."""
@@ -158,6 +162,8 @@ class SharedFitStages:
 
         section_header("Summary diagnostics")
         _diag.summary_diagnostics(ctx, var_names=diag_vars)
+        if plan.prepare_psense is not None:
+            plan.prepare_psense(ctx)
         psense_vars = (
             list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
         )
