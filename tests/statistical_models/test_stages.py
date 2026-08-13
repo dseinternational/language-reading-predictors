@@ -22,7 +22,11 @@ def _patch_primary_fit_diag(monkeypatch, events):
     monkeypatch.setattr(
         stages._diag,
         "run_prior_predictive",
-        lambda _ctx, *, draws: events.append(f"prior_predictive[{draws}]"),
+        lambda _ctx, *, draws, var_names=None: events.append(
+            f"prior_predictive[{draws}]"
+            if var_names is None
+            else f"prior_predictive[{draws},{var_names}]"
+        ),
     )
     monkeypatch.setattr(
         stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
@@ -369,6 +373,48 @@ def test_run_primary_fit_runs_post_ppc_audit_before_the_gate(monkeypatch):
     assert events.index("save_ppc") < events.index("post_ppc_audit")
     assert events.index("post_ppc_audit") < events.index("Extended diagnostics")
     assert not any(event.startswith("psense") for event in events)
+
+
+def test_run_primary_fit_orders_exceptional_phase_hooks(monkeypatch):
+    """Custom prior, stitched LOO, PPC and diagnostics stay in named phase slots."""
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace()
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    runner.run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=("alpha",),
+            prior_predictive_var_names=("z_a", "z_b"),
+            plot_prior_predictive=lambda _ctx: events.append("plot_prior"),
+            post_sampling_audit=lambda _ctx: events.append("stitched_loo"),
+            custom_posterior_predictive=lambda _ctx: events.append("custom_ppc"),
+            psense_timing="before_trace",
+            post_extended_audit=lambda _ctx: events.append("custom_diagnostics"),
+            compute_loo=False,
+            include_loo_pit=False,
+        ),
+    )
+
+    assert events == [
+        "Prior predictive",
+        "prior_predictive[1000,['z_a', 'z_b']]",
+        "plot_prior",
+        "Sampling posterior (nutpie)",
+        "sample",
+        "stitched_loo",
+        "Summary diagnostics",
+        "summary['alpha']",
+        "Posterior predictive",
+        "custom_ppc",
+        "Extended diagnostics",
+        "gate['alpha']",
+        "extended[None,loo_pit=False]",
+        "custom_diagnostics",
+        "psense['alpha']",
+        "save_trace",
+    ]
 
 
 def test_run_primary_fit_supports_termless_extended_diagnostics(monkeypatch):

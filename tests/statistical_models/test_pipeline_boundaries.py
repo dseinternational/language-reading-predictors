@@ -102,8 +102,10 @@ PRIMARY_LIFECYCLE_ENTRY_POINTS = (
     ("historical_joint", "fit_rlm_joint_growth"),
     ("horseshoe", "fit_horseshoe"),
     ("horseshoe", "fit_rlm_horseshoe"),
+    ("joint", "fit_joint"),
     ("lcsm", "fit_lcsm"),
     ("level_factors", "fit_level_factors"),
+    ("long_corr_factor", "fit_longitudinal_corr_factor"),
     ("mechanism", "fit_mechanism"),
     ("mediation", "fit_mediation"),
     ("mediation", "fit_mediation_multi"),
@@ -470,6 +472,80 @@ def test_adjusted_fits_consume_the_gate_and_preserve_psense_timing(
         and call.func.attr == "save_prior_posterior_plot"
     )
     assert gate_assignment.lineno < clean_pass.lineno < overlay.lineno
+
+
+def test_joint_declares_multi_outcome_ppc_loo_pit_and_family_tail():
+    """Joint ITT keeps its per-outcome PPC/LOO-PIT and post-trace sensitivity."""
+    path = PACKAGE / "pipelines" / "joint.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "fit_joint"
+    )
+    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+    primary_plan = next(
+        call
+        for call in calls
+        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in primary_plan.keywords}
+
+    assert isinstance(keywords["custom_posterior_predictive"], ast.Name)
+    assert keywords["custom_posterior_predictive"].id == "_run_joint_ppc"
+    assert isinstance(keywords["post_extended_audit"], ast.Name)
+    assert keywords["post_extended_audit"].id == "_write_joint_loo_pit"
+    assert isinstance(keywords["include_loo_pit"], ast.Constant)
+    assert keywords["include_loo_pit"].value is False
+    assert isinstance(keywords["psense_timing"], ast.Constant)
+    assert keywords["psense_timing"].value == "family_tail"
+
+    def _line(attribute: str) -> int:
+        return next(
+            call.lineno
+            for call in calls
+            if isinstance(call.func, ast.Attribute) and call.func.attr == attribute
+        )
+
+    assert _line("run_primary_fit") < _line("save_prior_posterior_plot")
+    assert _line("save_prior_posterior_plot") < _line("run_psense")
+
+
+def test_longitudinal_factor_declares_stitched_loo_and_pre_trace_sensitivity():
+    """LCF keeps exact child LOO after sampling and psense before persistence."""
+    path = PACKAGE / "pipelines" / "long_corr_factor.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    function = next(
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "fit_longitudinal_corr_factor"
+    )
+    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
+    primary_plan = next(
+        call
+        for call in calls
+        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in primary_plan.keywords}
+
+    assert isinstance(keywords["post_sampling_audit"], ast.Name)
+    assert keywords["post_sampling_audit"].id == "_stitch_child_loo"
+    assert isinstance(keywords["psense_timing"], ast.Constant)
+    assert keywords["psense_timing"].value == "before_trace"
+    assert isinstance(keywords["prior_predictive_var_names"], ast.Call)
+
+    def _line(name: str) -> int:
+        return next(
+            call.lineno
+            for call in calls
+            if (isinstance(call.func, ast.Name) and call.func.id == name)
+            or (isinstance(call.func, ast.Attribute) and call.func.attr == name)
+        )
+
+    assert _line("run_primary_fit") < _line("write_indicator_prior_check")
+    assert _line("write_indicator_prior_check") < _line("save_prior_posterior_plot")
 
 
 def test_no_family_module_samples_a_posterior_of_its_own():

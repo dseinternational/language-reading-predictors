@@ -56,9 +56,10 @@ from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
     require_spec,
-    run_sampling_and_loo,
+    shared_stages,
     write_run_metadata,
 )
+from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -90,53 +91,55 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     render_model_graph(ctx)
 
-    section_header("Prior predictive")
-    _diag.run_prior_predictive(ctx, draws=1000)
-    for index, symbol in enumerate(joint_outcomes):
-        stem = (
-            "prior_predictive_check"
-            if index == 0
-            else f"prior_predictive_check_{symbol.lower()}"
-        )
-        _diag.save_prior_predictive_plot(ctx, symbol, filename_stem=stem)
-
-    run_sampling_and_loo(ctx)
-
-    section_header("Summary diagnostics")
     _joint_vars = plan.diagnostic_vars()
-    _diag.summary_diagnostics(ctx, var_names=_joint_vars)
 
-    section_header("Posterior predictive")
-    _diag.sample_posterior_predictive(ctx, var_names=["y_post"])
-    for index, symbol in enumerate(joint_outcomes):
-        stem = (
-            "posterior_predictive_check"
-            if index == 0
-            else f"posterior_predictive_check_{symbol.lower()}"
-        )
-        _diag.save_joint_posterior_predictive_plot(
-            ctx, symbol, filename_stem=stem
-        )
-    write_ppc_calibration(ctx, built.prepared, joint_outcomes)
-    # Coverage statistic (#318): per-observation interval coverage is denominator-
-    # agnostic (each flattened child × outcome cell is scored against its own
-    # predictive draws), so it is well-defined on the joint's flattened ``y_post``
-    # even though the distribution overlay must be split per outcome (above). Emit
-    # only the coverage CSV — the per-outcome overlays + calibration tables are the
-    # joint-appropriate figure/table views, so no single pooled calibration panel.
-    with guard_optional(ctx, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
-        _joint_cov = _report.ppc_interval_coverage(ctx.trace, node="y_post")
-        save_table(ctx, "ppc_summary", _joint_cov, required=False)
+    def _plot_joint_prior(c: StatisticalFitContext) -> None:
+        for index, symbol in enumerate(joint_outcomes):
+            stem = (
+                "prior_predictive_check"
+                if index == 0
+                else f"prior_predictive_check_{symbol.lower()}"
+            )
+            _diag.save_prior_predictive_plot(c, symbol, filename_stem=stem)
 
-    section_header("Extended diagnostics")
-    _diag.write_diagnostics_summary(ctx, var_names=_joint_vars)
-    # The generic LOO-PIT would pool flattened cells from tests with different
-    # denominators. Save one calibrated plot per outcome instead.
-    _diag.run_extended_diagnostics(ctx, causal_term="tau", include_loo_pit=False)
-    for index, symbol in enumerate(joint_outcomes):
-        stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
-        _diag.save_joint_loo_pit_plot(ctx, symbol, filename_stem=stem)
-    _diag.save_trace(ctx)
+    def _run_joint_ppc(c: StatisticalFitContext) -> None:
+        _diag.sample_posterior_predictive(c, var_names=["y_post"])
+        for index, symbol in enumerate(joint_outcomes):
+            stem = (
+                "posterior_predictive_check"
+                if index == 0
+                else f"posterior_predictive_check_{symbol.lower()}"
+            )
+            _diag.save_joint_posterior_predictive_plot(
+                c, symbol, filename_stem=stem
+            )
+        write_ppc_calibration(c, built.prepared, joint_outcomes)
+        # Coverage is denominator-agnostic for flattened child × outcome cells;
+        # the per-outcome overlays and calibration remain the figure/table views.
+        with guard_optional(
+            c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
+        ):
+            coverage = _report.ppc_interval_coverage(c.trace, node="y_post")
+            save_table(c, "ppc_summary", coverage, required=False)
+
+    def _write_joint_loo_pit(c: StatisticalFitContext) -> None:
+        # The generic LOO-PIT would pool tests with different denominators.
+        for index, symbol in enumerate(joint_outcomes):
+            stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
+            _diag.save_joint_loo_pit_plot(c, symbol, filename_stem=stem)
+
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(_joint_vars),
+            plot_prior_predictive=_plot_joint_prior,
+            custom_posterior_predictive=_run_joint_ppc,
+            psense_timing="family_tail",
+            extended_term="tau",
+            include_loo_pit=False,
+            post_extended_audit=_write_joint_loo_pit,
+        ),
+    )
     _diag.save_prior_posterior_plot(ctx, var_names=_joint_vars)
     # Power-scaling prior sensitivity (#381) on the causal term only, matching the
     # ITT family this shares an estimand with — ``tau`` is vector-valued here, so
