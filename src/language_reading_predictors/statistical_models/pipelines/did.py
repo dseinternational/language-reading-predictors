@@ -48,6 +48,10 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
     write_group_trajectory,
     write_predicted_scores,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    DidArmWavePayload,
+    DidDosePayload,
+)
 from language_reading_predictors.statistical_models.pipelines.dose_response import (
     write_dose_slope_summary,
 )
@@ -153,7 +157,11 @@ def _did_analysis_contract(
 ) -> dict:
     """Persist the exact fitted rows and return auditable DiD design metadata."""
     prepared = built.prepared
-    row_ids = np.asarray(built.extras["analysis_row_ids"], dtype=str)
+    payload = built.require_payload(
+        DidDosePayload if dose else DidArmWavePayload,
+        family="did",
+    )
+    row_ids = np.asarray(payload.analysis_row_ids, dtype=str)
     phase_name = "period" if dose else "wave"
     labels = (
         np.asarray([f"P{int(p) + 1}" for p in prepared.phase])
@@ -172,12 +180,11 @@ def _did_analysis_contract(
         }
     )
     if dose:
-        manifest["treated"] = np.asarray(built.extras["treated"], dtype=int)
-        manifest["sessions_raw"] = np.asarray(
-            built.extras["raw_attend"], dtype=float
-        )
+        dose_payload = built.require_payload(DidDosePayload, family="did dose")
+        manifest["treated"] = np.asarray(dose_payload.treated, dtype=int)
+        manifest["sessions_raw"] = np.asarray(dose_payload.raw_attend, dtype=float)
         manifest["dose_treated_std"] = np.asarray(
-            built.extras["dose_treated_std"], dtype=float
+            dose_payload.dose_treated_std, dtype=float
         )
     save_table(ctx, "analysis_rows", manifest, register=False)
 
@@ -191,7 +198,7 @@ def _did_analysis_contract(
     design_codes = (0, 1) if dose else (0, 1, 2)
     design_eligible = int(np.isin(loaded_prepared.phase, design_codes).sum())
     contract: dict = {
-        "design": built.extras["design"],
+        "design": payload.design,
         "analysis_row_manifest": "analysis_rows.csv",
         "analysis_row_sha256": hashlib.sha256(
             "\n".join(row_ids).encode("utf-8")
@@ -212,7 +219,8 @@ def _did_analysis_contract(
         "likelihood": ctx.spec.extra.get("likelihood", "beta_binomial"),
     }
     if dose:
-        scaler = built.extras["dose_scaler"]
+        dose_payload = built.require_payload(DidDosePayload, family="did dose")
+        scaler = dose_payload.dose_scaler
         contract.update(
             {
                 "analysis_periods": ["P1", "P2"],
@@ -234,6 +242,9 @@ def _did_analysis_contract(
             }
         )
     else:
+        arm_payload = built.require_payload(
+            DidArmWavePayload, family="did arm-by-wave"
+        )
         contract.update(
             {
                 "analysis_waves": ["t1", "t2", "t3"],
@@ -244,8 +255,8 @@ def _did_analysis_contract(
                 # None for the LRPDID101 independent-prior companion: its free
                 # alpha has no outcome-informed location to record.
                 "alpha_anchor_logit": (
-                    float(built.extras["alpha_anchor"])
-                    if built.extras["alpha_anchor"] is not None
+                    float(arm_payload.alpha_anchor)
+                    if arm_payload.alpha_anchor is not None
                     else None
                 ),
                 "arm_gap_orientation": "immediate minus waitlist",

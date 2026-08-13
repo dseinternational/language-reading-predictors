@@ -12,6 +12,7 @@ algorithm is testable in isolation. The end-to-end factory-backed comparison
 
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -19,6 +20,10 @@ import pytest
 import xarray as xr
 from scipy.stats import multivariate_normal
 
+from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    LongCorrFactorPayload,
+)
 from language_reading_predictors.statistical_models.lcf_inference import (
     child_log_likelihood,
 )
@@ -50,15 +55,24 @@ def _synthetic_trace_and_built():
     )
     trace = SimpleNamespace(posterior=posterior, children={})
     observed = np.array([[0.1, 0.4], [-0.3, 0.2]])  # (child=2, cell=2)
-    built = SimpleNamespace(
-        extras={
-            "cell_names": cell_names,
-            "z_nodes": ["z_obs"],
-            "child_of_node": {"z_obs": [0, 1]},
-            "cell_indices_of_node": {"z_obs": [0, 1]},
-            "observed_z_of_node": {"z_obs": observed},
-            "n_used_children": 2,
-        }
+    built = BuiltModel(
+        model=SimpleNamespace(),
+        prepared=SimpleNamespace(),
+        payload=LongCorrFactorPayload(
+            cell_names=tuple(cell_names),
+            z_nodes=("z_obs",),
+            child_of_node={"z_obs": np.array([0, 1])},
+            cell_indices_of_node={"z_obs": np.array([0, 1])},
+            observed_z_of_node={"z_obs": observed},
+            n_used_children=2,
+            domains={},
+            domain_of={},
+            indicators=(),
+            standardisers={},
+            waves=(),
+            n_children=2,
+            invariance="synthetic",
+        ),
     )
     return trace, built, observed
 
@@ -98,7 +112,9 @@ def test_child_log_likelihood_rejects_coordinate_drift():
     """Positional drift between the rebuilt model's cells and the posterior must be
     refused rather than silently producing a mismatched likelihood."""
     trace, built, _ = _synthetic_trace_and_built()
-    built.extras["cell_names"] = ["dom0_w0", "WRONG"]
+    built.payload = replace(
+        built.payload, cell_names=("dom0_w0", "WRONG")
+    )
     with pytest.raises(ValueError, match="coordinates do not match"):
         child_log_likelihood(trace, built)
 

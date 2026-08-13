@@ -39,6 +39,7 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
     save_contrast_heatmap,
     save_forest_plot,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import JointPayload
 from language_reading_predictors.statistical_models.pipelines.itt import (
     write_analysis_audit,
     write_ppc_calibration,
@@ -233,10 +234,11 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     save_table(ctx, "tau_contrast_matrix_logit", logit_contrast, index=True)
 
+    payload = built.require_payload(JointPayload, family="joint")
     meta_extra: dict = {
         "loo_elpd": float(ctx.loo.elpd),
-        "joint_structure": built.extras.get("joint_dependence"),
-        "loo_unit": built.extras.get("loo_unit", "child"),
+        "joint_structure": payload.joint_dependence,
+        "loo_unit": payload.loo_unit,
         "outcomes": list(joint_outcomes),
     }
 

@@ -48,6 +48,9 @@ from dse_research_utils.statistics.diagnostics import (
 
 from language_reading_predictors.statistical_models import mechanism as _mechanism
 from language_reading_predictors.statistical_models.factories import _subset
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    MechanismPayload,
+)
 from language_reading_predictors.statistical_models.preprocessing import PreparedData
 from language_reading_predictors.statistical_models.sampling_quality import (
     sampling_quality,
@@ -366,12 +369,8 @@ def build_mechanism_wrapper(
     # The design the *fit* realised, replayed into every refit so the basis weights a
     # refit produces are defined against the same standardisation and HSGP boundary
     # the full model uses to score the held-out point.
-    design = built.extras.get("mechanism_design")
-    if design is None:
-        raise ValueError(
-            f"{spec.model_id}: build published no mechanism design to pin; refusing to "
-            "refit, since the refit would re-derive its own from n-1 rows"
-        )
+    payload = built.require_payload(MechanismPayload, family="mechanism exact LOO")
+    design = payload.design
     if design.hsgp_L is None and not plan.factory_kwargs.get("linear_mechanism", False):
         # No realised boundary on a non-linear model means the phase-specific path,
         # whose per-phase bases this design object does not capture.

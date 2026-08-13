@@ -47,6 +47,9 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
     write_child_fit,
     write_predicted_scores,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    GainFactorsPayload,
+)
 from language_reading_predictors.statistical_models.gain_factors import (
     resolve_active_interactions,
     resolve_gain_factors_run_plan,
@@ -363,7 +366,8 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         # fitted treatment interaction (``gamma_int_trt_*``) — so the marginal effect
         # reflects the modelled heterogeneity, not ``beta_trt`` alone. The factory
         # exposes the exact standardised moderator vectors it used.
-        trt_moderators = built.extras.get("trt_interaction_moderators", [])
+        payload = built.require_payload(GainFactorsPayload, family="gain_factors")
+        trt_moderators = payload.trt_interaction_moderators
         # Off-floor models are Bernoulli on Pr(post > 0); the "items" scale then
         # collapses to the off-floor risk difference (n_trials = 1).
         n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]

@@ -50,6 +50,7 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
     write_arm_overlap,
     write_predicted_scores,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import IttPayload
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     build_itt_from_plan,
@@ -195,6 +196,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         effective_adjustment=adjust_for,
         builder=_factories.build_itt_model,
     )
+    payload = built.require_payload(IttPayload, family="itt")
     attach_built(ctx, built)
     write_analysis_audit(ctx, built.prepared, (spec.outcome_symbol,))
 
@@ -227,8 +229,8 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # ``gamma_tau_int·z_M`` (Part B). Latent today — no registered ITT spec sets
     # ``tau_moderator_symbol`` — but wired so a heterogeneity fit reports the
     # model-implied effect, not ``tau`` alone.
-    tau_moderators = built.extras.get("tau_interaction_moderators", [])
-    score_mean_link = plan.score_mean_link
+    tau_moderators = payload.tau_interaction_moderators
+    score_mean_link = payload.score_mean_link
     n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
     emit_itt_extras(
         ctx, built, n_trials=n_trials_own,

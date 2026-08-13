@@ -48,6 +48,9 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    LongCorrFactorPayload,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_wave_panel,
 )
@@ -143,10 +146,13 @@ def fit_longitudinal_corr_factor(
         panel,
         **plan.factory_kwargs(),
     )
+    payload = built.require_payload(
+        LongCorrFactorPayload, family="long_corr_factor"
+    )
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    z_nodes = built.extras["z_nodes"]
+    z_nodes = payload.z_nodes
     summary_vars = plan.diagnostic_vars()
 
     # Dedupe: ``communality`` is itself a free RV under the default
@@ -197,7 +203,7 @@ def fit_longitudinal_corr_factor(
 
     # --- Loadings + communalities (the measurement layer) ---
     section_header("Loadings + communalities")
-    dom_of = built.extras["domain_of"]
+    dom_of = payload.domain_of
     load_rows = []
     for j, name in enumerate(str(s) for s in post["indicator"].values):
         lam_d = post["lambda_load"].isel(indicator=j).values.reshape(-1)
@@ -303,8 +309,8 @@ def fit_longitudinal_corr_factor(
         extra={
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
             "domains": {k: list(v) for k, v in domains.items()},
-            "invariance": built.extras["invariance"],
-            "n_used_children": built.extras["n_used_children"],
+            "invariance": payload.invariance,
+            "n_used_children": payload.n_used_children,
             "loadings_summary": load_df.to_dict("records"),
             "factor_correlation_by_wave": corr_df.to_dict("records"),
             "trait_state_summary": ts_df.to_dict("records"),

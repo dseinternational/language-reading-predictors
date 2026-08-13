@@ -141,7 +141,7 @@ def test_itt_factory_builds_blending_guessing_floor_link(tmp_path):
         score_mean_link="three_choice_guessing_floor",
     )
 
-    assert built.extras["score_mean_link"] == "three_choice_guessing_floor"
+    assert built.payload.score_mean_link == "three_choice_guessing_floor"
     assert {variable.name for variable in built.model.observed_RVs} == {"y_post"}
     with built.model:
         predictive = pm.sample_prior_predictive(draws=10, random_seed=27)
@@ -990,10 +990,10 @@ def test_joint_mechanism_levels_builds_identified_contrasts(tmp_path):
         "share_retained",
     ):
         assert det in dets, det
-    assert built.extras["joint_dependence"] == "lkj_residual_within_wave"
+    assert built.payload.joint_dependence == "lkj_residual_within_wave"
     # Binomial, not Beta-Binomial: the bivariate residual already carries the
     # extra-binomial variance, so a kappa would be a second, competing mechanism.
-    assert built.extras["likelihood"] == "binomial"
+    assert built.payload.likelihood == "binomial"
     assert "kappa" not in names
 
     with built.model:
@@ -1054,8 +1054,8 @@ def test_joint_mechanism_transition_uses_bivariate_child_intercept(tmp_path):
     assert {"gamma_own", "alpha_phase", "kappa"} <= names
     assert {"delta_ls_decoding", "rho_outcome"} <= dets
     assert "share_retained" not in dets
-    assert built.extras["joint_dependence"] == "lkj_child_intercept"
-    assert built.extras["likelihood"] == "beta_binomial"
+    assert built.payload.joint_dependence == "lkj_child_intercept"
+    assert built.payload.likelihood == "beta_binomial"
 
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=9)
@@ -1431,8 +1431,10 @@ def test_longitudinal_corr_factor_builds(tmp_path):
     }.issubset(dets)
     # One observed MvNormal per observed-cell pattern; every child is used (masked,
     # not dropped).
-    assert built.extras["z_nodes"] == [v.name for v in built.model.observed_RVs]
-    assert built.extras["n_used_children"] == panel.n_children
+    assert built.payload.z_nodes == tuple(
+        v.name for v in built.model.observed_RVs
+    )
+    assert built.payload.n_used_children == panel.n_children
     # Finite logp at the initial point, and prior-predictive draws succeed.
     ip = built.model.initial_point()
     assert np.isfinite(built.model.compile_logp()(ip))
@@ -1441,11 +1443,11 @@ def test_longitudinal_corr_factor_builds(tmp_path):
             draws=20,
             var_names=[
                 "communality", "lambda_load", "sigma_indicator", "within_share",
-                "factor_mean", *built.extras["z_nodes"],
+                "factor_mean", *built.payload.z_nodes,
             ],
             random_seed=3,
         )
-    assert pp.prior_predictive[built.extras["z_nodes"][0]].sizes["chain"] == 1
+    assert pp.prior_predictive[built.payload.z_nodes[0]].sizes["chain"] == 1
     # The POOLED unit-variance budget is exact in every draw: with V the
     # observed-cell-weighted variance of the drawn wave means, the within-wave
     # variance is lambda**2 + sigma**2 = 1 / (1 + c V) and the between-wave mean
@@ -1522,7 +1524,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
         for symbol in symbols:
             panel.logit[symbol][0, -1] = np.nan
     built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
-    assert len(built.extras["z_nodes"]) == 2
+    assert len(built.payload.z_nodes) == 2
 
     with built.model:
         prior = pm.sample_prior_predictive(draws=50, random_seed=13)
@@ -1532,8 +1534,8 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     expected_children = np.sort(
         np.concatenate(
             [
-                np.asarray(built.extras["child_of_node"][node], dtype=int)
-                for node in built.extras["z_nodes"]
+                np.asarray(built.payload.child_of_node[node], dtype=int)
+                for node in built.payload.z_nodes
             ]
         )
     )
@@ -1546,10 +1548,10 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     # the multivariate-normal density. ``mean_z`` / ``Sigma_z`` are the same
     # marginal moments passed to the factory's observed nodes.
     posterior = trace.posterior
-    for node in built.extras["z_nodes"]:
-        children = built.extras["child_of_node"][node]
-        cell_indices = built.extras["cell_indices_of_node"][node]
-        observed = built.extras["observed_z_of_node"][node]
+    for node in built.payload.z_nodes:
+        children = built.payload.child_of_node[node]
+        cell_indices = built.payload.cell_indices_of_node[node]
+        observed = built.payload.observed_z_of_node[node]
         for draw in range(3):
             mean = posterior["mean_z"].isel(chain=0, draw=draw).values[cell_indices]
             covariance = posterior["Sigma_z"].isel(chain=0, draw=draw).values[
@@ -1622,7 +1624,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
                     "items_hi": 0.5,
                     "prob_pos": 0.8,
                 }
-                for wave in built.extras["waves"]
+                for wave in built.payload.waves
                 for predictor in predictors
             ]
         )
@@ -1702,8 +1704,8 @@ def test_longitudinal_corr_factor_masks_missing_cells(tmp_path):
     panel = load_wave_panel(path=p, outcomes=indicators)
     built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
     # Still uses all children; more than one observed-cell pattern now.
-    assert built.extras["n_used_children"] == panel.n_children
-    assert len(built.extras["z_nodes"]) >= 2
+    assert built.payload.n_used_children == panel.n_children
+    assert len(built.payload.z_nodes) >= 2
 
 
 def test_adjusted_factory_rejects_pooled_phase(tmp_path):
@@ -1953,7 +1955,7 @@ def test_did_factory_builds(tmp_path):
     t1 = built.prepared.post_counts["W"][built.prepared.phase == 0]
     successes = float(t1.sum())
     failures = float(t1.size * built.prepared.n_trials["W"] - successes)
-    assert built.extras["alpha_anchor"] == pytest.approx(
+    assert built.payload.alpha_anchor == pytest.approx(
         np.log((successes + 0.5) / (failures + 0.5))
     )
     with built.model:
@@ -1987,7 +1989,7 @@ def test_did_factory_free_intercept_companion(tmp_path):
     assert "alpha" in names
     assert "alpha_offset" not in names
     assert "alpha" not in {v.name for v in built.model.deterministics}
-    assert built.extras["alpha_anchor"] is None
+    assert built.payload.alpha_anchor is None
     # The independent prior really is zero-centred at the tier scale: prior draws
     # of alpha centre near zero, not near the observed t1 logit (~large negative).
     with built.model:
@@ -2117,8 +2119,8 @@ def test_did_factory_toggles_and_dose(tmp_path):
         "beta_dose",
     }.issubset(dnames)
     assert not {"delta", "tau_t2", "arm_gap_t3"} & dnames
-    treated = dosed.extras["treated"] == 1
-    dose_z = dosed.extras["dose_treated_std"]
+    treated = dosed.payload.treated == 1
+    dose_z = dosed.payload.dose_treated_std
     assert np.all(dose_z[~treated] == 0.0)
     assert np.mean(dose_z[treated]) == pytest.approx(0.0, abs=1e-12)
     assert np.std(dose_z[treated], ddof=1) == pytest.approx(1.0)
@@ -2461,7 +2463,7 @@ def test_gain_factors_skills_ability_interactions(tmp_path):
     # (re-standardised on the kept rows, so mean 0 / unit SD on the fitted sample).
     from language_reading_predictors.statistical_models.preprocessing import standardise
 
-    mods = dict(built.extras["trt_interaction_moderators"])
+    mods = dict(built.payload.trt_interaction_moderators)
     assert set(mods) == {"gamma_int_trt_ability"}
     expected_ability, _ = standardise(built.prepared.covariates["blocks"])
     np.testing.assert_allclose(mods["gamma_int_trt_ability"], expected_ability)
@@ -2577,7 +2579,7 @@ def test_gain_factors_treated_only_drops_treatment(tmp_path):
     assert "gamma_int_trt_ability" not in names
     assert "gamma_int_age_ability" in names
     # No treatment term ⇒ no treatment-interaction moderators to net out.
-    assert built.extras["trt_interaction_moderators"] == []
+    assert built.payload.trt_interaction_moderators == ()
     # every retained row is on intervention
     on = (built.prepared.G == 1) | (built.prepared.phase >= 1)
     assert on.all()
@@ -2630,7 +2632,7 @@ def test_level_factors_factory_builds(tmp_path):
     successes = float(np.sum(t1))
     failures = float(t1.size * built.prepared.n_trials["W"] - successes)
     expected = np.log((successes + 0.5) / (failures + 0.5))
-    assert built.extras["alpha_anchor"] == pytest.approx(expected, abs=1e-12)
+    assert built.payload.alpha_anchor == pytest.approx(expected, abs=1e-12)
 
     with built.model:
         pp = pm.sample_prior_predictive(draws=20, random_seed=43)
@@ -2643,7 +2645,7 @@ def test_level_factors_factory_builds(tmp_path):
     )
     # alpha draws centre on the anchor, not on logit zero.
     alpha_mean = float(pp.prior["alpha"].values.mean())
-    assert abs(alpha_mean - built.extras["alpha_anchor"]) < 1.0
+    assert abs(alpha_mean - built.payload.alpha_anchor) < 1.0
 
 
 def test_level_factors_offfloor_anchor_uses_mover_rate(tmp_path):
@@ -2659,7 +2661,7 @@ def test_level_factors_offfloor_anchor_uses_mover_rate(tmp_path):
     t1 = post[built.prepared.phase == 0]
     movers = int(np.sum(t1 > 0))
     expected = np.log((movers + 0.5) / (t1.size - movers + 0.5))
-    assert built.extras["alpha_anchor"] == pytest.approx(expected, abs=1e-12)
+    assert built.payload.alpha_anchor == pytest.approx(expected, abs=1e-12)
 
 
 def test_level_factors_adjust_for_covariates(tmp_path):

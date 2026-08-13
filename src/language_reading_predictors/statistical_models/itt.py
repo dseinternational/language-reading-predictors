@@ -34,6 +34,9 @@ if TYPE_CHECKING:
         StatisticalFitContext,
     )
     from language_reading_predictors.statistical_models.factories import BuiltModel
+    from language_reading_predictors.statistical_models.fitted_payloads import (
+        IttPayload,
+    )
     from language_reading_predictors.statistical_models.preprocessing import (
         PreparedData,
     )
@@ -837,8 +840,8 @@ def build_itt_from_plan(
     *,
     effective_adjustment: tuple[str, ...],
     likelihood: str | None = None,
-    builder: Callable[..., BuiltModel] | None = None,
-) -> BuiltModel:
+    builder: Callable[..., BuiltModel[IttPayload]] | None = None,
+) -> BuiltModel[IttPayload]:
     """Build exactly the model described by a validated ITT run plan."""
 
     if builder is None:

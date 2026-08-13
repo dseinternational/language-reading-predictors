@@ -67,6 +67,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import (
     BuiltModel,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import EmptyPayload
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
     Standardiser,
@@ -452,7 +453,7 @@ def build_survival_model(
     *,
     hazard_link: str = "cloglog",
     use_treatment: bool = True,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Discrete-time off-floor hazard model on a :class:`SurvivalPanel`.
 
     ``hazard_link`` is ``"cloglog"`` (grouped proportional hazards, the default /
@@ -504,5 +505,5 @@ def build_survival_model(
     return BuiltModel(
         model=model,
         prepared=panel,
-        extras={},
+        payload=EmptyPayload(),
     )

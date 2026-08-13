@@ -24,18 +24,17 @@ The rest cover the remaining families: :func:`build_mediation_model`,
 :func:`build_growth_model` and :func:`build_historical_growth_model`. See
 ``definitions.py`` for the authoritative family/kind registry.
 
-Each returns a :class:`BuiltModel` carrying the PyMC ``model``, a ``variables``
-dict mapping names to PyMC variables (used by the pipeline to extract posterior
-draws and assemble report tables), the row-subset ``prepared`` data, and any
-``extras`` the reporting layer needs (e.g. treatment-interaction moderators).
+Each returns a :class:`BuiltModel` carrying the PyMC ``model``, the row-subset
+``prepared`` data and a typed family payload containing any realised design values
+that downstream inference or reporting must reuse.
 """
 
 from __future__ import annotations
 
 import inspect
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar
 
 import numpy as np
 import pymc as pm
@@ -49,6 +48,20 @@ from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.hsgp import (
     build_hsgp_1d,
     build_tau_modifier,
+)
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    DidArmWavePayload,
+    DidDosePayload,
+    EmptyPayload,
+    FittedPayload,
+    GainFactorsPayload,
+    IttPayload,
+    JointMechanismPayload,
+    JointPayload,
+    LevelFactorsPayload,
+    LongCorrFactorPayload,
+    MechanismDesign,
+    MechanismPayload,
 )
 from language_reading_predictors.statistical_models.likelihood import (
     SCORE_MEAN_LINKS,
@@ -85,43 +98,6 @@ _MECH_HSGP_M = 10
 # ``build_hsgp_1d``'s default boundary factor, named here so a frozen design can
 # reproduce the same boundary on a row subset.
 _MECH_HSGP_C = 1.5
-
-
-@dataclass(frozen=True)
-class MechanismDesign:
-    """Data-derived design quantities of a mechanism fit, pinned for refits (#438).
-
-    A leave-one-out refit re-derives the exposure/moderator standardisation and the
-    HSGP boundary from n-1 rows, so its basis weights are defined against a slightly
-    different design than the full-data model used to score the held-out point. The
-    spliced density is then not exact LOO. Capturing these three quantities from the
-    full build and replaying them into each refit removes that drift.
-
-    Only the quantities that ``build_mechanism_model`` derives from its own rows are
-    held here. Age and the confounder columns are standardised once by the loader and
-    are unaffected by row subsetting, so they need no pinning.
-    """
-
-    mech_scaler: Standardiser
-    hsgp_L: float | None
-    moderator_scaler: Standardiser | None = None
-
-    def require_moderator_scaler(self) -> Standardiser:
-        if self.moderator_scaler is None:
-            raise ValueError(
-                "frozen design carries no moderator scaler, but the model builds a "
-                "moderator term; the design was captured from a different model"
-            )
-        return self.moderator_scaler
-
-    def hsgp_c_for(self, x: np.ndarray) -> float:
-        """Boundary factor reproducing the fit's ``hsgp_L`` on ``x``'s support."""
-        if self.hsgp_L is None:
-            raise ValueError("frozen design carries no HSGP boundary to reproduce")
-        support = float(max(abs(np.min(x)), abs(np.max(x))))
-        if not np.isfinite(support) or support <= 0:
-            raise ValueError("cannot reproduce an HSGP boundary on degenerate support")
-        return self.hsgp_L / support
 
 
 def _scalar_prior(name: str, prior_ctor) -> pt.TensorVariable:
@@ -255,8 +231,12 @@ def _standardise_child_baseline(
     )
 
 
+PayloadT = TypeVar("PayloadT", bound=FittedPayload, covariant=True)
+RequiredPayloadT = TypeVar("RequiredPayloadT", bound=FittedPayload)
+
+
 @dataclass
-class BuiltModel:
+class BuiltModel(Generic[PayloadT]):
     model: pm.Model
     prepared: PreparedData | WavePanel | LongitudinalPanel
     """The (possibly row-subset) prepared data that the model was built on.
@@ -265,16 +245,22 @@ class BuiltModel:
     values; this attribute exposes the actually-used data so the pipeline can
     align posterior indices to input rows.
     """
-    extras: dict[str, Any] = field(default_factory=dict)
-    """Optional per-model artefacts the pipeline needs but that are not RVs.
+    payload: PayloadT
+    """Typed family payload containing non-RV values realised by the factory."""
 
-    Used to carry the exact moderator vectors of any treatment×covariate
-    interactions (aligned with ``prepared``'s ``obs_id`` order) so the
-    average-marginal-effect report can net out the *full* per-row treatment
-    contribution — not just the treatment main effect — without recomputing
-    (and risking drift from) the standardisation the factory used. See
-    ``reporting._itt_ame_draws``'s ``moderators`` argument.
-    """
+    def require_payload(
+        self,
+        payload_type: type[RequiredPayloadT],
+        *,
+        family: str,
+    ) -> RequiredPayloadT:
+        """Return the payload or reject a mismatched factory/family combination."""
+        if not isinstance(self.payload, payload_type):
+            raise TypeError(
+                f"{family} requires {payload_type.__name__}, but the built model "
+                f"carries {type(self.payload).__name__}"
+            )
+        return self.payload
 
 
 # ---------------------------------------------------------------------------
@@ -302,7 +288,7 @@ def build_itt_model(
     alpha_sigma: float | None = None,
     gamma_own_sigma: float | None = None,
     kappa_sigma: float | None = None,
-) -> BuiltModel:
+) -> BuiltModel[IttPayload]:
     """
     Build the single-outcome available-case modified ITT model used by the
     LRPITT suite and its companions.
@@ -630,10 +616,10 @@ def build_itt_model(
     return BuiltModel(
         model=model,
         prepared=prepared,
-        extras={
-            "tau_interaction_moderators": tau_moderators,
-            "score_mean_link": score_mean_link,
-        },
+        payload=IttPayload(
+            tau_interaction_moderators=tuple(tau_moderators),
+            score_mean_link=score_mean_link,
+        ),
     )
 
 
@@ -651,7 +637,7 @@ def build_joint_model(
     use_residual_correlation: bool = False,
     use_cross_baselines: bool = True,
     use_age_linear: bool = False,
-) -> BuiltModel:
+) -> BuiltModel[JointPayload]:
     """
     Build the joint available-case modified ITT model (LRPITT12; LRPITT15/15b/16).
 
@@ -893,11 +879,11 @@ def build_joint_model(
     return BuiltModel(
         model=model,
         prepared=prepared,
-        extras={
-            "joint_dependence": dependence,
-            "loo_unit": "child",
-            "outcomes": outcomes,
-        },
+        payload=JointPayload(
+            joint_dependence=dependence,
+            loo_unit="child",
+            outcomes=outcomes,
+        ),
     )
 
 
@@ -1021,7 +1007,7 @@ def build_joint_mechanism_model(
     residual_sd_sigma: float = 1.0,
     child_lkj_eta: float = 2.0,
     sigma_child_prior_sigma: float = 0.5,
-) -> BuiltModel:
+) -> BuiltModel[JointMechanismPayload]:
     """Bivariate mechanism: one standardised exposure -> two outcomes fitted jointly
     with an **LKJ cross-outcome dependence block**, in either of two designs.
 
@@ -1305,20 +1291,20 @@ def build_joint_mechanism_model(
     return BuiltModel(
         model=model,
         prepared=prepared,
-        extras={
-            "design": design,
-            "joint_dependence": (
+        payload=JointMechanismPayload(
+            design=design,
+            joint_dependence=(
                 "lkj_residual_within_wave"
                 if design == "levels"
                 else "lkj_child_intercept"
             ),
-            "likelihood": "binomial" if design == "levels" else "beta_binomial",
-            "loo_unit": "child",
-            "outcomes": outcome_symbols,
-            "mechanism_symbol": mechanism_symbol,
-            "contrast": contrast,
-            "adjust_for": tuple(adjust_data),
-        },
+            likelihood="binomial" if design == "levels" else "beta_binomial",
+            loo_unit="child",
+            outcomes=outcome_symbols,
+            mechanism_symbol=mechanism_symbol,
+            contrast=contrast,
+            adjust_for=tuple(adjust_data),
+        ),
     )
 
 
@@ -1348,7 +1334,7 @@ def build_mechanism_model(
     mech_hsgp_m: int | None = None,
     mech_lengthscale_prior: Continuous | None = None,
     frozen_design: MechanismDesign | None = None,
-) -> BuiltModel:
+) -> BuiltModel[MechanismPayload]:
     """
     Mechanism model on the outcome post-score.
 
@@ -1846,7 +1832,9 @@ def build_mechanism_model(
         moderator_scaler=_mod_scaler,
     )
     return BuiltModel(
-        model=model, prepared=prepared, extras={"mechanism_design": realised_design}
+        model=model,
+        prepared=prepared,
+        payload=MechanismPayload(design=realised_design),
     )
 
 
@@ -1871,7 +1859,7 @@ def build_dose_response_model(
     adjust_age: bool = True,
     ability_adjust_symbols: Iterable[str] = (),
     sigma_child_prior_sigma: float = 0.5,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Period-resolved dose-response on the outcome post-score (#104 Phase 2).
 
     Outcome-generic: the target is ``outcome_symbol`` (default ``"W"``, word
@@ -2037,7 +2025,7 @@ def build_dose_response_model(
             dims="obs_id",
         )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
 
 # ---------------------------------------------------------------------------
@@ -2069,7 +2057,7 @@ def build_did_model(
     # (mu_dose when period-varying, beta_dose otherwise). None keeps the
     # Normal(0, 1) default; the per-period deviation scale is not swept.
     dose_slope_prior_sigma: float | None = None,
-) -> BuiltModel:
+) -> BuiltModel[DidDosePayload | DidArmWavePayload]:
     """Waitlist-crossover triangulation with explicit arm-by-wave contrasts.
 
     Binary models use the t1--t3 levels frame.  They estimate the arm gap at
@@ -2261,15 +2249,15 @@ def build_did_model(
         return BuiltModel(
             model=model,
             prepared=prepared,
-            extras={
-                "design": "dose_intensive_margin",
-                "dose_scaler": dose_scaler,
-                "age_t1_scaler": age_scaler,
-                "analysis_row_ids": obs_ids,
-                "raw_attend": raw_attend,
-                "dose_treated_std": dose_centered,
-                "treated": treated,
-            },
+            payload=DidDosePayload(
+                design="dose_intensive_margin",
+                dose_scaler=dose_scaler,
+                age_t1_scaler=age_scaler,
+                analysis_row_ids=obs_ids,
+                raw_attend=raw_attend,
+                dose_treated_std=dose_centered,
+                treated=treated,
+            ),
         )
 
     if prepared.phase_mode != "levels":
@@ -2445,13 +2433,13 @@ def build_did_model(
     return BuiltModel(
         model=model,
         prepared=prepared,
-        extras={
-            "design": "arm_by_wave",
-            "alpha_anchor": alpha_anchor,
-            "age_t1_scaler": age_scaler,
-            "analysis_row_ids": obs_ids,
-            "waves": waves,
-        },
+        payload=DidArmWavePayload(
+            design="arm_by_wave",
+            alpha_anchor=alpha_anchor,
+            age_t1_scaler=age_scaler,
+            analysis_row_ids=obs_ids,
+            waves=waves,
+        ),
     )
 
 
@@ -2606,7 +2594,7 @@ def build_mediation_model(
     mediator_kind: str = "beta_binomial",
     route_symbols: Iterable[str] = (),
     outcome_kind: str = "beta_binomial",
-) -> tuple[BuiltModel, MediationData]:
+) -> tuple[BuiltModel[EmptyPayload], MediationData]:
     """Joint mediator + outcome model for the ITT-phase (phase 0) decomposition.
 
     ``mediator_kind`` selects the mediator sub-model:
@@ -2783,7 +2771,7 @@ def build_mediation_model(
         mediator_symbol=mediator_symbol,
         off_floor=off_floor,
     )
-    built = BuiltModel(model=model, prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
     return built, med_data
 
 
@@ -2828,7 +2816,7 @@ def _build_route_composite_model(
     outcome_symbol: str,
     confounder_symbols: tuple[str, ...],
     route_symbols: tuple[str, ...],
-) -> tuple[BuiltModel, MediationData]:
+) -> tuple[BuiltModel[EmptyPayload], MediationData]:
     """LRP62 reading-route mediation: a continuous code-based-route composite mediator.
 
     Same ITT-phase joint design and the *same* Beta-Binomial outcome model as
@@ -2915,7 +2903,7 @@ def _build_route_composite_model(
         M_pre_std=c_pre_std,
         route_symbols=route_symbols,
     )
-    built = BuiltModel(model=model, prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
     return built, med_data
 
 
@@ -2965,7 +2953,7 @@ def build_two_mediator_model(
     confounder_symbols: Iterable[str] = ("R",),
     chain: bool = False,
     second_mediator_offfloor: bool = False,
-) -> tuple[BuiltModel, TwoMediatorData]:
+) -> tuple[BuiltModel[EmptyPayload], TwoMediatorData]:
     """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
 
     Generalises :func:`build_mediation_model` to **two named count mediators** so
@@ -3177,7 +3165,7 @@ def build_two_mediator_model(
         chain=chain,
         second_mediator_offfloor=second_mediator_offfloor,
     )
-    built = BuiltModel(model=model, prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
     return built, med_data
 
 
@@ -3227,7 +3215,7 @@ def build_period_stacked_mediation_model(
     outcome_symbol: str = "W",
     confounder_symbols: Iterable[str] = (),
     sigma_child_prior_sigma: float = 0.5,
-) -> tuple[BuiltModel, PeriodStackedMediationData]:
+) -> tuple[BuiltModel[EmptyPayload], PeriodStackedMediationData]:
     """Joint mediator + outcome model over all stacked periods (MED-092, #229).
 
     The LRP59 mediation design transplanted onto the **gain-factor scaffold**
@@ -3417,7 +3405,7 @@ def build_period_stacked_mediation_model(
         med_sd=float(med_scaler.sd),
         mediator_symbol=mediator_symbol,
     )
-    built = BuiltModel(model=model, prepared=prepared)
+    built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
     return built, med_data
 
 
@@ -3491,7 +3479,7 @@ def build_adjusted_model(
     predictors: Iterable[str] = ("L", "lang", "B", "age", "blocks", "behav"),
     language_composite_symbols: Iterable[str] = ("R", "E", "F"),
     predictor_slope_sigma: float = 0.3,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Between-child adjusted model: standardised T1 baselines -> word-reading gain.
 
     One row per child (``prepared.phase_mode`` in ``{"span", "itt"}``). The outcome post-score
@@ -3553,7 +3541,7 @@ def build_adjusted_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
 
 # ---------------------------------------------------------------------------
@@ -3582,7 +3570,7 @@ def build_concurrent_model(
     include_age: bool = True,
     include_group: bool = True,
     predictor_slope_sigma: float = 0.3,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Concurrent conditional-associations model for ONE wave (#312).
 
     Expects a single-wave subset of the ``phase_mode="levels"`` frame (the pipeline
@@ -3713,7 +3701,7 @@ def build_concurrent_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
 
 # ---------------------------------------------------------------------------
@@ -3782,7 +3770,7 @@ def build_horseshoe_model(
     include_age: bool = True,
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Regularized-horseshoe sparse regression for a predictor-ranking cross-check.
 
     An independent Bayesian read on which predictors carry signal for a single
@@ -3872,7 +3860,7 @@ def build_horseshoe_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
 
 # ---------------------------------------------------------------------------
@@ -3929,7 +3917,7 @@ def build_correlated_factor_model(
     # sensitivity companion that widens exactly that term.
     focal_slope_sigma: float | None = None,
     lkj_eta: float = 2.0,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Correlated-domain-factor measurement model (LRPMM01, #134).
 
     Replaces the single latent general ability ``g`` of the (closed) LRP66 with
@@ -4312,7 +4300,7 @@ def build_correlated_factor_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
 
 # ---------------------------------------------------------------------------
@@ -4407,7 +4395,7 @@ def build_gain_factors_model(
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
     trt_prior_sigma: float | None = None,
-) -> BuiltModel:
+) -> BuiltModel[GainFactorsPayload]:
     """Gain-factors model (LRPGF): what is associated with how much children gain.
 
     Repeated measures over the three period transitions (``phase_mode="all"``):
@@ -4679,7 +4667,9 @@ def build_gain_factors_model(
     return BuiltModel(
         model=model,
         prepared=prepared,
-        extras={"trt_interaction_moderators": trt_moderators},
+        payload=GainFactorsPayload(
+            trt_interaction_moderators=tuple(trt_moderators)
+        ),
     )
 
 
@@ -4706,7 +4696,7 @@ def build_level_factors_model(
     # ``_tau_sigma_for``; the level-factor treatment-prior sweep passes explicit
     # grid values.
     tau_prior_sigma: float | None = None,
-) -> BuiltModel:
+) -> BuiltModel[LevelFactorsPayload]:
     """Level-factors model (LRPLF): what is associated with achievement levels.
 
     Repeated measures over the four timepoints (``phase_mode="levels"``): the
@@ -4735,7 +4725,7 @@ def build_level_factors_model(
     ridge exactly; the t1 anchor recentres the level while using only
     pre-randomisation data, deliberately under-centring the across-wave mean
     by the (smaller) growth increment rather than importing treatment-affected
-    waves into the prior. The anchor is recorded in ``extras['alpha_anchor']``
+    waves into the prior. The anchor is recorded in the fitted payload
     and the priors table labels ``alpha_offset`` as empirical Bayes.
 
     **Level-model caveat (baked into the parameterisation + report):** after t2
@@ -4893,7 +4883,9 @@ def build_level_factors_model(
             )
 
     return BuiltModel(
-        model=model, prepared=prepared, extras={"alpha_anchor": alpha_anchor}
+        model=model,
+        prepared=prepared,
+        payload=LevelFactorsPayload(alpha_anchor=alpha_anchor),
     )
 
 
@@ -4911,7 +4903,7 @@ def build_block_exposure_model(
     # default (UE2/UR2 are distal, 0.3); the companion sets 0.5 to confirm the
     # distal tightening is not attenuating a real transfer effect.
     delta_prior_sigma: float | None = None,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Block-2 taught-vocabulary staggered block-active exposure model (LRPBX, #228 item 5).
 
     Block 2 of the taught-vocabulary programme (TE2/TR2 taught, UE2/UR2 not-taught)
@@ -5061,7 +5053,7 @@ def build_block_exposure_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
 
 def build_aligned_model(
@@ -5072,7 +5064,7 @@ def build_aligned_model(
     use_cohort: bool = True,
     use_dose: bool = False,
     likelihood: str = "beta_binomial",
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Per-protocol onset-aligned single-gain ANCOVA (LRPAL).
 
     A cross-sectional Beta-Binomial ANCOVA of the aligned post-score on its own
@@ -5160,7 +5152,7 @@ def build_aligned_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, prepared=prepared)
+    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
 
 # ---------------------------------------------------------------------------
@@ -5187,7 +5179,7 @@ def build_lcsm_model(
     sigma_proc_prior_sigma: float = 0.5,
     sigma_init_prior_sigma: float = 1.0,
     kappa_prior_sigma: float = 50.0,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Full coupled latent change-score model (LRP67 + the lagged suite) on the logit scale.
 
     A latent logit true-score ``x_m[i, t]`` is modelled for each measure ``m``
@@ -5545,7 +5537,7 @@ def build_lcsm_model(
             observed=counts_int[idx_i, idx_t, idx_k],
         )
 
-    return BuiltModel(model=model, prepared=panel)
+    return BuiltModel(model=model, prepared=panel, payload=EmptyPayload())
 
 
 def build_growth_model(
@@ -5561,7 +5553,7 @@ def build_growth_model(
     re_slope_prior_sigma: float = 0.5,
     loading_prior_sigma: float = 0.5,
     kappa_prior_sigma: float = 50.0,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Joint multivariate latent growth-curve model (LRP69/70) on the logit scale.
 
     Characterises each measure's within-child trajectory across the waves and asks
@@ -5744,7 +5736,7 @@ def build_growth_model(
             observed=counts_int[idx_i, idx_t, idx_k],
         )
 
-    return BuiltModel(model=model, prepared=panel)
+    return BuiltModel(model=model, prepared=panel, payload=EmptyPayload())
 
 
 # ---------------------------------------------------------------------------
@@ -5784,7 +5776,7 @@ def build_longitudinal_corr_factor_model(
     factor_mean_sigma: float = 1.0,
     trait_share_a: float = 1.5,
     trait_share_b: float = 1.5,
-) -> BuiltModel:
+) -> BuiltModel[LongCorrFactorPayload]:
     """Longitudinal correlated-domain-factor measurement model (LRP-RLI-LCF-001, #313).
 
     The four-wave extension of the cross-sectional ``corr_factor`` CFA (``mm-001``):
@@ -6125,28 +6117,33 @@ def build_longitudinal_corr_factor_model(
             cell_indices_of_node[node] = obs_idx.tolist()
             observed_z_of_node[node] = data
 
-    extras = {
-        "z_nodes": z_nodes,
-        "child_of_node": child_of_node,
+    payload = LongCorrFactorPayload(
+        z_nodes=tuple(z_nodes),
+        child_of_node={
+            key: np.asarray(value, dtype=int) for key, value in child_of_node.items()
+        },
         # Preserve the exact pattern-specific inputs used by the MvNormal nodes.
         # The LOO post-processor evaluates the same density from posterior
         # ``mean_z`` / ``Sigma_z`` without asking PyMC to reconstruct it through
         # transformed LKJCorr value variables.
-        "cell_indices_of_node": cell_indices_of_node,
-        "observed_z_of_node": observed_z_of_node,
-        "domains": {k: list(v) for k, v in domains.items()},
-        "domain_of": {ind_names[j]: domain_names[domain_of_idx[j]] for j in range(J)},
-        "indicators": list(ind_names),
-        "cell_names": cell_names,
-        "standardisers": standardisers,
-        "waves": list(waves),
-        "n_children": N,
-        "n_used_children": sum(len(c) for _, c in sorted_patterns),
-        "invariance": "wave-invariant loadings and residual scales",
-    }
-    return BuiltModel(
-        model=model, prepared=panel, extras=extras
+        cell_indices_of_node={
+            key: np.asarray(value, dtype=int)
+            for key, value in cell_indices_of_node.items()
+        },
+        observed_z_of_node=observed_z_of_node,
+        domains={key: tuple(value) for key, value in domains.items()},
+        domain_of={
+            ind_names[j]: domain_names[domain_of_idx[j]] for j in range(J)
+        },
+        indicators=tuple(ind_names),
+        cell_names=tuple(cell_names),
+        standardisers=standardisers,
+        waves=tuple(waves),
+        n_children=N,
+        n_used_children=sum(len(c) for _, c in sorted_patterns),
+        invariance="wave-invariant loadings and residual scales",
     )
+    return BuiltModel(model=model, prepared=panel, payload=payload)
 
 
 # ---------------------------------------------------------------------------
@@ -6165,7 +6162,7 @@ def build_historical_growth_model(
     # value explicitly in its spec; this default matches the reviewed choice.
     sigma_subject_prior_sigma: float = 1.0,
     kappa_prior_sigma: float = 50.0,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Descriptive group-by-wave growth model for a historical cohort.
 
     Beta-Binomial on a bounded count with a population level per **supported
@@ -6309,7 +6306,7 @@ def build_historical_growth_model(
             )
 
     return BuiltModel(
-        model=model, prepared=panel
+        model=model, prepared=panel, payload=EmptyPayload()
     )
 
 
@@ -6348,7 +6345,7 @@ def build_rlm_adjusted_model(
     *,
     predictors: Iterable[str] | None = None,
     predictor_slope_sigma: float = 0.3,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Byrne between-child adjusted model (#338 Phase D, ``lrp-rlm-adj-001``).
 
     The RLI ``build_adjusted_model`` ported to the Byrne
@@ -6391,7 +6388,7 @@ def build_rlm_adjusted_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, prepared=frame)
+    return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())
 
 
 def build_rlm_horseshoe_model(
@@ -6401,7 +6398,7 @@ def build_rlm_horseshoe_model(
     tau0: float = 0.1,
     slab_scale: float = 2.0,
     slab_df: float = 4.0,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Byrne regularised-horseshoe ranking model (#338 Phase D, ``lrp-rlm-hs-001``).
 
     The RLI gain-framing ``build_horseshoe_model`` on the Byrne span frame: the
@@ -6440,7 +6437,7 @@ def build_rlm_horseshoe_model(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
-    return BuiltModel(model=model, prepared=frame)
+    return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())
 
 
 def build_rlm_corr_factor_model(
@@ -6451,7 +6448,7 @@ def build_rlm_corr_factor_model(
     comm_alpha: float = 2.0,
     comm_beta: float = 2.0,
     lkj_eta: float = 2.0,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Byrne correlated-domain-factor measurement model (#338 Phase B).
 
     The **measurement core** of the RLI ``build_correlated_factor_model`` on the
@@ -6622,7 +6619,7 @@ def build_rlm_corr_factor_model(
             dims=("obs_id", "indicator"),
         )
 
-    return BuiltModel(model=model, prepared=battery)
+    return BuiltModel(model=model, prepared=battery, payload=EmptyPayload())
 
 
 def build_rlm_joint_growth_model(
@@ -6640,7 +6637,7 @@ def build_rlm_joint_growth_model(
     within_correlation: bool = False,
     sigma_within_prior_sigma: float = 0.5,
     within_lkj_eta: float = 2.0,
-) -> BuiltModel:
+) -> BuiltModel[EmptyPayload]:
     """Byrne joint correlated group-by-wave growth models (#338/#409).
 
     The multivariate extension of :func:`build_historical_growth_model`: each
@@ -6894,7 +6891,7 @@ def build_rlm_joint_growth_model(
                     dims="group",
                 )
 
-    return BuiltModel(model=model, prepared=panel)
+    return BuiltModel(model=model, prepared=panel, payload=EmptyPayload())
 
 
 def default_of(fn, param: str) -> float:

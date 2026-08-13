@@ -40,6 +40,7 @@ from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models import factories as _factories
 from language_reading_predictors.statistical_models import reporting as _report
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.fitted_payloads import IttPayload
 from language_reading_predictors.statistical_models.itt import (
     declared_settings_dict,
     resolve_itt_run_plan,
@@ -584,7 +585,8 @@ def summarise_influence_refit(
             trace, outcomes, ci_prob=ci_prob, G=built.prepared.G
         )
     else:
-        moderators = built.extras.get("tau_interaction_moderators", [])
+        payload = built.require_payload(IttPayload, family="itt influence")
+        moderators = payload.tau_interaction_moderators
         summary = _report.tau_summary_itt(
             trace,
             ci_prob=ci_prob,

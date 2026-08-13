@@ -28,6 +28,9 @@ from typing import Any
 import numpy as np
 
 from language_reading_predictors.statistical_models import factories as _factories
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    MechanismPayload,
+)
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES, MEASURES
@@ -784,7 +787,7 @@ def build_mechanism_for_plan(
     prepared: PreparedData | None = None,
     *,
     frozen_design: _factories.MechanismDesign | None = None,
-) -> _factories.BuiltModel:
+) -> _factories.BuiltModel[MechanismPayload]:
     """Build the mechanism model for ``plan``, optionally on a row subset.
 
     ``prepared`` defaults to the plan's full analysis frame. A refit passes a
