@@ -4,19 +4,19 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 ## Results
 
-_In plain terms:_ at each timepoint this model asks how a child's skills go together with the focal outcome *at that same moment* — for two children the same age and alike on the other skills and the effective trait covariates, how much the focal outcome tends to differ with a bit more of each predictor skill. It describes how the skills co-occur wave by wave, **not** whether one skill causes another.
+_In plain terms:_ at each timepoint this model asks how a child's skills go together with the focal outcome *at that same moment* — for two children the same age and alike on the other included skills and covariates, how much the focal outcome tends to differ with a bit more of each predictor skill. It describes how the skills co-occur wave by wave, **not** whether one skill causes another.
 
 _These are associations — read them as such._ Every number here is an **association**, never a causal effect. Three things shape how to read the mutually adjusted and single-skill-comparator estimates:
 
 - **Table-2 fallacy.** Each adjusted coefficient answers a *different* conditional question ("holding the others fixed"), so the column should not be read as a set of competing causal effects — the biggest number is not "the strongest cause".
 - **Measurement error.** Under classical measurement-error assumptions, using observed test scores commonly attenuates associations relative to associations among the underlying skills. In this multivariable nonlinear model, however, the size and even direction of that distortion are not guaranteed; the longitudinal factor model (issue #313) provides a complementary measurement-error-aware analysis.
-- **Collinearity and regularisation.** With about 53 children and a tightly inter-correlated skill cluster, the regularising priors stabilise otherwise noisy mutually-adjusted coefficients by shrinking them toward zero. An adjusted estimate may be smaller, larger, or have a different sign from its single-skill counterpart because it answers a different conditional question; the difference is informative about sensitivity to adjustment, but it is **not** a decomposition of shared variance.
+- **Collinearity and regularisation.** With the available sample at each wave and a tightly inter-correlated skill cluster, the regularising priors stabilise otherwise noisy mutually adjusted coefficients by shrinking them toward zero. An adjusted estimate may be smaller, larger, or have a different sign from its single-skill counterpart because it answers a different conditional question; the difference is informative about sensitivity to adjustment, but it is **not** a decomposition of shared variance.
 
-Group enters only as a non-interpretable nuisance term that absorbs arm composition at each wave; its coefficient is not reported as an association.
+Group enters only as a non-interpretable nuisance term that absorbs group composition at each wave; its coefficient is not reported as an association. In an observational cohort this adjustment does not turn either the group term or the skill terms into causal effects.
 
-Trait-covariate missingness is also explicit. Unknown hearing status is filled to the clear-hearing reference and paired with `hs_missing`; where requested, missing speech production (`deapp_c`) and phonological memory (`erbto`) are filled to their whole-column means and paired with their own `_missing` flags. An informative flag receives a nuisance subgroup-offset coefficient; a flag that is constant after the wave and observed-outcome restrictions is omitted. These offsets are **not skill effects**, and the missing-indicator method does not by itself remove missing-data bias.
+Missing-data handling is explicit. Rows missing the focal outcome are excluded; missing same-wave predictors are mean-imputed to zero after within-wave standardisation, and the table reports the observed and imputed counts. When a model declares filled trait covariates, their paired `_missing` flags receive nuisance subgroup-offset coefficients only where they vary on the fitted rows. These offsets are **not skill effects**, and neither mean imputation nor the missing-indicator method removes missing-data bias by itself.
 
-### Effective trait adjustment, by wave
+### Effective adjustment, by wave
 
 ```{python}
 # | echo: false
@@ -39,11 +39,11 @@ else:
 _adjustment_table
 ```
 
-_How to read the table:_ `requested` is the declared trait set. `fitted` lists the terms that actually receive coefficients on that wave's outcome-complete rows, while `dropped_constant` names requested terms that cannot be distinguished from the intercept there. The diagnostic-anchor wave's fitted set is also recorded under `effective_model_settings.effective_adjustment` in `config.json`.
+_How to read the table:_ `requested` is the declared conditioning set. `fitted` lists the terms that actually receive coefficients on that wave's outcome-complete rows, while `dropped_constant` names requested terms that cannot be estimated there. The diagnostic-anchor wave's fitted set is also recorded in `config.json`.
 
 ### Adjusted vs single-skill associations, by wave
 
-_In plain terms:_ each predictor gets two numbers per wave — a *single-skill comparator* that omits age, group and the other skills but retains the same effective trait covariates, and an *adjusted* association that also holds the other skills, age, and the group nuisance term fixed. All are per **+1 SD** of the predictor, on the logit scale. The stable CSV schema retains the historical `biv_*` and `adjustment="bivariate"` names for the single-skill comparator; it is not fully unadjusted.
+_In plain terms:_ each predictor gets two numbers per wave — a *single-skill comparator* that omits age, group and the other skills but retains any other declared covariates, and an *adjusted* association that also holds the other skills, age and the group nuisance term fixed. All are per **+1 SD** of the predictor, on the logit scale. The stable CSV schema retains the historical `biv_*` and `adjustment="bivariate"` names for the single-skill comparator.
 
 ```{python}
 # | echo: false
@@ -51,7 +51,7 @@ concurrent = _csv("concurrent_associations.csv")
 concurrent if concurrent is not None else "No concurrent-associations table."
 ```
 
-_How to read the table:_ one row represents one timepoint–predictor pair. The `adj_*` columns summarise the mutually-adjusted coefficient (per SD, logit scale), while `biv_*` summarise its single-skill, trait-adjusted counterpart; each has an 89% credible interval (`*_lo`/`*_hi`) and `*_prob_pos`, the posterior probability that the association is positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 = direction unresolved). `timepoint` identifies the wave (t1–t4). The `adj_converged` and `biv_converged` fields must both be true before comparing the estimates; a failed flag means that sub-fit is not reliable enough to interpret. Differences between the columns show sensitivity to the conditioning set, not how much variance the other skills "explain".
+_How to read the table:_ one row represents one timepoint–predictor pair. The `adj_*` columns summarise the mutually adjusted coefficient (per SD, logit scale), while `biv_*` summarise its single-skill counterpart; each has an 89% credible interval (`*_lo`/`*_hi`) and `*_prob_pos`, the posterior probability that the association is positive (near 1 = confidently positive, near 0 = confidently negative, near 0.5 = direction unresolved). `timepoint` identifies the wave. The `adj_converged` and `biv_converged` fields must both be true before comparing the estimates; a failed flag means that sub-fit is not reliable enough to interpret. Differences between the columns show sensitivity to the conditioning set, not how much variance the other skills "explain".
 
 ```{python}
 # | echo: false
@@ -77,8 +77,8 @@ if concurrent is not None and len(concurrent):
     )
     print(
         "\n_How to read the plot:_ one row per predictor. The blue circle is the "
-        "*adjusted* (mutually-adjusted) coefficient, the grey square the *single-skill, "
-        "trait-adjusted* comparator; bars are 89% credible intervals. The dotted line at 0 is no association "
+        "*adjusted* (mutually adjusted) coefficient, the grey square the *single-skill "
+        "comparator*; bars are 89% credible intervals. The dotted line at 0 is no association "
         "— markers to its right indicate a positive association with the focal outcome, "
         "markers to its left a negative one, and a bar crossing 0 means the sign remains "
         "uncertain. These are associations, not causal effects."
@@ -87,7 +87,7 @@ if concurrent is not None and len(concurrent):
 
 ### Fit-level convergence checks
 
-_In plain terms:_ the report publishes estimates from four adjusted wave fits and one single-skill comparator for each wave–predictor pair. The standard diagnostics above apply to the diagnostic-anchor fit; this table records the matching gate quantities and effective trait covariates for every published fit, including the anchor, so none is interpreted from a Boolean flag alone.
+_In plain terms:_ the report publishes one adjusted fit per requested wave and one single-skill comparator for each wave–predictor pair. The standard diagnostics above apply to the diagnostic-anchor fit; this table records the matching gate quantities and effective covariates for every published fit, including the anchor, so none is interpreted from a Boolean flag alone.
 
 ```{python}
 # | echo: false
@@ -95,7 +95,7 @@ concurrent_fit_diagnostics = _csv("concurrent_fit_diagnostics.csv")
 concurrent_fit_diagnostics if concurrent_fit_diagnostics is not None else "No concurrent fit-diagnostics table."
 ```
 
-_How to read the table:_ `max_rhat` must be at most 1.01, `min_ess` at least 400, `min_bfmi` at least 0.3, and `n_divergences` zero. `converged` is true only when all four conditions pass. `fit_kind="adjusted"` is the mutually-adjusted wave model (`predictor="all"`); each legacy-labelled `fit_kind="bivariate"` row is the corresponding single-skill refit with the same effective trait covariates. `effective_covariates` and `dropped_covariates` expose that design directly. Any failed or unchecked row is a stop sign for interpreting estimates from that fit.
+_How to read the table:_ `max_rhat` must be at most 1.01, `min_ess` at least 400, `min_bfmi` at least 0.3, and `n_divergences` zero. `converged` is true only when all four conditions pass. `fit_kind="adjusted"` is the mutually adjusted wave model (`predictor="all"`); each legacy-labelled `fit_kind="bivariate"` row is the corresponding single-skill refit with the same other declared covariates. `effective_covariates` and `dropped_covariates` expose that design directly. Any failed or unchecked row is a stop sign for interpreting estimates from that fit.
 
 ### Probability- and items-scale marginals
 
@@ -107,4 +107,4 @@ concurrent_marginals = _csv("concurrent_marginals.csv")
 concurrent_marginals if concurrent_marginals is not None else "No concurrent-marginals table."
 ```
 
-_How to read the table:_ one row represents one timepoint–predictor–adjustment–perturbation combination. `adjustment` distinguishes the mutually-adjusted and legacy-labelled `bivariate` (single-skill, trait-adjusted) fits; `scale` identifies either `+1 SD` or the predictor-specific `+k items` perturbation. `prob_median` and `items_median`, with their corresponding `*_lo`/`*_hi` 89% credible intervals, are the associated differences on the probability and outcome-items scales; `prob_pos` is the posterior probability that the association is positive. The `+k items` rows are evaluated at that wave's mean predictor level. Interpret a row only when its `converged` flag is true, and read every value as "how much the focal outcome tends to differ by", not as a caused gain.
+_How to read the table:_ one row represents one timepoint–predictor–adjustment–perturbation combination. `adjustment` distinguishes the mutually adjusted and legacy-labelled `bivariate` (single-skill) fits; `scale` identifies either `+1 SD` or the predictor-specific `+k items` perturbation. `prob_median` and `items_median`, with their corresponding `*_lo`/`*_hi` 89% credible intervals, are the associated differences on the probability and outcome-items scales; `prob_pos` is the posterior probability that the association is positive. The `+k items` rows are evaluated at that wave's mean predictor level. Interpret a row only when its `converged` flag is true, and read every value as "how much the focal outcome tends to differ by", not as a caused gain.

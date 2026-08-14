@@ -1,0 +1,48 @@
+---
+title: "RLM-CA-001: Concurrent correlates of BAS word reading"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLM-CA-001 describes the same-wave correlates of BAS word reading in the Byrne, MacDonald and Buckley historical cohort. At each of waves 1–4 it fits a separate between-child Beta-Binomial regression of BAS word-reading level (`basread`) on receptive vocabulary (`bpvs`), receptive grammar (`trog`), auditory digit recall (`basdig`) and verbal similarities (`bassim`), plus age and reading-group nuisance terms. The mutually adjusted result is shown beside a single-skill comparator for each predictor.
+
+_Estimand: descriptive association, with no causal warrant._ The coefficient for a predictor compares children at the same wave who are alike on the model's other included variables. It does not estimate what would happen if that skill were changed. The reading-matched group was selected on reading level, so neither its nuisance coefficient nor a pooled association should be read as an unselected population contrast.
+
+## Design
+
+- The four waves are fitted separately. Wave 4 is an available-case, attrition-sensitive extension beyond the primary paper's audited waves 1–3; it is not automatically more informative because it is later.
+- The battery is deliberately restricted to the five measures whose bounded-count denominators and instrument identities are confirmed. BAS spelling (`basspel`), WORD comprehension (`woco`) and BAS number skills (`basnum`) remain excluded because their denominators are provisional. `basmat` remains excluded because its instrument identity is unresolved and it has no wave-1 value.
+- Predictors enter as within-wave standardised Haldane-corrected logits with regularising `Normal(0, 0.3)` slopes. The adjusted and single-skill coefficients answer different questions; their difference is sensitivity to the conditioning set, not a decomposition of shared variance.
+- Missing focal outcomes are excluded. Missing predictor scores are mean-imputed to zero on their within-wave standardised scale and their observed and imputed counts are reported. This pragmatic descriptive policy can bias coefficients in either direction when missingness depends on measured or unmeasured characteristics.
+- Reading group is represented by two nuisance dummies rather than one numeric slope. The model does not assume that the three group codes form a linear scale, and it does not report a group effect.
+- `bassim` is a verbal-similarities measure, not a complete control for general ability. Residual confounding, measurement error and collinearity remain plausible.
+
+The stored fit is fail-closed for scientific publication while the 96-versus-97-participant extract provenance remains unresolved, even if its computation and artefacts pass.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_concurrent.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

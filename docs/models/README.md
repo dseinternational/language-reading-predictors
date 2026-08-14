@@ -68,7 +68,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Concurrent associations (`lrp-rli-ca`)                        | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                          |
 | 2     | Longitudinal correlated-factor model (`lrp-rli-lcf`)          | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                |
 | 2     | Historical growth, Byrne cohort (`lrp-rlm-hg`)                | Descriptive group-by-wave natural-history growth per measure in the Byrne reading-language-memory study (`study_id="rlm"`)  |
-| 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs`)                      | Joint correlated trajectories, wave-3 domain measurement model, and the wave-1 predictor views (adjusted + horseshoe)       |
+| 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs/ca`)                   | Joint trajectories, measurement, baseline-predictor and confirmed-measure concurrent views                                  |
 
 Layer-2 totals are generated from the code rather than maintained in prose: `definitions.MODEL_REGISTRY` is the RLI catalogue, while module auto-discovery adds the Byrne `lrp-rlm-*` models. The current checked snapshot is `docs/models/registry-counts.json`; CI runs `python scripts/check_statistical_documentation.py`, which fails if that snapshot differs from `definitions.KINDS`, `definitions.MODEL_REGISTRY`, or `registry.discover_models()`. Regenerate it with the same command plus `--write` after an intentional registry change. Layer-2 selection variants (`…b` / `…base` / `…d`) are included in the per-family tables below.
 
@@ -496,14 +496,9 @@ on_ `basread` level, so between-group contrasts touching that group carry the se
 caveat. Roadmap: the phased Byrne suite is tracked in #338 and mapped in
 `notes/202607131600-byrne-comparable-models-plan.md`.
 
-### Byrne Phase B/D — `lrp-rlm-jc-001/002`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001/002`, `lrp-rlm-hs-001` (`study_id="rlm"`)
+### Byrne Phase B/D — `lrp-rlm-jc-001/002`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001/002`, `lrp-rlm-hs-001`, `lrp-rlm-ca-001/002` (`study_id="rlm"`)
 
-**Purpose.** The Byrne suite's joint/measurement structure (Phase B) and predictor views
-(Phase D), ported from the RLI observational families per the plan and the 2026-07-16
-decisions (pooled three-group frames with non-interpretable group-nuisance terms; Phase D
-horizon w1→w3, the audited core window; mm-001 on the wave-3 full battery,
-measurement-only). All five are associations or descriptive quantities in an observational
-cohort — nothing causal exists here.
+**Purpose.** The Byrne suite's joint/measurement structure (Phase B) and predictor views (Phase D), ported from the RLI observational families per the plan and the 2026-07-16 decisions. The span models use the audited w1→w3 core window; the concurrent models fit waves 1–4 separately and restrict their battery to confirmed-denominator, confirmed-identity measures. All quantities are descriptive associations in an observational cohort — nothing causal exists here.
 
 | Model             | Kind               | Purpose                                                                                                                                                                                                                                         |
 | ----------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -513,6 +508,8 @@ cohort — nothing causal exists here.
 | `lrp-rlm-adj-001` | `adjusted`         | Wave-1 predictors of w1→w3 word-reading gain, mutually adjusted + bivariate comparison + prior-sensitivity sweep (pooled, n = 69)                                                                                                               |
 | `lrp-rlm-adj-002` | `adjusted`         | Pre-specified reduced Down-syndrome-only companion: `basdig`, `bpvs` and `bassim` predictors of w1→w3 word-reading gain, conditional on own baseline, without an age or group slope (22 of 24 children)                                         |
 | `lrp-rlm-hs-001`  | `horseshoe`        | Regularised-horseshoe ranking cross-check over the identical frame; no GB comparison exists for this cohort — the partner is `lrp-rlm-adj-001`                                                                                                  |
+| `lrp-rlm-ca-001`  | `concurrent`       | Per-wave concurrent correlates of BAS word reading over waves 1–4; confirmed five-measure subset, age and reading-group nuisance adjustment, plus single-skill comparators                                                                      |
+| `lrp-rlm-ca-002`  | `concurrent`       | Per-wave concurrent correlates of BPVS receptive vocabulary over waves 1–4; confirmed five-measure subset, age and reading-group nuisance adjustment, plus single-skill comparators                                                             |
 
 **Notes.** `lrp-rlm-jc-001/002` compute no PSIS-LOO (one likelihood node per measure); the
 correlation matrices are shared across groups (stated assumption) while the random-effect
@@ -521,9 +518,7 @@ child contributes exactly three waves. Its logistic-normal residual supplies the
 extra-Binomial variance; a development fit that also retained Beta-Binomial
 overdispersion was rejected as prior-dominated. A wider residual-scale prior remains
 a required sensitivity before interpretation. `lrp-rlm-mm-001` states its single-indicator memory reliability
-assumption and pooled-loadings (invariance) assumption up front. The pooled Phase D model excludes `basmat`
-(no wave-1 value) and the reading-route `basspel`/`woco`. Its Down-syndrome-only companion is
-`lrp-rlm-adj-002`: three pre-specified confirmed-ceiling skills replace the prior-dominated seven-slope proposal, leaving 22 complete cases. Phase C's annual lagged working graph is adopted (`dag/dag-reading-language-memory-lagged.dagitty`), with prior word reading pointing only to later receptive vocabulary, receptive grammar and digit recall. No Phase C model is registered: the pre-fit recovery study rejected both the Down-syndrome-only and three-group shared-coupling candidates because none recovered all three modest positive paths reliably (`notes/202608141812-byrne-lcsm-feasibility.md`). Phase E remains gated on the #289/#324 sensitivity prerequisite.
+assumption and pooled-loadings (invariance) assumption up front. The pooled Phase D span model excludes `basmat` (no wave-1 value) and the reading-route `basspel`/`woco`. Its Down-syndrome-only companion is `lrp-rlm-adj-002`: three pre-specified confirmed-ceiling skills replace the prior-dominated seven-slope proposal, leaving 22 complete cases. The concurrent pair also excludes provisional-denominator `basspel`, `woco` and `basnum`, plus identity-unresolved `basmat`; wave 4 is an attrition-sensitive extension and predictor missingness is reported under the family's mean-imputation policy. Phase C's annual lagged working graph is adopted (`dag/dag-reading-language-memory-lagged.dagitty`), with prior word reading pointing only to later receptive vocabulary, receptive grammar and digit recall. No Phase C model is registered: the pre-fit recovery study rejected both the Down-syndrome-only and three-group shared-coupling candidates because none recovered all three modest positive paths reliably (`notes/202608141812-byrne-lcsm-feasibility.md`). Phase E remains gated on the #289/#324 sensitivity prerequisite.
 
 ---
 
