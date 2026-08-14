@@ -127,10 +127,8 @@ def _save_multi_outcome_ppc_overlays(
         (k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if cd is not None and k in cd),
         None,
     )
-    outcomes = [str(o) for o in (context.spec.extra.get("outcomes") or ())]
-    if not outcomes:
-        plan = getattr(context, "resolved_plan", None)
-        outcomes = [str(o) for o in (getattr(plan, "outcomes", ()) or ())]
+    plan = getattr(context, "resolved_plan", None)
+    outcomes = [str(o) for o in (getattr(plan, "outcomes", ()) or ())]
     if key is None or not outcomes:
         rprint(
             f"[yellow]PPC per-measure overlay unavailable for '{kind}' "

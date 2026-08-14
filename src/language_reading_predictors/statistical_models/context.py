@@ -237,6 +237,25 @@ class StatisticalFitContext:
             self.output_transaction.abandon()
 
 
+def spec_target_accept(spec: ModelSpec) -> float | None:
+    """Return the validated model-specific sampler default, if declared.
+
+    ``target_accept`` is a cross-family sampling option rather than part of any
+    scientific model recipe. Keeping its sole ``spec.extra`` read here makes that
+    distinction explicit for fit pipelines and standalone audit runners alike.
+    """
+    target_accept = spec.extra.get("target_accept")
+    if target_accept is None:
+        return None
+    target_accept = float(target_accept)
+    if not 0.0 < target_accept < 1.0:
+        raise ValueError(
+            "spec.extra['target_accept'] must be in the open interval (0, 1); "
+            f"got {target_accept!r}"
+        )
+    return target_accept
+
+
 def _resolve_target_accept(spec: ModelSpec, sampling, run_options):
     """Resolve NUTS ``target_accept`` with explicit precedence, for **every** family.
 
@@ -257,14 +276,7 @@ def _resolve_target_accept(spec: ModelSpec, sampling, run_options):
     and then silently ignored at sampling time. Resolving it here means a declaration
     is honoured wherever it is made.
     """
-    target_accept = spec.extra.get("target_accept")
-    if target_accept is not None:
-        target_accept = float(target_accept)
-        if not 0.0 < target_accept < 1.0:
-            raise ValueError(
-                "spec.extra['target_accept'] must be in the open interval (0, 1); "
-                f"got {target_accept!r}"
-            )
+    target_accept = spec_target_accept(spec)
     if run_options.target_accept is not None:
         if target_accept is not None:
             rprint(

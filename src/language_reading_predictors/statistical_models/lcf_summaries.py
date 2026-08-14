@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 
 from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.context import StatisticalFitContext
 from language_reading_predictors.statistical_models.fitted_payloads import (
     FittedPayload,
     LongCorrFactorPayload,
@@ -74,7 +75,7 @@ def observed_domain_corr(
 
 
 def items_scale(
-    ctx,
+    ctx: StatisticalFitContext,
     built: BuiltModel[FittedPayload],
 ) -> pd.DataFrame:
     """Approximate items-scale translation of the headline cross-domain couplings.
@@ -103,7 +104,7 @@ def items_scale(
     dnames = list(domains)
     ind_names = [str(s) for s in post["indicator"].values]
 
-    def _lam_sig(sym):
+    def _lam_sig(sym: str) -> tuple[np.ndarray, np.ndarray]:
         k = ind_names.index(sym)
         lam = post["lambda_load"].isel(indicator=k).stack(sample=("chain", "draw")).values.ravel()
         sig = post["sigma_indicator"].isel(indicator=k).stack(sample=("chain", "draw")).values.ravel()
@@ -228,7 +229,7 @@ def observed_conditional_slope(
 
 
 def concurrent_comparison(
-    ctx,
+    ctx: StatisticalFitContext,
     built: BuiltModel[FittedPayload],
     *,
     ca_tables: dict[str, pd.DataFrame] | None = None,

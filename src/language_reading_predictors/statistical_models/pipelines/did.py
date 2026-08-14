@@ -14,6 +14,7 @@ family uses, imported from :mod:`.dose_response`.
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -39,6 +40,7 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.did import (
+    DiDRunPlan,
     resolve_did_run_plan,
 )
 from language_reading_predictors.statistical_models.figure_artifacts import (
@@ -51,11 +53,13 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
 from language_reading_predictors.statistical_models.fitted_payloads import (
     DidArmWavePayload,
     DidDosePayload,
+    FittedPayload,
 )
 from language_reading_predictors.statistical_models.pipelines.dose_response import (
     write_dose_slope_summary,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
     load_and_prepare,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
@@ -77,53 +81,13 @@ from language_reading_predictors.statistical_models.runtime import (
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
-def _did_diag_vars(spec: ModelSpec) -> list[str]:
-    """Coefficients to summarise for a crossover/DiD fit, given the spec."""
-    dose = bool(spec.extra.get("dose", False))
-    period_varying = dose and bool(spec.extra.get("period_varying_dose", False))
-    off_floor = spec.extra.get("likelihood") == "bernoulli_offfloor"
-    if not dose:
-        v = [
-            # LRPDID101 (use_intercept_anchor=False) fits a free alpha with no
-            # anchored offset; every other arm-by-wave fit summarises the offset.
-            "alpha_offset" if spec.extra.get("use_intercept_anchor", True) else "alpha",
-            "beta_period",
-            "arm_gap_t1",
-            "tau_t2",
-            "arm_gap_t3",
-        ]
-    else:
-        dose_vars = (
-            ["mu_dose", "sigma_dose", "beta_dose_phase"]
-            if period_varying
-            else ["beta_dose"]
-        )
-        v = [
-            "alpha",
-            "beta_period",
-            "beta_group",
-            "theta_treated",
-            "gamma_t1",
-            *dose_vars,
-        ]
-    if not off_floor:
-        v += ["kappa"]
-    if spec.extra.get("use_age", True):
-        v.append("gamma_A")
-    if spec.extra.get("use_child_re", True):
-        v.append("sigma_child")
-    if spec.extra.get("use_varying_delta", False):
-        v.append("sigma_delta")
-    return v
-
-
 # Negligible-heterogeneity threshold on the logit scale for the "does the
 # between-child waitlist catch-up SD concentrate near zero?" diagnostic (#230
 # §4a): an order of magnitude below the delta / tau prior scale (Normal(0, 0.5)).
 _SIGMA_DELTA_ROPE = 0.1
 
 
-def _did_heterogeneity_summary(trace, *, ci_prob: float) -> dict[str, float]:
+def _did_heterogeneity_summary(trace: Any, *, ci_prob: float) -> dict[str, float]:
     """Between-waitlist-child SD of post-crossover catch-up near zero.
 
     Reports ``sigma_delta`` (median + equal-tailed CI on the logit scale), the ROPE-style
@@ -150,11 +114,12 @@ def _did_heterogeneity_summary(trace, *, ci_prob: float) -> dict[str, float]:
 
 def _did_analysis_contract(
     ctx: StatisticalFitContext,
-    built,
+    plan: DiDRunPlan,
+    built: _factories.BuiltModel[FittedPayload],
     *,
     dose: bool,
-    loaded_prepared,
-) -> dict:
+    loaded_prepared: PreparedData,
+) -> dict[str, Any]:
     """Persist the exact fitted rows and return auditable DiD design metadata."""
     prepared = built.prepared
     payload = built.require_payload(
@@ -211,12 +176,10 @@ def _did_analysis_contract(
         "fitted_n_phases": int(prepared.n_phases),
         "cell_counts": counts,
         "arm_coding": "G=1 immediate; G=0 waitlist",
-        "use_age": bool(ctx.spec.extra.get("use_age", True)),
-        "use_child_re": bool(ctx.spec.extra.get("use_child_re", True)),
-        "use_varying_delta": bool(
-            ctx.spec.extra.get("use_varying_delta", False)
-        ),
-        "likelihood": ctx.spec.extra.get("likelihood", "beta_binomial"),
+        "use_age": plan.use_age,
+        "use_child_re": plan.use_child_re,
+        "use_varying_delta": plan.use_varying_delta,
+        "likelihood": plan.likelihood,
     }
     if dose:
         dose_payload = built.require_payload(DidDosePayload, family="did dose")
@@ -305,6 +268,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_header(ctx)
     did_contract = _did_analysis_contract(
         ctx,
+        plan,
         built,
         dose=dose,
         loaded_prepared=prepared,
@@ -324,7 +288,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         save_table(c, "did_cell_ppc", cell_ppc)
         save_did_cell_ppc_plot(c, cell_ppc)
 
-    _did_diag = _did_diag_vars(spec)
+    _did_diag = plan.diagnostic_vars()
     _did_effect = plan.effect_term
     shared_stages().run_primary_fit(
         ctx,

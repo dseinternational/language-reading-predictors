@@ -2656,8 +2656,8 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
 
     spec = context.spec
     prepared = context.prepared
-    spec_extra = _json_safe(spec.extra)
-    settings = dict(spec_extra)
+    resolved = _resolved_run_plan(context)
+    settings = resolved.as_dict() if resolved is not None else {}
 
     if spec.kind == "itt":
         plan = _itt_run_plan(context)
@@ -3227,9 +3227,11 @@ def _publication_input_contract(context: StatisticalFitContext) -> dict | None:
                 add(nested)
 
     add(spec.outcome_symbol)
+    plan = _resolved_run_plan(context)
+    plan_settings = plan.as_dict() if plan is not None else {}
     for key in ("measure", "measures", "outcomes", "predictor_measures"):
-        add(spec.extra.get(key))
-    add(spec.extra.get("domains"))
+        add(plan_settings.get(key))
+    add(plan_settings.get("domains"))
 
     prepared = context.prepared
     for name in ("measures", "outcomes", "outcome"):

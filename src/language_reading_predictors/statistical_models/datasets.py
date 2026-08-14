@@ -232,7 +232,7 @@ RLM_DATASET = DatasetSpec(
 )
 
 
-# Registry so pipelines can resolve ``spec.extra["study_id"]`` -> (dataset, measures)
+# Registry so pipelines can resolve ``ModelSpec.study_id`` -> (dataset, measures)
 # without a hand-maintained import list per study.
 _DATASETS: dict[str, tuple[DatasetSpec, dict[str, StudyMeasure]]] = {
     "rlm": (RLM_DATASET, RLM_MEASURES),

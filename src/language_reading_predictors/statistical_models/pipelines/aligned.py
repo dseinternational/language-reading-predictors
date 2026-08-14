@@ -26,9 +26,7 @@ from language_reading_predictors.statistical_models import (
     factories as _factories,
     reporting as _report,
 )
-from language_reading_predictors.statistical_models.aligned import (
-    resolve_aligned_run_plan,
-)
+from language_reading_predictors.statistical_models.aligned import resolve_aligned_run_plan
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -58,26 +56,6 @@ from language_reading_predictors.statistical_models.runtime import (
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
-def _al_coef_names(spec: ModelSpec) -> list[str]:
-    """Interpretable LRPAL coefficients (alpha/kappa excluded)."""
-    extra = spec.extra
-    names: list[str] = []
-    if extra.get("use_cohort", True):
-        names.append("beta_cohort")
-    names += ["gamma_own", "gamma_A"]
-    if extra.get("ability_covariate"):
-        names.append("gamma_ability")
-    if extra.get("use_dose", False):
-        names.append("gamma_dose")
-    return names
-
-
-def _al_diag_vars(spec: ModelSpec) -> list[str]:
-    # No child random intercept (one row per child); no kappa off-floor.
-    tail = [] if spec.extra.get("likelihood") == "bernoulli_offfloor" else ["kappa"]
-    return ["alpha", *_al_coef_names(spec), *tail]
-
-
 def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     require_spec(spec, "aligned", outcome=True)
     # Resolve and validate the family contract before the context resets an output
@@ -104,7 +82,8 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # Deterministic for a given spec — compute once and reuse across the diagnostics,
     # power-scaling, gate and prior/posterior overlay (PR #408 review).
-    _al_vars = _al_diag_vars(spec)
+    _al_vars = plan.diagnostic_vars()
+    _al_coef_names = plan.coefficient_names()
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
@@ -121,11 +100,11 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Per-protocol design: NOTHING is a clean randomised effect, so no term is
     # flagged causal -- every coefficient (cohort included) is an association.
     fs = _report.factor_summary(
-        ctx.trace, _al_coef_names(spec), ci_prob=ctx.reporting.ci_prob, causal_terms=()
+        ctx.trace, _al_coef_names, ci_prob=ctx.reporting.ci_prob, causal_terms=()
     )
     save_table(ctx, "factor_summary", fs)
     # Per-protocol: every term is an association, so the forest shows them all.
-    save_association_forest(ctx, _al_coef_names(spec), ())
+    save_association_forest(ctx, _al_coef_names, ())
     print_table(
         ranked_dataframe_table(
             fs,

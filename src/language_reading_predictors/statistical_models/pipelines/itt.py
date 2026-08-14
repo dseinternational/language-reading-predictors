@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -61,6 +62,7 @@ from language_reading_predictors.statistical_models.itt import (
     write_itt_ppc_calibration,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
     load_and_prepare,
     restrict_to_baseline_floored,
     restrict_to_off_floor,
@@ -82,7 +84,7 @@ from language_reading_predictors.statistical_models.subfits import run_subfit
 
 def emit_itt_extras(
     ctx: StatisticalFitContext,
-    built,
+    built: _factories.BuiltModel[IttPayload],
     *,
     n_trials: int,
     overlay_vars: list[str],
@@ -133,7 +135,7 @@ def itt_diag_vars(
 
 def write_analysis_audit(
     ctx: StatisticalFitContext,
-    prepared,
+    prepared: PreparedData,
     outcomes: Sequence[str],
 ) -> None:
     """Compatibility wrapper for the ITT family's analysis-set audit."""
@@ -148,7 +150,7 @@ def write_analysis_audit(
 
 def write_ppc_calibration(
     ctx: StatisticalFitContext,
-    prepared,
+    prepared: PreparedData,
     outcomes: Sequence[str],
     *,
     node: str = "y_post",
@@ -418,7 +420,7 @@ def fit_itt_floor_rule(
     ctx: StatisticalFitContext,
     spec: ModelSpec,
     plan: IttRunPlan,
-    prepared,
+    prepared: PreparedData,
     adjust_for: tuple[str, ...],
 ) -> StatisticalFitContext:
     """Floor-rule fit for heavily-floored outcomes P / N (#119).
@@ -678,7 +680,12 @@ def fit_itt_floor_rule(
         event_label="off the floor at t2",
     )
 
-    def _fit_secondary(built_x, *, label: str, trace_filename: str):
+    def _fit_secondary(
+        built_x: _factories.BuiltModel[IttPayload],
+        *,
+        label: str,
+        trace_filename: str,
+    ) -> tuple[Any, dict[str, Any]]:
         # Gate every free variable: a well-mixed tau cannot rescue a non-mixing
         # kappa/alpha/age term because those nuisance parameters determine the
         # fitted mean and posterior predictive distribution (#341). Secondary

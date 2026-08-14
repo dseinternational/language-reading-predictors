@@ -6898,7 +6898,7 @@ def default_of(fn, param: str) -> float:
     """The default value of keyword ``param`` in factory ``fn``'s signature.
 
     Makes the factory the single source of truth for a prior-scale default, so a
-    ``spec.extra.get(param, ...)`` fallback in the pipeline cannot silently drift
+    a settings fallback in the pipeline cannot silently drift
     from the factory it feeds (the failure Copilot caught on #209: the adjusted
     fallback was re-hardcoded and lagged the reconciled factory default). Prefer
     this over re-typing the number: if ``param`` is ever renamed the lookup raises

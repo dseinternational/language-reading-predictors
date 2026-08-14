@@ -32,6 +32,22 @@ from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.did import (
+    DiDRunPlan,
+    resolve_did_run_plan,
+)
+from language_reading_predictors.statistical_models.gain_factors import (
+    GainFactorsRunPlan,
+    resolve_gain_factors_run_plan,
+)
+from language_reading_predictors.statistical_models.itt import (
+    IttRunPlan,
+    resolve_itt_run_plan,
+)
+from language_reading_predictors.statistical_models.level_factors import (
+    LevelFactorsRunPlan,
+    resolve_level_factors_run_plan,
+)
 from language_reading_predictors.statistical_models.measures import is_distal
 
 
@@ -125,21 +141,28 @@ def _prior_table_overrides(
                 ),
             }
         )
-    elif spec.kind == "gain_factors" and spec.extra.get("moderation_variant", False):
-        # Moderation variants (#391 finding 3): beta_trt keeps the tau-tier prior
-        # but is never presented as causal — its interaction-aware marginal is
-        # model-dependent (the trt interactions are estimated on all stacked
-        # periods, partly post-crossover). The causal headline lives in the
-        # interaction-free primary; every artefact of a variant fit must agree.
-        role["beta_trt"] = "association"
-        rationale["beta_trt"] = (
-            "On-intervention log-odds contrast inside an explicitly associational "
-            "moderation variant: netted with the fitted treatment interactions it "
-            "is a model-dependent association, partly informed by post-crossover "
-            "data — read the randomised causal headline from the interaction-free "
-            "primary model."
-        )
+    elif spec.kind == "gain_factors":
+        plan = getattr(context, "resolved_plan", None)
+        if not isinstance(plan, GainFactorsRunPlan):
+            plan = resolve_gain_factors_run_plan(spec)
+        if plan.moderation_variant:
+            # Moderation variants (#391 finding 3): beta_trt keeps the tau-tier prior
+            # but is never presented as causal — its interaction-aware marginal is
+            # model-dependent (the trt interactions are estimated on all stacked
+            # periods, partly post-crossover). The causal headline lives in the
+            # interaction-free primary; every artefact of a variant fit must agree.
+            role["beta_trt"] = "association"
+            rationale["beta_trt"] = (
+                "On-intervention log-odds contrast inside an explicitly associational "
+                "moderation variant: netted with the fitted treatment interactions it "
+                "is a model-dependent association, partly informed by post-crossover "
+                "data — read the randomised causal headline from the interaction-free "
+                "primary model."
+            )
     elif spec.kind == "did":
+        plan = getattr(context, "resolved_plan", None)
+        if not isinstance(plan, DiDRunPlan):
+            plan = resolve_did_run_plan(spec)
         # Time offsets and every post-crossover term are associations.  Only the
         # saturated arm-by-wave model's t2 arm gap is licensed by randomisation.
         role["beta_period"] = "association"
@@ -166,9 +189,9 @@ def _prior_table_overrides(
             "Exploratory between-waitlist-child SD of unexplained t3 catch-up; may mix "
             "response, maturation, history, period shocks and measurement variation."
         )
-        if not spec.extra.get("dose", False):
+        if not plan.dose:
             role["tau_t2"] = "causal"
-            if spec.extra.get("use_intercept_anchor", True):
+            if plan.use_intercept_anchor:
                 role["alpha_offset"] = "nuisance"
                 # The empirical-Bayes sentence comes from ``priors`` rather than
                 # being written again here, so the family prose and the suite-wide
@@ -182,7 +205,7 @@ def _prior_table_overrides(
                     "the deterministic alpha is the anchored t1 level. "
                     f"{_priors.EMPIRICAL_BAYES_SENTENCE}"
                 )
-        if spec.extra.get("dose", False):
+        if plan.dose:
             role["beta_group"] = "association"
             role["theta_treated"] = "association"
             role["gamma_t1"] = "precision"
@@ -210,7 +233,7 @@ def _prior_table_overrides(
             )
             # Dose slopes now share build_dose_response_model's ``beta_mech`` prior
             # (Normal(0, 1)) so the shared summary compares like with like.
-            if spec.extra.get("period_varying_dose", False):
+            if plan.period_varying:
                 ctor.update(
                     {
                         "mu_dose": "beta_mech",
@@ -400,19 +423,26 @@ def _prior_table_overrides(
             "for cross-measure slope covariation, not a CFA test->domain measurement "
             "loading."
         )
-    elif spec.kind == "level_factors" and spec.extra.get("group_by_time", True):
-        # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
-        # elements have different interpretation: only b_grp_time[1] is the clean
-        # randomised t2 contrast. Keep the vector row conservative and let
-        # factor_summary.csv carry the element-level causal label.
-        role["b_grp_time"] = "association"
-        rationale["b_grp_time"] = (
-            "Level-model group-by-time vector; only b_grp_time[1] is the "
-            "randomised t2 contrast, while the vector row is documented "
-            "conservatively because other elements are pre-randomisation or "
-            "post-crossover associations."
-        )
+    elif spec.kind == "level_factors":
+        plan = getattr(context, "resolved_plan", None)
+        if not isinstance(plan, LevelFactorsRunPlan):
+            plan = resolve_level_factors_run_plan(spec)
+        if plan.group_by_time:
+            # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
+            # elements have different interpretation: only b_grp_time[1] is the clean
+            # randomised t2 contrast. Keep the vector row conservative and let
+            # factor_summary.csv carry the element-level causal label.
+            role["b_grp_time"] = "association"
+            rationale["b_grp_time"] = (
+                "Level-model group-by-time vector; only b_grp_time[1] is the "
+                "randomised t2 contrast, while the vector row is documented "
+                "conservatively because other elements are pre-randomisation or "
+                "post-crossover associations."
+            )
     elif spec.kind == "itt":
+        plan = getattr(context, "resolved_plan", None)
+        if not isinstance(plan, IttRunPlan):
+            plan = resolve_itt_run_plan(spec)
         # adjust_for covariates are built as gamma_{covariate} from gamma_cross_prior,
         # so they inherit the gamma_cross panel's "cross-baseline coupling gamma_k"
         # rationale + association role. They are pre-randomisation adjustment/precision
@@ -424,7 +454,7 @@ def _prior_table_overrides(
         # so the role is quoted, not inferred (#384 review, Frank: promote SES to
         # precision — identical causal status to blocks/area).
         _quoted_precision = {"blocks", "area", "mumedupost16", "dadedupost16", "agebooks"}
-        for c in spec.extra.get("adjust_for", ()):
+        for c in plan.adjust_for:
             name = f"gamma_{c}"
             if c in _quoted_precision:
                 role[name] = "precision"
@@ -731,7 +761,7 @@ def pushforward_outcome_label(ctx: StatisticalFitContext, outcome: str) -> str:
     if outcome in MEASURES:
         return str(MEASURES[outcome].label)
     try:
-        _, measures = _datasets.resolve_dataset(ctx.spec.extra.get("study_id", "rlm"))
+        _, measures = _datasets.resolve_dataset(ctx.spec.study_id)
         return str(measures[outcome].label)
     except Exception:  # noqa: BLE001 - a label is cosmetic; the symbol still names it
         return outcome

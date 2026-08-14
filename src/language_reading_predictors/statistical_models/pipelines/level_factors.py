@@ -157,7 +157,11 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         # covariates (#247). The level model carries no skill baselines — only the
         # exogenous raw-covariate confounders (hs/deapp_c/erbto) at the split wave.
         "effective_adjustment": effective_adjustment(
-            spec, built.prepared, adjust_for=adjust_for, ability_covariate=ability_covariate
+            spec,
+            built.prepared,
+            adjust_for=adjust_for,
+            requested_adjust_for=plan.adjust_for,
+            ability_covariate=ability_covariate,
         ),
     }
     # ROPE-anchored continuous report for the one causal term — the t2 randomised

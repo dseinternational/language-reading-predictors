@@ -27,6 +27,12 @@ gate (R-hat <= 1.01, ESS >= 400, BFMI >= 0.3, zero divergences) to count as
 usable evidence; failing cells are recorded with ``converged=False`` and excluded
 from the stability verdict.
 
+This is deliberately a standalone, post-fit sensitivity sweep rather than an
+in-fit ``run_subfit``. It starts from persisted primary artefacts, spans multiple
+registered models and writes its own primary-fit hashes, sampling settings and
+convergence record; ``run_subfit`` instead belongs to one live fit context and its
+artifact manifest.
+
 Usage::
 
     python scripts/horseshoe_prior_sensitivity.py                    # dev (fast)
@@ -50,6 +56,14 @@ import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models import factories as _factories
 from language_reading_predictors.statistical_models import reporting as _report
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    spec_target_accept,
+)
+from language_reading_predictors.statistical_models.horseshoe import (
+    HorseshoeRunPlan,
+    resolve_horseshoe_run_plan,
+)
 
 DEFAULT_MODELS = (
     "lrp-rli-hs-001",
@@ -70,7 +84,7 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _spec_for(model_id: str):
+def _spec_for(model_id: str) -> ModelSpec:
     module = model_id.replace("lrp-", "lrp_").replace("-", "_")
     mod = __import__(
         f"language_reading_predictors.statistical_models.{module}",
@@ -79,63 +93,25 @@ def _spec_for(model_id: str):
     return mod.SPEC
 
 
-def _build(spec, tau0: float, slab_scale: float):
+def _build(plan: HorseshoeRunPlan, tau0: float, slab_scale: float):
     """Rebuild the registered model with the grid knobs; mirror the fit paths."""
-    e = spec.extra
-    if spec.model_id.startswith("lrp-rlm-"):
+    if plan.port == "rlm":
         from language_reading_predictors.statistical_models.preprocessing import (
             load_rlm_span_frame,
         )
 
-        frame = load_rlm_span_frame(
-            outcome=spec.outcome_symbol or "basread",
-            predictor_measures=tuple(
-                e.get("predictor_measures", ("bpvs", "trog", "basdig", "bassim", "basnum"))
-            ),
-            include_age=bool(e.get("use_age_predictor", True)),
-            pre_wave=int(e.get("pre_wave", 1)),
-            post_wave=int(e.get("post_wave", 3)),
-        )
-        built = _factories.build_rlm_horseshoe_model(
-            frame,
-            predictors=list(frame.predictors),
-            tau0=tau0,
-            slab_scale=slab_scale,
-            slab_df=float(e.get("slab_df", 4.0)),
-        )
-        return built
+        frame = load_rlm_span_frame(**plan.rlm_prepare_kwargs())
+        kwargs = plan.rlm_factory_kwargs(predictors=list(frame.predictors))
+        kwargs.update({"tau0": tau0, "slab_scale": slab_scale})
+        return _factories.build_rlm_horseshoe_model(frame, **kwargs)
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
 
-    outcome = spec.outcome_symbol or "W"
-    gain = bool(e.get("gain", True))
-    predictors = list(e["predictors"])
-    lang_symbols = tuple(e.get("language_composite_symbols", ["R", "E", "F"]))
-    covariates = tuple(e.get("covariates", ()))
-    measure_syms = tuple(
-        dict.fromkeys(
-            [outcome]
-            + [p for p in predictors if p not in ("age", "lang", *covariates)]
-            + list(lang_symbols)
-        )
-    )
-    prepared = load_and_prepare(
-        phase_mode=e.get("phase_mode", "span" if gain else "levels"),
-        post_time=int(e.get("post_time", 4)),
-        outcomes=measure_syms,
-        covariates=covariates,
-    )
-    return _factories.build_horseshoe_model(
-        prepared,
-        outcome_symbol=outcome,
-        predictors=predictors,
-        gain=gain,
-        tau0=tau0,
-        slab_scale=slab_scale,
-        slab_df=float(e.get("slab_df", 4.0)),
-        language_composite_symbols=lang_symbols,
-    )
+    prepared = load_and_prepare(**plan.rli_prepare_kwargs())
+    kwargs = plan.rli_factory_kwargs()
+    kwargs.update({"tau0": tau0, "slab_scale": slab_scale})
+    return _factories.build_horseshoe_model(prepared, **kwargs)
 
 
 def _cell_converged(idata) -> tuple[bool, dict[str, float]]:
@@ -196,9 +172,10 @@ def main() -> int:
     cell_rows: list[dict] = []
     for model_id in args.models:
         spec = _spec_for(model_id)
-        delta = float(spec.extra.get("delta", 0.1))
-        ref_tau0 = float(spec.extra.get("tau0", 0.1))
-        ref_slab = float(spec.extra.get("slab_scale", 2.0))
+        plan = resolve_horseshoe_run_plan(spec)
+        delta = plan.delta
+        ref_tau0 = plan.tau0
+        ref_slab = plan.slab_scale
         # Reference = the model's existing reporting fit, bound by hashes.
         ref_dir = out_root / "models" / f"{model_id}-reporting"
         ref_rank_path = ref_dir / "predictor_ranking.csv"
@@ -217,13 +194,13 @@ def main() -> int:
         target_accept = (
             float(args.target_accept)
             if args.target_accept is not None
-            else float(spec.extra.get("target_accept", 0.99))
+            else spec_target_accept(spec) or 0.99
         )
 
         cells = [(t, ref_slab) for t in TAU0_GRID] + [(ref_tau0, s) for s in SLAB_GRID]
         for tau0, slab in cells:
             print(f"  fitting {model_id}  tau0={tau0} slab_scale={slab} ...")
-            built = _build(spec, tau0, slab)
+            built = _build(plan, tau0, slab)
             with built.model:
                 idata = pm.sample(
                     draws=sampling.draws,

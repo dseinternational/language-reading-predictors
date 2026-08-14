@@ -14,6 +14,11 @@ The implementation deliberately rejects stacked random-intercept families.
 Their pointwise LOO unit is a child-by-period row conditional on the fitted child
 intercept, so a whole-child deletion is not the sensitivity implied by a
 flagged point.
+
+Influence refits deliberately keep their standalone, post-fit provenance rather
+than entering ``run_subfit``. They begin from a persisted primary trace, validate
+its hashes and resolved plan, and write a separately bound trace; ``run_subfit``
+belongs to secondary fits created inside one live primary-fit context.
 """
 
 from __future__ import annotations
@@ -237,23 +242,23 @@ def load_influence_reference(
             f"saved=({metadata.get('model_id')!r}, {metadata.get('kind')!r}), "
             f"current=({spec.model_id!r}, {spec.kind!r})"
         )
-    if spec.kind == "itt":
-        current_plan = resolve_itt_run_plan(spec).as_dict()
-        current_plan.pop("settings_source", None)
-        if metadata.get("resolved_run_plan") is not None:
-            saved_settings = dict(metadata["resolved_run_plan"])
-            saved_settings.pop("settings_source", None)
-        else:
-            saved_spec = replace(
-                spec,
-                model_settings=None,
-                extra=dict(metadata.get("spec_extra", {})),
-            )
-            saved_settings = resolve_itt_run_plan(saved_spec).as_dict()
-            saved_settings.pop("settings_source", None)
+    resolver = resolve_itt_run_plan if spec.kind == "itt" else resolve_joint_run_plan
+    current_plan = resolver(spec).as_dict()
+    current_plan.pop("settings_source", None)
+    if metadata.get("resolved_run_plan") is not None:
+        saved_settings = dict(metadata["resolved_run_plan"])
+        saved_settings.pop("settings_source", None)
     else:
-        current_plan = spec.extra
-        saved_settings = metadata.get("spec_extra", {})
+        # Compatibility with completed fits written before resolved_run_plan was
+        # persisted. The legacy declaration is translated once through the same
+        # typed resolver; runtime comparison never reads family keys directly.
+        saved_spec = replace(
+            spec,
+            model_settings=None,
+            extra=dict(metadata.get("spec_extra", {})),
+        )
+        saved_settings = resolver(saved_spec).as_dict()
+        saved_settings.pop("settings_source", None)
     if _json_normalise(saved_settings) != _json_normalise(current_plan):
         raise ValueError(
             f"registered settings for {spec.model_id} have drifted since the completed fit; "

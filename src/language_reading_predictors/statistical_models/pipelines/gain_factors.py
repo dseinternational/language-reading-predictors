@@ -51,7 +51,7 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
     GainFactorsPayload,
 )
 from language_reading_predictors.statistical_models.gain_factors import (
-    resolve_active_interactions,
+    GainFactorsRunPlan,
     resolve_gain_factors_run_plan,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -72,61 +72,8 @@ from language_reading_predictors.statistical_models.runtime import (
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
-def _gf_coef_names(
-    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
-) -> list[str]:
-    """Factor coefficients to report in the LRPGF factor table (interpretable
-    terms only; nuisance alpha/alpha_phase/kappa/sigma_child are excluded).
-
-    ``adjust_for`` overrides the requested ``spec.extra['adjust_for']`` with the
-    **actually fitted** set (a constant ``_missing`` indicator is dropped by the
-    loader and gets no ``gamma_{c}`` coefficient), so the pipeline passes the
-    post-filter tuple; ``None`` falls back to the requested set (used off the fit
-    path, e.g. in tests)."""
-    extra = spec.extra
-    treated_only = bool(extra.get("treated_only", False))
-    adj = extra.get("adjust_for", ()) if adjust_for is None else adjust_for
-    names: list[str] = []
-    if not treated_only:
-        names.append("beta_trt")
-    # The graded gamma_own drops on the off-floor (Bernoulli) path (A4) — see
-    # build_gain_factors_model. The binary off-floor-at-pre indicator main effect
-    # ``gamma_own_offfloor`` always stands in for it there (#391 finding 2
-    # decision, 2026-07-22), so it is reported unconditionally in its place.
-    active_interactions = resolve_active_interactions(
-        extra.get("interactions", ()), treated_only=treated_only
-    )
-    if extra.get("likelihood") != "bernoulli_offfloor":
-        names.append("gamma_own")
-    else:
-        names.append("gamma_own_offfloor")
-    names.append("gamma_A")
-    if extra.get("ability_covariate"):
-        names.append("gamma_ability")
-    names += [f"gamma_{s}" for s in extra.get("skill_symbols", ())]
-    names += [f"gamma_{c}" for c in adj]
-    names += [f"gamma_int_{a}_{b}" for a, b in active_interactions]
-    return names
-
-
-def _gf_diag_vars(
-    spec: ModelSpec, adjust_for: tuple[str, ...] | None = None
-) -> list[str]:
-    # No kappa under the off-floor Bernoulli likelihood.
-    tail = (
-        ["sigma_child"]
-        if spec.extra.get("likelihood") == "bernoulli_offfloor"
-        else ["kappa", "sigma_child"]
-    )
-    # Include the per-phase intercept vector, mirroring the level-factor plan's
-    # alpha_time (issue #274 item 2); the gate already covers it via the free-RV
-    # scan, this keeps the human-readable diagnostics.csv consistent across the
-    # two families.
-    return ["alpha", "alpha_phase", *_gf_coef_names(spec, adjust_for), *tail]
-
-
 def _gf_association_terms(
-    spec: ModelSpec,
+    plan: GainFactorsRunPlan,
     built: _factories.BuiltModel,
     *,
     adjust_for: tuple[str, ...],
@@ -153,12 +100,10 @@ def _gf_association_terms(
 
     AT = _report.AssociationTerm
     bp = built.prepared
-    own = spec.outcome_symbol
-    extra = spec.extra
-    skill_symbols = tuple(extra.get("skill_symbols", ()))
-    ability_covariate = extra.get("ability_covariate")
-    interactions = tuple(tuple(p) for p in extra.get("interactions", ()))
-    treated_only = bool(extra.get("treated_only", False))
+    own = plan.outcome_symbol
+    skill_symbols = plan.skill_symbols
+    ability_covariate = plan.ability_covariate
+    treated_only = plan.treated_only
 
     # Standardised term vectors + main-effect scales, matching the factory on kept rows.
     term_vecs: dict[str, np.ndarray] = {"age": np.asarray(bp.A_std, dtype=float)}
@@ -187,9 +132,7 @@ def _gf_association_terms(
     # a partner. Omitted under treated_only (then constant, and the factory drops it).
     if not treated_only:
         term_vecs["trt"] = ((bp.G == 1) | (bp.phase >= 1)).astype(float)
-    active_interactions = resolve_active_interactions(
-        interactions, treated_only=treated_only
-    )
+    active_interactions = plan.active_interactions
 
     def _ints_for(key: str) -> tuple[tuple[str, np.ndarray], ...]:
         out: list[tuple[str, np.ndarray]] = []
@@ -290,7 +233,8 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # — the plot titles here are deliberately neutral ("Rank plot", "Effect
     # posterior"), so focusing them on beta_trt asserts nothing causal.
     _focal_gf = None if treated_only else "beta_trt"
-    _gf_diag = _gf_diag_vars(spec, adjust_for)
+    _gf_diag = plan.diagnostic_vars(effective_adjustment=adjust_for)
+    _gf_coef_names = plan.coefficient_names(effective_adjustment=adjust_for)
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
@@ -318,11 +262,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         () if moderation_variant else ("beta_trt",)
     )
     fs = _report.factor_summary(
-        ctx.trace, _gf_coef_names(spec, adjust_for), ci_prob=ctx.reporting.ci_prob,
+        ctx.trace, _gf_coef_names, ci_prob=ctx.reporting.ci_prob,
         causal_terms=gf_causal_terms,
     )
     save_table(ctx, "factor_summary", fs)
-    save_association_forest(ctx, _gf_coef_names(spec, adjust_for), gf_causal_terms)
+    save_association_forest(ctx, _gf_coef_names, gf_causal_terms)
     print_table(
         ranked_dataframe_table(
             fs,
@@ -343,6 +287,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             spec,
             built.prepared,
             adjust_for=adjust_for,
+            requested_adjust_for=plan.adjust_for,
             ability_covariate=ability_covariate,
             baseline_symbol=spec.outcome_symbol,
             skill_baselines=skill_symbols,
@@ -515,7 +460,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # associations, not the randomised period-1 contrast, so every fitted observation
     # counts. That choice is recorded in config.json (meta_extra) as well as the note.
     assoc_terms = _gf_association_terms(
-        spec, built, adjust_for=adjust_for, off_floor=off_floor
+        plan, built, adjust_for=adjust_for, off_floor=off_floor
     )
     if assoc_terms:
         n_assoc = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
