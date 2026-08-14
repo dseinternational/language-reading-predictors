@@ -42,9 +42,10 @@ class StudyMeasure:
     column; ``n_trials`` is the Beta-Binomial denominator (the test ceiling).
     ``n_trials_confirmed`` records whether that ceiling is the instrument's true
     maximum (as opposed to an observed-max placeholder), mirroring the same flag
-    on :class:`measures.Measure`. ``instrument_identity_confirmed`` is separate:
-    a denominator can be documented for a named scale while the source column's
-    actual scale identity remains unresolved.
+    on :class:`measures.Measure`. ``instrument_identity_confirmed`` and
+    ``score_definition_confirmed`` are separate: the named instrument may be known
+    while either the source column's scale identity or its scoring representation
+    remains unresolved.
     """
 
     symbol: str
@@ -54,6 +55,8 @@ class StudyMeasure:
     n_trials_confirmed: bool = False
     instrument_identity_confirmed: bool = False
     instrument_identity_note: str = ""
+    score_definition_confirmed: bool = False
+    score_definition_note: str = ""
 
 
 @dataclass(frozen=True)
@@ -116,14 +119,18 @@ RLM_GROUP_LABELS: dict[int, str] = {
 #   short form, not the long form.
 #
 # Still **provisional** (observed extract maximum; ``n_trials_confirmed=False``),
-# pending the instrument manuals (follow-up-plan decision 3):
+# pending the instrument manuals or cohort score-definition evidence
+# (follow-up-plan decision 3):
 #
 # - ``basspel``  18 - the 1983 BAS has no spelling scale; the instrument is
 #   almost certainly the stand-alone BAS Spelling Scale (Elliott, 1992), whose
 #   first-edition item count is unverified (the BAS-II revision has 75 words),
 #   so the true denominator likely exceeds 18.
-# - ``basnum``   60 - 1983 Basic Number Skills item count unverified; the
-#   observed 60 rules out the 46-item BAS-II scale, so the ceiling is >= 60.
+# - ``basnum``   60 - the observed maximum is incompatible with published
+#   descriptions of the first-edition BAS Basic Number Skills Forms B and C,
+#   which each have 34 items and a maximum raw score of 34. The stored 0-60
+#   variable's form/scoring definition is therefore unresolved, not merely its
+#   denominator (2026-08-14 audit; #338/#409).
 # - ``woco``     31 - WORD Reading Comprehension item count unverified (the
 #   parent WIAT subtest is commonly described as 38 items).
 #
@@ -138,6 +145,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS word reading",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=True,
     ),
     "basspel": StudyMeasure(
         symbol="basspel",
@@ -146,6 +154,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS spelling",
         n_trials_confirmed=False,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=True,
     ),
     "woco": StudyMeasure(
         symbol="woco",
@@ -154,6 +163,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="WORD reading comprehension",
         n_trials_confirmed=False,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=True,
     ),
     "bpvs": StudyMeasure(
         symbol="bpvs",
@@ -162,6 +172,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BPVS receptive vocabulary",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=True,
     ),
     "trog": StudyMeasure(
         symbol="trog",
@@ -170,6 +181,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="TROG receptive grammar",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=True,
     ),
     "basdig": StudyMeasure(
         symbol="basdig",
@@ -178,6 +190,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS recall of digits",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=True,
     ),
     "bassim": StudyMeasure(
         symbol="bassim",
@@ -186,6 +199,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS similarities/verbal reasoning",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=True,
     ),
     "basnum": StudyMeasure(
         symbol="basnum",
@@ -194,6 +208,15 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS number skills",
         n_trials_confirmed=False,
         instrument_identity_confirmed=True,
+        score_definition_confirmed=False,
+        score_definition_note=(
+            "The prepared extract contains integer scores from 0 to 60, but "
+            "independent published descriptions of the 1983 BAS Basic Number "
+            "Skills Forms B and C give 34 items and a maximum raw score of 34. "
+            "Confirm the administered form and whether the stored value is an "
+            "item-correct raw score, a transformed ability score, or another "
+            "composite before choosing its likelihood."
+        ),
     ),
     "basmat": StudyMeasure(
         symbol="basmat",
@@ -207,6 +230,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
             "identifies Raven Coloured Progressive Matrices; confirm whether this is "
             "the 28-item BAS Matrices scale or the 36-item Raven measure."
         ),
+        score_definition_confirmed=True,
     ),
 }
 
@@ -281,9 +305,12 @@ def publication_input_contract(
             "n_trials": measure.n_trials,
             "n_trials_confirmed": measure.n_trials_confirmed,
             "instrument_identity_confirmed": measure.instrument_identity_confirmed,
+            "score_definition_confirmed": measure.score_definition_confirmed,
         }
         if measure.instrument_identity_note:
             record["instrument_identity_note"] = measure.instrument_identity_note
+        if measure.score_definition_note:
+            record["score_definition_note"] = measure.score_definition_note
         measure_records[symbol] = record
         if not measure.n_trials_confirmed:
             blockers.append(
@@ -296,12 +323,18 @@ def publication_input_contract(
                 or "the source instrument identity is unverified"
             )
             blockers.append(f"{symbol}: instrument identity is unresolved: {detail}")
+        if not measure.score_definition_confirmed:
+            detail = (
+                measure.score_definition_note
+                or "the source score definition is unverified"
+            )
+            blockers.append(f"{symbol}: score definition is unresolved: {detail}")
 
     if not selected:
         blockers.append("no fitted study measures were recorded")
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "study_id": study_id,
         "publication_ready": not blockers,
         "dataset": {

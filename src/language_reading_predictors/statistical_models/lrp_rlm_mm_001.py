@@ -23,6 +23,13 @@ factor scale with that assumption and the report says so. Loadings are shared
 across the three reading groups - a pooled measurement model with the
 measurement-invariance assumption stated, not tested, at this n. Descriptive
 associations only; nothing causal exists in this cohort.
+
+``basnum`` remains a provisional indicator: published descriptions of the 1983
+BAS Basic Number Skills Forms B and C each give 34 items and a maximum raw score
+of 34, while the prepared column reaches 60. Standardising that column does not
+resolve its score identity. The central fit-time input contract therefore records
+both its unconfirmed denominator and unresolved score definition and withholds
+scientific findings until the source transformation is identified.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

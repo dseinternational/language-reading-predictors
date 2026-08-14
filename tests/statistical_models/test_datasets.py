@@ -258,6 +258,18 @@ def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
     provisional = publication_input_contract("rlm", ("basread", "basnum"))
     assert any("basnum" in blocker for blocker in provisional["blockers"])
     assert provisional["measures"]["basnum"]["n_trials_confirmed"] is False
+    assert provisional["schema_version"] == 2
+    assert (
+        provisional["measures"]["basnum"]["score_definition_confirmed"]
+        is False
+    )
+    assert any(
+        "basnum: score definition is unresolved" in blocker
+        for blocker in provisional["blockers"]
+    )
+    assert "maximum raw score of 34" in provisional["measures"]["basnum"][
+        "score_definition_note"
+    ]
 
     identity = publication_input_contract("rlm", ("basmat",))
     assert any("instrument identity" in blocker for blocker in identity["blockers"])
@@ -307,6 +319,17 @@ def test_rlm_provisional_ceilings(symbol, ceiling):
     # Provisional: the ceiling is the observed maximum, not a confirmed instrument
     # maximum, so this flag must stay False until a data-owner confirms it.
     assert m.n_trials_confirmed is False
+
+
+def test_only_basnum_has_an_unresolved_score_definition():
+    _dataset_spec, measures = resolve_dataset("rlm")
+
+    unresolved = {
+        symbol for symbol, measure in measures.items() if not measure.score_definition_confirmed
+    }
+
+    assert unresolved == {"basnum"}
+    assert "Forms B and C" in measures["basnum"].score_definition_note
 
 
 def test_resolve_unknown_study_raises():

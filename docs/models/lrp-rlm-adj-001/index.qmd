@@ -34,6 +34,8 @@ verbal memory (`basdig`), verbal reasoning (`bassim`) and number skills
 non-interpretable group-nuisance dummies, per the 2026-07-16 data-owner
 decisions (pooled + nuisance; horizon w1→w3, the audited core window).
 
+_Unresolved number-score input._ The prepared `basnum` predictor reaches 60, but published descriptions of the 1983 BAS Basic Number Skills Forms B and C each specify 34 items and a maximum raw score of 34. Its form/scoring definition and bounded denominator are therefore unresolved. The fit remains available for diagnostics, while the fit-time input contract withholds its scientific findings until that predictor is identified and transformed appropriately.
+
 _Adjusted associations only — nothing causal exists in this cohort._ The Byrne cohort has **no intervention**: `readgrp` is an observational cohort
 factor and every coefficient here is a between-child **adjusted association**
 (`causal_status="none"`). Read with the Table-2 fallacy in mind — each

@@ -36,6 +36,8 @@ and the construct-structure summary that precedes any coupling model (Phase
 C). Wave 3 is used because it is the only wave carrying the full ability triad
 (`basmat` is wave-3+ only).
 
+_Unresolved number-score input._ The prepared `basnum` indicator reaches 60, but published descriptions of the 1983 BAS Basic Number Skills Forms B and C each specify 34 items and a maximum raw score of 34. Its form/scoring definition and bounded denominator are therefore unresolved. Standardising that column for this measurement model does not resolve its construct or scoring identity, so the fit-time input contract withholds scientific findings until the source score is identified.
+
 _Sampling quality — no model-level exception._ The earlier permanent waiver in #412 was retired by the 2026-08-02 divergence-qualification policy. Factor correlations are covariance and latent-structure quantities, so this model's intended findings require zero divergences as well as passing R-hat, ESS and BFMI. The artefact-driven badge above is authoritative for the current trace; after any failed gate, the shared report setup withholds the scientific result tables.
 
 _Measurement / triangulation only — nothing causal._ Every factor correlation is a **descriptive association** in an observational

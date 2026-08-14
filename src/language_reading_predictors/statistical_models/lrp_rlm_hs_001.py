@@ -13,6 +13,12 @@ horseshoe, n = 69; 2026-07-16 sign-off). There is no gradient-boosting layer
 for the Byrne cohort, so no GB comparison table is produced - the ranking
 stands against the adjusted model's mutually-adjusted slopes instead. Not
 causal; a which-predictors-carry-signal read only.
+
+``basnum`` remains a provisional input: published descriptions of the 1983 BAS
+Basic Number Skills Forms B and C each give 34 items and a maximum raw score of
+34, while the prepared column reaches 60. The central fit-time input contract
+therefore records both its unconfirmed denominator and unresolved score definition
+and withholds scientific findings until the source transformation is identified.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

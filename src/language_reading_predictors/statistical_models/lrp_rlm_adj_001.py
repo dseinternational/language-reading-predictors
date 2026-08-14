@@ -17,6 +17,12 @@ bivariate (baseline-only-adjusted) comparison fit per predictor and a
 slope-prior sensitivity sweep are reported alongside, per the RLI family
 convention.
 
+``basnum`` remains a provisional input: published descriptions of the 1983 BAS
+Basic Number Skills Forms B and C each give 34 items and a maximum raw score of
+34, while the prepared column reaches 60. The central fit-time input contract
+therefore records both its unconfirmed denominator and unresolved score definition
+and withholds scientific findings until the source transformation is identified.
+
 The pre-specified Down-syndrome-only companion ``lrp-rlm-adj-002`` uses a
 reduced three-skill set without age: carrying this full seven-slope
 specification into that 22-child complete-case frame would leave the mutually
