@@ -89,12 +89,26 @@ _CA_LABELS = {
 }
 
 
-def _ca_label(sym: str) -> str:
+def _ca_label(sym: str, labels: dict[str, str] | None = None) -> str:
+    if labels and sym in labels:
+        return labels[sym]
     return _CA_LABELS.get(sym, sym)
 
 
+def _rlm_group_nuisance_names(frame) -> list[str]:
+    codes = sorted(set(np.asarray(frame.group_code, dtype=int)))
+    counts = {code: int((frame.group_code == code).sum()) for code in codes}
+    reference = max(counts, key=lambda code: (counts[code], -code))
+    return [
+        "beta_group_nuisance_"
+        + frame.group_labels[code].lower().replace(" ", "_").replace("-", "_")
+        for code in codes
+        if code != reference
+    ]
+
+
 def _ca_wave_predictors(
-    wave_prepared, predictor_symbols: list[str]
+    wave_prepared, predictor_symbols: list[str], measure_catalogue
 ) -> tuple[list[str], list[str]]:
     """Split ``predictor_symbols`` into those usable at this wave and those dropped.
 
@@ -103,8 +117,6 @@ def _ca_wave_predictors(
     or constant predictor at a wave carries no association and cannot be standardised).
     Returns ``(available, dropped)`` preserving input order.
     """
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
     available, dropped = [], []
     for sym in predictor_symbols:
         vals = np.asarray(wave_prepared.post_counts.get(sym), dtype=float)
@@ -112,12 +124,16 @@ def _ca_wave_predictors(
         if finite.size < 2:
             dropped.append(sym)
             continue
-        sd = float(np.nanstd(logit_safe(vals, MEASURES[sym].n_trials), ddof=1))
+        sd = float(
+            np.nanstd(logit_safe(vals, measure_catalogue[sym].n_trials), ddof=1)
+        )
         (available if np.isfinite(sd) and sd > 0 else dropped).append(sym)
     return available, dropped
 
 
-def _ca_concurrent_terms(wave_prepared, predictor_symbols: list[str]) -> list:
+def _ca_concurrent_terms(
+    wave_prepared, predictor_symbols: list[str], measure_catalogue
+) -> list:
     """``ConcurrentTerm`` list for a wave's items-scale marginals (#312).
 
     Recomputes, per predictor, the same-wave logit SD (matching the factory's
@@ -126,11 +142,9 @@ def _ca_concurrent_terms(wave_prepared, predictor_symbols: list[str]) -> list:
     not span 3 %-50 % of predictor scales that differ tenfold (the #310/#325 caveat,
     applied here from the outset).
     """
-    from language_reading_predictors.statistical_models.measures import MEASURES
-
     terms = []
     for sym in predictor_symbols:
-        m = MEASURES[sym]
+        m = measure_catalogue[sym]
         vals = np.asarray(wave_prepared.post_counts[sym], dtype=float)
         _z, scaler = standardise(logit_safe(vals, m.n_trials))
         mean_items = float(np.nanmean(vals))
@@ -349,6 +363,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     plan = resolve_concurrent_run_plan(spec)
     outcome = plan.outcome_symbol
     predictor_symbols = list(plan.predictor_symbols)
+    port = plan.port
     # Trait covariates (non-verbal ability, hearing, speech, phonological memory),
     # aligned with the gains panel. They are t1-measured, so they enter as
     # baseline covariates broadcast across the waves (there is no per-wave value).
@@ -358,30 +373,66 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     # ``predictor_slope_sigma`` is None on the plan when a spec does not set it, so the
     # build_concurrent_model default is filled via default_of here — the anti-drift
     # single source #394 retains until typed family defaults replace it.
+    factory_for_defaults = (
+        _factories.build_concurrent_model
+        if port == "rli"
+        else _factories.build_rlm_concurrent_model
+    )
     sigma0 = (
         float(plan.predictor_slope_sigma)
         if plan.predictor_slope_sigma is not None
-        else float(
-            default_of(_factories.build_concurrent_model, "predictor_slope_sigma")
-        )
+        else float(default_of(factory_for_defaults, "predictor_slope_sigma"))
     )
 
-    from language_reading_predictors.statistical_models.measures import MEASURES
+    if port == "rli":
+        from language_reading_predictors.statistical_models.measures import (
+            MEASURES as measure_catalogue,
+        )
+
+        labels = {sym: _ca_label(sym) for sym in measure_catalogue}
+    else:
+        from language_reading_predictors.statistical_models.datasets import (
+            resolve_dataset,
+        )
+
+        _dataset, measure_catalogue = resolve_dataset("rlm")
+        labels = {sym: measure.label for sym, measure in measure_catalogue.items()}
 
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
     _report.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
-    N_focal = MEASURES[outcome].n_trials
+    N_focal = measure_catalogue[outcome].n_trials
 
     section_header("Prepare data")
-    prepared_all = load_and_prepare(**plan.prepare_kwargs())
+    if port == "rli":
+        prepared_all = load_and_prepare(**plan.prepare_kwargs())
+        wave_indices = sorted({int(p) for p in np.unique(prepared_all.phase)})
+        requested_wave_subsets = {
+            w: _subset_prepared(prepared_all, prepared_all.phase == w)
+            for w in wave_indices
+        }
+        def display_wave(wave: int) -> int:
+            return wave + 1
+    else:
+        from language_reading_predictors.statistical_models.preprocessing import (
+            load_rlm_concurrent_frames,
+        )
+
+        requested_wave_subsets = load_rlm_concurrent_frames(
+            outcome=outcome,
+            predictor_measures=predictor_symbols,
+            waves=plan.waves,
+            include_age=include_age,
+        )
+        wave_indices = sorted(requested_wave_subsets)
+        def display_wave(wave: int) -> int:
+            return wave
 
     # Timepoints present; each wave's row count and its usable predictor set (a
     # predictor whose same-wave logit has positive variance on the wave's rows —
     # anything constant/all-missing at that wave is dropped, and a wave with no usable
     # predictor is skipped below).
-    wave_indices = sorted({int(p) for p in np.unique(prepared_all.phase)})
     wave_subsets: dict[int, object] = {}
     wave_n: dict[int, int] = {}
     wave_preds: dict[int, list[str]] = {}
@@ -389,15 +440,20 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     wave_covariates: dict[int, list[str]] = {}
     dropped_covariates_by_wave: dict[int, list[str]] = {}
     for w in wave_indices:
-        sub = _subset_prepared(prepared_all, prepared_all.phase == w)
-        keep = ~np.isnan(sub.post_counts[outcome])
-        sub = _subset_prepared(sub, keep)
-        sub, effective_covariates, dropped_covariates = (
-            filter_informative_covariates(sub, covariates)
-        )
+        sub = requested_wave_subsets[w]
+        if port == "rli":
+            keep = ~np.isnan(sub.post_counts[outcome])
+            sub = _subset_prepared(sub, keep)
+            sub, effective_covariates, dropped_covariates = (
+                filter_informative_covariates(sub, covariates)
+            )
+        else:
+            effective_covariates, dropped_covariates = (), ()
         wave_subsets[w] = sub
         wave_n[w] = sub.n_obs
-        wave_preds[w], dropped_by_wave[w] = _ca_wave_predictors(sub, predictor_symbols)
+        wave_preds[w], dropped_by_wave[w] = _ca_wave_predictors(
+            sub, predictor_symbols, measure_catalogue
+        )
         wave_covariates[w] = list(effective_covariates)
         dropped_covariates_by_wave[w] = list(dropped_covariates)
     # Diagnostic anchor = most complete-outcome rows; tie → latest timepoint. This is
@@ -421,11 +477,19 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     print_header(ctx)
 
     def _build(sub, preds, covs, *, age, group):
-        return _factories.build_concurrent_model(
+        if port == "rli":
+            return _factories.build_concurrent_model(
+                sub,
+                outcome_symbol=outcome,
+                predictor_symbols=preds,
+                covariates=covs,
+                include_age=age,
+                include_group=group,
+                predictor_slope_sigma=sigma0,
+            )
+        return _factories.build_rlm_concurrent_model(
             sub,
-            outcome_symbol=outcome,
             predictor_symbols=preds,
-            covariates=covs,
             include_age=age,
             include_group=group,
             predictor_slope_sigma=sigma0,
@@ -438,7 +502,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         sub = wave_subsets[w]
         preds = wave_preds[w]
         covs = wave_covariates[w]
-        tp = w + 1  # 1-based timepoint for reports
+        tp = display_wave(w)
         if not preds:
             rprint(f"[yellow]Concurrent: wave t{tp} has no usable predictors; skipped.[/yellow]")
             return
@@ -466,7 +530,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     primary_sub = wave_subsets[primary_wave]
     primary_preds = wave_preds[primary_wave]
     primary_covs = wave_covariates[primary_wave]
-    section_header(f"Build model (primary wave t{primary_wave + 1})")
+    primary_tp = display_wave(primary_wave)
+    section_header(f"Build model (primary wave t{primary_tp})")
     primary_built = _build(
         primary_sub,
         primary_preds,
@@ -491,7 +556,10 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     if include_age:
         diag_vars.append("beta_age")
     if include_group:
-        diag_vars.append("beta_group_nuisance")
+        if port == "rli":
+            diag_vars.append("beta_group_nuisance")
+        else:
+            diag_vars.extend(_rlm_group_nuisance_names(primary_built.prepared))
     diag_vars.extend(f"gamma_{name}" for name in prim["covariates"])
 
     def _finish_wave_fits(c: StatisticalFitContext) -> None:
@@ -509,7 +577,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     ) -> None:
         primary_conv = _diag.subfit_convergence(
             c.trace,
-            label=f"{spec.model_id} primary wave t{primary_wave + 1}",
+            label=f"{spec.model_id} primary wave t{primary_tp}",
             var_names=[rv.name for rv in c.model.free_RVs],
         )
         primary_conv["converged"] = bool(
@@ -543,8 +611,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             [
                 (
                     f"beta_{s}",
-                    f"the adjusted association of +1 SD {_ca_label(s)} with "
-                    f"{MEASURES[outcome].label} at t{primary_wave + 1}",
+                    f"the adjusted association of +1 SD {_ca_label(s, labels)} with "
+                    f"{measure_catalogue[outcome].label} at t{primary_tp}",
                 )
                 for s in prim["preds"]
             ],
@@ -561,7 +629,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     for w in wave_indices:
         if w not in wave_fits:
             continue
-        tp = w + 1
+        tp = display_wave(w)
         fit = wave_fits[w]
         sub, preds, trace = fit["prepared"], fit["preds"], fit["trace"]
         covs = fit["covariates"]
@@ -584,14 +652,16 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         )
 
         # Natural-scale marginals for the mutually-adjusted associations at this wave.
-        terms = _ca_concurrent_terms(sub, preds)
+        terms = _ca_concurrent_terms(sub, preds, measure_catalogue)
         terms_by_symbol = {term.label: term for term in terms}
         adj_mdf = _report.concurrent_marginals(
             trace, terms=terms, n_trials=N_focal, ci_prob=hdi
         )
         adj_mdf.insert(0, "timepoint", tp)
         adj_mdf.insert(1, "adjustment", "adjusted")
-        adj_mdf["label"] = adj_mdf["term"].map(_ca_label)
+        adj_mdf["label"] = adj_mdf["term"].map(
+            lambda sym: _ca_label(sym, labels)
+        )
         adj_mdf["converged"] = adj_conv["converged"]
         marg_frames.append(adj_mdf)
 
@@ -616,7 +686,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             )
             biv_mdf.insert(0, "timepoint", tp)
             biv_mdf.insert(1, "adjustment", "bivariate")
-            biv_mdf["label"] = biv_mdf["term"].map(_ca_label)
+            biv_mdf["label"] = biv_mdf["term"].map(
+                lambda key: _ca_label(key, labels)
+            )
             biv_mdf["converged"] = bconv["converged"]
             marg_frames.append(biv_mdf)
 
@@ -627,7 +699,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                 {
                     "timepoint": tp,
                     "predictor": sym,
-                    "label": _ca_label(sym),
+                    "label": _ca_label(sym, labels),
                     "n": sub.n_obs,
                     "predictor_n": predictor_n,
                     "predictor_imputed_n": sub.n_obs - predictor_n,
@@ -684,51 +756,106 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             precision=3,
         )
     )
-    _plot_concurrent(ctx, assoc_df, hdi, primary_tp=primary_wave + 1)
+    _plot_concurrent(ctx, assoc_df, hdi, primary_tp=primary_tp)
 
     all_fits_converged = bool(
         not fit_diagnostics_df.empty
         and fit_diagnostics_df["converged"].eq(True).all()
     )
+
+    def _adjustment_record(wave: int) -> dict:
+        if port == "rli":
+            return {
+                **effective_adjustment(
+                    spec,
+                    wave_subsets[wave],
+                    adjust_for=tuple(wave_covariates[wave]),
+                ),
+                "requested": covariates,
+                "dropped_constant": dropped_covariates_by_wave[wave],
+            }
+        fitted = [
+            {
+                "term": symbol,
+                "kind": "concurrent_measure",
+                "source_column": measure_catalogue[symbol].column,
+                "wave": display_wave(wave),
+                "missing_indicator": False,
+            }
+            for symbol in wave_preds[wave]
+        ]
+        if include_age:
+            fitted.append(
+                {
+                    "term": "age",
+                    "kind": "covariate",
+                    "source_column": "age",
+                    "wave": display_wave(wave),
+                    "missing_indicator": False,
+                }
+            )
+        if include_group:
+            fitted.append(
+                {
+                    "term": "readgrp",
+                    "kind": "group_nuisance",
+                    "source_column": "readgrp",
+                    "wave": "time_invariant",
+                    "missing_indicator": False,
+                }
+            )
+        return {
+            "requested": [
+                *predictor_symbols,
+                *(("age",) if include_age else ()),
+                *(("readgrp",) if include_group else ()),
+            ],
+            "fitted": fitted,
+            "dropped_constant": dropped_by_wave[wave],
+        }
+
     meta_extra = {
+        "study_id": plan.study_id,
         "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
         "estimand": "concurrent conditional associations (per wave)",
         "predictors": prim["preds"],
         "predictors_requested": predictor_symbols,
-        "dropped_by_wave": {f"t{w + 1}": dropped_by_wave[w] for w in wave_indices},
-        "primary_timepoint": primary_wave + 1,
-        "diagnostic_anchor_timepoint": primary_wave + 1,
-        "timepoints": [w + 1 for w in wave_indices],
-        "wave_n": {f"t{w + 1}": wave_n[w] for w in wave_indices},
+        "dropped_by_wave": {
+            f"t{display_wave(w)}": dropped_by_wave[w] for w in wave_indices
+        },
+        "primary_timepoint": primary_tp,
+        "diagnostic_anchor_timepoint": primary_tp,
+        "timepoints": [display_wave(w) for w in wave_indices],
+        "wave_n": {f"t{display_wave(w)}": wave_n[w] for w in wave_indices},
         "include_age": include_age,
         "include_group_nuisance": include_group,
         "bivariate_adjustment": (
-            "single-skill comparator; same effective trait covariates retained; "
+            "single-skill comparator; same effective other covariates retained; "
             "age, group and other skills omitted"
         ),
         "covariates_requested": covariates,
         "effective_covariates_by_wave": {
-            f"t{w + 1}": wave_covariates[w] for w in wave_indices
+            f"t{display_wave(w)}": wave_covariates[w] for w in wave_indices
         },
         "dropped_covariates_by_wave": {
-            f"t{w + 1}": dropped_covariates_by_wave[w] for w in wave_indices
+            f"t{display_wave(w)}": dropped_covariates_by_wave[w]
+            for w in wave_indices
         },
         "effective_adjustment_by_timepoint": {
-            f"t{w + 1}": {
-                **effective_adjustment(
-                    spec,
-                    wave_subsets[w],
-                    adjust_for=tuple(wave_covariates[w]),
-                ),
-                "requested": covariates,
-                "dropped_constant": dropped_covariates_by_wave[w],
-            }
+            f"t{display_wave(w)}": _adjustment_record(w)
             for w in wave_indices
         },
         "averaging_population": "all fitted rows at the wave (descriptive)",
         "predictor_slope_sigma": sigma0,
         "standardisation": (
             "same-wave Haldane-corrected logit, standardised within each wave"
+        ),
+        "confirmed_measure_subset": port == "rlm",
+        "extension_wave_caveat": (
+            "wave 4 is an available-case, attrition-sensitive extension beyond the "
+            "paper's audited waves 1-3"
+            if port == "rlm" and 4 in plan.waves
+            else None
         ),
         "n_published_fits": int(len(fit_diagnostics_df)),
         "all_published_fits_converged": all_fits_converged,
@@ -766,7 +893,7 @@ def _plot_concurrent(
     plt.errorbar(
         d["biv_mean"], y - 0.12,
         xerr=[d["biv_mean"] - d["biv_lo"], d["biv_hi"] - d["biv_mean"]],
-        fmt="s", color="#999999", capsize=3, label="single-skill (trait-adjusted)",
+        fmt="s", color="#999999", capsize=3, label="single-skill comparator",
     )
     plt.axvline(0.0, color="grey", ls=":", lw=1)
     plt.yticks(y, d["label"])

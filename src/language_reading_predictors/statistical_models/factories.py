@@ -82,6 +82,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     Standardiser,
     WavePanel,
     filter_informative_covariates,
+    logit_safe,
     standardise,
 )
 
@@ -6338,6 +6339,76 @@ def _rlm_group_nuisance(frame, eta):
         beta_g = pm.Normal(f"beta_group_nuisance_{slug}", mu=0.0, sigma=1.0)
         eta = eta + beta_g * d
     return eta
+
+
+def build_rlm_concurrent_model(
+    frame,
+    *,
+    predictor_symbols: Iterable[str],
+    include_age: bool = True,
+    include_group: bool = True,
+    predictor_slope_sigma: float = 0.3,
+) -> BuiltModel[EmptyPayload]:
+    """One-wave Byrne concurrent conditional-associations model (#409 C1).
+
+    This is the RLM adapter for :func:`build_concurrent_model`: a Beta-Binomial
+    regression of the focal count on mutually adjusted same-wave predictor logits,
+    optional age, and observational reading-group nuisance dummies. Predictor
+    missingness is mean-imputed at zero after within-wave standardisation, matching
+    the established family policy. Every reported slope is descriptive.
+    """
+    outcome = frame.outcome
+    if outcome not in frame.post_counts:
+        raise KeyError(f"Outcome {outcome!r} missing from RLM concurrent frame")
+    keys = tuple(predictor_symbols)
+    missing = [key for key in keys if key not in frame.post_counts]
+    if missing:
+        raise KeyError(f"Predictors {missing} missing from RLM concurrent frame")
+
+    post = np.asarray(frame.post_counts[outcome], dtype=np.int64)
+    n_trials = frame.n_trials[outcome]
+    coords = {"obs_id": np.arange(frame.n_obs)}
+    with pm.Model(coords=coords) as model:
+        alpha = _priors.alpha_prior(sigma=1.5).to_pymc("alpha")
+        eta = alpha
+        for key in keys:
+            z, _ = standardise(
+                logit_safe(frame.post_counts[key], frame.n_trials[key])
+            )
+            predictor = pm.Data(
+                f"z_{key}", np.nan_to_num(z), dims="obs_id"
+            )
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"beta_{key}"
+            )
+            eta = eta + beta * predictor
+
+        if include_age:
+            age = pm.Data(
+                "z_age",
+                np.nan_to_num(np.asarray(frame.A_std, dtype=float)),
+                dims="obs_id",
+            )
+            beta_age = _priors.predictor_slope_prior(
+                predictor_slope_sigma
+            ).to_pymc("beta_age")
+            eta = eta + beta_age * age
+
+        if include_group:
+            eta = _rlm_group_nuisance(frame, eta)
+
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post",
+            eta,
+            n_trials=n_trials,
+            kappa=kappa,
+            observed=post,
+            dims="obs_id",
+        )
+
+    return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())
 
 
 def build_rlm_adjusted_model(

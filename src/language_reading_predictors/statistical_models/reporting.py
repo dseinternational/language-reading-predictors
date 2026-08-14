@@ -6180,6 +6180,20 @@ def _kf_build_concurrent(output_dir, config: Mapping) -> list[dict[str, str]]:
         )
     row = _kf_most_resolved_row(rows, prob_col="prob_pos")
     label = _kf_plain_label(row.get("label", row["term"]))
+    if config.get("study_id", "rli") == "rli":
+        causal_note = (
+            "All concurrent coefficients condition on post-treatment skills and "
+            "are descriptive associations, not causal pathways. Any fitted "
+            "missingness-indicator coefficients are nuisance subgroup offsets, not "
+            "skill effects."
+        )
+    else:
+        causal_note = (
+            "All concurrent coefficients condition on same-wave skills in an "
+            "observational cohort and are descriptive associations, not causal "
+            "pathways. Reading-group coefficients are nuisance adjustment, not "
+            "group effects."
+        )
     return [
         _kf_sentence(
             f"At t{int(_kf_float(row['timepoint']))}, the clearest adjusted "
@@ -6198,10 +6212,7 @@ def _kf_build_concurrent(output_dir, config: Mapping) -> list[dict[str, str]]:
             "confidence",
         ),
         _kf_sentence(
-            "All concurrent coefficients condition on post-treatment skills and "
-            "are descriptive associations, not causal pathways. Any fitted "
-            "missingness-indicator coefficients are nuisance subgroup offsets, not "
-            "skill effects.",
+            causal_note,
             "causal",
         ),
     ]

@@ -33,7 +33,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from typing import Any
+from typing import Any, Literal
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -50,6 +50,7 @@ _LEGACY_KEYS = frozenset(
         "include_age",
         "include_group",
         "predictor_slope_sigma",
+        "waves",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -71,6 +72,27 @@ def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
     return out
 
 
+def _optional_positive_ints(
+    value: Any, *, name: str
+) -> tuple[int, ...] | None:
+    if value is None:
+        return None
+    if isinstance(value, (str, bytes)) or not hasattr(value, "__iter__"):
+        raise TypeError(f"{name} must be a sequence of integers or None")
+    out = tuple(value)
+    if not out:
+        raise ValueError(f"{name} cannot be empty")
+    if any(isinstance(item, bool) or not isinstance(item, int) for item in out):
+        raise TypeError(f"{name} must contain integers")
+    if any(item < 1 for item in out):
+        raise ValueError(f"{name} must contain positive integers")
+    if len(out) != len(set(out)):
+        raise ValueError(f"{name} contains duplicates")
+    if tuple(sorted(out)) != out:
+        raise ValueError(f"{name} must be in increasing order")
+    return out
+
+
 @dataclass(frozen=True, slots=True)
 class ConcurrentModelSettings:
     """Immutable settings declared by a single concurrent-associations model module.
@@ -87,6 +109,7 @@ class ConcurrentModelSettings:
     include_age: bool = True
     include_group: bool = True
     predictor_slope_sigma: float | None = None
+    waves: tuple[int, ...] | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -113,6 +136,9 @@ class ConcurrentModelSettings:
             if sigma <= 0:
                 raise ValueError("predictor_slope_sigma must be positive")
             object.__setattr__(self, "predictor_slope_sigma", float(sigma))
+        object.__setattr__(
+            self, "waves", _optional_positive_ints(self.waves, name="waves")
+        )
 
     @classmethod
     def from_legacy_extra(
@@ -138,6 +164,7 @@ class ConcurrentModelSettings:
             include_age=extra.get("include_age", True),
             include_group=extra.get("include_group", True),
             predictor_slope_sigma=extra.get("predictor_slope_sigma"),
+            waves=extra.get("waves"),
         )
 
 
@@ -146,6 +173,8 @@ class ConcurrentRunPlan:
     """Concrete, validated instructions consumed by preparation and modelling."""
 
     model_id: str
+    study_id: Literal["rli", "rlm"]
+    port: Literal["rli", "rlm"]
     outcome_symbol: str
     settings_source: str
     predictor_symbols: tuple[str, ...]
@@ -155,6 +184,7 @@ class ConcurrentRunPlan:
     include_group: bool
     # ``None`` -> the pipeline fills the build_concurrent_model default via _default_of.
     predictor_slope_sigma: float | None
+    waves: tuple[int, ...]
     # Recorded audit metadata (#394 pillar 4).
     design: str
     estimand: str
@@ -177,6 +207,8 @@ class ConcurrentRunPlan:
         The concurrent family loads the per-wave ``levels`` panel with the outcome and
         its predictor skills as bounded-count measures; the trait covariates are
         t1-measured and enter as baseline covariates broadcast across the waves."""
+        if self.port != "rli":
+            raise ValueError("prepare_kwargs applies only to the RLI concurrent port")
         filter_only_indicators = tuple(
             MISSINGNESS_INDICATOR_PAIRS[name]
             for name in self.require_observed
@@ -220,7 +252,8 @@ class ConcurrentRunPlan:
             f"covariates: {covs}. Age term: {self.include_age}. Group nuisance term: "
             f"{self.include_group}. Complete-case covariates: {complete}. "
             f"Predictor-slope prior sigma: {sigma}. Missingness indicators are "
-            "nuisance subgroup offsets, not skill effects.\n\n"
+            "nuisance subgroup offsets, not skill effects. Fitted waves: "
+            f"{', '.join(map(str, self.waves))}.\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate and posterior-predictive checks pass. The saved "
@@ -321,47 +354,113 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
         )
 
     settings, source = declared_concurrent_settings(spec)
-    _validate_missing_covariate_policy(
-        model_id=spec.model_id,
-        covariates=settings.covariates,
-        require_observed=settings.require_observed,
-    )
+    if spec.study_id not in {"rli", "rlm"}:
+        raise ValueError(
+            f"{spec.model_id}: concurrent supports study_id 'rli' or 'rlm', "
+            f"got {spec.study_id!r}"
+        )
+    port: Literal["rli", "rlm"] = spec.study_id
+    waves: tuple[int, ...]
+    if port == "rli":
+        _validate_missing_covariate_policy(
+            model_id=spec.model_id,
+            covariates=settings.covariates,
+            require_observed=settings.require_observed,
+        )
+        if settings.waves is not None:
+            raise ValueError(
+                f"{spec.model_id}: waves is an RLM-only concurrent setting"
+            )
+        waves = (1, 2, 3, 4)
+    else:
+        if settings.covariates or settings.require_observed:
+            raise ValueError(
+                f"{spec.model_id}: the RLM concurrent port does not support RLI "
+                "trait covariates or require_observed"
+            )
+        waves = settings.waves or (1, 2, 3, 4)
     own = spec.outcome_symbol
 
+    if not settings.predictor_symbols:
+        raise ValueError(f"{spec.model_id}: predictor_symbols cannot be empty")
+    if len(settings.predictor_symbols) != len(set(settings.predictor_symbols)):
+        raise ValueError(f"{spec.model_id}: predictor_symbols contains duplicates")
+
+    if port == "rlm":
+        from language_reading_predictors.statistical_models.datasets import (
+            resolve_dataset,
+        )
+
+        _dataset, measures = resolve_dataset("rlm")
+        if own in settings.predictor_symbols:
+            raise ValueError(
+                f"{spec.model_id}: the outcome cannot also be a predictor"
+            )
+        requested = (own, *settings.predictor_symbols)
+        unknown = sorted(set(requested) - set(measures))
+        if unknown:
+            raise ValueError(
+                f"{spec.model_id}: unknown RLM measure(s): {', '.join(unknown)}"
+            )
+        provisional = [
+            sym
+            for sym in requested
+            if not measures[sym].n_trials_confirmed
+            or not measures[sym].instrument_identity_confirmed
+        ]
+        if provisional:
+            raise ValueError(
+                f"{spec.model_id}: RLM concurrent models require confirmed "
+                "denominators and instrument identities; unresolved: "
+                f"{', '.join(provisional)}"
+            )
+
+    cohort = "RLI intervention cohort" if port == "rli" else "Byrne observational cohort"
     design = (
-        "Per-wave concurrent conditional associations: at each timepoint a "
-        "between-child Beta-Binomial regression of the outcome level on the "
-        "standardised same-wave logits of the predictor skills, plus optional age and "
-        "a group nuisance term. Four cross-sectional fits reported side by side, each "
-        "with a matched single-skill refit retaining the same trait covariates."
+        f"Per-wave concurrent conditional associations in the {cohort}: at each "
+        "timepoint a between-child Beta-Binomial regression of the outcome level on "
+        "the standardised same-wave logits of the predictor skills, plus optional "
+        f"age and a group nuisance term. Waves {', '.join(map(str, waves))} are "
+        "reported side by side, each with a matched single-skill refit retaining "
+        "the same declared covariates."
     )
     estimand = (
         "Adjusted per-wave conditional associations (per +1 SD of each predictor's "
         "same-wave logit), reported alongside a reduced-skill comparator that keeps "
-        "the same trait adjustment but omits age, group and the other skills. "
-        "No causal quantity is estimated: conditioning on contemporaneous "
-        "post-treatment skill levels is intentional and the Table-2 fallacy applies."
+        "the same other declared covariates but omits age, group and the other skills. "
+        "No causal quantity is estimated: conditioning on contemporaneous skill "
+        "levels is intentional and the Table-2 fallacy applies."
     )
     causal_status = (
         "Associational only. The family makes no causal claim; every coefficient is a "
-        "latent-ability-confounded adjusted association at a wave, never a cause."
+        "potentially residual-confounded adjusted association at a wave, never a cause."
     )
     analysis_population = (
-        "Available-case children observed at each wave (about 53 per wave, "
-        "outcome-complete). The reported associations average over the fitted rows at "
-        "each wave -- a descriptive averaging population."
+        "Available-case children with the focal outcome observed at each requested "
+        "wave. The reported associations average over the fitted rows at each wave -- "
+        "a descriptive averaging population."
     )
-    missing_data_assumption = (
-        "Rows missing the focal outcome are dropped (an outcome cannot be imputed); "
-        "missing skill-predictor values are mean-imputed for this descriptive read. "
-        "Filled trait covariates must either carry their paired missingness indicator "
-        "as a nuisance subgroup offset or be declared complete-case through "
-        "require_observed. A paired indicator is fitted only when it varies on the "
-        "wave's outcome-complete rows. Neither policy guarantees unbiased associations."
-    )
+    if port == "rli":
+        missing_data_assumption = (
+            "Rows missing the focal outcome are dropped (an outcome cannot be "
+            "imputed); missing skill-predictor values are mean-imputed for this "
+            "descriptive read. Filled trait covariates must either carry their paired "
+            "missingness indicator as a nuisance subgroup offset or be declared "
+            "complete-case through require_observed. Neither policy guarantees "
+            "unbiased associations."
+        )
+    else:
+        missing_data_assumption = (
+            "Rows missing the focal outcome are dropped separately at each wave; "
+            "missing skill-predictor values are mean-imputed to zero after within-wave "
+            "standardisation. Observed and imputed counts are reported. This pragmatic "
+            "available-case policy does not guarantee unbiased associations."
+        )
 
     return ConcurrentRunPlan(
         model_id=spec.model_id,
+        study_id=port,
+        port=port,
         outcome_symbol=own,
         settings_source=source,
         predictor_symbols=settings.predictor_symbols,
@@ -370,6 +469,7 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
         include_age=settings.include_age,
         include_group=settings.include_group,
         predictor_slope_sigma=settings.predictor_slope_sigma,
+        waves=waves,
         design=design,
         estimand=estimand,
         causal_status=causal_status,

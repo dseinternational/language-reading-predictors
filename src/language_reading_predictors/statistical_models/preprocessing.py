@@ -1704,8 +1704,36 @@ def load_longitudinal_panel(
 
 
 # ---------------------------------------------------------------------------
-# Byrne (RLM) cross-sectional frames: span (gain) and wave battery (#338 B/D)
+# Byrne (RLM) cross-sectional frames: concurrent, span, and wave battery (#338 B/D)
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class RlmConcurrentFrame:
+    """One outcome-complete Byrne cross-section for a concurrent model.
+
+    Predictor counts remain missing where the source is missing; the concurrent
+    factory applies the family's declared mean-imputation policy after converting
+    them to standardised Haldane logits. ``group_code`` is the observational
+    reading-group factor and enters only through nuisance dummies.
+    """
+
+    dataset: DatasetSpec
+    outcome: str
+    wave: int
+    subject_ids: np.ndarray
+    group_code: np.ndarray
+    group_labels: dict[int, str]
+    post_counts: dict[str, np.ndarray]
+    n_trials: dict[str, int]
+    A_std: np.ndarray
+    predictor_labels: dict[str, str]
+    n_obs: int
+    n_children: int
+    dropped_rows: int
+    source_n_children: int
+    n_phases: int = 1
+    phase_mode: str = "levels"
 
 
 @dataclass
@@ -1789,6 +1817,135 @@ def _rlm_wave_wide(
     out = rows.set_index(subj)[[grp, *columns]].copy()
     out[grp] = out[grp].astype(int)
     return out
+
+
+def load_rlm_concurrent_frames(
+    *,
+    outcome: str,
+    predictor_measures: Sequence[str],
+    waves: Sequence[int] = (1, 2, 3, 4),
+    include_age: bool = True,
+    path: str | Path | None = None,
+) -> dict[int, RlmConcurrentFrame]:
+    """Load one outcome-complete Byrne frame per requested wave.
+
+    The loader is available-case on the focal outcome at each wave. Predictor
+    missingness is retained for the concurrent family's explicit mean-imputation
+    policy. It validates source keys, stable reading-group membership, registered
+    bounded-count ranges, and the presence of every requested wave before any model
+    is built.
+    """
+    from language_reading_predictors.statistical_models.datasets import (
+        resolve_dataset,
+    )
+
+    dataset, measures = resolve_dataset("rlm")
+    csv_path = Path(path) if path is not None else Path(dataset.path)
+    df = pd.read_csv(csv_path)
+    requested = tuple(dict.fromkeys((outcome, *predictor_measures)))
+    unknown = sorted(set(requested) - set(measures))
+    if unknown:
+        raise KeyError(f"measure(s) {unknown} not registered for study 'rlm'")
+
+    wave_values = tuple(int(wave) for wave in waves)
+    if not wave_values or len(wave_values) != len(set(wave_values)):
+        raise ValueError("waves must be a non-empty sequence without duplicates")
+
+    subj, wave_col, group_col = (
+        dataset.subject_col,
+        dataset.wave_col,
+        dataset.group_col,
+    )
+    required_columns = [
+        subj,
+        wave_col,
+        group_col,
+        *(measures[sym].column for sym in requested),
+        *(("age",) if include_age else ()),
+    ]
+    missing_columns = [name for name in required_columns if name not in df.columns]
+    if missing_columns:
+        raise ValueError(f"{csv_path} missing required columns: {missing_columns}")
+
+    selected = df[df[wave_col].isin(wave_values)].copy()
+    duplicate = selected.duplicated(subset=[subj, wave_col], keep=False)
+    if duplicate.any():
+        pairs = sorted(
+            (str(child), int(wave))
+            for child, wave in selected.loc[
+                duplicate, [subj, wave_col]
+            ].drop_duplicates().itertuples(index=False)
+        )
+        raise ValueError(f"Duplicate RLM (subject, wave) rows: {pairs}")
+    unstable = selected.groupby(subj)[group_col].nunique(dropna=False)
+    if (unstable > 1).any():
+        children = sorted(str(child) for child in unstable[unstable > 1].index)
+        raise ValueError(f"RLM reading-group code changes within child: {children}")
+    unknown_groups = sorted(
+        set(pd.to_numeric(selected[group_col], errors="coerce").dropna().astype(int))
+        - set(dataset.group_labels)
+    )
+    if unknown_groups:
+        raise ValueError(f"Unknown RLM reading-group code(s): {unknown_groups}")
+
+    available_waves = set(pd.to_numeric(selected[wave_col], errors="coerce").dropna())
+    absent_waves = sorted(set(wave_values) - available_waves)
+    if absent_waves:
+        raise ValueError(f"RLM source has no rows at requested wave(s): {absent_waves}")
+
+    source_n = int(df[subj].nunique())
+    frames: dict[int, RlmConcurrentFrame] = {}
+    measure_columns = [measures[sym].column for sym in requested]
+    for wave in wave_values:
+        columns = [*measure_columns, *(("age",) if include_age else ())]
+        wide = _rlm_wave_wide(df, dataset, wave, columns)
+        if any(measures[sym].column != sym for sym in requested):
+            wide = wide.rename(
+                columns={measures[sym].column: sym for sym in requested}
+            )
+        source_wave_n = len(wide)
+        wide = wide.dropna(subset=[outcome])
+        if wide.empty:
+            raise ValueError(f"No RLM rows have {outcome!r} observed at wave {wave}")
+
+        counts: dict[str, np.ndarray] = {}
+        trials: dict[str, int] = {}
+        labels: dict[str, str] = {}
+        for sym in requested:
+            values = pd.to_numeric(wide[sym], errors="coerce").to_numpy(dtype=float)
+            observed = values[np.isfinite(values)]
+            ceiling = measures[sym].n_trials
+            if observed.size and (float(observed.min()) < 0 or float(observed.max()) > ceiling):
+                raise ValueError(
+                    f"Observed {sym!r} at wave {wave} falls outside 0..{ceiling}."
+                )
+            counts[sym] = values
+            trials[sym] = ceiling
+            labels[sym] = measures[sym].label
+
+        if include_age:
+            age = pd.to_numeric(wide["age"], errors="coerce").to_numpy(dtype=float)
+            age_std, _ = standardise(age)
+        else:
+            age_std = np.zeros(len(wide), dtype=float)
+
+        frames[wave] = RlmConcurrentFrame(
+            dataset=dataset,
+            outcome=outcome,
+            wave=wave,
+            subject_ids=wide.index.to_numpy(),
+            group_code=wide[group_col].to_numpy(dtype=int),
+            group_labels=dict(dataset.group_labels),
+            post_counts=counts,
+            n_trials=trials,
+            A_std=age_std,
+            predictor_labels=labels,
+            n_obs=len(wide),
+            n_children=len(wide),
+            dropped_rows=source_wave_n - len(wide),
+            source_n_children=source_n,
+        )
+    return frames
 
 
 def load_rlm_span_frame(

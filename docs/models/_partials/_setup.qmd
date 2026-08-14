@@ -125,6 +125,16 @@ def _img(path: str, alt: str = "", attrs: str = "{.lightbox}") -> str:
 
 _symbol = config.get("outcome_symbol")
 _measure = _measures.MEASURES.get(_symbol) if _symbol else None
+if _measure is None and _symbol and config.get("study_id") != "rli":
+    try:
+        from language_reading_predictors.statistical_models.datasets import (
+            resolve_dataset,
+        )
+
+        _dataset, _study_measures = resolve_dataset(config.get("study_id"))
+        _measure = _study_measures.get(_symbol)
+    except (KeyError, TypeError):
+        _measure = None
 outcome_label = (
     _measure.label
     if _measure is not None
