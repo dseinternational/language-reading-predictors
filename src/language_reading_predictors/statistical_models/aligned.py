@@ -148,6 +148,23 @@ class AlignedRunPlan:
             "likelihood": self.likelihood,
         }
 
+    def coefficient_names(self) -> list[str]:
+        """Interpretable coefficients written to the aligned factor table."""
+        names: list[str] = []
+        if self.use_cohort:
+            names.append("beta_cohort")
+        names += ["gamma_own", "gamma_A"]
+        if self.ability_covariate:
+            names.append("gamma_ability")
+        if self.use_dose:
+            names.append("gamma_dose")
+        return names
+
+    def diagnostic_vars(self) -> list[str]:
+        """Variables scanned by summaries and the convergence gate."""
+        tail = [] if self.off_floor else ["kappa"]
+        return ["alpha", *self.coefficient_names(), *tail]
+
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
         return (

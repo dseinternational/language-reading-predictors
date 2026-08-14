@@ -2008,6 +2008,8 @@ def test_did_analysis_contract_persists_exact_rows_and_attrition(tmp_path):
     """The audit manifest identifies fitted rows and separates design exclusions."""
     from types import SimpleNamespace
 
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.did import resolve_did_run_plan
     from language_reading_predictors.statistical_models.pipelines.did import (
         _did_analysis_contract,
     )
@@ -2015,19 +2017,19 @@ def test_did_analysis_contract_persists_exact_rows_and_attrition(tmp_path):
     p = _write_synthetic(tmp_path, n_children=20)
     loaded = load_and_prepare(path=p, phase_mode="levels")
     built = build_did_model(loaded, outcome_symbol="W")
-    ctx = SimpleNamespace(
-        output_dir=str(tmp_path),
-        spec=SimpleNamespace(
-            extra={
-                "use_age": True,
-                "use_child_re": True,
-                "use_varying_delta": False,
-            }
-        ),
+    plan = resolve_did_run_plan(
+        ModelSpec(
+            model_id="lrp-test-did-contract",
+            kind="did",
+            title="t",
+            outcome_symbol="W",
+        )
     )
+    ctx = SimpleNamespace(output_dir=str(tmp_path))
 
     contract = _did_analysis_contract(
         ctx,
+        plan,
         built,
         dose=False,
         loaded_prepared=loaded,
@@ -2282,12 +2284,11 @@ def test_did_factory_rejects_bad_likelihood_and_offfloor_dose(tmp_path):
 
 
 def test_did_diag_vars_match_offfloor_build(tmp_path):
-    """_did_diag_vars drops kappa under the off-floor likelihood and names only RVs
+    """The DiD plan drops kappa under the off-floor likelihood and names only RVs
     the off-floor DiD builds, else summary_diagnostics raises KeyError at run time."""
-    from types import SimpleNamespace
-
-    from language_reading_predictors.statistical_models.pipelines.did import (
-        _did_diag_vars,
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.did import (
+        resolve_did_run_plan,
     )
 
     p = _write_synthetic(tmp_path, n_children=15)
@@ -2296,7 +2297,16 @@ def test_did_diag_vars_match_offfloor_build(tmp_path):
     names = {v.name for v in built.model.free_RVs} | {
         v.name for v in built.model.deterministics
     }
-    diag = _did_diag_vars(SimpleNamespace(extra={"likelihood": "bernoulli_offfloor"}))
+    plan = resolve_did_run_plan(
+        ModelSpec(
+            model_id="lrp-test-did-diag",
+            kind="did",
+            title="t",
+            outcome_symbol="P",
+            extra={"likelihood": "bernoulli_offfloor"},
+        )
+    )
+    diag = plan.diagnostic_vars()
     assert "kappa" not in diag
     assert len(diag) == len(set(diag))
     assert "gamma_own" not in diag
@@ -2521,19 +2531,27 @@ def test_gf_coef_names_report_the_offfloor_indicator_unconditionally():
     the off-floor path always carries ``gamma_own_offfloor`` (#391 finding 2
     decision), with or without interactions and under treated_only alike; the
     graded path always reports ``gamma_own``."""
-    from types import SimpleNamespace
-
-    from language_reading_predictors.statistical_models.pipelines.gain_factors import (
-        _gf_coef_names,
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.gain_factors import (
+        resolve_gain_factors_run_plan,
     )
 
     base = {"likelihood": "bernoulli_offfloor", "interactions": ()}
-    assert "gamma_own_offfloor" in _gf_coef_names(SimpleNamespace(extra=dict(base)))
-    treated = SimpleNamespace(extra={**base, "treated_only": True})
-    assert "gamma_own_offfloor" in _gf_coef_names(treated)
-    graded = SimpleNamespace(extra={"interactions": ()})
-    names = _gf_coef_names(graded)
-    assert "gamma_own" in names and "gamma_own_offfloor" not in names
+    def names(extra):
+        return resolve_gain_factors_run_plan(
+            ModelSpec(
+                model_id="lrp-test-gf-names",
+                kind="gain_factors",
+                title="t",
+                outcome_symbol="P",
+                extra=extra,
+            )
+        ).coefficient_names()
+
+    assert "gamma_own_offfloor" in names(dict(base))
+    assert "gamma_own_offfloor" in names({**base, "treated_only": True})
+    names_graded = names({"interactions": ()})
+    assert "gamma_own" in names_graded and "gamma_own_offfloor" not in names_graded
 
 
 def test_gain_factors_adjust_for_covariates(tmp_path):
@@ -2716,17 +2734,16 @@ def test_level_factors_requires_levels_phase_mode(tmp_path):
 
 
 def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
-    """_gf_diag_vars / the level-factor run plan's diag_vars must name only RVs the
+    """The gain-/level-factor plans' diagnostic vars must name only RVs the
     off-floor factories build (kappa dropped), else summary_diagnostics raises
     KeyError at run time."""
-    from types import SimpleNamespace
 
     from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.gain_factors import (
+        resolve_gain_factors_run_plan,
+    )
     from language_reading_predictors.statistical_models.level_factors import (
         resolve_level_factors_run_plan,
-    )
-    from language_reading_predictors.statistical_models.pipelines.gain_factors import (
-        _gf_diag_vars,
     )
 
     gp = _prep_all(tmp_path, n_children=15)
@@ -2736,7 +2753,16 @@ def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
     g_names = {v.name for v in g_built.model.free_RVs} | {
         v.name for v in g_built.model.deterministics
     }
-    g_diag = _gf_diag_vars(SimpleNamespace(extra={"likelihood": "bernoulli_offfloor"}))
+    g_plan = resolve_gain_factors_run_plan(
+        ModelSpec(
+            model_id="lrp-test-gf-diag",
+            kind="gain_factors",
+            title="t",
+            outcome_symbol="P",
+            extra={"likelihood": "bernoulli_offfloor"},
+        )
+    )
+    g_diag = g_plan.diagnostic_vars()
     assert "kappa" not in g_diag
     assert not (set(g_diag) - g_names)
 
@@ -2825,20 +2851,26 @@ def test_aligned_factory_rejects_dose_without_covariate_and_wrong_phase(tmp_path
 
 
 def test_al_diag_vars_match_build(tmp_path):
-    """_al_diag_vars names only RVs the aligned factory builds: kappa present,
+    """The aligned plan names only RVs the factory builds: kappa present,
     no sigma_child (no random intercept)."""
-    from types import SimpleNamespace
-
-    from language_reading_predictors.statistical_models.pipelines.aligned import (
-        _al_diag_vars,
+    from language_reading_predictors.statistical_models.aligned import (
+        resolve_aligned_run_plan,
     )
+    from language_reading_predictors.statistical_models.context import ModelSpec
 
     prep = _prep_aligned(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     built = build_aligned_model(prep, outcome_symbol="W", ability_covariate="blocks")
-    diag = _al_diag_vars(
-        SimpleNamespace(extra={"ability_covariate": "blocks", "use_cohort": True})
+    plan = resolve_aligned_run_plan(
+        ModelSpec(
+            model_id="lrp-test-al-diag",
+            kind="aligned",
+            title="t",
+            outcome_symbol="W",
+            extra={"ability_covariate": "blocks", "use_cohort": True},
+        )
     )
+    diag = plan.diagnostic_vars()
     built_names = {v.name for v in built.model.free_RVs} | {
         v.name for v in built.model.deterministics
     }

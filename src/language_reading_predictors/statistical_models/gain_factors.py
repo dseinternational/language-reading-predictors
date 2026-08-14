@@ -316,6 +316,39 @@ class GainFactorsRunPlan:
             "likelihood": self.likelihood,
         }
 
+    def coefficient_names(
+        self, *, effective_adjustment: tuple[str, ...] | None = None
+    ) -> list[str]:
+        """Interpretable coefficients written to the gain-factor table."""
+        adjust_for = (
+            self.adjust_for
+            if effective_adjustment is None
+            else effective_adjustment
+        )
+        names: list[str] = []
+        if not self.treated_only:
+            names.append("beta_trt")
+        names.append("gamma_own_offfloor" if self.off_floor else "gamma_own")
+        names.append("gamma_A")
+        if self.ability_covariate:
+            names.append("gamma_ability")
+        names += [f"gamma_{symbol}" for symbol in self.skill_symbols]
+        names += [f"gamma_{covariate}" for covariate in adjust_for]
+        names += [f"gamma_int_{left}_{right}" for left, right in self.active_interactions]
+        return names
+
+    def diagnostic_vars(
+        self, *, effective_adjustment: tuple[str, ...] | None = None
+    ) -> list[str]:
+        """Variables scanned by summaries and the convergence gate."""
+        tail = ["sigma_child"] if self.off_floor else ["kappa", "sigma_child"]
+        return [
+            "alpha",
+            "alpha_phase",
+            *self.coefficient_names(effective_adjustment=effective_adjustment),
+            *tail,
+        ]
+
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
         skills = ", ".join(self.skill_symbols) if self.skill_symbols else "none"

@@ -157,6 +157,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
                 s for s in confounders if s in ("G", "A") or s in MEASURES
             ),
             adjust_for=adjust_for,
+            requested_adjust_for=run_plan.adjust_for,
             baseline_symbol=run_plan.adjust_baseline_symbol,
         ),
     }

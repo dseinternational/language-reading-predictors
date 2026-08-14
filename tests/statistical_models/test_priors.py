@@ -131,16 +131,24 @@ def test_concurrent_group_term_is_documented_as_nuisance():
 
 
 def test_level_factor_prior_role_is_conservative_for_group_time_vector():
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.level_factors import (
+        resolve_level_factors_run_plan,
+    )
     from language_reading_predictors.statistical_models.prior_artifacts import (
         _prior_table_overrides,
     )
 
+    spec = ModelSpec(
+        model_id="lrp-test-lf-prior",
+        kind="level_factors",
+        title="t",
+        outcome_symbol="W",
+        extra={"group_by_time": True, "ability_covariate": "blocks"},
+    )
     ctx = SimpleNamespace(
-        spec=SimpleNamespace(
-            kind="level_factors",
-            outcome_symbol="W",
-            extra={"group_by_time": True},
-        ),
+        spec=spec,
+        resolved_plan=resolve_level_factors_run_plan(spec),
         model=None,
     )
     _ctor, role, rationale = _prior_table_overrides(ctx)
@@ -153,24 +161,42 @@ def test_gain_factor_moderation_variant_demotes_beta_trt_role():
     table as "causal" — every artefact of a variant fit presents it as a
     model-dependent association, priors_table.csv included. A headline primary is
     untouched (no override entry), so its ``beta_trt`` keeps the causal role."""
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.gain_factors import (
+        resolve_gain_factors_run_plan,
+    )
     from language_reading_predictors.statistical_models.prior_artifacts import (
         _prior_table_overrides,
     )
 
+    variant_spec = ModelSpec(
+        model_id="lrp-test-gf-moderation",
+        kind="gain_factors",
+        title="t",
+        outcome_symbol="W",
+        extra={
+            "moderation_variant": True,
+            "interactions": (("trt", "own"),),
+        },
+    )
     variant = SimpleNamespace(
-        spec=SimpleNamespace(
-            kind="gain_factors",
-            outcome_symbol="W",
-            extra={"moderation_variant": True},
-        ),
+        spec=variant_spec,
+        resolved_plan=resolve_gain_factors_run_plan(variant_spec),
         model=None,
     )
     _ctor, role, rationale = _prior_table_overrides(variant)
     assert role["beta_trt"] == "association"
     assert "interaction-free" in rationale["beta_trt"]
 
+    primary_spec = ModelSpec(
+        model_id="lrp-test-gf-primary",
+        kind="gain_factors",
+        title="t",
+        outcome_symbol="W",
+    )
     primary = SimpleNamespace(
-        spec=SimpleNamespace(kind="gain_factors", outcome_symbol="W", extra={}),
+        spec=primary_spec,
+        resolved_plan=resolve_gain_factors_run_plan(primary_spec),
         model=None,
     )
     _ctor, role, _rationale = _prior_table_overrides(primary)

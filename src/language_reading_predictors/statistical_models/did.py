@@ -311,6 +311,40 @@ class DiDRunPlan:
             "tau_t2_prior_sigma": self.tau_t2_prior_sigma,
         }
 
+    def diagnostic_vars(self) -> list[str]:
+        """Variables scanned by summaries and the convergence gate."""
+        if not self.dose:
+            variables = [
+                "alpha_offset" if self.use_intercept_anchor else "alpha",
+                "beta_period",
+                "arm_gap_t1",
+                "tau_t2",
+                "arm_gap_t3",
+            ]
+        else:
+            dose_vars = (
+                ["mu_dose", "sigma_dose", "beta_dose_phase"]
+                if self.period_varying
+                else ["beta_dose"]
+            )
+            variables = [
+                "alpha",
+                "beta_period",
+                "beta_group",
+                "theta_treated",
+                "gamma_t1",
+                *dose_vars,
+            ]
+        if not self.off_floor:
+            variables.append("kappa")
+        if self.use_age:
+            variables.append("gamma_A")
+        if self.use_child_re:
+            variables.append("sigma_child")
+        if self.use_varying_delta:
+            variables.append("sigma_delta")
+        return variables
+
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
         waves = ", ".join(str(w) for w in self.waves)

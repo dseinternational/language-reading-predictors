@@ -184,6 +184,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
                 spec,
                 built.prepared,
                 adjust_for=adjust_for,
+                requested_adjust_for=plan.adjust_for,
                 ability_covariate=plan.ability_covariate,
             ),
         },

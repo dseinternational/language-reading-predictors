@@ -49,6 +49,7 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.fitted_payloads import (
+    FittedPayload,
     LongCorrFactorPayload,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -79,7 +80,9 @@ _lcf_child_log_likelihood = _lcf_inference.child_log_likelihood
 _lcf_log_prior = _lcf_inference.log_prior
 
 
-def _lcf_stitch_loo(ctx: StatisticalFitContext, built) -> None:
+def _lcf_stitch_loo(
+    ctx: StatisticalFitContext, built: _factories.BuiltModel[FittedPayload]
+) -> None:
     """Pointwise PSIS-LOO for the longitudinal CFA (custom, per-child stitch).
 
     The masked-cell likelihood is one ``MvNormal`` per observed-cell pattern, so

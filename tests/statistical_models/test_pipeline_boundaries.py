@@ -132,6 +132,46 @@ PRIMARY_LIFECYCLE_IMPLEMENTATIONS = {
 # single-mediator fits, so ``pipelines/mediation.py`` owns both entry points.
 KIND_MODULES = {"mediation_multi": "mediation"}
 
+# ``ModelSpec.extra`` is retained only as a strict legacy-declaration adapter, a
+# single global sampler-option boundary, and persisted-metadata compatibility /
+# provenance. Runtime pipelines and artefact logic consume resolved plans instead.
+# This is deliberately function-granular: adding a read anywhere else requires an
+# explicit architectural decision rather than quietly growing the seam again.
+SPEC_EXTRA_BOUNDARY_FUNCTIONS = {
+    ("adjusted.py", "declared_adjusted_settings"),
+    ("adjusted.py", "resolve_adjusted_run_plan"),
+    ("aligned.py", "declared_aligned_settings"),
+    ("block_exposure.py", "declared_block_exposure_settings"),
+    ("concurrent.py", "declared_concurrent_settings"),
+    ("context.py", "spec_target_accept"),
+    ("corr_factor.py", "declared_corr_factor_settings"),
+    ("corr_factor.py", "resolve_corr_factor_run_plan"),
+    ("did.py", "declared_did_settings"),
+    ("dose_response.py", "declared_dose_response_settings"),
+    ("gain_factors.py", "declared_gain_factors_settings"),
+    ("growth.py", "declared_growth_settings"),
+    ("historical_growth.py", "declared_historical_growth_settings"),
+    ("historical_joint.py", "declared_historical_joint_settings"),
+    ("horseshoe.py", "declared_horseshoe_settings"),
+    ("horseshoe.py", "resolve_horseshoe_run_plan"),
+    ("influence.py", "summarise_influence_refit"),
+    ("itt.py", "declared_itt_settings"),
+    ("itt.py", "declared_settings_dict"),
+    ("joint.py", "declared_joint_settings"),
+    ("joint_mechanism.py", "declared_joint_mechanism_settings"),
+    ("lcsm.py", "declared_lcsm_settings"),
+    ("level_factors.py", "declared_level_factors_settings"),
+    ("long_corr_factor.py", "declared_long_corr_factor_settings"),
+    ("mechanism.py", "declared_mechanism_settings"),
+    ("mediation_settings.py", "declared_mediation_multi_settings"),
+    ("mediation_settings.py", "declared_mediation_settings"),
+    ("reporting.py", "_historical_growth_run_plan"),
+    ("reporting.py", "_mediation_run_plan"),
+    ("reporting.py", "_reuse_compatibility_contract"),
+    ("reporting.py", "write_run_metadata"),
+    ("survival.py", "declared_survival_settings"),
+}
+
 
 def _package_of(path: pathlib.Path) -> str:
     """The dotted package a source file belongs to, from its directory chain."""
@@ -173,6 +213,36 @@ def _imported_modules(source: str, package: str) -> set[str]:
 
 def _imports_of(path: pathlib.Path) -> set[str]:
     return _imported_modules(path.read_text(encoding="utf-8"), _package_of(path))
+
+
+def _spec_extra_functions(path: pathlib.Path) -> set[str]:
+    """Functions containing a direct ``spec.extra``/``context.spec.extra`` read."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    parents: dict[ast.AST, ast.AST] = {}
+    for node in ast.walk(tree):
+        for child in ast.iter_child_nodes(node):
+            parents[child] = node
+
+    functions: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute) or node.attr != "extra":
+            continue
+        owner = node.value
+        is_spec = isinstance(owner, ast.Name) and owner.id == "spec"
+        is_context_spec = isinstance(owner, ast.Attribute) and owner.attr == "spec"
+        if not (is_spec or is_context_spec):
+            continue
+        current: ast.AST = node
+        while current in parents and not isinstance(
+            current, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            current = parents[current]
+        functions.add(
+            current.name
+            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef))
+            else "<module>"
+        )
+    return functions
 
 
 SM = "language_reading_predictors.statistical_models"
@@ -290,6 +360,31 @@ def test_maintenance_scripts_import_family_pipelines_directly():
     scripts = sorted((PACKAGE.parents[2] / "scripts").glob("*.py"))
     offenders = [path.name for path in scripts if RETIRED_FACADE in _imports_of(path)]
     assert not offenders, f"scripts importing the retired facade: {offenders}"
+
+
+def test_spec_extra_reads_stay_inside_explicit_compatibility_boundaries():
+    """#521: scientific runtime logic consumes typed, resolved family plans."""
+    observed = {
+        (path.name, function)
+        for path in sorted(PACKAGE.rglob("*.py"))
+        for function in _spec_extra_functions(path)
+    }
+    unexpected = observed - SPEC_EXTRA_BOUNDARY_FUNCTIONS
+    assert not unexpected, (
+        "spec.extra read escaped its declaration/global-option/provenance boundary: "
+        f"{sorted(unexpected)}"
+    )
+
+    scripts = sorted((PACKAGE.parents[2] / "scripts").glob("*.py"))
+    script_reads = {
+        (path.name, function)
+        for path in scripts
+        for function in _spec_extra_functions(path)
+    }
+    assert not script_reads, (
+        "maintenance scripts must resolve typed plans or call the shared global-option "
+        f"boundary, not read spec.extra directly: {sorted(script_reads)}"
+    )
 
 
 def test_test_modules_do_not_import_the_retired_facade():

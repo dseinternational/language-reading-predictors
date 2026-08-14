@@ -372,8 +372,27 @@ def test_classify_fallback_routes_cross_coupling_to_gamma_panel():
 def _labelled(model, *, kind, extra=None, outcome_symbol="W"):
     """priors_table with the per-kind ``_prior_table_overrides`` applied, keyed by
     parameter name (mirrors what the pipeline writes to ``priors_table.csv``)."""
-    spec = SimpleNamespace(kind=kind, extra=extra or {}, outcome_symbol=outcome_symbol)
-    ctx = SimpleNamespace(spec=spec, model=model)
+    if kind == "itt":
+        from language_reading_predictors.statistical_models.context import ModelSpec
+        from language_reading_predictors.statistical_models.itt import (
+            resolve_itt_run_plan,
+        )
+
+        spec = ModelSpec(
+            model_id="lrp-test-itt-prior",
+            kind="itt",
+            title="t",
+            outcome_symbol=outcome_symbol,
+            extra=extra or {},
+        )
+        ctx = SimpleNamespace(
+            spec=spec,
+            resolved_plan=resolve_itt_run_plan(spec),
+            model=model,
+        )
+    else:
+        spec = SimpleNamespace(kind=kind, extra=extra or {}, outcome_symbol=outcome_symbol)
+        ctx = SimpleNamespace(spec=spec, model=model)
     ctor, role, rationale = _prior_table_overrides(ctx)
     table = priors.priors_table(
         model,
@@ -473,11 +492,22 @@ def test_itt_adjust_covariate_and_ses_are_precision(built_models):
     # balanced across arms in expectation, so they cannot confound tau and only
     # sharpen it — the identical causal status to blocks/area, documented in the
     # LRPITT13/113 module docstrings so the role is quoted, not inferred.
-    spec = SimpleNamespace(
-        kind="itt", extra={"adjust_for": ("mumedupost16",)}, outcome_symbol="R"
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.itt import resolve_itt_run_plan
+
+    spec = ModelSpec(
+        model_id="lrp-test-itt-ses-prior",
+        kind="itt",
+        title="t",
+        extra={"adjust_for": ("mumedupost16",)},
+        outcome_symbol="R",
     )
     _, role, rationale = _prior_table_overrides(
-        SimpleNamespace(spec=spec, model=SimpleNamespace(free_RVs=[]))
+        SimpleNamespace(
+            spec=spec,
+            resolved_plan=resolve_itt_run_plan(spec),
+            model=SimpleNamespace(free_RVs=[]),
+        )
     )
     assert role["gamma_mumedupost16"] == "precision"
     assert "cannot confound" in rationale["gamma_mumedupost16"]

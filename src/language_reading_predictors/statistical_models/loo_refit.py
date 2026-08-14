@@ -49,8 +49,10 @@ from dse_research_utils.statistics.diagnostics import (
 from language_reading_predictors.statistical_models import mechanism as _mechanism
 from language_reading_predictors.statistical_models.factories import _subset
 from language_reading_predictors.statistical_models.fitted_payloads import (
+    MechanismDesign,
     MechanismPayload,
 )
+from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.preprocessing import PreparedData
 from language_reading_predictors.statistical_models.sampling_quality import (
     sampling_quality,
@@ -65,7 +67,7 @@ __all__ = ["MechanismSamplingWrapper", "RefitPlan", "build_mechanism_wrapper"]
 GATE_MAX_DIVERGENCES = 0
 
 
-def _as_dataset(group):
+def _as_dataset(group: Any) -> Any:
     """Return the xarray Dataset behind an inference-data group.
 
     ArviZ 1.x hands back a ``DataTree`` whose ``.items()`` yields *child nodes*, not
@@ -77,7 +79,9 @@ def _as_dataset(group):
     return inner if hasattr(inner, "data_vars") else group
 
 
-def _observed_variable_name(model: pm.Model, idata_orig, model_id: str) -> str:
+def _observed_variable_name(
+    model: pm.Model, idata_orig: Any, model_id: str
+) -> str:
     """Name of the model's single observed node, verified against the stored trace.
 
     Hard-coding ``"y_post"`` is correct only for the Beta-Binomial mechanism models
@@ -165,10 +169,10 @@ class MechanismSamplingWrapper(SamplingWrapper):
         self,
         plan: _mechanism.MechanismPlan,
         fitted: PreparedData,
-        idata_orig,
+        idata_orig: Any,
         refit: RefitPlan,
         full_model: pm.Model,
-        design,
+        design: MechanismDesign,
         obs_var: str,
         *,
         progressbar: bool = False,
@@ -188,7 +192,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
 
     # -- SamplingWrapper contract -------------------------------------------------
 
-    def sel_observations(self, idx):
+    def sel_observations(self, idx: int) -> tuple[PreparedData, int]:
         """Split off row ``idx``; returns (data without it, its integer index)."""
         idx = int(idx)
         safe, why = _mechanism.holdout_is_safe(self.fitted, idx)
@@ -197,7 +201,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
         keep = _mechanism.holdout_mask(self.fitted, idx)
         return _subset(self.fitted, keep, reason="reloo_holdout"), idx
 
-    def sample(self, modified_observed_data):
+    def sample(self, modified_observed_data: PreparedData) -> Any:
         # Replay the *fit's* design (exposure/moderator standardisation and HSGP
         # boundary) rather than letting the n-1 rows re-derive their own. Without this
         # the refit's basis weights are defined against a slightly different design
@@ -245,7 +249,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
         self._assert_refit_converged(idata)
         return idata
 
-    def _assert_refit_converged(self, idata) -> None:
+    def _assert_refit_converged(self, idata: Any) -> None:
         """Fail the refit unless it clears the suite's sampling-quality thresholds.
 
         Signals come from :func:`sampling_quality` so the refit gate reads them exactly
@@ -279,10 +283,12 @@ class MechanismSamplingWrapper(SamplingWrapper):
                 + "); the exact density it would contribute is not trustworthy"
             )
 
-    def get_inference_data(self, fit):
+    def get_inference_data(self, fit: Any) -> Any:
         return fit
 
-    def log_likelihood__i(self, excluded_observed_data, idata__i):
+    def log_likelihood__i(
+        self, excluded_observed_data: int, idata__i: Any
+    ) -> Any:
         """Held-out log density of row ``excluded_observed_data`` under the refit.
 
         Evaluated on the **full** model — the one carrying every fitted row — so the
@@ -298,8 +304,8 @@ class MechanismSamplingWrapper(SamplingWrapper):
 
 
 def build_mechanism_wrapper(
-    spec,
-    idata_orig,
+    spec: ModelSpec,
+    idata_orig: Any,
     config: dict[str, Any],
     *,
     progressbar: bool = False,

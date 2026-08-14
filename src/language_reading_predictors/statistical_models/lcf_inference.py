@@ -18,7 +18,11 @@ orchestration composes them with the shared reporting helpers.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
+import pymc as pm
+import xarray as xr
 
 from language_reading_predictors.statistical_models.factories import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import (
@@ -28,11 +32,11 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
 
 
 def child_log_likelihood(
-    trace,
+    trace: Any,
     built: BuiltModel[FittedPayload],
     *,
     chunk_size: int = 256,
-):
+) -> xr.DataArray:
     """Evaluate the LCF's exact per-child MvNormal log likelihood.
 
     PyMC 6.1 cannot reconstruct this model's log likelihood from its posterior:
@@ -159,7 +163,7 @@ def child_log_likelihood(
     )
 
 
-def log_prior(trace, model):
+def log_prior(trace: Any, model: pm.Model) -> xr.Dataset:
     """Compute exact constrained-scale LCF log-prior terms.
 
     PyMC 6.1's generic ``compute_log_prior`` removes transforms but then supplies

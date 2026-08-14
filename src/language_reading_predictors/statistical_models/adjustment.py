@@ -4,8 +4,8 @@
 """The adjustment set a fit actually conditioned on.
 
 ``ModelSpec.adjustment`` records what was *requested*. What is fitted can differ:
-``spec.extra["adjust_for"]`` adds revised-DAG confounders, the factor families add
-an ability covariate and upstream-skill baselines, and the loader drops any
+Family run plans add revised-DAG confounders, the factor families add an ability
+covariate and upstream-skill baselines, and the loader drops any
 covariate that turns out constant on the fitted rows. :func:`effective_adjustment`
 builds the record that goes into ``config.json`` naming, for every term that
 carries a coefficient, its source column, wave and missingness role — plus the
@@ -24,6 +24,7 @@ def effective_adjustment(
     *,
     measure_confounders: tuple[str, ...] = (),
     adjust_for: tuple[str, ...] = (),
+    requested_adjust_for: tuple[str, ...] | None = None,
     ability_covariate: str | None = None,
     baseline_symbol: str | None = None,
     skill_baselines: tuple[str, ...] = (),
@@ -31,8 +32,8 @@ def effective_adjustment(
     """Describe the adjustment set the model **actually fitted**.
 
     ``spec.adjustment`` records what was *requested*; it is not what is fitted.
-    ``ModelSpec.extra["adjust_for"]`` never reached ``config.json`` at all, so a
-    model could report ``{G, A, W_pre}`` while conditioning on hearing, speech,
+    Family-declared ``adjust_for`` values once failed to reach ``config.json``, so
+    a model could report ``{G, A, W_pre}`` while conditioning on hearing, speech,
     sessions and their missingness indicators — a material misdescription that made
     exact auditing impossible (#258 review, P1). And a covariate that turns out
     constant on the fitted rows is dropped by the loader and gets no coefficient, so
@@ -52,7 +53,14 @@ def effective_adjustment(
     as ``gamma_ability``. It was previously absent from the record even though the
     factory conditions on it, so the audited set understated the fitted set by one
     term across the whole factor family (this review's finding B2).
+
+    ``requested_adjust_for`` is the plan declaration before the loader removes a
+    constant covariate. It defaults to ``adjust_for`` for callers whose fitted and
+    requested sets are identical.
     """
+    requested_adjust_for = (
+        adjust_for if requested_adjust_for is None else requested_adjust_for
+    )
     terms = []
     for s in skill_baselines:
         # Upstream-skill DAG-parent adjusters, entered as their period baseline
@@ -139,7 +147,7 @@ def effective_adjustment(
         "requested": list(spec.adjustment)
         + list(skill_baselines)
         + ([ability_covariate] if ability_covariate else [])
-        + list(spec.extra.get("adjust_for", ())),
+        + list(requested_adjust_for),
         "fitted": terms,
         "dropped_constant": list(prepared.dropped_covariates),
     }
