@@ -148,4 +148,4 @@ prose.
 
 ## Suggested next step
 
-Reconcile the 96-versus-97 extract lineage and decide whether the paper's missing visual-recall variables can be recovered. Confirm the remaining `basspel`, `woco`, `basnum` and `basmat` instrument metadata before publishing models that use them. For the reciprocal reading-language-auditory-memory question, the graph is now adopted; the next internal gate is the simulation study specified in `notes/202608141700-byrne-lagged-dag-decision.md`. Bridge and pooled models remain a separate methodological track.
+Reconcile the 96-versus-97 extract lineage and decide whether the paper's missing visual-recall variables can be recovered. Confirm the remaining `basspel`, `woco`, `basnum` and `basmat` instrument metadata before publishing models that use them. For the reciprocal reading-language-auditory-memory question, the graph is adopted but both candidate models failed the pre-fit recovery gate (`notes/202608141812-byrne-lcsm-feasibility.md`), so no Phase C model is registered. Bridge and pooled models remain a separate methodological track.

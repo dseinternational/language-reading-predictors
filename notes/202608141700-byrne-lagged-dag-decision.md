@@ -6,7 +6,7 @@
 
 # Byrne lagged-DAG decision: adopt a narrow reciprocal template
 
-**Decision for #338/#409, 2026-08-14.** Adopt `dag/dag-reading-language-memory-lagged.dagitty` as the working two-slice companion to the contemporaneous Byrne graph. This clears the graph-design gate; it does not register or authorise a fitted cross-lagged model. A pre-fit simulation and explicit model specification remain required because the usable repeated-measures sample is small.
+**Decision for #338/#409, 2026-08-14.** Adopt `dag/dag-reading-language-memory-lagged.dagitty` as the working two-slice companion to the contemporaneous Byrne graph. This clears the graph-design gate; it does not register or authorise a fitted cross-lagged model. The required pre-fit recovery study subsequently rejected both candidate models, so `lrp-rlm-lcsm-001` remains unregistered; see `notes/202608141812-byrne-lcsm-feasibility.md`.
 
 ## Question anchored to the primary source
 
@@ -34,7 +34,7 @@ The four pre-specified measures have confirmed bounded-score denominators, so th
 
 The source-compatible waves 1–3 have 21 Down-syndrome children and 68 children across all three groups with all four measures observed. The corresponding balanced counts are 18/52 through wave 4 and 15 Down-syndrome children through wave 5. The extra waves improve transition count but are not part of the published two-year design, and wave 5 is Down-syndrome-only. A future model must therefore distinguish the published waves 1–3 analysis from later-wave sensitivity analyses rather than pool them without qualification.
 
-Before `lrp-rlm-lcsm-001` is registered, run a simulation-based feasibility gate over the actual missingness patterns. Compare at least a Down-syndrome-only pooled-coupling LCSM with a three-group model using group-specific trajectory intercepts and shared couplings. Reject any specification that cannot recover plausible coupling signs with calibrated uncertainty. A free RI-CLPM remains out of scope: the RLI feasibility study had effectively no directional power at approximately 54 children over four waves, and this cohort's scientifically central group is smaller.
+The required simulation-based feasibility gate used the actual missingness patterns and compared a Down-syndrome-only pooled-coupling LCSM with a three-group model using group-specific trajectory intercepts and shared couplings. Both were rejected: all 160 fits completed without divergences, but positive-direction support at a true coupling of 0.10 reached only 30–55% across the three paths for the Down-syndrome candidate and 40–70% for the three-group candidate, below the pre-specified 80% requirement for every path. The full design and results are in `notes/202608141812-byrne-lcsm-feasibility.md`. A free RI-CLPM remains out of scope: the RLI feasibility study had effectively no directional power at approximately 54 children over four waves, and this cohort's scientifically central group is smaller.
 
 ## Interpretation contract
 

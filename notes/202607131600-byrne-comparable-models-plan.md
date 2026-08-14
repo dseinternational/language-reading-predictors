@@ -4,7 +4,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 >
-> Phase C status and measurement gates substantially updated by a LLM-based AI tool (Codex/GPT-5).
+> Phase C status and measurement gates substantially updated by a LLM-based AI tool (Codex/GPT-5); recovery-study no-go recorded by Codex/GPT-5.
 
 > [!WARNING]
 > This is a **forward-looking plan**, not results and not fitted models. It maps the RLI Layer-2 model families onto the Byrne cohort given the adopted working DAGs and the measures/waves actually present in the extract. Several items remain gated on measurement records, extract lineage or simulation-based feasibility; those gates are called out per model.
@@ -19,24 +19,24 @@ The RLI suite's one causal quantity is the randomised intention-to-treat `τ` (a
 
 ## Family-by-family portability
 
-| RLI family (`kind`)             | Ports?              | Adapted form for Byrne                                                                                                                   | `estimand_type` |
-| ------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| `historical_growth`             | ✅ **live**         | `lrp-rlm-hg-001` exists (BAS reading, w1–3); extend per measure                                                                          | descriptive     |
-| `level_factors`                 | ✅ subsumed         | group×time levels = exactly what `historical_growth` fits here; no separate family needed                                                | descriptive     |
-| `growth`                        | ✅ strong           | multivariate trajectories + does **baseline ability** predict trajectory shape (README already earmarks Byrne replication of GC-069/070) | descriptive     |
-| `joint`                         | ✅                  | correlated group-by-wave trajectories over a small measure set (the `rlmjc` model in the follow-up plan)                                 | descriptive     |
-| `corr_factor`                   | ✅ strong           | correlated **domain-factor** measurement model — the direct analogue of the paper's reading/language/memory correlation tables           | descriptive     |
-| `lcsm`                          | ✅ strong           | within-child latent change-score: prior-wave language/memory → reading _change_ (analogue of `lcsm-067`)                                 | association     |
-| _(cross-lagged / CLPM)_         | ⚠️ new, reduced     | the **reciprocal reading↔language↔memory** question proper; needs a lagged Byrne DAG; sample-limited (see constraints)                   | association     |
-| `adjusted`                      | ✅                  | between-child: which wave-1 skills go with more subsequent reading gain, mutually adjusted (analogue of `adj-065`)                       | association     |
-| `horseshoe`                     | ✅                  | regularised-horseshoe predictor-ranking cross-check for a Byrne outcome                                                                  | association     |
-| `mechanism`                     | ⚠️ assumption-heavy | adjusted skill→skill dose-response (e.g. `basdig → basread`); `GA` only _partially_ controllable via `bassim`/`basmat`                   | association     |
-| `mediation` / `mediation_multi` | ⚠️ optional         | g-formula NDE/NIE with an **observational** exposure — very assumption-laden without randomisation; defer                                | association     |
-| `gain_factors`                  | ⚠️ partial          | the ANCOVA (post ~ pre + covariates) ports, but its _causal_ group term does not; collapses into `adjusted`                              | association     |
-| `itt`                           | ❌                  | needs a randomised group — `readgrp` is observational                                                                                    | —               |
-| `did`                           | ❌                  | needs the waitlist crossover — no intervention                                                                                           | —               |
-| `aligned`                       | ❌                  | needs intervention onset — no intervention                                                                                               | —               |
-| `dose_response`                 | ❌                  | needs intervention **sessions** — none exist                                                                                             | —               |
+| RLI family (`kind`)             | Ports?              | Adapted form for Byrne                                                                                                                         | `estimand_type` |
+| ------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| `historical_growth`             | ✅ **live**         | `lrp-rlm-hg-001` exists (BAS reading, w1–3); extend per measure                                                                                | descriptive     |
+| `level_factors`                 | ✅ subsumed         | group×time levels = exactly what `historical_growth` fits here; no separate family needed                                                      | descriptive     |
+| `growth`                        | ✅ strong           | multivariate trajectories + does **baseline ability** predict trajectory shape (README already earmarks Byrne replication of GC-069/070)       | descriptive     |
+| `joint`                         | ✅                  | correlated group-by-wave trajectories over a small measure set (the `rlmjc` model in the follow-up plan)                                       | descriptive     |
+| `corr_factor`                   | ✅ strong           | correlated **domain-factor** measurement model — the direct analogue of the paper's reading/language/memory correlation tables                 | descriptive     |
+| `lcsm`                          | ✅ strong           | within-child latent change-score: prior-wave language/memory → reading _change_ (analogue of `lcsm-067`)                                       | association     |
+| _(cross-lagged / CLPM)_         | ❌ recovery no-go   | the **reciprocal reading↔language↔memory** question proper; adopted lagged DAG, but neither reduced candidate passed the pre-fit recovery gate | association     |
+| `adjusted`                      | ✅                  | between-child: which wave-1 skills go with more subsequent reading gain, mutually adjusted (analogue of `adj-065`)                             | association     |
+| `horseshoe`                     | ✅                  | regularised-horseshoe predictor-ranking cross-check for a Byrne outcome                                                                        | association     |
+| `mechanism`                     | ⚠️ assumption-heavy | adjusted skill→skill dose-response (e.g. `basdig → basread`); `GA` only _partially_ controllable via `bassim`/`basmat`                         | association     |
+| `mediation` / `mediation_multi` | ⚠️ optional         | g-formula NDE/NIE with an **observational** exposure — very assumption-laden without randomisation; defer                                      | association     |
+| `gain_factors`                  | ⚠️ partial          | the ANCOVA (post ~ pre + covariates) ports, but its _causal_ group term does not; collapses into `adjusted`                                    | association     |
+| `itt`                           | ❌                  | needs a randomised group — `readgrp` is observational                                                                                          | —               |
+| `did`                           | ❌                  | needs the waitlist crossover — no intervention                                                                                                 | —               |
+| `aligned`                       | ❌                  | needs intervention onset — no intervention                                                                                                     | —               |
+| `dose_response`                 | ❌                  | needs intervention **sessions** — none exist                                                                                                   | —               |
 
 ## The binding constraints (they shape every choice)
 
@@ -65,7 +65,7 @@ Ids follow the registered scheme (`lrp-rlm-{family}-NNN`, `study_id="rlm"`), ext
 
 **Phase B — joint & measurement structure.** (i) `lrp-rlm-jc-001` : a `joint`/`growth` model of correlated group-by-wave trajectories over a small set (reading + a vocabulary + a memory measure) — how the trajectories move together within group. (ii) `lrp-rlm-mm-001` : a `corr_factor` **domain-factor measurement model** (reading = `basread`/`basspel`/`woco`; language = `bpvs`/`trog`; memory = `basdig`; ability = `bassim`/`basmat`/`basnum`) — the modern analogue of the paper's correlation tables, and the cleanest way to summarise the construct structure before any coupling model. _Gate: ceilings; measurement-invariance assumptions across groups stated up front._
 
-**Phase C — lagged graph adopted; model remains simulation-gated.** The working companion `dag/dag-reading-language-memory-lagged.dagitty` now pre-specifies `basread_t → {bpvs_t1, trog_t1, basdig_t1}` and no other reverse edges. This is Byrne et al.'s receptive-language and auditory-memory hypothesis; the repository lacks the paper's visual-recall measures, so it cannot test “memory” in full. The primary paper reports waves 1–3, while prepared waves 4–5 are later extensions and wave 5 is Down-syndrome-only. Before `lrp-rlm-lcsm-001` is registered, simulate the actual missingness patterns and compare a Down-syndrome-only pooled-coupling LCSM with a three-group model using group-specific trajectory intercepts and shared couplings. A free RI-CLPM and a separate CLPM family remain parked. _Decision record: `notes/202608141700-byrne-lagged-dag-decision.md`._
+**Phase C — lagged graph adopted; model rejected by recovery gate.** The working companion `dag/dag-reading-language-memory-lagged.dagitty` pre-specifies `basread_t → {bpvs_t1, trog_t1, basdig_t1}` and no other reverse edges. This is Byrne et al.'s receptive-language and auditory-memory hypothesis; the repository lacks the paper's visual-recall measures, so it cannot test “memory” in full. The primary paper reports waves 1–3, while prepared waves 4–5 are later extensions and wave 5 is Down-syndrome-only. The pre-fit study applied the actual missingness patterns to a Down-syndrome-only pooled-coupling LCSM and a three-group model with group-specific trajectory intercepts and shared couplings. Both achieved clean computation and calibrated intervals but failed the all-path directional-support requirement, so `lrp-rlm-lcsm-001` is not registered. A free RI-CLPM and a separate CLPM family remain parked. _Decision records: `notes/202608141700-byrne-lagged-dag-decision.md` and `notes/202608141812-byrne-lcsm-feasibility.md`._
 
 **Phase D — predictor views (associational).** `lrp-rlm-adj-001` : between-child, which wave-1 skills go with more subsequent reading gain, mutually adjusted (analogue of `adj-065`). `lrp-rlm-hs-001` : a regularised-horseshoe ranking cross-check over the same predictor set. Both are honest "what predicts reading" summaries with no causal claim. _Gate: ceilings; DS-only vs pooled decision._
 
@@ -77,7 +77,7 @@ Ids follow the registered scheme (`lrp-rlm-{family}-NNN`, `study_id="rlm"`), ext
 
 1. **Instrument ceilings / likelihood** per non-`basread` measure — the gate on Phases A, B, D (follow-up-plan decision 3).
 2. **Group scope** — three-group (fuller picture) vs Down-syndrome-vs-reading-matched (the sharper developmental contrast) as the primary framing, per measure and per phase (follow-up-plan decision 4). Note w5 is DS-only regardless.
-3. **Lagged companion — resolved 2026-08-14.** The graph and three reverse edges are adopted; the reduced LCSM itself remains behind its pre-fit simulation gate.
+3. **Lagged companion — resolved no-go 2026-08-14.** The graph and three reverse edges are adopted as a structural record; both reduced LCSM candidates failed the pre-fit recovery gate and no model is registered.
 4. **Reading-matched selection handling** — confirm `basread` is treated as a selection variable wherever group 3 enters.
 5. **Random-effects heterogeneity** — index the subject-intercept SD (and possibly `κ`) by group, per the follow-up plan's decision 7, before the per-measure growth sweep so it propagates.
 
