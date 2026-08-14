@@ -1,32 +1,34 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
-<!-- cspell:ignore Ricciardelli basnum -->
+<!-- cspell:ignore basnum basspel -->
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
-# BAS number-skills score-identity audit
+# BAS spelling and number-skills primary-source correction
 
-**Status: evidence audit for #338 and #409, 2026-08-14.** This note records why the prepared Byrne/RLM `basnum` column must now be treated as having an unresolved score definition, separately from its already unconfirmed bounded-count denominator. It does not identify the correct score or authorise a likelihood change.
+**Status: corrected evidence audit for #338 and #409, 2026-08-14.** This note supersedes the earlier inference that the Byrne cohort used a 1992 stand-alone spelling scale and that the prepared `basnum` column had an unidentified score transformation. The correct primary source is Byrne, MacDonald and Buckley (2002), not an instrument-description thesis or the 1995 companion paper.
 
 ## Evidence
 
-The prepared long extract contains integer `basnum` values from 0 to 60. The cohort's open-access companion paper describes the BAS number-skills values as raw scores and reports group means on the same numerical scale (Byrne et al., 1995, DOI [10.3104/reports.51](https://doi.org/10.3104/reports.51)). The repository has therefore operationally used the observed maximum, 60, as a provisional Beta-Binomial denominator while setting `n_trials_confirmed=False`.
+The Methods section of the primary article states that all children were assessed with subtests from the British Ability Scales (Elliott, 1983) and explicitly lists Word Reading, Spelling, Recall of Digits, Immediate and Delayed Visual Recall, and Similarities. It separately identifies WORD reading comprehension, BPVS receptive vocabulary and TROG receptive grammar. The procedure includes number in the assessment order, Table 3 labels the measure “BAS number skills”, and the Results state that all analyses used raw scores (Byrne, MacDonald & Buckley, 2002, pp. 517–519, DOI [10.1348/00070990260377497](https://doi.org/10.1348/00070990260377497)).
 
-Two independent descriptions of the first-edition BAS Basic Number Skills forms conflict with that interpretation:
+The prepared extract independently matches that publication record. Restricting `basnum` to the paper's first three waves gives the following baseline means:
 
-- Ricciardelli's University of Adelaide thesis states that BAS Basic Number Skills Test Form B was administered under standard instructions and that Table 6.3 reports each test's maximum possible raw score. The table gives 34 items and a maximum raw score of 34 (Ricciardelli, 1989, [persistent repository record](https://hdl.handle.net/2440/19089)).
-- Hatcher, Hulme and Snowling describe BAS Basic Number Skills Test Form C as 34 paper-and-pencil problems and define the score as the number correct (Hatcher et al., 2004, DOI [10.1111/j.1469-7610.2004.00225.x](https://doi.org/10.1111/j.1469-7610.2004.00225.x)).
+- Average readers observed at all three waves: 35.290, printed as 35.3 in Table 3.
+- Average-reader non-completers with a baseline value: 37.600, printed as 37.6.
+- Reading-matched children observed at all three waves: 25.857, printed as 25.9.
+- Reading-matched non-completers with a baseline value: 31.429, printed as 31.4.
 
-The agreement across Forms B and C does not prove which form the Byrne cohort received. It does show that the prepared 0–60 column cannot safely be described as the standard item-correct raw score for either documented form. Plausible explanations include a different form, additional items, an ability-score transformation, or an undocumented data conversion; choosing among them without the source record would be speculation.
+The exact reproduction makes a cohort-specific transformation error unlikely and confirms that the prepared column is the BAS number-skills raw score analysed in the primary paper. Descriptions of other BAS forms do not identify which form this cohort received and cannot override the cohort's own source article.
 
 ## Decision
 
-Keep `n_trials=60` only as an operational observed-maximum placeholder so existing diagnostic fits can run. Keep `n_trials_confirmed=False`, add `score_definition_confirmed=False`, and store the evidence conflict in `score_definition_note`. The fit-time publication input contract now emits a separate score-definition blocker. This distinction matters because a confirmed instrument name does not validate the numerical representation supplied to the likelihood.
+Confirm the source identities of both measures: `basspel` is the Spelling subtest in the administered 1983 BAS battery, and `basnum` is the BAS number-skills raw score reported by Byrne et al. (2002). Remove the separate score-definition blocker proposed for `basnum`; the existing instrument-ceiling gate is the correct representation of the remaining uncertainty.
 
-No current scientific finding is newly withdrawn by this change: every Byrne fit is already withheld by the unresolved 96-versus-97 extract lineage, and fits using `basnum` were additionally withheld by its provisional denominator. The change makes the reason reproducible and prevents a later ceiling-only sign-off from accidentally clearing a score whose form or transformation remains unknown.
+Keep `n_trials=18` for `basspel` and `n_trials=60` for `basnum` only as operational observed-maximum placeholders, with `n_trials_confirmed=False`. The primary paper does not give the item counts or maximum raw scores, so it cannot validate either Beta-Binomial denominator. Every affected fit remains withheld by the central denominator gate and by the unresolved 96-versus-97 extract lineage.
 
-The directly affected registered models are `lrp-rlm-hg-008`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001` and `lrp-rlm-hs-001`. Any future concurrent, wider-gain or coupled model using `basnum` inherits the same blocker.
+The directly affected registered models remain `lrp-rlm-hg-002`, `lrp-rlm-hg-008`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001` and `lrp-rlm-hs-001`. Future models using either provisional measure inherit the same denominator blocker.
 
 ## Resolution needed
 
-Obtain the cohort's test record sheet, administration manual reference, data dictionary or transformation code and answer three questions: which BAS form was administered; whether the stored value is number-correct, an ability score or another composite; and what range is valid for that score. If it is a bounded item count, record the defensible denominator and refit every dependent model. If it is a transformed score, replace count-scale preprocessing and any Beta-Binomial outcome likelihood with a distribution appropriate to that score before refitting. A sensitivity fit cannot substitute for identifying the quantity being modelled.
+Obtain the administered 1983 BAS manual or cohort test record and identify the maximum raw score for Spelling and Number Skills. If each is a bounded item count, record the defensible denominator and refit every dependent model. If either raw score is not a simple item count, replace its count-scale preprocessing or outcome likelihood with a distribution appropriate to the documented scoring rule before refitting. The primary paper resolves source identity; it does not resolve the ceiling.

@@ -29,8 +29,6 @@ over the **identical frame** (pooled three-group, n = 69, group-nuisance
 dummies outside the horseshoe): where the adjusted model reports every slope
 at face value, the horseshoe asks which predictors escape aggressive shrinkage.
 
-_Unresolved number-score input._ The prepared `basnum` predictor reaches 60, but published descriptions of the 1983 BAS Basic Number Skills Forms B and C each specify 34 items and a maximum raw score of 34. Its form/scoring definition and bounded denominator are therefore unresolved. The fit remains available for diagnostics, while the fit-time input contract withholds its scientific findings until that predictor is identified and transformed appropriately.
-
 _A ranking, not effects — and nothing causal._ The Byrne cohort has no intervention (`causal_status="none"`): this is a
 which-predictors-carry-signal read, not an effect estimate. Shrunk
 coefficients are not evidence of no association — at n = 69 with a correlated

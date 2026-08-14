@@ -258,18 +258,6 @@ def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
     provisional = publication_input_contract("rlm", ("basread", "basnum"))
     assert any("basnum" in blocker for blocker in provisional["blockers"])
     assert provisional["measures"]["basnum"]["n_trials_confirmed"] is False
-    assert provisional["schema_version"] == 2
-    assert (
-        provisional["measures"]["basnum"]["score_definition_confirmed"]
-        is False
-    )
-    assert any(
-        "basnum: score definition is unresolved" in blocker
-        for blocker in provisional["blockers"]
-    )
-    assert "maximum raw score of 34" in provisional["measures"]["basnum"][
-        "score_definition_note"
-    ]
 
     identity = publication_input_contract("rlm", ("basmat",))
     assert any("instrument identity" in blocker for blocker in identity["blockers"])
@@ -281,8 +269,8 @@ def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
 # Ceilings per the #338 research + data-owner sign-off (2026-07-16). Confirmed
 # measures carry the instrument's published maximum; the three still-provisional
 # measures keep the observed extract maximum with n_trials_confirmed=False until
-# their manuals (1992 BAS Spelling Scale, 1983 Basic Number Skills, 1993 WORD)
-# are checked. basmat (wave-3+ only) joined for the #338 window extension
+# their manuals (1983 BAS Spelling and Number Skills, 1993 WORD) are checked.
+# basmat (wave-3+ only) joined for the #338 window extension
 # (lrp-rlm-hg-009, fitted on its own later-wave window).
 _RLM_CONFIRMED = {
     "basread": 90,
@@ -321,15 +309,12 @@ def test_rlm_provisional_ceilings(symbol, ceiling):
     assert m.n_trials_confirmed is False
 
 
-def test_only_basnum_has_an_unresolved_score_definition():
+def test_primary_source_confirms_provisional_bas_measure_identities():
     _dataset_spec, measures = resolve_dataset("rlm")
 
-    unresolved = {
-        symbol for symbol, measure in measures.items() if not measure.score_definition_confirmed
-    }
-
-    assert unresolved == {"basnum"}
-    assert "Forms B and C" in measures["basnum"].score_definition_note
+    for symbol in ("basspel", "basnum"):
+        assert measures[symbol].instrument_identity_confirmed is True
+        assert measures[symbol].n_trials_confirmed is False
 
 
 def test_resolve_unknown_study_raises():

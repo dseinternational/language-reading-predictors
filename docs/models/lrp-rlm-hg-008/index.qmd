@@ -35,7 +35,7 @@ Every quantity here is a **descriptive** group-by-wave expected score or growth
 rate — natural-history evidence, not a causal effect. The intervention-effect
 estimands live in the RLI (`lrp-rli-...`) suite.
 
-_Unresolved score definition and provisional Beta-Binomial ceiling._ The pipeline operationally treats the stored 0–60 integer score as a bounded count with $N = 60$ so diagnostic fits remain possible, but 60 is only the **observed maximum** in the prepared extract. Published descriptions of the first-edition BAS Basic Number Skills Forms B and C each give 34 items and a maximum raw score of 34. The stored value therefore cannot be assumed to be a standard item-correct raw score: both `score_definition_confirmed` and `n_trials_confirmed` are false. The fit-time publication contract withholds scientific findings until the administered form and score transformation are reconciled. The shared prior scales are reused from `lrp-rlm-hg-001`; the prior-predictive check below remains a diagnostic rather than validation of the score definition.
+_Primary-source identity; provisional Beta-Binomial ceiling._ Byrne, MacDonald and Buckley (2002) state that the analyses use raw scores and label this measure BAS number skills. Their Table 3 number-score means reproduce exactly from the prepared extract, confirming the stored score's source identity. The paper does not state the administered form or maximum, so $N = 60$ remains the **observed maximum**, not a manual-confirmed denominator (`n_trials_confirmed=False`). The fit-time publication contract withholds scientific findings until the 1983 BAS manual or cohort test record confirms the bounded-score ceiling. The shared prior scales are reused from `lrp-rlm-hg-001`; the prior-predictive check below remains a diagnostic rather than validation of that ceiling.
 
 _Audit baseline._ The model is fit on the per-measure complete-case subset (subjects with this
 measure observed at
@@ -51,10 +51,10 @@ assessed at wave 5, so the window ends at the common waves-1-4 horizon.
 
 ## Model
 
-For child $i$ in reading group $g[i]$ at wave $t$, the current provisional model
-treats the stored BAS number-skills score as Beta-Binomial with operational
-denominator $N = 60$, an age-free group-by-wave population mean and a stable
-per-child offset:
+For child $i$ in reading group $g[i]$ at wave $t$, the provisional model treats
+the BAS number-skills raw score as Beta-Binomial with operational denominator
+$N = 60$, an age-free group-by-wave population mean and a stable per-child
+offset:
 
 $$
 \text{score}_{it} \sim \mathrm{BetaBinomial}(N,\ p_{it},\ \kappa_{g[i]}),

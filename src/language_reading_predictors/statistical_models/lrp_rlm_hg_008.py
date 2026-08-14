@@ -25,16 +25,14 @@ warrant. Every quantity is a descriptive group-by-wave expected score or growth
 rate. The audit baseline is the paper's Table 2 complete-case reproduction for
 this measure (computed straight from the complete-case panel).
 
-**Unresolved score definition and provisional ceiling.** The pipeline operationally
-treats the stored 0-60 integer score as a bounded count with ``n_trials=60`` so
-diagnostic fits remain possible, but 60 is only the prepared extract's observed
-maximum. Published descriptions of the first-edition BAS Basic Number Skills Forms
-B and C each give 34 items and a maximum raw score of 34, so the stored value cannot
-be assumed to be a standard item-correct raw score. Both
-``score_definition_confirmed`` and ``n_trials_confirmed`` are false in
-``datasets.RLM_MEASURES``; the fit-time publication contract therefore withholds
-scientific findings until the administered form and scoring transformation are
-reconciled.
+**Primary-source identity; provisional ceiling.** Byrne et al. (2002) state that
+raw scores were analysed and label this measure BAS number skills. Their published
+Table 3 means reproduce exactly from the prepared extract, confirming the stored
+score's source identity. The paper does not state the administered form or maximum,
+so ``n_trials=60`` remains the observed-maximum operational denominator and
+``n_trials_confirmed=False``. The fit-time publication contract therefore withholds
+scientific findings until the 1983 BAS manual or cohort test record confirms the
+bounded-score ceiling.
 Per-measure prior calibration is left to the prior-critical-review
 follow-up; the shared defaults are used here and the prior-predictive check will
 flag any miscalibration.

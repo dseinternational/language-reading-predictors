@@ -29,7 +29,9 @@ this measure (computed straight from the complete-case panel).
 *observed maximum* in the prepared extract, not a manual-confirmed instrument
 ceiling (``n_trials_confirmed=False`` in ``datasets.RLM_MEASURES``); confirming it
 is a data-owner decision (``notes/202607021052-issue-164-byrne-followup-plan.md``,
-decision 3). The 1983 BAS has no spelling scale: the instrument is almost certainly the stand-alone BAS Spelling Scale (Elliott, 1992), whose item count is unverified (the BAS-II revision has 75 words), so the true denominator likely exceeds the observed 18.
+decision 3). Byrne et al. (2002) explicitly identify Spelling among the 1983 BAS
+subtests and state that raw scores were analysed. The paper does not give its
+item count, so the observed maximum cannot yet be promoted to a confirmed ceiling.
 Per-measure prior calibration (e.g. ``eta`` anchoring for
 lower-occupancy measures) is left to the prior-critical-review follow-up; the
 shared defaults are used here and the prior-predictive check will flag any

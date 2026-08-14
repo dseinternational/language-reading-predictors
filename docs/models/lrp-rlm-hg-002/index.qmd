@@ -39,10 +39,10 @@ prepared extract, not a manual-confirmed instrument ceiling
 (`n_trials_confirmed=False`). Confirming the true BAS-spelling maximum against the
 instrument manual is a data-owner decision
 (`notes/202607021052-issue-164-byrne-followup-plan.md`, decision 3); until then,
-read the fitted cells as provisional. The 1983 BAS has **no** spelling scale: the instrument is almost
-certainly the stand-alone BAS Spelling Scale (Elliott, 1992), whose item count
-is unverified (the BAS-II revision has 75 words), so the true denominator
-likely exceeds the observed 18. The shared prior scales are reused from
+read the fitted cells as provisional. Byrne, MacDonald and Buckley (2002)
+explicitly identify Spelling among the 1983 BAS subtests and state that the
+analyses use raw scores. The paper does not report the item count, so the
+observed maximum cannot yet be promoted to a confirmed ceiling. The shared prior scales are reused from
 `lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
 
 _Audit baseline._ The model is fit on the per-measure complete-case subset (subjects with BAS

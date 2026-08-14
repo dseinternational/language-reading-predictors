@@ -3,6 +3,8 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+>
+> Source identification corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Byrne suite: Phase A window extension, group-indexed random-effect scales, and the instrument-ceilings sign-off
 
@@ -32,23 +34,23 @@ Complete-case core sizes are unchanged from the shipped fits (e.g. `basread` 23/
 
 ## Instrument ceilings (researched 2026-07-16, data-owner sign-off)
 
-The battery and editions are confirmed by the cohort's open-access companion paper (Byrne, Buckley, MacDonald & Bird, 1995, _Down Syndrome Research and Practice_ 3(2), <https://doi.org/10.3104/reports.51>): BAS first edition (Elliott, 1983), TROG (Bishop, 1983/1989), BPVS (Dunn, Dunn, Whetton & Pintilie, 1982) and WORD (Rust, Golombok & Trickey, 1993). Item counts were verified against secondary published sources; the Byrne et al. (2002) BJEP paper itself is closed-access and states no counts.
+The battery, editions and use of raw scores are confirmed by the cohort's primary paper (Byrne, MacDonald & Buckley, 2002, _British Journal of Educational Psychology_ 72, 513–529, <https://doi.org/10.1348/00070990260377497>): BAS first edition (Elliott, 1983), TROG (Bishop, 1983), BPVS (Dunn, 1982) and WORD (Rust, Golombok & Trickey, 1993). The primary paper does not state instrument item counts; those require the corresponding manuals or other instrument-specific evidence.
 
-| Measure   | Old (provisional)  | New        | Basis                                                                                                                                                                                                                              |
-| --------- | ------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `basread` | 87 (mis-confirmed) | **90** ✓   | BAS Word Reading has 90 words (Beech, 2004, _Reading Psychology_, DOI 10.1080/02702710490271819). The previous 87 was the observed extract maximum.                                                                                |
-| `trog`    | 20                 | **20** ✓   | 80 items in 20 blocks of 4, scored as blocks passed (Bishop's original TROG manual, OSF <https://osf.io/z8wbs/>). The cohort reaches this ceiling.                                                                                 |
-| `basdig`  | 34                 | **34** ✓   | 34 items (CLOSER cognitive-measures guide; Parsons, 2014, CLS working paper). The cohort reaches this ceiling.                                                                                                                     |
-| `bassim`  | 18                 | **21** ✓   | 21 items (CLOSER guide; Parsons, 2014). Counts documented for the 1978/79 scale; 1983 was a re-norming.                                                                                                                            |
-| `basmat`  | 22                 | **28** ✓   | BAS Matrices, 28 items (CLOSER guide; Parsons, 2014). **Caveat:** Laws et al. (1995) used Raven's CPM (36 items) on this cohort; sign-off records that the `basmat` column is BAS Matrices.                                        |
-| `bpvs`    | 29                 | **32** ✓   | BPVS **Short Form**, 32 items (Ripley & Yuill, 2005, _BJEP_, DOI 10.1348/000709904X22656): observed maxima to 29 across ages 11+ are only consistent with the short form.                                                          |
-| `basspel` | 18                 | 18 (prov.) | The 1983 BAS has **no** spelling scale; almost certainly the stand-alone BAS Spelling Scale (Elliott, 1992) — item count unverified (BAS-II revision: 75 words), so the true denominator likely exceeds 18. Needs the 1992 manual. |
-| `basnum`  | 60                 | 60 (prov.) | Forms B/C are documented with maximum raw score 34, conflicting with the extract's maximum 60. Score definition and denominator remain unresolved; see the 2026-08-14 audit note.                                                  |
-| `woco`    | 31                 | 31 (prov.) | WORD Reading Comprehension count unverified (the parent WIAT subtest is commonly described as 38 items). Needs the 1993 WORD manual.                                                                                               |
+| Measure   | Old (provisional)  | New        | Basis                                                                                                                                                                                                                        |
+| --------- | ------------------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `basread` | 87 (mis-confirmed) | **90** ✓   | BAS Word Reading has 90 words (Beech, 2004, _Reading Psychology_, DOI 10.1080/02702710490271819). The previous 87 was the observed extract maximum.                                                                          |
+| `trog`    | 20                 | **20** ✓   | 80 items in 20 blocks of 4, scored as blocks passed (Bishop's original TROG manual, OSF <https://osf.io/z8wbs/>). The cohort reaches this ceiling.                                                                           |
+| `basdig`  | 34                 | **34** ✓   | 34 items (CLOSER cognitive-measures guide; Parsons, 2014, CLS working paper). The cohort reaches this ceiling.                                                                                                               |
+| `bassim`  | 18                 | **21** ✓   | 21 items (CLOSER guide; Parsons, 2014). Counts documented for the 1978/79 scale; 1983 was a re-norming.                                                                                                                      |
+| `basmat`  | 22                 | **28** ✓   | BAS Matrices, 28 items (CLOSER guide; Parsons, 2014). **Caveat:** Laws et al. (1995) used Raven's CPM (36 items) on this cohort; sign-off records that the `basmat` column is BAS Matrices.                                  |
+| `bpvs`    | 29                 | **32** ✓   | BPVS **Short Form**, 32 items (Ripley & Yuill, 2005, _BJEP_, DOI 10.1348/000709904X22656): observed maxima to 29 across ages 11+ are only consistent with the short form.                                                    |
+| `basspel` | 18                 | 18 (prov.) | The primary paper explicitly identifies Spelling among the administered 1983 BAS subtests and analyses raw scores. Its item count is not reported, so 18 remains an observed-maximum placeholder.                            |
+| `basnum`  | 60                 | 60 (prov.) | The primary paper labels BAS number-skills raw scores, and its Table 3 means reproduce exactly from the prepared extract. The administered form and maximum are not reported, so 60 remains an observed-maximum placeholder. |
+| `woco`    | 31                 | 31 (prov.) | WORD Reading Comprehension count unverified (the parent WIAT subtest is commonly described as 38 items). Needs the 1993 WORD manual.                                                                                         |
 
 ✓ = `n_trials_confirmed=True` in `datasets.RLM_MEASURES`. Two consequences worth noting: `trog` (20/20) and `basdig` (34/34) sit **at** their true ceilings in the extract, so their Beta-Binomial upper bounds are real, not observed-max artefacts; and the `basread` correction (87 → 90) slightly shifts `lrp-rlm-hg-001`'s fitted probabilities relative to the shipped fit, which the next reporting sweep will absorb.
 
-The three provisional measures keep their unconfirmed-ceiling report callouts (now carrying the instrument-identity findings above), and the remaining manuals check is scoped precisely: the 1992 BAS Spelling Scale, the 1983 BAS Basic Number Skills scale, and the 1993 WORD Reading Comprehension subtest.
+The three provisional measures keep their unconfirmed-ceiling report callouts, and the remaining manuals check is scoped to the administered 1983 BAS Spelling and Number Skills tests and the 1993 WORD Reading Comprehension subtest. The primary paper confirms the first two source identities but not their denominators.
 
 ## Addendum (same day) — Phase B/D decisions and models
 
