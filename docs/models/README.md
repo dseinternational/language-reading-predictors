@@ -486,7 +486,10 @@ so the four randomised RLI families (`itt`, `did`, `aligned`, `dose_response`) h
 counterpart. Six Beta-Binomial ceilings are researched and confirmed (`basread` 90, `bpvs` 32,
 `trog` 20, `basdig` 34, `bassim` 21, `basmat` 28 — #338 sign-off, 2026-07-16); `basspel`,
 `basnum` and `woco` keep **provisional observed-max ceilings** (`n_trials_confirmed=False`)
-pending their instrument manuals. The reading-matched group is _selected
+pending their instrument manuals. The primary paper identifies `basspel` as 1983 BAS
+Spelling and `basnum` as BAS number-skills raw scores; its published number-score means
+reproduce exactly from the prepared extract. Those identities are therefore confirmed,
+but the paper does not state either instrument ceiling. The reading-matched group is _selected
 on_ `basread` level, so between-group contrasts touching that group carry the selection
 caveat. Roadmap: the phased Byrne suite is tracked in #338 and mapped in
 `notes/202607131600-byrne-comparable-models-plan.md`.

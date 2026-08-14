@@ -269,8 +269,8 @@ def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
 # Ceilings per the #338 research + data-owner sign-off (2026-07-16). Confirmed
 # measures carry the instrument's published maximum; the three still-provisional
 # measures keep the observed extract maximum with n_trials_confirmed=False until
-# their manuals (1992 BAS Spelling Scale, 1983 Basic Number Skills, 1993 WORD)
-# are checked. basmat (wave-3+ only) joined for the #338 window extension
+# their manuals (1983 BAS Spelling and Number Skills, 1993 WORD) are checked.
+# basmat (wave-3+ only) joined for the #338 window extension
 # (lrp-rlm-hg-009, fitted on its own later-wave window).
 _RLM_CONFIRMED = {
     "basread": 90,
@@ -307,6 +307,14 @@ def test_rlm_provisional_ceilings(symbol, ceiling):
     # Provisional: the ceiling is the observed maximum, not a confirmed instrument
     # maximum, so this flag must stay False until a data-owner confirms it.
     assert m.n_trials_confirmed is False
+
+
+def test_primary_source_confirms_provisional_bas_measure_identities():
+    _dataset_spec, measures = resolve_dataset("rlm")
+
+    for symbol in ("basspel", "basnum"):
+        assert measures[symbol].instrument_identity_confirmed is True
+        assert measures[symbol].n_trials_confirmed is False
 
 
 def test_resolve_unknown_study_raises():

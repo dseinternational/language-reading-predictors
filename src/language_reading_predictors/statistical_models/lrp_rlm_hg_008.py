@@ -25,11 +25,14 @@ warrant. Every quantity is a descriptive group-by-wave expected score or growth
 rate. The audit baseline is the paper's Table 2 complete-case reproduction for
 this measure (computed straight from the complete-case panel).
 
-**Provisional ceiling.** The Beta-Binomial denominator (``n_trials=60``) is the
-*observed maximum* in the prepared extract, not a manual-confirmed instrument
-ceiling (``n_trials_confirmed=False`` in ``datasets.RLM_MEASURES``); confirming it
-is a data-owner decision (``notes/202607021052-issue-164-byrne-followup-plan.md``,
-decision 3). The 1983 Basic Number Skills item count is unverified; the observed maximum of 60 rules out the 46-item BAS-II scale, so the true ceiling is at least 60.
+**Primary-source identity; provisional ceiling.** Byrne et al. (2002) state that
+raw scores were analysed and label this measure BAS number skills. Their published
+Table 3 means reproduce exactly from the prepared extract, confirming the stored
+score's source identity. The paper does not state the administered form or maximum,
+so ``n_trials=60`` remains the observed-maximum operational denominator and
+``n_trials_confirmed=False``. The fit-time publication contract therefore withholds
+scientific findings until the 1983 BAS manual or cohort test record confirms the
+bounded-score ceiling.
 Per-measure prior calibration is left to the prior-critical-review
 follow-up; the shared defaults are used here and the prior-predictive check will
 flag any miscalibration.

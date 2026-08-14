@@ -93,10 +93,10 @@ RLM_GROUP_LABELS: dict[int, str] = {
 }
 
 # Instrument ceilings researched against published sources and signed off by the
-# data owner on 2026-07-16 (#338; see the dated decisions note). The battery and
-# editions are confirmed by the cohort's companion paper (Byrne, Buckley,
-# MacDonald & Bird, 1995, DSRP 3(2)): BAS first edition (Elliott, 1983), TROG
-# (Bishop, 1983/1989), BPVS (Dunn, Dunn, Whetton & Pintilie, 1982), WORD (Rust,
+# data owner on 2026-07-16 (#338; see the dated decisions note). The battery,
+# editions and raw-score use are confirmed by the cohort's primary paper (Byrne,
+# MacDonald & Buckley, 2002, DOI 10.1348/00070990260377497): BAS first edition
+# (Elliott, 1983), TROG (Bishop, 1983), BPVS (Dunn, 1982), and WORD (Rust,
 # Golombok & Trickey, 1993). Confirmed ceilings (``n_trials_confirmed=True``):
 #
 # - ``basread``  90 - BAS Word Reading has 90 words (Beech 2004, Reading
@@ -118,12 +118,13 @@ RLM_GROUP_LABELS: dict[int, str] = {
 # Still **provisional** (observed extract maximum; ``n_trials_confirmed=False``),
 # pending the instrument manuals (follow-up-plan decision 3):
 #
-# - ``basspel``  18 - the 1983 BAS has no spelling scale; the instrument is
-#   almost certainly the stand-alone BAS Spelling Scale (Elliott, 1992), whose
-#   first-edition item count is unverified (the BAS-II revision has 75 words),
-#   so the true denominator likely exceeds 18.
-# - ``basnum``   60 - 1983 Basic Number Skills item count unverified; the
-#   observed 60 rules out the 46-item BAS-II scale, so the ceiling is >= 60.
+# - ``basspel``  18 - Byrne et al. (2002) explicitly identify Spelling among
+#   the administered 1983 BAS subtests and analyse raw scores. The paper does
+#   not state the item count, so 18 remains an observed-maximum placeholder.
+# - ``basnum``   60 - Byrne et al. (2002) label the values BAS number-skills
+#   raw scores; its Table 3 values reproduce exactly from the prepared extract.
+#   The paper does not state the administered form or maximum, so 60 remains an
+#   observed-maximum placeholder rather than a confirmed ceiling.
 # - ``woco``     31 - WORD Reading Comprehension item count unverified (the
 #   parent WIAT subtest is commonly described as 38 items).
 #
