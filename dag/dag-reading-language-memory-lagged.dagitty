@@ -1,0 +1,67 @@
+// SPDX-License-Identifier: CC-BY-4.0
+// Note: Drafted by a LLM-based AI tool (Codex/GPT-5).
+//
+// ADOPTED WORKING DAG 2026-08-14. Byrne, MacDonald & Buckley (2002)
+// reading-language-memory cohort (study_id="rlm"). This is a generic
+// two-slice template: _t is one annual assessment and _t1 is the next.
+// Decision record: notes/202608141700-byrne-lagged-dag-decision.md.
+//
+// Structure:
+//   1. copy the adopted contemporaneous RLM graph into both waves;
+//   2. carry age and every observed measure forward autoregressively;
+//   3. add only the source-question reverse edges from prior word reading to
+//      later receptive vocabulary, receptive grammar and auditory short-term
+//      memory;
+//   4. retain latent general ability and hearing as unmeasured common causes.
+//
+// The reverse edges are temporal hypotheses, not identified causal effects.
+// GA and HS leave unclosed backdoors, readgrp is observational, and the
+// reading-matched group was selected on basread. Exposure/outcome roles are
+// assigned per analysis; no fitted model is implied by this graph.
+//
+// Explicit graph: 23 nodes, 97 directed edges and one bidirected design
+// association. The directed component is acyclic.
+
+dag {
+GA [latent]
+HS [latent]
+
+// --- stable and time-varying common causes ---
+age_t  -> age_t1
+age_t  -> { bassim_t basmat_t basdig_t basnum_t bpvs_t trog_t basread_t basspel_t woco_t }
+age_t1 -> { bassim_t1 basmat_t1 basdig_t1 basnum_t1 bpvs_t1 trog_t1 basread_t1 basspel_t1 woco_t1 }
+GA -> { bassim_t basmat_t basdig_t basnum_t bpvs_t trog_t basread_t basspel_t woco_t
+        bassim_t1 basmat_t1 basdig_t1 basnum_t1 bpvs_t1 trog_t1 basread_t1 basspel_t1 woco_t1 }
+HS -> { basdig_t bpvs_t trog_t basread_t basspel_t
+        basdig_t1 bpvs_t1 trog_t1 basread_t1 basspel_t1 }
+readgrp -> { bassim_t basmat_t basdig_t basnum_t bpvs_t trog_t basread_t basspel_t woco_t
+             bassim_t1 basmat_t1 basdig_t1 basnum_t1 bpvs_t1 trog_t1 basread_t1 basspel_t1 woco_t1 }
+
+// --- contemporaneous cascade copied into both waves (Option A) ---
+basdig_t -> { bpvs_t basread_t basspel_t basnum_t woco_t }
+bpvs_t -> { trog_t basread_t woco_t }
+trog_t -> woco_t
+basread_t -> woco_t
+
+basdig_t1 -> { bpvs_t1 basread_t1 basspel_t1 basnum_t1 woco_t1 }
+bpvs_t1 -> { trog_t1 basread_t1 woco_t1 }
+trog_t1 -> woco_t1
+basread_t1 -> woco_t1
+
+// --- autoregressive carry-over ---
+bassim_t  -> bassim_t1
+basmat_t  -> basmat_t1
+basdig_t  -> basdig_t1
+basnum_t  -> basnum_t1
+bpvs_t    -> bpvs_t1
+trog_t    -> trog_t1
+basread_t -> basread_t1
+basspel_t -> basspel_t1
+woco_t    -> woco_t1
+
+// --- pre-specified reverse edges from the primary source question ---
+basread_t -> { bpvs_t1 trog_t1 basdig_t1 }
+
+// --- design-induced association from age/reading matching, not causal ---
+age_t <-> readgrp
+}

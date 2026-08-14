@@ -1,6 +1,7 @@
 // Reading, language & memory causal DAG — Byrne, MacDonald & Buckley (2002)
 // cohort (study_id="rlm"). Down Syndrome Education International.
-// PROPOSAL 2026-07-13 (Claude Code/Fable 5). See
+// ADOPTED WORKING DAG 2026-08-14. Drafted by Claude Code/Fable 5 and
+// substantively updated by Codex/GPT-5. See
 // notes/202607131500-byrne-dag-proposal.md for the full construct crosswalk,
 // the RLI-edge mapping, the readgrp / reading-matched selection caveat, the
 // latent extensions and the lagged companion.
@@ -12,12 +13,12 @@
 // nodes with no measure in the prepared extract, COLLAPSES the unmeasured code
 // route into direct edges, and REPLACES the randomised intervention (IG/IS)
 // with the observational cohort factor readgrp. Exposure/outcome roles are
-// assigned per analysis; only GA is annotated latent (a structural property).
+// assigned per analysis; GA and unmeasured hearing status HS are latent.
 //
 // CONTEMPORANEOUS (single-wave) structure, matching the RLI base graph. The
 // study's founding reciprocal question (does reading feed language & memory?)
-// is inherently longitudinal and belongs in a time-lagged companion — see the
-// note (mirrors dag/dag-language-reading-lagged.dagitty for RLI).
+// is inherently longitudinal and belongs in the adopted companion
+// dag/dag-reading-language-memory-lagged.dagitty.
 //
 // Node symbols = Byrne CSV columns (study-local, per datasets.py), with the RLI
 // symbol they map to in [brackets]:
@@ -41,24 +42,28 @@
 // Adaptation summary (full table in the note):
 //   * IG/IS  -> readgrp   (randomised cause replaced by an observational cohort
 //                          marker; NO term here is a clean causal effect).
-//   * DROP   HS EV LF EI EG SP LS PA NW TE TR  (no measure in the extract).
+//   * RETAIN HS as a latent common cause (no measure in the extract).
+//   * DROP   EV LF EI EG SP LS PA NW TE TR  (no measure in the extract).
 //   * COLLAPSE the code route (LS/PA/NW): basdig -> basread and bpvs -> basread
 //                          now stand in for RLI's ...-> (code route) -> WR chain.
 //   * ADD    woco, basnum, bassim, basmat, and the GA indicator structure.
 //   * basread is NO LONGER a sink: woco (reading comprehension) sits downstream.
 //
-// Verified acyclic (12 nodes; roots age, GA, readgrp). The age <-> readgrp
+// Verified acyclic directed component (13 explicit nodes; 42 directed edges;
+// roots age, GA, HS, readgrp). The age <-> readgrp
 // bidirected edge is a DESIGN-induced association (reading-matched children are
 // younger by construction), not a causal arrow; it leaves the graph acyclic.
 
 dag {
 GA [latent]
+HS [latent]
 
 // --- universal parents (as in RLI: age & GA into every observed node; here
 //     readgrp too, as the cohort/population marker) ---
 age     -> { bassim basmat basdig basnum bpvs trog basread basspel woco }
 GA      -> { bassim basmat basdig basnum bpvs trog basread basspel woco }
 readgrp -> { bassim basmat basdig basnum bpvs trog basread basspel woco }
+HS      -> { basdig bpvs trog basread basspel }
 
 // --- verbal short-term / phonological memory (RLI RW), code route collapsed ---
 basdig -> { bpvs basread basspel basnum woco }

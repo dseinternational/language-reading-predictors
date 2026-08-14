@@ -3,9 +3,11 @@
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
+>
+> Phase C status and measurement gates substantially updated by a LLM-based AI tool (Codex/GPT-5).
 
 > [!WARNING]
-> This is a **forward-looking plan for discussion**, not results and not fitted models. It maps the RLI Layer-2 model families onto the Byrne cohort given the proposed Byrne DAG (`dag/dag-reading-language-memory.dagitty`) and the measures/waves actually present in the extract. Most items are gated on human/data-owner decisions (instrument ceilings, group scope, and green-lighting the lagged companion) — those gates are called out per model.
+> This is a **forward-looking plan**, not results and not fitted models. It maps the RLI Layer-2 model families onto the Byrne cohort given the adopted working DAGs and the measures/waves actually present in the extract. Several items remain gated on measurement records, extract lineage or simulation-based feasibility; those gates are called out per model.
 
 # Comparable models for the Byrne, MacDonald & Buckley (2002) cohort — plan
 
@@ -41,7 +43,7 @@ The RLI suite's one causal quantity is the randomised intention-to-treat `τ` (a
 1. **Sample size.** 24 Down syndrome, 42 average readers, 31 reading-matched (97 total). The DS group — the scientifically central one — is **n = 24**. RLI already judged a free RI-CLPM **not estimable at n ≈ 54** and shipped the parsimonious `lcsm-067` instead; the Byrne DS panel is less than half that. **Any longitudinal coupling model must be parsimonious**: a few pre-specified, pooled couplings with informative priors, not a free cross-lagged system.
 2. **Estimable wave window (measured, from the extract).** Waves **1–4 carry all three groups**; **wave 5 is Down-syndrome-only** (17 children; average and reading-matched both drop to zero). So between-group contrasts live in **w1–w4**, and w5 extends only the DS within-group trajectory. Group sizes shrink over waves through attrition (DS 24→17; Avg 42→0 by w5; RM 31→0 by w5).
 3. **`basmat` is wave-3+; `basnum` is absent at wave 5.** No baseline (w1) non-verbal-reasoning score, so the GC-style "does baseline non-verbal ability predict trajectory shape?" question must fall back on **`bassim`** (verbal reasoning, available w1) as the baseline-ability proxy, and flag `basmat` as a later-wave-only covariate.
-4. **Instrument ceilings are unconfirmed (the hard gate).** The Beta-Binomial likelihood needs a confirmed denominator per measure. Only `basread` (87) is treated as confirmed (and even that is the _observed_ maximum, not manual-verified). Observed maxima in the extract: `basspel` 18, `woco` 31, `bpvs` 29, `trog` 20, `basdig` 34, `basnum` 60, `bassim` 18, `basmat` 22. **Every non-`basread` bounded-count model is blocked** until these are confirmed against the instrument manuals, or a Normal/Student-t likelihood on the raw score is chosen where a bounded count is inappropriate (follow-up-plan decision 3).
+4. **Measurement gates are now measure-specific.** Confirmed Beta-Binomial denominators are `basread=90`, `bpvs=32`, `trog=20`, `basdig=34` and `bassim=21`; `basspel=18`, `woco=31` and `basnum=60` remain observed-maximum placeholders with `n_trials_confirmed=False`, and `basmat` retains an instrument-identity caveat. The Phase C reverse targets (`basread`, `bpvs`, `trog`, `basdig`) are all in the confirmed set, so the three manuals do not block that narrow question. The unresolved 96-versus-97 extract lineage still blocks publication of every Byrne fit.
 5. **Reading-matched selection.** Group 3 is selected on reading level, so `basread` is a **selection variable** for any analysis using it (a collider). Between-group contrasts and any cross-lagged edge touching group 3 must treat this explicitly.
 
 ## Adjustment sets, read off the Byrne DAG
@@ -63,7 +65,7 @@ Ids follow the registered scheme (`lrp-rlm-{family}-NNN`, `study_id="rlm"`), ext
 
 **Phase B — joint & measurement structure.** (i) `lrp-rlm-jc-001` : a `joint`/`growth` model of correlated group-by-wave trajectories over a small set (reading + a vocabulary + a memory measure) — how the trajectories move together within group. (ii) `lrp-rlm-mm-001` : a `corr_factor` **domain-factor measurement model** (reading = `basread`/`basspel`/`woco`; language = `bpvs`/`trog`; memory = `basdig`; ability = `bassim`/`basmat`/`basnum`) — the modern analogue of the paper's correlation tables, and the cleanest way to summarise the construct structure before any coupling model. _Gate: ceilings; measurement-invariance assumptions across groups stated up front._
 
-**Phase C — the reciprocal question (the scientifically distinctive model).** `lrp-rlm-lcsm-001` (change-score) and, if the sample stretches, a reduced two-variable `lrp-rlm-clpm-001` (cross-lagged): does prior-wave **reading** predict later **language/memory** _change_, over and above the forward path? This is Byrne et al.'s founding hypothesis — and their reported _null_ — put to a modern coupled model. It **requires a lagged Byrne DAG** (a two-slice wave-unrolled companion mirroring `dag/dag-language-reading-lagged.dagitty`, with reverse edges `basread_t → {bpvs, basdig, trog}_{t+1}`), which the DAG proposal scoped but did not draw. Byrne's **5 waves** (deeper than RLI's 4) favour this, but the **DS n = 24** forces the same parsimony RLI used (pooled coupling across transitions, informative priors); a free RI-CLPM stays parked, exactly as in RLI. _Gate: green-light + draft the lagged companion; confirm which reverse edges are pre-specified vs exploratory._
+**Phase C — lagged graph adopted; model remains simulation-gated.** The working companion `dag/dag-reading-language-memory-lagged.dagitty` now pre-specifies `basread_t → {bpvs_t1, trog_t1, basdig_t1}` and no other reverse edges. This is Byrne et al.'s receptive-language and auditory-memory hypothesis; the repository lacks the paper's visual-recall measures, so it cannot test “memory” in full. The primary paper reports waves 1–3, while prepared waves 4–5 are later extensions and wave 5 is Down-syndrome-only. Before `lrp-rlm-lcsm-001` is registered, simulate the actual missingness patterns and compare a Down-syndrome-only pooled-coupling LCSM with a three-group model using group-specific trajectory intercepts and shared couplings. A free RI-CLPM and a separate CLPM family remain parked. _Decision record: `notes/202608141700-byrne-lagged-dag-decision.md`._
 
 **Phase D — predictor views (associational).** `lrp-rlm-adj-001` : between-child, which wave-1 skills go with more subsequent reading gain, mutually adjusted (analogue of `adj-065`). `lrp-rlm-hs-001` : a regularised-horseshoe ranking cross-check over the same predictor set. Both are honest "what predicts reading" summaries with no causal claim. _Gate: ceilings; DS-only vs pooled decision._
 
@@ -75,7 +77,7 @@ Ids follow the registered scheme (`lrp-rlm-{family}-NNN`, `study_id="rlm"`), ext
 
 1. **Instrument ceilings / likelihood** per non-`basread` measure — the gate on Phases A, B, D (follow-up-plan decision 3).
 2. **Group scope** — three-group (fuller picture) vs Down-syndrome-vs-reading-matched (the sharper developmental contrast) as the primary framing, per measure and per phase (follow-up-plan decision 4). Note w5 is DS-only regardless.
-3. **Green-light the lagged companion** and the reduced cross-lagged/LCSM model (Phase C) — the distinctive analysis; without it Byrne is only descriptive growth + measurement structure.
+3. **Lagged companion — resolved 2026-08-14.** The graph and three reverse edges are adopted; the reduced LCSM itself remains behind its pre-fit simulation gate.
 4. **Reading-matched selection handling** — confirm `basread` is treated as a selection variable wherever group 3 enters.
 5. **Random-effects heterogeneity** — index the subject-intercept SD (and possibly `κ`) by group, per the follow-up plan's decision 7, before the per-measure growth sweep so it propagates.
 
