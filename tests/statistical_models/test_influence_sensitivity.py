@@ -15,6 +15,8 @@ import xarray as xr
 
 from language_reading_predictors.statistical_models import influence
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.fitted_payloads import IttPayload
 from language_reading_predictors.statistical_models.lrp_rli_itt_012 import (
     SPEC as JOINT_SPEC,
 )
@@ -389,14 +391,16 @@ def _candidate_bundle(tmp_path, *, divergent: bool = False):
         primary_hashes=influence.hash_primary_artifacts(model_dir),
     )
     trace = _synthetic_trace(n_obs=2, seed=43, divergent=divergent)
-    built = SimpleNamespace(
+    built = BuiltModel(
         model=SimpleNamespace(
             free_RVs=[SimpleNamespace(name="alpha"), SimpleNamespace(name="tau")]
         ),
         prepared=SimpleNamespace(
             G=np.asarray(trace.constant_data["G"].values), n_obs=2
         ),
-        extras={},
+        payload=IttPayload(
+            tau_interaction_moderators=(), score_mean_link="logit"
+        ),
     )
     influence_build = influence.InfluenceBuild(
         built=built,

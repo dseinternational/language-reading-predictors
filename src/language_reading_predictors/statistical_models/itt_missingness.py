@@ -30,6 +30,9 @@ import numpy as np
 import pandas as pd
 
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    ScreeningWordReadingPayload,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
@@ -419,7 +422,9 @@ def load_randomised_w_archive(
     )
 
 
-def build_screening_w_model(data: ScreeningWordReadingData) -> BuiltModel:
+def build_screening_w_model(
+    data: ScreeningWordReadingData,
+) -> BuiltModel[ScreeningWordReadingPayload]:
     """Build the regularised screening-baseline Beta-Binomial companion."""
 
     import pymc as pm
@@ -496,11 +501,11 @@ def build_screening_w_model(data: ScreeningWordReadingData) -> BuiltModel:
     return BuiltModel(
         model=model,
         prepared=data,  # type: ignore[arg-type]
-        extras={
-            "source_sha256": data.data_sha256,
-            "target_n": RANDOMISED_N,
-            "observed_n": data.n_obs,
-        },
+        payload=ScreeningWordReadingPayload(
+            source_sha256=data.data_sha256,
+            target_n=RANDOMISED_N,
+            observed_n=data.n_obs,
+        ),
     )
 
 
@@ -719,7 +724,7 @@ def summarise_missingness_sensitivity(
 
 
 def sample_missingness_prior_predictive(
-    built: BuiltModel,
+    built: BuiltModel[ScreeningWordReadingPayload],
     *,
     draws: int = MISSINGNESS_PRIOR_DRAWS,
     random_seed: int | None = None,

@@ -64,6 +64,9 @@ from scipy.special import expit
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.factories import build_did_model
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    DidDosePayload,
+)
 from language_reading_predictors.statistical_models.measures import (
     DISTAL_OUTCOMES,
     MEASURES,
@@ -312,7 +315,8 @@ def _fit_cell(
         "sampling_nuts_sampler": "nutpie",
     }
     if plan.dose:
-        row["n_treated_rows"] = int(np.sum(np.asarray(built.extras["treated"]) == 1))
+        payload = built.require_payload(DidDosePayload, family="did sensitivity")
+        row["n_treated_rows"] = int(np.sum(np.asarray(payload.treated) == 1))
     else:
         row["n_t2_intervention"] = int(np.sum(G[phase == 1] == 1))
         row["n_t2_control"] = int(np.sum(G[phase == 1] == 0))

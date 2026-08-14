@@ -18,8 +18,16 @@ import os
 import numpy as np
 import pandas as pd
 
+from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    FittedPayload,
+    LongCorrFactorPayload,
+)
 
-def observed_domain_corr(built) -> pd.DataFrame:
+
+def observed_domain_corr(
+    built: BuiltModel[FittedPayload],
+) -> pd.DataFrame:
     """Observed same-wave cross-domain indicator correlations for triangulation.
 
     For each wave and each unique domain pair, compute the mean pairwise
@@ -28,9 +36,12 @@ def observed_domain_corr(built) -> pd.DataFrame:
     it is not the same estimand as the model's latent factor correlation.
     """
     panel = built.prepared
-    domains = built.extras["domains"]
-    standardisers = built.extras["standardisers"]
-    waves = built.extras["waves"]
+    payload = built.require_payload(
+        LongCorrFactorPayload, family="long_corr_factor summaries"
+    )
+    domains = payload.domains
+    standardisers = payload.standardisers
+    waves = payload.waves
     dnames = list(domains)
     # Standardised logit per indicator (pooled, exactly as the factory), (N, T).
     z = {}
@@ -62,7 +73,10 @@ def observed_domain_corr(built) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def items_scale(ctx, built) -> pd.DataFrame:
+def items_scale(
+    ctx,
+    built: BuiltModel[FittedPayload],
+) -> pd.DataFrame:
     """Approximate items-scale translation of the headline cross-domain couplings.
 
     For one representative indicator pair per cross-domain combination (the first
@@ -78,9 +92,12 @@ def items_scale(ctx, built) -> pd.DataFrame:
     from scipy.special import expit
 
     post = ctx.trace.posterior
-    domains = built.extras["domains"]
-    standardisers = built.extras["standardisers"]
-    waves = built.extras["waves"]
+    payload = built.require_payload(
+        LongCorrFactorPayload, family="long_corr_factor summaries"
+    )
+    domains = payload.domains
+    standardisers = payload.standardisers
+    waves = payload.waves
     hdi = ctx.reporting.ci_prob
     lo_q = (1 - hdi) / 2
     dnames = list(domains)
@@ -212,7 +229,7 @@ def observed_conditional_slope(
 
 def concurrent_comparison(
     ctx,
-    built,
+    built: BuiltModel[FittedPayload],
     *,
     ca_tables: dict[str, pd.DataFrame] | None = None,
 ) -> pd.DataFrame:
@@ -240,7 +257,10 @@ def concurrent_comparison(
     domain_index = {domain: i for i, domain in enumerate(domains)}
     indicator_names = [str(value) for value in post.coords["indicator"].values]
     indicator_index = {symbol: i for i, symbol in enumerate(indicator_names)}
-    domain_of = built.extras["domain_of"]
+    payload = built.require_payload(
+        LongCorrFactorPayload, family="long_corr_factor summaries"
+    )
+    domain_of = payload.domain_of
 
     corr = (
         post["factor_corr"]
@@ -282,7 +302,7 @@ def concurrent_comparison(
         target_domain = domain_of[target]
         target_domain_idx = domain_index[target_domain]
         target_indicator_idx = indicator_index[target]
-        target_sd = float(built.extras["standardisers"][target][1])
+        target_sd = float(payload.standardisers[target][1])
         target_trials = int(panel.n_trials[target])
         ca_table = ca_tables.get(target)
 
@@ -295,7 +315,7 @@ def concurrent_comparison(
             predictor_domain_idx = domain_index[predictor_domain]
             predictor_indicator_idx = indicator_index[predictor]
             predictor_pooled_sd = float(
-                built.extras["standardisers"][predictor][1]
+                payload.standardisers[predictor][1]
             )
 
             observed_slope = observed_conditional_slope(
@@ -308,7 +328,7 @@ def concurrent_comparison(
                 predictor_indicator_idx=predictor_indicator_idx,
             )
 
-            for wave_idx, wave in enumerate(built.extras["waves"]):
+            for wave_idx, wave in enumerate(payload.waves):
                 predictor_wave = np.asarray(panel.logit[predictor][:, wave_idx])
                 target_wave = np.asarray(panel.logit[target][:, wave_idx])
                 fitted_rows = np.isfinite(target_wave)

@@ -9,8 +9,8 @@ variables (for example ``trait_corr_chol`` versus ``trait_corr_chol_cholesky``)
 while the posterior keeps the random-variable names, so the stock log-likelihood /
 log-prior recovery rejects the inputs.
 
-Both routines are pure functions of a fitted trace (plus the built model / its
-``extras``) and return xarray objects — no output directory, Quarto template,
+Both routines are pure functions of a fitted trace (plus the built model and its
+typed payload) and return xarray objects — no output directory, Quarto template,
 Matplotlib session or console dependency — so they can be tested independently of
 report publication (issue #394, pillar 7). The family pipeline's LOO-stitching
 orchestration composes them with the shared reporting helpers.
@@ -20,8 +20,19 @@ from __future__ import annotations
 
 import numpy as np
 
+from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    FittedPayload,
+    LongCorrFactorPayload,
+)
 
-def child_log_likelihood(trace, built, *, chunk_size: int = 256):
+
+def child_log_likelihood(
+    trace,
+    built: BuiltModel[FittedPayload],
+    *,
+    chunk_size: int = 256,
+):
     """Evaluate the LCF's exact per-child MvNormal log likelihood.
 
     PyMC 6.1 cannot reconstruct this model's log likelihood from its posterior:
@@ -41,12 +52,15 @@ def child_log_likelihood(trace, built, *, chunk_size: int = 256):
     if chunk_size < 1:
         raise ValueError(f"chunk_size must be positive (got {chunk_size})")
 
+    payload = built.require_payload(
+        LongCorrFactorPayload, family="long_corr_factor inference"
+    )
     posterior = trace.posterior
     mean_z = posterior["mean_z"].transpose("chain", "draw", "cell")
     sigma_z = posterior["Sigma_z"].transpose(
         "chain", "draw", "cell", "cell_b"
     )
-    expected_cells = np.asarray(built.extras["cell_names"], dtype=str)
+    expected_cells = np.asarray(payload.cell_names, dtype=str)
     for variable, dimension in ((mean_z, "cell"), (sigma_z, "cell"), (sigma_z, "cell_b")):
         actual_cells = np.asarray(variable.coords[dimension].values, dtype=str)
         if not np.array_equal(actual_cells, expected_cells):
@@ -59,12 +73,12 @@ def child_log_likelihood(trace, built, *, chunk_size: int = 256):
 
     groups = []
     all_children: list[int] = []
-    for node in built.extras["z_nodes"]:
-        children = np.asarray(built.extras["child_of_node"][node], dtype=int)
+    for node in payload.z_nodes:
+        children = np.asarray(payload.child_of_node[node], dtype=int)
         cell_indices = np.asarray(
-            built.extras["cell_indices_of_node"][node], dtype=int
+            payload.cell_indices_of_node[node], dtype=int
         )
-        observed = np.asarray(built.extras["observed_z_of_node"][node], dtype=float)
+        observed = np.asarray(payload.observed_z_of_node[node], dtype=float)
         expected_shape = (len(children), len(cell_indices))
         if observed.shape != expected_shape:
             raise ValueError(
@@ -88,7 +102,7 @@ def child_log_likelihood(trace, built, *, chunk_size: int = 256):
     used_children = np.asarray(sorted(all_children), dtype=int)
     if len(np.unique(used_children)) != len(used_children):
         raise ValueError("LCF observed-pattern groups assign a child more than once")
-    expected_children = int(built.extras["n_used_children"])
+    expected_children = int(payload.n_used_children)
     if len(used_children) != expected_children:
         raise ValueError(
             f"LCF observed-pattern groups cover {len(used_children)} children; "

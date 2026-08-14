@@ -28,6 +28,10 @@ from language_reading_predictors.statistical_models import (
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    IttPayload,
+    JointPayload,
+)
 from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.joint import resolve_joint_run_plan
 from language_reading_predictors.statistical_models.pipelines import (
@@ -628,7 +632,11 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
 
     def build(data, **kwargs):
         build_calls.append(kwargs)
-        return BuiltModel(_FakeModel(), data)
+        return BuiltModel(
+            _FakeModel(),
+            data,
+            IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
+        )
 
     monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
 
@@ -782,7 +790,11 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
         names = ("alpha", "tau", "gamma_A")
         if likelihood == "beta_binomial":
             names += ("kappa",)
-        return BuiltModel(_FakeModel(names), data)
+        return BuiltModel(
+            _FakeModel(names),
+            data,
+            IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
+        )
 
     monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
 
@@ -887,10 +899,11 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
         return BuiltModel(
             _FakeModel(),
             data,
-            extras={
-                "joint_dependence": "factorised_outcome_marginals",
-                "loo_unit": "child",
-            },
+            JointPayload(
+                joint_dependence="factorised_outcome_marginals",
+                loo_unit="child",
+                outcomes=("TE", "UE"),
+            ),
         )
 
     monkeypatch.setattr(itt_pipeline._factories, "build_joint_model", build)
@@ -1016,7 +1029,11 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
     monkeypatch.setattr(
         itt_pipeline._factories,
         "build_itt_model",
-        lambda data, **kwargs: BuiltModel(_FakeModel(), data),
+        lambda data, **kwargs: BuiltModel(
+            _FakeModel(),
+            data,
+            IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
+        ),
     )
 
     for module, name, label in (

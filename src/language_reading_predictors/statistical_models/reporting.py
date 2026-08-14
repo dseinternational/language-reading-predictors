@@ -221,7 +221,7 @@ def _itt_ame_draws(
     contribution — the treatment main effect plus every fitted treatment
     interaction — rather than the main effect alone. The gain family passes its
     ``gamma_int_trt_*`` coefficients with the standardised moderator vectors the
-    factory used (via ``BuiltModel.extras``); the ITT Part-B moderator passes
+    factory used (via its typed fitted payload); the ITT Part-B moderator passes
     ``gamma_tau_int``. Interaction terms that do **not** involve treatment
     (e.g. ``age×ability``) are unchanged between the treated and untreated
     counterfactual, so they stay inside ``η`` and correctly cancel — they must
