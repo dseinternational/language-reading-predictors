@@ -30,7 +30,7 @@ digraph RLM_DAG {
   woco    [label="woco\nreading comprehension\n(outcome; Simple View)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.2];
 
   // background common causes (shown, edges summarised)
-  ABG [label="age · age (months)\nGA · general ability (latent)\n→ common causes of EVERY observed node\n(9 edges each; omitted for clarity).\nreadgrp also → every observed node.",
+  ABG [label="age · age (months)\nGA · general ability (latent)\n→ common causes of EVERY observed node\n(9 edges each; omitted for clarity).\nHS · hearing status (latent)\n→ digit recall, language, reading and spelling.\nreadgrp also → every observed node.",
        shape=note, fillcolor="#f7f7f9", color="#6b7280", fontsize=10, style="filled,dashed"];
 
   LEG [shape=none, margin=0, label=<

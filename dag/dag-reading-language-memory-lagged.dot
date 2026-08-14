@@ -1,0 +1,96 @@
+// SPDX-License-Identifier: CC-BY-4.0
+// Note: Drafted by a LLM-based AI tool (Codex/GPT-5).
+digraph RLM_LAGGED_DAG {
+  rankdir=LR;
+  bgcolor="white";
+  labelloc="t";
+  fontname="Helvetica-Bold";
+  fontsize=17;
+  label="Reading, language & memory lagged DAG — adopted two-slice working structure";
+  nodesep=0.24;
+  ranksep=0.72;
+  concentrate=false;
+  splines=true;
+  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+        margin="0.10,0.05", penwidth=1.2, color="#9aa0a8", fillcolor="#eceef1"];
+  edge [penwidth=1.0, arrowsize=0.65, color="#9aa0a8"];
+
+  subgraph cluster_t {
+    label="annual assessment t";
+    color="#d1d5db";
+    style="rounded";
+    basdig_t  [label="basdig\ndigit recall", fillcolor="#d6ebe4", color="#2f9e78"];
+    bpvs_t    [label="bpvs\nreceptive vocabulary", fillcolor="#d6ebe4", color="#2f9e78"];
+    trog_t    [label="trog\nreceptive grammar"];
+    basread_t [label="basread\nWORD READING", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.3, fontname="Helvetica-Bold"];
+    woco_t    [label="woco\nreading comprehension", fillcolor="#cfe0f7", color="#2f6fdb"];
+    basspel_t [label="basspel\nspelling", fillcolor="#fdecd2", color="#c2872a"];
+    basnum_t  [label="basnum\nnumber skills"];
+    bassim_t  [label="bassim\nverbal reasoning", fillcolor="#efe9dc", color="#8a7a52"];
+    basmat_t  [label="basmat\nnon-verbal reasoning", fillcolor="#efe9dc", color="#8a7a52"];
+
+    edge [color="#2f9e78"];
+    basdig_t -> {bpvs_t basread_t basspel_t basnum_t woco_t};
+    bpvs_t -> {trog_t basread_t woco_t};
+    edge [color="#9aa0a8"];
+    trog_t -> woco_t;
+    edge [color="#2f6fdb"];
+    basread_t -> woco_t;
+  }
+
+  subgraph cluster_t1 {
+    label="annual assessment t+1";
+    color="#d1d5db";
+    style="rounded";
+    basdig_t1  [label="basdig\ndigit recall", fillcolor="#d6ebe4", color="#2f9e78"];
+    bpvs_t1    [label="bpvs\nreceptive vocabulary", fillcolor="#d6ebe4", color="#2f9e78"];
+    trog_t1    [label="trog\nreceptive grammar"];
+    basread_t1 [label="basread\nWORD READING", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.3, fontname="Helvetica-Bold"];
+    woco_t1    [label="woco\nreading comprehension", fillcolor="#cfe0f7", color="#2f6fdb"];
+    basspel_t1 [label="basspel\nspelling", fillcolor="#fdecd2", color="#c2872a"];
+    basnum_t1  [label="basnum\nnumber skills"];
+    bassim_t1  [label="bassim\nverbal reasoning", fillcolor="#efe9dc", color="#8a7a52"];
+    basmat_t1  [label="basmat\nnon-verbal reasoning", fillcolor="#efe9dc", color="#8a7a52"];
+
+    edge [color="#2f9e78"];
+    basdig_t1 -> {bpvs_t1 basread_t1 basspel_t1 basnum_t1 woco_t1};
+    bpvs_t1 -> {trog_t1 basread_t1 woco_t1};
+    edge [color="#9aa0a8"];
+    trog_t1 -> woco_t1;
+    edge [color="#2f6fdb"];
+    basread_t1 -> woco_t1;
+  }
+
+  // Autoregressive carry-over. The detailed age/GA/HS/readgrp common-cause
+  // edges remain in the .dagitty source of truth and are summarised below.
+  edge [color="#6b7280", penwidth=0.9];
+  bassim_t -> bassim_t1;
+  basmat_t -> basmat_t1;
+  basdig_t -> basdig_t1;
+  basnum_t -> basnum_t1;
+  bpvs_t -> bpvs_t1;
+  trog_t -> trog_t1;
+  basread_t -> basread_t1;
+  basspel_t -> basspel_t1;
+  woco_t -> woco_t1;
+
+  // The primary-source reverse hypotheses.
+  edge [color="#b0453f", penwidth=2.0, style=dashed];
+  basread_t -> bpvs_t1;
+  basread_t -> trog_t1;
+  basread_t -> basdig_t1;
+
+  COMMON [shape=note, style="filled,dashed", fillcolor="#f7f7f9", color="#6b7280",
+          label="Common causes retained in the machine-readable DAG\nage at each wave · latent general ability (GA)\nlatent hearing status (HS) · observational readgrp\n\nGA and HS leave the reverse couplings residually confounded.\nGroup 3 was selected on basread; no arrow is causal evidence."];
+
+  LEG [shape=none, margin=0, label=<
+    <table border="0" cellborder="0" cellspacing="1" cellpadding="3">
+      <tr><td colspan="2" align="left"><b>edge key</b></td></tr>
+      <tr><td><font color="#6b7280"><b>——</b></font></td><td align="left">autoregressive carry-over</td></tr>
+      <tr><td><font color="#b0453f"><b>– –</b></font></td><td align="left">pre-specified reverse hypothesis</td></tr>
+      <tr><td><font color="#2f9e78"><b>——</b></font></td><td align="left">memory / vocabulary cascade</td></tr>
+      <tr><td><font color="#2f6fdb"><b>——</b></font></td><td align="left">word reading / comprehension</td></tr>
+    </table>>];
+
+  {rank=source; COMMON; LEG;}
+}

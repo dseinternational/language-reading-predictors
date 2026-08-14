@@ -4,6 +4,8 @@
 
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
+>
+> Measurement-gate status substantially updated by a LLM-based AI tool (Codex/GPT-5).
 
 > [!WARNING]
 > This note was prepared by an AI tool and may contain mistakes. It is a
@@ -12,9 +14,7 @@
 > before most of them can proceed. Verify the provenance and measurement claims
 > against the primary sources before any of this enters a report.
 
-**Status: plan for discussion (issue #164).** Nothing here is fitted beyond
-`rlmhg01`. The job of this note is to lay out the roadmap and pin down what is
-blocked on decisions rather than on code.
+**Status: historical roadmap, updated 2026-08-14.** Subsequent work is tracked in #338 and #409; several models below are now implemented. The remaining gates are recorded here so the original roadmap does not misstate the current measurement position.
 
 ## Where we are
 
@@ -47,8 +47,10 @@ per-measure and cross-study modelling work those decisions unblock.
    (`trog`), digit recall (`basdig`), similarities/verbal reasoning (`bassim`),
    number skills (`basnum`), and non-verbal reasoning (`basmat`, **wave 3+ only** —
    a shorter panel, handle separately). Same descriptive natural-history framing.
-   **Blocked on measure ceilings** (see decisions) — only `basread`'s ceiling is
-   confirmed, so only `basread` is registered in `RLM_MEASURES` today.
+   Measurement readiness is now measure-specific: `basread`, `bpvs`, `trog`,
+   `basdig` and `bassim` have confirmed bounds, while `basspel`, `woco` and
+   `basnum` retain observed-maximum placeholders and `basmat` retains an
+   instrument-identity caveat.
 3. **`rlmjc01` — joint historical growth over a small measure set.** Correlated
    group-by-wave trajectories over, say, reading + a vocabulary + a grammar
    measure, mirroring the joint/correlated stat-model family, to describe how the
@@ -87,15 +89,14 @@ coding tasks.
    correlation tables are **not** in the prepared extract, so that reproduction is
    partial. Decide: recover them, or record them as explicitly unavailable and
    scope the replication accordingly.
-3. **Measure ceilings (gates `rlmhg02`+).** Each bounded-count measure needs its
-   confirmed instrument maximum for the Beta-Binomial denominator. Confirm the
-   ceilings for `basspel` / `woco` / `bpvs` / `trog` / `basdig` / `bassim` /
-   `basnum` / `basmat`, **or** decide those measures use a different likelihood
-   (e.g. a Normal / Student-t on the raw score) where a bounded count is not
-   appropriate. Until then only `basread` (ceiling 87) can be fitted as-is — and
-   even that 87 is the observed maximum in the extract (as #171's own code comment
-   notes), so it too should be confirmed against the BAS manual, not treated as a
-   settled instrument maximum.
+3. **Measure ceilings (measure-specific gate).** Confirmed Beta-Binomial
+   denominators are `basread=90`, `bpvs=32`, `trog=20`, `basdig=34` and
+   `bassim=21`. `basspel=18`, `woco=31` and `basnum=60` remain
+   observed-maximum placeholders with `n_trials_confirmed=False`; `basmat`
+   retains an instrument-identity caveat. Those unresolved measures need manual
+   confirmation or a justified alternative likelihood before publication. They
+   do not block the narrow Phase C reverse targets because all four measures in
+   that question have confirmed bounds.
 4. **Groups.** Model all three groups jointly per measure (recommended — the
    natural-history contrast `rlmhg01` already uses), or focus primary replication
    on Down syndrome vs reading-matched? The three-group model gives the fuller
@@ -147,9 +148,4 @@ prose.
 
 ## Suggested next step
 
-Settle decisions 1–3 (extract/provenance, missing variables, measure ceilings)
-with the data owner + education lead; that unblocks `rlmhg02`+ (parallel
-measure-specific growth), which is then largely mechanical on the #165 layer (each
-new non-variant measure still needs its own thin `docs/models/rlmhgNN/index.qmd`,
-though the parent-fallback template keeps that light). The bridge /
-pooled models (decisions 4–6) are a separate, larger methodological track.
+Reconcile the 96-versus-97 extract lineage and decide whether the paper's missing visual-recall variables can be recovered. Confirm the remaining `basspel`, `woco`, `basnum` and `basmat` instrument metadata before publishing models that use them. For the reciprocal reading-language-auditory-memory question, the graph is now adopted; the next internal gate is the simulation study specified in `notes/202608141700-byrne-lagged-dag-decision.md`. Bridge and pooled models remain a separate methodological track.

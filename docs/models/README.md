@@ -14,6 +14,8 @@
 > Participant-flow wording updated by a LLM-based AI tool (Codex/GPT-5).
 >
 > Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> Byrne/RLM lagged-DAG status updated by a LLM-based AI tool (Codex/GPT-5).
 
 # Model inventory
 
@@ -521,9 +523,7 @@ overdispersion was rejected as prior-dominated. A wider residual-scale prior rem
 a required sensitivity before interpretation. `lrp-rlm-mm-001` states its single-indicator memory reliability
 assumption and pooled-loadings (invariance) assumption up front. The pooled Phase D model excludes `basmat`
 (no wave-1 value) and the reading-route `basspel`/`woco`. Its Down-syndrome-only companion is
-`lrp-rlm-adj-002`: three pre-specified confirmed-ceiling skills replace the prior-dominated seven-slope proposal, leaving 22 complete cases. Remaining phases: C (lagged coupling,
-gated on the lagged Byrne DAG) and E (mechanism/mediation, gated on the #289/#324
-sensitivity prerequisite).
+`lrp-rlm-adj-002`: three pre-specified confirmed-ceiling skills replace the prior-dominated seven-slope proposal, leaving 22 complete cases. Phase C's annual lagged working graph is now adopted (`dag/dag-reading-language-memory-lagged.dagitty`), with prior word reading pointing only to later receptive vocabulary, receptive grammar and digit recall. No Phase C model is registered yet: the actual missingness patterns and small Down-syndrome sample require the pre-fit simulation in `notes/202608141700-byrne-lagged-dag-decision.md`. Phase E remains gated on the #289/#324 sensitivity prerequisite.
 
 ---
 
