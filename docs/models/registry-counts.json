@@ -4,8 +4,8 @@
     "definitions.MODEL_REGISTRY",
     "registry.discover_models"
   ],
-  "historical_rlm_models": 20,
+  "historical_rlm_models": 23,
   "model_kinds": 22,
   "rli_models": 196,
-  "runnable_models": 216
+  "runnable_models": 219
 }
