@@ -1,23 +1,43 @@
-## Results — does baseline non-verbal ability predict trajectory shape?
+## Results — does baseline ability predict trajectory shape?
 
 _In plain terms: we fit each child a starting point and a growth speed for every
-skill, then ask whether children who scored higher on a baseline non-verbal
-puzzle task tend to start higher or grow faster._
+modelled skill, then ask whether children who scored higher on the declared
+baseline ability measure tend to start higher or grow faster._
 
 The growth model characterises each measure's within-child trajectory (a latent
 logit intercept + linear age slope) and asks whether **baseline non-verbal
-ability** (`blocks`, the t1 WPPSI Block Design score) predicts that shape:
-`gamma` on the growth **rate** — the headline Q5 estimand — and `delta` on the
+or verbal-reasoning ability** (the baseline covariate recorded in the model recipe)
+predicts that shape:
+`gamma` on the growth **rate** — the headline estimand — and `delta` on the
 baseline **level**. Every coefficient below is an **adjusted association**, not a
 causal effect (see the callout at the end).
 
 ```{python}
 # | echo: false
 _gs = _csv("growth_association_summary.csv")
+_growth_plan = config.get("resolved_run_plan") or {}
+_growth_study = config.get("study_id", "rli")
+_growth_baseline_symbol = _growth_plan.get("baseline_covariate", "blocks")
+_growth_measure_lookup = _measures.MEASURES
+_growth_group_labels = {}
+if _growth_study != "rli":
+    try:
+        from language_reading_predictors.statistical_models.datasets import resolve_dataset
+
+        _growth_dataset, _growth_measure_lookup = resolve_dataset(_growth_study)
+        _growth_group_labels = _growth_dataset.group_labels
+    except (KeyError, TypeError):
+        pass
+_growth_baseline_measure = _growth_measure_lookup.get(_growth_baseline_symbol)
+_growth_baseline_label = (
+    _growth_baseline_measure.label
+    if _growth_baseline_measure is not None
+    else _growth_baseline_symbol
+)
 
 
 def _label(sym: str) -> str:
-    m = _measures.MEASURES.get(sym)
+    m = _growth_measure_lookup.get(sym)
     return f"{sym} — {m.label}" if m is not None else sym
 
 
@@ -29,10 +49,16 @@ def _coef_table(coef: str):
     if not len(d):
         return None
     d["measure"] = d["outcome"].map(_label)
-    cols = [
-        "measure", "median", "lo50", "hi50", "lo89", "hi89",
+    cols = ["measure"]
+    if "group" in d.columns and d["group"].notna().any():
+        d["reading group"] = d["group"].map(
+            lambda value: _growth_group_labels.get(int(value), str(value))
+        )
+        cols.append("reading group")
+    cols.extend([
+        "median", "lo50", "hi50", "lo89", "hi89",
         "prob_positive", "favoured_direction_label",
-    ]
+    ])
     out = d[cols].rename(
         columns={
             "median": "median (logit)",
@@ -43,12 +69,12 @@ def _coef_table(coef: str):
     return out.round(3)
 ```
 
-### Baseline non-verbal ability → growth **rate** (`gamma`, the Q5 headline)
+### Baseline ability → growth **rate** (`gamma`, the headline)
 
-Coefficient on +1 SD of block design applied to each measure's logit growth
+Coefficient on +1 SD of the declared baseline ability measure applied to each measure's logit growth
 slope. Direction is read from `P(>0)` per the evidence-language policy (#179); at
-n≈54 the 89% intervals are wide, so these are directional statements, not decisive
-effects.
+this sample size the 89% intervals may be wide, so these are directional statements,
+not decisive effects.
 
 _How to read the table:_ one row per measure. `median (logit)` is the central
 estimate of the association on the logit (log-odds) scale; `lo50`/`hi50` and
@@ -65,19 +91,19 @@ _coef_table("gamma")
 # | echo: false
 # | output: asis
 print(_img("gamma_forest.png",
-           "Baseline non-verbal ability → growth rate, by measure (50% + 89% ETI)"))
+           "Baseline ability → growth rate, by measure (50% + 89% ETI)"))
 print(
     "\n_How to read the forest plot:_ the marker is the posterior median and the "
     "lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line "
     "at 0 is no-effect; posterior mass to its right favours benefit, to its left "
     "harm; a wider line means more uncertainty. Here each row is one measure and the "
-    "effect is the association of +1 SD of baseline non-verbal ability with that "
+    "effect is the association of +1 SD of the baseline ability measure with that "
     "measure's logit growth rate — right of 0 means higher-scoring children tend to "
     "grow faster."
 )
 ```
 
-### Baseline non-verbal ability → **level at sample-mean age** (`delta`)
+### Baseline ability → **level at sample-mean age** (`delta`)
 
 _How to read the table:_ same columns as above, but the association is now with the
 _level_ rather than the growth rate. Age is standardised over all child-wave cells,
@@ -95,7 +121,8 @@ _coef_table("delta")
 ### Mean growth trajectory (population slope `beta`)
 
 The per-measure population slope characterises the average trajectory (logit
-change per +1 SD of age) independent of block design.
+change per +1 SD of age). Historical-cohort models report one nuisance slope per
+reading group; trial-cohort models report one pooled slope.
 
 _How to read the table:_ each row is a measure's average growth slope, not an
 ability association. A positive `median (logit)` with high `P(>0)` means the skill
@@ -116,18 +143,18 @@ if _has("group_trajectory.png"):
         "\n_How to read it:_ one panel per measure. The line is the model's posterior **mean** score "
         "across the cohort at each wave (with its 89% credible ribbon); the dots are the observed "
         "per-wave means. This is a **population-level** curve, marginal over children (averaged over the "
-        "cohort's fitted trajectories) — **there is no arm split**: this growth model characterises "
-        "trajectory shape and treats intervention exposure as a latent developmental tempo, not an "
-        "observed randomised arm, so no line here is a randomised contrast."
+        "cohort's fitted trajectories) — **there is no arm or reading-group split**. Where the model "
+        "contains group-specific nuisance trajectories, this display averages over the fitted children; "
+        "it is not a group contrast."
     )
 ```
 
-### Shared growth-tempo factor (`loading`; LRP70 only)
+### Shared growth-tempo factor (`loading`; factor-enabled models only)
 
-_How to read this section:_ the loading table (LRP70 only) has the same columns as
+_How to read this section:_ when present, the loading table has the same columns as
 above — each row is how strongly one measure's growth rate tracks a single shared
 "developmental tempo". The read-out sentence that follows then reports whether a
-child's baseline non-verbal ability lines up with that shared tempo.
+child's baseline ability lines up with that shared tempo.
 
 ```{python}
 # | echo: false
@@ -136,8 +163,7 @@ _load = _coef_table("loading")
 _tempo = _csv("growth_tempo_corr.csv")
 if _load is None:
     print(
-        "_Not applicable — this is the independent-core model (LRP69). See LRP70 "
-        "for the shared growth-tempo factor and the block-design ↔ tempo read-out._"
+        "_Not applicable — this model has no shared growth-tempo factor._"
     )
 else:
     print(
@@ -158,7 +184,7 @@ _load if _load is not None else ""
 if _load is not None and _tempo is not None and len(_tempo):
     _t = _tempo.iloc[0]
     print(
-        f"\n**Does baseline non-verbal ability predict the common tempo?** "
+        f"\n**Does baseline ability predict the common tempo?** "
         f"Per-draw correlation between each child's latent growth tempo and their "
         f"standardised block-design score: median {_t['median']:+.3f} "
         f"(89% interval {_t['lo']:+.3f} to {_t['hi']:+.3f}); "
@@ -168,15 +194,26 @@ if _load is not None and _tempo is not None and len(_tempo):
     )
 ```
 
-_An adjusted association, not a cause._ Per the revised DAG (`dag/dag-language-reading.dagitty`), block
-design is an **off-DAG, pre-randomisation child covariate** and latent general
-ability (`GA`) is the unobserved common cause of block design, vocabulary and the
-other skills. So `gamma` / `delta` are **adjusted associations — never "non-verbal
-ability drives growth"**: block design is essentially an ability proxy and the
-association is confounded by `GA` (not point-identified). The child random
-intercept only *partially* adjusts (`METHODS.md` § "Causal interpretation and its
-limits"). At n≈54, four waves, treat a wide interval or a fragile sampler as an
-honest finding.
+```{python}
+# | echo: false
+# | output: asis
+if _growth_study == "rli":
+    print(
+        "_An adjusted association, not a cause._ Per the revised RLI DAG, block design is an "
+        "off-DAG, pre-randomisation child covariate and latent general ability is an unobserved "
+        "common cause. `gamma` and `delta` are adjusted associations, never evidence that changing "
+        "non-verbal ability changes growth. The child random effects only partially account for "
+        "stable between-child differences."
+    )
+else:
+    print(
+        "_An adjusted association, not a cause._ The Byrne cohorts were not randomised; BAS "
+        "Similarities is a noisy verbal-reasoning proxy rather than general ability itself, and the "
+        "reading-matched group was selected on word reading. Reading-group nuisance trajectories "
+        "do not remove those limitations. `gamma` and `delta` therefore describe conditional "
+        "associations only."
+    )
+```
 
 ```{python}
 # | echo: false
@@ -186,7 +223,7 @@ if _has("child_fit_panels.png"):
     print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples for a focal measure (observed dots, posterior-predictive band)"))
     print(
         "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
-        "child's observed scores on a focal measure (named in the figure title) across the four waves; "
+        "child's observed scores on a focal measure (named in the figure title) across the fitted waves; "
         "the green band is the model's posterior-predictive 89% interval **for that same child**, built "
         "from the child's fitted growth trajectory (a *same-children* display, distinct from the cohort "
         "trajectory above). To keep one figure, only the focal measure is drawn; the others behave "

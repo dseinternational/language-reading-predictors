@@ -669,9 +669,12 @@ def write_outcome_trajectory(
         pop_mean = prob.mean(axis=0) * n_tr  # (wave, S)
         obs_mean = np.nanmean(counts, axis=0)  # (wave,)
         band = [_quantile_band(pop_mean[t], ci_prob) for t in range(pop_mean.shape[0])]
+        panel_labels = getattr(panel, "outcome_labels", {}) or {}
         facet_data[sym] = {
             "n_trials": n_tr,
-            "label": MEASURES[sym].label if sym in MEASURES else sym,
+            "label": panel_labels.get(
+                sym, MEASURES[sym].label if sym in MEASURES else sym
+            ),
             "observed": obs_mean,
             "median": np.array([b["median"] for b in band]),
             "lo": np.array([b["lo"] for b in band]),
@@ -772,8 +775,18 @@ def write_child_fit_panel(
     latent = _stack_last(trace.posterior[latent_name])[:, :, k_index, :]  # (child, wave, S)
     cols = _thin_columns(latent.shape[-1], max_draws)
     latent = latent[..., cols]
-    kappa = _stack_last(trace.posterior[kappa_name])  # (outcome, S) or (S,)
-    kappa_s = kappa[k_index, cols] if kappa.ndim == 2 else kappa[cols]  # (S,)
+    kappa_da = trace.posterior[kappa_name]
+    kappa = _stack_last(kappa_da)
+    group_axis = "reading_group" in kappa_da.dims
+    if group_axis:
+        if panel.group is None:
+            raise ValueError("group-indexed kappa requires panel.group")
+        group_values = [
+            int(value) for value in kappa_da.coords["reading_group"].values
+        ]
+        group_lookup = {code: index for index, code in enumerate(group_values)}
+    else:
+        kappa_s = kappa[k_index, cols] if kappa.ndim == 2 else kappa[cols]
 
     idx_i = _panel_child_index(panel)
     k_by_child = _pareto_k_by_child(pareto_k, idx_i)
@@ -791,6 +804,9 @@ def write_child_fit_panel(
     rows: list[dict] = []
     for pos, c in enumerate(chosen):
         mu = np.clip(expit(latent[c]), 1e-9, 1 - 1e-9)  # (wave, S)
+        if group_axis:
+            group_index = group_lookup[int(panel.group[c])]
+            kappa_s = kappa[group_index, k_index, cols]
         p = rng.beta(mu * kappa_s[None, :], (1 - mu) * kappa_s[None, :])
         y = rng.binomial(n_tr, p).astype(float)  # (wave, S)
         med = np.median(y, axis=1)
