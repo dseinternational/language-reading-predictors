@@ -25,6 +25,9 @@ from language_reading_predictors.statistical_models.lrp_rlm_adj_001 import (
 from language_reading_predictors.statistical_models.lrp_rlm_adj_002 import (
     SPEC as RLM_DS_SPEC,
 )
+from language_reading_predictors.statistical_models.lrp_rlm_adj_003 import (
+    SPEC as RLM_BPVS_SPEC,
+)
 from language_reading_predictors.statistical_models.pipelines import (
     adjusted as pipeline,
 )
@@ -52,10 +55,18 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
     assert isinstance(rli.model_settings, AdjustedModelSettings)
     assert isinstance(RLM_SPEC.model_settings, AdjustedModelSettings)
     assert isinstance(RLM_DS_SPEC.model_settings, AdjustedModelSettings)
-    assert rli.extra == RLM_SPEC.extra == RLM_DS_SPEC.extra == {}
+    assert isinstance(RLM_BPVS_SPEC.model_settings, AdjustedModelSettings)
+    assert (
+        rli.extra
+        == RLM_SPEC.extra
+        == RLM_DS_SPEC.extra
+        == RLM_BPVS_SPEC.extra
+        == {}
+    )
     rli_plan = resolve_adjusted_run_plan(rli)
     rlm_plan = resolve_adjusted_run_plan(RLM_SPEC)
     rlm_ds_plan = resolve_adjusted_run_plan(RLM_DS_SPEC)
+    rlm_bpvs_plan = resolve_adjusted_run_plan(RLM_BPVS_SPEC)
     assert (rli_plan.port, rlm_plan.port) == ("rli", "rlm")
     assert rlm_ds_plan.port == "rlm"
     assert rli_plan.settings_source == rlm_plan.settings_source == "typed"
@@ -63,6 +74,14 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
     assert rlm_ds_plan.group_codes == (1,)
     assert rlm_ds_plan.predictor_measures == ("basdig", "bpvs", "bassim")
     assert rlm_ds_plan.use_age_predictor is False
+    assert rlm_bpvs_plan.outcome_symbol == "bpvs"
+    assert rlm_bpvs_plan.predictor_measures == (
+        "basread",
+        "trog",
+        "basdig",
+        "bassim",
+    )
+    assert rlm_bpvs_plan.require_confirmed_inputs is True
 
 
 @pytest.mark.parametrize(
@@ -245,6 +264,22 @@ def test_unknown_split_and_wrong_settings_type_are_rejected():
         )
     with pytest.raises(TypeError, match="AdjustedModelSettings"):
         resolve_adjusted_run_plan(_spec(settings=object()))
+
+
+def test_confirmed_input_contract_rejects_provisional_rlm_measures():
+    with pytest.raises(ValueError, match="requires confirmed.*basnum"):
+        resolve_adjusted_run_plan(
+            _spec(
+                study_id="rlm",
+                settings=AdjustedModelSettings(
+                    predictor_measures=("basnum",),
+                    require_confirmed_inputs=True,
+                ),
+            )
+        )
+
+    with pytest.raises(TypeError, match="require_confirmed_inputs must be a boolean"):
+        AdjustedModelSettings(require_confirmed_inputs=1)  # type: ignore[arg-type]
 
 
 def test_wrong_port_entrypoint_fails_before_context_or_data(monkeypatch):

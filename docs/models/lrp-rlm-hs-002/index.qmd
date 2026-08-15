@@ -1,0 +1,45 @@
+---
+title: "RLMHS02: Byrne horseshoe ranking of wave-1 predictors of receptive-vocabulary gain"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMHS02 is the regularised-horseshoe cross-check for `lrp-rlm-adj-003`. It ranks the same wave-1 BAS word reading, receptive grammar, verbal memory, verbal reasoning and age predictors of wave-3 BPVS after conditioning on wave-1 BPVS. It uses the **identical confirmed-input, pooled complete-case frame**: 71 children (22 with Down syndrome, 30 average readers and 19 reading-matched children), with 26 of the prepared extract's 97 children excluded for at least one missing required value and no predictor imputation.
+
+_A ranking, not effects — and nothing causal._ The horseshoe asks which coefficients retain distinguishable signal under aggressive shared shrinkage; it does not estimate the effect of changing a skill. Shrinkage toward zero is not proof of no association, especially with correlated predictors and 71 children. Every coefficient is a descriptive, baseline-conditioned between-child association (`causal_status="none"`).
+
+_Reading-matched selection._ The reading-matched group was selected on BAS word-reading level, which is a ranked predictor here. Its coefficient and coefficients conditional on it can therefore carry selection distortion. The unshrunk group-nuisance dummies do not remove that design limitation.
+
+_No gradient-boosting comparison._ No gradient-boosting layer exists for the Byrne cohort, so no `horseshoe_vs_gb.csv` table is expected. The comparison partner is the independently regularised, mutually adjusted model `lrp-rlm-adj-003` over the same children and variables.
+
+## Model
+
+The likelihood and own-baseline/group-nuisance structure match `lrp-rlm-adj-003`: wave-3 BPVS is Beta-Binomial with confirmed ceiling 32, conditional on wave-1 BPVS. The five focal slopes instead share a regularised ("Finnish") horseshoe prior with global scale $\tau_0 = 0.1$, slab scale 2 and slab degrees of freedom 4. Predictors are ranked by posterior $P(|\beta| > 0.1)$ on the per-SD logit scale. Group-nuisance dummies remain outside the horseshoe, and sampling uses a raised `target_accept` for the global-local funnel.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_horseshoe.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

@@ -78,6 +78,7 @@ def _registered_specs() -> list[ModelSpec]:
         ({"phase_mode": ""}, TypeError, "non-empty string or None"),
         ({"use_age_predictor": 1}, TypeError, "boolean or None"),
         ({"pre_wave": 1.5}, TypeError, "integer or None"),
+        ({"require_confirmed_inputs": 1}, TypeError, "must be a boolean"),
     ],
 )
 def test_settings_reject_invalid_values(kwargs, error, message):
@@ -213,6 +214,20 @@ def test_rlm_plan_preserves_historical_port_contract():
     ]
 
 
+def test_rlm_confirmed_input_contract_rejects_provisional_measures():
+    with pytest.raises(ValueError, match="requires confirmed.*basnum"):
+        H.resolve_horseshoe_run_plan(
+            _spec(
+                study_id="rlm",
+                outcome_symbol="bpvs",
+                settings=H.HorseshoeModelSettings(
+                    predictor_measures=("basnum",),
+                    require_confirmed_inputs=True,
+                ),
+            )
+        )
+
+
 def test_resolve_rejects_cross_port_and_wave_contradictions():
     with pytest.raises(ValueError, match="RLI horseshoe predictors cannot be empty"):
         H.resolve_horseshoe_run_plan(_spec(settings=H.HorseshoeModelSettings()))
@@ -312,7 +327,7 @@ def test_pipeline_has_no_direct_horseshoe_setting_reads():
 
 def test_registered_models_are_typed_and_preserve_the_legacy_contract():
     specs = _registered_specs()
-    assert len(specs) == 5
+    assert len(specs) == 6
     assert {spec.study_id for spec in specs} == {"rli", "rlm"}
 
     for registered in specs:

@@ -37,6 +37,7 @@ _FAMILY_KEYS = frozenset(
         "use_age_predictor",
         "pre_wave",
         "post_wave",
+        "require_confirmed_inputs",
         # Redundant legacy declaration; the resolver validates it against the spec.
         "study_id",
     }
@@ -111,6 +112,7 @@ class HorseshoeModelSettings:
     use_age_predictor: bool | None = None
     pre_wave: int | None = None
     post_wave: int | None = None
+    require_confirmed_inputs: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "gain", _optional_bool(self.gain, name="gain"))
@@ -152,6 +154,8 @@ class HorseshoeModelSettings:
             "use_age_predictor",
             _optional_bool(self.use_age_predictor, name="use_age_predictor"),
         )
+        if not isinstance(self.require_confirmed_inputs, bool):
+            raise TypeError("require_confirmed_inputs must be a boolean")
 
     @classmethod
     def from_legacy_extra(
@@ -186,6 +190,7 @@ class HorseshoeModelSettings:
             use_age_predictor=extra.get("use_age_predictor"),
             pre_wave=extra.get("pre_wave"),
             post_wave=extra.get("post_wave"),
+            require_confirmed_inputs=extra.get("require_confirmed_inputs", False),
         )
 
 
@@ -209,6 +214,7 @@ class HorseshoeRunPlan:
     use_age_predictor: bool | None
     pre_wave: int | None
     post_wave: int | None
+    require_confirmed_inputs: bool
     delta: float
     tau0: float
     slab_scale: float
@@ -311,7 +317,9 @@ class HorseshoeRunPlan:
             "## Terms\n\n"
             f"Study port: `{self.port}`. Outcome: `{self.outcome_symbol}`. "
             f"Framing: {'gain' if self.gain else 'level'}. Ranked predictors: "
-            f"{predictors}. Ranking threshold: {self.delta:g}. Regularised "
+            f"{predictors}. Confirmed measurement inputs required: "
+            f"{self.require_confirmed_inputs}. Ranking threshold: {self.delta:g}. "
+            "Regularised "
             f"horseshoe hyperparameters: tau0={self.tau0:g}, slab scale="
             f"{self.slab_scale:g}, slab df={self.slab_df:g}.\n\n"
             "## Uncertainty and checks\n\n"
@@ -378,6 +386,9 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             "use_age_predictor": settings.use_age_predictor,
             "pre_wave": settings.pre_wave,
             "post_wave": settings.post_wave,
+            "require_confirmed_inputs": (
+                True if settings.require_confirmed_inputs else None
+            ),
         }
         supplied = [name for name, value in rlm_fields.items() if value not in ((), None)]
         if supplied:
@@ -453,6 +464,31 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             raise ValueError(
                 f"{spec.model_id}: post_wave must be greater than pre_wave"
             )
+        from language_reading_predictors.statistical_models.datasets import (
+            resolve_dataset,
+        )
+
+        _dataset, rlm_measures = resolve_dataset("rlm")
+        requested = (outcome, *predictor_measures)
+        unknown_measures = sorted(set(requested) - set(rlm_measures))
+        if unknown_measures:
+            raise ValueError(
+                f"{spec.model_id}: unknown RLM horseshoe measure(s): "
+                + ", ".join(unknown_measures)
+            )
+        if settings.require_confirmed_inputs:
+            unresolved = [
+                symbol
+                for symbol in requested
+                if not rlm_measures[symbol].n_trials_confirmed
+                or not rlm_measures[symbol].instrument_identity_confirmed
+            ]
+            if unresolved:
+                raise ValueError(
+                    f"{spec.model_id}: RLM horseshoe model requires confirmed "
+                    "denominators and instrument identities; unresolved: "
+                    + ", ".join(dict.fromkeys(unresolved))
+                )
         port = "rlm"
         gain = True
         language = ()
@@ -486,6 +522,7 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
         use_age_predictor=use_age,
         pre_wave=pre_wave,
         post_wave=rlm_post_wave,
+        require_confirmed_inputs=settings.require_confirmed_inputs,
         delta=settings.delta,
         tau0=settings.tau0,
         slab_scale=settings.slab_scale,

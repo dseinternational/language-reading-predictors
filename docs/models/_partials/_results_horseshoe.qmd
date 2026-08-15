@@ -1,18 +1,14 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Results
 
-An independent Bayesian sensitivity check on the gradient-boosting predictor
-ranking. Every predictor enters as a standardised term (per 1 SD, logit scale)
-and the coefficients share a regularized (Finnish) horseshoe prior, so noise
-predictors collapse toward zero while genuinely predictive ones escape via the
-heavy local tail. Predictors are ranked by posterior `P(|beta| > delta)`. These
-are **adjusted associations, not causal effects** — the corresponding randomised-arm
-result is an available-case modified ITT estimate in the ITT suite, not here.
+An independent Bayesian shrinkage ranking. Every predictor enters as a standardised term (per 1 SD, logit scale) and the coefficients share a regularised (Finnish) horseshoe prior, so noise predictors collapse toward zero while predictors carrying distinguishable signal can escape via the heavy local tail. Predictors are ranked by posterior `P(|beta| > delta)`. These are **adjusted associations, not causal effects**.
 
 ### Predictor ranking
 
-In plain terms: predictors are ranked by the posterior probability that their
-standardised effect is bigger than a small threshold — a cross-check on the
-gradient-boosting ranking, arrived at by a completely different method.
+In plain terms: predictors are ranked by the posterior probability that their standardised association is bigger than a small threshold. When a gradient-boosting reference exists this is a cross-method check; otherwise it is a shrinkage-based companion to the independently regularised adjusted model.
 
 ```{python}
 # | echo: false
@@ -20,34 +16,25 @@ ranking = _csv("predictor_ranking.csv")
 ranking if ranking is not None else "No predictor ranking (run at test/reporting tier)."
 ```
 
-_How to read the ranking:_ each row is one predictor; rows are ordered by
-`p_abs_gt_delta`, the probability that the predictor's effect clears a small
-"worth-noticing" size, so higher rows are the more credible predictors. `beta_mean`
-is the effect's size and direction (per 1 SD, on the logit scale) and the HDI
-columns give its plausible range; `lambda_mean` says how far the predictor was
-squashed toward zero (small = treated as noise, large = it escaped and stands out);
-`sign` is which way it points.
+_How to read the ranking:_ each row is one predictor; rows are ordered by `p_abs_gt_delta`, the probability that the predictor's association clears a small "worth-noticing" size, so higher rows have more posterior support for clearing that threshold. `beta_mean` is the association's size and direction (per 1 SD, on the logit scale) and the HDI columns give its plausible range; `lambda_mean` says how far the predictor was squashed toward zero (small = treated as noise, large = it escaped and stands out); `sign` is which way it points.
 
-- `p_abs_gt_delta`: posterior `P(|beta| > delta)` with `delta` on the logit /
-  per-SD scale — the ranking key (the horseshoe analogue of permutation importance).
-- `beta_mean` / `beta_sd` / `beta_hdi_lo` / `beta_hdi_hi`: the standardised
-  coefficient's posterior mean, SD and 89% HDI.
-- `lambda_mean`: mean local shrinkage — small means the predictor was shrunk
-  toward zero (noise-like); large means it escaped the global pull.
+- `p_abs_gt_delta`: posterior `P(|beta| > delta)` with `delta` on the logit / per-SD scale — the ranking key (the horseshoe analogue of permutation importance when a tree-model reference exists).
+- `beta_mean` / `beta_sd` / `beta_hdi_lo` / `beta_hdi_hi`: the standardised coefficient's posterior mean, SD and 89% HDI.
+- `lambda_mean`: mean local shrinkage — small means the predictor was shrunk toward zero (noise-like); large means it escaped the global pull.
 - `sign`: posterior-mean direction of the association.
 
-_Missing values are mean-imputed._ Unlike the gradient-boosting reference (LightGBM handles `NaN` natively), PyMC
-cannot take missing inputs, so any missing standardised predictor value is
-mean-imputed (0 on the standardised scale) before fitting. This is a sensitivity
-read rather than a calibrated fit, so mean-imputation is acceptable — but a
-construct with more missingness is pulled toward the null, so read its rank as a
-lower bound on its importance.
+```{python}
+# | echo: false
+# | output: asis
+if config.get("study_id") == "rlm":
+    print("_Missing data:_ this Byrne span model uses a complete-case frame: a child is included only when the outcome is observed at both waves and every wave-1 predictor is observed. No predictor values are imputed. The report's Overview gives the resulting exclusions; the interpretation assumes that complete-case selection has not materially distorted these associations.")
+else:
+    print("_Missing values are mean-imputed._ Unlike the gradient-boosting reference (LightGBM handles `NaN` natively), PyMC cannot take missing inputs, so any missing standardised predictor value is mean-imputed (0 on the standardised scale) before fitting. This is a sensitivity read rather than a calibrated fit, but a construct with more missingness is pulled toward the null, so read its rank cautiously.")
+```
 
 ### Agreement with the gradient-boosting ranking
 
-In plain terms: this table lines the horseshoe ranking up against the
-gradient-boosting one to see whether two very different methods pick out the same
-predictors.
+In plain terms: when available, this table lines the horseshoe ranking up against the gradient-boosting one to see whether two very different methods pick out the same predictors. Byrne models have no gradient-boosting reference, so the absent table is expected.
 
 ```{python}
 # | echo: false
@@ -55,14 +42,6 @@ compare = _csv("horseshoe_vs_gb.csv")
 compare if compare is not None else "GB comparison not generated for this run (see the dated notes/ entry)."
 ```
 
-_How to read the comparison:_ each row pairs a construct's place in the horseshoe
-ranking with its place in the gradient-boosting ranking; constructs near the top of
-both agree, while a construct that sits high in one and low in the other is a
-divergence — its apparent importance depends on which method you use.
+_How to read the comparison:_ each row pairs a construct's place in the horseshoe ranking with its place in the gradient-boosting ranking; constructs near the top of both agree, while a construct that sits high in one and low in the other is a divergence — its apparent importance depends on which method you use.
 
-This is a **construct-level** comparison: the horseshoe ranks the measure
-constructs, while the gradient-boosting *cluster* ranking groups its 34 raw
-columns into distance-correlation clusters. Broad agreement is reassurance that
-the ranking reflects signal in the data rather than a tree-method artefact;
-divergences flag constructs whose apparent importance is method-dependent. See
-the dated `notes/` entry for the rank-correlation and top-k overlap.
+When present, this is a **construct-level** comparison: the horseshoe ranks the measure constructs, while the gradient-boosting *cluster* ranking groups its raw columns into distance-correlation clusters. Broad agreement is reassurance that the ranking is not unique to one modelling approach; divergences flag constructs whose apparent importance is method-dependent. See the relevant dated `notes/` entry for any rank-correlation and top-k overlap.

@@ -112,7 +112,7 @@ def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float)
     plt.xlabel(
         f"Standardised coefficient (per-SD, logit scale); {int(hdi * 100)}% interval"
     )
-    plt.title("LRP65: baseline predictors of word-reading gain (between-child)")
+    plt.title(ctx.spec.title)
     plt.legend(fontsize=8, loc="best")
     save_styled_figure(
         ctx.output_dir, "predictor_associations", data=df
@@ -636,6 +636,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         )
     assoc = pd.DataFrame(rows)
     save_table(ctx, "predictor_associations", assoc)
+    _plot_associations(ctx, assoc, hdi)
     _pf_assoc = assoc
     # Estimand-scale prior check on the headline adjusted associations (#381).
     # Driven off the association table just written, not off ``headline``: the
