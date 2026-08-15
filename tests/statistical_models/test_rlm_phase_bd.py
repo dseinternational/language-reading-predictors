@@ -272,7 +272,9 @@ def test_build_rlm_joint_growth_within_child_layer_is_double_centred(tmp_path):
 
 _PHASE_BD_SPECS = {
     "lrp-rlm-adj-001": ("adjusted", "basread"),
+    "lrp-rlm-adj-003": ("adjusted", "bpvs"),
     "lrp-rlm-hs-001": ("horseshoe", "basread"),
+    "lrp-rlm-hs-002": ("horseshoe", "bpvs"),
     "lrp-rlm-mm-001": ("corr_factor", None),
     "lrp-rlm-jc-001": ("historical_joint", None),
     "lrp-rlm-jc-002": ("historical_joint", None),

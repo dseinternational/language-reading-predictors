@@ -33,6 +33,7 @@ _FAMILY_KEYS = frozenset(
         "pre_wave",
         "post_wave",
         "group_codes",
+        "require_confirmed_inputs",
         "predictor_slope_sigma",
         "prior_sensitivity_sigmas",
         "study_id",
@@ -108,6 +109,7 @@ class AdjustedModelSettings:
     pre_wave: int | None = None
     post_wave: int | None = None
     group_codes: tuple[int, ...] | None = None
+    require_confirmed_inputs: bool = False
     predictor_slope_sigma: float = 0.3
     prior_sensitivity_sigmas: tuple[float, ...] = (0.5, 0.7)
 
@@ -130,6 +132,8 @@ class AdjustedModelSettings:
             )
         if not isinstance(self.use_age_predictor, bool):
             raise TypeError("use_age_predictor must be a boolean")
+        if not isinstance(self.require_confirmed_inputs, bool):
+            raise TypeError("require_confirmed_inputs must be a boolean")
         for name in ("post_time", "pre_wave", "post_wave"):
             object.__setattr__(
                 self,
@@ -184,6 +188,7 @@ class AdjustedModelSettings:
             pre_wave=extra.get("pre_wave"),
             post_wave=extra.get("post_wave"),
             group_codes=extra.get("group_codes"),
+            require_confirmed_inputs=extra.get("require_confirmed_inputs", False),
             predictor_slope_sigma=extra.get("predictor_slope_sigma", 0.3),
             prior_sensitivity_sigmas=extra.get(
                 "prior_sensitivity_sigmas", (0.5, 0.7)
@@ -212,6 +217,7 @@ class AdjustedRunPlan:
     pre_wave: int | None
     post_wave: int | None
     group_codes: tuple[int, ...] | None
+    require_confirmed_inputs: bool
     predictor_slope_sigma: float
     prior_sensitivity_sigmas: tuple[float, ...]
     observation_nodes: tuple[str, ...]
@@ -336,6 +342,8 @@ class AdjustedRunPlan:
                 f"Wave-{self.pre_wave} predictors: "
                 f"{', '.join(self.predictor_measures)}; age: "
                 f"{self.use_age_predictor}; population: {population}. "
+                f"Confirmed measurement inputs required: "
+                f"{self.require_confirmed_inputs}. "
                 + (
                     "Observational group indicators are nuisance terms."
                     if self.group_codes is None or len(self.group_codes) > 1
@@ -415,6 +423,9 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
             "pre_wave": settings.pre_wave,
             "post_wave": settings.post_wave,
             "group_codes": settings.group_codes,
+            "require_confirmed_inputs": (
+                True if settings.require_confirmed_inputs else None
+            ),
         }
         supplied = [name for name, value in rlm_only.items() if value is not None]
         if supplied:
@@ -494,7 +505,27 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
             resolve_dataset,
         )
 
-        dataset, _measures = resolve_dataset("rlm")
+        dataset, measures = resolve_dataset("rlm")
+        requested = (spec.outcome_symbol, *predictor_measures)
+        unknown_measures = sorted(set(requested) - set(measures))
+        if unknown_measures:
+            raise ValueError(
+                "unknown RLM adjusted measure(s): "
+                + ", ".join(unknown_measures)
+            )
+        if settings.require_confirmed_inputs:
+            unresolved = [
+                symbol
+                for symbol in requested
+                if not measures[symbol].n_trials_confirmed
+                or not measures[symbol].instrument_identity_confirmed
+            ]
+            if unresolved:
+                raise ValueError(
+                    "RLM adjusted model requires confirmed denominators and "
+                    "instrument identities; unresolved: "
+                    + ", ".join(dict.fromkeys(unresolved))
+                )
         group_codes = settings.group_codes
         if group_codes is not None:
             unknown_groups = sorted(set(group_codes) - set(dataset.group_labels))
@@ -537,6 +568,7 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         pre_wave=pre_wave,
         post_wave=post_wave,
         group_codes=group_codes,
+        require_confirmed_inputs=settings.require_confirmed_inputs,
         predictor_slope_sigma=settings.predictor_slope_sigma,
         prior_sensitivity_sigmas=settings.prior_sensitivity_sigmas,
         observation_nodes=("y_post",),
