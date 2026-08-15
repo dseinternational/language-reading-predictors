@@ -1,15 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Multivariate latent growth-curve orchestration (``kind="growth"``, LRP69/70).
+"""Latent growth-curve orchestration (``kind="growth"``).
 
-``fit_growth`` characterises each verbal and reading measure's within-child
-trajectory across the four RLI waves and reports whether baseline non-verbal
-ability predicts trajectory shape — ``gamma`` on the growth rate, ``delta`` on the
-baseline level — optionally coupling the slopes through a rank-1 shared
-growth-tempo factor. Every non-randomised term is an adjusted, latent-ability-
-confounded association, never causal (locked DAG,
-``notes/202606231600-dag-revision-consolidated.md``).
+``fit_growth`` characterises within-child trajectories and reports whether a
+declared baseline ability proxy predicts trajectory shape — ``gamma`` on the growth
+rate and ``delta`` on the level at mean age. The RLI models optionally couple
+multiple outcomes through a rank-1 shared growth-tempo factor; the Byrne/RLM port
+uses one outcome and reading-group nuisance trajectories. Every coefficient is an
+adjusted, latent-ability-confounded association, never causal.
 """
 
 from __future__ import annotations
@@ -43,6 +42,7 @@ from language_reading_predictors.statistical_models.growth import (
     resolve_growth_run_plan,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    load_rlm_growth_panel,
     load_wave_panel,
 )
 from language_reading_predictors.statistical_models.publication import (
@@ -60,17 +60,7 @@ from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """Joint multivariate latent growth-curve model (LRP69 core / LRP70 factor).
-
-    Characterises each verbal/reading measure's within-child trajectory across the
-    four RLI waves and reports whether **baseline non-verbal ability** (``blocks``)
-    predicts trajectory shape: ``gamma`` on the growth *rate* (the headline Q5
-    estimand) and ``delta`` on the baseline *level*. With ``use_shared_factor`` a
-    rank-1 shared growth-tempo factor couples the slopes and the block-design ->
-    common-tempo association is read out post-hoc. Every non-randomised term is an
-    **adjusted, latent-GA-confounded association**, never causal (locked DAG,
-    ``notes/202606231600-dag-revision-consolidated.md``).
-    """
+    """Fit a declared growth model and report baseline-to-trajectory associations."""
     require_spec(spec, "growth")
 
     # Resolve and validate the family contract before the context resets an output
@@ -87,7 +77,23 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     age_ability = plan.age_ability_interaction
 
     section_header("Prepare data")
-    panel = load_wave_panel(**plan.prepare_kwargs())
+    if plan.study_id == "rli":
+        panel = load_wave_panel(**plan.prepare_kwargs())
+        baseline_label = "baseline non-verbal ability"
+    else:
+        from language_reading_predictors.statistical_models.datasets import (
+            resolve_dataset,
+        )
+
+        _dataset, catalogue = resolve_dataset(plan.study_id)
+        panel = load_rlm_growth_panel(
+            outcomes=plan.outcomes,
+            baseline_covariate=plan.baseline_covariate,
+            waves=plan.waves,
+            baseline_scale=plan.baseline_scale,
+            min_outcome_waves=plan.min_outcome_waves,
+        )
+        baseline_label = f"baseline {catalogue[baseline_cov].label}"
     ctx.prepared = panel
 
     print_header(ctx)
@@ -98,9 +104,9 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     render_model_graph(ctx)
 
-    diag_vars = [
-        "gamma", "delta", "beta", "alpha", "sigma_slope", "sigma_intercept", "kappa"
-    ]
+    diag_vars = ["gamma", "delta", "beta", "alpha", "sigma_intercept", "kappa"]
+    if plan.use_random_slope:
+        diag_vars.append("sigma_slope")
     if use_factor:
         diag_vars.append("loading")
     if age_ability:
@@ -137,14 +143,15 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # Headline Q5 output: baseline non-verbal ability -> trajectory shape. The
     # gamma (growth-rate) rows are the answer; delta (level) and beta (mean slope)
     # round out the trajectory characterisation. All adjusted associations.
-    section_header("Non-verbal ability -> trajectory shape (Q5)")
+    display_baseline = baseline_label[0].upper() + baseline_label[1:]
+    section_header(f"{display_baseline} -> trajectory shape")
     gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
     save_table(ctx, "growth_association_summary", gs)
     save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
     print_table(
         ranked_dataframe_table(
             gs[gs["coefficient"] == "gamma"],
-            title="Baseline non-verbal ability -> growth rate (gamma, logit; 95% ETI)",
+            title=f"{display_baseline} -> growth rate (gamma, logit)",
             columns=[
                 "outcome", "median", "lo89", "hi89", "prob_positive",
                 "favoured_direction_label",
@@ -205,6 +212,12 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "outcomes": list(outcomes),
             "baseline_covariate": baseline_cov,
             "use_shared_factor": use_factor,
+            "use_random_slope": plan.use_random_slope,
+            "waves": list(plan.waves),
+            "adjust_for_group": plan.adjust_for_group,
+            "source_n_children": panel.source_n_children,
+            "excluded_children": panel.excluded_children,
+            "dropped_by_reason": panel.dropped_by_reason,
             "growth_association_summary": gs.to_dict("records"),
             **({"blocks_tempo_corr": tempo_corr} if tempo_corr else {}),
         },

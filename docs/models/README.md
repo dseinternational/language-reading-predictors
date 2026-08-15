@@ -496,7 +496,7 @@ on_ `basread` level, so between-group contrasts touching that group carry the se
 caveat. Roadmap: the phased Byrne suite is tracked in #338 and mapped in
 `notes/202607131600-byrne-comparable-models-plan.md`.
 
-### Byrne Phase B/D — `lrp-rlm-jc-001/002`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001/002`, `lrp-rlm-hs-001`, `lrp-rlm-ca-001/002` (`study_id="rlm"`)
+### Byrne Phase B/D — `lrp-rlm-jc-001/002`, `lrp-rlm-mm-001`, `lrp-rlm-adj-001/002`, `lrp-rlm-hs-001`, `lrp-rlm-ca-001/002`, `lrp-rlm-gc-001` (`study_id="rlm"`)
 
 **Purpose.** The Byrne suite's joint/measurement structure (Phase B) and predictor views (Phase D), ported from the RLI observational families per the plan and the 2026-07-16 decisions. The span models use the audited w1→w3 core window; the concurrent models fit waves 1–4 separately and restrict their battery to confirmed-denominator, confirmed-identity measures. All quantities are descriptive associations in an observational cohort — nothing causal exists here.
 
@@ -510,6 +510,7 @@ caveat. Roadmap: the phased Byrne suite is tracked in #338 and mapped in
 | `lrp-rlm-hs-001`  | `horseshoe`        | Regularised-horseshoe ranking cross-check over the identical frame; no GB comparison exists for this cohort — the partner is `lrp-rlm-adj-001`                                                                                                  |
 | `lrp-rlm-ca-001`  | `concurrent`       | Per-wave concurrent correlates of BAS word reading over waves 1–4; confirmed five-measure subset, age and reading-group nuisance adjustment, plus single-skill comparators                                                                      |
 | `lrp-rlm-ca-002`  | `concurrent`       | Per-wave concurrent correlates of BPVS receptive vocabulary over waves 1–4; confirmed five-measure subset, age and reading-group nuisance adjustment, plus single-skill comparators                                                             |
+| `lrp-rlm-gc-001`  | `growth`           | Wave-1 BAS similarities and the BAS word-reading trajectory over paper-compatible waves 1–3; reading-group-specific nuisance trajectories with a shared within-group ability–growth association (87 children)                                   |
 
 **Notes.** `lrp-rlm-jc-001/002` compute no PSIS-LOO (one likelihood node per measure); the
 correlation matrices are shared across groups (stated assumption) while the random-effect
@@ -519,6 +520,8 @@ extra-Binomial variance; a development fit that also retained Beta-Binomial
 overdispersion was rejected as prior-dominated. A wider residual-scale prior remains
 a required sensitivity before interpretation. `lrp-rlm-mm-001` states its single-indicator memory reliability
 assumption and pooled-loadings (invariance) assumption up front. The pooled Phase D span model excludes `basmat` (no wave-1 value) and the reading-route `basspel`/`woco`. Its Down-syndrome-only companion is `lrp-rlm-adj-002`: three pre-specified confirmed-ceiling skills replace the prior-dominated seven-slope proposal, leaving 22 complete cases. The concurrent pair also excludes provisional-denominator `basspel`, `woco` and `basnum`, plus identity-unresolved `basmat`; wave 4 is an attrition-sensitive extension and predictor missingness is reported under the family's mean-imputation policy. Phase C's annual lagged working graph is adopted (`dag/dag-reading-language-memory-lagged.dagitty`), with prior word reading pointing only to later receptive vocabulary, receptive grammar and digit recall. No Phase C model is registered: the pre-fit recovery study rejected both the Down-syndrome-only and three-group shared-coupling candidates because none recovered all three modest positive paths reliably (`notes/202608141812-byrne-lcsm-feasibility.md`). Phase E remains gated on the #289/#324 sensitivity prerequisite.
+
+`lrp-rlm-gc-001` completes #409 D4 over confirmed inputs. It excludes waves 4–5 from the primary trajectory question, requires wave-1 `bassim` and at least two observed `basread` waves, and treats the three reading groups as nuisance trajectory strata. Its common `gamma` is an adjusted within-group association, not evidence that verbal reasoning causes reading growth; the reading-matched selection caveat remains.
 
 ---
 

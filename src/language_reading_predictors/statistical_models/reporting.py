@@ -3229,7 +3229,13 @@ def _publication_input_contract(context: StatisticalFitContext) -> dict | None:
     add(spec.outcome_symbol)
     plan = _resolved_run_plan(context)
     plan_settings = plan.as_dict() if plan is not None else {}
-    for key in ("measure", "measures", "outcomes", "predictor_measures"):
+    for key in (
+        "measure",
+        "measures",
+        "outcomes",
+        "predictor_measures",
+        "baseline_covariate",
+    ):
         add(plan_settings.get(key))
     add(plan_settings.get("domains"))
 
@@ -3243,6 +3249,7 @@ def _publication_input_contract(context: StatisticalFitContext) -> dict | None:
         "post_counts",
         "pre_logit",
         "predictors",
+        "baseline",
     ):
         values = getattr(prepared, name, None)
         if isinstance(values, Mapping):
@@ -3474,20 +3481,34 @@ def growth_association_summary(
         labels = list(da[outcome_dim].values) if outcome_dim else [coef]
         for lab in labels:
             sub = da.sel({outcome_dim: lab}) if outcome_dim else da
-            d = sub.stack(sample=("chain", "draw")).values.ravel()
-            prob_pos = float(np.mean(d > 0))
-            rows.append(
-                {
-                    "coefficient": coef,
-                    "outcome": str(lab),
-                    "role": "association",
-                    "median": float(np.median(d)),
-                    "prob_positive": prob_pos,
-                    "direction_label": evidence_label(prob_pos),
-                    **eti_bands(d, probs=(0.5, 0.89)),
-                    **favoured_direction(prob_pos),
-                }
+            group_dim = next(
+                (name for name in ("reading_group", "group") if name in sub.dims),
+                None,
             )
+            groups: list[object | None] = (
+                list(sub.coords[group_dim].values) if group_dim is not None else [None]
+            )
+            for group in groups:
+                cell = (
+                    sub.sel({group_dim: group})
+                    if group is not None and group_dim is not None
+                    else sub
+                )
+                d = cell.stack(sample=("chain", "draw")).values.ravel()
+                prob_pos = float(np.mean(d > 0))
+                rows.append(
+                    {
+                        "coefficient": coef,
+                        "outcome": str(lab),
+                        "group": group,
+                        "role": "association",
+                        "median": float(np.median(d)),
+                        "prob_positive": prob_pos,
+                        "direction_label": evidence_label(prob_pos),
+                        **eti_bands(d, probs=(0.5, 0.89)),
+                        **favoured_direction(prob_pos),
+                    }
+                )
     return pd.DataFrame(rows)
 
 
@@ -5851,10 +5872,26 @@ def _kf_build_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
         raise _KeyFindingsUnavailable("growth summary has no gamma rows")
     row = _kf_most_resolved_row(gamma, prob_col="prob_positive")
     outcome = _kf_measure_label(row["outcome"])
+    plan = config.get("resolved_run_plan") or {}
+    study_id = str(config.get("study_id") or "rli")
+    baseline_symbol = plan.get("baseline_covariate")
+    baseline_label = "non-verbal ability"
+    if study_id != "rli" and isinstance(baseline_symbol, str):
+        try:
+            from language_reading_predictors.statistical_models.datasets import (
+                resolve_dataset,
+            )
+
+            _dataset, catalogue = resolve_dataset(study_id)
+            baseline_label = catalogue[baseline_symbol].label
+            if str(row["outcome"]) in catalogue:
+                outcome = catalogue[str(row["outcome"])].label
+        except (KeyError, TypeError):
+            baseline_label = baseline_symbol
     return [
         _kf_sentence(
             f"For {outcome}, the clearest result, a 1-SD higher baseline "
-            f"non-verbal ability score was associated with a growth-rate change of "
+            f"{baseline_label} score was associated with a growth-rate change of "
             f"**{_kf_float(row['median']):+.2f} logit units** (89% credible range "
             f"{_kf_float(row['lo89']):+.2f} to "
             f"{_kf_float(row['hi89']):+.2f}).",
@@ -5869,8 +5906,8 @@ def _kf_build_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
             "confidence",
         ),
         _kf_sentence(
-            "These trajectory coefficients are adjusted associations, not effects "
-            "of changing non-verbal ability.",
+            "These trajectory coefficients are adjusted associations, not effects of "
+            f"changing {baseline_label}.",
             "causal",
         ),
     ]

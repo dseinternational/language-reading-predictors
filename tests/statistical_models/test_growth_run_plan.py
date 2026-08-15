@@ -35,7 +35,7 @@ def _growth_specs() -> list[ModelSpec]:
         ).__file__
     )
     specs: list[ModelSpec] = []
-    for path in sorted(glob.glob(os.path.join(root, "lrp_rli_gc_*.py"))):
+    for path in sorted(glob.glob(os.path.join(root, "lrp_*_gc_*.py"))):
         mod = importlib.import_module(
             "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
@@ -116,7 +116,9 @@ def test_resolve_defaults_five_measures_on_blocks():
     assert fac == {
         "baseline_covariate": "blocks",
         "use_shared_factor": False,
+        "use_random_slope": True,
         "age_ability_interaction": False,
+        "adjust_for_group": False,
     }
     assert "associational" in plan.causal_status.lower()
     assert "growth rate" in plan.estimand.lower()
@@ -164,6 +166,7 @@ def test_every_registered_growth_model_resolves_with_metadata():
     specs = _growth_specs()
     assert len(specs) >= 3, f"expected the full growth suite, found {len(specs)}"
     saw_factor = saw_interaction = False
+    saw_rlm = False
     for spec in specs:
         plan = resolve_growth_run_plan(spec)
         assert isinstance(plan, GrowthRunPlan)
@@ -175,5 +178,7 @@ def test_every_registered_growth_model_resolves_with_metadata():
         assert plan.prepare_kwargs()["baseline_covariates"] == (plan.baseline_covariate,)
         saw_factor |= plan.use_shared_factor
         saw_interaction |= plan.age_ability_interaction
+        saw_rlm |= plan.study_id == "rlm"
     assert saw_factor, "no shared-factor growth model found (gc-070)"
     assert saw_interaction, "no age x ability growth model found (gc-085)"
+    assert saw_rlm, "no Byrne/RLM growth model found (rlm-gc-001)"

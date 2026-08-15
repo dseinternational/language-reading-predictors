@@ -5546,7 +5546,9 @@ def build_growth_model(
     *,
     baseline_covariate: str = "blocks",
     use_shared_factor: bool = False,
+    use_random_slope: bool = True,
     age_ability_interaction: bool = False,
+    adjust_for_group: bool = False,
     intercept_prior_sigma: float = 1.5,
     slope_prior_sigma: float = 0.5,
     assoc_prior_sigma: float = 0.3,
@@ -5587,6 +5589,18 @@ def build_growth_model(
     non-verbal ability predict it? ``LOO(LRP69 vs LRP70)`` shows whether the factor
     earns its keep. The core LRP69 keeps ``use_shared_factor=False``.
 
+    ``adjust_for_group`` is the historical-cohort port: it gives each observed
+    reading group its own population intercept, age slope, random-effect scales and
+    Beta-Binomial concentration while keeping ``delta`` and ``gamma`` as common
+    within-group ability associations. It is nuisance adjustment, not a group-effect
+    estimand. The RLI models leave it off and retain their original parameterisation.
+
+    ``use_random_slope=False`` retains the child random intercept but removes the
+    child-specific slope residual. The three-wave, single-outcome Byrne port uses
+    this reduced form because a separate latent slope for every child is weakly
+    supported and produced unreliable observation-level PSIS-LOO diagnostics. The
+    fixed baseline-ability association with growth rate (``gamma``) remains.
+
     ``age_ability_interaction`` (LRP85, #228 item 10) adds a child-level **baseline
     (t1) age** moderator ``age0`` (standardised across children — distinct from the
     within-child ``age_std`` time axis) to the slope, with its own main effect
@@ -5613,6 +5627,8 @@ def build_growth_model(
             f"baseline_covariate {baseline_covariate!r} not loaded; pass "
             f"baseline_covariates=({baseline_covariate!r},) to load_wave_panel."
         )
+    if adjust_for_group and panel.group is None:
+        raise ValueError("adjust_for_group=True requires a group code for every child")
 
     # Observed counts / mask / denominators stacked as (N, T, K) in OUT order.
     counts_int = np.stack(
@@ -5624,54 +5640,116 @@ def build_growth_model(
     zb = np.asarray(panel.baseline[baseline_covariate], dtype=float)  # (N,) standardised
 
     # Intercept anchor: grand-mean observed logit per measure (the intercept is the
-    # logit level at mean age, age_std = 0). Guard the all-NaN case loudly.
+    # logit level at mean age, age_std = 0). The historical-cohort port anchors each
+    # group separately. Guard the all-NaN case loudly.
     missing = [s for s in OUT if not np.isfinite(panel.logit[s]).any()]
     if missing:
         raise ValueError(
             "growth intercept anchor is undefined (no observed value) for: "
             f"{', '.join(missing)}."
         )
-    intercept_anchor = np.array(
-        [np.nanmean(panel.logit[s]) for s in OUT], dtype=float
-    )
+    group_values: np.ndarray | None = None
+    group_idx: np.ndarray | None = None
+    if adjust_for_group:
+        assert panel.group is not None
+        group_values = np.asarray(sorted(set(panel.group.astype(int))), dtype=int)
+        group_lookup = {int(code): index for index, code in enumerate(group_values)}
+        group_idx = np.asarray(
+            [group_lookup[int(code)] for code in panel.group], dtype=np.int64
+        )
+        intercept_anchor = np.array(
+            [
+                [np.nanmean(panel.logit[s][group_idx == group_index]) for s in OUT]
+                for group_index in range(len(group_values))
+            ],
+            dtype=float,
+        )
+        if not np.isfinite(intercept_anchor).all():
+            raise ValueError(
+                "growth intercept anchor is undefined for at least one group/outcome cell"
+            )
+    else:
+        intercept_anchor = np.array(
+            [np.nanmean(panel.logit[s]) for s in OUT], dtype=float
+        )
 
     coords = {"child": np.arange(N), "wave": panel.waves, "outcome": list(OUT)}
+    if group_values is not None:
+        coords["reading_group"] = group_values
 
     from dse_research_utils.math.constants import EPSILON  # local import
 
     with pm.Model(coords=coords) as model:
         age = pm.Data("age_std", panel.age_std, dims=("child", "wave"))
-        blocks = pm.Data("blocks_std", zb, dims="child")
+        baseline_name = "blocks_std" if not adjust_for_group else "baseline_std"
+        blocks = pm.Data(baseline_name, zb, dims="child")
+        group_data = (
+            pm.Data("group_idx", group_idx, dims="child")
+            if group_idx is not None
+            else None
+        )
 
         # Population growth parameters (per measure).
-        alpha = pm.Normal(
-            "alpha", mu=intercept_anchor, sigma=intercept_prior_sigma, dims="outcome"
+        population_dims = (
+            ("reading_group", "outcome") if adjust_for_group else "outcome"
         )
-        beta = pm.Normal("beta", mu=0.0, sigma=slope_prior_sigma, dims="outcome")
+        alpha = pm.Normal(
+            "alpha",
+            mu=intercept_anchor,
+            sigma=intercept_prior_sigma,
+            dims=population_dims,
+        )
+        beta = pm.Normal(
+            "beta", mu=0.0, sigma=slope_prior_sigma, dims=population_dims
+        )
         # Baseline non-verbal ability -> trajectory shape (the Q5 estimands):
         # delta on the baseline level, gamma on the growth rate (headline).
         delta = pm.Normal("delta", mu=0.0, sigma=assoc_prior_sigma, dims="outcome")
         gamma = pm.Normal("gamma", mu=0.0, sigma=assoc_prior_sigma, dims="outcome")
         # Child-level random intercept + slope (independent per measure).
         sigma_intercept = pm.HalfNormal(
-            "sigma_intercept", sigma=re_intercept_prior_sigma, dims="outcome"
+            "sigma_intercept", sigma=re_intercept_prior_sigma, dims=population_dims
         )
-        sigma_slope = pm.HalfNormal(
-            "sigma_slope", sigma=re_slope_prior_sigma, dims="outcome"
+        sigma_slope = (
+            pm.HalfNormal(
+                "sigma_slope", sigma=re_slope_prior_sigma, dims=population_dims
+            )
+            if use_random_slope
+            else None
         )
         z_intercept = pm.Normal("z_intercept", 0.0, 1.0, dims=("child", "outcome"))
-        z_slope = pm.Normal("z_slope", 0.0, 1.0, dims=("child", "outcome"))
-        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
+        z_slope = (
+            pm.Normal("z_slope", 0.0, 1.0, dims=("child", "outcome"))
+            if use_random_slope
+            else None
+        )
+        kappa = pm.HalfNormal(
+            "kappa", sigma=kappa_prior_sigma, dims=population_dims
+        )
 
         # child x outcome intercepts and slopes (non-centred).
+        if group_data is not None:
+            alpha_child = alpha[group_data]
+            beta_child = beta[group_data]
+            sigma_intercept_child = sigma_intercept[group_data]
+            sigma_slope_child = (
+                sigma_slope[group_data] if sigma_slope is not None else None
+            )
+        else:
+            alpha_child = alpha[None, :]
+            beta_child = beta[None, :]
+            sigma_intercept_child = sigma_intercept[None, :]
+            sigma_slope_child = (
+                sigma_slope[None, :] if sigma_slope is not None else None
+            )
         intercept = pm.Deterministic(
             "intercept",
-            alpha[None, :]
+            alpha_child
             + delta[None, :] * blocks[:, None]
-            + sigma_intercept[None, :] * z_intercept,
+            + sigma_intercept_child * z_intercept,
             dims=("child", "outcome"),
         )
-        slope_mean = beta[None, :] + gamma[None, :] * blocks[:, None]
+        slope_mean = beta_child + gamma[None, :] * blocks[:, None]
         if age_ability_interaction:
             # Child-level baseline (t1) age, standardised ACROSS children — distinct
             # from the within-child ``age_std`` time axis the slope multiplies. Its
@@ -5703,10 +5781,10 @@ def build_growth_model(
                 "loading", sigma=loading_prior_sigma, dims="outcome"
             )
             slope_mean = slope_mean + loading[None, :] * G[:, None]
+        if sigma_slope_child is not None and z_slope is not None:
+            slope_mean = slope_mean + sigma_slope_child * z_slope
         slope = pm.Deterministic(
-            "slope",
-            slope_mean + sigma_slope[None, :] * z_slope,
-            dims=("child", "outcome"),
+            "slope", slope_mean, dims=("child", "outcome")
         )
 
         # Latent logit trajectory (linear in standardised age).
@@ -5719,8 +5797,9 @@ def build_growth_model(
         # Masked Beta-Binomial observation (LRP55 flattened-mask idiom).
         mu = pm.math.sigmoid(theta)
         mu_clip = pm.math.clip(mu, EPSILON, 1 - EPSILON)
-        alpha_bb = (mu_clip * kappa[None, None, :]).reshape((-1,))
-        beta_bb = ((1 - mu_clip) * kappa[None, None, :]).reshape((-1,))
+        kappa_child = kappa[group_data] if group_data is not None else kappa[None, :]
+        alpha_bb = (mu_clip * kappa_child[:, None, :]).reshape((-1,))
+        beta_bb = ((1 - mu_clip) * kappa_child[:, None, :]).reshape((-1,))
         idx_i, idx_t, idx_k = np.nonzero(mask)
         lin = np.ravel_multi_index((idx_i, idx_t, idx_k), (N, T, K))
         # Persist each flattened cell's outcome position so predictive checks can

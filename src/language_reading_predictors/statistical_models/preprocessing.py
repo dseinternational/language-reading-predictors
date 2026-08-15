@@ -1210,6 +1210,22 @@ class WavePanel:
     dose_std: np.ndarray
     """Standardised ``dose``."""
     dose_scaler: Standardiser
+    study_id: str = "rli"
+    """Dataset identifier for report labels and release-audit metadata."""
+    outcome_labels: dict[str, str] = field(default_factory=dict)
+    """Study-aware human-readable labels for ``outcomes``."""
+    group_labels: dict[int, str] = field(default_factory=dict)
+    """Observed group-code labels; empty for panels without a cohort factor."""
+    data_path: str = ""
+    """Absolute path of the source CSV used to construct the panel."""
+    data_sha256: str = ""
+    """SHA-256 digest of the source CSV."""
+    source_n_children: int | None = None
+    """Number of unique children before the panel's eligibility restrictions."""
+    excluded_children: int = 0
+    """Children excluded before masked outcome modelling."""
+    dropped_by_reason: dict[str, int] = field(default_factory=dict)
+    """Pre-panel child exclusions by mutually exclusive reason."""
     column_map: dict[str, str] = field(default_factory=dict)
     """Symbol -> source column name."""
     baseline: dict[str, np.ndarray] = field(default_factory=dict)
@@ -1256,8 +1272,8 @@ class WavePanel:
 
     @property
     def dropped_rows(self) -> int:
-        """Always 0 — missing cells are masked in the factory, not dropped."""
-        return 0
+        """Children excluded before the retained panel was formed."""
+        return self.excluded_children
 
 
 def load_wave_panel(
@@ -1298,6 +1314,7 @@ def load_wave_panel(
     :func:`add_hearing_status`) to :attr:`WavePanel.child_covariates`.
     """
     csv_path = Path(path) if path is not None else _default_data_path()
+    data_path, data_sha256 = _data_provenance(csv_path)
     df = pd.read_csv(csv_path)
 
     waves = np.sort(df[V.TIME].dropna().unique()).astype(int)
@@ -1447,6 +1464,9 @@ def load_wave_panel(
         dose=dose,
         dose_std=dose_std,
         dose_scaler=dose_scaler,
+        data_path=data_path,
+        data_sha256=data_sha256,
+        source_n_children=n_children,
         column_map=column_map,
         baseline=baseline,
         baseline_raw=baseline_raw,
@@ -1455,6 +1475,201 @@ def load_wave_panel(
         child_covariates=child_cov,
         wave_covariates=wave_cov,
         wave_covariate_scaler=wave_cov_scaler,
+    )
+
+
+def load_rlm_growth_panel(
+    *,
+    outcomes: tuple[str, ...],
+    baseline_covariate: str,
+    waves: tuple[int, ...] = (1, 2, 3),
+    baseline_wave: int = 1,
+    baseline_scale: str = "logit_safe",
+    min_outcome_waves: int = 2,
+    path: str | Path | None = None,
+) -> WavePanel:
+    """Build the paper-compatible Byrne panel for a growth-family model.
+
+    Unlike :func:`load_wave_panel`, this loader resolves study-local measure symbols
+    through the RLM catalogue, keeps the three historical reading groups, and uses a
+    bounded wave-1 measure as the baseline ability proxy. Children must have that
+    baseline observed and at least ``min_outcome_waves`` observed cells for every
+    requested trajectory outcome; remaining outcome cells stay masked.
+    """
+    from language_reading_predictors.statistical_models.datasets import (
+        resolve_dataset,
+    )
+
+    dataset, measures = resolve_dataset("rlm")
+    csv_path = Path(path) if path is not None else Path(dataset.path)
+    data_path, data_sha256 = _data_provenance(csv_path)
+    df = pd.read_csv(csv_path)
+
+    if len(waves) < 2 or tuple(sorted(set(waves))) != waves:
+        raise ValueError(
+            "waves must be unique, strictly increasing, and contain at least two waves"
+        )
+    if baseline_wave not in waves:
+        raise ValueError("baseline_wave must be included in waves")
+    if min_outcome_waves < 1 or min_outcome_waves > len(waves):
+        raise ValueError(
+            "min_outcome_waves must be between 1 and the number of waves"
+        )
+    requested = (*outcomes, baseline_covariate)
+    unknown = sorted(set(requested) - set(measures))
+    if unknown:
+        raise KeyError(f"measure(s) {unknown} not registered for study 'rlm'")
+    if baseline_scale not in {"raw", "logit_safe"}:
+        raise ValueError("baseline_scale must be 'raw' or 'logit_safe'")
+
+    subj = dataset.subject_col
+    wave_col = dataset.wave_col
+    group_col = dataset.group_col
+    required = [
+        subj,
+        wave_col,
+        group_col,
+        "age",
+        *(measures[symbol].column for symbol in requested),
+    ]
+    missing_columns = sorted(set(required) - set(df.columns))
+    if missing_columns:
+        raise ValueError(f"{csv_path} missing required columns: {missing_columns}")
+
+    duplicate = df.duplicated(subset=[subj, wave_col], keep=False)
+    if duplicate.any():
+        pairs = sorted(
+            (str(child), int(wave))
+            for child, wave in df.loc[duplicate, [subj, wave_col]]
+            .drop_duplicates()
+            .itertuples(index=False)
+        )
+        raise ValueError(f"Duplicate RLM (subject, wave) rows: {pairs}")
+    unstable = df.groupby(subj)[group_col].nunique(dropna=False)
+    if (unstable > 1).any():
+        children = sorted(str(child) for child in unstable[unstable > 1].index)
+        raise ValueError(f"RLM reading-group code changes within child: {children}")
+
+    available_waves = set(pd.to_numeric(df[wave_col], errors="coerce").dropna())
+    absent_waves = sorted(set(waves) - available_waves)
+    if absent_waves:
+        raise ValueError(f"RLM source has no rows at requested wave(s): {absent_waves}")
+
+    source_ids = np.sort(df[subj].unique())
+    source_n = int(source_ids.size)
+    selected = df[df[wave_col].isin(waves)].copy()
+
+    def _pivot(column: str) -> pd.DataFrame:
+        return selected.pivot(index=subj, columns=wave_col, values=column).reindex(
+            index=source_ids, columns=waves
+        )
+
+    baseline_column = measures[baseline_covariate].column
+    baseline_raw_all = _pivot(baseline_column)[baseline_wave]
+    baseline_ok = baseline_raw_all.notna()
+    outcome_wide = {
+        symbol: _pivot(measures[symbol].column) for symbol in outcomes
+    }
+    enough_outcomes = pd.Series(True, index=source_ids)
+    for wide in outcome_wide.values():
+        enough_outcomes &= wide.notna().sum(axis=1) >= min_outcome_waves
+    keep = baseline_ok & enough_outcomes
+    subject_ids = source_ids[keep.to_numpy()]
+    if not len(subject_ids):
+        raise ValueError("No RLM children satisfy the growth-panel eligibility rules")
+
+    counts: dict[str, np.ndarray] = {}
+    obs_mask: dict[str, np.ndarray] = {}
+    logits: dict[str, np.ndarray] = {}
+    n_trials: dict[str, int] = {}
+    column_map: dict[str, str] = {}
+    outcome_labels: dict[str, str] = {}
+    for symbol in outcomes:
+        measure = measures[symbol]
+        values = outcome_wide[symbol].loc[subject_ids].to_numpy(dtype=float)
+        observed = values[np.isfinite(values)]
+        if observed.size and (
+            float(observed.min()) < 0 or float(observed.max()) > measure.n_trials
+        ):
+            raise ValueError(
+                f"Observed {symbol!r} falls outside 0..{measure.n_trials}."
+            )
+        present = np.isfinite(values)
+        transformed = np.full_like(values, np.nan)
+        transformed[present] = logit_safe(values[present], measure.n_trials)
+        counts[symbol] = values
+        obs_mask[symbol] = present
+        logits[symbol] = transformed
+        n_trials[symbol] = measure.n_trials
+        column_map[symbol] = measure.column
+        outcome_labels[symbol] = measure.label
+
+    baseline_raw = baseline_raw_all.loc[subject_ids].to_numpy(dtype=float)
+    baseline_measure = measures[baseline_covariate]
+    if baseline_raw.min() < 0 or baseline_raw.max() > baseline_measure.n_trials:
+        raise ValueError(
+            f"Observed {baseline_covariate!r} falls outside "
+            f"0..{baseline_measure.n_trials}."
+        )
+    baseline_input = (
+        logit_safe(baseline_raw, baseline_measure.n_trials)
+        if baseline_scale == "logit_safe"
+        else baseline_raw
+    )
+    baseline_std, baseline_scaler = standardise(baseline_input)
+
+    age_frame = _pivot("age").loc[subject_ids]
+    age_months = age_frame.interpolate(axis=1, limit_direction="both").to_numpy(
+        dtype=float
+    )
+    if not np.isfinite(age_months).all():
+        missing = subject_ids[~np.isfinite(age_months).all(axis=1)]
+        raise ValueError(
+            f"RLM age is unavailable across requested waves for {missing.tolist()}"
+        )
+    age_std, age_scaler = standardise(age_months)
+
+    group_wide = _pivot(group_col).loc[subject_ids]
+    group = group_wide.bfill(axis=1).iloc[:, 0].to_numpy(dtype=int)
+    bad_groups = sorted(set(group) - set(dataset.group_labels))
+    if bad_groups:
+        raise ValueError(f"Unknown RLM reading-group code(s): {bad_groups}")
+
+    dose = np.zeros_like(age_months)
+    missing_baseline = int((~baseline_ok).sum())
+    insufficient = int((baseline_ok & ~enough_outcomes).sum())
+    return WavePanel(
+        subject_ids=subject_ids,
+        n_children=len(subject_ids),
+        n_waves=len(waves),
+        waves=np.asarray(waves, dtype=int),
+        outcomes=tuple(outcomes),
+        counts=counts,
+        obs_mask=obs_mask,
+        logit=logits,
+        n_trials=n_trials,
+        age_months=age_months,
+        age_std=age_std,
+        age_scaler=age_scaler,
+        dose=dose,
+        dose_std=dose,
+        dose_scaler=Standardiser(mean=0.0, sd=1.0),
+        study_id="rlm",
+        outcome_labels=outcome_labels,
+        group_labels=dict(dataset.group_labels),
+        data_path=data_path,
+        data_sha256=data_sha256,
+        source_n_children=source_n,
+        excluded_children=source_n - len(subject_ids),
+        dropped_by_reason={
+            "missing_wave_1_baseline_covariate": missing_baseline,
+            "fewer_than_minimum_outcome_waves": insufficient,
+        },
+        column_map=column_map,
+        baseline={baseline_covariate: baseline_std},
+        baseline_raw={baseline_covariate: baseline_raw},
+        baseline_scaler={baseline_covariate: baseline_scaler},
+        group=group,
     )
 
 

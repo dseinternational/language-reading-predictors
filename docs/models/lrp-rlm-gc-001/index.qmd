@@ -1,0 +1,55 @@
+---
+title: "RLMGC01: Does baseline verbal reasoning predict the BAS word-reading trajectory?"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Codex/GPT-5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMGC01 addresses #409 D4: whether wave-1 verbal reasoning predicts the shape of the subsequent word-reading trajectory rather than only a single gain. The outcome is confirmed 90-item BAS word reading (`basread`); the baseline proxy is confirmed 21-item BAS Similarities (`bassim`). The primary panel is restricted to the three annual waves reported by Byrne, MacDonald and Buckley (2002).
+
+The analysis retains children with wave-1 similarities observed and word reading observed at two or more of waves 1–3. Reading-group-specific nuisance intercepts and slopes absorb the very different average trajectories of the Down-syndrome, average-reader and reading-matched cohorts. The baseline-ability coefficients are shared across groups to avoid estimating three weakly informed associations. Child random intercepts account for stable repeated-measures dependence; the model deliberately omits 87 child-specific random slopes, which are weakly supported by one outcome over three waves. The four children without wave-1 similarities and children with fewer than two reading observations are excluded before fitting; remaining missing reading cells are masked rather than imputed.
+
+## Model structure
+
+For child $i$ in reading group $g$ at wave $t$, the latent word-reading logit is linear in standardised age $a_{it}$:
+
+$$
+\theta_{it} = \operatorname{intercept}_{i} + \operatorname{slope}_{i} a_{it}.
+$$
+
+The group-specific population trajectory is combined with standardised wave-1 BAS similarities $z(S_i)$:
+
+$$
+\operatorname{intercept}_{i} = \alpha_g + \delta z(S_i) + \sigma^0_g z^0_i,
+\qquad
+\operatorname{slope}_{i} = \beta_g + \gamma z(S_i).
+$$
+
+The headline `gamma` asks whether a 1-SD higher wave-1 similarities score is associated with a faster word-reading growth rate within reading group. `delta` is the association with reading level at the pooled mean age, not at study entry. Observed scores use a masked Beta-Binomial likelihood with group-specific concentration.
+
+Nothing in this model is causal. The cohorts were not randomised, similarities is a noisy verbal-reasoning proxy rather than general ability itself, and the reading-matched group was selected on word-reading level. A common `gamma` also assumes the ability–growth association is sufficiently similar across groups; the available sample does not support estimating three separate slopes reliably.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_growth.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
