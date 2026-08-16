@@ -250,7 +250,7 @@ def test_rlm_dataset_registered():
     assert dataset.source_provenance_manifest.endswith("source_provenance.json")
 
 
-def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
+def test_rlm_publication_contract_separates_dataset_and_denominator_blockers():
     confirmed = publication_input_contract("rlm", ("basread",))
     assert confirmed["publication_ready"] is True
     assert confirmed["blockers"] == []
@@ -264,12 +264,27 @@ def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
     assert any("basnum" in blocker for blocker in provisional["blockers"])
     assert provisional["measures"]["basnum"]["n_trials_confirmed"] is False
 
-    identity = publication_input_contract("rlm", ("basmat",))
-    assert identity["publication_ready"] is False
-    assert any("instrument identity" in blocker for blocker in identity["blockers"])
-    assert (
-        identity["measures"]["basmat"]["instrument_identity_confirmed"] is False
+    basmat = publication_input_contract("rlm", ("basmat",))
+    assert basmat["publication_ready"] is True
+    assert basmat["blockers"] == []
+    assert basmat["measures"]["basmat"]["instrument_identity_confirmed"] is True
+    assert basmat["measures"]["basmat"]["available_waves"] == [3, 4, 5]
+
+
+def test_rlm_publication_contract_still_rejects_an_unresolved_identity(monkeypatch):
+    unresolved = StudyMeasure(
+        "unresolved",
+        "unresolved",
+        10,
+        "Unresolved instrument",
+        n_trials_confirmed=True,
     )
+    monkeypatch.setitem(RLM_MEASURES, "unresolved", unresolved)
+
+    contract = publication_input_contract("rlm", ("unresolved",))
+
+    assert contract["publication_ready"] is False
+    assert any("instrument identity" in blocker for blocker in contract["blockers"])
 
 
 # Ceilings per the #338 research + data-owner sign-off (2026-07-16). Confirmed

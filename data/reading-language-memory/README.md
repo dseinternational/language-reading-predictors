@@ -35,7 +35,7 @@ Prepared participant-level data for the Byrne, MacDonald, and Buckley longitudin
 - `basdig` - British Ability Scales recall of digits.
 - `bassim` - British Ability Scales similarities/verbal reasoning.
 - `basnum` - British Ability Scales number skills.
-- `basmat` - British Ability Scales matrices/non-verbal reasoning; available from wave 3 onward in the prepared data.
+- `basmat` - British Ability Scales matrices/non-verbal reasoning; retained under the source-native `BASMAT3`-`BASMAT5` names and available from wave 3 onward in the prepared data. The three-wave paper does not report this later-wave measure.
 
 The prepared long file also includes `_next` and `_gain` columns computed within participant from each wave to the next wave.
 
@@ -44,4 +44,4 @@ The prepared long file also includes `_next` and `_gain` columns computed within
 - The prepared files contain 24 Down syndrome, 42 average-reader, and 31 reading-matched children, matching the starting sample reported in Byrne, MacDonald, and Buckley (2002).
 - The first three waves reproduce the paper's Table 2 complete-case means when complete cases are selected separately per measure.
 - Source provenance was reconciled on 2026-08-16. The prepared 97-participant wide file matches every case and all 52 shared non-identifying fields in the checksum-pinned 97-case SPSS source retained in the `dsegroup/research-data-analysis` Git history. The historical 96-row CSV was a strict subset that omitted one Down-syndrome participant; source-repository PR #13 repaired it to 97 rows, and the repaired derivative now matches all source assessment fields. See `source_provenance.json` and `notes/202608161340-byrne-source-provenance-reconciliation.md`.
-- The prepared files do not include the visual recall variables reported in the paper's correlation tables. Those analyses can only be partially reproduced from the current prepared extract unless the missing variables are recovered.
+- The checksum-pinned SPSS source and prepared files contain no immediate or delayed visual-recall fields, although both measures are reported in the paper. Their absence from the retained archive is accepted as an explicit limit: the paper's full memory battery and correlation tables cannot be reproduced unless a different original archive is recovered. See `notes/202608161554-byrne-basmat-and-visual-recall-audit.md`.

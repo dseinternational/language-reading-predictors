@@ -12,9 +12,9 @@ It writes CSVs under ``output/reading_language_memory/replication/``:
 - sample and observation-count audits;
 - raw and age-adjusted correlations with BAS word reading.
 
-The prepared extract does not currently include the visual recall variables
-reported in the paper's correlation tables, so the correlation reproduction is
-partial by design.
+The checksum-pinned retained source has no visual-recall fields, although the
+paper reports immediate and delayed visual recall. The correlation reproduction
+is therefore partial by design unless a different original archive is recovered.
 """
 
 from __future__ import annotations

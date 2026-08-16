@@ -318,6 +318,25 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
                 f"{spec.model_id}: RLM growth requires confirmed denominators and "
                 f"instrument identities; unresolved: {', '.join(dict.fromkeys(unresolved))}"
             )
+        baseline_waves = catalogue[settings.baseline_covariate].available_waves
+        if baseline_waves and 1 not in baseline_waves:
+            raise ValueError(
+                f"{spec.model_id}: baseline measure {settings.baseline_covariate} "
+                "has no source value at wave 1"
+            )
+        insufficient_outcomes = [
+            symbol
+            for symbol in settings.outcomes
+            if catalogue[symbol].available_waves
+            and len(set(waves) & set(catalogue[symbol].available_waves))
+            < settings.min_outcome_waves
+        ]
+        if insufficient_outcomes:
+            raise ValueError(
+                f"{spec.model_id}: RLM growth outcome(s) "
+                f"{', '.join(insufficient_outcomes)} have fewer than "
+                f"{settings.min_outcome_waves} source waves in the requested window"
+            )
         if settings.baseline_covariate in settings.outcomes:
             raise ValueError(
                 f"{spec.model_id}: the baseline ability measure cannot also be a "

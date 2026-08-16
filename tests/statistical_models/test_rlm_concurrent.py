@@ -53,10 +53,16 @@ def test_registered_rlm_concurrent_specs_use_confirmed_five_measure_battery():
         assert plan.causal_status.startswith("Associational")
 
 
-@pytest.mark.parametrize("unresolved", ["basspel", "woco", "basnum", "basmat"])
-def test_rlm_concurrent_plan_rejects_provisional_or_ambiguous_measures(unresolved):
+@pytest.mark.parametrize("unresolved", ["basspel", "woco", "basnum"])
+def test_rlm_concurrent_plan_rejects_provisional_measures(unresolved):
     spec = _rlm_spec(outcome="basread", predictors=("bpvs", unresolved))
     with pytest.raises(ValueError, match=rf"unresolved:.*{unresolved}"):
+        resolve_concurrent_run_plan(spec)
+
+
+def test_rlm_concurrent_plan_rejects_basmat_outside_its_source_window():
+    spec = _rlm_spec(outcome="basread", predictors=("bpvs", "basmat"))
+    with pytest.raises(ValueError, match=r"basmat is not available.*1, 2"):
         resolve_concurrent_run_plan(spec)
 
 

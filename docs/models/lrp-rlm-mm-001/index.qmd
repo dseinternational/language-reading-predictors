@@ -43,8 +43,7 @@ cohort (`causal_status="none"`). There is deliberately **no structural leg**:
 the factors → gain question belongs to Phase D (`lrp-rlm-adj-001` /
 `lrp-rlm-hs-001`), so this model never regresses an outcome on the factors.
 
-_Single-indicator memory factor (stated assumption)._ Memory has one indicator (`basdig`; the paper's visual-recall measures are not
-in the prepared extract), so its loading and residual cannot be estimated:
+_Single-indicator memory factor (stated assumption)._ Memory has one indicator (`basdig`; the paper's visual-recall measures are absent from the checksum-pinned retained source), so its loading and residual cannot be estimated:
 they are **fixed by an assumed reliability of 0.8**
 ($\lambda = \sqrt{0.8}$, $\sigma = \sqrt{0.2}$). Correlations involving the
 memory factor scale with that assumption — read them as conditional on it.
