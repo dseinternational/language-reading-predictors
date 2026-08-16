@@ -327,7 +327,7 @@ def test_pipeline_has_no_direct_horseshoe_setting_reads():
 
 def test_registered_models_are_typed_and_preserve_the_legacy_contract():
     specs = _registered_specs()
-    assert len(specs) == 6
+    assert len(specs) == 7
     assert {spec.study_id for spec in specs} == {"rli", "rlm"}
 
     for registered in specs:
