@@ -215,7 +215,11 @@ def test_diagnostics_report_surfaces_unreliable_pareto_k():
     assert "_influence_view = _influence[" in diagnostics
     assert diagnostics.count("_influence_view\n```") == 1
     assert "PSIS-LOO requires observation-level sensitivity" in diagnostics
-    assert "high-k point is a child × phase/period row" in diagnostics
+    assert "high-k point is a child × wave/phase/period row" in diagnostics
+    assert "historical_growth_influence_sensitivity.csv" in diagnostics
+    assert "evaluate_historical_growth_influence_bundle" in diagnostics
+    assert "PSIS-LOO unreliable; growth sensitivity completed" in diagnostics
+    assert "scripts/historical_growth_influence.py" in diagnostics
     assert "exact or moment-matched LOO" in diagnostics
     assert "same conditional row-level predictive target" in diagnostics
     assert "leaving out a whole child changes the target" in diagnostics

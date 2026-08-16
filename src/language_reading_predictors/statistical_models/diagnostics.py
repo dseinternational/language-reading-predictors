@@ -1598,19 +1598,33 @@ def influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
     k = np.asarray(ctx.loo.pareto_k).ravel()
     ids = np.asarray(ctx.prepared.subject_ids)
     if len(k) != len(ids):
-        child_idx = getattr(ctx.prepared, "child_idx", None)
-        if child_idx is None:
-            return None, None, None
-        child_idx = np.asarray(child_idx, dtype=int)
-        if child_idx.shape != ids.shape or len(k) != len(set(child_idx)):
-            return None, None, None
-        child_ids: list[object] = []
-        for child in range(len(k)):
-            matches = np.unique(ids[child_idx == child])
-            if len(matches) != 1:
+        # Historical-growth likelihood rows are the tidy ``panel.long`` rows,
+        # while ``subject_ids`` is one value per child. Preserve the exact row
+        # order the factory passed to PyMC so repeated children map correctly.
+        long = getattr(ctx.prepared, "long", None)
+        dataset = getattr(ctx.prepared, "dataset", None)
+        subject_col = getattr(dataset, "subject_col", None)
+        if (
+            long is not None
+            and subject_col is not None
+            and subject_col in long
+            and len(k) == len(long)
+        ):
+            ids = long[subject_col].to_numpy()
+        else:
+            child_idx = getattr(ctx.prepared, "child_idx", None)
+            if child_idx is None:
                 return None, None, None
-            child_ids.append(matches[0])
-        ids = np.asarray(child_ids)
+            child_idx = np.asarray(child_idx, dtype=int)
+            if child_idx.shape != ids.shape or len(k) != len(set(child_idx)):
+                return None, None, None
+            child_ids: list[object] = []
+            for child in range(len(k)):
+                matches = np.unique(ids[child_idx == child])
+                if len(matches) != 1:
+                    return None, None, None
+                child_ids.append(matches[0])
+            ids = np.asarray(child_ids)
     thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
     df = (
         pd.DataFrame(
