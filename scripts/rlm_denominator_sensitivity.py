@@ -37,21 +37,17 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
 )
 from language_reading_predictors.statistical_models.rlm_denominator_sensitivity import (
-    DENOMINATOR_FACTORS,
-    MAX_MEDIAN_RANGE_FRACTION,
-    UNRESOLVED_MEASURES,
     aggregate_sensitivity,
     build_sensitivity_model,
     sensitivity_variants,
 )
+from language_reading_predictors.statistical_models.rlm_sensitivity_contract import (
+    DENOMINATOR_FACTORS,
+    MAX_MEDIAN_RANGE_FRACTION,
+    RLM_SENSITIVITY_WINDOWS,
+    UNRESOLVED_MEASURES,
+)
 from language_reading_predictors.statistical_models.sensitivity import sha256_file
-
-WINDOWS = {
-    "basspel": ((1, 2, 3), (4, 5)),
-    "woco": ((1, 2, 3), (4, 5)),
-    "basnum": ((1, 2, 3), (4,)),
-}
-
 
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -172,7 +168,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
 
     for measure_index, measure in enumerate(selected):
-        core_waves, extension_waves = WINDOWS[measure]
+        core_waves, extension_waves = RLM_SENSITIVITY_WINDOWS[measure]
         panel = load_longitudinal_panel(
             dataset,
             [measures[measure]],
@@ -322,9 +318,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 observed_maximum=observed_maximum,
             )
         measure_dir = args.output_dir / measure
-        _write_frame(diagnostics, measure_dir / "diagnostics.csv")
-        _write_frame(growth, measure_dir / "growth.csv")
-        _write_frame(comparison, measure_dir / "comparison.csv")
+        diagnostics_path = measure_dir / "diagnostics.csv"
+        growth_path = measure_dir / "growth.csv"
+        comparison_path = measure_dir / "comparison.csv"
+        _write_frame(diagnostics, diagnostics_path)
+        _write_frame(growth, growth_path)
+        _write_frame(comparison, comparison_path)
         decisions[measure] = decision
         manifest["results"][measure] = {
             "observed_maximum": observed_maximum,
@@ -333,6 +332,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "core_waves": list(core_waves),
             "extension_waves": list(extension_waves),
             "variants": variant_manifest,
+            "tables": {
+                "diagnostics": {
+                    "file": str(diagnostics_path.relative_to(args.output_dir)),
+                    "sha256": sha256_file(diagnostics_path),
+                },
+                "growth": {
+                    "file": str(growth_path.relative_to(args.output_dir)),
+                    "sha256": sha256_file(growth_path),
+                },
+                "comparison": {
+                    "file": str(comparison_path.relative_to(args.output_dir)),
+                    "sha256": sha256_file(comparison_path),
+                },
+            },
             "decision": decision,
         }
         print(json.dumps(decision, indent=2), flush=True)
