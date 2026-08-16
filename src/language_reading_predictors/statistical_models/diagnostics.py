@@ -177,41 +177,43 @@ def sample_posterior(context: StatisticalFitContext) -> None:
 
 
 def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
-    """Aggregate a flattened multi-outcome log likelihood to the child unit.
+    """Aggregate a marked repeated-row likelihood to the child unit.
 
     The joint ITT likelihood stores one cell per observed child-outcome pair.
     Leaving cells out would condition prediction of one outcome on the same
     child's remaining outcomes and would not answer leave-one-child-out
-    generalisation. New joint traces therefore persist ``y_post_cell_row`` and
-    this helper sums each draw's cell log likelihood within child.
+    generalisation. The stacked Byrne transition model has the same issue across
+    annual rows and explicitly persists ``loo_child_idx``. This helper recognises
+    either map and sums each draw's likelihood contributions within child.
     """
     constant = getattr(trace, "constant_data", None)
     log_likelihood = getattr(trace, "log_likelihood", None)
-    if (
-        constant is None
-        or log_likelihood is None
-        or "y_post_cell_row" not in constant
-        or "y_post" not in log_likelihood
-    ):
+    if constant is None or log_likelihood is None or "y_post" not in log_likelihood:
+        return None
+    if "loo_child_idx" in constant:
+        map_name = "loo_child_idx"
+        aggregation = "sum over repeated child rows"
+    elif "y_post_cell_row" in constant:
+        map_name = "y_post_cell_row"
+        aggregation = "sum over observed outcomes"
+    else:
         return None
     ll = log_likelihood["y_post"]
-    cell_dims = [d for d in ll.dims if d not in {"chain", "draw"}]
-    if len(cell_dims) != 1:
+    unit_dims = [d for d in ll.dims if d not in {"chain", "draw"}]
+    if len(unit_dims) != 1:
         raise ValueError(
-            "flattened joint y_post log likelihood must have one cell dimension"
+            "child-aggregated y_post log likelihood must have one observation dimension"
         )
-    cell_dim = cell_dims[0]
-    rows = np.asarray(constant["y_post_cell_row"].values, dtype=int).ravel()
-    if rows.size != ll.sizes[cell_dim]:
-        raise ValueError("joint cell-row map does not align with y_post log likelihood")
-    n_children = (
-        int(constant["G"].size)
-        if "G" in constant
-        else (int(rows.max()) + 1 if rows.size else 0)
+    unit_dim = unit_dims[0]
+    rows = np.asarray(constant[map_name].values, dtype=int).ravel()
+    if rows.size != ll.sizes[unit_dim]:
+        raise ValueError("child-row map does not align with y_post log likelihood")
+    n_children = int(constant["G"].size) if "G" in constant else (
+        int(rows.max()) + 1 if rows.size else 0
     )
     if rows.size and (rows.min() < 0 or rows.max() >= n_children):
-        raise ValueError("joint cell-row map contains an out-of-range child index")
-    ordered = ll.transpose("chain", "draw", cell_dim)
+        raise ValueError("child-row map contains an out-of-range child index")
+    ordered = ll.transpose("chain", "draw", unit_dim)
     aggregated = np.zeros(
         (ordered.sizes["chain"], ordered.sizes["draw"], n_children), dtype=float
     )
@@ -220,14 +222,14 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
         aggregated[..., child] = values[..., rows == child].sum(axis=-1)
     return xr.DataArray(
         aggregated,
-        dims=("chain", "draw", "obs_id"),
+        dims=("chain", "draw", "loo_child"),
         coords={
             "chain": ordered.coords["chain"],
             "draw": ordered.coords["draw"],
-            "obs_id": np.arange(n_children),
+            "loo_child": np.arange(n_children),
         },
         name="y_post_child",
-        attrs={"loo_unit": "child", "aggregation": "sum over observed outcomes"},
+        attrs={"loo_unit": "child", "aggregation": aggregation},
     )
 
 
@@ -1596,7 +1598,19 @@ def influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
     k = np.asarray(ctx.loo.pareto_k).ravel()
     ids = np.asarray(ctx.prepared.subject_ids)
     if len(k) != len(ids):
-        return None, None, None
+        child_idx = getattr(ctx.prepared, "child_idx", None)
+        if child_idx is None:
+            return None, None, None
+        child_idx = np.asarray(child_idx, dtype=int)
+        if child_idx.shape != ids.shape or len(k) != len(set(child_idx)):
+            return None, None, None
+        child_ids: list[object] = []
+        for child in range(len(k)):
+            matches = np.unique(ids[child_idx == child])
+            if len(matches) != 1:
+                return None, None, None
+            child_ids.append(matches[0])
+        ids = np.asarray(child_ids)
     thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
     df = (
         pd.DataFrame(

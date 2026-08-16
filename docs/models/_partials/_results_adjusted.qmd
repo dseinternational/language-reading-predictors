@@ -4,11 +4,19 @@ Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 ## Results
 
-This is a one-row-per-child between-child association model. It is useful for triangulating predictor patterns, but it does not identify causal effects.
+```{python}
+# | echo: false
+# | output: asis
+_adjusted_plan = config.get("resolved_run_plan") or {}
+if _adjusted_plan.get("transition_waves"):
+    print("This is a repeated-child annual-transition association model. It pools the within-transition predictor profile while representing stable child differences with a random intercept; neither feature identifies causal effects.")
+else:
+    print("This is a one-row-per-child between-child association model. It is useful for triangulating predictor patterns, but it does not identify causal effects.")
+```
 
 ### Adjusted vs Bivariate Associations
 
-_In plain terms:_ each predictor gets two numbers — a *bivariate* association (its raw link to the outcome on its own) and an *adjusted* association (the same link after holding the other predictors constant). Comparing them shows how much of a raw relationship survives once overlapping predictors are accounted for. These are adjusted associations, not causal effects.
+_In plain terms:_ each predictor gets two numbers — a _bivariate_ association (its raw link to the outcome on its own) and an _adjusted_ association (the same link after holding the other predictors constant). Comparing them shows how much of a raw relationship survives once overlapping predictors are accounted for. These are adjusted associations, not causal effects.
 
 ```{python}
 # | echo: false
@@ -48,6 +56,28 @@ prior_sensitivity if prior_sensitivity is not None else "No prior-sensitivity ta
 ```
 
 _How to read the table:_ each row re-fits under a different prior setting (the assumption fed in before seeing the data); compare the estimates across rows — small shifts mean the data, not the prior, is doing the work.
+
+```{python}
+# | echo: false
+from IPython.display import Markdown, display
+
+analysis_set_by_transition = _csv("analysis_set_by_transition.csv")
+common_horizon = _csv("common_horizon_sensitivity.csv")
+transition_slopes = _csv("transition_slope_sensitivity.csv")
+if analysis_set_by_transition is not None:
+    display(Markdown("### Transition Coverage and Stability"))
+    display(Markdown("_In plain terms:_ the coverage table makes the changing cohort composition visible, including the Down-syndrome-only wave-5 tail."))
+    display(Markdown("#### Analysis rows by transition and cohort"))
+    display(analysis_set_by_transition)
+if common_horizon is not None:
+    display(Markdown("#### All transitions versus the common horizon"))
+    display(Markdown("The common-horizon refit asks whether excluding the Down-syndrome-only wave-5 tail changes the pooled profile."))
+    display(common_horizon)
+if transition_slopes is not None:
+    display(Markdown("#### Transition-specific slopes"))
+    display(Markdown("This table relaxes the shared-slope assumption, but its small late cell makes these estimates a sensitivity rather than four new headline results."))
+    display(transition_slopes)
+```
 
 ```{python}
 # | echo: false

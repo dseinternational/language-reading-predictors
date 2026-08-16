@@ -28,6 +28,9 @@ from language_reading_predictors.statistical_models.lrp_rlm_adj_002 import (
 from language_reading_predictors.statistical_models.lrp_rlm_adj_003 import (
     SPEC as RLM_BPVS_SPEC,
 )
+from language_reading_predictors.statistical_models.lrp_rlm_adj_006 import (
+    SPEC as RLM_TRANSITION_SPEC,
+)
 from language_reading_predictors.statistical_models.pipelines import (
     adjusted as pipeline,
 )
@@ -56,6 +59,7 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
     assert isinstance(RLM_SPEC.model_settings, AdjustedModelSettings)
     assert isinstance(RLM_DS_SPEC.model_settings, AdjustedModelSettings)
     assert isinstance(RLM_BPVS_SPEC.model_settings, AdjustedModelSettings)
+    assert isinstance(RLM_TRANSITION_SPEC.model_settings, AdjustedModelSettings)
     assert (
         rli.extra
         == RLM_SPEC.extra
@@ -67,6 +71,7 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
     rlm_plan = resolve_adjusted_run_plan(RLM_SPEC)
     rlm_ds_plan = resolve_adjusted_run_plan(RLM_DS_SPEC)
     rlm_bpvs_plan = resolve_adjusted_run_plan(RLM_BPVS_SPEC)
+    rlm_transition_plan = resolve_adjusted_run_plan(RLM_TRANSITION_SPEC)
     assert (rli_plan.port, rlm_plan.port) == ("rli", "rlm")
     assert rlm_ds_plan.port == "rlm"
     assert rli_plan.settings_source == rlm_plan.settings_source == "typed"
@@ -82,6 +87,12 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
         "bassim",
     )
     assert rlm_bpvs_plan.require_confirmed_inputs is True
+    assert rlm_transition_plan.design == "historical_stacked_transitions"
+    assert rlm_transition_plan.transition_waves == (1, 2, 3, 4, 5)
+    assert rlm_transition_plan.common_horizon_last_wave == 4
+    assert rlm_transition_plan.per_transition_sensitivity is True
+    assert rlm_transition_plan.pre_wave is None
+    assert rlm_transition_plan.post_wave is None
 
 
 @pytest.mark.parametrize(
@@ -191,6 +202,16 @@ def test_rlm_plan_maps_loader_and_factory_contracts():
         "predictor_slope_sigma": 0.3,
     }
 
+    transition_plan = resolve_adjusted_run_plan(RLM_TRANSITION_SPEC)
+    assert transition_plan.rlm_prepare_kwargs() == {
+        "outcome": "basread",
+        "predictor_measures": ("bpvs", "trog", "basdig", "bassim"),
+        "include_age": True,
+        "group_codes": None,
+        "transition_waves": (1, 2, 3, 4, 5),
+    }
+    assert "repeated-transition association" in transition_plan.causal_status
+
 
 def test_rlm_group_subset_is_validated_and_propagated_before_io():
     plan = resolve_adjusted_run_plan(RLM_DS_SPEC)
@@ -244,6 +265,27 @@ def test_active_covariates_are_recorded_and_drive_ses_loader():
             "rlm",
             AdjustedModelSettings(pre_wave=3, post_wave=1),
             "later",
+        ),
+        (
+            "rlm",
+            AdjustedModelSettings(
+                pre_wave=1,
+                transition_waves=(1, 2, 3),
+            ),
+            "cannot be combined",
+        ),
+        (
+            "rlm",
+            AdjustedModelSettings(transition_waves=(1, 3, 4)),
+            "annual waves",
+        ),
+        (
+            "rlm",
+            AdjustedModelSettings(
+                transition_waves=(1, 2, 3),
+                common_horizon_last_wave=3,
+            ),
+            "interior transition wave",
         ),
     ],
 )

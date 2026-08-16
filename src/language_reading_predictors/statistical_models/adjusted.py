@@ -32,6 +32,9 @@ _FAMILY_KEYS = frozenset(
         "use_age_predictor",
         "pre_wave",
         "post_wave",
+        "transition_waves",
+        "common_horizon_last_wave",
+        "per_transition_sensitivity",
         "group_codes",
         "require_confirmed_inputs",
         "predictor_slope_sigma",
@@ -108,6 +111,9 @@ class AdjustedModelSettings:
     use_age_predictor: bool = True
     pre_wave: int | None = None
     post_wave: int | None = None
+    transition_waves: tuple[int, ...] | None = None
+    common_horizon_last_wave: int | None = None
+    per_transition_sensitivity: bool = False
     group_codes: tuple[int, ...] | None = None
     require_confirmed_inputs: bool = False
     predictor_slope_sigma: float = 0.3
@@ -134,12 +140,26 @@ class AdjustedModelSettings:
             raise TypeError("use_age_predictor must be a boolean")
         if not isinstance(self.require_confirmed_inputs, bool):
             raise TypeError("require_confirmed_inputs must be a boolean")
-        for name in ("post_time", "pre_wave", "post_wave"):
+        if not isinstance(self.per_transition_sensitivity, bool):
+            raise TypeError("per_transition_sensitivity must be a boolean")
+        for name in (
+            "post_time",
+            "pre_wave",
+            "post_wave",
+            "common_horizon_last_wave",
+        ):
             object.__setattr__(
                 self,
                 name,
                 _optional_positive_int(getattr(self, name), name=name),
             )
+        object.__setattr__(
+            self,
+            "transition_waves",
+            _optional_positive_ints(
+                self.transition_waves, name="transition_waves"
+            ),
+        )
         object.__setattr__(
             self,
             "group_codes",
@@ -187,6 +207,11 @@ class AdjustedModelSettings:
             use_age_predictor=extra.get("use_age_predictor", True),
             pre_wave=extra.get("pre_wave"),
             post_wave=extra.get("post_wave"),
+            transition_waves=extra.get("transition_waves"),
+            common_horizon_last_wave=extra.get("common_horizon_last_wave"),
+            per_transition_sensitivity=extra.get(
+                "per_transition_sensitivity", False
+            ),
             group_codes=extra.get("group_codes"),
             require_confirmed_inputs=extra.get("require_confirmed_inputs", False),
             predictor_slope_sigma=extra.get("predictor_slope_sigma", 0.3),
@@ -216,6 +241,9 @@ class AdjustedRunPlan:
     use_age_predictor: bool
     pre_wave: int | None
     post_wave: int | None
+    transition_waves: tuple[int, ...] | None
+    common_horizon_last_wave: int | None
+    per_transition_sensitivity: bool
     group_codes: tuple[int, ...] | None
     require_confirmed_inputs: bool
     predictor_slope_sigma: float
@@ -287,15 +315,22 @@ class AdjustedRunPlan:
         }
 
     def rlm_prepare_kwargs(self) -> dict[str, Any]:
-        if self.port != "rlm" or self.pre_wave is None or self.post_wave is None:
+        if self.port != "rlm":
             raise ValueError("rlm_prepare_kwargs requires an RLM plan")
-        return {
+        common = {
             "outcome": self.outcome_symbol,
             "predictor_measures": self.predictor_measures,
             "include_age": self.use_age_predictor,
+            "group_codes": self.group_codes,
+        }
+        if self.transition_waves is not None:
+            return {**common, "transition_waves": self.transition_waves}
+        if self.pre_wave is None or self.post_wave is None:
+            raise ValueError("RLM span plan is missing pre_wave or post_wave")
+        return {
+            **common,
             "pre_wave": self.pre_wave,
             "post_wave": self.post_wave,
-            "group_codes": self.group_codes,
         }
 
     def rlm_factory_kwargs(self, predictors: Sequence[str]) -> dict[str, Any]:
@@ -338,8 +373,13 @@ class AdjustedRunPlan:
                 if self.group_codes is None
                 else "group code(s) " + ", ".join(map(str, self.group_codes))
             )
+            predictor_timing = (
+                "Predictors at each transition's starting wave"
+                if self.transition_waves is not None
+                else f"Wave-{self.pre_wave} predictors"
+            )
             terms = (
-                f"Wave-{self.pre_wave} predictors: "
+                f"{predictor_timing}: "
                 f"{', '.join(self.predictor_measures)}; age: "
                 f"{self.use_age_predictor}; population: {population}. "
                 f"Confirmed measurement inputs required: "
@@ -350,17 +390,44 @@ class AdjustedRunPlan:
                     else "No group nuisance term is fitted within one selected group."
                 )
             )
-            design = (
-                f"One row per Byrne child from wave {self.pre_wave} to wave "
-                f"{self.post_wave}, restricted to {population}."
-            )
-            sensitivity_checks = "Every bivariate and prior-width sensitivity refit"
+            if self.transition_waves is None:
+                design = (
+                    f"One row per Byrne child from wave {self.pre_wave} to wave "
+                    f"{self.post_wave}, restricted to {population}."
+                )
+                sensitivity_checks = (
+                    "Every bivariate and prior-width sensitivity refit"
+                )
+            else:
+                transitions = ", ".join(
+                    f"{pre}->{post}"
+                    for pre, post in zip(
+                        self.transition_waves[:-1],
+                        self.transition_waves[1:],
+                        strict=True,
+                    )
+                )
+                design = (
+                    f"Repeated Byrne child-transition rows for {transitions}, "
+                    "with transition intercepts, a child random intercept and "
+                    "predictors standardised separately within each transition."
+                )
+                sensitivity_checks = (
+                    "Every bivariate and prior-width sensitivity refit, the "
+                    f"common-horizon refit through wave {self.common_horizon_last_wave}, "
+                    "and the transition-specific-slope refit"
+                )
         return (
             "Note: Generated from the validated adjusted-association run plan; "
             "template drafted by a LLM-based AI tool (Codex/GPT-5).\n\n"
             f"# Model recipe: {title}\n\nModel ID: `{self.model_id}`.\n\n"
             f"## Design\n\n{design}\n\n## Estimand\n\nMutually adjusted "
-            "between-child associations and their baseline-only bivariate "
+            + (
+                "pooled annual-transition associations"
+                if self.transition_waves is not None
+                else "between-child associations"
+            )
+            + " and their baseline-only bivariate "
             "comparators, with +1 SD contrasts translated to outcome items.\n\n"
             f"## Causal status\n\n{self.causal_status}\n\n"
             f"## Analysis population\n\n{self.analysis_population}\n\n"
@@ -422,6 +489,11 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
             "predictor_measures": settings.predictor_measures,
             "pre_wave": settings.pre_wave,
             "post_wave": settings.post_wave,
+            "transition_waves": settings.transition_waves,
+            "common_horizon_last_wave": settings.common_horizon_last_wave,
+            "per_transition_sensitivity": (
+                True if settings.per_transition_sensitivity else None
+            ),
             "group_codes": settings.group_codes,
             "require_confirmed_inputs": (
                 True if settings.require_confirmed_inputs else None
@@ -497,10 +569,47 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         )
         if not predictor_measures:
             raise ValueError("RLM adjusted predictor_measures cannot be empty")
-        pre_wave = 1 if settings.pre_wave is None else settings.pre_wave
-        post_wave = 3 if settings.post_wave is None else settings.post_wave
-        if post_wave <= pre_wave:
-            raise ValueError("post_wave must be later than pre_wave")
+        transition_waves = settings.transition_waves
+        common_horizon_last_wave = settings.common_horizon_last_wave
+        per_transition_sensitivity = settings.per_transition_sensitivity
+        if transition_waves is None:
+            if common_horizon_last_wave is not None or per_transition_sensitivity:
+                raise ValueError(
+                    "transition sensitivities require transition_waves"
+                )
+            pre_wave = 1 if settings.pre_wave is None else settings.pre_wave
+            post_wave = 3 if settings.post_wave is None else settings.post_wave
+            if post_wave <= pre_wave:
+                raise ValueError("post_wave must be later than pre_wave")
+        else:
+            if settings.pre_wave is not None or settings.post_wave is not None:
+                raise ValueError(
+                    "transition_waves cannot be combined with pre_wave or post_wave"
+                )
+            if len(transition_waves) < 3:
+                raise ValueError(
+                    "transition_waves must define at least two transitions"
+                )
+            if any(
+                post != pre + 1
+                for pre, post in zip(
+                    transition_waves[:-1], transition_waves[1:], strict=True
+                )
+            ):
+                raise ValueError(
+                    "transition_waves must be strictly increasing annual waves"
+                )
+            if common_horizon_last_wave is not None and not (
+                transition_waves[0]
+                < common_horizon_last_wave
+                < transition_waves[-1]
+            ):
+                raise ValueError(
+                    "common_horizon_last_wave must be an interior transition wave"
+                )
+            design = "historical_stacked_transitions"
+            pre_wave = None
+            post_wave = None
         from language_reading_predictors.statistical_models.datasets import (
             resolve_dataset,
         )
@@ -541,14 +650,25 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
                 dataset.group_labels[code] for code in group_codes
             )
         )
-        population = (
-            f"Complete-case Byrne children in {group_description}, observed at "
-            f"waves {pre_wave} and {post_wave} with every declared baseline predictor."
-        )
-        missing = (
-            "Complete-case analysis assumes included children are conditionally "
-            "representative of the target historical cohort."
-        )
+        if transition_waves is None:
+            population = (
+                f"Complete-case Byrne children in {group_description}, observed at "
+                f"waves {pre_wave} and {post_wave} with every declared baseline predictor."
+            )
+            missing = (
+                "Complete-case analysis assumes included children are conditionally "
+                "representative of the target historical cohort."
+            )
+        else:
+            population = (
+                f"Available complete Byrne child-transition rows in {group_description} "
+                f"across waves {transition_waves[0]}-{transition_waves[-1]}."
+            )
+            missing = (
+                "Transition-wise complete-case analysis assumes observed transitions "
+                "are conditionally representative. The final transition may cover a "
+                "narrower cohort and is checked against a common-horizon sensitivity."
+            )
 
     return AdjustedRunPlan(
         model_id=spec.model_id,
@@ -567,6 +687,15 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         use_age_predictor=settings.use_age_predictor,
         pre_wave=pre_wave,
         post_wave=post_wave,
+        transition_waves=(
+            None if spec.study_id == "rli" else transition_waves
+        ),
+        common_horizon_last_wave=(
+            None if spec.study_id == "rli" else common_horizon_last_wave
+        ),
+        per_transition_sensitivity=(
+            False if spec.study_id == "rli" else per_transition_sensitivity
+        ),
         group_codes=group_codes,
         require_confirmed_inputs=settings.require_confirmed_inputs,
         predictor_slope_sigma=settings.predictor_slope_sigma,
@@ -575,7 +704,9 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         compute_loo=True,
         loo_unit="child",
         causal_status=(
-            "Adjusted between-child association, not an intervention effect."
+            "Adjusted repeated-transition association, not an intervention effect."
+            if spec.study_id == "rlm" and transition_waves is not None
+            else "Adjusted between-child association, not an intervention effect."
         ),
         analysis_population=population,
         missing_data_assumption=missing,

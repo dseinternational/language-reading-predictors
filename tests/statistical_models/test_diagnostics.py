@@ -349,7 +349,45 @@ def test_joint_log_likelihood_is_aggregated_by_child():
     got = diag._joint_log_likelihood_by_child(trace)
     assert got is not None
     np.testing.assert_allclose(got.values, [[[3.0, 4.0, 8.0], [30.0, 40.0, 80.0]]])
+    assert got.dims == ("chain", "draw", "loo_child")
     assert got.attrs["loo_unit"] == "child"
+
+
+def test_marked_repeated_rows_are_aggregated_by_child():
+    values = np.array([[[1.0, 2.0, 4.0], [10.0, 20.0, 40.0]]])
+    trace = xr.DataTree.from_dict(
+        {
+            "log_likelihood": xr.Dataset(
+                {"y_post": (("chain", "draw", "obs_id"), values)}
+            ),
+            "constant_data": xr.Dataset(
+                {"loo_child_idx": ("obs_id", np.array([0, 1, 0]))}
+            ),
+        }
+    )
+    got = diag._joint_log_likelihood_by_child(trace)
+    assert got is not None
+    np.testing.assert_allclose(got.values, [[[5.0, 2.0], [50.0, 20.0]]])
+    assert got.sizes["loo_child"] == 2
+    assert got.attrs["aggregation"] == "sum over repeated child rows"
+
+
+def test_child_level_influence_maps_repeated_rows_to_one_subject():
+    context = SimpleNamespace(
+        loo=SimpleNamespace(
+            pareto_k=np.array([0.2, 0.8]),
+            good_k=0.7,
+        ),
+        prepared=SimpleNamespace(
+            subject_ids=np.array(["A", "B", "A", "B"]),
+            child_idx=np.array([0, 1, 0, 1]),
+        ),
+    )
+    frame, threshold, n_flagged = diag.influence_diagnostics(context)
+    assert threshold == 0.7
+    assert n_flagged == 1
+    assert frame["subject_id"].tolist() == ["B", "A"]
+    assert frame["observation_index"].tolist() == [1, 0]
 
 
 def test_joint_predictive_selection_never_pools_outcome_denominators():

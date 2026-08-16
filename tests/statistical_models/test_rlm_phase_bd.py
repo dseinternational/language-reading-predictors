@@ -19,10 +19,12 @@ from language_reading_predictors.statistical_models.factories import (
     build_rlm_corr_factor_model,
     build_rlm_horseshoe_model,
     build_rlm_joint_growth_model,
+    build_rlm_transition_adjusted_model,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
     load_rlm_span_frame,
+    load_rlm_transition_frame,
     load_rlm_wave_battery,
 )
 
@@ -32,14 +34,14 @@ _MEASURE_COLS = [
 ]
 
 
-def _write_battery_csv(tmp_path, *, drop_one=False):
+def _write_battery_csv(tmp_path, *, drop_one=False, waves=(1, 2, 3)):
     """12 children (4 per group) x 3 waves of the full nine-measure battery."""
     rng = np.random.default_rng(7)
     rows = []
     for grp in (1, 2, 3):
         for k in range(4):
             sid = f"S{grp}{k}"
-            for t in (1, 2, 3):
+            for t in waves:
                 row = {"subject_id": sid, "time": t, "readgrp": grp,
                        "age": 60 + 12 * t + int(rng.integers(0, 6))}
                 for col in _MEASURE_COLS:
@@ -144,6 +146,45 @@ def test_build_rlm_adjusted_and_horseshoe(tmp_path):
     with adj.model:
         pp = pm.sample_prior_predictive(draws=3, random_seed=1)
     assert pp.prior_predictive["y_post"].shape[-1] == frame.n_obs
+
+
+def test_transition_frame_and_factory_preserve_child_loo_unit(tmp_path):
+    path = _write_battery_csv(tmp_path, waves=(1, 2, 3, 4, 5))
+    df = pd.read_csv(path)
+    required = ["basread", "bpvs", "trog", "basdig", "bassim", "age"]
+    df.loc[(df["time"] == 5) & (df["readgrp"] != 1), required] = np.nan
+    df.to_csv(path, index=False)
+
+    frame = load_rlm_transition_frame(path=path)
+    assert frame.transition_waves == (1, 2, 3, 4, 5)
+    assert frame.transition_n_obs == {
+        "w1->w2": 12,
+        "w2->w3": 12,
+        "w3->w4": 12,
+        "w4->w5": 4,
+    }
+    assert frame.transition_group_counts["w4->w5"] == {1: 4}
+    assert (frame.n_obs, frame.n_children) == (40, 12)
+    assert len(np.unique(frame.child_idx)) == frame.n_children
+    for values in frame.predictors.values():
+        for phase in range(frame.n_phases):
+            assert abs(float(np.mean(values[frame.phase == phase]))) < 1e-8
+
+    built = build_rlm_transition_adjusted_model(frame)
+    names = {variable.name for variable in built.model.free_RVs}
+    assert {"alpha_transition", "gamma_own", "sigma_child", "kappa"}.issubset(
+        names
+    )
+    assert {f"beta_{key}" for key in frame.predictors}.issubset(names)
+    assert "loo_child_idx" in built.model.named_vars
+    with built.model:
+        prior = pm.sample_prior_predictive(draws=3, random_seed=1)
+    assert prior.prior_predictive["y_post"].shape[-1] == frame.n_obs
+
+    varying = build_rlm_transition_adjusted_model(frame, varying_slopes=True)
+    varying_names = {variable.name for variable in varying.model.free_RVs}
+    assert "beta_transition" in varying_names
+    assert not any(name.startswith("beta_bpvs") for name in varying_names)
 
 
 def test_build_rlm_corr_factor_single_indicator_fixed(tmp_path):
@@ -275,6 +316,7 @@ _PHASE_BD_SPECS = {
     "lrp-rlm-adj-003": ("adjusted", "bpvs"),
     "lrp-rlm-adj-004": ("adjusted", "trog"),
     "lrp-rlm-adj-005": ("adjusted", "basdig"),
+    "lrp-rlm-adj-006": ("adjusted", "basread"),
     "lrp-rlm-hs-001": ("horseshoe", "basread"),
     "lrp-rlm-hs-002": ("horseshoe", "bpvs"),
     "lrp-rlm-hs-003": ("horseshoe", "trog"),
@@ -299,4 +341,8 @@ def test_phase_bd_specs_well_formed(model_id, expected):
     assert spec.study_id == "rlm"
     assert spec.outcome_symbol == outcome
     assert spec.causal_status == "none"
-    assert spec.design == "historical_cohort"
+    assert spec.design == (
+        "historical_stacked_transitions"
+        if model_id == "lrp-rlm-adj-006"
+        else "historical_cohort"
+    )

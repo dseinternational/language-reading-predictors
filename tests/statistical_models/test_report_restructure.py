@@ -17,6 +17,19 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+def test_transition_analysis_set_is_gate_visible_but_sensitivities_are_not():
+    setup = (REPO / "docs/models/_partials/_setup.qmd").read_text()
+    results = (REPO / "docs/models/_partials/_results_adjusted.qmd").read_text()
+    assert '"analysis_set_by_transition.csv"' in setup
+    assert '"common_horizon_sensitivity.csv"' not in setup
+    assert '"transition_slope_sensitivity.csv"' not in setup
+    assert "analysis_set_by_transition.csv" in results
+    assert "common_horizon_sensitivity.csv" in results
+    assert "transition_slope_sensitivity.csv" in results
+
+
 QUARTO = shutil.which("quarto")
 
 _REWRITER_SPEC = importlib.util.spec_from_file_location(
