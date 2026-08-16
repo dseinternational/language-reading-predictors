@@ -15,11 +15,11 @@ The full audit uses two independent simulations of 200,000 draws per measure. Nu
 
 ## Results
 
-| Measure | Children | Rows | Decision | Largest five-method median range | Largest bootstrap versus 1× Beta-Binomial median difference | Maximum replicate quantile difference |
-| --- | ---: | ---: | --- | ---: | ---: | ---: |
-| BAS spelling (`basspel`) | 69 | 271 | `no_go` | 0.53 items (3.0% of observed maximum) | 0.33 items (1.8%) | 0.015 items (0.081%) |
-| WORD reading comprehension (`woco`) | 77 | 304 | `pass` | 2.63 items (8.5%) | 0.79 items (2.6%) | 0.017 items (0.055%) |
-| BAS number skills (`basnum`) | 73 | 272 | `pass` | 1.67 items (2.8%) | 1.01 items (1.7%) | 0.019 items (0.032%) |
+| Measure                             | Children | Rows | Decision |      Largest five-method median range | Largest bootstrap versus 1× Beta-Binomial median difference | Maximum replicate quantile difference |
+| ----------------------------------- | -------: | ---: | -------- | ------------------------------------: | ----------------------------------------------------------: | ------------------------------------: |
+| BAS spelling (`basspel`)            |       69 |  271 | `no_go`  | 0.53 items (3.0% of observed maximum) |                                           0.33 items (1.8%) |                  0.015 items (0.081%) |
+| WORD reading comprehension (`woco`) |       77 |  304 | `pass`   |                     2.63 items (8.5%) |                                           0.79 items (2.6%) |                  0.017 items (0.055%) |
+| BAS number skills (`basnum`)        |       73 |  272 | `pass`   |                     1.67 items (2.8%) |                                           1.01 items (1.7%) |                  0.019 items (0.032%) |
 
 Across the 47 reported estimands, all five-method 89% interval intersections are non-empty. Forty-six retain the same median direction. The exception is the spelling reading-matched-minus-average-reader contrast described above: its bootstrap 89% interval is −2.12 to +1.76 items and P(growth contrast > 0) is 0.44, while the four likelihood medians range from +0.09 to +0.34 with probabilities from 0.54 to 0.58. None supports an affirmative directional conclusion.
 
@@ -41,4 +41,4 @@ Derived tables and participant-level reference traces remain under the ignored `
 
 ## Reference
 
-Rubin, D. B. (1981). The Bayesian Bootstrap. *The Annals of Statistics, 9*(1), 130–134. <https://doi.org/10.1214/aos/1176345338>.
+Rubin, D. B. (1981). The Bayesian Bootstrap. _The Annals of Statistics, 9_(1), 130–134. <https://doi.org/10.1214/aos/1176345338>.
