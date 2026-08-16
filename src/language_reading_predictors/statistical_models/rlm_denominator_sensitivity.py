@@ -30,12 +30,12 @@ from language_reading_predictors.statistical_models.factories import (
 )
 from language_reading_predictors.statistical_models.fitted_payloads import EmptyPayload
 from language_reading_predictors.statistical_models.preprocessing import LongitudinalPanel
+from language_reading_predictors.statistical_models.rlm_sensitivity_contract import (
+    DENOMINATOR_FACTORS,
+    MAX_MEDIAN_RANGE_FRACTION,
+)
 
 SensitivityLikelihood = Literal["beta_binomial", "negative_binomial"]
-
-UNRESOLVED_MEASURES = ("basspel", "woco", "basnum")
-DENOMINATOR_FACTORS = (1, 2, 4)
-MAX_MEDIAN_RANGE_FRACTION = 0.10
 
 
 @dataclass(frozen=True, slots=True)
