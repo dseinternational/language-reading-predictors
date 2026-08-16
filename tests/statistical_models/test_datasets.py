@@ -246,20 +246,26 @@ def test_rlm_dataset_registered():
     assert measures["basread"].n_trials == 90
     assert measures["basread"].n_trials_confirmed
     assert dataset.group_labels[1] == "Down syndrome"
-    assert dataset.source_provenance_confirmed is False
+    assert dataset.source_provenance_confirmed is True
+    assert dataset.source_provenance_manifest.endswith("source_provenance.json")
 
 
 def test_rlm_publication_contract_separates_dataset_and_measure_blockers():
     confirmed = publication_input_contract("rlm", ("basread",))
-    assert confirmed["publication_ready"] is False
-    assert len(confirmed["blockers"]) == 1
-    assert "96-participant" in confirmed["blockers"][0]
+    assert confirmed["publication_ready"] is True
+    assert confirmed["blockers"] == []
+    assert confirmed["dataset"]["source_provenance_confirmed"] is True
+    assert confirmed["dataset"]["source_provenance_manifest"].endswith(
+        "source_provenance.json"
+    )
 
     provisional = publication_input_contract("rlm", ("basread", "basnum"))
+    assert provisional["publication_ready"] is False
     assert any("basnum" in blocker for blocker in provisional["blockers"])
     assert provisional["measures"]["basnum"]["n_trials_confirmed"] is False
 
     identity = publication_input_contract("rlm", ("basmat",))
+    assert identity["publication_ready"] is False
     assert any("instrument identity" in blocker for blocker in identity["blockers"])
     assert (
         identity["measures"]["basmat"]["instrument_identity_confirmed"] is False

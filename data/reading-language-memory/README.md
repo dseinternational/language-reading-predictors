@@ -12,6 +12,7 @@ Prepared participant-level data for the Byrne, MacDonald, and Buckley longitudin
 
 - `reading_language_memory_data_long.csv` - long-format analysis data, 97 children by 5 annual assessment waves (`485 x 32`).
 - `reading_language_memory_data_wide.csv` - one row per child (`97 x 54`).
+- `source_provenance.json` - checksum-bound, non-identifying audit record linking the prepared files to the versioned SPSS source.
 
 ## Coding
 
@@ -42,5 +43,5 @@ The prepared long file also includes `_next` and `_gain` columns computed within
 
 - The prepared files contain 24 Down syndrome, 42 average-reader, and 31 reading-matched children, matching the starting sample reported in Byrne, MacDonald, and Buckley (2002).
 - The first three waves reproduce the paper's Table 2 complete-case means when complete cases are selected separately per measure.
-- A separate raw export inspected outside this repository had 96 rows rather than the 97 rows in the prepared wide file. Treat the prepared files as the working analysis extract for now, but reconcile this provenance issue before publication.
+- Source provenance was reconciled on 2026-08-16. The prepared 97-participant wide file matches every case and all 52 shared non-identifying fields in the checksum-pinned 97-case SPSS source retained in the `dsegroup/research-data-analysis` Git history. The historical 96-row CSV was a strict subset that omitted one Down-syndrome participant; source-repository PR #13 repaired it to 97 rows, and the repaired derivative now matches all source assessment fields. See `source_provenance.json` and `notes/202608161340-byrne-source-provenance-reconciliation.md`.
 - The prepared files do not include the visual recall variables reported in the paper's correlation tables. Those analyses can only be partially reproduced from the current prepared extract unless the missing variables are recovered.

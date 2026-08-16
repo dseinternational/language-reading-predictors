@@ -37,8 +37,9 @@ estimands live in the RLI (`lrp...`) suite.
 _Audit baseline._ The model is fit on the per-measure complete-case subset (subjects with BAS word
 reading observed at all three core waves). The observed group-by-wave means reproduce
 the paper's Table 2 complete-case figures and are written beside the posterior
-summaries as the audit baseline. The 96-vs-97-row provenance question flagged in
-the data README is unresolved and out of scope here.
+summaries as the audit baseline. The 96-versus-97-row provenance question was
+reconciled on 2026-08-16 against the checksum-pinned 97-case SPSS source; a fit
+stored before that decision must be regenerated to inherit the confirmed input.
 
 _Extended follow-up window (#338)._ Waves 4 and 5 are **extension waves** outside the complete-case rule:
 children in the core subset contribute wherever this measure was observed.

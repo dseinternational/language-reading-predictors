@@ -362,6 +362,7 @@ docstrings
 documentclass
 dropna
 dse
+dsegroup
 dseinternational
 dsep
 dseresearch
@@ -405,6 +406,7 @@ handoff
 hashlib
 hclust
 hexdigest
+hmac
 homoscedasticity
 horseshoe
 hpdi
@@ -479,6 +481,7 @@ morphosyntax
 multicollinear
 multicollinearity
 multimethod
+multisets
 multitrait
 mumedu
 mumedupost
@@ -525,6 +528,7 @@ partialling
 pathlib
 pipefail
 plotcollection
+poolable
 pred
 preliz
 prespecified

@@ -1,0 +1,82 @@
+{
+  "audit_date": "2026-08-16",
+  "comparison": {
+    "legacy_secondary_export_group_counts": {
+      "1": 23,
+      "2": 42,
+      "3": 31
+    },
+    "legacy_secondary_export_participants": 96,
+    "legacy_secondary_rows_matching_source": 96,
+    "legacy_secondary_rows_not_in_source": 0,
+    "long_rows": 485,
+    "long_rows_matching_wide": 485,
+    "long_value_differences": 0,
+    "prepared_group_counts": {
+      "1": 24,
+      "2": 42,
+      "3": 31
+    },
+    "prepared_participants": 97,
+    "prepared_rows_matching_source": 97,
+    "prepared_source_value_differences": 0,
+    "recovered_in_secondary": {
+      "observed_waves": [
+        1,
+        2,
+        3
+      ],
+      "readgrp": 1,
+      "subject_id": "ID_25873B41B04B6AE6"
+    },
+    "secondary_export_group_counts": {
+      "1": 24,
+      "2": 42,
+      "3": 31
+    },
+    "secondary_export_participants": 97,
+    "secondary_rows_matching_source": 97,
+    "secondary_rows_not_in_source": 0,
+    "secondary_source_value_differences": 0,
+    "shared_source_fields": 52,
+    "source_group_counts": {
+      "1": 24,
+      "2": 42,
+      "3": 31
+    },
+    "source_participants": 97,
+    "source_rows_missing_from_legacy_secondary": 1,
+    "source_rows_missing_from_secondary": 0
+  },
+  "conclusion": "The prepared 97-participant extract is an exact non-identifying-field match to the pinned 97-case SPSS source. The historical 96-row CSV was an incomplete derivative missing one Down-syndrome participant; the repaired 97-row CSV now exactly matches the source on the same 52 fields.",
+  "decision": "source_provenance_confirmed",
+  "generated_by": "Codex/GPT-5",
+  "legacy_secondary_export": {
+    "git_blob_sha1": "a7a7c2a3ca97c8a5caf591e7beae349492c72129",
+    "path": "projects/reading-language-memory/original/data12345.csv",
+    "revision": "fab4e8f0b513cd2f275ae1a29bed4c695d7f1ef6",
+    "sha256": "e36e0e2dd880031870d57dd7e2620a27c9cc9c67ee58760f50285725d756997e",
+    "status": "incomplete_derivative"
+  },
+  "prepared": {
+    "long_path": "data/reading-language-memory/reading_language_memory_data_long.csv",
+    "long_sha256": "68ea2e9c847c908b7217431af76abd45a940099ced2bfd9acf4dd69ba7e2e5f6",
+    "wide_path": "data/reading-language-memory/reading_language_memory_data_wide.csv",
+    "wide_sha256": "b2262d6b3b7102594b3424c4a72f4237dc84087a7b18f6fc815ccdcd0d10a55c"
+  },
+  "schema_version": 2,
+  "secondary_export": {
+    "git_blob_sha1": "2cac37086cd299cf958ff51c2554faa54b3e7c70",
+    "path": "projects/reading-language-memory/original/data12345.csv",
+    "revision": "79ceb55086d502a739b2fd153990916c58096a25",
+    "sha256": "a9098f69e6854d31c665c7f2544ce8f7a26a4417606590bb00c0f18eed96ee6d",
+    "status": "complete_derivative"
+  },
+  "source": {
+    "git_blob_sha1": "591e14ceee2ffe61fe8af8e51ea35ac86ae8436f",
+    "path": "projects/reading-language-memory/original/data12345.sav",
+    "repository": "dsegroup/research-data-analysis",
+    "revision": "f36df93fe946b975cd701867a117e9ac188a1551",
+    "sha256": "e3cac5ff644ab9126fba25803e677f9492e3e076d8d611d8b3c0aa7ea322952c"
+  }
+}
