@@ -534,6 +534,358 @@ def _rlm_natural_scale_contrasts(
     return pd.DataFrame(rows)
 
 
+def _rlm_transition_natural_scale_contrasts(
+    ctx: StatisticalFitContext, frame, headline: list[str], hdi: float
+) -> pd.DataFrame:
+    """Average +1 within-transition SD contrasts on the outcome-item scale."""
+    from scipy.special import expit
+
+    posterior = ctx.trace.posterior
+    n_trials = frame.n_trials[frame.outcome]
+    eta_fixed = (
+        posterior["eta_fixed"]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values
+    )
+    base_items = n_trials * expit(eta_fixed)
+    lo_q, hi_q = (1 - hdi) / 2, 1 - (1 - hdi) / 2
+    rows = []
+    for key in headline:
+        beta = posterior[f"beta_{key}"].stack(sample=("chain", "draw")).values
+        delta = (
+            n_trials * expit(eta_fixed + beta[np.newaxis, :]) - base_items
+        ).mean(axis=0)
+        rows.append(
+            {
+                "predictor": key,
+                "label": frame.predictor_labels.get(key, key),
+                "delta_words_median": float(np.median(delta)),
+                "delta_words_mean": float(np.mean(delta)),
+                "delta_words_lo": float(np.quantile(delta, lo_q)),
+                "delta_words_hi": float(np.quantile(delta, hi_q)),
+                "delta_words_lo50": float(np.quantile(delta, 0.25)),
+                "delta_words_hi50": float(np.quantile(delta, 0.75)),
+                "prob_pos": float(np.mean(delta > 0)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _draw_summary(draws: np.ndarray, ci_prob: float) -> dict[str, float]:
+    values = np.asarray(draws, dtype=float).reshape(-1)
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    return {
+        "median": float(np.median(values)),
+        "mean": float(np.mean(values)),
+        "lo": float(np.quantile(values, lo_q)),
+        "hi": float(np.quantile(values, hi_q)),
+        "lo50": float(np.quantile(values, 0.25)),
+        "hi50": float(np.quantile(values, 0.75)),
+        "prob_pos": float(np.mean(values > 0)),
+    }
+
+
+def _rlm_transition_analysis_set(frame) -> pd.DataFrame:
+    rows = []
+    for phase, label in enumerate(frame.transition_labels):
+        for code, group_label in frame.group_labels.items():
+            rows.append(
+                {
+                    "transition": label,
+                    "pre_wave": frame.transition_waves[phase],
+                    "post_wave": frame.transition_waves[phase + 1],
+                    "group_code": code,
+                    "group_label": group_label,
+                    "n_rows": frame.transition_group_counts[label].get(code, 0),
+                    "transition_total": frame.transition_n_obs[label],
+                    "eligible_children": frame.eligible_n_children,
+                    "missing_required_transition_rows": (
+                        frame.eligible_n_children - frame.transition_n_obs[label]
+                    ),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def _fit_rlm_transition_adjusted(
+    spec: ModelSpec,
+    plan: _adjusted.AdjustedRunPlan,
+    config: str,
+) -> StatisticalFitContext:
+    """Fit the stacked annual-transition branch of the Byrne adjusted family."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_rlm_transition_frame,
+    )
+
+    outcome = plan.outcome_symbol
+    waves = plan.transition_waves
+    assert waves is not None
+    sigma0 = plan.predictor_slope_sigma
+    prior_sens = list(plan.prior_sensitivity_sigmas)
+    ctx = make_context(spec, config, ci_prob=0.89)
+    ctx.resolved_plan = plan
+    _report.write_model_recipe(ctx)
+    hdi = ctx.reporting.ci_prob
+
+    section_header("Prepare stacked transition data")
+    frame = load_rlm_transition_frame(**plan.rlm_prepare_kwargs())
+    ctx.prepared = frame
+    headline = list(frame.predictors)
+    print_header(ctx)
+    save_table(ctx, "analysis_set_by_transition", _rlm_transition_analysis_set(frame))
+
+    section_header("Build pooled transition model")
+    built = _factories.build_rlm_transition_adjusted_model(
+        frame, **plan.rlm_factory_kwargs(headline)
+    )
+    attach_built(ctx, built)
+    render_model_graph(ctx)
+    nuisance = rlm_nuisance_names(frame)
+    diag_vars = [
+        "alpha_transition",
+        "gamma_own",
+        "sigma_child",
+        "kappa",
+        *(f"beta_{key}" for key in headline),
+        *nuisance,
+    ]
+    primary_gate = shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=tuple(diag_vars),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
+                c, outcome, node="y_post"
+            ),
+            compute_loo=plan.compute_loo,
+        ),
+    )
+    primary_converged = _report.convergence_gate_clean_passed(primary_gate)
+    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
+
+    section_header("Predictor associations (adjusted vs bivariate)")
+    adjusted = {key: beta_summary(ctx.trace, f"beta_{key}", hdi) for key in headline}
+    bivariate: dict[str, dict] = {}
+    bivariate_converged: dict[str, object] = {}
+    for key in headline:
+        candidate = _factories.build_rlm_transition_adjusted_model(
+            frame, **plan.rlm_factory_kwargs((key,))
+        )
+        result = run_subfit(
+            ctx,
+            candidate,
+            label=f"{spec.model_id} bivariate {key}",
+            role="bivariate",
+        )
+        bivariate[key] = beta_summary(result.trace, f"beta_{key}", hdi)
+        bivariate_converged[key] = result.converged
+    association_rows = []
+    for key in headline:
+        adj, biv = adjusted[key], bivariate[key]
+        association_rows.append(
+            {
+                "predictor": key,
+                "label": frame.predictor_labels.get(key, key),
+                "adj_median": adj["median"],
+                "adj_mean": adj["mean"],
+                "adj_lo": adj["lo"],
+                "adj_hi": adj["hi"],
+                "adj_lo50": adj["lo50"],
+                "adj_hi50": adj["hi50"],
+                "adj_prob_pos": adj["prob_pos"],
+                "biv_median": biv["median"],
+                "biv_mean": biv["mean"],
+                "biv_lo": biv["lo"],
+                "biv_hi": biv["hi"],
+                "biv_lo50": biv["lo50"],
+                "biv_hi50": biv["hi50"],
+                "biv_prob_pos": biv["prob_pos"],
+                "adjusted_converged": primary_converged,
+                "bivariate_converged": bivariate_converged[key],
+            }
+        )
+    associations = pd.DataFrame(association_rows)
+    save_table(ctx, "predictor_associations", associations)
+    _plot_associations(ctx, associations, hdi)
+    write_prior_pushforward(
+        ctx,
+        marginal_pushforward_rows(
+            ctx,
+            [
+                (
+                    f"beta_{row.predictor}",
+                    f"the pooled annual association of +1 within-transition SD "
+                    f"{row.label} with {pushforward_outcome_label(ctx, outcome)}",
+                )
+                for row in associations.itertuples()
+            ],
+            n_trials=pushforward_n_trials(ctx, outcome),
+            convention="forward",
+        ),
+    )
+
+    section_header("Items-scale +1 SD contrasts")
+    gain_words = _rlm_transition_natural_scale_contrasts(
+        ctx, frame, headline, hdi
+    )
+    save_table(ctx, "predicted_gain_words", gain_words)
+
+    section_header("Prior sensitivity (slope sigma)")
+    sensitivity_rows = []
+    for sigma in [sigma0, *prior_sens]:
+        if sigma == sigma0:
+            trace, converged = ctx.trace, primary_converged
+        else:
+            candidate = _factories.build_rlm_transition_adjusted_model(
+                frame,
+                predictors=headline,
+                predictor_slope_sigma=float(sigma),
+            )
+            result = run_subfit(
+                ctx,
+                candidate,
+                label=f"{spec.model_id} sigma={sigma}",
+                role="prior_sweep",
+            )
+            trace, converged = result.trace, result.converged
+        for key in headline:
+            summary = beta_summary(trace, f"beta_{key}", hdi)
+            sensitivity_rows.append(
+                {
+                    "predictor_slope_sigma": float(sigma),
+                    "predictor": key,
+                    "mean": summary["mean"],
+                    "lo": summary["lo"],
+                    "hi": summary["hi"],
+                    "prob_pos": summary["prob_pos"],
+                    "subfit_converged": converged,
+                }
+            )
+    save_table(ctx, "prior_sensitivity", pd.DataFrame(sensitivity_rows))
+
+    if plan.common_horizon_last_wave is not None:
+        section_header("Common-horizon sensitivity")
+        cutoff = waves.index(plan.common_horizon_last_wave)
+        common_waves = waves[: cutoff + 1]
+        common_frame = load_rlm_transition_frame(
+            **{
+                **plan.rlm_prepare_kwargs(),
+                "transition_waves": common_waves,
+            }
+        )
+        candidate = _factories.build_rlm_transition_adjusted_model(
+            common_frame, **plan.rlm_factory_kwargs(headline)
+        )
+        result = run_subfit(
+            ctx,
+            candidate,
+            label=(
+                f"{spec.model_id} common horizon through "
+                f"wave {plan.common_horizon_last_wave}"
+            ),
+            role="sensitivity",
+        )
+        common_rows = []
+        for key in headline:
+            for analysis, trace, converged, n_obs, n_children in (
+                (
+                    "all_declared_transitions",
+                    ctx.trace,
+                    primary_converged,
+                    frame.n_obs,
+                    frame.n_children,
+                ),
+                (
+                    f"common_horizon_through_w{plan.common_horizon_last_wave}",
+                    result.trace,
+                    result.converged,
+                    common_frame.n_obs,
+                    common_frame.n_children,
+                ),
+            ):
+                summary = beta_summary(trace, f"beta_{key}", hdi)
+                common_rows.append(
+                    {
+                        "analysis": analysis,
+                        "predictor": key,
+                        "label": frame.predictor_labels.get(key, key),
+                        **summary,
+                        "n_obs": n_obs,
+                        "n_children": n_children,
+                        "subfit_converged": converged,
+                    }
+                )
+        save_table(
+            ctx, "common_horizon_sensitivity", pd.DataFrame(common_rows)
+        )
+
+    if plan.per_transition_sensitivity:
+        section_header("Transition-specific slope sensitivity")
+        candidate = _factories.build_rlm_transition_adjusted_model(
+            frame,
+            **plan.rlm_factory_kwargs(headline),
+            varying_slopes=True,
+        )
+        result = run_subfit(
+            ctx,
+            candidate,
+            label=f"{spec.model_id} transition-specific slopes",
+            role="sensitivity",
+        )
+        beta = result.trace.posterior["beta_transition"]
+        transition_rows = []
+        for label in frame.transition_labels:
+            for key in headline:
+                summary = _draw_summary(
+                    beta.sel(transition=label, predictor=key).values, hdi
+                )
+                transition_rows.append(
+                    {
+                        "transition": label,
+                        "predictor": key,
+                        "label": frame.predictor_labels.get(key, key),
+                        **summary,
+                        "n_obs": frame.transition_n_obs[label],
+                        "group_counts": "; ".join(
+                            f"{frame.group_labels[code]}={count}"
+                            for code, count in frame.transition_group_counts[
+                                label
+                            ].items()
+                        ),
+                        "subfit_converged": result.converged,
+                    }
+                )
+        save_table(
+            ctx, "transition_slope_sensitivity", pd.DataFrame(transition_rows)
+        )
+
+    write_run_metadata(
+        ctx,
+        extra={
+            "study_id": "rlm",
+            "outcome": outcome,
+            "design": plan.design,
+            "transition_waves": list(waves),
+            "transition_n_obs": frame.transition_n_obs,
+            "transition_group_counts": frame.transition_group_counts,
+            "predictors": headline,
+            "predictors_standardised_within_transition": True,
+            "group_nuisance_terms": nuisance,
+            "source_n_children": frame.source_n_children,
+            "eligible_n_children": frame.eligible_n_children,
+            "n_children": frame.n_children,
+            "n_obs": frame.n_obs,
+            "loo_unit": "child",
+            "final_transition_single_group": (
+                len(frame.transition_group_counts[frame.transition_labels[-1]]) == 1
+            ),
+            "common_horizon_last_wave": plan.common_horizon_last_wave,
+            "predictor_slope_sigma": sigma0,
+        },
+    )
+    return finalize_report(ctx)
+
+
 def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Byrne between-child adjusted fit (#338 Phase D, ``lrp-rlm-adj-001``).
 
@@ -554,6 +906,8 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     plan = _adjusted.resolve_adjusted_run_plan(spec)
     if plan.port != "rlm":
         raise ValueError(f"{spec.model_id}: RLI settings require fit_adjusted")
+    if plan.transition_waves is not None:
+        return _fit_rlm_transition_adjusted(spec, plan, config)
     outcome = plan.outcome_symbol
     pre_wave = plan.pre_wave
     post_wave = plan.post_wave

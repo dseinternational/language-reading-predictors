@@ -6541,6 +6541,95 @@ def build_rlm_adjusted_model(
     return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())
 
 
+def build_rlm_transition_adjusted_model(
+    frame,
+    *,
+    predictors: Iterable[str] | None = None,
+    predictor_slope_sigma: float = 0.3,
+    varying_slopes: bool = False,
+) -> BuiltModel[EmptyPayload]:
+    """Pooled annual-transition Byrne ANCOVA with repeated-child dependence.
+
+    The primary form shares each predictor slope over transitions while allowing
+    a separate transition intercept, conditioning on the transition-start outcome
+    and adding a non-centred child random intercept. ``varying_slopes=True`` is the
+    pre-specified stability sensitivity: it replaces the pooled scalar slopes with
+    independent transition-specific slopes under the same prior. Predictors have
+    already been standardised within transition by the loader.
+
+    ``loo_child_idx`` is deliberately separate from the model's ``child_idx``. It
+    marks this likelihood for child-level aggregation in the shared PSIS-LOO code
+    without changing the established row-level LOO of other repeated-row families.
+    """
+    keys = list(predictors) if predictors is not None else list(frame.predictors)
+    missing = [key for key in keys if key not in frame.predictors]
+    if missing:
+        raise KeyError(
+            f"Predictors {missing} not in frame (have {list(frame.predictors)})."
+        )
+
+    outcome = frame.outcome
+    post = frame.post_counts[outcome].astype(np.int64)
+    n_trials = frame.n_trials[outcome]
+    coords = {
+        "obs_id": np.arange(frame.n_obs),
+        "child": np.arange(frame.n_children),
+        "transition": frame.transition_labels,
+        "predictor": keys,
+    }
+    with pm.Model(coords=coords) as model:
+        phase_d = pm.Data("phase_idx", frame.phase, dims="obs_id")
+        child_d = pm.Data("child_idx", frame.child_idx, dims="obs_id")
+        pm.Data("loo_child_idx", frame.child_idx, dims="obs_id")
+        own_pre_d = pm.Data(
+            "own_pre_logit", frame.pre_logit[outcome], dims="obs_id"
+        )
+        alpha_transition = pm.Normal(
+            "alpha_transition", mu=0.0, sigma=1.5, dims="transition"
+        )
+        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        eta_fixed = alpha_transition[phase_d] + gamma_own * own_pre_d
+
+        if varying_slopes:
+            X = pm.Data(
+                "X_predictor",
+                np.column_stack([frame.predictors[key] for key in keys]),
+                dims=("obs_id", "predictor"),
+            )
+            beta_transition = pm.Normal(
+                "beta_transition",
+                mu=0.0,
+                sigma=predictor_slope_sigma,
+                dims=("transition", "predictor"),
+            )
+            eta_fixed = eta_fixed + pt.sum(
+                X * beta_transition[phase_d], axis=1
+            )
+        else:
+            for key in keys:
+                x_d = pm.Data(f"x_{key}", frame.predictors[key], dims="obs_id")
+                beta = _priors.predictor_slope_prior(
+                    predictor_slope_sigma
+                ).to_pymc(f"beta_{key}")
+                eta_fixed = eta_fixed + beta * x_d
+
+        eta_fixed = _rlm_group_nuisance(frame, eta_fixed)
+        eta_fixed = pm.Deterministic("eta_fixed", eta_fixed, dims="obs_id")
+        eta = _add_child_random_intercept(eta_fixed, child_d)
+        eta = pm.Deterministic("eta", eta, dims="obs_id")
+        kappa = _priors.kappa_prior().to_pymc("kappa")
+        beta_binomial_from_logit(
+            "y_post",
+            eta,
+            n_trials=n_trials,
+            kappa=kappa,
+            observed=post,
+            dims="obs_id",
+        )
+
+    return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())
+
+
 def build_rlm_horseshoe_model(
     frame,
     *,

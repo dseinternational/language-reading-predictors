@@ -1991,6 +1991,45 @@ class RlmSpanFrame:
 
 
 @dataclass
+class RlmTransitionFrame:
+    """Repeated-child Byrne frame for consecutive annual transitions (#409 D2).
+
+    Each row is one complete pre-to-post transition. Bounded predictors are
+    Haldane-logit transformed and all predictors are standardised *within their
+    transition*, so a pooled slope represents a one-standard-deviation contrast
+    at the child's current developmental wave rather than a between-wave level
+    difference. ``child_idx`` identifies repeated rows for the random intercept
+    and child-level PSIS-LOO; ``phase`` is the zero-based transition index used by
+    the shared sub-fit provenance machinery.
+    """
+
+    dataset: DatasetSpec
+    outcome: str
+    transition_waves: tuple[int, ...]
+    transition_labels: tuple[str, ...]
+    subject_ids: np.ndarray
+    child_idx: np.ndarray
+    phase: np.ndarray
+    group_code: np.ndarray
+    group_labels: dict[int, str]
+    pre_logit: dict[str, np.ndarray]
+    post_counts: dict[str, np.ndarray]
+    n_trials: dict[str, int]
+    predictors: dict[str, np.ndarray]
+    predictor_scalers: dict[str, tuple[Standardiser, ...]]
+    predictor_labels: dict[str, str]
+    transition_n_obs: dict[str, int]
+    transition_group_counts: dict[str, dict[int, int]]
+    n_obs: int
+    n_children: int
+    dropped_rows: int
+    dropped_by_reason: dict[str, int] = field(default_factory=dict)
+    source_n_children: int = 0
+    eligible_n_children: int = 0
+    n_phases: int = 1
+
+
+@dataclass
 class RlmWaveBattery:
     """One-row-per-child Byrne cross-section of a measure battery at one wave.
 
@@ -2277,6 +2316,121 @@ def load_rlm_span_frame(
         },
         source_n_children=n_source,
         eligible_n_children=n_eligible,
+    )
+
+
+def load_rlm_transition_frame(
+    *,
+    outcome: str = "basread",
+    predictor_measures: Sequence[str] = ("bpvs", "trog", "basdig", "bassim"),
+    include_age: bool = True,
+    transition_waves: Sequence[int] = (1, 2, 3, 4, 5),
+    group_codes: Sequence[int] | None = None,
+    path: str | Path | None = None,
+) -> RlmTransitionFrame:
+    """Stack complete consecutive Byrne transitions for a pooled ANCOVA.
+
+    Complete cases are selected separately for every transition. A child may
+    therefore contribute one to four rows, and a missing late wave does not erase
+    their earlier observed transitions. The span loader supplies the validation,
+    ceiling checks and within-transition standardisation for each component frame.
+    """
+    waves = tuple(transition_waves)
+    if len(waves) < 3:
+        raise ValueError("transition_waves must define at least two transitions")
+    if any(
+        isinstance(wave, bool) or not isinstance(wave, (int, np.integer))
+        for wave in waves
+    ):
+        raise TypeError("transition_waves must contain integers")
+    waves = tuple(int(wave) for wave in waves)
+    if any(
+        post != pre + 1
+        for pre, post in zip(waves[:-1], waves[1:], strict=True)
+    ):
+        raise ValueError("transition_waves must be strictly increasing annual waves")
+
+    spans = [
+        load_rlm_span_frame(
+            outcome=outcome,
+            predictor_measures=predictor_measures,
+            include_age=include_age,
+            pre_wave=pre,
+            post_wave=post,
+            group_codes=group_codes,
+            path=path,
+        )
+        for pre, post in zip(waves[:-1], waves[1:], strict=True)
+    ]
+    labels = tuple(
+        f"w{pre}->w{post}"
+        for pre, post in zip(waves[:-1], waves[1:], strict=True)
+    )
+    subject_ids = np.concatenate([span.subject_ids for span in spans])
+    unique_subjects = tuple(dict.fromkeys(subject_ids.tolist()))
+    child_lookup = {subject: idx for idx, subject in enumerate(unique_subjects)}
+    child_idx = np.asarray([child_lookup[subject] for subject in subject_ids], dtype=int)
+    phase = np.concatenate(
+        [np.full(span.n_obs, idx, dtype=int) for idx, span in enumerate(spans)]
+    )
+    predictor_keys = tuple(spans[0].predictors)
+    predictor_scalers = {
+        key: tuple(span.predictor_scalers[key] for span in spans)
+        for key in predictor_keys
+    }
+    transition_n_obs = {
+        label: span.n_obs for label, span in zip(labels, spans, strict=True)
+    }
+    transition_group_counts = {
+        label: {
+            int(code): int(count)
+            for code, count in zip(
+                *np.unique(span.group_code, return_counts=True), strict=True
+            )
+        }
+        for label, span in zip(labels, spans, strict=True)
+    }
+    source_n = spans[0].source_n_children
+    eligible_n = spans[0].eligible_n_children
+    potential_source_rows = (len(waves) - 1) * source_n
+    potential_eligible_rows = (len(waves) - 1) * eligible_n
+    n_obs = len(subject_ids)
+
+    return RlmTransitionFrame(
+        dataset=spans[0].dataset,
+        outcome=outcome,
+        transition_waves=waves,
+        transition_labels=labels,
+        subject_ids=subject_ids,
+        child_idx=child_idx,
+        phase=phase,
+        group_code=np.concatenate([span.group_code for span in spans]),
+        group_labels=spans[0].group_labels,
+        pre_logit={
+            outcome: np.concatenate([span.pre_logit[outcome] for span in spans])
+        },
+        post_counts={
+            outcome: np.concatenate([span.post_counts[outcome] for span in spans])
+        },
+        n_trials=spans[0].n_trials,
+        predictors={
+            key: np.concatenate([span.predictors[key] for span in spans])
+            for key in predictor_keys
+        },
+        predictor_scalers=predictor_scalers,
+        predictor_labels=spans[0].predictor_labels,
+        transition_n_obs=transition_n_obs,
+        transition_group_counts=transition_group_counts,
+        n_obs=n_obs,
+        n_children=len(unique_subjects),
+        dropped_rows=potential_source_rows - n_obs,
+        dropped_by_reason={
+            "design_group_exclusion": potential_source_rows - potential_eligible_rows,
+            "missing_required_transition_rows": potential_eligible_rows - n_obs,
+        },
+        source_n_children=source_n,
+        eligible_n_children=eligible_n,
+        n_phases=len(labels),
     )
 
 
