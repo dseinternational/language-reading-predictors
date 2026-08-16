@@ -230,8 +230,8 @@ RLM_DATASET = DatasetSpec(
     source_provenance_note=(
         "Reconciled 2026-08-16: the prepared 97-participant extract matches all "
         "97 cases and 52 shared non-identifying fields in the checksum-pinned SPSS "
-        "source. The later 96-row CSV is an incomplete derivative missing one "
-        "Down-syndrome participant."
+        "source. The historical 96-row CSV omitted one Down-syndrome participant; "
+        "the repaired derivative now matches all 97 source assessment rows."
     ),
     source_provenance_manifest=(
         "data/reading-language-memory/source_provenance.json"

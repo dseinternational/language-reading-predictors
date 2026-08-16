@@ -406,6 +406,7 @@ handoff
 hashlib
 hclust
 hexdigest
+hmac
 homoscedasticity
 horseshoe
 hpdi
