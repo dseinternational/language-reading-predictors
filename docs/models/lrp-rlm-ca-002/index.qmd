@@ -37,7 +37,7 @@ _Estimand: descriptive association, with no causal warrant._ The coefficient for
 - Reading group is represented by two nuisance dummies rather than one numeric slope. The model does not assume that the three group codes form a linear scale, and it does not report a group effect.
 - Word reading and receptive vocabulary are measured concurrently here. Temporal direction cannot be inferred, and `bassim` is not a complete control for general ability; residual confounding, measurement error and collinearity remain plausible.
 
-The stored fit is fail-closed for scientific publication while the 96-versus-97-participant extract provenance remains unresolved, even if its computation and artefacts pass.
+The extract lineage was reconciled on 2026-08-16 against the checksum-pinned 97-case SPSS source. A fresh fit can therefore clear the dataset-level input gate; any fit stored before that decision retains its original fail-closed input snapshot and must be regenerated before scientific interpretation.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

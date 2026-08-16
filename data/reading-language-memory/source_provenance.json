@@ -1,0 +1,65 @@
+{
+  "audit_date": "2026-08-16",
+  "comparison": {
+    "long_rows": 485,
+    "long_rows_matching_wide": 485,
+    "long_value_differences": 0,
+    "missing_from_secondary": {
+      "observed_waves": [
+        1,
+        2,
+        3
+      ],
+      "readgrp": 1,
+      "subject_id": "ID_25873B41B04B6AE6"
+    },
+    "prepared_group_counts": {
+      "1": 24,
+      "2": 42,
+      "3": 31
+    },
+    "prepared_participants": 97,
+    "prepared_rows_matching_source": 97,
+    "prepared_source_value_differences": 0,
+    "secondary_export_group_counts": {
+      "1": 23,
+      "2": 42,
+      "3": 31
+    },
+    "secondary_export_participants": 96,
+    "secondary_rows_matching_source": 96,
+    "secondary_rows_not_in_source": 0,
+    "shared_source_fields": 52,
+    "source_group_counts": {
+      "1": 24,
+      "2": 42,
+      "3": 31
+    },
+    "source_participants": 97,
+    "source_rows_missing_from_secondary": 1
+  },
+  "conclusion": "The prepared 97-participant extract is an exact non-identifying-field match to the pinned 97-case SPSS source. The later 96-row CSV is an incomplete derivative missing one Down-syndrome participant; it is not evidence of an extra prepared participant.",
+  "decision": "source_provenance_confirmed",
+  "generated_by": "Codex/GPT-5",
+  "prepared": {
+    "long_path": "data/reading-language-memory/reading_language_memory_data_long.csv",
+    "long_sha256": "68ea2e9c847c908b7217431af76abd45a940099ced2bfd9acf4dd69ba7e2e5f6",
+    "wide_path": "data/reading-language-memory/reading_language_memory_data_wide.csv",
+    "wide_sha256": "b2262d6b3b7102594b3424c4a72f4237dc84087a7b18f6fc815ccdcd0d10a55c"
+  },
+  "schema_version": 1,
+  "secondary_export": {
+    "git_blob_sha1": "a7a7c2a3ca97c8a5caf591e7beae349492c72129",
+    "path": "projects/reading-language-memory/original/data12345.csv",
+    "revision": "fab4e8f0b513cd2f275ae1a29bed4c695d7f1ef6",
+    "sha256": "e36e0e2dd880031870d57dd7e2620a27c9cc9c67ee58760f50285725d756997e",
+    "status": "incomplete_derivative"
+  },
+  "source": {
+    "git_blob_sha1": "591e14ceee2ffe61fe8af8e51ea35ac86ae8436f",
+    "path": "projects/reading-language-memory/original/data12345.sav",
+    "repository": "dsegroup/research-data-analysis",
+    "revision": "f36df93fe946b975cd701867a117e9ac188a1551",
+    "sha256": "e3cac5ff644ab9126fba25803e677f9492e3e076d8d611d8b3c0aa7ea322952c"
+  }
+}

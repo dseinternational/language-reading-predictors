@@ -140,9 +140,12 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
     assert cfg["audit_baseline"] == "table2_complete_case_summary"
     contract = cfg["publication_input_contract"]
     assert contract["study_id"] == "rlm"
-    assert contract["publication_ready"] is False
+    assert contract["publication_ready"] is True
     assert set(contract["measures"]) == {"basread"}
-    assert any("source provenance" in item for item in contract["blockers"])
+    assert contract["blockers"] == []
+    assert contract["dataset"]["source_provenance_manifest"].endswith(
+        "source_provenance.json"
+    )
 
 
 def test_non_itt_typed_settings_reach_config_json(tmp_path):

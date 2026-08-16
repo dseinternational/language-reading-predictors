@@ -78,6 +78,7 @@ class DatasetSpec:
     source: str = ""
     source_provenance_confirmed: bool = False
     source_provenance_note: str = ""
+    source_provenance_manifest: str = ""
 
 
 # --- Byrne, MacDonald & Buckley reading-language-memory study (study_id="rlm") ---
@@ -225,10 +226,15 @@ RLM_DATASET = DatasetSpec(
     group_labels=RLM_GROUP_LABELS,
     design="historical_cohort",
     source="Byrne, MacDonald & Buckley (2002)",
-    source_provenance_confirmed=False,
+    source_provenance_confirmed=True,
     source_provenance_note=(
-        "Reconcile the separate 96-participant raw export with the prepared "
-        "97-participant analysis extract before publication."
+        "Reconciled 2026-08-16: the prepared 97-participant extract matches all "
+        "97 cases and 52 shared non-identifying fields in the checksum-pinned SPSS "
+        "source. The later 96-row CSV is an incomplete derivative missing one "
+        "Down-syndrome participant."
+    ),
+    source_provenance_manifest=(
+        "data/reading-language-memory/source_provenance.json"
     ),
 )
 
@@ -309,6 +315,7 @@ def publication_input_contract(
             "source": dataset.source,
             "source_provenance_confirmed": dataset.source_provenance_confirmed,
             "source_provenance_note": dataset.source_provenance_note,
+            "source_provenance_manifest": dataset.source_provenance_manifest,
         },
         "measures": measure_records,
         "blockers": blockers,

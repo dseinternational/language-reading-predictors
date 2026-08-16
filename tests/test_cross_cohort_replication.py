@@ -95,9 +95,9 @@ def test_stratified_bootstrap_is_deterministic_and_uses_house_interval(mod):
         assert valid == 80
 
 
-def test_cross_cohort_contract_propagates_byrne_source_blocker(mod):
+def test_cross_cohort_contract_propagates_confirmed_byrne_source(mod):
     assert mod.RLI.source_provenance_confirmed is True
     assert mod.RLM.measures_confirmed is True
-    assert mod.RLM.source_provenance_confirmed is False
+    assert mod.RLM.source_provenance_confirmed is True
     assert "96" in mod.RLM.source_note
     assert "97" in mod.RLM.source_note
