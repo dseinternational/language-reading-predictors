@@ -23,8 +23,11 @@ an **adjusted, latent-general-ability-confounded association**, never causal.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
+
+import numpy as np
+import pandas as pd
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 
@@ -41,6 +44,7 @@ _LEGACY_KEYS = frozenset(
         "baseline_scale",
         "min_outcome_waves",
         "adjust_for_group",
+        "observation_influence_sensitivity",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -79,6 +83,7 @@ class GrowthModelSettings:
     baseline_scale: Literal["raw", "logit_safe"] = "raw"
     min_outcome_waves: int = 1
     adjust_for_group: bool = False
+    observation_influence_sensitivity: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -114,6 +119,7 @@ class GrowthModelSettings:
             "use_random_slope",
             "age_ability_interaction",
             "adjust_for_group",
+            "observation_influence_sensitivity",
         ):
             if not isinstance(getattr(self, flag), bool):
                 raise TypeError(f"{flag} must be bool")
@@ -144,6 +150,9 @@ class GrowthModelSettings:
             baseline_scale=extra.get("baseline_scale", "raw"),
             min_outcome_waves=extra.get("min_outcome_waves", 1),
             adjust_for_group=extra.get("adjust_for_group", False),
+            observation_influence_sensitivity=extra.get(
+                "observation_influence_sensitivity", False
+            ),
         )
 
 
@@ -163,6 +172,7 @@ class GrowthRunPlan:
     baseline_scale: Literal["raw", "logit_safe"]
     min_outcome_waves: int
     adjust_for_group: bool
+    observation_influence_sensitivity: bool
     # Recorded audit metadata (#394 pillar 4).
     design: str
     estimand: str
@@ -213,6 +223,8 @@ class GrowthRunPlan:
             f"{self.baseline_scale}. Minimum observed outcome waves per child: "
             f"{self.min_outcome_waves}. Reading-group nuisance trajectories: "
             f"{self.adjust_for_group}. "
+            "High-Pareto observation-cell sensitivity: "
+            f"{self.observation_influence_sensitivity}. "
             f"Child random slope: {self.use_random_slope}. Shared growth-tempo "
             f"factor: {self.use_shared_factor}. Age x ability "
             f"interaction: {self.age_ability_interaction}.\n\n"
@@ -409,9 +421,220 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
         baseline_scale=settings.baseline_scale,
         min_outcome_waves=settings.min_outcome_waves,
         adjust_for_group=settings.adjust_for_group,
+        observation_influence_sensitivity=settings.observation_influence_sensitivity,
         design=design,
         estimand=estimand,
         causal_status=causal_status,
         analysis_population=analysis_population,
         missing_data_assumption=missing_data_assumption,
     )
+
+
+def growth_observation_index(panel: Any) -> pd.DataFrame:
+    """Map the growth likelihood's flattened cells back to child, wave and outcome.
+
+    :func:`build_growth_model` flattens the ``(child, wave, outcome)`` mask in
+    NumPy C order. PSIS-LOO returns one Pareto-k value in that same order. Keeping
+    this mapping in the family layer makes the diagnostic auditable without
+    mistaking one child-wave cell for a whole-child leave-out unit.
+    """
+    mask = np.stack([panel.obs_mask[symbol] for symbol in panel.outcomes], axis=2)
+    child_idx, wave_idx, outcome_idx = np.nonzero(mask)
+    outcomes = np.asarray(panel.outcomes, dtype=object)
+    return pd.DataFrame(
+        {
+            "observation_index": np.arange(len(child_idx), dtype=int),
+            "child_index": child_idx.astype(int),
+            "subject_id": np.asarray(panel.subject_ids)[child_idx],
+            "wave": np.asarray(panel.waves)[wave_idx].astype(int),
+            "outcome": outcomes[outcome_idx],
+        }
+    )
+
+
+def growth_pareto_table(panel: Any, loo: Any) -> pd.DataFrame:
+    """Return mapped pointwise Pareto-k diagnostics for a growth likelihood."""
+    if loo is None or getattr(loo, "pareto_k", None) is None:
+        raise ValueError("growth influence sensitivity requires pointwise PSIS-LOO")
+    mapping = growth_observation_index(panel)
+    pareto_k = np.asarray(loo.pareto_k, dtype=float).ravel()
+    if len(mapping) != len(pareto_k):
+        raise ValueError(
+            "growth observation map does not align with pointwise Pareto-k values: "
+            f"{len(mapping)} cells versus {len(pareto_k)} diagnostics"
+        )
+    threshold = float(getattr(loo, "good_k", 0.7) or 0.7)
+    out = mapping.copy()
+    out["pareto_k"] = pareto_k
+    out["good_k_threshold"] = threshold
+    out["loo_reliable"] = pareto_k <= threshold
+    return out.sort_values("pareto_k", ascending=False).reset_index(drop=True)
+
+
+def exclude_growth_observation_cells(panel: Any, observation_indices: Any) -> Any:
+    """Return a panel with selected flattened likelihood cells masked out.
+
+    A child stays in the sensitivity model through any unflagged wave. If every
+    observed outcome for one child is flagged, that child is removed rather than
+    retaining an unconstrained random intercept. This is a coefficient-stability
+    refit, not exact LOO and not a new-child predictive calculation.
+    """
+    raw = np.asarray(observation_indices)
+    if raw.ndim != 1 or raw.size == 0:
+        raise ValueError(
+            "observation_indices must be a non-empty one-dimensional array"
+        )
+    if not np.issubdtype(raw.dtype, np.integer):
+        raise TypeError("observation_indices must contain integers")
+    indices = raw.astype(int)
+    if len(np.unique(indices)) != len(indices):
+        raise ValueError("observation_indices must be unique")
+
+    def _integer(value: Any) -> int:
+        return int(np.asarray(value).item())
+
+    mapping = growth_observation_index(panel)
+    cells = {
+        _integer(row.observation_index): row
+        for row in mapping.itertuples(index=False)
+    }
+    unknown = sorted(set(indices) - set(cells))
+    if unknown:
+        raise IndexError(f"growth observation index out of range: {unknown}")
+
+    masks = {
+        name: np.array(value, dtype=bool, copy=True)
+        for name, value in panel.obs_mask.items()
+    }
+    counts = {
+        name: np.array(value, dtype=float, copy=True)
+        for name, value in panel.counts.items()
+    }
+    logits = {
+        name: np.array(value, dtype=float, copy=True)
+        for name, value in panel.logit.items()
+    }
+    wave_lookup = {int(wave): index for index, wave in enumerate(panel.waves)}
+    for index in indices:
+        cell = cells[int(index)]
+        child = _integer(cell.child_index)
+        wave = wave_lookup[_integer(cell.wave)]
+        outcome = str(cell.outcome)
+        masks[outcome][child, wave] = False
+        counts[outcome][child, wave] = np.nan
+        logits[outcome][child, wave] = np.nan
+
+    retained = np.stack([masks[symbol] for symbol in panel.outcomes], axis=2)
+    keep = retained.sum(axis=(1, 2)) > 0
+    n_fully_excluded = int((~keep).sum())
+    dropped_by_reason = dict(panel.dropped_by_reason)
+    if n_fully_excluded:
+        dropped_by_reason["all_observed_cells_high_pareto"] = n_fully_excluded
+
+    def _slice_dict(values: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+        return {
+            name: np.asarray(value)[keep].copy() for name, value in values.items()
+        }
+
+    return replace(
+        panel,
+        subject_ids=np.asarray(panel.subject_ids)[keep].copy(),
+        n_children=int(keep.sum()),
+        counts=_slice_dict(counts),
+        obs_mask=_slice_dict(masks),
+        logit=_slice_dict(logits),
+        age_months=np.asarray(panel.age_months)[keep].copy(),
+        age_std=np.asarray(panel.age_std)[keep].copy(),
+        dose=np.asarray(panel.dose)[keep].copy(),
+        dose_std=np.asarray(panel.dose_std)[keep].copy(),
+        baseline=_slice_dict(panel.baseline),
+        baseline_raw=_slice_dict(panel.baseline_raw),
+        group=(
+            np.asarray(panel.group)[keep].copy()
+            if panel.group is not None
+            else None
+        ),
+        child_covariates=_slice_dict(panel.child_covariates),
+        wave_covariates=_slice_dict(panel.wave_covariates),
+        excluded_children=panel.excluded_children + n_fully_excluded,
+        dropped_by_reason=dropped_by_reason,
+    )
+
+
+def growth_influence_summary(
+    primary_trace: Any,
+    sensitivity_trace: Any,
+    *,
+    excluded_cells: pd.DataFrame,
+    sensitivity_converged: bool | None,
+    n_fully_excluded_children: int = 0,
+) -> pd.DataFrame:
+    """Compare ``gamma`` and ``delta`` before and after flagged-cell exclusion.
+
+    The two posteriors are separate fits, so their draws are not paired. The table
+    therefore reports each marginal posterior and a shift in medians; it does not
+    manufacture a posterior distribution for their difference.
+    """
+    required = {"subject_id", "wave", "outcome", "observation_index", "pareto_k"}
+    if not required.issubset(excluded_cells.columns):
+        missing = ", ".join(sorted(required - set(excluded_cells.columns)))
+        raise ValueError(f"excluded_cells lacks required columns: {missing}")
+    if excluded_cells.empty:
+        raise ValueError(
+            "growth influence summary requires at least one excluded cell"
+        )
+    if n_fully_excluded_children < 0:
+        raise ValueError("n_fully_excluded_children cannot be negative")
+
+    def _draws(trace: Any, coefficient: str, outcome: str) -> np.ndarray:
+        try:
+            values = trace.posterior[coefficient].sel(outcome=outcome)
+        except (AttributeError, KeyError) as exc:
+            raise KeyError(
+                f"trace lacks {coefficient!r} for outcome {outcome!r}"
+            ) from exc
+        return np.asarray(values, dtype=float).ravel()
+
+    outcomes = [
+        str(value) for value in primary_trace.posterior["gamma"].outcome.values
+    ]
+    rows: list[dict[str, Any]] = []
+    for coefficient in ("gamma", "delta"):
+        for outcome in outcomes:
+            primary = _draws(primary_trace, coefficient, outcome)
+            sensitivity = _draws(sensitivity_trace, coefficient, outcome)
+            primary_lo, primary_hi = np.quantile(primary, (0.055, 0.945))
+            sensitivity_lo, sensitivity_hi = np.quantile(
+                sensitivity, (0.055, 0.945)
+            )
+            primary_median = float(np.median(primary))
+            sensitivity_median = float(np.median(sensitivity))
+            rows.append(
+                {
+                    "coefficient": coefficient,
+                    "outcome": outcome,
+                    "primary_median": primary_median,
+                    "primary_lo89": float(primary_lo),
+                    "primary_hi89": float(primary_hi),
+                    "primary_prob_positive": float(np.mean(primary > 0)),
+                    "sensitivity_median": sensitivity_median,
+                    "sensitivity_lo89": float(sensitivity_lo),
+                    "sensitivity_hi89": float(sensitivity_hi),
+                    "sensitivity_prob_positive": float(np.mean(sensitivity > 0)),
+                    "median_shift": sensitivity_median - primary_median,
+                    "median_direction_stable": bool(
+                        np.sign(primary_median) == np.sign(sensitivity_median)
+                    ),
+                    "intervals_overlap": bool(
+                        max(primary_lo, sensitivity_lo)
+                        <= min(primary_hi, sensitivity_hi)
+                    ),
+                    "n_excluded_cells": int(len(excluded_cells)),
+                    "n_excluded_children": int(
+                        excluded_cells["subject_id"].nunique()
+                    ),
+                    "n_fully_excluded_children": int(n_fully_excluded_children),
+                    "sensitivity_converged": sensitivity_converged,
+                }
+            )
+    return pd.DataFrame(rows)

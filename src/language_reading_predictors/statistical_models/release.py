@@ -98,6 +98,7 @@ from language_reading_predictors.statistical_models.sensitivity import (
 
 __all__ = [
     "GATED_KINDS",
+    "GROWTH_INFLUENCE_TRACE_FILENAME",
     "MEDIATION_T3_TRACE_FILENAME",
     "PSENSE_THRESHOLD",
     "RELEASE_DECISION_FILENAME",
@@ -123,6 +124,9 @@ PSENSE_THRESHOLD = 0.05
 #: basename is part of the release contract: a table is not independently
 #: auditable when its posterior exists only in memory during the fit.
 MEDIATION_T3_TRACE_FILENAME = "trace_mediation_t3_sensitivity.nc"
+
+GROWTH_INFLUENCE_TRACE_FILENAME = "trace_growth_influence_sensitivity.nc"
+"""Trace backing the growth family's high-Pareto observation-cell refit."""
 
 TauSensitivityClass = Literal[
     "clear", "prior_data_conflict", "prior_dominant", "unavailable"
@@ -1047,6 +1051,217 @@ def _missingness_diagnostics_pass(values: Mapping[str, float | int]) -> bool:
     )
 
 
+def _growth_influence_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Fail closed when a required growth influence refit is absent or failed."""
+    plan = config.get("resolved_run_plan") or {}
+    if config.get("kind") != "growth":
+        return (), ()
+    if not isinstance(plan, Mapping):
+        return (), ("config.json (growth influence configuration is unreadable)",)
+    if not plan.get("observation_influence_sensitivity", False):
+        return (), ()
+
+    computation_failures: list[str] = []
+    artifact_failures: list[str] = []
+    pareto = _read_csv(output_dir, "pareto_k.csv")
+    pareto_columns = {
+        "observation_index",
+        "subject_id",
+        "wave",
+        "outcome",
+        "pareto_k",
+        "good_k_threshold",
+        "loo_reliable",
+    }
+    if pareto is None or pareto.empty or not pareto_columns.issubset(pareto.columns):
+        return (), ("pareto_k.csv (invalid growth observation-cell map)",)
+
+    reliable = pareto["loo_reliable"].map(_stored_bool)
+    numeric = pareto[
+        ["observation_index", "wave", "pareto_k", "good_k_threshold"]
+    ].apply(pd.to_numeric, errors="coerce")
+    indices = numeric["observation_index"]
+    expected_reliable = numeric["pareto_k"] <= numeric["good_k_threshold"]
+    numeric_valid = bool(np.isfinite(numeric.to_numpy(dtype=float)).all())
+    if numeric_valid:
+        integer_indices = indices.to_numpy(dtype=int)
+        numeric_valid = bool(
+            np.array_equal(indices.to_numpy(dtype=float), integer_indices)
+            and set(integer_indices) == set(range(len(indices)))
+            and np.array_equal(
+                numeric["wave"].to_numpy(dtype=float),
+                numeric["wave"].to_numpy(dtype=int),
+            )
+        )
+    if (
+        reliable.isna().any()
+        or not numeric_valid
+        or indices.duplicated().any()
+        or pareto[["subject_id", "outcome"]].isna().any().any()
+        or not np.array_equal(
+            reliable.to_numpy(dtype=bool), expected_reliable.to_numpy()
+        )
+    ):
+        return (), ("pareto_k.csv (internally inconsistent growth diagnostics)",)
+
+    flagged = pareto.loc[~reliable.to_numpy(dtype=bool)]
+    if flagged.empty:
+        return (), ()
+
+    summary = _read_csv(output_dir, "growth_influence_sensitivity.csv")
+    summary_columns = {
+        "coefficient",
+        "outcome",
+        "n_excluded_cells",
+        "n_excluded_children",
+        "n_fully_excluded_children",
+        "sensitivity_converged",
+    }
+    if summary is None or summary.empty or not summary_columns.issubset(summary.columns):
+        artifact_failures.append("growth_influence_sensitivity.csv")
+        summary_verdict: bool | None = None
+    else:
+        outcomes = set(pareto["outcome"].astype(str))
+        expected_rows = {
+            (coefficient, outcome)
+            for coefficient in ("gamma", "delta")
+            for outcome in outcomes
+        }
+        actual_rows = set(
+            summary[["coefficient", "outcome"]]
+            .astype(str)
+            .itertuples(index=False, name=None)
+        )
+        if (
+            summary.duplicated(subset=["coefficient", "outcome"]).any()
+            or actual_rows != expected_rows
+        ):
+            artifact_failures.append(
+                "growth_influence_sensitivity.csv (invalid coefficient rows)"
+            )
+        counts = pd.to_numeric(summary["n_excluded_cells"], errors="coerce")
+        children = pd.to_numeric(summary["n_excluded_children"], errors="coerce")
+        fully_excluded = pd.to_numeric(
+            summary["n_fully_excluded_children"], errors="coerce"
+        )
+        expected_children = flagged["subject_id"].astype(str).nunique()
+        all_reliable_by_child = reliable.groupby(
+            pareto["subject_id"].astype(str)
+        ).all()
+        expected_fully_excluded = int((~all_reliable_by_child).sum())
+        if (
+            counts.isna().any()
+            or not (counts == len(flagged)).all()
+            or children.isna().any()
+            or not (children == expected_children).all()
+            or fully_excluded.isna().any()
+            or not (fully_excluded == expected_fully_excluded).all()
+        ):
+            artifact_failures.append(
+                "growth_influence_sensitivity.csv (excluded-cell map mismatch)"
+            )
+        declared = summary["sensitivity_converged"].map(_stored_bool)
+        if declared.isna().any():
+            artifact_failures.append(
+                "growth_influence_sensitivity.csv (invalid convergence verdict)"
+            )
+            summary_verdict = None
+        elif declared.nunique() != 1:
+            artifact_failures.append(
+                "growth_influence_sensitivity.csv (inconsistent convergence verdict)"
+            )
+            summary_verdict = None
+        else:
+            summary_verdict = bool(declared.iloc[0])
+            if not summary_verdict:
+                computation_failures.append(
+                    "growth observation-cell influence sensitivity failed its "
+                    "convergence gate"
+                )
+
+    provenance = _read_csv(output_dir, "subfit_provenance.csv")
+    model_id = str(config.get("model_id") or "")
+    label = f"{model_id} high-Pareto observation-cell exclusion"
+    provenance_row: pd.Series | None = None
+    provenance_verdict: bool | None = None
+    if provenance is None or provenance.empty or "label" not in provenance.columns:
+        artifact_failures.append("subfit_provenance.csv")
+    else:
+        rows = provenance.loc[provenance["label"].astype(str) == label]
+        if len(rows) != 1:
+            artifact_failures.append(
+                "subfit_provenance.csv (no unique growth influence row)"
+            )
+        else:
+            provenance_row = rows.iloc[0]
+            if str(provenance_row.get("role", "")).strip() != "sensitivity":
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid growth influence role)"
+                )
+            if (
+                str(provenance_row.get("trace_file", "")).strip()
+                != GROWTH_INFLUENCE_TRACE_FILENAME
+            ):
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid growth influence trace binding)"
+                )
+            values = _missingness_diagnostics(provenance_row)
+            declared = _stored_bool(provenance_row.get("converged"))
+            if values is None or declared is None:
+                artifact_failures.append(
+                    "subfit_provenance.csv (invalid growth influence diagnostics)"
+                )
+            else:
+                provenance_verdict = declared
+                passed = _missingness_diagnostics_pass(values)
+                if declared != passed:
+                    artifact_failures.append(
+                        "subfit_provenance.csv (growth influence verdict mismatch)"
+                    )
+                if not passed:
+                    computation_failures.append(
+                        "growth observation-cell influence sensitivity failed its "
+                        "convergence gate"
+                    )
+
+    trace_path = output_dir / GROWTH_INFLUENCE_TRACE_FILENAME
+    if not trace_path.is_file():
+        artifact_failures.append(GROWTH_INFLUENCE_TRACE_FILENAME)
+    elif provenance_row is not None:
+        from language_reading_predictors.statistical_models.sensitivity import (
+            sha256_file,
+        )
+
+        recorded = str(provenance_row.get("trace_sha256", "")).strip().lower()
+        if len(recorded) != 64 or recorded != sha256_file(trace_path):
+            artifact_failures.append(
+                "subfit_provenance.csv (growth influence trace hash mismatch)"
+            )
+
+    metadata_verdict = _stored_bool(config.get("observation_influence_converged"))
+    if metadata_verdict is None:
+        artifact_failures.append("config.json (growth influence verdict is missing)")
+    elif not metadata_verdict:
+        computation_failures.append(
+            "growth observation-cell influence sensitivity failed its convergence gate"
+        )
+    stored_verdicts = {
+        verdict
+        for verdict in (summary_verdict, provenance_verdict, metadata_verdict)
+        if verdict is not None
+    }
+    if len(stored_verdicts) > 1:
+        artifact_failures.append(
+            "growth influence convergence verdicts disagree across artifacts"
+        )
+    return (
+        tuple(dict.fromkeys(computation_failures)),
+        tuple(dict.fromkeys(artifact_failures)),
+    )
+
+
 def _missingness_diagnostics_match(
     left: Mapping[str, float | int], right: Mapping[str, float | int]
 ) -> bool:
@@ -1681,11 +1896,20 @@ def evaluate_publication(
     t3_gate_failures, t3_artifact_failures = _mediation_t3_release_failures(
         output_dir, config
     )
+    growth_gate_failures, growth_artifact_failures = (
+        _growth_influence_release_failures(output_dir, config)
+    )
     itt_missingness_gate_failures, itt_missingness_artifact_failures = (
         _itt_missingness_release_failures(output_dir, config)
     )
     gate_failures = tuple(
-        sorted({*t3_gate_failures, *itt_missingness_gate_failures})
+        sorted(
+            {
+                *t3_gate_failures,
+                *growth_gate_failures,
+                *itt_missingness_gate_failures,
+            }
+        )
     )
     if gate_failures:
         return ReleaseEvaluation(
@@ -1704,6 +1928,7 @@ def evaluate_publication(
         sorted(
             {
                 *t3_artifact_failures,
+                *growth_artifact_failures,
                 *itt_missingness_artifact_failures,
                 *_recorded_required_artifacts(output_dir, artifacts),
             }
