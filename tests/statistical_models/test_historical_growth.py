@@ -13,9 +13,11 @@ import json
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pymc as pm
 import pytest
 
+from language_reading_predictors.statistical_models import diagnostics as _diagnostics
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
 from language_reading_predictors.statistical_models.factories import (
@@ -23,8 +25,13 @@ from language_reading_predictors.statistical_models.factories import (
 )
 from language_reading_predictors.statistical_models.historical_growth import (
     HistoricalGrowthModelSettings,
+    evaluate_historical_growth_influence_bundle,
+    exclude_historical_growth_observations,
+    historical_growth_influence_summary,
+    historical_growth_pareto_table,
     resolve_historical_growth_run_plan,
 )
+from language_reading_predictors.statistical_models.sensitivity import sha256_file
 from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
@@ -102,6 +109,180 @@ def test_build_rejects_measure_absent_from_panel(tmp_path):
     panel = _panel(tmp_path)
     with pytest.raises(KeyError, match="not in panel"):
         build_historical_growth_model(panel, measure="bpvs")
+
+
+def test_historical_growth_pareto_maps_likelihood_rows(tmp_path):
+    panel = _panel(tmp_path, extension=True, extension_waves=(4, 5))
+    values = np.linspace(0.1, 0.9, panel.n_obs)
+    loo = SimpleNamespace(pareto_k=values, good_k=0.7)
+
+    result = historical_growth_pareto_table(panel, loo, measure="basread")
+
+    worst = result.iloc[0]
+    source = panel.long.iloc[int(worst["observation_index"])]
+    assert worst["pareto_k"] == pytest.approx(0.9)
+    assert worst["subject_id"] == source[panel.dataset.subject_col]
+    assert worst["wave"] == source[panel.dataset.wave_col]
+    assert worst["group_code"] == source[panel.dataset.group_col]
+    assert worst["score"] == source["basread"]
+    assert result["loo_reliable"].eq(result["pareto_k"] <= 0.7).all()
+
+
+def test_shared_influence_maps_historical_growth_rows(tmp_path):
+    panel = _panel(tmp_path)
+    values = np.linspace(0.1, 0.9, panel.n_obs)
+    context = SimpleNamespace(
+        loo=SimpleNamespace(pareto_k=values, good_k=0.7),
+        prepared=panel,
+    )
+
+    result, threshold, n_flagged = _diagnostics.influence_diagnostics(context)
+
+    assert threshold == 0.7
+    assert n_flagged == int((values > 0.7).sum())
+    assert len(result) == panel.n_obs
+    worst = result.iloc[0]
+    assert worst["subject_id"] == panel.long.iloc[-1][panel.dataset.subject_col]
+
+
+def test_exclude_historical_growth_rows_rebuilds_panel(tmp_path):
+    panel = _panel(tmp_path)
+    subject_col = panel.dataset.subject_col
+    wave_col = panel.dataset.wave_col
+    first_subject = panel.subject_ids[0]
+    first_rows = panel.long.index[panel.long[subject_col] == first_subject].to_numpy()
+
+    one_row_out = exclude_historical_growth_observations(panel, first_rows[:1])
+    assert one_row_out.n_obs == panel.n_obs - 1
+    assert one_row_out.n_subjects == panel.n_subjects
+    subject_position = one_row_out.subject_ids.index(first_subject)
+    wave_position = panel.waves.index(
+        int(panel.long.iloc[int(first_rows[0])][wave_col])
+    )
+    assert np.isnan(one_row_out.counts["basread"][subject_position, wave_position])
+    assert not one_row_out.obs_mask["basread"][subject_position, wave_position]
+
+    child_out = exclude_historical_growth_observations(panel, first_rows)
+    assert child_out.n_obs == panel.n_obs - len(first_rows)
+    assert child_out.n_subjects == panel.n_subjects - 1
+    assert first_subject not in child_out.subject_ids
+    assert child_out.dropped_subjects == panel.dropped_subjects + 1
+
+
+def test_historical_growth_influence_summary_compares_separate_fits(tmp_path):
+    panel = _panel(tmp_path)
+    excluded_index = np.array([0])
+    sensitivity_panel = exclude_historical_growth_observations(
+        panel, excluded_index
+    )
+
+    primary_built = build_historical_growth_model(panel, measure="basread")
+    with primary_built.model:
+        primary_prior = pm.sample_prior_predictive(draws=20, random_seed=11)
+    sensitivity_built = build_historical_growth_model(
+        sensitivity_panel, measure="basread"
+    )
+    with sensitivity_built.model:
+        sensitivity_prior = pm.sample_prior_predictive(draws=20, random_seed=12)
+    primary_trace = SimpleNamespace(posterior=primary_prior.prior)
+    sensitivity_trace = SimpleNamespace(posterior=sensitivity_prior.prior)
+    excluded = historical_growth_pareto_table(
+        panel,
+        SimpleNamespace(
+            pareto_k=np.r_[0.8, np.repeat(0.1, panel.n_obs - 1)],
+            good_k=0.7,
+        ),
+        measure="basread",
+    ).query("loo_reliable == False")
+
+    result = historical_growth_influence_summary(
+        primary_trace,
+        sensitivity_trace,
+        primary_panel=panel,
+        sensitivity_panel=sensitivity_panel,
+        measure="basread",
+        excluded_rows=excluded,
+        sensitivity_converged=True,
+    )
+
+    assert not result.empty
+    assert result["n_excluded_rows"].eq(1).all()
+    assert result["n_excluded_children"].eq(1).all()
+    assert result["n_fully_excluded_children"].eq(0).all()
+    assert result["max_excluded_pareto_k"].eq(0.8).all()
+    assert result["sensitivity_converged"].all()
+    assert np.allclose(
+        result["median_shift"],
+        result["sensitivity_q50"] - result["primary_q50"],
+    )
+
+
+def test_historical_growth_influence_bundle_is_hash_bound(tmp_path):
+    (tmp_path / "config.json").write_text("{}\n", encoding="utf-8")
+    (tmp_path / "trace.nc").write_text("primary trace\n", encoding="utf-8")
+    pareto = pd.DataFrame(
+        {
+            "observation_index": [0, 1],
+            "subject_id": ["child-a", "child-a"],
+            "pareto_k": [0.8, 0.2],
+            "good_k_threshold": [0.7, 0.7],
+        }
+    )
+    pareto.to_csv(tmp_path / "pareto_k.csv", index=False)
+    trace_name = "trace_historical_growth_influence_sensitivity.nc"
+    (tmp_path / trace_name).write_text("sensitivity trace\n", encoding="utf-8")
+    summary = pd.DataFrame(
+        {
+            "model_id": ["lrp-rlm-hg-009"],
+            "config": ["reporting"],
+            "median_shift": [0.34],
+            "median_direction_stable": [True],
+            "intervals_overlap": [True],
+            "n_excluded_rows": [1],
+            "max_excluded_pareto_k": [0.8],
+            "sensitivity_converged": [True],
+            "primary_config_sha256": [sha256_file(tmp_path / "config.json")],
+            "primary_trace_sha256": [sha256_file(tmp_path / "trace.nc")],
+            "primary_pareto_k_sha256": [sha256_file(tmp_path / "pareto_k.csv")],
+            "sensitivity_trace_file": [trace_name],
+            "sensitivity_trace_sha256": [sha256_file(tmp_path / trace_name)],
+        }
+    )
+    summary_path = tmp_path / "historical_growth_influence_sensitivity.csv"
+    summary.to_csv(summary_path, index=False)
+    provenance = {
+        "status": "completed",
+        "model_id": "lrp-rlm-hg-009",
+        "config": "reporting",
+        "primary_config_sha256": sha256_file(tmp_path / "config.json"),
+        "primary_trace_sha256": sha256_file(tmp_path / "trace.nc"),
+        "primary_pareto_k_sha256": sha256_file(tmp_path / "pareto_k.csv"),
+        "flagged_observation_indices": [0],
+        "sensitivity_trace_sha256": sha256_file(tmp_path / trace_name),
+        "sensitivity_summary_sha256": sha256_file(summary_path),
+        "convergence": {"converged": True},
+    }
+    (tmp_path / "historical_growth_influence_provenance.json").write_text(
+        json.dumps(provenance), encoding="utf-8"
+    )
+    report_config = {
+        "model_id": "lrp-rlm-hg-009",
+        "kind": "historical_growth",
+        "n_obs": 2,
+    }
+
+    valid = evaluate_historical_growth_influence_bundle(
+        summary, tmp_path, report_config, "reporting"
+    )
+    assert valid["ready"] is True
+    assert valid["max_median_shift"] == pytest.approx(0.34)
+
+    (tmp_path / trace_name).write_text("tampered\n", encoding="utf-8")
+    invalid = evaluate_historical_growth_influence_bundle(
+        summary, tmp_path, report_config, "reporting"
+    )
+    assert invalid["ready"] is False
+    assert "hash-mismatched" in invalid["reason"]
 
 
 def test_dataset_metadata_reaches_config_json(tmp_path):

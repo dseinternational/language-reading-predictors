@@ -17,10 +17,15 @@ published tables remain unchanged for all nine registered models.
 
 from __future__ import annotations
 
+import json
 import math
 from collections.abc import Collection, Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+from pathlib import Path
 from typing import Any
+
+import numpy as np
+import pandas as pd
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import resolve_dataset
@@ -29,6 +34,10 @@ __all__ = [
     "HistoricalGrowthModelSettings",
     "HistoricalGrowthRunPlan",
     "declared_historical_growth_settings",
+    "evaluate_historical_growth_influence_bundle",
+    "exclude_historical_growth_observations",
+    "historical_growth_influence_summary",
+    "historical_growth_pareto_table",
     "resolve_historical_growth_run_plan",
 ]
 
@@ -321,3 +330,332 @@ def resolve_historical_growth_run_plan(spec: ModelSpec) -> HistoricalGrowthRunPl
             "recruited children."
         ),
     )
+
+
+def historical_growth_pareto_table(
+    panel: Any,
+    loo: Any,
+    *,
+    measure: str,
+) -> pd.DataFrame:
+    """Map historical-growth Pareto-k values to their likelihood rows.
+
+    The factory passes ``panel.long`` to the likelihood without reshaping, so
+    pointwise PSIS-LOO and this table have the same row order. The explicit map
+    prevents a high-k child-wave observation from being mistaken for a
+    whole-child leave-out unit.
+    """
+    if measure not in panel.measures:
+        raise KeyError(f"measure {measure!r} is not in panel {panel.measures!r}")
+    if loo is None or getattr(loo, "pareto_k", None) is None:
+        raise ValueError(
+            "historical-growth influence sensitivity requires pointwise PSIS-LOO"
+        )
+
+    pareto_k = np.asarray(loo.pareto_k, dtype=float).ravel()
+    if len(panel.long) != len(pareto_k):
+        raise ValueError(
+            "historical-growth rows do not align with pointwise Pareto-k values: "
+            f"{len(panel.long)} rows versus {len(pareto_k)} diagnostics"
+        )
+    threshold = float(getattr(loo, "good_k", 0.7) or 0.7)
+    dataset = panel.dataset
+    frame = panel.long.reset_index(drop=True)
+    out = pd.DataFrame(
+        {
+            "observation_index": np.arange(len(frame), dtype=int),
+            "subject_id": frame[dataset.subject_col].to_numpy(),
+            "wave": frame[dataset.wave_col].to_numpy(dtype=int),
+            "group_code": frame[dataset.group_col].to_numpy(dtype=int),
+            "group_label": frame[panel.group_label_col].to_numpy(),
+            "outcome": measure,
+            "score": frame[measure].to_numpy(dtype=int),
+            "pareto_k": pareto_k,
+            "good_k_threshold": threshold,
+            "loo_reliable": pareto_k <= threshold,
+        }
+    )
+    return out.sort_values("pareto_k", ascending=False).reset_index(drop=True)
+
+
+def exclude_historical_growth_observations(
+    panel: Any,
+    observation_indices: Any,
+) -> Any:
+    """Return ``panel`` with selected likelihood rows removed.
+
+    A child remains in the sensitivity panel through every unflagged row. If all
+    of a child's rows are removed, the child is removed as well so the refit does
+    not retain an unconstrained random intercept. This is a coefficient-stability
+    refit, not exact LOO and not a new-child predictive calculation.
+    """
+    raw = np.asarray(observation_indices)
+    if raw.ndim != 1 or raw.size == 0:
+        raise ValueError(
+            "observation_indices must be a non-empty one-dimensional array"
+        )
+    if not np.issubdtype(raw.dtype, np.integer):
+        raise TypeError("observation_indices must contain integers")
+    indices = raw.astype(int)
+    if len(np.unique(indices)) != len(indices):
+        raise ValueError("observation_indices must be unique")
+    unknown = sorted(set(indices) - set(range(len(panel.long))))
+    if unknown:
+        raise IndexError(
+            f"historical-growth observation index out of range: {unknown}"
+        )
+
+    dataset = panel.dataset
+    subject_col = dataset.subject_col
+    wave_col = dataset.wave_col
+    long = panel.long.drop(index=indices).reset_index(drop=True)
+    if long.empty:
+        raise ValueError("observation exclusion would leave no fitted rows")
+
+    subject_ids = long[subject_col].drop_duplicates().tolist()
+    fully_excluded = len(set(panel.subject_ids) - set(subject_ids))
+    group_codes = sorted(int(code) for code in long[dataset.group_col].unique())
+    group_labels = [dataset.group_labels[code] for code in group_codes]
+
+    counts: dict[str, np.ndarray] = {}
+    obs_mask: dict[str, np.ndarray] = {}
+    for measure in panel.measures:
+        wide = long.pivot_table(
+            index=subject_col,
+            columns=wave_col,
+            values=measure,
+            aggfunc="first",
+        ).reindex(index=subject_ids, columns=list(panel.waves))
+        values = wide.to_numpy(dtype=float)
+        counts[measure] = values
+        obs_mask[measure] = np.isfinite(values)
+
+    return replace(
+        panel,
+        long=long,
+        subject_ids=subject_ids,
+        group_codes=group_codes,
+        group_labels=group_labels,
+        counts=counts,
+        obs_mask=obs_mask,
+        n_subjects=len(subject_ids),
+        dropped_subjects=panel.dropped_subjects + fully_excluded,
+    )
+
+
+def historical_growth_influence_summary(
+    primary_trace: Any,
+    sensitivity_trace: Any,
+    *,
+    primary_panel: Any,
+    sensitivity_panel: Any,
+    measure: str,
+    excluded_rows: pd.DataFrame,
+    sensitivity_converged: bool | None,
+) -> pd.DataFrame:
+    """Compare reported growth quantities before and after row exclusion.
+
+    These are two separately sampled posteriors, so the table compares their
+    marginal summaries and the shift in medians. It does not treat draws from
+    the two fits as paired or claim a posterior distribution for their
+    difference.
+    """
+    required = {"subject_id", "observation_index", "pareto_k"}
+    missing = required - set(excluded_rows.columns)
+    if missing:
+        raise ValueError(
+            "excluded_rows lacks required columns: " + ", ".join(sorted(missing))
+        )
+    if excluded_rows.empty:
+        raise ValueError(
+            "historical-growth influence summary requires an excluded row"
+        )
+
+    from language_reading_predictors.statistical_models import historical
+
+    keys = ["quantity", "label", "readgrp_label", "window"]
+    statistics = ["n_subjects", "q50", "q_lo", "q_hi", "p_gt_0"]
+
+    def _summary(trace: Any, panel: Any, prefix: str) -> pd.DataFrame:
+        frame = historical.growth_summary(trace, panel, measure)
+        return frame[keys + statistics].rename(
+            columns={column: f"{prefix}_{column}" for column in statistics}
+        )
+
+    primary = _summary(primary_trace, primary_panel, "primary")
+    sensitivity = _summary(sensitivity_trace, sensitivity_panel, "sensitivity")
+    out = primary.merge(sensitivity, on=keys, how="outer", validate="one_to_one")
+    out["median_shift"] = out["sensitivity_q50"] - out["primary_q50"]
+    out["median_direction_stable"] = np.sign(out["primary_q50"]) == np.sign(
+        out["sensitivity_q50"]
+    )
+    out["intervals_overlap"] = np.maximum(
+        out["primary_q_lo"], out["sensitivity_q_lo"]
+    ) <= np.minimum(out["primary_q_hi"], out["sensitivity_q_hi"])
+    out["n_excluded_rows"] = int(len(excluded_rows))
+    out["n_excluded_children"] = int(excluded_rows["subject_id"].nunique())
+    out["n_fully_excluded_children"] = int(
+        len(set(primary_panel.subject_ids) - set(sensitivity_panel.subject_ids))
+    )
+    out["max_excluded_pareto_k"] = float(excluded_rows["pareto_k"].max())
+    out["sensitivity_converged"] = sensitivity_converged
+    return out
+
+
+def evaluate_historical_growth_influence_bundle(
+    summary: pd.DataFrame | None,
+    primary_dir: Path,
+    report_config: Mapping[str, Any],
+    expected_config: str,
+) -> dict[str, Any]:
+    """Fail closed when a report-local influence bundle is stale or partial."""
+    from language_reading_predictors.statistical_models.sensitivity import (
+        sha256_file,
+    )
+
+    result: dict[str, Any] = {
+        "ready": False,
+        "reason": "historical_growth_influence_sensitivity.csv is absent",
+        "max_median_shift": float("nan"),
+    }
+    if summary is None or summary.empty:
+        return result
+
+    primary_dir = Path(primary_dir).resolve()
+    required = {
+        "model_id",
+        "config",
+        "median_shift",
+        "median_direction_stable",
+        "intervals_overlap",
+        "n_excluded_rows",
+        "max_excluded_pareto_k",
+        "sensitivity_converged",
+        "primary_config_sha256",
+        "primary_trace_sha256",
+        "primary_pareto_k_sha256",
+        "sensitivity_trace_file",
+        "sensitivity_trace_sha256",
+    }
+    missing = sorted(required - set(summary.columns))
+    if missing:
+        result["reason"] = "missing columns: " + ", ".join(missing)
+        return result
+
+    def _one(column: str) -> Any:
+        values = summary[column].drop_duplicates()
+        if len(values) != 1:
+            raise ValueError(f"{column} is not constant across the bundle")
+        return values.iloc[0]
+
+    def _all_true(column: str) -> bool:
+        return set(summary[column].astype(str).str.strip().str.lower()) == {"true"}
+
+    try:
+        if str(_one("model_id")) != str(report_config.get("model_id")):
+            raise ValueError("model id does not match the report")
+        if str(report_config.get("kind")) != "historical_growth":
+            raise ValueError("report is not a historical-growth model")
+        if str(_one("config")) != expected_config:
+            raise ValueError("sampling config does not match the report directory")
+
+        artefacts = {
+            "primary_config_sha256": primary_dir / "config.json",
+            "primary_trace_sha256": primary_dir / "trace.nc",
+            "primary_pareto_k_sha256": primary_dir / "pareto_k.csv",
+        }
+        for column, path in artefacts.items():
+            if not path.is_file() or str(_one(column)) != sha256_file(path):
+                raise ValueError(f"stale or mixed bundle: {column} does not match")
+
+        pareto = pd.read_csv(primary_dir / "pareto_k.csv")
+        pareto_required = {
+            "observation_index",
+            "subject_id",
+            "pareto_k",
+            "good_k_threshold",
+        }
+        if not pareto_required.issubset(pareto.columns):
+            raise ValueError("current Pareto-k table lacks its row mapping")
+        observation_indices = pd.to_numeric(
+            pareto["observation_index"], errors="coerce"
+        )
+        values = pd.to_numeric(pareto["pareto_k"], errors="coerce")
+        thresholds = pd.to_numeric(
+            pareto["good_k_threshold"], errors="coerce"
+        )
+        expected_n = int(report_config.get("n_obs", -1))
+        if (
+            len(pareto) != expected_n
+            or not np.isfinite(observation_indices).all()
+            or set(observation_indices.astype(int)) != set(range(expected_n))
+            or observation_indices.astype(int).duplicated().any()
+            or not np.isfinite(values).all()
+            or not np.isfinite(thresholds).all()
+            or thresholds.nunique() != 1
+        ):
+            raise ValueError("current Pareto-k table is not a complete row map")
+        flagged = pareto.loc[values > thresholds]
+        if flagged.empty or int(_one("n_excluded_rows")) != len(flagged):
+            raise ValueError("excluded-row count does not match current Pareto-k flags")
+        if not np.isclose(
+            float(_one("max_excluded_pareto_k")),
+            float(values.loc[flagged.index].max()),
+            rtol=1e-12,
+            atol=1e-15,
+        ):
+            raise ValueError("saved maximum Pareto-k does not match the current table")
+
+        trace_name = str(_one("sensitivity_trace_file"))
+        if Path(trace_name).name != trace_name:
+            raise ValueError("sensitivity trace path is not a report-local filename")
+        sensitivity_trace = primary_dir / trace_name
+        if (
+            not sensitivity_trace.is_file()
+            or str(_one("sensitivity_trace_sha256"))
+            != sha256_file(sensitivity_trace)
+        ):
+            raise ValueError("sensitivity trace is absent or hash-mismatched")
+
+        provenance_path = primary_dir / "historical_growth_influence_provenance.json"
+        provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
+        if provenance.get("status") != "completed":
+            raise ValueError("influence provenance does not record a completed fit")
+        if provenance.get("model_id") != report_config.get("model_id"):
+            raise ValueError("influence provenance model id does not match the report")
+        if provenance.get("config") != expected_config:
+            raise ValueError("influence provenance config does not match the report")
+        for column, path in artefacts.items():
+            if provenance.get(column) != sha256_file(path):
+                raise ValueError(f"influence provenance {column} does not match")
+        flagged_indices = sorted(
+            int(value) for value in flagged["observation_index"]
+        )
+        if provenance.get("flagged_observation_indices") != flagged_indices:
+            raise ValueError("influence provenance flags do not match current Pareto-k")
+        if provenance.get("sensitivity_trace_sha256") != sha256_file(
+            sensitivity_trace
+        ):
+            raise ValueError("influence provenance is not bound to the sensitivity trace")
+        summary_path = primary_dir / "historical_growth_influence_sensitivity.csv"
+        if provenance.get("sensitivity_summary_sha256") != sha256_file(summary_path):
+            raise ValueError("influence provenance is not bound to the summary")
+        if provenance.get("convergence", {}).get("converged") is not True:
+            raise ValueError("influence provenance does not pass convergence")
+        if not _all_true("sensitivity_converged"):
+            raise ValueError("sensitivity summary does not pass convergence")
+        if not _all_true("median_direction_stable"):
+            raise ValueError("one or more growth medians changed direction")
+        if not _all_true("intervals_overlap"):
+            raise ValueError("one or more primary and sensitivity intervals do not overlap")
+
+        result.update(
+            ready=True,
+            reason="trace-bound row-exclusion sensitivity passed",
+            max_median_shift=float(
+                pd.to_numeric(summary["median_shift"], errors="raise").abs().max()
+            ),
+        )
+    except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
+        result["reason"] = str(exc)
+    return result
