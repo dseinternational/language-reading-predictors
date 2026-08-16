@@ -54,6 +54,19 @@ PREPARED_LONG_SHA256 = "68ea2e9c847c908b7217431af76abd45a940099ced2bfd9acf4dd69b
 PROVENANCE_MANIFEST_PATH = paths.DATA_DIR / "reading-language-memory" / "source_provenance.json"
 
 EXPECTED_SHARED_FIELDS = 52
+EXPECTED_SHARED_COLUMNS = {
+    "readgrp",
+    *(f"age{wave}" for wave in range(1, 6)),
+    *(f"speed{wave}" for wave in range(3, 6)),
+    *(f"basmat{wave}" for wave in range(3, 6)),
+    *(
+        f"{stub}{wave}"
+        for stub in ("bassim", "basdig", "basnum", "basread", "basspel", "trog", "woco", "bpvs")
+        for wave in range(1, 6)
+    ),
+}
+EXPECTED_SOURCE_IDENTIFIER_FIELDS = {"name", "subno"}
+EXPECTED_SOURCE_BASMAT_FIELDS = ["basmat3", "basmat4", "basmat5"]
 EXPECTED_GROUP_COUNTS = {"1": 24, "2": 42, "3": 31}
 EXPECTED_LEGACY_SECONDARY_GROUP_COUNTS = {"1": 23, "2": 42, "3": 31}
 EXPECTED_OMITTED_SUBJECT_ID = "ID_25873B41B04B6AE6"
@@ -161,6 +174,14 @@ def compare_source_frames(
     )
     if len(shared) != EXPECTED_SHARED_FIELDS:
         raise ValueError(f"Expected {EXPECTED_SHARED_FIELDS} shared source fields, found {len(shared)}")
+    if set(shared) != EXPECTED_SHARED_COLUMNS:
+        raise ValueError("The shared source-field inventory differs from the signed-off RLM record")
+    source_only = set(source.columns) - set(shared)
+    if source_only != EXPECTED_SOURCE_IDENTIFIER_FIELDS:
+        raise ValueError("The SPSS source contains an unexpected field outside the retained assessment inventory")
+    source_basmat_fields = sorted(column for column in shared if column.startswith("basmat"))
+    if source_basmat_fields != EXPECTED_SOURCE_BASMAT_FIELDS:
+        raise ValueError("The SPSS source does not contain the expected native BASMAT3-BASMAT5 fields")
 
     source_fingerprints = _fingerprints(source, shared)
     legacy_secondary_fingerprints = _fingerprints(legacy_secondary, shared)
@@ -193,6 +214,10 @@ def compare_source_frames(
 
     return {
         "shared_source_fields": len(shared),
+        "source_fields": len(source.columns),
+        "source_identifier_fields_excluded": len(source_only),
+        "source_native_basmat_fields": source_basmat_fields,
+        "retained_visual_recall_fields": 0,
         "source_participants": len(source),
         "legacy_secondary_export_participants": len(legacy_secondary),
         "secondary_export_participants": len(secondary),
@@ -285,7 +310,7 @@ def build_manifest(
         raise ValueError("The participant omitted from the secondary CSV differs from the signed-off record")
 
     return {
-        "schema_version": 2,
+        "schema_version": 3,
         "generated_by": "Codex/GPT-5",
         "audit_date": "2026-08-16",
         "decision": "source_provenance_confirmed",
@@ -320,7 +345,8 @@ def build_manifest(
         "conclusion": (
             "The prepared 97-participant extract is an exact non-identifying-field match to the pinned 97-case "
             "SPSS source. The historical 96-row CSV was an incomplete derivative missing one Down-syndrome "
-            "participant; the repaired 97-row CSV now exactly matches the source on the same 52 fields."
+            "participant; the repaired 97-row CSV now exactly matches the source on the same 52 fields. The "
+            "retained source has native BASMAT3-BASMAT5 fields and no retained visual-recall fields."
         ),
     }
 

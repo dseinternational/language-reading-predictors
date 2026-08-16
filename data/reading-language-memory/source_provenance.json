@@ -29,6 +29,7 @@
       "readgrp": 1,
       "subject_id": "ID_25873B41B04B6AE6"
     },
+    "retained_visual_recall_fields": 0,
     "secondary_export_group_counts": {
       "1": 24,
       "2": 42,
@@ -39,16 +40,23 @@
     "secondary_rows_not_in_source": 0,
     "secondary_source_value_differences": 0,
     "shared_source_fields": 52,
+    "source_fields": 54,
     "source_group_counts": {
       "1": 24,
       "2": 42,
       "3": 31
     },
+    "source_identifier_fields_excluded": 2,
+    "source_native_basmat_fields": [
+      "basmat3",
+      "basmat4",
+      "basmat5"
+    ],
     "source_participants": 97,
     "source_rows_missing_from_legacy_secondary": 1,
     "source_rows_missing_from_secondary": 0
   },
-  "conclusion": "The prepared 97-participant extract is an exact non-identifying-field match to the pinned 97-case SPSS source. The historical 96-row CSV was an incomplete derivative missing one Down-syndrome participant; the repaired 97-row CSV now exactly matches the source on the same 52 fields.",
+  "conclusion": "The prepared 97-participant extract is an exact non-identifying-field match to the pinned 97-case SPSS source. The historical 96-row CSV was an incomplete derivative missing one Down-syndrome participant; the repaired 97-row CSV now exactly matches the source on the same 52 fields. The retained source has native BASMAT3-BASMAT5 fields and no retained visual-recall fields.",
   "decision": "source_provenance_confirmed",
   "generated_by": "Codex/GPT-5",
   "legacy_secondary_export": {
@@ -64,7 +72,7 @@
     "wide_path": "data/reading-language-memory/reading_language_memory_data_wide.csv",
     "wide_sha256": "b2262d6b3b7102594b3424c4a72f4237dc84087a7b18f6fc815ccdcd0d10a55c"
   },
-  "schema_version": 2,
+  "schema_version": 3,
   "secondary_export": {
     "git_blob_sha1": "2cac37086cd299cf958ff51c2554faa54b3e7c70",
     "path": "projects/reading-language-memory/original/data12345.csv",

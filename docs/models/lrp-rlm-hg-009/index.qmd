@@ -12,6 +12,10 @@ format:
       - repo
 ---
 
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 {{< include _partials/_header.qmd >}}
 {{< include _partials/_setup.qmd >}}
 {{< include _partials/_gate_badge.qmd >}}
@@ -35,13 +39,7 @@ Every quantity here is a **descriptive** group-by-wave expected score or growth
 rate — natural-history evidence, not a causal effect. The intervention-effect
 estimands live in the RLI (`lrp-rli-...`) suite.
 
-_Confirmed Beta-Binomial ceiling (#338)._ The Beta-Binomial denominator ($N = 28$) is the instrument's confirmed
-maximum (`n_trials_confirmed=True`): BAS Matrices (first edition) has 28 items (CLOSER
-cognitive-measures guide; Parsons, 2014). Laws et al. (1995) used Raven's CPM
-(36 items) as this cohort's matrices measure, so the sign-off records the
-caveat that this column is BAS Matrices. Researched and signed off by
-the data owner (2026-07-16). The shared prior scales are reused from
-`lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
+_Confirmed identity and Beta-Binomial ceiling (#338)._ The retained cohort source names these fields `BASMAT3`-`BASMAT5`, and its source definition identifies BAS Matrices/non-verbal reasoning. The previous Raven CPM caveat came from a separate 14-child memory-training cohort, not this 97-child study, so `instrument_identity_confirmed=True`. The Beta-Binomial denominator ($N = 28$) is also confirmed (`n_trials_confirmed=True`): first-edition BAS Matrices has 28 items (CLOSER cognitive-measures guide; Parsons, 2014). The 2002 paper does not report this later-wave measure. The shared prior scales are reused from `lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
 
 _Audit baseline._ The model is fit on the per-measure complete-case subset (subjects with BAS
 matrices observed at waves 3 and 4). Because the window starts at wave 3, the

@@ -5,7 +5,7 @@
 
 ## Decision
 
-The prepared 97-participant Byrne reading-language-memory extract is confirmed as a faithful derivative of the authoritative 97-case SPSS source. The historical 96-row CSV was an incomplete later derivative that omitted one Down-syndrome participant; it was not evidence that an unexplained participant had been added to the prepared extract. `dsegroup/research-data-analysis` PR #13 repairs that CSV to 97 rows while retaining all 96 legacy pseudonyms. The repaired CSV and the prepared extract now both match all 97 source assessment rows. The dataset-level source-provenance gate may therefore be marked confirmed. This decision does not resolve provisional instrument ceilings, the `basmat` identity question or the missing visual-recall measures.
+The prepared 97-participant Byrne reading-language-memory extract is confirmed as a faithful derivative of the authoritative 97-case SPSS source. The historical 96-row CSV was an incomplete later derivative that omitted one Down-syndrome participant; it was not evidence that an unexplained participant had been added to the prepared extract. `dsegroup/research-data-analysis` PR #13 repairs that CSV to 97 rows while retaining all 96 legacy pseudonyms. The repaired CSV and the prepared extract now both match all 97 source assessment rows. The dataset-level source-provenance gate may therefore be marked confirmed. This decision did not itself resolve provisional instrument ceilings, the `basmat` identity question or the missing visual-recall measures; the later field-inventory audit resolves the last two as recorded in `notes/202608161554-byrne-basmat-and-visual-recall-audit.md`.
 
 ## Evidence
 
@@ -25,7 +25,7 @@ The repaired CSV is pinned at revision `79ceb55086d502a739b2fd153990916c58096a25
 
 ## Release consequence
 
-Future RLM fits snapshot `source_provenance_confirmed = true` and the manifest path in their publication-input contract. Previously stored fits correctly retain the earlier unresolved input snapshot and do not become publishable merely because the catalogue changed; they must be regenerated. Fits using `basspel`, `woco` or `basnum` remain blocked by provisional bounded-count denominators, and fits using `basmat` remain blocked by unresolved instrument identity.
+Future RLM fits snapshot `source_provenance_confirmed = true` and the manifest path in their publication-input contract. Previously stored fits correctly retain the earlier unresolved input snapshot and do not become publishable merely because the catalogue changed; they must be regenerated. Fits using `basspel`, `woco` or `basnum` remain blocked by provisional bounded-count denominators. The later source-field audit confirms `basmat` identity, so fresh `basmat`-only fits are no longer blocked on that input; stored fits still retain their earlier snapshot.
 
 ## Reference
 

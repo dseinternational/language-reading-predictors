@@ -414,6 +414,19 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
                 "denominators and instrument identities; unresolved: "
                 f"{', '.join(provisional)}"
             )
+        unavailable = {
+            symbol: tuple(wave for wave in waves if wave not in measures[symbol].available_waves)
+            for symbol in requested
+            if measures[symbol].available_waves
+            and any(wave not in measures[symbol].available_waves for wave in waves)
+        }
+        if unavailable:
+            detail = "; ".join(
+                f"{symbol} is not available at requested wave(s) "
+                f"{', '.join(map(str, missing_waves))}"
+                for symbol, missing_waves in unavailable.items()
+            )
+            raise ValueError(f"{spec.model_id}: {detail}")
 
     cohort = "RLI intervention cohort" if port == "rli" else "Byrne observational cohort"
     design = (

@@ -29,7 +29,15 @@ def audit():
 
 def _synthetic_frames() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     shared = {"readgrp": [1, 2, 1]}
-    shared.update({f"measure_{index:02d}": [index, index + 1, index + 2] for index in range(51)})
+    shared.update(
+        {
+            column: [index, index + 1, index + 2]
+            for index, column in enumerate(
+                sorted(audit_column for audit_column in _expected_shared_columns())
+            )
+            if column != "readgrp"
+        }
+    )
     source = pd.DataFrame({"name": ["a", "b", "c"], "subno": [1, 2, 3], **shared})
     legacy_secondary = pd.DataFrame(
         {"code": ["x", "y"], "sex": [0, 1], **{key: values[:2] for key, values in shared.items()}}
@@ -45,6 +53,20 @@ def _synthetic_frames() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.Da
     return source, legacy_secondary, secondary, prepared
 
 
+def _expected_shared_columns() -> set[str]:
+    return {
+        "readgrp",
+        *(f"age{wave}" for wave in range(1, 6)),
+        *(f"speed{wave}" for wave in range(3, 6)),
+        *(f"basmat{wave}" for wave in range(3, 6)),
+        *(
+            f"{stub}{wave}"
+            for stub in ("bassim", "basdig", "basnum", "basread", "basspel", "trog", "woco", "bpvs")
+            for wave in range(1, 6)
+        ),
+    }
+
+
 def test_frame_comparison_validates_the_repaired_export(audit):
     source, legacy_secondary, secondary, prepared = _synthetic_frames()
 
@@ -57,6 +79,8 @@ def test_frame_comparison_validates_the_repaired_export(audit):
     assert result["source_rows_missing_from_secondary"] == 0
     assert result["recovered_in_secondary"]["subject_id"] == "ID_C"
     assert result["prepared_source_value_differences"] == 0
+    assert result["source_native_basmat_fields"] == ["basmat3", "basmat4", "basmat5"]
+    assert result["retained_visual_recall_fields"] == 0
 
 
 def test_committed_manifest_is_bound_to_the_prepared_extract(audit):
@@ -74,6 +98,14 @@ def test_committed_manifest_is_bound_to_the_prepared_extract(audit):
     assert manifest["comparison"]["prepared_participants"] == 97
     assert manifest["comparison"]["prepared_source_value_differences"] == 0
     assert manifest["comparison"]["source_rows_missing_from_secondary"] == 0
+    assert manifest["comparison"]["source_fields"] == 54
+    assert manifest["comparison"]["source_identifier_fields_excluded"] == 2
+    assert manifest["comparison"]["source_native_basmat_fields"] == [
+        "basmat3",
+        "basmat4",
+        "basmat5",
+    ]
+    assert manifest["comparison"]["retained_visual_recall_fields"] == 0
     assert manifest["comparison"]["recovered_in_secondary"] == {
         "observed_waves": [1, 2, 3],
         "readgrp": 1,

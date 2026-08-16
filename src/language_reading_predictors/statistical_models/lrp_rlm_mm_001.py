@@ -16,8 +16,8 @@ belongs to Phase D (``lrp-rlm-adj-001`` / ``lrp-rlm-hs-001``).
 
 **Wave 3** is the only wave carrying the full ability triad (``basmat`` is
 wave-3+), n = 75 complete-case across the battery. **Memory is a single
-indicator** (``basdig``; the paper's visual-recall measures are not in the
-prepared extract), so its loading and residual are fixed by an assumed
+indicator** (``basdig``; the paper's visual-recall measures are absent from the
+retained source), so its loading and residual are fixed by an assumed
 reliability of 0.8 (``lambda = sqrt(0.8)``): correlations involving the memory
 factor scale with that assumption and the report says so. Loadings are shared
 across the three reading groups - a pooled measurement model with the

@@ -44,7 +44,8 @@ class StudyMeasure:
     maximum (as opposed to an observed-max placeholder), mirroring the same flag
     on :class:`measures.Measure`. ``instrument_identity_confirmed`` is separate:
     a denominator can be documented for a named scale while the source column's
-    actual scale identity remains unresolved.
+    actual scale identity remains unresolved. ``available_waves`` records the
+    source-field window when it is narrower than a model family's default.
     """
 
     symbol: str
@@ -54,6 +55,7 @@ class StudyMeasure:
     n_trials_confirmed: bool = False
     instrument_identity_confirmed: bool = False
     instrument_identity_note: str = ""
+    available_waves: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -108,10 +110,10 @@ RLM_GROUP_LABELS: dict[int, str] = {
 # - ``basdig``   34 - BAS Recall of Digits, 34 items (CLOSER cognitive-measures
 #   guide; Parsons 2014). The extract reaches this ceiling.
 # - ``bassim``   21 - BAS Similarities, 21 items (CLOSER guide; Parsons 2014).
-# - ``basmat``   28 - BAS Matrices, 28 items (CLOSER guide; Parsons 2014).
-#   Caveat recorded in the decisions note: Laws et al. (1995) used Raven's CPM
-#   (36 items) as this cohort's matrices measure, so the instrument identity
-#   rests on the ``basmat`` column being BAS Matrices.
+# - ``basmat``   28 - BAS Matrices, 28 items (CLOSER guide; Parsons 2014). The
+#   checksum-pinned cohort source names its later-wave fields BASMAT3-BASMAT5.
+#   The Raven CPM comparison previously cited as an identity caveat came from a
+#   separate 14-child memory-training cohort (Laws et al. 1995), not this study.
 # - ``bpvs``     32 - BPVS Short Form, 32 items (Ripley & Yuill 2005): the
 #   observed maximum of 29 across ages to 11+ is only consistent with the
 #   short form, not the long form.
@@ -140,6 +142,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS word reading",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4, 5),
     ),
     "basspel": StudyMeasure(
         symbol="basspel",
@@ -148,6 +151,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS spelling",
         n_trials_confirmed=False,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4, 5),
     ),
     "woco": StudyMeasure(
         symbol="woco",
@@ -156,6 +160,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="WORD reading comprehension",
         n_trials_confirmed=False,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4, 5),
     ),
     "bpvs": StudyMeasure(
         symbol="bpvs",
@@ -164,6 +169,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BPVS receptive vocabulary",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4, 5),
     ),
     "trog": StudyMeasure(
         symbol="trog",
@@ -172,6 +178,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="TROG receptive grammar",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4, 5),
     ),
     "basdig": StudyMeasure(
         symbol="basdig",
@@ -180,6 +187,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS recall of digits",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4, 5),
     ),
     "bassim": StudyMeasure(
         symbol="bassim",
@@ -188,6 +196,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS similarities/verbal reasoning",
         n_trials_confirmed=True,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4, 5),
     ),
     "basnum": StudyMeasure(
         symbol="basnum",
@@ -196,6 +205,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         label="BAS number skills",
         n_trials_confirmed=False,
         instrument_identity_confirmed=True,
+        available_waves=(1, 2, 3, 4),
     ),
     "basmat": StudyMeasure(
         symbol="basmat",
@@ -203,12 +213,13 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
         n_trials=28,
         label="BAS matrices/non-verbal reasoning",
         n_trials_confirmed=True,
-        instrument_identity_confirmed=False,
+        instrument_identity_confirmed=True,
         instrument_identity_note=(
-            "The repository column is named basmat, but the cohort literature also "
-            "identifies Raven Coloured Progressive Matrices; confirm whether this is "
-            "the 28-item BAS Matrices scale or the 36-item Raven measure."
+            "Confirmed from the checksum-pinned cohort source's native BASMAT3-BASMAT5 "
+            "field names and the source repository's BAS Matrices definition. The "
+            "2002 paper does not report this later-wave measure."
         ),
+        available_waves=(3, 4, 5),
     ),
 }
 
@@ -288,6 +299,7 @@ def publication_input_contract(
             "n_trials": measure.n_trials,
             "n_trials_confirmed": measure.n_trials_confirmed,
             "instrument_identity_confirmed": measure.instrument_identity_confirmed,
+            "available_waves": list(measure.available_waves),
         }
         if measure.instrument_identity_note:
             record["instrument_identity_note"] = measure.instrument_identity_note

@@ -27,12 +27,16 @@ indexed by group (follow-up-plan decision 7).
 warrant. Every quantity is a descriptive group-by-wave expected score or growth
 rate.
 
-**Confirmed ceiling (#338).** The Beta-Binomial denominator (``n_trials=28``)
-is the instrument's confirmed maximum (``n_trials_confirmed=True`` in
-``datasets.RLM_MEASURES``): BAS Matrices (first edition) has 28 items (CLOSER cognitive-measures guide; Parsons, 2014); Laws et al. (1995) used Raven's CPM (36 items) as this cohort's matrices measure, so the sign-off records the caveat that this column is BAS Matrices. Researched and signed off by the data owner
-(2026-07-16). Per-measure prior calibration is left to the prior-critical-review
-follow-up; the shared defaults are used here and the prior-predictive check will
-flag any miscalibration.
+**Confirmed identity and ceiling (#338).** The checksum-pinned cohort source
+names these fields ``BASMAT3``-``BASMAT5`` and the source definition identifies
+BAS Matrices/non-verbal reasoning. The previous Raven CPM caveat came from a
+separate 14-child memory-training cohort, not this 97-child study. The
+Beta-Binomial denominator (``n_trials=28``) is separately confirmed
+(``n_trials_confirmed=True`` in ``datasets.RLM_MEASURES``): first-edition BAS
+Matrices has 28 items (CLOSER cognitive-measures guide; Parsons, 2014). The
+2002 paper does not report this later-wave measure. Per-measure prior
+calibration is left to the prior-critical-review follow-up; the shared defaults
+are used here and the prior-predictive check will flag any miscalibration.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

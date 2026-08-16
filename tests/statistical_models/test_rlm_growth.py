@@ -105,10 +105,15 @@ def test_registered_rlm_growth_plan_is_confirmed_and_group_adjusted():
     assert "reading-matched" in plan.causal_status
 
 
-@pytest.mark.parametrize("outcome", ["basspel", "woco", "basnum", "basmat"])
+@pytest.mark.parametrize("outcome", ["basspel", "woco", "basnum"])
 def test_rlm_growth_rejects_unresolved_measure_inputs(outcome):
     with pytest.raises(ValueError, match="requires confirmed"):
         resolve_growth_run_plan(_rlm_spec(outcomes=(outcome,)))
+
+
+def test_rlm_growth_rejects_basmat_with_only_one_paper_window_wave():
+    with pytest.raises(ValueError, match=r"basmat.*fewer than 2 source waves"):
+        resolve_growth_run_plan(_rlm_spec(outcomes=("basmat",)))
 
 
 def test_rlm_growth_rejects_unadjusted_pooled_cohort():
