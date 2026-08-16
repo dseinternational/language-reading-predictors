@@ -15,6 +15,8 @@ causal effect (see the callout at the end).
 ```{python}
 # | echo: false
 _gs = _csv("growth_association_summary.csv")
+_growth_influence = _csv("growth_influence_sensitivity.csv")
+_growth_pareto = _csv("pareto_k.csv")
 _growth_plan = config.get("resolved_run_plan") or {}
 _growth_study = config.get("study_id", "rli")
 _growth_baseline_symbol = _growth_plan.get("baseline_covariate", "blocks")
@@ -116,6 +118,57 @@ rate also differs (`gamma` ≠ 0) the entry-level association is
 ```{python}
 # | echo: false
 _coef_table("delta")
+```
+
+### Observation-cell influence sensitivity
+
+The growth likelihood's PSIS diagnostic leaves out one observed child–wave score at a time while retaining that child's other scores and fitted random intercept. It is therefore an observation-cell diagnostic, not leave-one-child-out prediction. When any cell exceeds the recorded Pareto-$k$ reliability threshold, the registered Byrne model refits after masking all flagged cells; a child is removed only when every one of their observed cells is flagged. It then compares the separate marginal posteriors for `gamma` and `delta`. This checks whether those adjusted associations are stable to the diagnosed cells; it neither repairs the PSIS score nor supplies exact LOO.
+
+```{python}
+# | echo: false
+# | output: asis
+_growth_influence_required = bool(
+    _growth_plan.get("observation_influence_sensitivity", False)
+)
+if not _growth_influence_required:
+    print("_Not required by this registered growth specification._")
+elif _growth_influence is not None and len(_growth_influence):
+    print(
+        "The table compares the primary posterior with the refit after excluding "
+        "every observation cell whose Pareto-k exceeded its reliability threshold. "
+        "`median_shift` is sensitivity minus primary; the two fits have independent "
+        "draws, so it is not a posterior distribution for a paired difference."
+    )
+elif _growth_pareto is not None and len(_growth_pareto) and bool(_growth_pareto["loo_reliable"].all()):
+    print("_No cell exceeded the recorded Pareto-k threshold, so an exclusion refit was not required._")
+elif _has("growth_influence_sensitivity.csv") and not _scientific_results_released:
+    print("_The trace-backed influence sensitivity completed, but its coefficient comparison is withheld with the other scientific results until the fit-level release gate clears._")
+else:
+    print("_The required high-Pareto observation-cell refit is unavailable. Do not interpret the ability–trajectory associations._")
+```
+
+```{python}
+# | echo: false
+if _growth_influence is not None and len(_growth_influence):
+    _growth_influence[
+        [
+            "coefficient",
+            "outcome",
+            "primary_median",
+            "primary_lo89",
+            "primary_hi89",
+            "sensitivity_median",
+            "sensitivity_lo89",
+            "sensitivity_hi89",
+            "median_shift",
+            "median_direction_stable",
+            "intervals_overlap",
+            "n_excluded_cells",
+            "n_excluded_children",
+            "n_fully_excluded_children",
+            "sensitivity_converged",
+        ]
+    ].round(3)
 ```
 
 ### Mean growth trajectory (population slope `beta`)

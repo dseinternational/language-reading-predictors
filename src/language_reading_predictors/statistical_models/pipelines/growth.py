@@ -39,6 +39,9 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
     write_panel_trajectory,
 )
 from language_reading_predictors.statistical_models.growth import (
+    exclude_growth_observation_cells,
+    growth_influence_summary,
+    growth_pareto_table,
     resolve_growth_run_plan,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -49,6 +52,9 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
+from language_reading_predictors.statistical_models.release import (
+    GROWTH_INFLUENCE_TRACE_FILENAME,
+)
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -57,6 +63,7 @@ from language_reading_predictors.statistical_models.runtime import (
     write_run_metadata,
 )
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
+from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
 def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -140,6 +147,51 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
+    influence_summary: pd.DataFrame | None = None
+    influence_flagged = 0
+    influence_converged: bool | None = None
+    if plan.observation_influence_sensitivity:
+        section_header("Observation-cell influence sensitivity")
+        pareto = growth_pareto_table(panel, ctx.loo)
+        save_table(ctx, "pareto_k", pareto)
+        flagged = pareto.loc[~pareto["loo_reliable"]].copy()
+        influence_flagged = len(flagged)
+        if influence_flagged:
+            sensitivity_panel = exclude_growth_observation_cells(
+                panel, flagged["observation_index"].to_numpy(dtype=int)
+            )
+            sensitivity_built = _factories.build_growth_model(
+                sensitivity_panel, **plan.factory_kwargs()
+            )
+            sensitivity_result = run_subfit(
+                ctx,
+                sensitivity_built,
+                label=f"{spec.model_id} high-Pareto observation-cell exclusion",
+                role="sensitivity",
+                trace_filename=GROWTH_INFLUENCE_TRACE_FILENAME,
+            )
+            influence_converged = sensitivity_result.converged
+            influence_summary = growth_influence_summary(
+                ctx.trace,
+                sensitivity_result.trace,
+                excluded_cells=flagged,
+                sensitivity_converged=influence_converged,
+                n_fully_excluded_children=(
+                    panel.n_children - sensitivity_panel.n_children
+                ),
+            )
+            save_table(ctx, "growth_influence_sensitivity", influence_summary)
+            rprint(
+                f"[cyan]Refitted after excluding {influence_flagged} high-Pareto "
+                f"child-wave cell(s) from {flagged['subject_id'].nunique()} "
+                "child(ren).[/cyan]"
+            )
+        else:
+            rprint(
+                "[green]No observation cell exceeds the recorded Pareto-k "
+                "threshold; an exclusion refit is not required.[/green]"
+            )
+
     # Headline Q5 output: baseline non-verbal ability -> trajectory shape. The
     # gamma (growth-rate) rows are the answer; delta (level) and beta (mean slope)
     # round out the trajectory characterisation. All adjusted associations.
@@ -218,7 +270,17 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "source_n_children": panel.source_n_children,
             "excluded_children": panel.excluded_children,
             "dropped_by_reason": panel.dropped_by_reason,
+            "observation_influence_sensitivity": (
+                plan.observation_influence_sensitivity
+            ),
+            "observation_influence_flagged_cells": influence_flagged,
+            "observation_influence_converged": influence_converged,
             "growth_association_summary": gs.to_dict("records"),
+            **(
+                {"growth_influence_sensitivity": influence_summary.to_dict("records")}
+                if influence_summary is not None
+                else {}
+            ),
             **({"blocks_tempo_corr": tempo_corr} if tempo_corr else {}),
         },
     )

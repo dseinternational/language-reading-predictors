@@ -46,7 +46,7 @@ $$
 
 The headline `gamma` asks whether a 1-SD higher wave-1 similarities score is associated with a faster word-reading growth rate within reading group. `delta` is the association with reading level at the pooled mean age, not at study entry. Observed scores use a masked Beta-Binomial likelihood with group-specific concentration.
 
-Nothing in this model is causal. The cohorts were not randomised, similarities is a noisy verbal-reasoning proxy rather than general ability itself, and the reading-matched group was selected on word-reading level. A common `gamma` also assumes the ability–growth association is sufficiently similar across groups; the available sample does not support estimating three separate slopes reliably.
+Nothing in this model is causal. The cohorts were not randomised, similarities is a noisy verbal-reasoning proxy rather than general ability itself, and the reading-matched group was selected on word-reading level. A common `gamma` also assumes the ability–growth association is sufficiently similar across groups; the available sample does not support estimating three separate slopes reliably. When observation-cell PSIS flags unreliable importance sampling, the fit reruns after masking all flagged child–wave scores and compares the `gamma` and `delta` posteriors. That is a coefficient-stability sensitivity, not exact LOO or leave-one-child-out prediction.
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

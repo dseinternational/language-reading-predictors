@@ -28,6 +28,7 @@ from language_reading_predictors.statistical_models.artifacts import (
 )
 from language_reading_predictors.statistical_models import release as release_module
 from language_reading_predictors.statistical_models.release import (
+    GROWTH_INFLUENCE_TRACE_FILENAME,
     MEDIATION_T3_TRACE_FILENAME,
     RELEASE_DECISION_FILENAME,
     ReleaseEvaluation,
@@ -108,6 +109,66 @@ def _natural_mediation_fit_dir(tmp_path: Path) -> Path:
         f"lrp-test-001 t3 sensitivity,sensitivity,True,{MEDIATION_T3_TRACE_FILENAME}\n"
     )
     (d / MEDIATION_T3_TRACE_FILENAME).write_bytes(b"trace fixture")
+    return d
+
+def _growth_influence_fit_dir(tmp_path: Path) -> Path:
+    """Minimal RLM growth bundle with one clean, trace-bound influence refit."""
+    from language_reading_predictors.statistical_models.sensitivity import sha256_file
+
+    d = _fit_dir(tmp_path, kind="growth", config_name="rep-lite")
+    config = json.loads((d / "config.json").read_text())
+    config.update(
+        {
+            "study_id": "rlm",
+            "resolved_run_plan": {"observation_influence_sensitivity": True},
+            "observation_influence_converged": True,
+            "publication_input_contract": {
+                "schema_version": 1,
+                "study_id": "rlm",
+                "publication_ready": True,
+                "dataset": {"source_provenance_confirmed": True},
+                "measures": {},
+                "blockers": [],
+            },
+        }
+    )
+    (d / "config.json").write_text(json.dumps(config))
+    pd.DataFrame(
+        {
+            "observation_index": [0, 1],
+            "subject_id": ["R001", "R002"],
+            "wave": [1, 2],
+            "outcome": ["basread", "basread"],
+            "pareto_k": [0.82, 0.40],
+            "good_k_threshold": [0.70, 0.70],
+            "loo_reliable": [False, True],
+        }
+    ).to_csv(d / "pareto_k.csv", index=False)
+    pd.DataFrame(
+        {
+            "coefficient": ["gamma", "delta"],
+            "outcome": ["basread", "basread"],
+            "n_excluded_cells": [1, 1],
+            "n_excluded_children": [1, 1],
+            "n_fully_excluded_children": [1, 1],
+            "sensitivity_converged": [True, True],
+        }
+    ).to_csv(d / "growth_influence_sensitivity.csv", index=False)
+    trace_path = d / GROWTH_INFLUENCE_TRACE_FILENAME
+    trace_path.write_bytes(b"growth influence trace fixture")
+    pd.DataFrame(
+        {
+            "label": ["lrp-test-001 high-Pareto observation-cell exclusion"],
+            "role": ["sensitivity"],
+            "converged": [True],
+            "max_rhat": [1.002],
+            "min_ess": [900.0],
+            "min_bfmi": [0.7],
+            "n_divergences": [0],
+            "trace_file": [GROWTH_INFLUENCE_TRACE_FILENAME],
+            "trace_sha256": [sha256_file(trace_path)],
+        }
+    ).to_csv(d / "subfit_provenance.csv", index=False)
     return d
 
 
@@ -606,6 +667,50 @@ def test_mediation_t3_gate_does_not_apply_to_interventional_companion(tmp_path):
     config = json.loads((d / "config.json").read_text())
     config["extra"] = {"estimand": "interventional"}
     (d / "config.json").write_text(json.dumps(config))
+    assert evaluate_publication(d).publishable
+
+def test_clean_growth_influence_bundle_allows_release(tmp_path):
+    assert evaluate_publication(_growth_influence_fit_dir(tmp_path)).publishable
+
+
+def test_growth_influence_nonconvergence_withholds_at_computation_stage(tmp_path):
+    d = _growth_influence_fit_dir(tmp_path)
+    summary = pd.read_csv(d / "growth_influence_sensitivity.csv")
+    summary["sensitivity_converged"] = False
+    summary.to_csv(d / "growth_influence_sensitivity.csv", index=False)
+
+    decision = evaluate_publication(d)
+
+    assert (decision.status, decision.stage) == ("gate_failed", "computation")
+    assert any("growth observation-cell" in item for item in decision.failing_checks)
+
+
+def test_growth_influence_missing_trace_withholds_at_artifact_stage(tmp_path):
+    d = _growth_influence_fit_dir(tmp_path)
+    (d / GROWTH_INFLUENCE_TRACE_FILENAME).unlink()
+
+    decision = evaluate_publication(d)
+
+    assert (decision.status, decision.stage) == (
+        "artifacts_incomplete",
+        "artifacts",
+    )
+    assert GROWTH_INFLUENCE_TRACE_FILENAME in decision.missing_artifacts
+
+
+def test_growth_influence_refit_not_required_when_all_pareto_values_reliable(tmp_path):
+    d = _growth_influence_fit_dir(tmp_path)
+    pareto = pd.read_csv(d / "pareto_k.csv")
+    pareto["pareto_k"] = 0.4
+    pareto["loo_reliable"] = True
+    pareto.to_csv(d / "pareto_k.csv", index=False)
+    (d / "growth_influence_sensitivity.csv").unlink()
+    (d / "subfit_provenance.csv").unlink()
+    (d / GROWTH_INFLUENCE_TRACE_FILENAME).unlink()
+    config = json.loads((d / "config.json").read_text())
+    config["observation_influence_converged"] = None
+    (d / "config.json").write_text(json.dumps(config))
+
     assert evaluate_publication(d).publishable
 
 

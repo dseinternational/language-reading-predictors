@@ -5,15 +5,23 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+from types import SimpleNamespace
+
 import numpy as np
 import pandas as pd
 import pymc as pm
 import pytest
+import xarray as xr
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import build_growth_model
 from language_reading_predictors.statistical_models.growth import (
     GrowthModelSettings,
+    exclude_growth_observation_cells,
+    growth_influence_summary,
+    growth_observation_index,
+    growth_pareto_table,
     resolve_growth_run_plan,
 )
 from language_reading_predictors.statistical_models.lrp_rlm_gc_001 import SPEC
@@ -92,6 +100,7 @@ def test_registered_rlm_growth_plan_is_confirmed_and_group_adjusted():
     assert plan.min_outcome_waves == 2
     assert plan.adjust_for_group is True
     assert plan.use_random_slope is False
+    assert plan.observation_influence_sensitivity is True
     assert plan.factory_kwargs()["adjust_for_group"] is True
     assert "reading-matched" in plan.causal_status
 
@@ -156,3 +165,95 @@ def test_group_adjusted_growth_factory_builds_and_samples_prior(tmp_path):
     assert prior.prior_predictive["y_obs"].shape[-1] == int(
         panel.obs_mask["basread"].sum()
     )
+
+
+def test_growth_observation_map_and_flagged_cell_exclusion(tmp_path):
+    panel = load_rlm_growth_panel(
+        outcomes=("basread",),
+        baseline_covariate="bassim",
+        path=_write_rlm_panel_csv(tmp_path),
+    )
+    mapping = growth_observation_index(panel)
+    assert len(mapping) == int(panel.obs_mask["basread"].sum())
+    assert mapping.iloc[0]["subject_id"] == panel.subject_ids[0]
+    assert set(mapping["wave"]) == {1, 2, 3}
+
+    loo = SimpleNamespace(
+        pareto_k=np.linspace(0.1, 0.9, len(mapping)),
+        good_k=0.7,
+    )
+    pareto = growth_pareto_table(panel, loo)
+    flagged = pareto.loc[~pareto["loo_reliable"]]
+    assert len(flagged) > 0
+    assert pareto.iloc[0]["pareto_k"] == pytest.approx(0.9)
+
+    selected = flagged.head(2)["observation_index"].to_numpy(dtype=int)
+    sensitivity = exclude_growth_observation_cells(panel, selected)
+    assert len(growth_observation_index(sensitivity)) == len(mapping) - 2
+    assert sum(mask.sum() for mask in sensitivity.obs_mask.values()) == (
+        len(mapping) - 2
+    )
+    assert sum(mask.sum() for mask in panel.obs_mask.values()) == len(mapping)
+
+    first_child = mapping.loc[mapping["child_index"] == 0, "observation_index"]
+    child_excluded = exclude_growth_observation_cells(
+        panel, first_child.to_numpy(dtype=int)
+    )
+    assert child_excluded.n_children == panel.n_children - 1
+    assert panel.subject_ids[0] not in set(child_excluded.subject_ids)
+    assert child_excluded.dropped_by_reason["all_observed_cells_high_pareto"] == 1
+
+
+def test_growth_influence_summary_compares_unpaired_marginal_posteriors():
+    coords = {"chain": [0], "draw": np.arange(4), "outcome": ["basread"]}
+
+    def _trace(gamma, delta):
+        return SimpleNamespace(
+            posterior=xr.Dataset(
+                {
+                    "gamma": (
+                        ("chain", "draw", "outcome"),
+                        np.asarray(gamma).reshape(1, 4, 1),
+                    ),
+                    "delta": (
+                        ("chain", "draw", "outcome"),
+                        np.asarray(delta).reshape(1, 4, 1),
+                    ),
+                },
+                coords=coords,
+            )
+        )
+
+    excluded = pd.DataFrame(
+        {
+            "observation_index": [2, 8],
+            "subject_id": ["R001", "R003"],
+            "wave": [3, 2],
+            "outcome": ["basread", "basread"],
+            "pareto_k": [1.1, 0.8],
+        }
+    )
+    summary = growth_influence_summary(
+        _trace([0.1, 0.2, 0.3, 0.4], [-0.4, -0.3, -0.2, -0.1]),
+        _trace([-0.2, -0.1, 0.0, 0.1], [-0.3, -0.2, -0.1, 0.0]),
+        excluded_cells=excluded,
+        sensitivity_converged=True,
+        n_fully_excluded_children=1,
+    )
+    assert list(summary["coefficient"]) == ["gamma", "delta"]
+    gamma = summary.iloc[0]
+    assert gamma["primary_median"] == pytest.approx(0.25)
+    assert gamma["sensitivity_median"] == pytest.approx(-0.05)
+    assert gamma["median_shift"] == pytest.approx(-0.30)
+    assert bool(gamma["median_direction_stable"]) is False
+    assert gamma["n_excluded_cells"] == 2
+    assert gamma["n_excluded_children"] == 2
+    assert gamma["n_fully_excluded_children"] == 1
+    assert bool(gamma["sensitivity_converged"]) is True
+
+
+def test_growth_report_distinguishes_withheld_from_missing_influence_results():
+    partial = Path("docs/models/_partials/_results_growth.qmd").read_text("utf-8")
+    assert "growth_influence_sensitivity.csv" in partial
+    assert "trace-backed influence sensitivity completed" in partial
+    assert "nor supplies exact LOO" in partial

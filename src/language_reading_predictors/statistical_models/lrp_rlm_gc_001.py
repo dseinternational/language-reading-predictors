@@ -37,6 +37,7 @@ SPEC = ModelSpec(
         baseline_scale="logit_safe",
         min_outcome_waves=2,
         adjust_for_group=True,
+        observation_influence_sensitivity=True,
     ),
     study_id="rlm",
     family="growth",
