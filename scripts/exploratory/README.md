@@ -3,10 +3,10 @@
 > [!NOTE]
 > Drafted by an LLM-based AI tool (Claude Code/Opus 4.8).
 
-Descriptive, pre-model exploratory passes that inform the gated modelling decisions.
-Purely descriptive — **no models, no causal language.** Each script loads a study's
-data directly and writes one figure per file (PNG + SVG + CSV) under
-`output/exploratory/` (gitignored), so commit the scripts, not the generated figures.
+> [!NOTE]
+> Cross-cohort replication section drafted by a LLM-based AI tool (Codex/GPT-5).
+
+Exploratory passes that inform the gated modelling decisions. These are descriptive analyses or deliberately simple matched association checks — **no causal estimation or causal language.** Each script loads a study's data directly and writes one figure per file (PNG + SVG + CSV) under `output/exploratory/` (gitignored), so commit the scripts, not the generated figures.
 
 ## `rlm_associations.py` — Byrne reading-language-memory descriptive pass (#409 item A)
 
@@ -63,3 +63,15 @@ Spearman gives the same qualitative pattern and is a cheap robustness check.
 a descriptive correlate carrying the usual residual-confounding caveat. These figures
 are inputs to the still-gated modelling decisions in #338/#409 (instrument ceilings,
 group scope, the reading-matched selection collider), not publication estimates.
+
+## `cross_cohort_replication.py` — matched RLI/Byrne replication (#409)
+
+Runs the same deliberately simple estimator in both cohorts for three exploratory questions: baseline age and verbal memory as predictors of baseline-adjusted later word reading, and the stable child-level receptive-vocabulary–word-reading correlation after removing group-by-wave means. It re-estimates each association rather than combining coefficients from cohort-specific Bayesian models with different adjustment sets and scales.
+
+```bash
+python scripts/exploratory/cross_cohort_replication.py
+```
+
+Writes a tidy audit table plus separate PNG, SVG and CSV forest artefacts under `output/exploratory/cross_cohort/`. Regression variables are standardised within cohort; bounded scores receive a Haldane–Anscombe corrected logit; uncertainty is an 89% equal-tailed percentile interval from 2,000 child bootstraps stratified by study group. The stable-correlation analysis uses balanced waves 1–3 in each cohort.
+
+The directions can be compared, but the magnitudes must not be pooled: RLI and Byrne use different reading and memory instruments, different follow-up spans and study groups with different meanings. All outputs carry the unresolved Byrne 96-versus-97-participant source-lineage blocker and are therefore explicitly not publication-ready. These are adjusted or descriptive associations, not causal estimates.
