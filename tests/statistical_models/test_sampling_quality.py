@@ -90,13 +90,12 @@ def test_two_significant_figure_rounding_collapses_the_gate_band(true_rhat):
     assert float(f"{true_rhat:.2g}") == 1.0, "but passes once rounded to 2 sig figs"
 
 
-def test_default_summary_is_string_typed():
-    """Omitting ``round_to`` returns strings, which raise on float formatting."""
+def test_arviz_1_3_default_summary_is_numeric():
+    """ArviZ 1.3 returns numeric diagnostics even when applying default rounding."""
     col = az.summary(_trace(), kind="diagnostics")["r_hat"]
-    assert col.dtype == object or col.dtype.kind in {"U", "O"}
-    with pytest.raises((TypeError, ValueError)):
-        f"{col.max():.4f}"
-    # The helper is immune.
+    assert np.issubdtype(col.dtype, np.number)
+    assert isinstance(float(col.max()), float)
+    # The helper remains explicit about disabling rounding.
     assert isinstance(sampling_quality(_trace()).max_rhat, float)
 
 
