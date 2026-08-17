@@ -1,8 +1,3 @@
-> [!NOTE]
-> Participant-flow wording updated by a LLM-based AI tool (Codex/GPT-5).
->
-> Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
-
 # Predictors of progress in language and reading skills for children with Down syndrome
 
 > [!WARNING]
