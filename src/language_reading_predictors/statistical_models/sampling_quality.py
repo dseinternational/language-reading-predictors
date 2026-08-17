@@ -9,9 +9,10 @@ subtly wrong. Two traps, both observed in this repository:
 
 **Rounding.** ``az.summary()`` rounds to ``rcParams["stats.round_to"]`` (``"2g"`` — two
 significant figures) unless passed ``round_to="none"``, *the string*. ``round_to=None``
-and ``"auto"`` both fall through to the rounded default, and omitting the argument
-entirely returns a **string**-dtype frame that raises on ``float`` formatting. Rounding
-erases exactly the digits the gate turns on: across the whole gate-relevant range every
+and ``"auto"`` both fall through to the rounded default. ArviZ 1.2 returned a
+string-dtype frame when the argument was omitted; ArviZ 1.3 returns numeric columns,
+but still applies the rounded default. Rounding erases exactly the digits the gate turns
+on: across the whole gate-relevant range every
 R-hat from 1.011 to 1.049 rounds to ``1.0`` and clears an ``R-hat <= 1.01`` test it
 should fail (dseinternational/research#65; recurred twice — in ``loo_refit`` and in a
 one-off prototype script, issue #440).
