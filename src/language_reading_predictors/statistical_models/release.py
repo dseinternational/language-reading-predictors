@@ -1147,10 +1147,18 @@ def _growth_influence_release_failures(
             summary["n_fully_excluded_children"], errors="coerce"
         )
         expected_children = flagged["subject_id"].astype(str).nunique()
-        all_reliable_by_child = reliable.groupby(
+        # A child is *fully* excluded only when every one of its observed cells is
+        # unreliable — matching the writer, which keeps a child whose retained-cell
+        # count is non-zero and counts the rest under ``all_observed_cells_high_pareto``
+        # (``growth._exclude_cells``). Grouping ``~reliable`` with ``.all()`` asks
+        # exactly that. The previous form, ``~reliable.groupby(...).all()``, negated
+        # *after* the reduction, so it flagged children with **any** unreliable cell —
+        # numerically identical to ``expected_children`` above, making the check both
+        # redundant and unsatisfiable for any fit with a partially-excluded child.
+        none_reliable_by_child = (~reliable).groupby(
             pareto["subject_id"].astype(str)
         ).all()
-        expected_fully_excluded = int((~all_reliable_by_child).sum())
+        expected_fully_excluded = int(none_reliable_by_child.sum())
         if (
             counts.isna().any()
             or not (counts == len(flagged)).all()
@@ -1240,7 +1248,20 @@ def _growth_influence_release_failures(
                 "subfit_provenance.csv (growth influence trace hash mismatch)"
             )
 
-    metadata_verdict = _stored_bool(config.get("observation_influence_converged"))
+    # The growth pipeline records this verdict inside ``config["extra"]``
+    # (``pipelines.growth`` builds it as part of the spec's extra payload), so read
+    # there as well as at the top level. Looking only at the top level made the
+    # verdict unconditionally "missing" for every growth fit that ran the influence
+    # sensitivity, withholding a fit whose sensitivity had in fact converged.
+    influence_extra = config.get("extra")
+    if not isinstance(influence_extra, Mapping):
+        influence_extra = {}
+    metadata_verdict = _stored_bool(
+        config.get(
+            "observation_influence_converged",
+            influence_extra.get("observation_influence_converged"),
+        )
+    )
     if metadata_verdict is None:
         artifact_failures.append("config.json (growth influence verdict is missing)")
     elif not metadata_verdict:
