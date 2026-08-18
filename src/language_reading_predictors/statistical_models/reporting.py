@@ -6727,7 +6727,8 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
     if decision.status == "robustness_unresolved":
         payload["status"] = "robustness_unresolved"
         payload["reason"] = decision.reason
-        payload["release"] = decision.robustness.as_dict()
+        if decision.robustness is not None:
+            payload["release"] = decision.robustness.as_dict()
         return _write_key_findings(out, payload)
 
     if not decision.publishable:
