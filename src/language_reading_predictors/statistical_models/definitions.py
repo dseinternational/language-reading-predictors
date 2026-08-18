@@ -260,6 +260,15 @@ _MECH = [
     _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
     _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
     _d("lrp100", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "negative-control outcome: letter sounds -> basic concepts"),
+    # Ability-adjusted Tier-1 panel (#: the negative controls came out clearly
+    # positive, so the panel is re-fitted with the measured general-ability proxy
+    # ``blocks`` partialled out; 1NN mirrors its 0NN parent exactly otherwise).
+    _d("lrp196", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "ability-adjusted decoding channel: letter sounds -> nonword decoding (lrp96 + blocks)"),
+    _d("lrp197", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "ability-adjusted negative control: letter sounds -> receptive vocabulary (lrp97 + blocks)", "lrp97"),
+    _d("lrp198", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "ability-adjusted negative control: letter sounds -> expressive vocabulary (lrp98 + blocks)", "lrp98"),
+    _d("lrp199", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "ability-adjusted negative control: letter sounds -> receptive grammar (lrp99 + blocks)", "lrp99"),
+    _d("lrp200", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "ability-adjusted negative control: letter sounds -> basic concepts (lrp100 + blocks)", "lrp100"),
+    _d("lrp201", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted Tier-1 anchor: letter sounds -> word reading (lrp101 + blocks)", "lrp101"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),

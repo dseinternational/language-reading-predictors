@@ -1,0 +1,62 @@
+---
+title: "LRP200: Ability-adjusted letter sounds (LS) -> basic concepts (F)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+## Overview
+
+LRP200 is the **ability-adjusted** companion to [LRP100](../lrp-rli-mech-100/). It is the same
+Tier-1 mechanism model — same exposure, outcome, own-baseline term, subject random
+intercept and linear parameterisation — with `blocks` (WPPSI Block Design) added to the
+matched conditioning set.
+
+The Tier-1 negative-control panel found the letter-sound slope clearly positive on the
+oral-language controls as well as the written-code outcomes, and named shared general
+ability as the leading explanation for that non-specific component. Ability is latent and
+structurally unblockable in the project's diagram, but a measured proxy exists: `blocks`
+is complete, pre-treatment, and constant within child across all four waves. This variant
+partials it out so the panel can be re-read with measured ability removed.
+
+Role in the panel: **negative control** — the weakest oral-language control (18 items).
+
+## Model
+
+$$
+\eta = \alpha + \alpha_{\text{phase}} + \beta_G G
+  + \beta_{\text{mech}}\, z(\operatorname{logit}_* L_{\text{post}})
+  + \gamma_{\text{own}}\operatorname{logit}_*(F_{\text{pre}})
+  + \gamma_A z(A) + \gamma_{\text{blocks}} z(\text{blocks})
+  + \sum_c \gamma_c z(c) + u_{\text{child}}.
+$$
+
+The added term relative to LRP100 is $\gamma_{\text{blocks}} z(\text{blocks})$.
+`blocks` is a single noisy subtest rather than the latent ability node, so residual
+confounding survives this adjustment and $\beta_{\text{mech}}$ remains an **adjusted
+association**.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

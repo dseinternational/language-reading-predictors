@@ -80,6 +80,34 @@ The prior-sensitivity sweeps that unblocked the `did`, `gain_factors` and `level
 
 Pre-remediation copies of the five refitted directories were preserved under `output/statistical_models/_pre_refit_backups/` so the before-and-after comparisons above can be reproduced. They were deliberately moved out of the models root because `regenerate_key_findings.py all` globs every non-hidden directory there and would otherwise have overwritten the preserved originals.
 
+## Follow-up fits after the sweep
+
+Reviewing the findings notes surfaced a gap rather than an error in the run: the `mechanism`
+family attributes the non-specific part of its letter-sound slopes to shared general ability,
+and it is the only family invoking that explanation which never adjusts for the measured
+block-design proxy — every other family that names ability (`itt`, `gain_factors`,
+`level_factors`, `aligned`, `concurrent`) carries `blocks`.
+
+Six models were therefore added and fitted at `reporting` after the sweep: `lrp-rli-mech-196`
+to `201`, an ability-adjusted mirror of the Tier-1 panel (`096`/`097`/`098`/`099`/`100`/`101`),
+identical to their parents except for the added adjuster and fitted on exactly the same rows.
+All six pass the convergence gate with zero divergences and are publishable, taking the
+registry to 226 models and 220 publishable.
+
+Wiring the adjuster required a small extension to the mechanism family: `blocks` is recorded
+only at t1 in the source CSV, and `load_and_prepare` reads that CSV directly, so routing it
+through `adjust_for` put it on the post row of every transition, where it is missing. The
+complete-case filter then dropped all 162 rows and the failure surfaced only as a cryptic
+"Standard deviation of x must be positive" from age standardisation. The family now takes a
+typed `ability_covariate` setting routed to `baseline_covariates`, which broadcasts the t1
+value across every transition — the same route `gain_factors`, `level_factors`,
+`block_exposure` and `aligned` already use. Three regression tests lock the routing down.
+
+The result is reported in the mechanism findings note. In short: the written-code slopes are
+unchanged by the adjustment and the decoding contrast holds at +0.78, but three of the four
+negative controls survive it, so the non-specific component is not reducible to the ability
+this battery measures.
+
 ## Documentation corrected alongside
 
 The `lrp-fit-statistical` skill file carried guidance that would have caused real reporting errors and was corrected against `METHODS.md` and the registry: it stated that divergence-only flags below roughly 0.5% were "usable" (superseded — divergences fail closed, with no percentage threshold); it specified a 95% credible interval where the house standard is an inner 50% with an outer 89%; its model and family counts were 89 and 16 against an actual 220 and 22, with correspondingly low sweep-time and trace-size estimates; and it lacked any warning that `az.summary()` rounds to two significant figures, which silently turns an R-hat ≤ 1.01 gate into R-hat < 1.05.

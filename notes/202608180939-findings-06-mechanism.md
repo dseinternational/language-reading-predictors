@@ -2,10 +2,12 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 >
 > Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
+>
+> Negative-control reading corrected and the ability-adjusted panel added by a LLM-based AI tool (Claude Code/Opus 5).
 
 # Findings: the `mechanism` family — which skills track which
 
-**Read `findings-00-overview` first.** This note covers the 34 models in the `mechanism` family, the largest in the project. **Nothing in this family is causal.** Every number is an adjusted association.
+**Read `findings-00-overview` first.** This note covers the 40 models in the `mechanism` family, the largest in the project. **Nothing in this family is causal.** Every number is an adjusted association.
 
 ## The data
 
@@ -50,6 +52,51 @@ Two things stop that from settling the question. Nonword reading is a 6-item mea
 
 So the defensible summary is: **letter-sound knowledge shows a broad, low-level association with every skill measured, and on top of that a large and well-identified excess for nonword decoding specifically.** The broad component is consistent with a shared cause such as general ability, though the panel cannot identify it as such. The excess is the pattern a decoding route predicts and a pure-confounding account does not, but it is an adjusted association, not a demonstrated channel.
 
+## Testing the ability explanation directly
+
+The panel above says a shared cause is doing some of the work but cannot name it. Since a
+measured general-ability score (WPPSI Block Design) exists for every child, is recorded
+before the intervention and never changes, the whole panel was refitted with it partialled
+out (`mech-196`–`201`, one per outcome, identical to their parents in every other respect
+and fitted on exactly the same rows).
+
+| Route                      | Role               | Without ability | With ability adjusted | Change |
+| -------------------------- | ------------------ | --------------- | --------------------- | ------ |
+| Letter sounds → nonwords   | positive control   | 1.030           | **1.027**             | −0.3%  |
+| Letter sounds → word read. | positive control   | 0.251           | **0.246**             | −2.0%  |
+| Letter sounds → concepts   | _negative control_ | 0.291           | 0.249                 | −14.4% |
+| Letter sounds → grammar    | _negative control_ | 0.124           | 0.072                 | −41.6% |
+| Letter sounds → rec. vocab | _negative control_ | 0.109           | 0.092                 | −15.3% |
+| Letter sounds → exp. vocab | _negative control_ | 0.103           | 0.103                 | −0.6%  |
+
+Three things come out of this, and they do not all point the same way.
+
+**The written-code slopes are untouched.** Nonword reading moves by 0.3% and word reading by
+2%, both well inside their own uncertainty. The decoding contrast is unchanged: +0.78
+[+0.48, +1.10] before, +0.78 [+0.47, +1.11] after. Whatever the letter-sound-to-decoding
+excess is, it is not measured general ability.
+
+**Measured ability really does predict the oral-language outcomes** — its own coefficient is
+clearly positive for all four (basic concepts +0.23, grammar +0.19, receptive vocabulary
++0.10, expressive vocabulary +0.08, every one with a probability of at least 0.995) — and
+clearly _not_ for the written-code outcomes (nonwords +0.03, P = 0.57; word reading +0.04,
+P = 0.77). So the adjustment is doing real work exactly where the panel predicted a
+general-ability path would run.
+
+**But the negative controls mostly survive it.** Only grammar attenuates substantially, from
+0.124 with an interval clear of zero to 0.072 with an interval that now includes it.
+Receptive vocabulary and basic concepts lose about a seventh of their slope and expressive
+vocabulary none at all; three of the four remain positive with very strong directional
+evidence. Adjusting for measured ability does not dissolve the non-specific component.
+
+The natural conclusion is that the shared cause is not, or not only, the general ability this
+battery measures. It could be an ability dimension Block Design does not capture, shared
+teaching dose, maturation over the study, or common method variance across tests
+administered together. It is also possible that ability _is_ the explanation and a single
+subtest is simply too noisy a stand-in to absorb it — adjusting for a mismeasured confounder
+removes only part of its influence, so a small attenuation is not evidence of a small
+confound. These fits narrow the field; they do not close it.
+
 ## Other results
 
 **Word reading's other candidate routes.** On the comparable per-SD scale used in the cross-model forest: letter sounds 0.238 [0.082, 0.410], expressive vocabulary 0.122 [−0.013, 0.257], receptive vocabulary 0.064 [−0.057, 0.185]. Letter sounds lead, with the two vocabulary routes weaker and their intervals including zero.
@@ -64,7 +111,7 @@ So the defensible summary is: **letter-sound knowledge shows a broad, low-level 
 
 **No slope here is identified as a lever.** That follows from the observational design. The non-zero negative controls add measured evidence that part of every slope is non-specific, and the nonword-versus-word excess is still an adjusted association rather than a demonstrated channel.
 
-**Adjusting for measured covariates does not remove residual confounding.** General ability is a latent node in the project's causal diagram and, in the design note's own words, "structurally unblockable": no adjustment set closes that path, which is why it is absent from the diagram-derived conditioning set these models use. A block-design score does exist in the data as a partial proxy, and the `itt` suite and the `concurrent` family both use it — but no equivalent ability-adjusted robustness variant was ever fitted for the mechanism slopes. So the family that leans hardest on general ability as an explanation is also the one family that never tested it against the measured proxy.
+**Adjusting for measured covariates does not remove residual confounding.** General ability is a latent node in the project's causal diagram and, in the design note's own words, "structurally unblockable": no adjustment set closes that path, which is why it is absent from the diagram-derived conditioning set the primary panel uses. The ability-adjusted panel above partials out the measured block-design proxy and leaves most of the non-specific component standing, so the residual confounding these models carry is not reducible to the ability this battery measures — and a single subtest cannot rule out the latent node behind it.
 
 **Direction is not established.** These are contemporaneous-period associations with an autoregressive baseline. A child whose reading improves may attend more to letters, as easily as the reverse.
 
@@ -72,4 +119,4 @@ So the defensible summary is: **letter-sound knowledge shows a broad, low-level 
 
 ## Model inventory
 
-All 34 pass the convergence gate with zero divergences and are publishable. Three (`mech-073`, `104`, `204`) initially failed on a single divergence each and were refitted at a higher acceptance target; their headline slopes moved little relative to their posterior uncertainty. Key models: `056`/`057`/`058` (R/E/L → W), `096`/`101` (Tier-1 decoding contrast), `097`–`100` (negative controls), `088`/`089` (taught vocabulary → W), `090`/`102` (phonological memory), `103` (speech production), `061`/`063`/`093`–`095`/`161`/`163` (joint-readiness interactions), `156`–`158`/`188`–`191` (curve tests), `072`/`172` (code route).
+All 40 pass the convergence gate with zero divergences and are publishable — 34 original models plus the six-model ability-adjusted panel `mech-196`–`201` added for the test above. Three (`mech-073`, `104`, `204`) initially failed on a single divergence each and were refitted at a higher acceptance target; their headline slopes moved little relative to their posterior uncertainty. Key models: `056`/`057`/`058` (R/E/L → W), `096`/`101` (Tier-1 decoding contrast), `097`–`100` (negative controls), `088`/`089` (taught vocabulary → W), `090`/`102` (phonological memory), `103` (speech production), `061`/`063`/`093`–`095`/`161`/`163` (joint-readiness interactions), `156`–`158`/`188`–`191` (curve tests), `072`/`172` (code route), `196`–`201` (ability-adjusted Tier-1 panel).
