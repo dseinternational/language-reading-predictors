@@ -7,7 +7,7 @@
 
 # Findings: the `mechanism` family — which skills track which
 
-**Read `findings-00-overview` first.** This note covers the 40 models in the `mechanism` family, the largest in the project. **Nothing in this family is causal.** Every number is an adjusted association.
+**Read `findings-00-overview` first.** This note covers the 41 models in the `mechanism` family, the largest in the project. **Nothing in this family is causal.** Every number is an adjusted association.
 
 ## The data
 
@@ -89,6 +89,8 @@ Receptive vocabulary and basic concepts lose about a seventh of their slope and 
 vocabulary none at all; three of the four remain positive with very strong directional
 evidence. Adjusting for measured ability does not dissolve the non-specific component.
 
+The same holds for the fitted **shape**, not just the slope. `mech-258` repeats the headline `mech-058` curve with ability partialled out and nothing else changed: the two curves lie almost on top of each other, the endpoint contrast moving from +6.78 items [+2.52, +11.11] to +6.51 [+2.22, +10.90], a 4% shift, with a maximum pointwise gap of 0.15 items. The overlay is `mechanism_curve_ability_overlay.png` in the comparison directory.
+
 The natural conclusion is that the shared cause is not, or not only, the general ability this
 battery measures. It could be an ability dimension Block Design does not capture, shared
 teaching dose, maturation over the study, or common method variance across tests
@@ -119,4 +121,4 @@ confound. These fits narrow the field; they do not close it.
 
 ## Model inventory
 
-All 40 pass the convergence gate with zero divergences and are publishable — 34 original models plus the six-model ability-adjusted panel `mech-196`–`201` added for the test above. Three (`mech-073`, `104`, `204`) initially failed on a single divergence each and were refitted at a higher acceptance target; their headline slopes moved little relative to their posterior uncertainty. Key models: `056`/`057`/`058` (R/E/L → W), `096`/`101` (Tier-1 decoding contrast), `097`–`100` (negative controls), `088`/`089` (taught vocabulary → W), `090`/`102` (phonological memory), `103` (speech production), `061`/`063`/`093`–`095`/`161`/`163` (joint-readiness interactions), `156`–`158`/`188`–`191` (curve tests), `072`/`172` (code route), `196`–`201` (ability-adjusted Tier-1 panel).
+All 41 pass the convergence gate with zero divergences and are publishable — 34 original models, the six-model ability-adjusted panel `mech-196`–`201` added for the test above, and `mech-258`, the ability-adjusted counterpart of the `mech-058` curve. Three (`mech-073`, `104`, `204`) initially failed on a single divergence each and were refitted at a higher acceptance target; their headline slopes moved little relative to their posterior uncertainty. Key models: `056`/`057`/`058` (R/E/L → W), `096`/`101` (Tier-1 decoding contrast), `097`–`100` (negative controls), `088`/`089` (taught vocabulary → W), `090`/`102` (phonological memory), `103` (speech production), `061`/`063`/`093`–`095`/`161`/`163` (joint-readiness interactions), `156`–`158`/`188`–`191` (curve tests), `072`/`172` (code route), `196`–`201` (ability-adjusted Tier-1 panel), `258` (ability-adjusted curve).

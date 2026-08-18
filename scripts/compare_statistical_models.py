@@ -43,6 +43,7 @@ import os
 import shutil
 
 import arviz as az
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -1471,6 +1472,96 @@ def _reloo_repair(
     return repaired, counts, ""
 
 
+def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
+    """Overlay the letter-sound -> word-reading curve with and without ability adjustment.
+
+    ``mech-058`` is the family's headline curve; ``mech-258`` is the same model with the
+    measured general-ability proxy (``blocks``) added and nothing else changed. Plotting
+    them together answers the question the negative-control panel raises — how much of the
+    fitted shape is the measured proxy accounting for? — on the curve itself rather than on
+    the linear anchor, where ``mech-101``/``mech-201`` already answer it.
+
+    The pair must be compared curve-against-curve. Overlaying ``mech-058`` on ``mech-201``
+    would confound the shape assumption with the adjustment, which is why ``mech-258``
+    exists at all.
+
+    Both are adjusted associations under the DAG. Block design is a single noisy subtest,
+    not the latent ability node, so the gap between the curves bounds what the *measured*
+    proxy accounts for and not what general ability does.
+    """
+    pairs = [("lrp-rli-mech-058", "Unadjusted for ability (LRP58)", "#1f6fb4", "-"),
+             ("lrp-rli-mech-258", "Ability-adjusted (LRP258, + block design)", "#c2452d", "--")]
+    curves, summaries = [], []
+    for model_id, _, _, _ in pairs:
+        run = _run_dir(model_id, config)
+        curve = os.path.join(run, "mechanism_curve_items.csv")
+        summary = os.path.join(run, "mechanism_summary.csv")
+        if not (os.path.exists(curve) and os.path.exists(summary)):
+            return False
+        if not _gate_ok(model_id, config):
+            print(f"[warn] {model_id}: gate not passed; skipping ability overlay.")
+            return False
+        curves.append(pd.read_csv(curve))
+        summaries.append(pd.read_csv(summary).iloc[0])
+
+    a, b = curves
+    sa, sb = summaries
+    if not np.array_equal(a["exposure"].to_numpy(), b["exposure"].to_numpy()):
+        print("[warn] ability overlay: curve grids differ; skipping.")
+        return False
+
+    fig, ax = plt.subplots(figsize=(10, 6.2))
+    # One band is filled and the other outlined: two translucent fills over the same
+    # region render as a third colour that matches neither legend swatch.
+    ax.fill_between(a["exposure"], a["outcome_lo"], a["outcome_hi"],
+                    color=pairs[0][2], alpha=0.15, lw=0)
+    for edge in ("outcome_lo", "outcome_hi"):
+        ax.plot(b["exposure"], b[edge], color=pairs[1][2], lw=1.0, ls=":", alpha=0.9)
+    for (model_id, label, colour, style), curve in zip(pairs, curves, strict=True):
+        ax.plot(curve["exposure"], curve["outcome_mean"], color=colour, lw=2.6,
+                ls=style, label=label)
+    ax.set_xlabel("Letter-sound knowledge (LS) — score out of 32")
+    ax.set_ylabel("Predicted word reading (WR) — out of 79")
+    ax.set_title("Letter-sound knowledge to word reading, with and without adjustment "
+                 "for measured general ability", fontsize=12.5, pad=14)
+    ax.grid(alpha=0.3, lw=0.6)
+    for spine in ("top", "right"):
+        ax.spines[spine].set_visible(False)
+    handles, labels = ax.get_legend_handles_labels()
+    handles.append(mpatches.Patch(facecolor=pairs[0][2], alpha=0.15, edgecolor="none"))
+    labels.append("89% CrI (unadjusted; adjusted shown dotted)")
+    ax.legend(handles, labels, loc="upper left", frameon=True, framealpha=0.95)
+
+    shift = 100.0 * (sb["items_median"] - sa["items_median"]) / sa["items_median"]
+    fig.text(
+        0.5, -0.015,
+        f"Endpoint contrast across the fitted range: {sa['items_median']:+.2f} items "
+        f"[{sa['items_lo']:+.2f}, {sa['items_hi']:+.2f}] unadjusted against "
+        f"{sb['items_median']:+.2f} [{sb['items_lo']:+.2f}, {sb['items_hi']:+.2f}] "
+        f"ability-adjusted — a {shift:.0f}% shift.\nIdentical rows and identical model "
+        "but for the ability term. Both are adjusted associations under the DAG, not "
+        "causal effects; block design is a single noisy\nsubtest, so this bounds what the "
+        "measured proxy accounts for, not the latent ability node. The band flares where "
+        "the data thin out at the top of the scale.",
+        ha="center", va="top", fontsize=8.6, color="#333333")
+    fig.tight_layout()
+    for ext in ("png", "svg"):
+        fig.savefig(os.path.join(out_dir, f"mechanism_curve_ability_overlay.{ext}"),
+                    dpi=170, bbox_inches="tight")
+    plt.close(fig)
+
+    merged = a[["exposure"]].copy()
+    merged["unadjusted_mean"] = a["outcome_mean"]
+    merged["unadjusted_lo"] = a["outcome_lo"]
+    merged["unadjusted_hi"] = a["outcome_hi"]
+    merged["ability_adjusted_mean"] = b["outcome_mean"]
+    merged["ability_adjusted_lo"] = b["outcome_lo"]
+    merged["ability_adjusted_hi"] = b["outcome_hi"]
+    merged["difference_mean"] = b["outcome_mean"] - a["outcome_mean"]
+    merged.to_csv(os.path.join(out_dir, "mechanism_curve_ability_overlay.csv"), index=False)
+    return True
+
+
 def mechanism_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of the LRP58 baseline against its interaction extensions."""
     return _loo_compare(LOO_COMPARE_IDS, config, out_path)
@@ -1745,6 +1836,11 @@ def main() -> None:
         print(f"Wrote Tier-1 decoding-specificity contrast + forest to {args.out}")
     else:
         print("Skipping Tier-1 decoding-specificity: no mechanism runs found.")
+
+    if mechanism_curve_ability_overlay(args.config, args.out):
+        print(f"Wrote mechanism ability-adjustment overlay to {args.out}")
+    else:
+        print("Skipping mechanism ability overlay: mech-058/258 runs missing or gated.")
 
     loo_compare_path = os.path.join(args.out, "mechanism_loo_compare.csv")
     if mechanism_loo_compare(args.config, loo_compare_path):

@@ -271,6 +271,7 @@ _MECH = [
     _d("lrp199", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "ability-adjusted negative control: letter sounds -> receptive grammar (lrp99 + blocks)", "lrp99"),
     _d("lrp200", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "ability-adjusted negative control: letter sounds -> basic concepts (lrp100 + blocks)", "lrp100"),
     _d("lrp201", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted Tier-1 anchor: letter sounds -> word reading (lrp101 + blocks)", "lrp101"),
+    _d("lrp258", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted counterpart of the lrp58 letter-sound -> word-reading HSGP curve (lrp58 + blocks)", "lrp58"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
