@@ -1,0 +1,72 @@
+## Results
+
+```{python}
+# | echo: false
+# | output: asis
+# Wave-pooled between-child level association. Reads pooled_levels_summary.csv and
+# renders the within-between decomposition, which is the point of the family: a
+# single random-intercept coefficient would blend two very different quantities.
+_pl = _csv("pooled_levels_summary.csv")
+_meta = _json("run_metadata.json") or {}
+_plan = config.get("resolved_run_plan") or {}
+if _pl is None:
+    print("_No pooled-levels summary found for this model._\n")
+else:
+    _rows = _meta.get("n_child_wave_rows")
+    _dropped = _meta.get("n_dropped_incomplete_rows") or 0
+    _waves = ", ".join(f"t{w}" for w in (_plan.get("waves") or []))
+    _lead = (
+        f"One Beta-Binomial likelihood over **{_rows}** child-wave rows "
+        f"(waves {_waves}), with a child random intercept carrying the repeated "
+        "measures and **no own-baseline term** — its absence is what makes this a "
+        "levels estimand rather than the transition estimand the `mechanism` family "
+        "reports."
+    )
+    if _dropped:
+        _lead += (
+            f" {_dropped} row(s) carried the exposure but not the outcome and were "
+            "dropped."
+        )
+    if not _plan.get("use_wave_intercepts", True):
+        _lead += (
+            "\n\n::: {.callout-warning}\nThis fit has **no wave intercepts**, so its "
+            "slope also carries the secular co-movement of the two measures across "
+            "waves. It is a comparator for the primary fit, not a headline.\n:::"
+        )
+    print(_lead + "\n\n")
+
+    def _fmt(v):
+        return f"{v:+.3f}" if isinstance(v, float) else str(v)
+
+    print("| Term | Median | 89% CrI | P(> 0) |")
+    print("| --- | ---: | ---: | ---: |")
+    for _, r in _pl.iterrows():
+        print(
+            f"| `{r['term']}` | {_fmt(r['median'])} | "
+            f"{_fmt(r['lo'])} to {_fmt(r['hi'])} | {r['prob_positive']:.3f} |"
+        )
+    print()
+
+    if _plan.get("decompose_between_within", True):
+        print(
+            "_How to read the decomposition:_ `beta_between` is the **between-child** "
+            "association — do children who sit higher on the exposure across the study "
+            "also read higher across the study? `beta_within` is the **within-child** "
+            "association — at the waves where one child is above their own exposure "
+            "average, are they above their own outcome average? A random-intercept "
+            "model with a single exposure coefficient returns a precision-weighted "
+            "blend of the two, which is why they are separated here.\n"
+        )
+        print(
+            "The two answer different questions and can diverge sharply. A large "
+            "between-child coefficient beside a small within-child one says the "
+            "association lives in stable differences between children rather than in "
+            "a child's own movement, which is the pattern a shared-cause account "
+            "predicts and a direct-influence account does not.\n"
+        )
+    print(
+        "\nEvery term here is an **adjusted association**. Exposure and outcome are "
+        "measured at the same wave, so this family carries less temporal structure "
+        "than `mechanism`, not more, and latent general ability remains unblocked.\n"
+    )
+```

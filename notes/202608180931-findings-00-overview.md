@@ -135,11 +135,13 @@ result untouched — the detail is in the `mechanism` note.
 
 ## The families
 
-Twenty-two model families are reported, each with its own note. They answer different questions and are not interchangeable.
+Twenty-three model families are reported, each with its own note. They answer different questions and are not interchangeable.
 
 **Asking whether the intervention worked** (RLI trial; the causal estimates): `itt` — the headline per-outcome trial estimate; `joint` — the same outcome-specific marginal models placed in one factorised graph, with provisional cross-outcome contrasts that do not account for within-child residual covariance; `did` — an arm-by-wave repeated-level model whose timepoint-2 arm gap is the randomised quantity; `gain_factors` — a period-stacked post-score ANCOVA conditional on pre-score whose reported treatment marginal is standardised to the randomised first period; `level_factors` — scores and arm gaps at each timepoint rather than post-score-given-pre-score transitions; `lcsm` — latent changes whose fitted window-1 assigned-arm contrasts inherit randomisation, although their cross-process couplings and later-window contrasts do not.
 
 **Asking how the intervention might work, or how skills relate** (RLI trial; associations): `mechanism` — how one skill tracks another over a period; `joint_mechanism` — two outcomes at once, to test whether a route is specific to decoding; `mediation` and `mediation_multi` — how the fitted decomposition allocates the reading contrast through letter-sound knowledge and other routes; `dose_response` — whether more intervention sessions track larger gains; `block_exposure` — the staggered second teaching block; `concurrent` — which skills track together at each wave; the cross-process couplings in `lcsm` — prior levels or changes associated with later changes; `corr_factor` and `long_corr_factor` — the correlation structure between skill domains, correcting for measurement error; `horseshoe` — a many-predictors ranking that cross-checks the machine-learning analysis; `survival` — how quickly floored children first move off the floor; `growth` — trajectories across waves; `aligned` — a per-protocol view aligning both arms by when their intervention started.
+
+— one association across all four waves at once, splitting it into the part that separates children from the part that moves within a child.
 
 **Describing observational development and prediction:** `historical_growth` and `historical_joint` use only the separate historical cohort; `adjusted` spans that cohort and one RLI model, but all of its baseline-predictor coefficients are associations rather than treatment effects.
 

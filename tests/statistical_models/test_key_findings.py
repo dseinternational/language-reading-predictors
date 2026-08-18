@@ -1521,6 +1521,38 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             ],
         )
         return d, "decoding-use signature"
+    if kind == "pooled_levels":
+        # ``d`` already exists from the shared setup above; the family reads its
+        # symbols from the resolved plan, so only config.json needs replacing.
+        _write_json(
+            d,
+            "config.json",
+            {
+                "kind": "pooled_levels",
+                "outcome_symbol": "W",
+                "mechanism_symbol": "L",
+                "resolved_run_plan": {
+                    "outcome_symbol": "W",
+                    "mechanism_symbol": "L",
+                    "decompose_between_within": True,
+                    "waves": [1, 2, 3, 4],
+                    "use_wave_intercepts": True,
+                },
+            },
+        )
+        # The family's whole point is the split, so the synthetic case carries a
+        # large between-child coefficient beside a near-null within-child one.
+        _write_rows(
+            d,
+            "pooled_levels_summary.csv",
+            [
+                {"term": "beta_between", "role": "association", "median": 1.61,
+                 "lo": 1.34, "hi": 1.87, "prob_positive": 1.0},
+                {"term": "beta_within", "role": "association", "median": 0.04,
+                 "lo": -0.06, "hi": 0.14, "prob_positive": 0.742},
+            ],
+        )
+        return d, "Between children"
     raise AssertionError(f"No synthetic case for {kind}")
 
 

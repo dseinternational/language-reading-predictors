@@ -2818,6 +2818,19 @@ def _did_run_plan(context: StatisticalFitContext) -> DiDRunPlan:
     return resolve_did_run_plan(context.spec)
 
 
+def _pooled_levels_run_plan(context: StatisticalFitContext):
+    """Return the pooled-levels plan resolved before loading, or reconstruct it."""
+    from language_reading_predictors.statistical_models.pooled_levels import (
+        PooledLevelsRunPlan,
+        resolve_pooled_levels_run_plan,
+    )
+
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, PooledLevelsRunPlan):
+        return resolved_plan
+    return resolve_pooled_levels_run_plan(context.spec)
+
+
 def _concurrent_run_plan(context: StatisticalFitContext) -> ConcurrentRunPlan:
     """Return the concurrent plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
@@ -2994,6 +3007,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _level_factors_run_plan(context)
     if context.spec.kind == "did":
         return _did_run_plan(context)
+    if context.spec.kind == "pooled_levels":
+        return _pooled_levels_run_plan(context)
     if context.spec.kind == "concurrent":
         return _concurrent_run_plan(context)
     if context.spec.kind == "aligned":
@@ -6487,6 +6502,93 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
     return sentences
 
 
+def _kf_build_pooled_levels(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Key findings for the wave-pooled level family.
+
+    The headline is the *decomposition*, not a single slope: a between-child
+    coefficient beside a within-child one, because the whole reason the family
+    exists is that a random-intercept model with one exposure coefficient returns
+    an uninterpretable blend of the two.
+    """
+    table = _kf_csv(output_dir, "pooled_levels_summary.csv")
+    if table is None:
+        raise _KeyFindingsUnavailable("pooled_levels_summary.csv is not present")
+    plan = config.get("resolved_run_plan") or {}
+    rows = {str(r["term"]): r for _, r in table.iterrows()}
+    outcome = _kf_measure_label(plan.get("outcome_symbol"))
+    exposure = _kf_measure_label(plan.get("mechanism_symbol"))
+
+    sentences: list[dict[str, str]] = []
+    between = rows.get("beta_between")
+    within = rows.get("beta_within")
+    if between is None:
+        blended = rows.get("beta_mech")
+        if blended is None:
+            raise _KeyFindingsUnavailable("no exposure coefficient in the summary")
+        sentences.append(
+            {
+                "text": (
+                    f"Pooled across waves, a 1 SD higher {exposure} level goes with a "
+                    f"**{_kf_float(blended['median']):+.2f}** logit difference in "
+                    f"{outcome} (89% {_kf_float(blended['lo']):+.2f} to "
+                    f"{_kf_float(blended['hi']):+.2f}). This fit does not separate the "
+                    "between-child from the within-child association."
+                ),
+                "kind": "headline",
+            }
+        )
+        return sentences
+
+    sentences.append(
+        {
+            "text": (
+                f"**Between children**, those sitting 1 SD higher on {exposure} across "
+                f"the study sit **{_kf_float(between['median']):+.2f}** logit higher on "
+                f"{outcome} (89% {_kf_float(between['lo']):+.2f} to "
+                f"{_kf_float(between['hi']):+.2f}; "
+                f"P(> 0) = {_kf_float(between['prob_positive']):.3f})."
+            ),
+            "kind": "headline",
+        }
+    )
+    if within is not None:
+        sentences.append(
+            {
+                "text": (
+                    f"**Within a child**, at the waves where they are 1 SD above their "
+                    f"own {exposure} average, {outcome} is "
+                    f"**{_kf_float(within['median']):+.2f}** logit above their own "
+                    f"average (89% {_kf_float(within['lo']):+.2f} to "
+                    f"{_kf_float(within['hi']):+.2f}; "
+                    f"P(> 0) = {_kf_float(within['prob_positive']):.3f})."
+                ),
+                "kind": "confidence",
+            }
+        )
+        sentences.append(
+            {
+                "text": (
+                    "The two are different questions. A large between-child coefficient "
+                    "beside a small within-child one places the association in stable "
+                    "differences between children rather than in a child's own "
+                    "movement — the pattern a shared-cause account predicts."
+                ),
+                "kind": "highlight",
+            }
+        )
+    sentences.append(
+        {
+            "text": (
+                "Exposure and outcome are measured at the same wave, so nothing here "
+                "orders them in time. Every term is an adjusted association, not a "
+                "causal effect."
+            ),
+            "kind": "causal",
+        }
+    )
+    return sentences
+
+
 _KF_BUILDERS = {
     "itt": _kf_build_itt,
     "joint": _kf_build_joint,
@@ -6510,6 +6612,7 @@ _KF_BUILDERS = {
     "block_exposure": _kf_build_block_exposure,
     "concurrent": _kf_build_concurrent,
     "long_corr_factor": _kf_build_long_corr_factor,
+    "pooled_levels": _kf_build_pooled_levels,
 }
 
 #: Roles that may be dropped to make room for a release note. The causal sentence is

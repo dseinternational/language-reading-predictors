@@ -71,6 +71,7 @@ FAMILY_ENTRY_POINTS: dict[str, tuple[str, ...]] = {
     "level_factors": ("fit_level_factors",),
     "long_corr_factor": ("fit_longitudinal_corr_factor",),
     "mechanism": ("fit_mechanism",),
+    "pooled_levels": ("fit_pooled_levels",),
     "mediation": (
         "fit_mediation",
         "fit_mediation_multi",
@@ -88,6 +89,7 @@ DIRECT_ENTRY_POINTS = sorted(
 # its invariant execution through ``PrimaryFitPlan``; exceptional families are
 # added only after their current ordering has been characterised.
 PRIMARY_LIFECYCLE_ENTRY_POINTS = (
+    ("pooled_levels", "fit_pooled_levels"),
     ("adjusted", "fit_adjusted"),
     ("adjusted", "fit_rlm_adjusted"),
     ("aligned", "fit_aligned"),
@@ -156,6 +158,7 @@ SPEC_EXTRA_BOUNDARY_FUNCTIONS = {
     ("horseshoe.py", "resolve_horseshoe_run_plan"),
     ("influence.py", "summarise_influence_refit"),
     ("itt.py", "declared_itt_settings"),
+    ("pooled_levels.py", "resolve_pooled_levels_run_plan"),
     ("itt.py", "declared_settings_dict"),
     ("joint.py", "declared_joint_settings"),
     ("joint_mechanism.py", "declared_joint_mechanism_settings"),
