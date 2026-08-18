@@ -65,6 +65,30 @@ MEASURES: dict[str, Measure] = {
     # floor at baseline (a near-degenerate pre), so it is not co-loaded as an
     # autoregressive baseline — doing so would drop rows to complete cases for
     # little signal.
+    # Action Picture Test (Renfrew 1997) expressive language. The DAG makes both
+    # direct outcomes of randomised assignment (IG -> EI, EG) but neither had a
+    # confirmed ceiling until 2026-08-18; both are now confirmed from the manual.
+    #
+    # EG - Grammar, 37 whole marks. Observed max 28.
+    "EG": Measure(
+        "EG", V.APTGRAM, 37, "APT expressive grammar (EG)", n_trials_confirmed=True
+    ),
+    # EI - Information, 40 marks with half marks on some items, so the modelled
+    # count is the doubled half-mark scale out of 80 (exact: every observed
+    # fractional part is 0.5). Observed max 37.5 -> 75 of 80. See
+    # ``preprocessing.add_apt_derived_scores``.
+    "EI": Measure(
+        "EI", V.APTINFO_X2, 80, "APT expressive information, half marks (EI)", n_trials_confirmed=True
+    ),
+    # EI40 - the same instrument rounded to whole marks out of 40: the registered
+    # denominator-sensitivity comparator for EI, not a separate construct.
+    "EI40": Measure(
+        "EI40",
+        V.APTINFO_R40,
+        40,
+        "APT expressive information, whole marks (EI40)",
+        n_trials_confirmed=True,
+    ),
     "N": Measure("N", V.NONWORD, 6, "Nonword reading (NW)", n_trials_confirmed=True),
     # --- Taught-vocabulary block tests (intervention-fidelity outcomes) -------
     # Bespoke tests of the words explicitly taught in the intervention (Block 1,
@@ -271,6 +295,17 @@ ROPE_DELTA: dict[str, float] = {
     # ratification); previously deferred as outside the ITT suite.
     "F": 1.0,
     "T": 1.0,
+    # Action Picture Test (Renfrew 1997), derived by the same ½-natural-maturation
+    # rule from the wait-list t1->t2 (untaught) gain and floored at 1 item:
+    # grammar +1.24 -> half 0.62 -> δ = 1 of 37; information +2.98 -> half 1.49 ->
+    # δ = 1 of 40, which is δ = 2 on EI's doubled half-mark scale so that both
+    # encodings express the same real magnitude. NOTE: information's 1.49 sits just
+    # under the rounding boundary — δ = 2 of 40 is equally rule-consistent — so this
+    # value is the one most in need of education-lead ratification (#144). Like F/T,
+    # both are rule-derived and pending that ratification.
+    "EG": 1.0,
+    "EI": 2.0,
+    "EI40": 1.0,
     # Block-2 taught-vocabulary family (block-exposure `bx`), same items-scale δ
     # as their block-1 counterparts.
     "TE2": 1.0,

@@ -186,6 +186,8 @@ _DID = [
     # Exploratory unexplained variation in the waitlist arm's t3 catch-up. This is
     # not a random treatment-effect slope and cannot classify causal responders.
     _d("lrpdid13", "did", "Arm-by-wave crossover", Status.ASSOCIATION, "W", "exploratory waitlist t3 catch-up heterogeneity", base="lrpdid01"),
+    _d("lrpdid14", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "EI", "randomised t2 contrast plus post-crossover arm gaps, APT information (80)", base="lrpitt29"),
+    _d("lrpdid15", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "EG", "randomised t2 contrast plus post-crossover arm gaps, APT grammar (37)", base="lrpitt30"),
     # #390 P1 condition 1: the empirical-Bayes pooled-t1 intercept anchor replaced
     # with a genuinely independent zero-centred Normal(0, 1.5); tau_t2 should match
     # LRPDID01 to Monte-Carlo error if the anchor does no work beyond location.
@@ -421,6 +423,14 @@ _ITT_TIER1 = [
     _d("lrpitt26", "itt", "ITT suite", Status.MODEL_OF_RECORD, "T", "available-case modified ITT estimate"),
     _d("lrpitt27", "itt", "Site robustness", Status.ROBUSTNESS, "W", "site-adjusted available-case modified ITT estimate", base="lrpitt10"),
     _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site-adjusted available-case modified ITT estimate", base="lrpitt07"),
+    # Action Picture Test expressive outcomes (Renfrew 1997). DAG-designated direct
+    # outcomes of assignment (IG -> EI, EG) whose manual ceilings were confirmed on
+    # 2026-08-18 (Grammar 37, Information 40), clearing the deferral recorded in
+    # notes/202606251321-lrpitt-suite-design.md. Information is modelled on the
+    # doubled half-mark scale (out of 80); lrpitt129 is its out-of-40 comparator.
+    _d("lrpitt29", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EI", "available-case modified ITT estimate, APT information (half-mark scale, 80)"),
+    _d("lrpitt30", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EG", "available-case modified ITT estimate, APT grammar (37)"),
+    _d("lrpitt129", "itt", "ITT suite", Status.ROBUSTNESS, "EI40", "denominator sensitivity: APT information rounded to whole marks (40)", base="lrpitt29"),
 ]
 
 # Time-to-off-floor survival family (#230 §5): the four-wave generalisation of the

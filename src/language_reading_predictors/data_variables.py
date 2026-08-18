@@ -56,6 +56,15 @@ class Variables:
     """
 
     APTINFO = "aptinfo"
+    #: APT Information doubled to a half-mark scale (out of 80). The instrument
+    #: scores certain items in halves, so the raw 0-40 score is not an integer
+    #: count; doubling is exact (every fractional part is 0.5) and preserves the
+    #: proportion, which the Beta-Binomial likelihood needs. Derived in
+    #: ``statistical_models.preprocessing``, not present in the source CSV.
+    APTINFO_X2 = "aptinfo_x2"
+    #: APT Information rounded to the nearest whole mark (out of 40) — the
+    #: denominator-sensitivity comparator for APTINFO_X2.
+    APTINFO_R40 = "aptinfo_r40"
     """
     Expressive information raw score. Assessed using the Action Picture Test 
     (Renfrew, 1997).

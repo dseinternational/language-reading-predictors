@@ -19,6 +19,7 @@ from language_reading_predictors.statistical_models.measures import (
     unconfirmed_ceilings,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    add_apt_derived_scores,
     HEARING_STATUS_COVARIATES,
     INTERVAL_COVARIATES,
     _subset_prepared,
@@ -731,3 +732,48 @@ def test_covariate_cannot_be_requested_at_both_waves(tmp_path):
             covariates=("deapp_c",),
             post_covariates=("deapp_c",),
         )
+
+
+def _apt_frame(values):
+    return pd.DataFrame({V.SUBJECT_ID: [f"S{i}" for i in range(len(values))],
+                         V.APTINFO: values})
+
+
+def test_apt_information_doubling_is_exact_on_half_marks():
+    """Half marks are the only fractional part, so x2 is a lossless integer count."""
+    out = add_apt_derived_scores(_apt_frame([0.0, 3.5, 12.0, 37.5]))
+
+    assert out[V.APTINFO_X2].tolist() == [0.0, 7.0, 24.0, 75.0]
+    assert (out[V.APTINFO_X2].dropna() % 1 == 0).all()
+    # the proportion is preserved, which is what keeps the logit mean structure intact
+    assert (out[V.APTINFO_X2] / 80).round(6).tolist() == (
+        out[V.APTINFO] / 40
+    ).round(6).tolist()
+
+
+def test_apt_information_rounding_gives_a_whole_mark_comparator():
+    out = add_apt_derived_scores(_apt_frame([0.0, 3.5, 12.0, 37.5]))
+
+    # numpy/pandas round half to even; the comparator only has to be a valid count
+    assert (out[V.APTINFO_R40].dropna() % 1 == 0).all()
+    assert out[V.APTINFO_R40].max() <= 40
+
+
+def test_apt_doubling_fails_loudly_on_unexpected_fractions():
+    """A quarter mark would make the x2 mapping non-integer; fail rather than coerce."""
+    with pytest.raises(ValueError, match="fractional parts other than 0.5"):
+        add_apt_derived_scores(_apt_frame([1.0, 2.25]))
+
+
+def test_apt_derivation_is_a_noop_without_the_source_column():
+    frame = pd.DataFrame({V.SUBJECT_ID: ["S0"], "basread": [3.0]})
+
+    assert add_apt_derived_scores(frame).equals(frame)
+
+
+def test_apt_measures_are_within_their_confirmed_ceilings():
+    """Renfrew (1997): grammar 37, information 40 (80 on the half-mark scale)."""
+    for symbol, expected in (("EG", 37), ("EI", 80), ("EI40", 40)):
+        measure = MEASURES[symbol]
+        assert measure.n_trials == expected
+        assert measure.n_trials_confirmed

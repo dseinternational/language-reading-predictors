@@ -108,6 +108,19 @@ unchanged by the adjustment and the decoding contrast holds at +0.78, but three 
 negative controls survive it, so the non-specific component is not reducible to the ability
 this battery measures.
 
+A second gap closed the same way. The Action Picture Test (Renfrew 1997) is a DAG-designated direct
+outcome of assignment (`IG -> {EI, EG}`) with near-complete data, but it had never been estimated
+because its ceilings were unconfirmed — the deferral is recorded in
+`notes/202606251321-lrpitt-suite-design.md`. The manual maxima were supplied on 2026-08-18 (Grammar
+37, Information 40) and five models were added: `lrp-rli-itt-029`/`030` and `lrp-rli-did-014`/`015`
+for the two scales, plus `lrp-rli-itt-129`, a denominator-sensitivity comparator. Information awards
+half marks, so its modelled outcome is the doubled half-mark scale out of 80 (exact — every
+fractional part is 0.5) with the comparator rounding to whole marks out of 40; the two agree to
+within 0.007 logit with identical posterior spread, because the Beta-Binomial concentration falls
+from 46 to 28 and cancels the doubled trial count. Both APT thresholds (δ) are rule-derived and
+await education-lead ratification under #144. All five pass with zero divergences, taking the
+registry to 231 models and 225 publishable.
+
 ## Documentation corrected alongside
 
 The `lrp-fit-statistical` skill file carried guidance that would have caused real reporting errors and was corrected against `METHODS.md` and the registry: it stated that divergence-only flags below roughly 0.5% were "usable" (superseded — divergences fail closed, with no percentage threshold); it specified a 95% credible interval where the house standard is an inner 50% with an outer 89%; its model and family counts were 89 and 16 against an actual 220 and 22, with correspondingly low sweep-time and trace-size estimates; and it lacked any warning that `az.summary()` rounds to two significant figures, which silently turns an R-hat ≤ 1.01 gate into R-hat < 1.05.

@@ -298,6 +298,49 @@ def split_confounders_by_timing(
     return baseline, post
 
 
+def add_apt_derived_scores(df: pd.DataFrame) -> pd.DataFrame:
+    """Derive integer-count encodings of the APT Information score.
+
+    The Renfrew Action Picture Test (Renfrew 1997) scores Information out of 40 and
+    Grammar out of 37. Grammar is a whole-mark count and needs no transform, but
+    Information awards half marks on some items, so 44% of observed values are not
+    integers and a Beta-Binomial count likelihood rejects them outright.
+
+    Two encodings are derived so the choice can be tested rather than assumed:
+
+    ``aptinfo_x2``
+        The score doubled, i.e. counted in half marks out of 80. Every observed
+        fractional part is exactly 0.5, so this is lossless and preserves the
+        proportion (``k/40 == 2k/80``) and hence the whole logit mean structure.
+        This is the primary encoding. It does assert 80 exchangeable trials where
+        there are 40 partial-credit items, which overstates per-child precision;
+        the Beta-Binomial concentration absorbs part of that, and the comparator
+        below tests what it is worth.
+    ``aptinfo_r40``
+        The score rounded to the nearest whole mark, out of 40. Honest about the
+        trial count, but perturbs 44% of rows by up to half a mark. The registered
+        denominator-sensitivity comparator for the doubled fit.
+
+    Both are no-ops when the source column is absent, so loaders for the historical
+    cohort are unaffected.
+    """
+    if V.APTINFO not in df.columns:
+        return df
+    out = df.copy()
+    raw = pd.to_numeric(out[V.APTINFO], errors="coerce")
+    fractional = raw.dropna() % 1
+    unexpected = sorted({float(f) for f in fractional.unique() if f not in (0.0, 0.5)})
+    if unexpected:
+        raise ValueError(
+            f"{V.APTINFO} has fractional parts other than 0.5 ({unexpected}); the "
+            "half-mark doubling to a 0-80 count is no longer exact. Confirm the "
+            "instrument's scoring before fitting APT Information."
+        )
+    out[V.APTINFO_X2] = raw * 2
+    out[V.APTINFO_R40] = raw.round()
+    return out
+
+
 def add_missing_indicator_covariates(df: pd.DataFrame) -> pd.DataFrame:
     """Fill + flag the continuous DAG-confounder covariates SP / RW (#245).
 
@@ -475,6 +518,9 @@ def load_and_prepare(
     # (#245): fill + ``{col}_missing`` so they can be adjusted for without dropping
     # within-child rows.
     df = add_missing_indicator_covariates(df)
+    # APT Information is scored in half marks, so derive its integer-count
+    # encodings (out of 80 doubled, out of 40 rounded) before any pre/post merge.
+    df = add_apt_derived_scores(df)
 
     covariates = tuple(covariates)
     baseline_covariates = tuple(baseline_covariates)
