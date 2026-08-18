@@ -5648,7 +5648,10 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
         raise _KeyFindingsUnavailable("predicted_gain_words.csv is not present")
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
     label = _kf_plain_label(row.get("label", row.get("predictor", "predictor")))
-    med = _kf_float(row["delta_words_mean"])
+    # House standard is the posterior median (METHODS.md); the mean was reported
+    # here until the August 2026 review, which is why an adjusted headline could
+    # disagree with the same fit's tables by a rounding step.
+    med = _kf_float(row.get("delta_words_median", row["delta_words_mean"]))
     lo = _kf_float(row["delta_words_lo"])
     hi = _kf_float(row["delta_words_hi"])
     outcome_label = _kf_outcome_label(config)

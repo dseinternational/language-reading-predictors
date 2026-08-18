@@ -105,3 +105,70 @@ def test_between_and_within_regressors_are_orthogonal_by_construction():
     for c in np.unique(child_idx):
         assert dev[child_idx == c].sum() == pytest.approx(0.0, abs=1e-12)
     assert np.corrcoef(bar, dev)[0, 1] == pytest.approx(0.0, abs=1e-8)
+
+
+def test_estimand_names_the_coefficients_the_posterior_carries():
+    """config.json must never name a coefficient the fitted model lacks: the
+    decomposed fit has ``beta_between``/``beta_within`` and no ``beta_mech``."""
+    split = P.resolve_pooled_levels_run_plan(_spec())
+    assert "beta_between" in split.estimand and "beta_within" in split.estimand
+    assert "beta_mech" not in split.estimand
+
+    blended = P.resolve_pooled_levels_run_plan(_spec(decompose_between_within=False))
+    assert blended.estimand.startswith("beta_mech")
+    assert "beta_between" not in blended.estimand
+
+
+def test_priors_table_presents_nothing_in_the_family_as_causal():
+    """``beta_G`` reuses the tau constructor, so without an override the priors
+    table would label a term pooled over post-crossover waves as "causal"; the
+    exposure slopes reuse the beta_mech constructor under names the name-based
+    lookup does not know."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.prior_artifacts import (
+        _prior_table_overrides,
+    )
+
+    spec = _spec()
+    ctx = SimpleNamespace(
+        spec=spec,
+        resolved_plan=P.resolve_pooled_levels_run_plan(spec),
+        model=SimpleNamespace(
+            free_RVs=[
+                SimpleNamespace(name=n)
+                for n in ("beta_between", "beta_within", "beta_G", "gamma_hs",
+                          "gamma_hs_missing", "gamma_blocks", "gamma_A", "alpha_wave")
+            ]
+        ),
+    )
+    ctor, role, rationale = _prior_table_overrides(ctx)
+    assert "causal" not in role.values()
+    assert role["beta_G"] == "association"
+    assert "not the randomised treatment effect" in rationale["beta_G"]
+    assert ctor["beta_between"] == ctor["beta_within"] == "beta_mech"
+    assert role["alpha_wave"] == "nuisance"
+    assert role["gamma_hs"] == role["gamma_blocks"] == "association"
+    # missing-indicator terms keep the universal nuisance treatment; age keeps
+    # its own precision-covariate constructor and role
+    assert role["gamma_hs_missing"] == "nuisance"
+    assert "gamma_A" not in role
+
+
+def test_model_recipe_is_written_for_the_family(tmp_path):
+    """Every typed-plan family writes model_recipe.md; the reporting dispatch now
+    resolves a pooled-levels plan, so the plan must be able to render one."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.reporting import (
+        write_model_recipe,
+    )
+
+    spec = _spec()
+    ctx = SimpleNamespace(spec=spec, resolved_plan=None, output_dir=str(tmp_path))
+    path = write_model_recipe(ctx)
+    assert path is not None
+    text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
+    assert "beta_between" in text and "beta_within" in text
+    assert "adjusted association" in text
+    assert "blocks" in text and "hs" in text

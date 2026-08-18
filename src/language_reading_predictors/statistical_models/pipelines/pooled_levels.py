@@ -25,6 +25,9 @@ from language_reading_predictors.statistical_models import (
     pooled_levels as _pooled,
     reporting as _report,
 )
+from language_reading_predictors.statistical_models.adjustment import (
+    effective_adjustment,
+)
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -119,6 +122,13 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         )
     )
 
+    # Record the adjustment set that was actually FITTED — every coefficient-bearing
+    # adjuster with its source column and measurement wave, plus anything the loader
+    # dropped as constant — so config.json never implies a term the posterior lacks
+    # (the same audit record the mechanism and factor families write).
+    fitted_adjust_for = tuple(
+        c for c in plan.adjust_for if c in prepared.covariates
+    )
     write_run_metadata(
         ctx,
         extra={
@@ -126,6 +136,31 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             "n_child_wave_rows": int(built.payload.n_fitted_rows),
             "n_dropped_incomplete_rows": int(built.payload.n_dropped_incomplete),
             "use_wave_intercepts": plan.use_wave_intercepts,
+            "effective_adjustment": _levels_effective_adjustment(
+                spec, prepared, plan, fitted_adjust_for
+            ),
         },
     )
     return finalize_report(ctx)
+
+
+def _levels_effective_adjustment(spec, prepared, plan, fitted_adjust_for):
+    """The fitted adjustment record, in levels-model vocabulary.
+
+    :func:`effective_adjustment` speaks the transition families' language — age at
+    the period's ``pre`` row, per-row adjusters at its ``post`` row. In a levels model
+    the row *is* the wave, so both are the same wave as the outcome and exposure;
+    only the t1-broadcast ability baseline keeps a distinct wave.
+    """
+    record = effective_adjustment(
+        spec,
+        prepared,
+        measure_confounders=(("G",) if plan.include_group else ()) + ("A",),
+        adjust_for=fitted_adjust_for,
+        requested_adjust_for=plan.adjust_for,
+        ability_covariate=plan.ability_covariate,
+    )
+    for term in record["fitted"]:
+        if term["wave"] in ("pre", "post"):
+            term["wave"] = "same_wave"
+    return record

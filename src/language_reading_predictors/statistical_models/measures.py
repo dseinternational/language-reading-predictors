@@ -299,10 +299,12 @@ ROPE_DELTA: dict[str, float] = {
     # rule from the wait-list t1->t2 (untaught) gain and floored at 1 item:
     # grammar +1.24 -> half 0.62 -> δ = 1 of 37; information +2.98 -> half 1.49 ->
     # δ = 1 of 40, which is δ = 2 on EI's doubled half-mark scale so that both
-    # encodings express the same real magnitude. NOTE: information's 1.49 sits just
-    # under the rounding boundary — δ = 2 of 40 is equally rule-consistent — so this
-    # value is the one most in need of education-lead ratification (#144). Like F/T,
-    # both are rule-derived and pending that ratification.
+    # encodings express the same real magnitude. Information's 1.49 sits just under
+    # the rounding boundary — δ = 2 of 40 was equally rule-consistent — so the value
+    # was escalated rather than settled by the analysis. Both were ratified by the
+    # education lead on 2026-08-18 at the values below
+    # (notes/202608182015-apt-delta-threshold-ratification.md); like every δ in this
+    # table they remain post-hoc rather than pre-specified.
     "EG": 1.0,
     "EI": 2.0,
     "EI40": 1.0,

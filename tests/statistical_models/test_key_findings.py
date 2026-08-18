@@ -1287,7 +1287,10 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             {
                 "predictor": "L",
                 "label": "Letter sounds",
-                "delta_words_mean": 1.9,
+                # The headline quotes the median (house standard); the mean is
+                # deliberately different so a regression to it would be visible.
+                "delta_words_median": 1.9,
+                "delta_words_mean": 2.3,
                 "delta_words_lo": 0.1,
                 "delta_words_hi": 3.8,
                 "prob_pos": 0.97,

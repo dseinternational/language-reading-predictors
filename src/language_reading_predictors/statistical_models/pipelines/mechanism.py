@@ -157,7 +157,12 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
                 s for s in confounders if s in ("G", "A") or s in MEASURES
             ),
             adjust_for=adjust_for,
-            requested_adjust_for=run_plan.adjust_for,
+            # The typed ability adjuster is declared apart from ``adjust_for`` (it
+            # loads from t1 via ``baseline_covariates``) but is fitted as an ordinary
+            # standardised covariate, so it belongs in the *requested* list too —
+            # otherwise the record shows it fitted but never asked for.
+            requested_adjust_for=run_plan.adjust_for
+            + ((run_plan.ability_covariate,) if run_plan.ability_covariate else ()),
             baseline_symbol=run_plan.adjust_baseline_symbol,
         ),
     }

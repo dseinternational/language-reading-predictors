@@ -534,6 +534,64 @@ def _prior_table_overrides(
             "parallel-trends association ('block-2-active vs block-1-active'), not a "
             "randomised treatment effect."
         )
+    elif spec.kind == "pooled_levels":
+        # Nothing in the wave-pooled level model is causal. ``beta_G`` reuses the tau
+        # constructor (Normal(0, 0.5)) but is the arm main effect across all four
+        # waves — pooling post-crossover waves and conditioning on a same-wave skill
+        # the intervention itself changes — so it is neither the randomised t2
+        # contrast nor a treatment effect. The exposure slopes reuse the beta_mech
+        # constructor (Normal(0, 1)) under names the name-based lookup does not know,
+        # and every ``gamma_{c}`` is a same-wave (hearing, speech) or t1-broadcast
+        # (block-design ability) adjuster, not a cross-baseline coupling.
+        role["beta_G"] = "association"
+        rationale["beta_G"] = (
+            "Intervention-arm main effect pooled over every fitted wave (reuses the "
+            "tau Normal(0, 0.5) scale); a backdoor adjustment that pools post-crossover "
+            "waves and conditions on a same-wave treated skill — an adjusted "
+            "association, not the randomised treatment effect."
+        )
+        for _name, _what in (
+            (
+                "beta_between",
+                "Between-child association: the outcome logit per 1 SD (pooled "
+                "row-level SD) of a child's study-average exposure logit; "
+                "Normal(0, 1), the beta_mech scale.",
+            ),
+            (
+                "beta_within",
+                "Within-child association: the outcome logit per 1 SD (pooled "
+                "row-level SD) of a wave's deviation from the child's own average "
+                "exposure logit; Normal(0, 1), the beta_mech scale.",
+            ),
+            (
+                "beta_mech",
+                "Blended pooled association (comparator without the between/within "
+                "split): outcome logit per 1 SD of the same-wave exposure logit; "
+                "Normal(0, 1).",
+            ),
+        ):
+            ctor[_name] = "beta_mech"
+            role[_name] = "association"
+            rationale[_name] = _what
+        role["alpha_wave"] = "nuisance"
+        rationale["alpha_wave"] = (
+            "Per-wave intercept alpha_wave[t] ~ Normal(0, 1.5); absorbs the secular "
+            "rise of the outcome across waves so the exposure slopes are within-wave "
+            "quantities."
+        )
+        if context.model is not None:
+            for rv in context.model.free_RVs:
+                if rv.name.startswith("gamma_") and rv.name != "gamma_A" and not (
+                    rv.name.endswith("_missing")
+                ):
+                    ctor[rv.name] = "predictor_slope"
+                    role[rv.name] = "association"
+                    rationale[rv.name] = (
+                        "Adjuster slope (same-wave hearing / speech, or the t1 "
+                        "block-design ability baseline broadcast across waves; "
+                        "Normal(0, 0.3)); a regularised adjusted association, not a "
+                        "between-skill cross-baseline coupling."
+                    )
     elif spec.kind == "survival":
         # The cloglog survival models set causal_status='none' (by t4 both arms are
         # treated), so ``tau`` is a prognostic association anchored on the immediate

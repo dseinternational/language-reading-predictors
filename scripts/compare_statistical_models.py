@@ -1535,14 +1535,17 @@ def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
     shift = 100.0 * (sb["items_median"] - sa["items_median"]) / sa["items_median"]
     fig.text(
         0.5, -0.015,
-        f"Endpoint contrast across the fitted range: {sa['items_median']:+.2f} items "
+        f"Row-averaged endpoint contrast (lowest to highest observed letter-sound score, "
+        f"averaged over every fitted child-period):\n{sa['items_median']:+.2f} items "
         f"[{sa['items_lo']:+.2f}, {sa['items_hi']:+.2f}] unadjusted against "
         f"{sb['items_median']:+.2f} [{sb['items_lo']:+.2f}, {sb['items_hi']:+.2f}] "
-        f"ability-adjusted — a {shift:.0f}% shift.\nIdentical rows and identical model "
-        "but for the ability term. Both are adjusted associations under the DAG, not "
-        "causal effects; block design is a single noisy\nsubtest, so this bounds what the "
-        "measured proxy accounts for, not the latent ability node. The band flares where "
-        "the data thin out at the top of the scale.",
+        f"ability-adjusted — a {shift:.0f}% shift. The curves hold the other covariates "
+        "at their fitted means and the child\nintercept at zero, so their rise is smaller "
+        "than the row-averaged contrast. Identical rows and identical model but for the "
+        "ability term. Both are adjusted\nassociations under the DAG, not causal effects; "
+        "block design is a single noisy subtest, so this bounds what the measured proxy "
+        "accounts for, not the latent\nability node. The band flares where the data thin "
+        "out at the top of the scale.",
         ha="center", va="top", fontsize=8.6, color="#333333")
     fig.tight_layout()
     for ext in ("png", "svg"):

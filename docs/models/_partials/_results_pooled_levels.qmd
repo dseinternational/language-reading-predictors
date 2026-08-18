@@ -7,7 +7,8 @@
 # renders the within-between decomposition, which is the point of the family: a
 # single random-intercept coefficient would blend two very different quantities.
 _pl = _csv("pooled_levels_summary.csv")
-_meta = _json("run_metadata.json") or {}
+# write_run_metadata() folds the fitted-row accounting into config.json["extra"].
+_meta = config.get("extra") or {}
 _plan = config.get("resolved_run_plan") or {}
 if _pl is None:
     print("_No pooled-levels summary found for this model._\n")
@@ -38,6 +39,12 @@ else:
     def _fmt(v):
         return f"{v:+.3f}" if isinstance(v, float) else str(v)
 
+    print(
+        "Slopes are on the outcome's logit scale per **1 SD of the pooled row-level "
+        "exposure logit** (the same per-SD unit the `mechanism` family reports); the "
+        "final row translates the focal slope into outcome items at the average "
+        "fitted linear predictor.\n"
+    )
     print("| Term | Median | 89% CrI | P(> 0) |")
     print("| --- | ---: | ---: | ---: |")
     for _, r in _pl.iterrows():

@@ -35,9 +35,10 @@ random intercept carrying the repeated measures.
 intercept, so ``beta_mech`` is the within-wave association averaged over waves
 rather than a quantity part-driven by both measures rising together over the study.
 The unpooled alternative is a registered comparator, not a hidden default: on the
-RLI data the raw pooled correlation is 0.638 against 0.600 wave-centred, so secular
-co-movement is a real but modest 6% of the raw association, and reporting both is
-cheaper than arguing about which is meant.
+RLI letter-sound / word-reading rows the pooled correlation of the two logit-scale
+scores is 0.68 against 0.62 once each wave is centred (0.64 against 0.60 on the raw
+counts), so secular co-movement is a real but modest tenth or less of the pooled
+association, and reporting both is cheaper than arguing about which is meant.
 
 Nothing here is causal. Exposure and outcome are measured at the same wave, so this
 family has *less* temporal structure than ``mechanism``, not more, and its
@@ -206,6 +207,53 @@ class PooledLevelsRunPlan:
             "waves": self.waves,
         }
 
+    def recipe_markdown(self, *, title: str) -> str:
+        """Undergraduate-friendly explanation generated from the resolved plan."""
+        waves = ", ".join(f"t{w}" for w in self.waves)
+        adjusters = ", ".join(self.adjust_for) if self.adjust_for else "none"
+        ability = self.ability_covariate or "none"
+        slopes = (
+            "`beta_between` (child study-average exposure) and `beta_within` "
+            "(wave deviation from the child's own average)"
+            if self.decompose_between_within
+            else "`beta_mech` (a single blended slope; comparator only)"
+        )
+        intercepts = (
+            "one intercept per wave (`alpha_wave`)"
+            if self.use_wave_intercepts
+            else "a single intercept (`alpha`), so the slopes also carry the secular "
+            "co-movement of the two measures across waves"
+        )
+        return (
+            "Note: Generated from the validated pooled-levels run plan; template "
+            "drafted by an LLM-based AI tool (Claude Code/Opus 5).\n\n"
+            f"# Model recipe: {title}\n\n"
+            f"Model ID: `{self.model_id}`.\n\n"
+            f"## Design\n\n{self.design}\n\n"
+            f"## Estimand\n\n{self.estimand}\n\n"
+            f"## Causal status\n\n{self.causal_status}\n\n"
+            f"## Analysis population\n\n{self.analysis_population}\n\n"
+            f"## Missing data\n\n{self.missing_data_assumption}\n\n"
+            "## Terms\n\n"
+            f"Outcome: `{self.outcome_symbol}` at each of waves {waves}. Exposure: "
+            f"`{self.mechanism_symbol}` at the same wave, as the standardised logit of "
+            f"the observed proportion. Exposure slopes: {slopes}. Intercepts: "
+            f"{intercepts}. Arm main effect (`beta_G`, an adjusted association pooled "
+            f"over post-crossover waves): {self.include_group}. Linear age at the "
+            "wave (`gamma_A`). Same-wave adjusters via `adjust_for`: "
+            f"{adjusters}. t1 ability baseline broadcast across waves: {ability}. "
+            f"Child random intercept: {self.use_subject_random_intercept}. No "
+            f"own-baseline term. Likelihood: {self.likelihood} "
+            f"(`{self.observation_node}`).\n\n"
+            "## Uncertainty and checks\n\n"
+            "The fit reports a posterior distribution; interpret it only after the "
+            "convergence gate, posterior-predictive checks and PSIS-LOO reliability "
+            "checks pass. Every coefficient is an adjusted association: exposure and "
+            "outcome are contemporaneous, so nothing here orders them in time. The "
+            "saved `config.json` contains the same resolved run plan in "
+            "machine-readable form.\n"
+        )
+
     def diagnostic_vars(self, covariates: tuple[str, ...]) -> tuple[str, ...]:
         names = (
             ["beta_between", "beta_within", "kappa"]
@@ -283,9 +331,21 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
             "absence is what makes this a levels rather than a transition estimand."
         ),
         estimand=(
-            f"beta_mech, the pooled association between a 1 SD higher {mech_label} "
-            f"logit and the {out_label} logit at the same wave, holding the declared "
-            "adjusters fixed."
+            (
+                f"beta_between and beta_within: the between-child association (a child "
+                f"whose {mech_label} logit sits 1 SD higher across the study) and the "
+                f"within-child association (a wave where a child sits 1 SD above their "
+                f"own {mech_label} average) with the {out_label} logit at the same wave, "
+                "holding the declared adjusters fixed; the SD is that of the pooled "
+                "row-level exposure logit."
+            )
+            if settings.decompose_between_within
+            else (
+                f"beta_mech, the pooled association between a 1 SD higher {mech_label} "
+                f"logit and the {out_label} logit at the same wave, holding the declared "
+                "adjusters fixed — a precision-weighted blend of the between-child and "
+                "within-child associations."
+            )
         ),
         causal_status=(
             "Association only. Exposure and outcome are contemporaneous, so this "
@@ -373,9 +433,10 @@ def build_pooled_levels_model(
             # exposure coefficient returns a precision-weighted BLEND of the
             # between-child and within-child associations, which correspond to
             # different questions and, on these data, to very different values
-            # (r = 0.81 between against 0.45 within for letter sounds and word
-            # reading). Splitting the exposure into the child mean and the
-            # deviation from it estimates each cleanly and leaves nothing blended.
+            # (r = 0.81 between against 0.45 within for the logit-scale letter-sound
+            # and word-reading scores; 0.70 against 0.51 on the raw counts).
+            # Splitting the exposure into the child mean and the deviation from it
+            # estimates each cleanly and leaves nothing blended.
             beta_between = _priors.beta_mech_prior().to_pymc("beta_between")
             beta_within = _priors.beta_mech_prior().to_pymc("beta_within")
             eta = eta + beta_between * mech_bar_d + beta_within * mech_dev_d
