@@ -47,6 +47,9 @@ OUTCOMES: dict[str, str] = {
     "N": "nonword reading",
     "F": "CELF basic concepts",
     "T": "TROG receptive grammar",
+    "EI": "APT expressive information (half marks)",
+    "EG": "APT expressive grammar",
+    "EI40": "APT expressive information (whole marks)",
     "TE2": "taught expressive vocabulary, block 2",
     "TR2": "taught receptive vocabulary, block 2",
     "UE2": "not-taught expressive vocabulary, block 2",
@@ -81,6 +84,7 @@ KINDS: frozenset[str] = frozenset(
         "concurrent",
         "long_corr_factor",
         "joint_mechanism",
+        "pooled_levels",
     }
 )
 
@@ -272,6 +276,9 @@ _MECH = [
     _d("lrp200", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "ability-adjusted negative control: letter sounds -> basic concepts (lrp100 + blocks)", "lrp100"),
     _d("lrp201", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted Tier-1 anchor: letter sounds -> word reading (lrp101 + blocks)", "lrp101"),
     _d("lrp258", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted counterpart of the lrp58 letter-sound -> word-reading HSGP curve (lrp58 + blocks)", "lrp58"),
+    _d("lrppl01", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: letter sounds -> word reading (per-wave intercepts, child RE)"),
+    _d("lrppl02", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "N", "wave-pooled between-child level association: letter sounds -> nonword decoding"),
+    _d("lrppl101", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "no-wave-intercept comparator for lrppl01 (slope also carries secular co-movement)", "lrppl01"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
@@ -431,7 +438,7 @@ _ITT_TIER1 = [
     # doubled half-mark scale (out of 80); lrpitt129 is its out-of-40 comparator.
     _d("lrpitt29", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EI", "available-case modified ITT estimate, APT information (half-mark scale, 80)"),
     _d("lrpitt30", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EG", "available-case modified ITT estimate, APT grammar (37)"),
-    _d("lrpitt129", "itt", "ITT suite", Status.ROBUSTNESS, "EI40", "denominator sensitivity: APT information rounded to whole marks (40)", base="lrpitt29"),
+    _d("lrpitt129", "itt", "ITT suite", Status.ROBUSTNESS, "EI40", "available-case modified ITT estimate, denominator sensitivity: APT information rounded to whole marks (40)", base="lrpitt29"),
 ]
 
 # Time-to-off-floor survival family (#230 §5): the four-wave generalisation of the
