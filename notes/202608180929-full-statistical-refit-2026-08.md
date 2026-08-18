@@ -119,7 +119,7 @@ fractional part is 0.5) with the comparator rounding to whole marks out of 40; t
 within 0.007 logit with identical posterior spread, because the Beta-Binomial concentration falls
 from 46 to 28 and cancels the doubled trial count. Both APT thresholds (δ) are rule-derived and
 await education-lead ratification under #144. All five pass with zero divergences, taking the
-registry to 231 models and 225 publishable.
+registry to 231 models and 225 publishable. The two practical-difference thresholds these outcomes needed were ratified on 2026-08-18 (`notes/202608182015-apt-delta-threshold-ratification.md`), closing the only open item this run left behind: grammar 1 mark of 37, information 1 whole mark, both the values the fits already used, so no refit or recomputation was needed.
 
 ## Documentation corrected alongside
 

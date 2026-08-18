@@ -118,13 +118,7 @@ instead was fitted to check, and the two agree almost exactly, because the model
 "children vary more than chance" parameter adjusts to compensate. The encoding is safe here,
 and it was tested rather than assumed.
 
-The second caveat is open. Every outcome is judged against a threshold for what counts as a
-practically meaningful difference, and the two Action Picture Test thresholds were derived
-by applying the project's existing rule rather than agreed in advance. For expressive
-information the rule lands almost exactly on a rounding boundary, so a defensible alternative
-would halve the reported chance of a meaningful benefit. **Those two thresholds need signing
-off before the size statements for these outcomes are quoted**; the direction statements do
-not depend on them.
+The second point concerned the practical-difference thresholds. Every outcome is judged against a threshold for what counts as a practically meaningful difference, and the two Action Picture Test thresholds were derived by applying the project's existing rule rather than agreed in advance. For expressive information the rule landed almost exactly on a rounding boundary, so the value was escalated rather than settled quietly. **Both thresholds were ratified on 2026-08-18** — grammar 1 mark of 37, information 1 whole mark — so the size statements for these outcomes now stand on the same footing as the rest of the suite. Like every threshold here they remain post-hoc rather than pre-specified; ratification settles who chose them, not when. The decision is recorded in `notes/202608182015-apt-delta-threshold-ratification.md`.
 
 **The general-ability explanation was tested.** The `mechanism` family attributes part of
 its skill-to-skill associations to children simply differing in general ability. A measured
