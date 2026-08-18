@@ -9,7 +9,7 @@
 
 ## The data
 
-**The Reading, Language and Memory cohort only** — the separate observational study, not the RLI trial. 71 children across **waves 1 to 4**, contributing 284 rows in one model and 213 in the other. Data are stacked by wave.
+**The Reading, Language and Memory cohort only** — the separate observational study, not the RLI trial. 71 children: `jc-001` uses waves 1 to 3 as a complete-case core plus wave 4 for all groups and wave 5 for the Down syndrome group as an available-case extension (284 rows); `jc-002` uses the balanced waves 1 to 3 only (213 rows). Data are stacked by wave.
 
 Three measures are modelled together: BAS word reading, BPVS receptive vocabulary, and BAS recall of digits (a verbal short-term memory task).
 

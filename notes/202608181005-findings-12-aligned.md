@@ -5,7 +5,7 @@
 
 # Findings: the `aligned` family — a per-protocol view aligned by when the intervention started
 
-**Read `findings-00-overview` first.** This note covers the 9 models in the `aligned` family. **No quantity in this family is causal**, including the group contrast — which makes it different from every other treatment-adjacent family in the project.
+**Read `findings-00-overview` first.** This note covers the 9 models in the `aligned` family. **No quantity in this family is causal**, including the group contrast — this is the only family in the project that reports an immediate-versus-waiting-list arm contrast and still declines to call it causal.
 
 ## The data
 
@@ -48,7 +48,7 @@ Receptive vocabulary comes out at +2.7 and expressive vocabulary at −3.0 — f
 
 ## How to read this family
 
-Treat it as a **descriptive sensitivity view**. Where it agrees with the randomised families — letter sounds and word reading positive, at broadly similar magnitudes — that is compatible with the randomised result, but the same children and confounded design mean it is not independent corroboration.
+Treat it as a **descriptive sensitivity view**. Where it agrees with the randomised families — letter sounds and word reading positive, word reading at a similar magnitude (+2.1 here against +2.4 in `itt`) and letter sounds smaller (+2.2 against +3.5) — that is compatible with the randomised result, but the same children and confounded design mean it is not independent corroboration.
 
 For the causal question, prefer the randomised-window estimates. Agreement here cannot confirm them, and disagreement cannot overturn them; both remain descriptive information about the onset-aligned cohorts.
 

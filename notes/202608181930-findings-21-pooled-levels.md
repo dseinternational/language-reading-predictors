@@ -24,7 +24,7 @@ Stacking waves creates a trap. A model with one exposure coefficient and a child
 - the **between-child** association: do children who sit higher on letter sounds across the study also read more across the study?
 - the **within-child** association: at the waves where one child is above their own letter-sound average, are they above their own reading average?
 
-On these data those are 0.81 and 0.45 as raw correlations, so a blend of them is a number that answers neither question. These models therefore split the exposure into each child's mean and their deviation from it, and report the two coefficients separately.
+On these data those two correlations are 0.81 and 0.45 for the letter-sound and word-reading scores on the model's log-odds scale (0.70 and 0.51 on the raw counts), so a blend of them is a number that answers neither question. These models therefore split the exposure into each child's mean and their deviation from it, and report the two coefficients separately.
 
 ## What was found
 
@@ -33,11 +33,13 @@ On these data those are 0.81 and 0.45 as raw correlations, so a blend of them is
 | `pl-001` | Word reading     | **+1.61** [1.34, 1.87] | +0.04 [−0.06, +0.14] P = 0.74     |
 | `pl-002` | Nonword decoding | **+1.79** [1.40, 2.22] | **+0.33** [−0.02, +0.69] P = 0.93 |
 
-**The between-child association is large and the within-child one is not.** Children who know more letter sounds across the study read far more across the study — that much is beyond doubt in these data. But for **word reading**, knowing more letter sounds than usual at a particular wave carries essentially no signal about reading more than usual at that wave: +0.04, inconclusive.
+Both coefficients are on the outcome's log-odds scale per **1 standard deviation of the letter-sound score's log-odds** (the pooled row-level SD, so the between and within terms share a unit and match the `mechanism` family's per-SD scale). Translated into items at the average fitted level, the between-child association is about **+17 words out of 79** per SD (89% +13 to +21) for word reading and about **+2.0 nonwords out of 6** (89% +1.5 to +2.5) for decoding.
+
+**The between-child association is large and the within-child one is not.** Children who know more letter sounds across the study read far more across the study — the posterior puts essentially all its mass on a positive between-child association. But for **word reading**, knowing more letter sounds than usual at a particular wave carries essentially no signal about reading more than usual at that wave: +0.04, inconclusive.
 
 That dissociation is what a shared-cause account predicts and a direct-influence account does not. If letter-sound knowledge were driving word reading within a child, the within-child coefficient should be where it shows up.
 
-**Nonword decoding behaves differently.** Its within-child coefficient is +0.33 with moderate evidence — an order of magnitude larger than word reading's, though its interval still grazes zero. The two come from separate models with no fitted contrast between them, so the gap should not be quoted as an estimated difference. But the direction of it agrees with the `mechanism` family's decoding-specificity result, which was reached on a completely different decomposition. Two unrelated designs pointing the same way is worth more than either alone.
+**Nonword decoding behaves differently.** Its within-child coefficient is +0.33 with moderate evidence — roughly eight times word reading's, though its interval still grazes zero, and the two outcomes sit on very different scales (6 items with a floor against 79). The two come from separate models with no fitted contrast between them, so the gap should not be quoted as an estimated difference. But the direction of it agrees with the `mechanism` family's decoding-specificity result, which was reached on a completely different decomposition. Two unrelated designs pointing the same way is worth more than either alone.
 
 ## Why the wave intercepts matter
 
@@ -52,6 +54,8 @@ The reason is simple: both measures rise across the study, so within any child t
 **The between-child coefficient absorbs every stable difference.** General ability, home environment, schooling, and anything else that makes a child do well on both measures is inside it. Measured ability (block design) is adjusted for; the latent construct is not.
 
 **A small within-child coefficient is not evidence of no influence.** Within-child variation is small relative to between-child variation here, and levels are a blunt instrument for it — the `mechanism` family's transition models are the better-powered within-child view.
+
+**The arm term is not a treatment effect.** Each model carries the assigned arm as an adjuster, but that coefficient pools all four waves — one before either arm was taught, one at the randomised contrast, and two after both arms had been taught — and conditions on a same-wave skill the intervention itself changed, so it is neither the randomised timepoint-2 contrast nor any other estimate of the intervention's effect. It is there to keep the skill association clean, and its priors-table role is recorded as an association for that reason.
 
 ## Model inventory
 

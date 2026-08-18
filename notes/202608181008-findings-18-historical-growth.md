@@ -15,7 +15,7 @@
 
 97 children were followed across **five annual assessment waves** in three groups: children with Down syndrome, average readers, and reading-matched comparison children. Individual models use 58–77 children depending on which measures a child has. Data are stacked by wave, with one row per child per wave.
 
-The wave coverage differs by measure. Most models cover waves 1 to 4 with a fifth wave for the Down syndrome group only — that group was followed longer. BAS matrices was introduced later, so its common three-group core covers waves 3 to 4; the model also reports a Down-syndrome-only wave-5 extension.
+The wave coverage differs by measure. Most models treat waves 1 to 3 as the complete-case core, with wave 4 for all groups and a fifth wave for the Down syndrome group only — that group was followed longer — entering as an available-case extension, so the later-wave quantities (including the Down-syndrome word-reading headline for waves 3 to 4 and the cumulative total) rest on the children still observed then, roughly 16–19 of the 23. BAS matrices was introduced later, so its common three-group core covers waves 3 to 4; the model also reports a Down-syndrome-only wave-5 extension.
 
 ## What the model is for
 
@@ -36,7 +36,7 @@ The headline quantities are **within-group changes** across wave intervals. Betw
 | TROG receptive grammar    | average readers | wave 1→4 | **+3.4 items** [+2.6, +4.2]  |
 | BAS similarities          | Down syndrome   | wave 1→5 | **+2.9 items** [+1.9, +3.9]  |
 
-**Growth is clear for most group-and-interval combinations, but not all.** Across the six publishable models there are 70 within-group growth quantities, and 47 of them have an 89% interval entirely above zero. The remaining 23 include zero, and they are not evenly spread: 19 of 21 intervals clear zero for average readers and 16 of 21 for the reading-matched group, but only **12 of 28 for the Down syndrome group**. Growth in that group is clearest on word reading and least clear on vocabulary and grammar in the later waves, where several intervals include zero and one median is slightly negative.
+**Growth is clear for most group-and-interval combinations, but not all.** Across the six publishable models there are 70 within-group growth quantities, and 47 of them have an 89% interval entirely above zero. The remaining 23 include zero, and they are not evenly spread: 19 of 21 intervals clear zero for average readers and 16 of 21 for the reading-matched group, but only **12 of 28 for the Down syndrome group**. Growth in that group is clearest on word reading (one interval of five includes zero) and least clear on vocabulary and digit recall (four of five intervals include zero for each, vocabulary's from the first interval onwards) and grammar (three of five), with two medians slightly negative — vocabulary from wave 3 to 4 and digit recall from wave 4 to 5.
 
 The headline result for this project's purposes is that children with Down syndrome showed clear, measurable word-reading growth through wave 4: +5.4 items from wave 1 to 2, +4.4 from wave 2 to 3 and +8.5 from wave 3 to 4, all with intervals well above zero. Cumulative growth across waves 1 to 5 was **+21.3 items** (89% +18.4 to +24.1). The final wave-4-to-5 step alone was +2.0 (89% −1.1 to +5.1) — suggestive rather than clear, with a posterior probability of 0.84 that it was positive.
 

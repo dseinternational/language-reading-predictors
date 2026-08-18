@@ -32,11 +32,11 @@ The results are dominated by one pattern:
 | `rlm-adj-005` | historical                     | verbal-memory gain        | **Age**                      | **−1.1 items**              |
 | `rlm-adj-003` | historical                     | receptive-vocabulary gain | Verbal reasoning             | +0.8 items                  |
 | `rlm-adj-004` | historical                     | receptive-grammar gain    | Verbal reasoning             | +0.4 items                  |
-| `rlm-adj-002` | historical, Down syndrome only | word-reading gain         | Receptive vocabulary         | −1.9 items                  |
+| `rlm-adj-002` | historical, Down syndrome only | word-reading gain         | Receptive vocabulary         | −2.0 items                  |
 
 **Age is the strongest adjusted predictor of word-reading progress in both cohorts, and it is negative in both.** Older children showed less progress on the fitted item scale. The repeated association across two separate studies makes a one-dataset quirk less likely, but it does not identify why the association occurs.
 
-The RLI model has a second clearly resolved adjusted association that should not be hidden by the age result: the baseline hearing-risk flag is associated with **+2.4 words** (89% +0.5 to +4.5; posterior probability positive 0.978). Its counter-intuitive direction is a reason for caution, not a reason to omit it. The indicator is not randomised and may proxy unmeasured differences, so it does not imply that hearing difficulty improves reading.
+The RLI model has a second clearly resolved adjusted association that should not be hidden by the age result: the baseline hearing-risk flag is associated with **+2.4 words** per standard deviation of the standardised indicator (89% +0.5 to +4.5; posterior probability positive 0.978) — the flag is 0/1, so the flagged-versus-clear contrast is roughly two standard deviations, about twice that. Its counter-intuitive direction is a reason for caution, not a reason to omit it. The indicator is not randomised and may proxy unmeasured differences, so it does not imply that hearing difficulty improves reading.
 
 ## What the age result probably means
 
@@ -48,7 +48,7 @@ The models already condition on the child's own baseline outcome, however, so re
 
 The verbal-reasoning results in the historical cohort (+0.8 and +0.4 items) point the expected way — more able children gaining somewhat more — but are small.
 
-**`rlm-adj-002` deserves a caution of its own.** It fits **22 children** (the Down syndrome subgroup) with three mutually adjusted focal predictors. The receptive-vocabulary estimate is −2.0 items, but its 89% interval is wide (−4.5 to +0.8) and the posterior probability of a negative association is 0.883. That supports neither a precise magnitude nor a clear directional claim and is likely sensitive to individual children. The companion horseshoe ranking is a useful sceptical cross-check, not an arbiter of whether this predictor is "real".
+**`rlm-adj-002` deserves a caution of its own.** It fits **22 children** (the Down syndrome subgroup) with three mutually adjusted focal predictors. The receptive-vocabulary estimate is −2.0 items, but its 89% interval is wide (−4.5 to +0.8) and the posterior probability of a negative association is 0.883. That supports neither a precise magnitude nor a clear directional claim and is likely sensitive to individual children. This 22-child fit has no horseshoe companion (the horseshoe rankings partner the three-group frames), so it stands alone rather than being cross-checked.
 
 ## Set this beside the horseshoe result
 

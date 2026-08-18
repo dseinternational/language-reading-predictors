@@ -9,7 +9,7 @@
 
 ## The data
 
-**RLI trial only.** Unlike the `itt` family, these models use **every transition between consecutive timepoints** — timepoint 1→2, 2→3 and 3→4 — stacked into one dataset. Each row is one child in one period: their score at the end of the period, with their score at the start of that period as a covariate. A typical fit has 54 children contributing about 160 rows.
+**RLI trial only.** Unlike the `itt` family, these models use **every transition between consecutive timepoints** — timepoint 1→2, 2→3 and 3→4 — stacked into one dataset. Each row is one child in one period: their score at the end of the period, with their score at the start of that period as a covariate. A typical fit has 53–54 children contributing about 153–161 rows.
 
 The data are pooled across periods, and one shared `beta_trt` coefficient enters every stacked transition. The reported items-scale marginal contrast is nevertheless standardised over **period-1 rows only** — the randomised, all-untreated-baseline transition. Later rows can influence the shared posterior through the fitted coefficient and the model's other parameters, but after crossover they contain no untreated comparison. The causal reading therefore belongs only to the period-1-standardised marginal and relies on the model's constant-treatment-effect structure; it is not an independently estimated period-1-only coefficient.
 
@@ -61,9 +61,9 @@ Taught vocabulary is weaker here (+1.0) than in the `itt` family (+1.4 and +1.5)
 
 ## The floored measures
 
-Phonetic spelling and nonword reading use the off-floor rule: the outcome is whether the child scored above zero at all, and the effect is a change in that probability. Both are inconclusive (−1 and +2 percentage points, intervals about 20 points wide). For these two the model uses a **binary** indicator of whether the child was off the floor at the start of the period, rather than their graded starting score, because a graded score on a mostly-zero measure is nearly all zeros and carries almost no information.
+Phonetic spelling and nonword reading use the off-floor rule: the outcome is whether the child scored above zero at all, and the effect is a change in that probability. Both are inconclusive (−1 and +2 percentage points, intervals roughly 16–21 percentage points wide). For these two the model uses a **binary** indicator of whether the child was off the floor at the start of the period, rather than their graded starting score, because a graded score on a mostly-zero measure is nearly all zeros and carries almost no information.
 
-Both were initially withheld for prior-dominance and released only after a prior-sensitivity sweep confirmed the direction is stable. As with the DiD family, that certifies direction, not magnitude — and for these two the direction is inconclusive anyway.
+Both were initially withheld for prior-dominance and cleared for publication only after a prior-sensitivity sweep confirmed the direction is stable; their release status is the qualified `qualify` tier (prior-informed and exploratory), not an ordinary release. As with the DiD family, that certifies direction, not magnitude — and for these two the direction is inconclusive anyway.
 
 ## What these models cannot tell you
 

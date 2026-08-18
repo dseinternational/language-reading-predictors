@@ -17,7 +17,7 @@ The outcomes are block-2 specific: taught receptive and expressive vocabulary fr
 
 ## What the model is for
 
-This is a staggered-exposure design. Because the two arms switch to block-2 teaching at different waves, there is a window where one group is receiving block-2 teaching and the other is not — and every child eventually gets it. Wave intercepts absorb whatever is changing over time for everyone, and the model estimates the difference associated with block-2 teaching being **active** rather than not.
+This is a staggered-exposure design. Because the two arms switch to block-2 teaching at different waves, there is a window where one group is receiving block-2 teaching and the other is not — and every child eventually gets it. Wave intercepts absorb whatever is changing over time for everyone, and the model estimates the difference associated with block-2 teaching being **active** rather than block-1 teaching being active — both states are on-intervention; the comparison is between teaching blocks, not between taught and untaught.
 
 The estimand is a pooled "block-active" coefficient: the adjusted change in the outcome when block 2 is being taught, translated to items.
 

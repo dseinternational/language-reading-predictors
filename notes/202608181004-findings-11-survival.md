@@ -9,7 +9,7 @@
 
 ## The data
 
-**RLI trial only**, restricted to the children who were **at the floor at timepoint 1** — scoring zero on the measure. Phonetic spelling has 41 such children contributing 100 person-period rows; nonword reading has 36 children contributing 74 rows.
+**RLI trial only**, restricted to the children who were **at the floor at timepoint 1** — scoring zero on the measure. Phonetic spelling has 42 such children, of whom 41 contribute the 100 person-period rows (one has no observed timepoint-2 score, so no interval); nonword reading has 36 children contributing 74 rows.
 
 The data are reshaped into **person-period** form: each child contributes one row per interval during which they were still at the floor and still being followed. Once a child moves off the floor they stop contributing rows, because the event being modelled has happened.
 

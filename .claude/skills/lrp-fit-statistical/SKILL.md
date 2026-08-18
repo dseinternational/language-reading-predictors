@@ -12,7 +12,7 @@ description: Fit the Bayesian (PyMC) statistical models in this repo (language-r
 
 # Fit statistical (Bayesian) models
 
-Step 2 of the methodology: PyMC models for interactions and DAG-supported causal estimation, with interpretable estimands and quantified uncertainty. **220 registered models across 22 families** (adjusted, aligned, block_exposure, concurrent, corr_factor, did, dose_response, gain_factors, growth, historical_growth, historical_joint, horseshoe, itt, joint, joint_mechanism, lcsm, level_factors, long_corr_factor, mechanism, mediation, mediation_multi, survival). Counts drift as models are added — `definitions.KINDS` and `discover_models()` are authoritative, and `docs/models/README.md` is the catalogue. The available-case modified ITT `τ` (including joint-model `τ_k`), DiD `tau_t2`, the period-1-standardised marginal in **interaction-free primary** gain-factor fits, level-factor `b_grp_time[1]` at mean ability, and fitted LCSM window-1 assigned-arm change contrasts have causal readings only under their stated design and analysis-set assumptions. Gain-factor moderation variants are partly post-crossover-informed and never causal. Other DiD and LCSM window summaries, including `arm_gap_t3` and `delta_crossover`, are post-crossover associations; covariate, dose, mechanism and cross-process coupling coefficients are adjusted associations.
+Step 2 of the methodology: PyMC models for interactions and DAG-supported causal estimation, with interpretable estimands and quantified uncertainty. **235 registered models across 23 families** (adjusted, aligned, block_exposure, concurrent, corr_factor, did, dose_response, gain_factors, growth, historical_growth, historical_joint, horseshoe, itt, joint, joint_mechanism, lcsm, level_factors, long_corr_factor, mechanism, mediation, mediation_multi, pooled_levels, survival). Counts drift as models are added — `definitions.KINDS` and `discover_models()` are authoritative, and `docs/models/README.md` is the catalogue. The available-case modified ITT `τ` (including joint-model `τ_k`), DiD `tau_t2`, the period-1-standardised marginal in **interaction-free primary** gain-factor fits, level-factor `b_grp_time[1]` at mean ability, and fitted LCSM window-1 assigned-arm change contrasts have causal readings only under their stated design and analysis-set assumptions. Gain-factor moderation variants are partly post-crossover-informed and never causal. Other DiD and LCSM window summaries, including `arm_gap_t3` and `delta_crossover`, are post-crossover associations; covariate, dose, mechanism and cross-process coupling coefficients are adjusted associations.
 
 ## Prerequisites
 
@@ -23,7 +23,7 @@ Step 2 of the methodology: PyMC models for interactions and DAG-supported causal
 ```bash
 python scripts/fit_statistical_model.py <model_id> --config dev            # fast smoke
 python scripts/fit_statistical_model.py <model_id> --config reporting --render
-python scripts/fit_statistical_model.py all --config reporting --render    # all 220 + Quarto reports
+python scripts/fit_statistical_model.py all --config reporting --render    # all 235 + Quarto reports
 python scripts/fit_statistical_model.py <model_id> --config reporting --target-accept 0.97
 ```
 
@@ -67,7 +67,7 @@ Triage a failed gate by _which_ check failed — the remedy differs:
 
 ## Upload
 
-Traces (`.nc`) are excluded by default (`--include-traces` to include; the current August 2026 reporting artefacts contain **51.0 GB decimal / 47.5 GiB of `trace.nc` across 220 fits**, the dominant part of a models root of about 58 GB decimal).
+Traces (`.nc`) are excluded by default (`--include-traces` to include; the current August 2026 reporting artefacts contain **54.1 GB decimal / 50.4 GiB of `trace.nc` across 235 fits** (51.0 GB / 47.5 GiB for the 220-model sweep itself), the dominant part of a models root of about 58 GB decimal).
 
 **A. Public research site (`--upload`).** Same mechanism and same credential gotcha as GB (see `lrp-fit-gb`): targets the public `dseresearch` container (`$DSERESEARCH_BLOB_CONTAINER_URL`) → `projects/language-reading-predictors/output/<run_id>/<model>-<config>/…`, anonymously readable. The VM managed identity has **no write role** there, and `DefaultAzureCredential` prefers the MI, so the built-in flag fails with 403. **Public + preliminary — confirm scope with the user first.** The reliable way to publish today (Frank's `az login` has the role) is a small wrapper that reuses the same helper with an explicit `AzureCliCredential`, over the already-fitted dirs (no re-fit):
 

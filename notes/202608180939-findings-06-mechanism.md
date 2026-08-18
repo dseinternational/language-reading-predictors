@@ -54,11 +54,7 @@ So the defensible summary is: **letter-sound knowledge shows a broad, low-level 
 
 ## Testing the ability explanation directly
 
-The panel above says a shared cause is doing some of the work but cannot name it. Since a
-measured general-ability score (WPPSI Block Design) exists for every child, is recorded
-before the intervention and never changes, the whole panel was refitted with it partialled
-out (`mech-196`–`201`, one per outcome, identical to their parents in every other respect
-and fitted on exactly the same rows).
+The panel above says a shared cause is doing some of the work but cannot name it. Since a measured general-ability score (WPPSI Block Design) exists for every child, is recorded before the intervention and never changes, the whole panel was refitted with it partialled out (`mech-196`–`201`, one per outcome, identical to their parents in every other respect and fitted on exactly the same rows).
 
 | Route                      | Role               | Without ability | With ability adjusted | Change |
 | -------------------------- | ------------------ | --------------- | --------------------- | ------ |
@@ -71,33 +67,15 @@ and fitted on exactly the same rows).
 
 Three things come out of this, and they do not all point the same way.
 
-**The written-code slopes are untouched.** Nonword reading moves by 0.3% and word reading by
-2%, both well inside their own uncertainty. The decoding contrast is unchanged: +0.78
-[+0.48, +1.10] before, +0.78 [+0.47, +1.11] after. Whatever the letter-sound-to-decoding
-excess is, it is not measured general ability.
+**The written-code slopes are untouched.** Nonword reading moves by 0.3% and word reading by 2%, both well inside their own uncertainty. The decoding contrast is unchanged: +0.78 [+0.48, +1.10] before, +0.78 [+0.47, +1.11] after. Whatever the letter-sound-to-decoding excess is, it is not measured general ability.
 
-**Measured ability really does predict the oral-language outcomes** — its own coefficient is
-clearly positive for all four (basic concepts +0.23, grammar +0.19, receptive vocabulary
-+0.10, expressive vocabulary +0.08, every one with a probability of at least 0.995) — and
-clearly _not_ for the written-code outcomes (nonwords +0.03, P = 0.57; word reading +0.04,
-P = 0.77). So the adjustment is doing real work exactly where the panel predicted a
-general-ability path would run.
+**Measured ability really does predict the oral-language outcomes** — its own coefficient is clearly positive for all four (basic concepts +0.23, grammar +0.19, receptive vocabulary +0.10, expressive vocabulary +0.08, every one with a probability of at least 0.995) — and clearly _not_ for the written-code outcomes (nonwords +0.03, P = 0.57; word reading +0.04, P = 0.77). So the adjustment is doing real work exactly where the panel predicted a general-ability path would run.
 
-**But the negative controls mostly survive it.** Only grammar attenuates substantially, from
-0.124 with an interval clear of zero to 0.072 with an interval that now includes it.
-Receptive vocabulary and basic concepts lose about a seventh of their slope and expressive
-vocabulary none at all; three of the four remain positive with very strong directional
-evidence. Adjusting for measured ability does not dissolve the non-specific component.
+**But the negative controls mostly survive it.** Only grammar attenuates substantially, from 0.124 with an interval clear of zero to 0.072 with an interval that now includes it. Receptive vocabulary and basic concepts lose about a seventh of their slope and expressive vocabulary none at all; three of the four remain positive with very strong directional evidence. Adjusting for measured ability does not dissolve the non-specific component.
 
-The same holds for the fitted **shape**, not just the slope. `mech-258` repeats the headline `mech-058` curve with ability partialled out and nothing else changed: the two curves lie almost on top of each other, the endpoint contrast moving from +6.78 items [+2.52, +11.11] to +6.51 [+2.22, +10.90], a 4% shift, with a maximum pointwise gap of 0.15 items. The overlay is `mechanism_curve_ability_overlay.png` in the comparison directory.
+The same holds for the fitted **shape**, not just the slope. `mech-258` repeats the headline `mech-058` curve with ability partialled out and nothing else changed: the two curves lie almost on top of each other, with a maximum pointwise gap of 0.15 items anywhere along the letter-sound range, and the row-averaged endpoint contrast — the predicted word-reading difference between the lowest and highest observed letter-sound scores, averaged over every fitted child-period — moves from +6.78 items [+2.52, +11.11] to +6.51 [+2.22, +10.90], a 4% shift. (The plotted curves hold the other covariates at their means, so their visible rise is smaller than that row-averaged contrast; both are the same fitted relationship read at different reference points.) The overlay is `mechanism_curve_ability_overlay.png` in the comparison directory.
 
-The natural conclusion is that the shared cause is not, or not only, the general ability this
-battery measures. It could be an ability dimension Block Design does not capture, shared
-teaching dose, maturation over the study, or common method variance across tests
-administered together. It is also possible that ability _is_ the explanation and a single
-subtest is simply too noisy a stand-in to absorb it — adjusting for a mismeasured confounder
-removes only part of its influence, so a small attenuation is not evidence of a small
-confound. These fits narrow the field; they do not close it.
+The natural conclusion is that the shared cause is not, or not only, the general ability this battery measures. It could be an ability dimension Block Design does not capture, shared teaching dose, maturation over the study, or common method variance across tests administered together. It is also possible that ability _is_ the explanation and a single subtest is simply too noisy a stand-in to absorb it — adjusting for a mismeasured confounder removes only part of its influence, so a small attenuation is not evidence of a small confound. These fits narrow the field; they do not close it.
 
 ## Other results
 

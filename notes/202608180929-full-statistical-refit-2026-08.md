@@ -82,44 +82,19 @@ Pre-remediation copies of the five refitted directories were preserved under `ou
 
 ## Follow-up fits after the sweep
 
-Reviewing the findings notes surfaced a gap rather than an error in the run: the `mechanism`
-family attributes the non-specific part of its letter-sound slopes to shared general ability,
-and it is the only family invoking that explanation which never adjusts for the measured
-block-design proxy — every other family that names ability (`itt`, `gain_factors`,
-`level_factors`, `aligned`, `concurrent`) carries `blocks`.
+Reviewing the findings notes surfaced a gap rather than an error in the run: the `mechanism` family attributes the non-specific part of its letter-sound slopes to shared general ability, and it is the only family invoking that explanation which never adjusts for the measured block-design proxy — every other family that names ability (`itt`, `gain_factors`, `level_factors`, `aligned`, `concurrent`) carries `blocks`.
 
-Six models were therefore added and fitted at `reporting` after the sweep: `lrp-rli-mech-196`
-to `201`, an ability-adjusted mirror of the Tier-1 panel (`096`/`097`/`098`/`099`/`100`/`101`),
-identical to their parents except for the added adjuster and fitted on exactly the same rows.
-All six pass the convergence gate with zero divergences and are publishable, taking the
-registry to 226 models and 220 publishable.
+Six models were therefore added and fitted at `reporting` after the sweep: `lrp-rli-mech-196` to `201`, an ability-adjusted mirror of the Tier-1 panel (`096`/`097`/`098`/`099`/`100`/`101`), identical to their parents except for the added adjuster and fitted on exactly the same rows. All six pass the convergence gate with zero divergences and are publishable, taking the registry to 226 models and 220 publishable.
 
-Wiring the adjuster required a small extension to the mechanism family: `blocks` is recorded
-only at t1 in the source CSV, and `load_and_prepare` reads that CSV directly, so routing it
-through `adjust_for` put it on the post row of every transition, where it is missing. The
-complete-case filter then dropped all 162 rows and the failure surfaced only as a cryptic
-"Standard deviation of x must be positive" from age standardisation. The family now takes a
-typed `ability_covariate` setting routed to `baseline_covariates`, which broadcasts the t1
-value across every transition — the same route `gain_factors`, `level_factors`,
-`block_exposure` and `aligned` already use. Three regression tests lock the routing down.
+Wiring the adjuster required a small extension to the mechanism family: `blocks` is recorded only at t1 in the source CSV, and `load_and_prepare` reads that CSV directly, so routing it through `adjust_for` put it on the post row of every transition, where it is missing. The complete-case filter then dropped all 162 rows and the failure surfaced only as a cryptic "Standard deviation of x must be positive" from age standardisation. The family now takes a typed `ability_covariate` setting routed to `baseline_covariates`, which broadcasts the t1 value across every transition — the same route `gain_factors`, `level_factors`, `block_exposure` and `aligned` already use. Three regression tests lock the routing down.
 
-The result is reported in the mechanism findings note. In short: the written-code slopes are
-unchanged by the adjustment and the decoding contrast holds at +0.78, but three of the four
-negative controls survive it, so the non-specific component is not reducible to the ability
-this battery measures.
+The result is reported in the mechanism findings note. In short: the written-code slopes are unchanged by the adjustment and the decoding contrast holds at +0.78, but three of the four negative controls survive it, so the non-specific component is not reducible to the ability this battery measures. A seventh model, `lrp-rli-mech-258`, repeats the headline `mech-058` letter-sound curve with the same adjuster so the shape can be compared curve against curve rather than against the linear anchor; the two curves lie almost on top of each other, and `scripts/compare_statistical_models.py` now writes the overlay (`mechanism_curve_ability_overlay.png/svg/csv`) to the comparison directory.
 
-A second gap closed the same way. The Action Picture Test (Renfrew 1997) is a DAG-designated direct
-outcome of assignment (`IG -> {EI, EG}`) with near-complete data, but it had never been estimated
-because its ceilings were unconfirmed — the deferral is recorded in
-`notes/202606251321-lrpitt-suite-design.md`. The manual maxima were supplied on 2026-08-18 (Grammar
-37, Information 40) and five models were added: `lrp-rli-itt-029`/`030` and `lrp-rli-did-014`/`015`
-for the two scales, plus `lrp-rli-itt-129`, a denominator-sensitivity comparator. Information awards
-half marks, so its modelled outcome is the doubled half-mark scale out of 80 (exact — every
-fractional part is 0.5) with the comparator rounding to whole marks out of 40; the two agree to
-within 0.007 logit with identical posterior spread, because the Beta-Binomial concentration falls
-from 46 to 28 and cancels the doubled trial count. Both APT thresholds (δ) are rule-derived and
-await education-lead ratification under #144. All five pass with zero divergences, taking the
-registry to 231 models and 225 publishable. The two practical-difference thresholds these outcomes needed were ratified on 2026-08-18 (`notes/202608182015-apt-delta-threshold-ratification.md`), closing the only open item this run left behind: grammar 1 mark of 37, information 1 whole mark, both the values the fits already used, so no refit or recomputation was needed.
+A second gap closed the same way. The Action Picture Test (Renfrew 1997) is a DAG-designated direct outcome of assignment (`IG -> {EI, EG}`) with near-complete data, but it had never been estimated because its ceilings were unconfirmed — the deferral is recorded in `notes/202606251321-lrpitt-suite-design.md`. The manual maxima were supplied on 2026-08-18 (Grammar 37, Information 40) and five models were added: `lrp-rli-itt-029`/`030` and `lrp-rli-did-014`/`015` for the two scales, plus `lrp-rli-itt-129`, a denominator-sensitivity comparator. Information awards half marks, so its modelled outcome is the doubled half-mark scale out of 80 (exact — every fractional part is 0.5) with the comparator rounding to whole marks out of 40; the two agree to within 0.007 logit with identical posterior spread, because the Beta-Binomial concentration falls from 46 to 28 and cancels the doubled trial count. All five pass with zero divergences. The two practical-difference thresholds these outcomes needed were derived by the project's existing rule and ratified on 2026-08-18 (`notes/202608182015-apt-delta-threshold-ratification.md`), closing the only open item this run left behind: grammar 1 mark of 37, information 1 whole mark, both the values the fits already used, so no refit or recomputation was needed.
+
+A third addition is a new family rather than a new fit within one. The suite estimated skill-to-skill level associations at each wave separately (`concurrent`) and post-score-given-pre-score transitions (`mechanism`), but had no model for the pooled level association across all four waves. `pooled_levels` fills that (`lrp-rli-pl-001` letter sounds → word reading, `pl-002` letter sounds → nonword decoding, and `pl-101`, the no-wave-intercept comparator for `pl-001`), with a Mundlak within-between split of the exposure so that a single random-intercept coefficient's precision-weighted blend of two different quantities is never reported as "the" association. All three pass with zero divergences. The design record is `notes/202608181930-findings-21-pooled-levels.md`.
+
+The fifteen follow-up fits share the sweep's `reporting` preset but not its provenance: each was fitted from a working tree that was dirty at the recorded commit (`52e4bcce`, `854a4c2d`, `73683bb9`, `cbc664e7`), because the model module was committed immediately after its fit. The current registry stands at 235 models, 229 publishable; the six withheld are the same six as above.
 
 ## Documentation corrected alongside
 

@@ -31,7 +31,7 @@ Worse, attendance is what is called a **collider** on some paths: it is influenc
 | Letter-sound knowledge | **+0.8 items**         | +0.2 to +1.4 |
 | Phoneme blending       | +0.3 items             | −0.0 to +0.6 |
 
-The gradient is positive and reasonably well estimated for word reading and letter sounds, and it lines up with the outcomes the treatment families found effects on — which is at least internally coherent.
+The gradient is positive and reasonably well estimated for word reading (P(> 0) = 0.99, very strong) and letter sounds (0.97, strong), and moderate for blending (0.94), and it lines up with the outcomes the treatment families found effects on — which is at least internally coherent. One standard deviation of dose is about 31 sessions against a mean of about 54, and the blending slope is flagged by the power-scaling check as prior-informed.
 
 Two sensitivity variants for word reading agree closely: adjusting additionally for baseline skills gives **+1.3** [+0.5, +2.1], and a pooled version that does not let the slope vary by period gives **+1.3** [+0.6, +2.0]. A formal predictive comparison between the period-varying and pooled versions found no meaningful difference, so there is no evidence the dose relationship changes across periods.
 
