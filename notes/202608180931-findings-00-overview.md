@@ -2,6 +2,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 >
 > Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
+>
+> Post-run additions summarised by a LLM-based AI tool (Claude Code/Opus 5).
 
 <!-- cspell:ignore basnum basspel woco readgrp Kruschke -->
 
@@ -82,6 +84,54 @@ These models are fitted by simulation, and simulation can fail quietly, so the c
 In this run **all 220 models pass, and not one has a single divergence** — as do the eleven added since. Four models initially failed and were refitted with better simulation settings; in every case the estimates were essentially unchanged, which is the reassuring outcome — the problem was with the computation, not the conclusion. The full record is in the companion run note.
 
 One honest caveat carried over from that work: fixing a simulation problem improves how reliably we have measured the posterior, but it cannot narrow a posterior that is genuinely wide because the data are thin. Where a note says a quantity remains weakly determined, that is a limit of the measurements, not of the arithmetic.
+
+## What was added after the main run
+
+Two sets of models were fitted after the sweep, both because reviewing the notes exposed a
+gap rather than an error. They are described in full in their family notes; the summary
+matters because one of them changes what the series covers.
+
+**Expressive language is now measured.** The Action Picture Test (Renfrew 1997) has two
+scales — grammar and information — and the project's causal diagram has always treated both
+as things the intervention could affect. Neither had ever been estimated, because the test's
+maximum scores were not on file, and a bounded-count model cannot be fitted without them.
+The maxima were confirmed from the manual on 2026-08-18 (grammar 37, information 40), and
+both scales were fitted in the `itt` and `did` families.
+
+The result is worth knowing. **Expressive grammar shows the strongest lean of any outcome the
+intervention did not teach directly**: about **+1 mark out of 37** in the headline trial
+estimate, with an 0.85 probability of being positive, and about **+1.6 marks** in the
+crossover model at 0.93 — suggestive and moderate respectively. Neither interval clears zero,
+so this is a lean rather than a finding, but it is a consistent one across two designs, and
+it sits on a measure of everyday expressive language rather than a taught word list.
+Expressive information is inconclusive, and the crossover model suggests the immediate group
+may have started slightly ahead on it, which is a reason for caution rather than a result.
+
+Two caveats travel with these two outcomes, and neither is resolved.
+
+The information score awards half marks on some items, which a whole-number counting model
+cannot accept. The score is therefore doubled and treated as a count out of 80. That is exact
+— every half mark becomes a whole one — but it tells the model there are eighty separate
+chances where really there are forty items scored generously, which in principle makes the
+data look more informative than they are. A companion model that rounds to whole marks
+instead was fitted to check, and the two agree almost exactly, because the model's own
+"children vary more than chance" parameter adjusts to compensate. The encoding is safe here,
+and it was tested rather than assumed.
+
+The second caveat is open. Every outcome is judged against a threshold for what counts as a
+practically meaningful difference, and the two Action Picture Test thresholds were derived
+by applying the project's existing rule rather than agreed in advance. For expressive
+information the rule lands almost exactly on a rounding boundary, so a defensible alternative
+would halve the reported chance of a meaningful benefit. **Those two thresholds need signing
+off before the size statements for these outcomes are quoted**; the direction statements do
+not depend on them.
+
+**The general-ability explanation was tested.** The `mechanism` family attributes part of
+its skill-to-skill associations to children simply differing in general ability. A measured
+ability score existed but that family had never adjusted for it, while every other family
+that appeals to ability does. Six models now do. The short answer is that measured ability
+explains some of the pattern but not most of it, and it leaves the letter-sound-to-decoding
+result untouched — the detail is in the `mechanism` note.
 
 ## The families
 
