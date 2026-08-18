@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 <!-- cspell:ignore basnum basspel woco nutpie psense reloo groupby unsatisfiable -->
 
@@ -9,9 +11,11 @@
 
 ## What was run
 
-The sweep used `--config reporting` (6000 draws, 6000 tune, 6 chains, `target_accept` 0.95, `nutpie`) against repository commit `71806220` with a dirty working tree (the release-gate fixes recorded below were made during the run, after all primary fits had completed). Fits ran sequentially on a 16-core machine.
+The sweep used `--config reporting` (6000 draws, 6000 tune, 6 chains and `nutpie`) against repository commit `71806220`. Source provenance is not uniform: the first 170 stored configurations record that commit with a clean working tree, while 50 record the same commit with `dirty=true`. The dirty set begins with `lrp-rli-med-066` and comprises 45 later primary fits plus five remedial refits. Because `config.json` records the dirty flag but not the working-tree diff, the exact uncommitted source state of those fits cannot be reconstructed from the artefacts; the sweep should not be described as 220 identical-source fits. The reporting preset supplies `target_accept=0.95`, but model-specific defaults and later remediation overrides take precedence and are recorded per fit. The final stored configurations comprise 183 fits at 0.95, 23 at 0.999, 12 at 0.99 and 2 at 0.97. Fits ran sequentially on a 16-core machine.
 
-The sweep was driven by a resumable per-model runner rather than `scripts/fit_statistical_model.py all --render`, for two reasons worth recording. First, `all --render` batches every render until after all fits finish, so an interrupted sweep leaves fitted-but-unrendered directories. Second, a monolithic background sweep has been reaped mid-run before. The runner imported the registry once, fitted and rendered each model in turn, and skipped any directory already holding both `release_decision.json` and `index.html`, so an interruption would have resumed rather than restarted.
+The sweep was driven by a resumable per-model runner rather than `scripts/fit_statistical_model.py all --render`, for two reasons worth recording. First, `all --render` batches every render until after all fits finish, so an interrupted sweep leaves fitted-but-unrendered directories. Second, a monolithic background sweep has been reaped mid-run before. The runner imported the registry once, fitted and rendered each model in turn, and skipped a directory when both `release_decision.json` and `index.html` were present.
+
+That driver is itself a provenance limitation: the stored invocation points to an untracked temporary Claude scratchpad `run_full_sweep.py`, no copy exists in this branch and no driver digest was recorded. Its exact logic therefore cannot be reconstructed from the artefacts. Moreover, the two-file skip rule checked completion markers, not whether source commit and dirty state, data and environment hashes, registry membership, sampling settings or the artefact manifest still matched. Starting from an empty output root prevented stale directories from contaminating this completed run, but a reusable resumable driver should be checked in and should validate those identities before reusing a fit.
 
 ## Headline outcome
 
@@ -24,13 +28,13 @@ The sweep was driven by a resumable per-model runner rather than `scripts/fit_st
 | Publishable (`release_decision`) | 214 / 220                  |
 | Withheld                         | 6, all `inputs_unresolved` |
 
-Sweep wall time was 10.65 hours, of which 10.16 hours was sampling; per-model rendering and driver overhead cost about half an hour in total across 220 models. The mediation g-formula fits dominate the tail (`med-064` 42 min, `med-075` 40 min, `med-066` 37 min, `med-092` 32 min); a typical ITT fit is well under a minute. Traces total roughly 45 GB.
+Sweep wall time was 10.65 hours, of which 10.16 hours was per-model fitting — sampling plus prior predictive, PSIS-LOO, posterior predictive, diagnostics and figures — with per-model rendering and driver overhead accounting for the remaining half hour across 220 models. The mediation g-formula fits dominate the tail (`med-064` 42 min, `med-075` 40 min, `med-066` 37 min, `med-092` 32 min); a typical ITT fit is well under a minute. The current 220 trace files total 50,995,705,553 bytes: 51.0 GB in decimal units, or 47.5 GiB.
 
 ## Remediation performed after the sweep
 
 The initial sweep left 16 fits unpublishable. All but the 6 recorded below were resolved, none by weakening a gate.
 
-**Four convergence-gate failures.** `lrp-rli-mech-073`, `lrp-rli-mech-104` and `lrp-rli-mech-204` each had exactly one divergence in 36,000 draws with otherwise clean diagnostics. Under the divergent-transition policy in `METHODS.md` a divergent fit fails closed regardless of how small the count is, so each was refit at `--target-accept 0.99` (none declares an in-house value, so this was a genuine raise rather than a silent lowering). All three reached zero divergences. Their headline estimates were unchanged — the mechanism slope moved by at most 0.088 items, about 1.1%, well inside Monte Carlo error — which is the substantive point: the withholding was procedurally correct and the science was unaffected.
+**Four convergence-gate failures.** `lrp-rli-mech-073`, `lrp-rli-mech-104` and `lrp-rli-mech-204` each had exactly one divergence in 36,000 draws with otherwise clean diagnostics. Under the divergent-transition policy in `METHODS.md` a divergent fit fails closed regardless of how small the count is, so each was refit at `--target-accept 0.99` (none declares an in-house value, so this was a genuine raise rather than a silent lowering). All three reached zero divergences. The mechanism slope moved by at most 0.088 items, small relative to its posterior uncertainty. That comparison shows no practically important shift in the stored headline summaries; it should not be described as being "inside Monte Carlo error" without a direct Monte Carlo standard-error comparison.
 
 `lrp-rli-jm-002` failed differently: zero divergences but maximum R-hat 1.0153 and minimum effective sample size 256, concentrated in the child random-effect block. That is a mixing problem rather than a geometry problem, so it was refit with more draws (16000 draws, 8000 tune, 8 chains) and not with a higher `target_accept`. Maximum R-hat fell to 1.0012 and minimum effective sample size rose to 7596. As expected, the posterior itself barely moved: `sigma_u_child[N]` went from mean 0.2856, 89% interval [0.018, 0.670] to mean 0.2889, 89% interval [0.029, 0.658]. More draws bought computational trustworthiness, not knowledge — the nonword between-child variance stays weakly determined because a 6-item floored measure cannot separate a genuinely stronger child from a lucky row.
 
@@ -42,7 +46,7 @@ Release decisions are written at fit time, so attaching evidence post hoc does n
 
 **The phoneme-blending pair.** `lrp-rli-itt-008` and `lrp-rli-itt-108` passed their gates and read as publishable but carried zero findings sentences, with the reason "mandatory trace-backed B link sensitivity is missing". `scripts/blending_link_sensitivity.py` must run after both fits complete and before key findings are regenerated; it had not been run. Doing so validated both fits and regenerated their findings. This is a case where release status alone was misleading, and the paired-bundle requirement caught it.
 
-## Two release-gate defects found and fixed
+## Release-gate defects fixed and robustness policy completed
 
 Both are in `_growth_influence_release_failures` in `src/language_reading_predictors/statistical_models/release.py`, and both withheld `lrp-rlm-gc-001`, a fit that was in fact sound. They are genuine defects independent of this run.
 
@@ -50,13 +54,15 @@ The first was an inverted grouping. The gate computed the number of fully-exclud
 
 The second was hidden behind the first and only appeared once the counting error stopped short-circuiting the evaluation. The gate read `config["observation_influence_converged"]` at the top level, but the growth pipeline writes that verdict inside `config["extra"]`. The verdict was therefore unconditionally "missing" for every growth fit that ran the influence sensitivity. The gate now reads `extra` with a top-level fallback.
 
-Both fixes were verified narrowly rather than assumed: `ruff check src/` is clean; `test_release_decision.py`, `test_growth_models.py`, `test_historical_growth.py`, `test_rlm_growth.py` and `test_growth_run_plan.py` all pass; and re-evaluating all 220 fits against the patched gate changed exactly one status, `lrp-rlm-gc-001` from `artifacts_incomplete` to `ok`. No fit that was passing began to fail.
+The same audit found a policy gap: the gate checked whether the influence refit converged but did not check the reason for running it — whether the named coefficients retained their median directions and overlapping 89% intervals. The design record had used those two criteria to resolve the sensitivity, so the release evaluator now validates the stored medians and intervals, recomputes both verdicts rather than trusting the CSV booleans, and returns `robustness_unresolved` if either criterion fails. The stored `lrp-rlm-gc-001` sensitivity passes: both `gamma` and `delta` retain direction and interval overlap.
+
+The changes were verified narrowly rather than assumed: `ruff check src/` is clean; `test_release_decision.py`, `test_growth_models.py`, `test_historical_growth.py`, `test_rlm_growth.py` and `test_growth_run_plan.py` all pass; and re-evaluating all 220 fits against the patched gate changed exactly one status, `lrp-rlm-gc-001` from `artifacts_incomplete` to `ok`. No fit that was passing began to fail. The release-decision fixture now mirrors production's nested `config.extra`, distinguishes a partially flagged child from a fully excluded child, and has direct fail-closed cases for a median-direction reversal and non-overlapping intervals.
 
 ## What remains withheld, and why it should stay that way
 
 Six fits are `inputs_unresolved`: `lrp-rlm-adj-001`, `lrp-rlm-hg-002`, `lrp-rlm-hg-003`, `lrp-rlm-hg-008`, `lrp-rlm-hs-001` and `lrp-rlm-mm-001`. Each reports that a bounded-count denominator is not confirmed against the instrument, for `basnum`, `basspel` or `woco`.
 
-This is not an outstanding action from this run. It is the documented decision recorded in `notes/202608161900-byrne-denominator-likelihood-sensitivity.md` (issue #338, 2026-08-16): the denominators in use are provisional observed-extract maxima, and Byrne, MacDonald and Buckley (2002) confirms that raw scores were analysed without stating the maxima. A four-way likelihood stress test found the growth directions robust to 2× and 4× denominators and to a denominator-free Negative-Binomial, and that note still concluded that the result "does not identify any instrument ceiling and does not clear the publication gate". Clearing these models requires the administered manuals or test records, or an explicitly approved raw-score analysis whose estimand and predictive limitations are accepted in advance. The gate is behaving as intended and these fits should remain withheld until that information exists.
+This is not an outstanding action from this run. It is the documented decision recorded in `notes/202608161900-byrne-denominator-likelihood-sensitivity.md` (issue #338, 2026-08-16): the denominators in use are provisional observed-extract maxima, and Byrne, MacDonald and Buckley (2002) confirms that raw scores were analysed without stating the maxima. For the three `historical_growth` fits only, a four-way likelihood stress test found every reported growth median direction stable under 2× and 4× denominators and a denominator-free Negative-Binomial; the note still concluded that the result "does not identify any instrument ceiling and does not clear the publication gate". A later participant Bayesian bootstrap passed the strict five-method rule for WORD comprehension and BAS number skills but returned `no_go` for BAS spelling because one near-zero between-group contrast changed median sign; all intervals for that contrast spanned zero. Neither denominator-free method repairs `lrp-rlm-adj-001`, `lrp-rlm-hs-001` or `lrp-rlm-mm-001`, whose transforms or measurement structures still require confirmed scale information. Clearing the six registered models requires the administered manuals or test records, or an explicitly approved raw-score analysis whose estimand and predictive limitations are accepted in advance. The gate is behaving as intended and these fits should remain withheld until that information exists.
 
 ## Selected findings
 

@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings: the `mechanism` family — which skills track which
 
@@ -9,11 +11,11 @@
 
 **RLI trial only.** These models stack **all period transitions** — timepoint 1→2, 2→3 and 3→4 — into one dataset, so a typical fit has 53 children contributing about 150 rows. Data are pooled across periods, not collapsed: each row is one child in one period.
 
-The structure of a row is: the outcome at the end of the period, the same outcome at the start (an autoregressive baseline), the _exposure_ skill measured in that same period, and adjustment terms. Each child has a random intercept for their repeated rows.
+For the score-exposure models, a row contains the outcome at the end of the period, the same outcome at the start (an autoregressive baseline), the exposure skill's **post-period level**, and adjustment terms. These models do not regress the outcome on a change score for the exposure. Some variants instead use a standardised raw covariate, such as phonological memory, rather than a period-specific score exposure. Each child has a random intercept for their repeated rows.
 
 ## What the model is for
 
-The question is: **as one skill changes, does another change with it, once we account for where the child started and for the other things we can measure?**
+For the score-exposure fits, the question is: **is a higher post-period exposure level associated with a higher post-period outcome after conditioning on the outcome's own starting score and the measured adjustment terms?** The raw-covariate variants ask the analogous conditional association for their standardised covariate. Neither design estimates exposure change.
 
 Some models fit a straight line (a single slope). Others fit a flexible curve, which allows the relationship to bend — to flatten at high levels, or to have a threshold below which nothing happens. Where a curve is fitted, the reported number is the average steepness across the observed range.
 
@@ -23,7 +25,7 @@ Adjustment terms include age, hearing, speech production, phonological memory an
 
 It is tempting to read "letter-sound knowledge → word reading, strongly positive" as "teaching letter sounds raises word reading". **These models cannot support that**, and this family contains its own built-in demonstration of why.
 
-The suite includes **negative-control outcomes**: relationships that the causal diagram says should _not_ exist. Letter-sound knowledge should predict written-code outcomes (word reading, nonword reading) but should not predict oral-language outcomes (vocabulary, grammar, basic concepts) except through shared general ability. If the negative controls come out at zero, the specific-channel story survives. If they come out positive, something common to all outcomes — general ability, maturation, engagement — is driving the associations.
+The suite includes **negative-control outcomes**: relationships that the causal diagram says should _not_ represent the proposed decoding channel. Letter-sound knowledge should predict written-code outcomes (word reading, nonword reading) but should not predict oral-language outcomes (vocabulary, grammar, basic concepts) through that channel. Positive negative controls would show that the fitted slopes are not specific; they would be compatible with a shared cause such as general ability, maturation or engagement, but would not identify which explanation is responsible.
 
 On a common scale (log-odds per standard deviation of the exposure), here is what happened:
 
@@ -38,27 +40,27 @@ On a common scale (log-odds per standard deviation of the exposure), here is wha
 
 **The negative controls are not zero. Every one of them is clearly positive.** And the association between letter sounds and _basic concept knowledge_ (0.291) is **larger** than the association between letter sounds and _word reading_ (0.251) — the very relationship the family exists to characterise.
 
-That is the single most important finding in this family, and it points one way: **a substantial part of every mechanism slope here reflects a common cause rather than a specific channel.** Children who know more letter sounds are, on average, children who are doing better generally; and children doing better generally score higher on vocabulary, grammar and concepts too. The models adjust for what was measured, and latent general ability was not measured.
+That is the single most important finding in this family: **the slopes are not specific to the proposed decoding channel.** A shared underlying ability is one plausible explanation, but the negative controls cannot identify the source or quantify what fraction of each slope it contributes; residual confounding, measurement differences and model misspecification can produce the same pattern. The models adjust for what was measured, and latent general ability was not measured.
 
-What does survive is the **contrast between outcomes**. Letter sounds track nonword reading far more strongly than they track word reading: the difference is **+0.78 log-odds per SD** (89% +0.475 to +1.099). Nonword reading can only be done by decoding — the words are invented, so they cannot be recognised by sight — and it is exactly the outcome where letter-sound knowledge stands furthest clear of everything else. A general-ability confound should lift all outcomes together; it does not obviously predict that one specific outcome would separate by this margin.
+The **contrast between outcomes** is nevertheless informative as a pattern. Separate single-outcome fits put the nonword-minus-word slope difference at **+0.78 log-odds per SD** (89% +0.475 to +1.099), but that comparison pairs independent marginal draws and is explicitly **not an identified posterior contrast**. The identified within-model contrast from `jm-002` is +0.81 [+0.50, +1.13] and agrees numerically. Nonword reading requires decoding rather than sight-word recognition, so the larger association is compatible with a decoding-specific channel, but differential measurement and residual confounding remain alternative explanations.
 
-So the defensible summary is: **the pattern is consistent with a decoding-specific channel from letter sounds to nonword reading, sitting on top of a broad general-ability association that inflates every slope in this family, including the letter-sound-to-word-reading slope.**
+So the defensible summary is: **the pattern is consistent with a decoding-specific association between letter sounds and nonword reading, against a background of broad non-specific association across outcomes.** The data do not identify that background uniquely as general ability or establish either slope as a causal channel.
 
 ## Other results
 
 **Word reading's other candidate routes.** On the comparable per-SD scale used in the cross-model forest: letter sounds 0.238 [0.082, 0.410], expressive vocabulary 0.122 [−0.013, 0.257], receptive vocabulary 0.064 [−0.057, 0.185]. Letter sounds lead, with the two vocabulary routes weaker and their intervals including zero.
 
-**Curve tests.** Several models fit flexible curves to test for a threshold — a level below which a skill does not yet help. The curve models for the vocabulary routes (`mech-156`, `157`) return small average slopes with intervals spanning zero, so no reliable threshold shape was found. For letter sounds the curve and linear versions agree (`mech-058` +6.78 items, `mech-071` +5.29 items on the outcome scale).
+**Curve tests.** Several models fit flexible curves to investigate nonlinearity or a threshold. The vocabulary-route curves (`mech-156`, `157`) have small average slopes with intervals spanning zero; those averages do not by themselves prove that a threshold is absent. `mech-058` and `mech-071` are both flexible letter-sound curves, with endpoint contrasts of +6.78 and +5.29 items respectively; `mech-071` additionally includes expressive-vocabulary moderation. The actual linear anchor is `mech-101`, at +9.88 items [+6.10, +13.51]. The positive endpoint contrasts agree in direction, but they are not a formal test that the curve is linear.
 
-**Moderation.** Whether the letter-sound route varies with age (`mech-073`) or phonological memory (`mech-104`, `204`) was tested, and the two answers differ. The age interaction is −0.057 with P(negative) = 0.93 — **moderate evidence that the association is weaker for older children**, though its 89% interval still includes zero and the estimate is an adjusted association, not a moderated effect. The phonological-memory interaction is −0.008 with P(negative) = 0.55, which is **inconclusive**; a formal predictive comparison of the memory-moderation pair likewise returned "inconclusive (|elpd_diff| < 4)". Neither result licenses a claim that the intervention or the decoding route works differently for different children.
+**Moderation.** Whether the letter-sound association varies with age (`mech-073`) or phonological memory (`mech-104`, `204`) was tested, and the two answers differ. The age interaction is −0.057 with P(negative) = 0.93 — **moderate evidence that the adjusted association is weaker for older children**, though its 89% interval still includes zero; this is associational moderation, not causal effect modification. The phonological-memory interaction is −0.008 with P(negative) = 0.55, which is **inconclusive**; a formal predictive comparison of the memory-moderation pair likewise returned "inconclusive (|elpd_diff| < 4)". Neither result licenses a claim that the intervention or a causal decoding route works differently for different children.
 
-**Other exposures.** Phonological memory → word reading +3.07 items [+0.16, +5.88]; phonological memory → nonword reading and speech production → nonword reading are both clearly positive. Given the negative-control result above, read all of these as associations carrying the same general-ability component.
+**Other exposures.** Phonological memory → word reading +3.07 items [+0.16, +5.88]; phonological memory → nonword reading and speech production → nonword reading are both clearly positive. Given the negative-control result above, read all of these as adjusted associations subject to the same non-specificity and residual-confounding concern.
 
 ## What these models cannot tell you
 
-**No slope here is a lever.** The negative controls demonstrate this within the family itself — not as a theoretical caution but as a measured result.
+**No slope here is identified as a lever.** That follows from the observational design; the positive negative controls add measured evidence that the fitted associations are not specific to the proposed channel.
 
-**Adjusting for measured covariates does not remove the confound.** Latent general ability is not in the data, and the models say so in their own recorded assumptions.
+**Adjusting for measured covariates does not remove residual confounding.** Latent general ability is one plausible omitted cause, but the negative controls do not establish that it is the only explanation.
 
 **Direction is not established.** These are contemporaneous-period associations with an autoregressive baseline. A child whose reading improves may attend more to letters, as easily as the reverse.
 
@@ -66,4 +68,4 @@ So the defensible summary is: **the pattern is consistent with a decoding-specif
 
 ## Model inventory
 
-All 34 pass the convergence gate with zero divergences and are publishable. Three (`mech-073`, `104`, `204`) initially failed on a single divergence each and were refitted at a higher acceptance target; their estimates moved by about 1%, confirming the original values. Key models: `056`/`057`/`058` (R/E/L → W), `096`/`101` (Tier-1 decoding contrast), `097`–`100` (negative controls), `088`/`089` (taught vocabulary → W), `090`/`102` (phonological memory), `103` (speech production), `061`/`063`/`093`–`095`/`161`/`163` (joint-readiness interactions), `156`–`158`/`188`–`191` (curve tests), `072`/`172` (code route).
+All 34 pass the convergence gate with zero divergences and are publishable. Three (`mech-073`, `104`, `204`) initially failed on a single divergence each and were refitted at a higher acceptance target; their headline slopes moved little relative to their posterior uncertainty. Key models: `056`/`057`/`058` (R/E/L → W), `096`/`101` (Tier-1 decoding contrast), `097`–`100` (negative controls), `088`/`089` (taught vocabulary → W), `090`/`102` (phonological memory), `103` (speech production), `061`/`063`/`093`–`095`/`161`/`163` (joint-readiness interactions), `156`–`158`/`188`–`191` (curve tests), `072`/`172` (code route).

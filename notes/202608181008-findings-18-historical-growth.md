@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 <!-- cspell:ignore basnum basspel woco -->
 
@@ -13,7 +15,7 @@
 
 97 children were followed across **five annual assessment waves** in three groups: children with Down syndrome, average readers, and reading-matched comparison children. Individual models use 58–77 children depending on which measures a child has. Data are stacked by wave, with one row per child per wave.
 
-The wave coverage differs by measure. Most models cover waves 1 to 4 with a fifth wave for the Down syndrome group only — that group was followed longer. One model (BAS matrices) covers only waves 3 to 4, because the measure was introduced later.
+The wave coverage differs by measure. Most models cover waves 1 to 4 with a fifth wave for the Down syndrome group only — that group was followed longer. BAS matrices was introduced later, so its common three-group core covers waves 3 to 4; the model also reports a Down-syndrome-only wave-5 extension.
 
 ## What the model is for
 
@@ -34,15 +36,15 @@ The headline quantities are **within-group changes** across wave intervals. Betw
 | TROG receptive grammar    | average readers | wave 1→4 | **+3.4 items** [+2.6, +4.2]  |
 | BAS similarities          | Down syndrome   | wave 1→5 | **+2.9 items** [+1.9, +3.9]  |
 
-**Growth is clear for most group-and-interval combinations, but not all.** Across the six publishable models there are 88 within-group growth quantities, and 58 of them have an 89% interval entirely above zero. The remaining 30 include zero, and they are not evenly spread: 19 of 21 intervals clear zero for average readers and 16 of 21 for the reading-matched group, but only **12 of 28 for the Down syndrome group**. Growth in that group is clearest on word reading and least clear on vocabulary and grammar in the later waves, where several intervals include zero and one median is slightly negative.
+**Growth is clear for most group-and-interval combinations, but not all.** Across the six publishable models there are 70 within-group growth quantities, and 47 of them have an 89% interval entirely above zero. The remaining 23 include zero, and they are not evenly spread: 19 of 21 intervals clear zero for average readers and 16 of 21 for the reading-matched group, but only **12 of 28 for the Down syndrome group**. Growth in that group is clearest on word reading and least clear on vocabulary and grammar in the later waves, where several intervals include zero and one median is slightly negative.
 
-The headline result for this project's purposes is that children with Down syndrome showed clear, measurable word-reading growth throughout: +5.4 items from wave 1 to 2, +4.4 from wave 2 to 3 and +8.5 from wave 3 to 4, all with intervals well above zero, giving **+21.3 items across waves 1 to 5** (89% +18.4 to +24.1). Only the final wave-4-to-5 step falls short of that, at +2.0 (89% −1.1 to +5.1) — suggestive rather than clear, with a posterior probability of 0.84 that it is positive.
+The headline result for this project's purposes is that children with Down syndrome showed clear, measurable word-reading growth through wave 4: +5.4 items from wave 1 to 2, +4.4 from wave 2 to 3 and +8.5 from wave 3 to 4, all with intervals well above zero. Cumulative growth across waves 1 to 5 was **+21.3 items** (89% +18.4 to +24.1). The final wave-4-to-5 step alone was +2.0 (89% −1.1 to +5.1) — suggestive rather than clear, with a posterior probability of 0.84 that it was positive.
 
 ## Why between-group comparisons need care
 
 It is tempting to line the three groups up and compare their rates. The design makes that treacherous.
 
-**The reading-matched group was selected on the outcome.** These children were chosen _because_ their reading level matched the Down syndrome group's at the start. Selecting a group on a measured value guarantees regression to the mean on that measure — they will drift back towards their own population average regardless of anything else. Their apparent reading growth is partly a selection artefact.
+**The reading-matched group was selected on the outcome.** These children were chosen _because_ their measured reading level matched the Down syndrome group's at the start. Selection on a noisy baseline can induce regression to the mean and may therefore contribute to an apparent difference in growth. It does not guarantee the sign or size of that contribution, and these descriptive group-wave models do not identify how much of the observed pattern is selection rather than development.
 
 **The groups differ in age and in everything correlated with group membership.** Nothing was randomised.
 
@@ -54,9 +56,9 @@ So within-group growth is the defensible quantity, and the models are built to r
 
 The reason is a measurement fact, not a statistical one. These models treat scores as "so many correct out of a maximum", but for these three measures **the maximum is not known**. The 2002 source paper analysed raw scores without stating the test maxima, so the models are currently using the highest score anyone actually achieved as a stand-in — a guess about the instrument, not a property of it.
 
-A dedicated sensitivity analysis stress-tested this in August 2026: it refitted with denominators two and four times larger and with a likelihood requiring no maximum at all. **The growth directions were robust to all of it** — every median kept its direction and all intervals overlapped. The project still chose to withhold the results, on the grounds that "robust to our guess" is not the same as "we know the scale", and a bounded-count model with an invented bound cannot be published as a model of record.
+A dedicated sensitivity analysis stress-tested these three historical-growth models in August 2026: it refitted with denominators two and four times larger and with a likelihood requiring no maximum at all. Across those four likelihood variants every reported growth median kept its direction and every set of 89% intervals overlapped. A later denominator-free participant Bayesian bootstrap appended a fifth method: WORD comprehension and BAS number skills passed the pre-specified five-method rule, while BAS spelling received a strict `no_go` because one near-zero **between-group** contrast changed median sign (+0.09 to −0.19 items). Every interval for that contrast spanned zero, so this is not a substantively reversed within-group developmental pattern, but it prevents a blanket claim that every quantity was direction-stable under all five methods.
 
-That decision is recorded in `notes/202608161900-byrne-denominator-likelihood-sensitivity.md`. Clearing these three requires the administered test manuals or records. **These are withheld for want of a measurement fact, not because the results were unfavourable** — the sensitivity work suggests they would look much like their published siblings.
+Those decisions are recorded in `notes/202608161900-byrne-denominator-likelihood-sensitivity.md` and `notes/202608161945-byrne-participant-bayesian-bootstrap.md`. Neither analysis identifies the administered maxima or makes the registered bounded-count fits publishable. Clearing these three requires the administered test manuals or records, or prior approval of a denominator-free raw-score model with different estimands and predictive limitations. **They are withheld for want of a measurement fact, not because the results were unfavourable.** The sensitivity work supports many principal raw-growth patterns, but it does not license the withheld models.
 
 ## What these models cannot tell you
 
@@ -70,4 +72,4 @@ That decision is recorded in `notes/202608161900-byrne-denominator-likelihood-se
 
 ## Model inventory
 
-Six of nine pass and are publishable: `rlm-hg-001` (BAS word reading), `004` (BPVS receptive vocabulary), `005` (TROG receptive grammar), `006` (BAS recall of digits), `007` (BAS similarities), `009` (BAS matrices, waves 3–4). Withheld at the inputs stage: `002` (BAS spelling), `003` (WORD reading comprehension), `008` (BAS number skills). All nine pass the convergence gate with zero divergences — the withholding is about measurement provenance, not computation.
+Six of nine pass and are publishable: `rlm-hg-001` (BAS word reading), `004` (BPVS receptive vocabulary), `005` (TROG receptive grammar), `006` (BAS recall of digits), `007` (BAS similarities), `009` (BAS matrices, waves 3–4 core plus the Down-syndrome wave-5 extension). Withheld at the inputs stage: `002` (BAS spelling), `003` (WORD reading comprehension), `008` (BAS number skills). All nine pass the convergence gate with zero divergences — the withholding is about measurement provenance, not computation.

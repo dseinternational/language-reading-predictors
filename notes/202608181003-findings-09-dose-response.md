@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings: the `dose_response` family — does more intervention mean more progress?
 
@@ -11,7 +13,7 @@
 
 ## What the model is for
 
-The treatment families ask whether being _assigned_ to the intervention helped. This family asks the natural follow-up: among children who received it, did those who attended **more sessions** progress further?
+The treatment families ask whether being _assigned_ to the intervention helped. This family asks the natural follow-up: across the full sample, were periods with **more intervention sessions** associated with more progress? The fit includes the wait-list arm's zero-dose period-1 rows, which anchor the slope at dose zero; it is not restricted to children who received intervention in every fitted period.
 
 The appeal is obvious — a dose-response gradient is classic supporting evidence for a real effect. The problem is equally fundamental.
 
@@ -35,7 +37,7 @@ Two sensitivity variants for word reading agree closely: adjusting additionally 
 
 ## How to read this honestly
 
-The right summary is: **children who attended more sessions did better, and we cannot tell how much of that is the sessions.** A plausible share of this gradient is children who were doing well attending more, and children with complicating circumstances attending less.
+The right summary is: **periods with more recorded sessions were associated with better outcomes, and we cannot tell how much of that association is due to the sessions.** A plausible share of this gradient is children who were doing well attending more, and children with complicating circumstances attending less; the zero-dose wait-list rows also contribute to the fitted comparison.
 
 Notice the magnitudes are compatible with the randomised estimates without adding to them: the randomised word-reading effect is about +2.4 items overall, and here one standard deviation of extra attendance is associated with about +1.2. If anything, that consistency is what you would expect whether or not the dose relationship is causal, so it does not discriminate between the explanations.
 

@@ -1,19 +1,21 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings: the `gain_factors` family — change from each child's own starting point
 
-**Read `findings-00-overview` first.** This note covers the 32 models in the `gain_factors` family, the third independent route to the intervention effect.
+**Read `findings-00-overview` first.** This note covers the 32 models in the `gain_factors` family, a third model-based specification of the intervention contrast using the same trial.
 
 ## The data
 
 **RLI trial only.** Unlike the `itt` family, these models use **every transition between consecutive timepoints** — timepoint 1→2, 2→3 and 3→4 — stacked into one dataset. Each row is one child in one period: their score at the end of the period, with their score at the start of that period as a covariate. A typical fit has 54 children contributing about 160 rows.
 
-So the data **are** pooled across periods, but the causal quantity is not. The treatment effect is deliberately read off **period 1 only** — the randomised, all-untreated-baseline transition. Later periods contribute to estimating the covariate relationships and the residual variation, which sharpens the model, but they cannot contribute to the causal comparison because by then both arms have been treated.
+The data are pooled across periods, and one shared `beta_trt` coefficient enters every stacked transition. The reported items-scale marginal contrast is nevertheless standardised over **period-1 rows only** — the randomised, all-untreated-baseline transition. Later rows can influence the shared posterior through the fitted coefficient and the model's other parameters, but after crossover they contain no untreated comparison. The causal reading therefore belongs only to the period-1-standardised marginal and relies on the model's constant-treatment-effect structure; it is not an independently estimated period-1-only coefficient.
 
 ## What the model is for
 
-This is an ANCOVA on change: does a child who was receiving the intervention during a period end that period higher than their own starting point predicts?
+This is a **period-stacked post-score ANCOVA conditional on pre-score**, not a regression on a literal difference score: after accounting for the child's score at the start of a period, is the ending score higher during intervention periods under the shared-effect model?
 
 Two features distinguish it from the `itt` approach. First, **stacking periods** means the model learns the general relationship between a starting score and an ending score from three times as much data, which makes the baseline adjustment more reliable. Second, each child gets a **random intercept**, partially pooling their stable tendency to score high or low.
 
@@ -25,7 +27,7 @@ The headline models contain **no interaction with treatment**. Whether the effec
 
 ## How to read the results
 
-The reported quantity is the average marginal effect of being on the intervention during period 1, in items. Positive means the intervention helped.
+The reported quantity is the fitted effect of switching the shared on-intervention term, averaged over the observed period-1 covariate profiles and translated into items. Positive means the intervention helped under this model.
 
 | Measure                           | Effect (items) | 89% range    |
 | --------------------------------- | -------------- | ------------ |
@@ -43,13 +45,13 @@ The reported quantity is the average marginal effect of being on the interventio
 
 ## What was found
 
-**The third route reaches the same destination.** Letter-sound knowledge +3.3 items (against +3.5 from `itt`, +3.5 from `did`); word reading +2.6 (+2.4, +2.2); phoneme blending +0.8 (+1.0, +0.9). Three models with different data windows, different adjustment strategies and different assumptions agree on both direction and rough magnitude for the outcomes the intervention targeted.
+**This specification gives a similar result on the main targeted outcomes.** Letter-sound knowledge is +3.3 items (against +3.5 from `itt` and +3.5 from `did`); word reading +2.6 (+2.4 and +2.2); phoneme blending +0.8 (+1.0 and +0.9). These fits reuse the same children and randomised window, so they are not independent evidence, but agreement across their different adjustment and repeated-measures assumptions is a useful robustness check.
 
 **Receptive vocabulary comes out negative here (−1.8 items), and this needs stating precisely rather than waved away.** The 89% range runs from −5.6 to +2.0 and therefore includes zero — but that is not how direction is judged in this project. The posterior probability that the effect is negative is **0.78**, which on the evidence ladder is _suggestive_ evidence of a negative effect, not "inconclusive". Reading it as inconclusive because the interval crosses zero would be the significance-testing habit the overview explicitly warns against.
 
-That said, suggestive is the weakest rung above inconclusive — roughly 3:1 odds — and it sits against two other estimates of the same quantity that do not agree: the `itt` family gives +0.2 items for receptive vocabulary and `did` gives −0.1. Three routes to the same effect produce −1.8, +0.2 and −0.1, so the disagreement is itself the finding. The defensible summary is that broad standardised vocabulary shows no reliable movement, with one of the three models leaning weakly negative. It is emphatically not evidence that the intervention harmed vocabulary, and equally it should not be reported as a flat zero.
+Suggestive is the weakest rung above inconclusive — roughly 3:1 odds — and the 89% interval still leaves appreciable probability on either side of zero. The project's fixed vocabulary therefore treats this as weak evidence in the harmful direction, not as established harm. The `itt` family gives +0.2 items and `did` gives −0.1; all three intervals overlap. The defensible summary is that broad standardised vocabulary has no well-resolved benefit in these data, with this specification leaning weakly negative. It should be reported neither as a flat zero nor as a firm harmful effect.
 
-Taught vocabulary is weaker here (+1.0) than in the `itt` family (+1.4 and +1.5), with intervals that include zero. The alternative specifications `gf-012` and `gf-013` give +1.1 and +1.2 with intervals just clearing zero. So the taught-vocabulary effect is real but modest, and its apparent strength depends somewhat on how the model is set up — worth knowing before quoting a single number.
+Taught vocabulary is weaker here (+1.0) than in the `itt` family (+1.4 and +1.5), with intervals that include zero. The alternative specifications `gf-012` and `gf-013` give +1.1 and +1.2 with intervals just clearing zero. The estimates are consistently positive and modest, but their evidential strength depends on the specification — worth knowing before quoting a single number.
 
 ## The two companion sets
 
@@ -65,7 +67,7 @@ Both were initially withheld for prior-dominance and released only after a prior
 
 ## What these models cannot tell you
 
-**Only the period-1 treatment marginal is causal.** Every other coefficient describes which children progressed.
+**Only the treatment marginal standardised to period 1 is given a causal reading**, under the shared-effect model and the available-case assumptions. Every other coefficient describes which children progressed.
 
 **The random intercept is not an ability control.** Any reading of the ability coefficient as "ability causes progress" is unsupported.
 

@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings: the `concurrent` family — which skills go together at each timepoint
 
@@ -7,13 +9,13 @@
 
 ## The data
 
-**Both studies.** Eleven models use the RLI trial (53–54 children); two use the separate Reading, Language and Memory cohort (`rlm-ca-001` with 96 children, `rlm-ca-002` with 88).
+**Both studies.** Eleven models use the RLI trial and two use the separate Reading, Language and Memory cohort. Sample size is wave-specific rather than fixed: the full RLI word-reading fit has 53 children at timepoints 1–3 and 51 at timepoint 4; `rlm-ca-001` has 96, 88, 78 and 61, while `rlm-ca-002` has 88, 88, 78 and 61. The historical timepoint-4 result is explicitly an available-case, attrition-sensitive extension beyond the source paper's audited timepoints 1–3, so cross-wave changes can partly reflect a changing analysis sample.
 
 These models are fitted **separately at each timepoint** — waves 1 to 4 for the trial, waves 1 to 4 for the historical cohort. Each fit uses **one row per child**: everything measured at the same moment. Nothing is stacked or collapsed across waves; instead the same model is run once per wave and the results compared across waves.
 
 ## What the model is for
 
-The question is descriptive: **at a single moment, which skills go with which?** The outcome is regressed on the other skills measured at the _same_ time, adjusting for age and a group nuisance term.
+The question is descriptive: **at a single moment, which skills go with which?** The outcome is regressed on model-specific sets of skills measured at the _same_ time, with age and a group nuisance term. Some RLI models also adjust for pre-declared background covariates including block-design ability, hearing, speech and phonological memory, with missingness indicators where required.
 
 Effects are reported per standard deviation of each predictor, translated into outcome items.
 
@@ -39,17 +41,17 @@ The strongest relationships in the trial cohort, at the wave where each was clea
 
 **Letter sounds and word reading are each other's strongest correlate**, which is the clearest illustration of why these cannot be read directionally. The same relationship appears from both ends.
 
-**Word reading appears as the strongest correlate of receptive vocabulary** (+6.2 items). Nobody thinks word reading causes vocabulary at this age and over this window; it is a marker of general progress. That result is a useful reminder of what these coefficients are.
+**Word reading appears as the strongest correlate of receptive vocabulary** (+6.2 items). That coefficient alone does not show that word reading causes vocabulary: reverse direction, general progress and other common causes remain compatible with it. The result is a useful reminder of what these coefficients are.
 
 **Adjustment changes the answer substantially.** Three models estimate the same letter-sound-to-word-reading relationship at t2 with different covariates:
 
-| Model    | Adjustment            | Association per +1 SD     |
-| -------- | --------------------- | ------------------------- |
-| `ca-010` | minimal               | +11.0 items [+8.2, +13.5] |
-| `ca-001` | full skill set        | +9.0 items [+6.3, +11.6]  |
-| `ca-011` | plus nonword decoding | +7.2 items [+4.4, +10.3]  |
+| Model    | Adjustment                             | Association per +1 SD     |
+| -------- | -------------------------------------- | ------------------------- |
+| `ca-010` | Letter sounds + minimal background set | +11.0 items [+8.2, +13.5] |
+| `ca-001` | Six-skill + broader background set     | +9.0 items [+6.3, +11.6]  |
+| `ca-011` | Letter sounds + nonword + minimal set  | +7.2 items [+4.4, +10.3]  |
 
-The estimate falls by about a third across the three. All are "the association between letter sounds and word reading"; they differ only in what is held constant. No single number is _the_ answer, and quoting one without its adjustment set would be misleading.
+These are not three sequentially nested adjustments. `ca-011` adds nonword decoding to the same minimal specification as `ca-010`, reducing the letter-sound estimate from +11.0 to +7.2 items; `ca-001` instead uses a substantially broader six-skill and background adjustment set and should not be read as the middle step. All estimate conditional associations, but what is held constant differs. No single number is _the_ answer, and quoting one without its adjustment set would be misleading.
 
 In the **historical cohort**, verbal reasoning is the strongest same-wave correlate of BAS word reading at wave 1 (+7.5 items [+3.9, +11.3]) — consistent with the general-ability reading of these associations, since verbal reasoning is about as close to a general-ability marker as this battery has.
 

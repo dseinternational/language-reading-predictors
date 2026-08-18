@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings: the `historical_joint` family — do skills travel together in the historical cohort?
 
@@ -23,27 +25,27 @@ The two models ask different versions of this. `rlm-jc-001` asks about **between
 
 **Between children, the measures are strongly related.** The clearest coupling is between BAS word reading and BPVS receptive vocabulary: a stable-level correlation of **+0.71** (89% +0.55 to +0.83). Children who read better also have larger vocabularies, consistently across the study.
 
-**Within children, the model found nothing to report.** `rlm-jc-002` returned no resolvable within-child correlation: no pair of measures had wave-specific fluctuations large enough — above 0.05 on the log-odds scale — for a correlation between them to be estimated at all.
+**Within children, no correlation pair met the model's resolution rule.** The wave-specific standard deviation was resolvable for BAS word reading (median 0.315 on the log-odds scale), but not for BPVS vocabulary (0.032) or BAS digit recall (0.044) against the pre-specified 0.05 threshold. Because every pair contains at least one unresolved scale, `rlm-jc-002` withholds all three within-child correlations.
 
-## The null result is informative, and it is not a failure
+## Non-resolution is a limit on identification, not a null result
 
-This pair is a nice illustration of a distinction worth understanding.
+This pair illustrates a distinction worth understanding.
 
-The between-child correlation of +0.71 says that **stable differences between children are shared across skills**. That is the general-ability picture that recurs throughout this project: children who are doing well are doing well across the board.
+The between-child correlation of +0.71 says that **stable differences between children are shared across skills**. It is compatible with shared stable factors, including general ability, but this symmetric correlation does not identify which factor or combination of factors produces the relationship.
 
-The within-child result says that once you remove each child's stable level, **the wave-to-wave wobble is too small to correlate**. Practically, this means almost all the covariation between these measures is the stable between-child part, and there is little left over. It also means the measures are reasonably stable year to year — a child's position does not bounce around much.
+The within-child result does **not** show that the correlations are zero, that almost all covariance is between children, or that the measures are stable year to year. It says the data do not identify those correlations at the chosen resolution threshold. The posterior intervals remain very wide: for example, the reading–vocabulary within-child correlation has an 89% interval from −0.62 to +0.78. Effects in either direction remain compatible with the fit.
 
-The model reporting "not resolvable" rather than producing a number is the correct behaviour. Estimating a correlation between two quantities that are themselves near zero produces a number with no meaning attached, and the fit declined to publish one.
+The model reporting "not resolvable" rather than promoting a posterior median is the correct behaviour. A correlation is weakly identified when either underlying within-child scale is too small for this design to resolve. That is an uncertainty statement, not affirmative evidence that no within-child coupling exists.
 
 ## What these models cannot tell you
 
-**Correlation says nothing about direction or cause.** Reading and vocabulary moving together does not mean either produces the other; the `mechanism` and `mediation` families take that question up in the trial cohort, where an intervention was actually delivered.
+**Correlation says nothing about direction or cause.** Reading and vocabulary moving together does not mean either produces the other. The trial-cohort `mechanism` models describe baseline-conditional adjusted associations, and the `mediation` models provide an assumption-dependent decomposition that is not causally identified; neither resolves direction or cause here.
 
 **These are not the trial children.**
 
 **The between-child correlation is shared across the three reading groups.** The model estimates one correlation structure, not a separate one per group, so it cannot say whether the relationship differs between children with Down syndrome and their peers.
 
-**A resolvable within-child correlation might exist with better measurement.** The absence here reflects small wave-specific variation in these instruments, which is a property of the measures as much as of the children.
+**A resolvable within-child correlation might exist with more waves, more precise measurement or a larger sample.** Non-resolution here reflects the information available for the within-child scale parameters; it is not proof of absence.
 
 ## Model inventory
 

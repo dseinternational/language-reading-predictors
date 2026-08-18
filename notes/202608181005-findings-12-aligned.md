@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings: the `aligned` family — a per-protocol view aligned by when the intervention started
 
@@ -29,28 +31,28 @@ The dose variant adds cumulative sessions as a covariate, which is a **collider*
 
 ## What was found
 
-| Outcome                 | Cohort contrast (items) | 89% range    |
-| ----------------------- | ----------------------- | ------------ |
-| Receptive vocabulary    | +2.7                    | −1.8 to +7.2 |
-| Letter-sound knowledge  | **+2.2**                | +0.2 to +4.2 |
-| Word reading            | +2.1                    | −0.5 to +4.8 |
-| Phoneme blending        | +0.3                    | −0.6 to +1.2 |
-| Phonetic spelling       | +0.0                    | −0.1 to +0.1 |
-| Basic concept knowledge | −0.6                    | −1.7 to +0.5 |
-| Receptive grammar       | −1.4                    | −3.1 to +0.3 |
-| Expressive vocabulary   | −3.0                    | −6.9 to +0.8 |
+| Outcome                      | Cohort contrast | 89% range        |
+| ---------------------------- | --------------- | ---------------- |
+| Receptive vocabulary         | +2.7 items      | −1.8 to +7.2     |
+| Letter-sound knowledge       | **+2.2 items**  | +0.2 to +4.2     |
+| Word reading                 | +2.1 items      | −0.5 to +4.8     |
+| Phoneme blending             | +0.3 items      | −0.6 to +1.2     |
+| Phonetic spelling, off-floor | +3.2 pp         | −7.2 to +13.2 pp |
+| Basic concept knowledge      | −0.6 items      | −1.7 to +0.5     |
+| Receptive grammar            | −1.4 items      | −3.1 to +0.3     |
+| Expressive vocabulary        | −3.0 items      | −6.9 to +0.8     |
 
 Only letter-sound knowledge has an interval clearing zero. Word reading (+2.1) sits close to the randomised estimates from the other families but with an interval spanning zero. The dose sensitivity variant for word reading gives +2.1 [−0.4, +4.8], unchanged.
 
-**The scatter of signs here is the signal to attend to.** Receptive vocabulary comes out at +2.7 and expressive vocabulary at −3.0 — from the same children, over matched windows, on two closely related measures. Both intervals are wide and both include zero. A design giving well-identified effects should not produce that pattern on two such similar outcomes; a design absorbing age and timing differences into its group contrast very well might.
+Receptive vocabulary comes out at +2.7 and expressive vocabulary at −3.0 — from largely the same children, over aligned windows, on two related measures. Both intervals are wide and include zero. The pattern is compatible with sampling variation, model specification and the age/cohort-timing confounding already described; without a fitted cross-outcome contrast it does not diagnose which explanation dominates.
 
 ## How to read this family
 
-Treat it as **descriptive corroboration at best**. Where it agrees with the randomised families — letter sounds and word reading positive, at broadly similar magnitudes — that agreement is mildly reassuring, because a badly confounded comparison need not have agreed at all.
+Treat it as a **descriptive sensitivity view**. Where it agrees with the randomised families — letter sounds and word reading positive, at broadly similar magnitudes — that is compatible with the randomised result, but the same children and confounded design mean it is not independent corroboration.
 
-Where it disagrees, or produces large opposite-signed vocabulary estimates, the randomised families should be believed and this one should not be used to qualify them.
+For the causal question, prefer the randomised-window estimates. Agreement here cannot confirm them, and disagreement cannot overturn them; both remain descriptive information about the onset-aligned cohorts.
 
-Note also that this family's intervals are generally **wider** than the `itt` family's despite covering twice the intervention duration. Each child contributes a single row, so there is much less information per child than in the stacked designs.
+This family's intervals are generally **wider** than the `itt` family's despite covering twice the intervention duration. The aligned and `itt` fits both use one row per child, so the single-row structure does not explain that comparison. It only explains why the aligned fits lack the repeated-measures leverage of stacked families; differences from `itt` also reflect the analysis window, adjustment and sampling variation.
 
 ## What these models cannot tell you
 

@@ -1,5 +1,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
 
 # Findings: the `mediation` and `mediation_multi` families — how the reading gain happened
 
@@ -9,7 +11,7 @@
 
 **RLI trial only.** Most of these models use the **randomised timepoint 1 to timepoint 2 window**, one row per child, 50–53 children depending on which measures a child has. One model (`med-092`) stacks all periods (157 rows) as a sensitivity check.
 
-The chain being modelled is: assigned arm → the mediator measured at timepoint 2 → word reading at timepoint 2, with baselines for both.
+The main chain, exemplified by `med-059`, is: assigned arm → the mediator measured at timepoint 2 → word reading at timepoint 2, with baselines for both. Other fits change the mediator, outcome, timing or estimand, so this description does not apply literally to every model in the inventory.
 
 ## What the model is for
 
@@ -26,9 +28,11 @@ These are computed by **counterfactual simulation** (a g-formula): the fitted mo
 
 ## The interpretive caution that governs everything here
 
-**Mediation is not randomised, even inside a randomised trial.** Children were randomly assigned to the intervention; they were _not_ randomly assigned to end up with more letter-sound knowledge. Splitting a total effect into direct and indirect parts requires the assumption that nothing unmeasured causes both the mediator and the outcome — an assumption the data cannot check.
+**Mediation is not randomised, even inside a randomised trial.** Children were randomly assigned to the intervention; they were _not_ randomly assigned to end up with more letter-sound knowledge. Splitting a total effect into direct and indirect parts requires no unmeasured mediator–outcome confounding, yet latent general ability plausibly affects both and is not measured here.
 
-So the honest reading is: _if_ the causal diagram is right, this is how the effect decomposes. The decomposition is much more assumption-dependent than the treatment effect it decomposes.
+There is a second, structural problem. Intervention sessions are caused by assignment and plausibly affect both letter-sound knowledge and word reading, making dose a **treatment-induced mediator–outcome confounder**. That means the natural direct and indirect effects are not point-identified under the project's own causal diagram; measuring and adjusting for dose would not repair the cross-world assumption. In addition, letter sounds and word reading are both measured at timepoint 2, so the main fit does not establish that the mediator came first.
+
+The honest reading is therefore: these are **model-based g-formula decompositions under strong, partly violated identification assumptions**, not identified natural effects. They describe how the fitted model allocates the association; they do not establish the route by which the intervention worked.
 
 ## What was found
 
@@ -40,24 +44,24 @@ So the honest reading is: _if_ the causal diagram is right, this is how the effe
 | **Indirect, via letter sounds** | **+1.70**        | **+0.58 to +3.24** | **0.996** |
 | Direct                          | +0.15            | −1.72 to +2.08     | 0.549     |
 
-**Almost the entire word-reading gain runs through letter-sound knowledge.** The indirect path is well supported (very strong evidence for a positive route); the direct path is indistinguishable from zero — a point estimate of +0.15 words with a probability of 0.55, which is as close to "no information" as a result gets. The proportion mediated is about 0.83.
+**Within this fitted decomposition, almost the entire word-reading gain is allocated to letter-sound knowledge.** The model-based indirect component has very strong directional evidence; the direct component is poorly determined — a point estimate of +0.15 words with P(>0) = 0.55. The proportion mediated is about 0.83, conditional on the assumptions above.
 
-Note the pattern: the _total_ effect here is less certain than the _indirect_ component. That is not a contradiction. The total absorbs the noise in both paths, while the indirect path is estimated from a chain of two well-measured relationships (the intervention clearly raised letter-sound knowledge, and letter-sound knowledge clearly tracks word reading).
+Note the pattern: the _total_ effect here is less certain than the _indirect_ component. That is not a contradiction: the quantities are different functions of correlated posterior draws and need not have intervals of the same width. It is not evidence that the indirect component is better identified causally.
 
 ### Two mediators at once
 
-Running letter sounds against a rival mediator sharpens the picture:
+The two-mediator fits compare how the fitted decomposition is allocated between letter sounds and a rival mediator:
 
 | Model     | Rival mediator        | Via letter sounds                   | Via the rival                  |
 | --------- | --------------------- | ----------------------------------- | ------------------------------ |
 | `med-064` | Expressive vocabulary | **+1.87** [+0.61, +3.64], P = 0.996 | +0.03 [−0.47, +0.74], P = 0.58 |
 | `med-066` | Phoneme blending      | **+1.62** [+0.52, +3.18], P = 0.995 | −0.03 [−0.64, +0.42], P = 0.42 |
 
-In both, letter-sound knowledge carries essentially the whole indirect effect and the rival carries nothing detectable. The blending result is worth dwelling on, because blending _did_ improve under the intervention — but improving alongside the outcome is not the same as being the route to it.
+In both fitted decompositions, almost all of the indirect component is allocated to letter-sound knowledge. The rival-mediator posteriors are centred near zero but remain imprecise. The blending result is worth dwelling on, because blending _did_ improve under the intervention — but improving alongside the outcome is not the same as being the route to it.
 
-### The negative control — the most reassuring result here
+### The negative-control check — limited reassurance
 
-`med-079` deliberately runs the same machinery through **grammar**, a mediator the causal diagram says should _not_ carry a reading effect. If the method were simply manufacturing indirect effects, this would produce one.
+`med-079` deliberately runs the same machinery through **grammar**, a mediator the causal diagram says should _not_ carry a reading effect. A comparably large indirect component here would be a warning that the decomposition lacked route specificity; a small estimate can provide only limited reassurance because the negative control need not share the main mediator's confounding and measurement structure.
 
 | Quantity              | Estimate (words) | 89% range      | P(>0) |
 | --------------------- | ---------------- | -------------- | ----- |
@@ -65,19 +69,23 @@ In both, letter-sound knowledge carries essentially the whole indirect effect an
 | Indirect, via grammar | **+0.08**        | −0.19 to +0.63 | 0.711 |
 | Direct                | +2.08            | +0.31 to +3.83 | 0.970 |
 
-The indirect path through grammar is essentially zero (proportion mediated 0.04), and the effect stays in the direct component. The method finds a route where theory predicts one and finds nothing where it does not. That is real evidence the letter-sound result is not an artefact.
+The point estimate through grammar is small, but this is **not evidence of equivalence to zero**. Its 89% interval still runs from −0.19 to +0.63 words, P(>0) = 0.711 is below the project's threshold for even suggestive directional evidence, and no negligible-effect threshold was tested. The check did not reveal a strong grammar route, but it cannot validate the letter-sound decomposition or rule out artefact.
 
-`med-074` provides a second check through nonword decoding, and also finds nothing (indirect +0.02 words, P = 0.56) — but that measure is severely floored, so an absence there is weak evidence either way.
+`med-074` provides a second check through nonword decoding. Its indirect-component median is +0.02 words with P(>0) = 0.56, an unresolved direction; because that measure is severely floored, the check has little power to distinguish a genuinely small route from poor measurement.
 
 ### Sensitivity checks
 
 `med-062` uses a broader composite code-based route: indirect +0.93 [+0.08, +2.16], direct +0.60 — same direction, less concentrated.
 
-`med-092` stacks all periods rather than the randomised window alone: total +3.03, indirect +0.75 [+0.29, +1.39], direct +2.24 [+0.28, +4.03], proportion mediated 0.26. **This is the one that disagrees**, putting most of the effect in the direct path. It is also the model whose later periods are post-crossover and therefore not randomised, so its total is not the same estimand. It is reported for completeness; the randomised-window models are the ones to quote.
+The named dose-confounding calibration is more consequential. At its point calibration, session-related confounding maps to an NIE of +1.54 words [+0.48, +3.01], close to the primary +1.70. The broad endpoint scenario — an envelope of separate 89% slope endpoints, not a joint credible interval — reaches the tipping point at which the fitted NIE is removed; that tipping point is only 52.5% of the fitted mediator–outcome slope. The stored verdict is therefore that intervention-session confounding **could plausibly account for the estimated NIE**, not that the decomposition is robust.
+
+A temporal-ordering sensitivity uses letter sounds at timepoint 2 and word reading at timepoint 3. It preserves a positive model-based indirect component (+2.97 [+1.21, +5.18]) but changes the total (+1.68 [−1.43, +4.69]) and direct (−1.41 [−3.83, +1.07]) components materially. Because timepoint 3 is post-crossover, this is a temporal check rather than an identified randomised mediation estimand.
+
+`med-092` stacks all periods rather than the randomised window alone: total +3.03, indirect +0.75 [+0.29, +1.39], direct +2.24 [+0.28, +4.03], proportion mediated 0.26. **This is the one that disagrees**, putting most of the effect in the direct path. It is also the model whose later periods are post-crossover and therefore not randomised, so its total is not the same estimand. It is reported for completeness; if the fitted decompositions are described, the randomised-window versions are the closer match to the treatment-effect window, but they retain all the mediation-identification failures above.
 
 ## What these models cannot tell you
 
-**They cannot prove letter sounds are the mechanism.** They show the data are consistent with that route, under a diagram assumed rather than tested. An unmeasured factor driving both letter-sound gains and reading gains would produce the same numbers.
+**They cannot identify letter sounds as the mechanism.** The natural effects are structurally non-identified because dose is treatment-induced, latent general ability can confound mediator and outcome, and the primary mediator and outcome are contemporaneous. An unmeasured factor driving both letter-sound gains and reading gains could produce the same numbers.
 
 **The proportion mediated should not be quoted as a percentage with confidence.** Its intervals here run well outside 0–1.
 
