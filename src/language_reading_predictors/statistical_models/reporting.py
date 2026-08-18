@@ -5584,7 +5584,15 @@ def _kf_build_aligned(output_dir, config: Mapping) -> list[dict[str, str]]:
     marginal = _kf_csv_row(output_dir, "cohort_marginal.csv")
     if marginal is None:
         raise _KeyFindingsUnavailable("cohort_marginal.csv is not present")
-    off_floor = (config.get("extra") or {}).get("likelihood") == "bernoulli_offfloor"
+    plan = config.get("resolved_run_plan") or {}
+    extra = config.get("extra") or {}
+    off_floor = bool(
+        plan.get(
+            "off_floor",
+            plan.get("likelihood", extra.get("likelihood"))
+            == "bernoulli_offfloor",
+        )
+    )
     scale = 100.0 if off_floor else 1.0
     unit = "percentage points" if off_floor else "items"
     med = _kf_float(marginal["trt_items_median"]) * scale

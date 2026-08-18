@@ -790,6 +790,35 @@ def test_non_itt_blending_outcome_does_not_require_the_paired_bundle(tmp_path):
     assert payload["sentences"]
 
 
+def test_aligned_off_floor_uses_resolved_plan_and_percentage_points(tmp_path):
+    """The aligned pipeline stores its likelihood in the resolved run plan."""
+    config = _config(
+        "aligned",
+        outcome_symbol="P",
+        resolved_run_plan={
+            "likelihood": "bernoulli_offfloor",
+            "off_floor": True,
+        },
+    )
+    d = _setup_dir(tmp_path, "aligned", config=config)
+    _write_csv(
+        d,
+        "cohort_marginal.csv",
+        {
+            "trt_items_median": 0.032,
+            "trt_items_lo": -0.072,
+            "trt_items_hi": 0.132,
+            "prob_trt_pos": 0.70,
+        },
+    )
+
+    payload = generate_key_findings(d)
+
+    headline = payload["sentences"][0]["text"]
+    assert "+3.2 percentage points" in headline
+    assert "items" not in headline
+
+
 def test_blending_link_summary_stale_for_current_config_withholds(tmp_path):
     d = _setup_dir(
         tmp_path,
