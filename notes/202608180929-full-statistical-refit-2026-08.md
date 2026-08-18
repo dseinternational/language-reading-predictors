@@ -1,0 +1,79 @@
+> [!NOTE]
+> Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+
+<!-- cspell:ignore basnum basspel woco nutpie psense reloo groupby unsatisfiable -->
+
+# Full statistical refit and render, August 2026
+
+**Run record for a complete refit of every registered Bayesian model at the `reporting` sampling configuration, with all reports rendered and the cross-model comparison rebuilt.** Started 2026-08-17, completed 2026-08-18. All 220 registered models were fitted from an empty output root, so this run establishes a new baseline rather than updating an earlier one; nothing was carried over and no fit was reused.
+
+## What was run
+
+The sweep used `--config reporting` (6000 draws, 6000 tune, 6 chains, `target_accept` 0.95, `nutpie`) against repository commit `71806220` with a dirty working tree (the release-gate fixes recorded below were made during the run, after all primary fits had completed). Fits ran sequentially on a 16-core machine.
+
+The sweep was driven by a resumable per-model runner rather than `scripts/fit_statistical_model.py all --render`, for two reasons worth recording. First, `all --render` batches every render until after all fits finish, so an interrupted sweep leaves fitted-but-unrendered directories. Second, a monolithic background sweep has been reaped mid-run before. The runner imported the registry once, fitted and rendered each model in turn, and skipped any directory already holding both `release_decision.json` and `index.html`, so an interruption would have resumed rather than restarted.
+
+## Headline outcome
+
+| Measure                          | Result                     |
+| -------------------------------- | -------------------------- |
+| Models fitted                    | 220 / 220 (0 failed)       |
+| Reports rendered                 | 220 / 220                  |
+| Convergence gate passed          | 220 / 220                  |
+| Fits with any divergence         | 0                          |
+| Publishable (`release_decision`) | 214 / 220                  |
+| Withheld                         | 6, all `inputs_unresolved` |
+
+Sweep wall time was 10.65 hours, of which 10.16 hours was sampling; per-model rendering and driver overhead cost about half an hour in total across 220 models. The mediation g-formula fits dominate the tail (`med-064` 42 min, `med-075` 40 min, `med-066` 37 min, `med-092` 32 min); a typical ITT fit is well under a minute. Traces total roughly 45 GB.
+
+## Remediation performed after the sweep
+
+The initial sweep left 16 fits unpublishable. All but the 6 recorded below were resolved, none by weakening a gate.
+
+**Four convergence-gate failures.** `lrp-rli-mech-073`, `lrp-rli-mech-104` and `lrp-rli-mech-204` each had exactly one divergence in 36,000 draws with otherwise clean diagnostics. Under the divergent-transition policy in `METHODS.md` a divergent fit fails closed regardless of how small the count is, so each was refit at `--target-accept 0.99` (none declares an in-house value, so this was a genuine raise rather than a silent lowering). All three reached zero divergences. Their headline estimates were unchanged — the mechanism slope moved by at most 0.088 items, about 1.1%, well inside Monte Carlo error — which is the substantive point: the withholding was procedurally correct and the science was unaffected.
+
+`lrp-rli-jm-002` failed differently: zero divergences but maximum R-hat 1.0153 and minimum effective sample size 256, concentrated in the child random-effect block. That is a mixing problem rather than a geometry problem, so it was refit with more draws (16000 draws, 8000 tune, 8 chains) and not with a higher `target_accept`. Maximum R-hat fell to 1.0012 and minimum effective sample size rose to 7596. As expected, the posterior itself barely moved: `sigma_u_child[N]` went from mean 0.2856, 89% interval [0.018, 0.670] to mean 0.2889, 89% interval [0.029, 0.658]. More draws bought computational trustworthiness, not knowledge — the nonword between-child variance stays weakly determined because a 6-item floored measure cannot separate a genuinely stronger child from a lucky row.
+
+**Word reading.** `lrp-rli-itt-010` was `artifacts_incomplete` because the sweep ran without `--rli-randomised-archive`, so the mandatory missing-outcome sensitivity could not run. The checksum-pinned 57-row UK Data Service archive was installed with `scripts/import_rli_randomised_archive.py --download` into the gitignored `data/generated/`, and the model was refit against it. This is not a formality: the sensitivity is what bounds the headline estimate, and it is reported in the findings section below.
+
+**Eleven `robustness_unresolved` fits.** Power scaling had flagged the treatment coefficient in five `did`, two `gain_factors`, two `level_factors` and two `itt` fits as responding more to the prior than to the likelihood. The repository's own runners produced the required evidence without refitting the primaries: `did_prior_sensitivity.py`, `gf_prior_sensitivity.py` and `level_factors_prior_sensitivity.py` with `--attach`, and `tau_prior_sensitivity.py --outcomes P N` for the two floor-rule outcomes, which routes to a separate `floor_tau_prior_sensitivity` archive so it cannot mix with the standard sweep. `lrp-rli-did-007` initially refused to attach because its widest prior cell hit six divergences; rerunning that model with `--cell-target-accept 0.99` converged all three cells and attached cleanly. This refusal is the runner behaving correctly — it will not certify robustness from an unconverged cell.
+
+Release decisions are written at fit time, so attaching evidence post hoc does not by itself change them. They were re-decided over the stored fits with `scripts/regenerate_key_findings.py`, which calls `release.evaluate_publication` and rewrites both the decision and the key findings without resampling.
+
+**The phoneme-blending pair.** `lrp-rli-itt-008` and `lrp-rli-itt-108` passed their gates and read as publishable but carried zero findings sentences, with the reason "mandatory trace-backed B link sensitivity is missing". `scripts/blending_link_sensitivity.py` must run after both fits complete and before key findings are regenerated; it had not been run. Doing so validated both fits and regenerated their findings. This is a case where release status alone was misleading, and the paired-bundle requirement caught it.
+
+## Two release-gate defects found and fixed
+
+Both are in `_growth_influence_release_failures` in `src/language_reading_predictors/statistical_models/release.py`, and both withheld `lrp-rlm-gc-001`, a fit that was in fact sound. They are genuine defects independent of this run.
+
+The first was an inverted grouping. The gate computed the number of fully-excluded children as `~reliable.groupby(subject_id).all()`, which negates after the reduction and therefore counts children with **any** unreliable cell. That is the same quantity as `n_excluded_children`, checked one line earlier, so the test was simultaneously redundant and unsatisfiable for any fit containing a partially-excluded child. On this fit it demanded 7 where the writer correctly recorded 1. The writer's meaning is unambiguous: `growth._exclude_cells` keeps a child whose retained-cell count is non-zero and counts the remainder under `all_observed_cells_high_pareto`. The corrected form groups `~reliable` and then reduces with `.all()`.
+
+The second was hidden behind the first and only appeared once the counting error stopped short-circuiting the evaluation. The gate read `config["observation_influence_converged"]` at the top level, but the growth pipeline writes that verdict inside `config["extra"]`. The verdict was therefore unconditionally "missing" for every growth fit that ran the influence sensitivity. The gate now reads `extra` with a top-level fallback.
+
+Both fixes were verified narrowly rather than assumed: `ruff check src/` is clean; `test_release_decision.py`, `test_growth_models.py`, `test_historical_growth.py`, `test_rlm_growth.py` and `test_growth_run_plan.py` all pass; and re-evaluating all 220 fits against the patched gate changed exactly one status, `lrp-rlm-gc-001` from `artifacts_incomplete` to `ok`. No fit that was passing began to fail.
+
+## What remains withheld, and why it should stay that way
+
+Six fits are `inputs_unresolved`: `lrp-rlm-adj-001`, `lrp-rlm-hg-002`, `lrp-rlm-hg-003`, `lrp-rlm-hg-008`, `lrp-rlm-hs-001` and `lrp-rlm-mm-001`. Each reports that a bounded-count denominator is not confirmed against the instrument, for `basnum`, `basspel` or `woco`.
+
+This is not an outstanding action from this run. It is the documented decision recorded in `notes/202608161900-byrne-denominator-likelihood-sensitivity.md` (issue #338, 2026-08-16): the denominators in use are provisional observed-extract maxima, and Byrne, MacDonald and Buckley (2002) confirms that raw scores were analysed without stating the maxima. A four-way likelihood stress test found the growth directions robust to 2× and 4× denominators and to a denominator-free Negative-Binomial, and that note still concluded that the result "does not identify any instrument ceiling and does not clear the publication gate". Clearing these models requires the administered manuals or test records, or an explicitly approved raw-score analysis whose estimand and predictive limitations are accepted in advance. The gate is behaving as intended and these fits should remain withheld until that information exists.
+
+## Selected findings
+
+Full per-family reporting is in the companion findings notes. Three results worth recording here because they bear on the run itself.
+
+Word reading (`lrp-rli-itt-010`) gives an available-case modified ITT estimate of **+2.4 items**, 89% credible range +0.7 to +4.1, with a 99% posterior probability that the effect is positive. Against the project's agreed 1-item minimally-important difference the probability the benefit reaches that size is 90%. The now-restored missing-outcome sensitivity qualifies this materially: refitting the same 53 observed outcomes with screening word reading and age gives +2.0 [0.0, +4.0]; standardising over all 57 randomised children under MAR gives +2.0 [0.0, +4.0]; the zero-delta MAR anchor over the factual arms gives +1.7 [−0.3, +3.7]; and the model-free extreme-case benchmark spans −6.3 to +4.9 items. The effect is positive and reasonably robust under MAR-type assumptions, but unrestricted assumptions about the missing outcomes can reverse its direction, and the estimate should never be quoted without that envelope.
+
+The mechanism forest continues to separate letter-sound knowledge from the oral-language routes to word reading, per SD of the mechanism logit: L→W 0.238 [0.082, 0.410], E→W 0.122 [−0.013, 0.257], R→W 0.064 [−0.057, 0.185]. These are adjusted associations, not levers.
+
+The prior-sensitivity sweeps that unblocked the `did`, `gain_factors` and `level_factors` treatment terms established **sign stability, not magnitude robustness**. For `lrp-rli-did-001` the effect runs 1.31, 2.19 and 2.51 items as the treatment-prior SD widens from 0.25 to 0.75, with every 89% interval spanning zero. A green release status for those fits therefore certifies that the direction does not flip across defensible priors; it does not assert a well-determined effect size, and the family notes say so.
+
+## Comparison and artefacts
+
+`scripts/compare_statistical_models.py --config reporting` was rerun after remediation and wrote `output/statistical_models/comparison/`. The RW-moderation nested PSIS-LOO pair (`lrp-rli-mech-104` versus `lrp-rli-mech-204`) is now built from two publishable fits, reports `comparison_valid`, and returns "inconclusive (|elpd_diff| < 4)".
+
+Pre-remediation copies of the five refitted directories were preserved under `output/statistical_models/_pre_refit_backups/` so the before-and-after comparisons above can be reproduced. They were deliberately moved out of the models root because `regenerate_key_findings.py all` globs every non-hidden directory there and would otherwise have overwritten the preserved originals.
+
+## Documentation corrected alongside
+
+The `lrp-fit-statistical` skill file carried guidance that would have caused real reporting errors and was corrected against `METHODS.md` and the registry: it stated that divergence-only flags below roughly 0.5% were "usable" (superseded — divergences fail closed, with no percentage threshold); it specified a 95% credible interval where the house standard is an inner 50% with an outer 89%; its model and family counts were 89 and 16 against an actual 220 and 22, with correspondingly low sweep-time and trace-size estimates; and it lacked any warning that `az.summary()` rounds to two significant figures, which silently turns an R-hat ≤ 1.01 gate into R-hat < 1.05.
