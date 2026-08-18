@@ -51,7 +51,7 @@ This model initially failed the convergence gate for exactly this reason and was
 
 ## What these models cannot tell you
 
-**Neither slope is causal.** Both remain vulnerable to residual confounding; the positive negative-control outcomes in the `mechanism` family show that letter-sound associations are not specific, with general ability one plausible explanation.
+**Neither slope is causal.** Both remain vulnerable to residual confounding; the non-zero negative-control outcomes in the `mechanism` family show that part of every letter-sound association is non-specific, with general ability one plausible explanation — although those same models put the nonword excess well above the oral-language controls.
 
 **A specific channel is not a teaching claim.** That letter sounds track decoding does not establish that teaching more letter sounds produces proportionally more decoding.
 

@@ -21,11 +21,11 @@ Some models fit a straight line (a single slope). Others fit a flexible curve, w
 
 Adjustment terms include age, hearing, speech production, phonological memory and attendance, chosen from the causal diagram.
 
-## How to read these results — and why the negative controls matter most
+## How to read these results — the specificity test
 
 It is tempting to read "letter-sound knowledge → word reading, strongly positive" as "teaching letter sounds raises word reading". **These models cannot support that**, and this family contains its own built-in demonstration of why.
 
-The suite includes **negative-control outcomes**: relationships that the causal diagram says should _not_ represent the proposed decoding channel. Letter-sound knowledge should predict written-code outcomes (word reading, nonword reading) but should not predict oral-language outcomes (vocabulary, grammar, basic concepts) through that channel. Positive negative controls would show that the fitted slopes are not specific; they would be compatible with a shared cause such as general ability, maturation or engagement, but would not identify which explanation is responsible.
+The suite includes **negative-control outcomes**: relationships that the causal diagram says should _not_ represent the proposed decoding channel. Letter-sound knowledge should predict written-code outcomes (word reading, nonword reading) but should not predict oral-language outcomes (vocabulary, grammar, basic concepts) through that channel. Negative controls that come out well above zero would show a shared non-specific component, compatible with a common cause such as general ability, maturation or engagement — though they could not identify which. The pre-specified design treats the panel as one of three strands and makes the nonword-versus-word contrast, not the panel, the primary decoding signature.
 
 On a common scale (log-odds per standard deviation of the exposure), here is what happened:
 
@@ -38,13 +38,17 @@ On a common scale (log-odds per standard deviation of the exposure), here is wha
 | Letter sounds → **receptive vocabulary**  | _negative control_ | 0.109     | +0.061 to +0.157 | 0.9999 |
 | Letter sounds → **expressive vocabulary** | _negative control_ | 0.103     | +0.056 to +0.151 | 0.9997 |
 
-**The negative controls are not zero. Every one of them is clearly positive.** And the association between letter sounds and _basic concept knowledge_ (0.291) is **larger** than the association between letter sounds and _word reading_ (0.251) — the very relationship the family exists to characterise.
+**The negative controls are not zero.** All four are clearly positive, so letter-sound knowledge carries a broad association that reaches outcomes the diagram gives it no causal path to. Something shared runs through every skill here, and the models cannot say what.
 
-That is the single most important finding in this family: **the slopes are not specific to the proposed decoding channel.** A shared underlying ability is one plausible explanation, but the negative controls cannot identify the source or quantify what fraction of each slope it contributes; residual confounding, measurement differences and model misspecification can produce the same pattern. The models adjust for what was measured, and latent general ability was not measured.
+But the panel has a gradient, and the gradient is the point. The three load-bearing oral-language controls sit at 0.103 to 0.124; word reading sits at 0.251 and nonword reading at 1.030 — roughly two and nine times higher. Basic concepts (0.291) is the exception, and it is the row that should carry the least weight: it is an 18-item measure, the model fitting it describes it as "the weakest of the four negative controls — a supporting, not load-bearing, panel row", and the pre-specified design listed it as optional. Its interval (+0.163 to +0.423) also overlaps word reading's (+0.153 to +0.346) across almost its whole length, and no contrast between the two was ever fitted. "Basic concepts exceeds word reading" is therefore a comparison of two point estimates from separate models, not a result, and it should not be quoted as one.
 
-The **contrast between outcomes** is nevertheless informative as a pattern. Separate single-outcome fits put the nonword-minus-word slope difference at **+0.78 log-odds per SD** (89% +0.475 to +1.099), but that comparison pairs independent marginal draws and is explicitly **not an identified posterior contrast**. The identified within-model contrast from `jm-002` is +0.81 [+0.50, +1.13] and agrees numerically. Nonword reading requires decoding rather than sight-word recognition, so the larger association is compatible with a decoding-specific channel, but differential measurement and residual confounding remain alternative explanations.
+So the panel does not show that the letter-sound slopes are indistinguishable from general association. It shows a broad non-specific component **plus** a substantial excess on the written-code outcomes — and the size of that excess is what the suite was built to test.
 
-So the defensible summary is: **the pattern is consistent with a decoding-specific association between letter sounds and nonword reading, against a background of broad non-specific association across outcomes.** The data do not identify that background uniquely as general ability or establish either slope as a causal channel.
+That test is the **contrast between outcomes**, and it is the pre-specified primary signature rather than a supporting observation. The design note (`notes/202607172330-tier1-decoding-specificity-spec.md`) sets it out in advance: a pure general-ability account gives no reason for letter sounds to predict nonwords _more_ than words, since general ability should if anything favour the broader word-reading skill. Separate single-outcome fits put the nonword-minus-word difference at **+0.78 log-odds per SD** (89% +0.475 to +1.099), but that pairs independent marginal draws and the project's own artefact flags it as **not an identified posterior contrast**. The identified within-model version, from the bivariate `jm-002` fit with a shared child intercept, is **+0.81 [+0.50, +1.13]** with essentially all posterior mass above zero. On its own terms the decoding-specificity test passed, and passed clearly.
+
+Two things stop that from settling the question. Nonword reading is a 6-item measure with most children at the floor, so its logit slope is estimated on a scale that is not directly commensurate with a 79-item word-reading scale — differential measurement is a live alternative to a decoding mechanism. And general ability remains unblockable by construction, so neither slope is causal.
+
+So the defensible summary is: **letter-sound knowledge shows a broad, low-level association with every skill measured, and on top of that a large and well-identified excess for nonword decoding specifically.** The broad component is consistent with a shared cause such as general ability, though the panel cannot identify it as such. The excess is the pattern a decoding route predicts and a pure-confounding account does not, but it is an adjusted association, not a demonstrated channel.
 
 ## Other results
 
@@ -58,9 +62,9 @@ So the defensible summary is: **the pattern is consistent with a decoding-specif
 
 ## What these models cannot tell you
 
-**No slope here is identified as a lever.** That follows from the observational design; the positive negative controls add measured evidence that the fitted associations are not specific to the proposed channel.
+**No slope here is identified as a lever.** That follows from the observational design. The non-zero negative controls add measured evidence that part of every slope is non-specific, and the nonword-versus-word excess is still an adjusted association rather than a demonstrated channel.
 
-**Adjusting for measured covariates does not remove residual confounding.** Latent general ability is one plausible omitted cause, but the negative controls do not establish that it is the only explanation.
+**Adjusting for measured covariates does not remove residual confounding.** General ability is a latent node in the project's causal diagram and, in the design note's own words, "structurally unblockable": no adjustment set closes that path, which is why it is absent from the diagram-derived conditioning set these models use. A block-design score does exist in the data as a partial proxy, and the `itt` suite and the `concurrent` family both use it — but no equivalent ability-adjusted robustness variant was ever fitted for the mechanism slopes. So the family that leans hardest on general ability as an explanation is also the one family that never tested it against the measured proxy.
 
 **Direction is not established.** These are contemporaneous-period associations with an autoregressive baseline. A child whose reading improves may attend more to letters, as easily as the reverse.
 

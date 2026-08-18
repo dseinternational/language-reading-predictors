@@ -39,7 +39,7 @@ This is the most useful thing this family contributes, and it is not really abou
 
 If vocabulary, code and grammar are as tightly bound as these estimates suggest, then any model that adjusts for one while estimating the effect of another is adjusting for something largely overlapping. That makes the individual coefficients in the `mechanism` and `concurrent` families harder to interpret, not easier — you cannot cleanly separate the contribution of two things that move together this closely.
 
-It also gives a concrete measurement to set beside the `mechanism` family's positive negative controls. Both are compatible with a substantial shared component across skills, but neither identifies its source or determines how another model distributes it across coefficients.
+It also gives a concrete measurement to set beside the non-specific component the `mechanism` family's negative controls expose. Both are compatible with a substantial shared component across skills, but neither identifies its source or determines how another model distributes it across coefficients.
 
 ## A note on the structural coefficients
 
