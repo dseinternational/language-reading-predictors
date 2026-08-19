@@ -575,29 +575,44 @@ def _prior_table_overrides(
             "waves and conditions on a same-wave treated skill — an adjusted "
             "association, not the randomised treatment effect."
         )
+        # #553: a raw-score covariate exposure is per SD of the raw score, not of a
+        # logit; same-wave skill adjusters are standardised logits of other measures.
+        _pl_plan = getattr(context, "resolved_plan", None)
+        _pl_covariate = bool(getattr(_pl_plan, "mechanism_is_covariate", False))
+        _pl_skills = tuple(getattr(_pl_plan, "skill_symbols", ()) or ())
+        _unit = "raw score" if _pl_covariate else "logit"
         for _name, _what in (
             (
                 "beta_between",
                 "Between-child association: the outcome logit per 1 SD (pooled "
-                "row-level SD) of a child's study-average exposure logit; "
+                f"row-level SD) of a child's study-average exposure {_unit}; "
                 "Normal(0, 1), the beta_mech scale.",
             ),
             (
                 "beta_within",
                 "Within-child association: the outcome logit per 1 SD (pooled "
                 "row-level SD) of a wave's deviation from the child's own average "
-                "exposure logit; Normal(0, 1), the beta_mech scale.",
+                f"exposure {_unit}; Normal(0, 1), the beta_mech scale.",
             ),
             (
                 "beta_mech",
                 "Blended pooled association (comparator without the between/within "
-                "split): outcome logit per 1 SD of the same-wave exposure logit; "
+                f"split): outcome logit per 1 SD of the same-wave exposure {_unit}; "
                 "Normal(0, 1).",
             ),
         ):
             ctor[_name] = "beta_mech"
             role[_name] = "association"
             rationale[_name] = _what
+        for _sym in _pl_skills:
+            ctor[f"gamma_{_sym}"] = "gamma_cross"
+            role[f"gamma_{_sym}"] = "association"
+            rationale[f"gamma_{_sym}"] = (
+                f"Same-wave skill adjuster: the outcome logit per 1 SD of the "
+                f"standardised same-wave logit of {_sym} (Normal(0, 0.3), the "
+                "cross-coupling scale); a contemporaneous, possibly post-treatment "
+                "level, so an adjusted association — never an effect."
+            )
         role["alpha_wave"] = "nuisance"
         rationale["alpha_wave"] = (
             "Per-wave intercept alpha_wave[t] ~ Normal(0, 1.5); absorbs the secular "
@@ -606,6 +621,8 @@ def _prior_table_overrides(
         )
         if context.model is not None:
             for rv in context.model.free_RVs:
+                if rv.name in rationale:
+                    continue  # skill adjusters documented above
                 if rv.name.startswith("gamma_") and rv.name != "gamma_A" and not (
                     rv.name.endswith("_missing")
                 ):

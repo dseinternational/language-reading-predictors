@@ -4476,11 +4476,17 @@ def _kf_dag_unit(value) -> str:
 
 
 def _kf_measure_label(symbol) -> str:
-    """Display label for a registered measure symbol, else the symbol itself."""
+    """Display label for a registered measure symbol, a documented raw-score
+    covariate (the pooled-levels covariate exposures, #553), else the symbol."""
     from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.pooled_levels import (
+        COVARIATE_EXPOSURE_LABELS,
+    )
 
     measure = MEASURES.get(str(symbol))
-    return measure.label if measure is not None else _kf_plain_label(symbol)
+    if measure is not None:
+        return measure.label
+    return COVARIATE_EXPOSURE_LABELS.get(str(symbol), _kf_plain_label(symbol))
 
 
 def _kf_association_direction(
@@ -6823,6 +6829,19 @@ def _kf_build_pooled_levels(output_dir, config: Mapping) -> list[dict[str, str]]
     rows = {str(r["term"]): r for _, r in table.iterrows()}
     outcome = _kf_measure_label(plan.get("outcome_symbol"))
     exposure = _kf_measure_label(plan.get("mechanism_symbol"))
+    # A raw-score covariate exposure (#553) is read in its own units: the fit
+    # records how many raw points one SD of the fitted exposure is.
+    extra = config.get("extra") or {}
+    sd_raw = extra.get("mechanism_exposure_sd_raw")
+    if bool(plan.get("mechanism_is_covariate", False)) and sd_raw is not None:
+        try:
+            unit = f"1 SD ≈ {float(sd_raw):.1f} raw points"
+        except (TypeError, ValueError):
+            unit = None
+        if unit is not None:
+            exposure = (
+                f"{exposure[:-1]}; {unit})" if exposure.endswith(")") else f"{exposure} ({unit})"
+            )
 
     sentences: list[dict[str, str]] = []
     between = rows.get("beta_between")
@@ -6882,12 +6901,21 @@ def _kf_build_pooled_levels(output_dir, config: Mapping) -> list[dict[str, str]]
                 "kind": "highlight",
             }
         )
+    skills = [str(sk) for sk in (plan.get("skill_symbols") or [])]
     sentences.append(
         {
             "text": (
                 "Exposure and outcome are measured at the same wave, so nothing here "
                 "orders them in time. Every term is an adjusted association, not a "
                 "causal effect."
+                + (
+                    " The model also holds fixed the same-wave levels of "
+                    + ", ".join(_kf_measure_label(sk) for sk in skills)
+                    + " — contemporaneous skills that may themselves be affected by "
+                    "the intervention, so their coefficients are associations too."
+                    if skills
+                    else ""
+                )
             ),
             "kind": "causal",
         }

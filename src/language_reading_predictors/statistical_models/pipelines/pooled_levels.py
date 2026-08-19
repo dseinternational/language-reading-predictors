@@ -68,6 +68,22 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         f"{prepared.n_children} children across waves "
         f"{', '.join('t' + str(w) for w in plan.waves)}."
     )
+    # Complete-case accounting for the exposure (#553): ``require_observed`` drops
+    # the child-wave rows whose covariate exposure (or declared adjuster) was
+    # mean-imputed. The loader does not report that count, so it is recovered by
+    # loading the same frame without the filter and differencing the rows — the
+    # number is part of the analysis population and is recorded beside the fit.
+    n_dropped_require_observed: int | None = None
+    if plan.require_observed:
+        unfiltered = load_and_prepare(
+            **{**plan.prepare_kwargs(), "require_observed": ()}
+        )
+        n_dropped_require_observed = int(unfiltered.n_obs - prepared.n_obs)
+        rprint(
+            f"  [yellow]{n_dropped_require_observed} child-wave row(s) whose "
+            f"{', '.join(plan.require_observed)} value was imputed were dropped "
+            "(require_observed).[/yellow]"
+        )
     if not plan.use_wave_intercepts:
         rprint(
             "  [yellow]No wave intercepts: beta_mech also carries the secular "
@@ -82,8 +98,15 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     )
     if payload.n_dropped_incomplete:
         rprint(
-            f"  [yellow]{payload.n_dropped_incomplete} child-wave row(s) carried the "
-            "exposure but not the outcome and were dropped.[/yellow]"
+            f"  [yellow]{payload.n_dropped_incomplete} child-wave row(s) were missing "
+            "the outcome, the exposure or a same-wave skill adjuster and were "
+            "dropped.[/yellow]"
+        )
+    if payload.exposure_kind == "raw_covariate" and payload.exposure_sd_raw is not None:
+        rprint(
+            f"  Covariate exposure {plan.mechanism_symbol}: +1 SD of the fitted "
+            f"exposure is {payload.exposure_sd_raw:.2f} raw points (mean "
+            f"{payload.exposure_mean_raw:.2f})."
         )
     attach_built(ctx, built)
     render_model_graph(ctx)
@@ -129,18 +152,28 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     fitted_adjust_for = tuple(
         c for c in plan.adjust_for if c in prepared.covariates
     )
-    write_run_metadata(
-        ctx,
-        extra={
-            "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
-            "n_child_wave_rows": int(built.payload.n_fitted_rows),
-            "n_dropped_incomplete_rows": int(built.payload.n_dropped_incomplete),
-            "use_wave_intercepts": plan.use_wave_intercepts,
-            "effective_adjustment": _levels_effective_adjustment(
-                spec, prepared, plan, fitted_adjust_for
-            ),
-        },
-    )
+    meta_extra: dict = {
+        "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
+        "n_child_wave_rows": int(built.payload.n_fitted_rows),
+        "n_dropped_incomplete_rows": int(built.payload.n_dropped_incomplete),
+        "use_wave_intercepts": plan.use_wave_intercepts,
+        "exposure_kind": built.payload.exposure_kind,
+        "skill_symbols": list(plan.skill_symbols),
+        "effective_adjustment": _levels_effective_adjustment(
+            spec, prepared, plan, fitted_adjust_for
+        ),
+    }
+    if plan.require_observed:
+        meta_extra["require_observed"] = list(plan.require_observed)
+        meta_extra["n_dropped_require_observed_rows"] = n_dropped_require_observed
+    if built.payload.exposure_kind == "raw_covariate":
+        # The raw-units anchor of the per-SD slopes (the mechanism family's
+        # ``mechanism_exposure_sd_raw`` convention), so a report can read
+        # ``beta_between`` / ``beta_within`` back in score points.
+        meta_extra["mechanism_is_covariate"] = True
+        meta_extra["mechanism_exposure_sd_raw"] = built.payload.exposure_sd_raw
+        meta_extra["mechanism_exposure_mean_raw"] = built.payload.exposure_mean_raw
+    write_run_metadata(ctx, extra=meta_extra)
     return finalize_report(ctx)
 
 
@@ -155,7 +188,11 @@ def _levels_effective_adjustment(spec, prepared, plan, fitted_adjust_for):
     record = effective_adjustment(
         spec,
         prepared,
-        measure_confounders=(("G",) if plan.include_group else ()) + ("A",),
+        # Same-wave skill adjusters (#553) are bounded-count measures taken at the
+        # row's wave — the ``measure`` kind, relabelled ``same_wave`` below.
+        measure_confounders=(("G",) if plan.include_group else ())
+        + ("A",)
+        + tuple(plan.skill_symbols),
         adjust_for=fitted_adjust_for,
         requested_adjust_for=plan.adjust_for,
         ability_covariate=plan.ability_covariate,
