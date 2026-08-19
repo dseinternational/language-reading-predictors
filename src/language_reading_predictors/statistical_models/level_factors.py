@@ -18,9 +18,17 @@ The level design is a per-wave levels model: each wave's score is regressed on t
 randomised group (entered as a per-timepoint vector when ``group_by_time``), the
 ability covariate (optionally wave-varying) and, when ``group_ability``, a
 group x ability effect-modification term, with a non-centred child random intercept.
-The single randomised quantity is the **t2 group contrast** ``b_grp_time[1]`` (an
-items- or risk-difference average marginal effect read at the t2 rows); the other
-waves are post-crossover and every ability / interaction term is a
+Under the default ``arm_gap_reference="t1"`` parameterisation (#552) the arm-by-time
+vector is **centred on the timepoint-1 arm gap**: ``arm_gap_t1`` is the
+covariate-adjusted pre-randomisation balance quantity and ``d_grp_time[t]`` the
+change in the arm gap from t1 to each later wave, with the per-wave levels view
+``b_grp_time = (arm_gap_t1, arm_gap_t1 + d_grp_time)`` retained as a Deterministic.
+The single randomised quantity is then the **t2 change** ``d_grp_time[t2]`` -- a
+difference-in-differences of adjusted levels, read as an items- or
+risk-difference average marginal effect at the t2 rows. ``arm_gap_reference="free"``
+keeps the former parameterisation (a free per-timepoint vector whose t2 element
+``b_grp_time[1]`` is the focal raw gap) as an explicit comparator. Either way the
+other waves are post-crossover and every ability / interaction term is a
 latent-ability-confounded **adjusted association**, never a causal effect. The
 precise t2 estimand -- population-standardised average vs conditional-at-a-profile,
 and the treatment of the currently time-invariant ``group x ability`` term -- is the
@@ -53,6 +61,7 @@ _LEGACY_KEYS = frozenset(
         "ability_by_time",
         "group_ability",
         "likelihood",
+        "arm_gap_reference",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -62,6 +71,16 @@ _LEGACY_KEYS = frozenset(
 )
 
 _LIKELIHOODS = frozenset({"beta_binomial", "bernoulli_offfloor"})
+
+# How the per-timepoint arm coefficients are parameterised (#552). ``"t1"`` centres
+# them on the pre-randomisation t1 gap (balance term + changes, the default);
+# ``"free"`` keeps one free coefficient per timepoint (the pre-#552 comparator).
+ARM_GAP_REFERENCES = frozenset({"t1", "free"})
+
+#: Labels of the post-t1 waves whose arm-gap *changes* ``d_grp_time`` carries
+#: (the ``post_phase`` coordinate): t2 is the randomised contrast, t3 / t4 are
+#: post-crossover associations.
+POST_PHASE_LABELS: tuple[str, ...] = ("t2", "t3", "t4")
 
 
 def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
@@ -80,7 +99,8 @@ class LevelFactorsModelSettings:
 
     Defaults encode the primary per-wave levels model: no extra adjusters, group and
     ability both entered as per-timepoint vectors with a group x ability
-    effect-modification term, and the Beta-Binomial working likelihood.
+    effect-modification term, the arm-by-time vector centred on the t1 gap
+    (``arm_gap_reference="t1"``, #552) and the Beta-Binomial working likelihood.
 
     ``ability_covariate`` has no default because there is no coherent one: every
     registered model sets it, and the default ``group_ability=True`` requires it, so
@@ -94,6 +114,7 @@ class LevelFactorsModelSettings:
     ability_by_time: bool = True
     group_ability: bool = True
     likelihood: str = "beta_binomial"
+    arm_gap_reference: str = "t1"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -109,6 +130,11 @@ class LevelFactorsModelSettings:
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
+            )
+        if self.arm_gap_reference not in ARM_GAP_REFERENCES:
+            raise ValueError(
+                "arm_gap_reference must be one of "
+                f"{sorted(ARM_GAP_REFERENCES)}, got {self.arm_gap_reference!r}"
             )
 
     @classmethod
@@ -136,6 +162,7 @@ class LevelFactorsModelSettings:
             ability_by_time=extra.get("ability_by_time", True),
             group_ability=extra.get("group_ability", True),
             likelihood=extra.get("likelihood", "beta_binomial"),
+            arm_gap_reference=extra.get("arm_gap_reference", "t1"),
         )
 
 
@@ -153,6 +180,19 @@ class LevelFactorsRunPlan:
     group_ability: bool
     likelihood: str
     off_floor: bool
+    # Arm-by-time parameterisation (#552): ``"t1"`` (balance term + changes) or
+    # ``"free"`` (one free coefficient per timepoint).
+    arm_gap_reference: str
+    # The focal randomised quantity, resolved once here so the factory, the AME,
+    # the key-findings builder, the release gate and the prior-sensitivity runner
+    # all read the same term. ``focal_vector`` is the posterior variable,
+    # ``focal_index`` the element position within it and ``focal_term`` the
+    # labelled element as it appears in ``factor_summary.csv`` /
+    # ``psense_summary.csv`` (``d_grp_time[t2]`` or ``b_grp_time[1]``). All three
+    # are ``None`` for a pooled group term, which has no randomised element.
+    focal_vector: str | None
+    focal_index: int | None
+    focal_term: str | None
     # Covariate loading split by measurement wave (resolved from adjust_for).
     baseline_covariates: tuple[str, ...]
     pre_covariates: tuple[str, ...]
@@ -201,6 +241,7 @@ class LevelFactorsRunPlan:
             "ability_by_time": self.ability_by_time,
             "group_ability": self.group_ability,
             "likelihood": self.likelihood,
+            "arm_gap_reference": self.arm_gap_reference,
         }
 
     # -- Single source of truth for names, roles and diagnostics (#389 finding 6:
@@ -217,7 +258,15 @@ class LevelFactorsRunPlan:
         constant covariate (e.g. an all-zero ``_missing`` indicator), and the
         reported set must match what was actually built."""
         adj = self.adjust_for if effective_adjustment is None else effective_adjustment
-        names = ["b_grp_time" if self.group_by_time else "beta_grp", "gamma_A"]
+        if not self.group_by_time:
+            names = ["beta_grp"]
+        elif self.t1_referenced:
+            # Balance term, the arm-gap changes (t2 randomised) and the derived
+            # per-wave levels view, in that order (#552).
+            names = ["arm_gap_t1", "d_grp_time", "b_grp_time"]
+        else:
+            names = ["b_grp_time"]
+        names.append("gamma_A")
         if self.ability_covariate:
             names.append(
                 "gamma_ability_time" if self.ability_by_time else "gamma_ability"
@@ -244,16 +293,46 @@ class LevelFactorsRunPlan:
         ]
 
     @property
+    def t1_referenced(self) -> bool:
+        """True when the arm-by-time vector is centred on the t1 gap (#552)."""
+        return self.group_by_time and self.arm_gap_reference == "t1"
+
+    @property
     def causal_vector(self) -> str:
-        """The group coefficient the extended diagnostics treat as focal."""
-        return "b_grp_time" if self.group_by_time else "beta_grp"
+        """The group coefficient the extended diagnostics treat as focal: the
+        arm-gap *changes* under the t1 reference, the free per-timepoint vector
+        under ``"free"``, the pooled main effect otherwise."""
+        if self.focal_vector is not None:
+            return self.focal_vector
+        return "beta_grp"
 
     @property
     def causal_terms(self) -> tuple[str, ...]:
         """The elements flagged causal in summaries: only the randomised t2
         contrast, and only when group is entered per timepoint — a pooled
         ``beta_grp`` mixes post-crossover waves and is never flagged."""
-        return ("b_grp_time[1]",) if self.group_by_time else ()
+        return (self.focal_term,) if self.focal_term is not None else ()
+
+    @property
+    def balance_terms(self) -> tuple[str, ...]:
+        """Terms reported as pre-randomisation *balance* quantities — never as
+        effects (#552): the adjusted t1 arm gap under the t1 reference."""
+        return ("arm_gap_t1",) if self.t1_referenced else ()
+
+    @property
+    def levels_view_terms(self) -> tuple[str, ...]:
+        """Derived per-wave arm gaps retained for the levels view (#552): the
+        Deterministic ``b_grp_time`` under the t1 reference. Its elements are
+        neither the causal estimand (that is ``d_grp_time[t2]``) nor ordinary
+        adjusted associations, so the summary labels them separately."""
+        return ("b_grp_time",) if self.t1_referenced else ()
+
+    def factor_summary_roles(self) -> dict[str, str]:
+        """Role overrides for :func:`reporting.factor_summary` beyond the
+        causal / association split: the balance term and the levels view."""
+        roles = {t: "balance" for t in self.balance_terms}
+        roles.update({t: "levels_view" for t in self.levels_view_terms})
+        return roles
 
     def validate_prepared(self, prepared: PreparedData) -> None:
         """Fail before model construction if the loaded panel cannot identify the
@@ -275,7 +354,7 @@ class LevelFactorsRunPlan:
                 raise ValueError(
                     f"{self.model_id}: the t2 rows with an observed {own} outcome "
                     f"do not contain both randomised arms (present: {sorted(arms)}), "
-                    "so the declared randomised t2 contrast b_grp_time[1] is "
+                    f"so the declared randomised t2 contrast {self.focal_term} is "
                     "unidentified."
                 )
         if self.ability_covariate is not None:
@@ -290,6 +369,28 @@ class LevelFactorsRunPlan:
                     "group x ability terms are not computable; a NaN here would "
                     "otherwise propagate silently into the likelihood."
                 )
+
+    def _arm_gap_reference_prose(self) -> str:
+        if not self.group_by_time:
+            return (
+                "a single pooled group coefficient (`beta_grp`) across all waves -- "
+                "not a randomised contrast, because it mixes post-crossover waves"
+            )
+        if self.t1_referenced:
+            return (
+                "centred on the timepoint-1 arm gap (#552): `arm_gap_t1` is the "
+                "covariate-adjusted pre-randomisation balance quantity, `d_grp_time[t]` "
+                "the change in the arm gap from t1 to t2 / t3 / t4, and the per-wave "
+                "levels view `b_grp_time = (arm_gap_t1, arm_gap_t1 + d_grp_time)` is "
+                "kept as a derived quantity; the randomised contrast is the t2 change "
+                "`d_grp_time[t2]`, a difference-in-differences of adjusted levels"
+            )
+        return (
+            "one free coefficient per timepoint (`b_grp_time[t]`, the pre-#552 "
+            "comparator); the randomised contrast is the raw adjusted t2 gap "
+            "`b_grp_time[1]`, which carries any covariate-adjusted chance imbalance "
+            "present at t1"
+        )
 
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
@@ -309,7 +410,9 @@ class LevelFactorsRunPlan:
             f"{self.ability_covariate or 'none'}. Group entered per timepoint: "
             f"{self.group_by_time}. Ability entered per timepoint: "
             f"{self.ability_by_time}. Group x ability effect modification: "
-            f"{self.group_ability}. Requested adjustment terms: {adjust}.\n\n"
+            f"{self.group_ability}. Arm-by-time parameterisation: "
+            f"{self._arm_gap_reference_prose()}. Requested adjustment terms: "
+            f"{adjust}.\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate and posterior-predictive checks pass. The saved "
@@ -362,7 +465,27 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         raise ValueError(
             f"{spec.model_id}: group_ability requires an ability_covariate"
         )
+    if settings.arm_gap_reference == "t1" and not settings.group_by_time:
+        # A pooled group main effect has no per-wave gap to centre on the t1 gap:
+        # the declaration is incoherent and must fail before the output directory
+        # is reset or data are loaded (#552). Declare arm_gap_reference="free"
+        # explicitly for a pooled comparator.
+        raise ValueError(
+            f"{spec.model_id}: arm_gap_reference='t1' requires group_by_time=True "
+            "(a pooled group coefficient has no t1 gap to centre on); declare "
+            "arm_gap_reference='free' for a pooled group term"
+        )
     off_floor = settings.likelihood == "bernoulli_offfloor"
+    if not settings.group_by_time:
+        focal_vector: str | None = None
+        focal_index: int | None = None
+        focal_term: str | None = None
+    elif settings.arm_gap_reference == "t1":
+        focal_vector, focal_index = "d_grp_time", POST_PHASE_LABELS.index("t2")
+        focal_term = f"d_grp_time[{POST_PHASE_LABELS[focal_index]}]"
+    else:
+        focal_vector, focal_index = "b_grp_time", 1
+        focal_term = "b_grp_time[1]"
 
     # Covariate loading split by measurement wave -- identical to the former inline
     # logic in fit_level_factors: the ability covariate and any baseline-timed
@@ -376,38 +499,71 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         (settings.ability_covariate,) if settings.ability_covariate else ()
     ) + baseline_adj
 
+    t1_referenced = settings.group_by_time and settings.arm_gap_reference == "t1"
+    if t1_referenced:
+        group_clause = (
+            "the randomised group entered per timepoint and centred on the "
+            "timepoint-1 arm gap (a pre-randomisation balance term plus the change "
+            "in the arm gap at each later wave, #552)"
+        )
+        contrast_clause = (
+            "the t2 change in the adjusted arm gap d_grp_time[t2], a "
+            "difference-in-differences of levels that removes the covariate-adjusted "
+            "chance imbalance carried by the t1 gap arm_gap_t1"
+        )
+    elif settings.group_by_time:
+        group_clause = "the randomised group entered per timepoint"
+        contrast_clause = (
+            "the raw adjusted t2 arm gap b_grp_time[1] (the pre-#552 free "
+            "parameterisation, retained as a comparator; it carries any "
+            "covariate-adjusted chance imbalance present at t1)"
+        )
+    else:
+        group_clause = "a single pooled group coefficient across all waves"
+        contrast_clause = (
+            "none: the pooled group coefficient beta_grp mixes post-crossover waves "
+            "and is not a randomised contrast"
+        )
     if off_floor:
         design = (
             "Per-wave off-floor levels model: a Bernoulli likelihood for whether the "
-            "child is above the outcome floor at each wave, with the randomised group "
-            "entered per timepoint, the ability covariate, an optional group x ability "
-            "term, and a non-centred child random intercept."
+            f"child is above the outcome floor at each wave, with {group_clause}, the "
+            "ability covariate, an optional group x ability term, and a non-centred "
+            "child random intercept."
         )
         estimand = (
-            "The t2 randomised group contrast on the probability of being off the "
-            "floor (a risk difference read at the t2 rows). The other waves are "
-            "post-crossover; ability and interaction terms are adjusted associations."
+            f"The t2 randomised group contrast -- {contrast_clause} -- on the "
+            "probability of being off the floor (a risk difference read at the t2 "
+            "rows). The other waves are post-crossover; ability and interaction terms "
+            "are adjusted associations."
         )
     else:
         design = (
             "Per-wave levels model: each wave's score is regressed (a Beta-Binomial "
-            "working likelihood) on the randomised group entered per timepoint, the "
-            "ability covariate, an optional group x ability term, and a non-centred "
-            "child random intercept for the repeated observations."
+            f"working likelihood) on {group_clause}, the ability covariate, an "
+            "optional group x ability term, and a non-centred child random intercept "
+            "for the repeated observations."
         )
         estimand = (
-            "The t2 randomised group contrast b_grp_time[1] (an items-scale average "
-            "marginal effect read at the t2 rows). The other waves are post-crossover; "
-            "ability and interaction terms are adjusted associations. The precise t2 "
-            "estimand -- population-standardised average vs conditional-at-a-profile, "
-            "and the treatment of the currently time-invariant group x ability term -- "
-            "is under methodological review (#389 finding 1)."
+            f"The t2 randomised group contrast -- {contrast_clause} -- as an "
+            "items-scale average marginal effect read at the t2 rows. The other waves "
+            "are post-crossover; ability and interaction terms are adjusted "
+            "associations. The precise t2 estimand -- population-standardised average "
+            "vs conditional-at-a-profile, and the treatment of the currently "
+            "time-invariant group x ability term -- is under methodological review "
+            "(#389 finding 1)."
         )
     causal_status = (
         "Only the t2 group term is randomised (a contrast on the available-case t2 "
         "population); the other timepoints are post-crossover and every ability and "
         "group x ability term is a latent-ability-confounded adjusted association, "
         "never a causal effect."
+        + (
+            " The t1 arm gap is a pre-randomisation balance quantity, reported with "
+            "its own prior and never as an effect."
+            if t1_referenced
+            else ""
+        )
     )
     analysis_population = (
         "Available-case children observed across the level waves (about 53-54 "
@@ -431,6 +587,10 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         group_ability=settings.group_ability,
         likelihood=settings.likelihood,
         off_floor=off_floor,
+        arm_gap_reference=settings.arm_gap_reference,
+        focal_vector=focal_vector,
+        focal_index=focal_index,
+        focal_term=focal_term,
         baseline_covariates=baseline_covariates,
         pre_covariates=pre_adj,
         post_covariates=post_adj,

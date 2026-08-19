@@ -264,9 +264,15 @@ alike. The `…b` variant is treated-only (gains while on intervention). Design 
 ### Level factors — `lrp-rli-lf-001–lrp-rli-lf-011` (`kind="level_factors"`)
 
 **Purpose.** The companion _levels_ view of each outcome (the score at each timepoint, no
-own baseline), with group×time and ability×time as per-timepoint coefficient vectors. Only
-the t2 group contrast is a clean randomised effect; later timepoints are post-crossover and
-flagged as associations. Each outcome carries the same revised-DAG exogenous confounders
+own baseline), with group×time and ability×time as per-timepoint coefficient vectors. The
+arm-by-time vector is centred on the timepoint-1 arm gap (#552): `arm_gap_t1` is the
+covariate-adjusted pre-randomisation balance quantity (reported, never an effect) and
+`d_grp_time[t]` the change in that gap at each later wave, with the per-wave levels view
+`b_grp_time[t]` kept as a derived quantity. Only the t2 change `d_grp_time[t2]` — a
+difference-in-differences of adjusted levels — is a clean randomised effect; later
+timepoints are post-crossover and flagged as associations. `arm_gap_reference="free"`
+retains the pre-#552 free per-timepoint vector (focal `b_grp_time[1]`) as an explicit
+comparator. Each outcome carries the same revised-DAG exogenous confounders
 (`adjust_for`: hearing/speech/phonological memory) as its gain-factor sibling, but **no**
 measure-skill adjusters — in a levels model a skill's contemporaneous level is a
 post-treatment mediator of the group×time effect (#247). Outcomes mirror the gain-factor

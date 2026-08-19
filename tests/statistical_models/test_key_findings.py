@@ -1068,6 +1068,65 @@ def test_level_factors_caveats_the_headline_as_at_mean_ability(tmp_path):
     ]
 
 
+def test_level_factors_t1_referenced_plan_names_the_change_in_the_causal_sentence(tmp_path):
+    # #552: under the t1-referenced arm-gap parameterisation the persisted plan
+    # records arm_gap_reference="t1" and focal_term="d_grp_time[t2]", and the box
+    # tells the reader the randomised quantity is the change in the arm difference
+    # from t1 to t2 (a difference-in-differences), not the raw t2 gap. The
+    # mean-ability caveat still rides on the same causal sentence.
+    cfg = _config(
+        "level_factors",
+        resolved_run_plan={
+            "arm_gap_reference": "t1",
+            "group_by_time": True,
+            "focal_term": "d_grp_time[t2]",
+        },
+    )
+    d = _setup_dir(tmp_path, "level_factors", config=cfg)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_rows(
+        d,
+        "factor_summary.csv",
+        [
+            {"term": "arm_gap_t1", "role": "balance", "prob_positive": 0.12},
+            {"term": "d_grp_time[t2]", "role": "causal", "prob_positive": 0.94},
+            {"term": "b_grp_time[1]", "role": "levels_view", "prob_positive": 0.80},
+            {"term": "gamma_grp_ability", "role": "association", "prob_positive": 0.31},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
+    assert "difference-in-differences" in causal["text"]
+    assert "chance difference between the arms at t1" in causal["text"]
+    assert "for a child of typical cognitive ability" in causal["text"]
+    assert [s["kind"] for s in payload["sentences"]] == [
+        "headline", "confidence", "rope", "causal"
+    ]
+
+
+def test_level_factors_free_plan_keeps_the_plain_causal_sentence(tmp_path):
+    cfg = _config(
+        "level_factors",
+        resolved_run_plan={
+            "arm_gap_reference": "free",
+            "group_by_time": True,
+            "focal_term": "b_grp_time[1]",
+        },
+    )
+    d = _setup_dir(tmp_path, "level_factors", config=cfg)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_rows(
+        d,
+        "factor_summary.csv",
+        [{"term": "b_grp_time[1]", "role": "causal", "prob_positive": 0.94}],
+    )
+    payload = generate_key_findings(d)
+    causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
+    assert "difference-in-differences" not in causal["text"]
+    assert "Only this t2 comparison is randomised" in causal["text"]
+
+
 def test_level_factors_omits_the_ability_caveat_without_the_term(tmp_path):
     # A level model fitted without group x ability must not carry the caveat — it
     # would describe a coefficient the reader cannot find in the summary table.
@@ -1115,6 +1174,11 @@ def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
     assert 'factor_summary.term == "gamma_grp_ability"' in text
     assert "at mean ability" in text
     assert "notes/202606261230-gain-level-factors-design.md" in text
+    # #552: the partial reads the focal term from the persisted plan rather than
+    # hard-coding b_grp_time[1], and fences the balance / levels-view roles off
+    # from the adjusted-associations table.
+    assert '_plan.get("focal_term")' in text
+    assert '["causal", "balance", "levels_view"]' in text
 
 
 def test_design_note_records_the_group_ability_exclusion():
@@ -2632,7 +2696,22 @@ def test_each_family_reads_its_own_causal_term():
     assert causal_term_for({"kind": "itt"}) == "tau"
     assert causal_term_for({"kind": "joint"}) == "tau"
     assert causal_term_for({"kind": "gain_factors"}) == "beta_trt"
+    # A stored pre-#552 level fit (no focal_term in its plan) was fitted with the
+    # free per-timepoint vector, so the fallback is its raw t2 gap; a fit under
+    # the t1-referenced parameterisation names the t2 change (#552).
     assert causal_term_for({"kind": "level_factors"}) == "b_grp_time[1]"
+    assert (
+        causal_term_for(
+            {"kind": "level_factors", "resolved_run_plan": {"focal_term": "d_grp_time[t2]"}}
+        )
+        == "d_grp_time[t2]"
+    )
+    assert (
+        causal_term_for(
+            {"kind": "level_factors", "resolved_run_plan": {"focal_term": "b_grp_time[1]"}}
+        )
+        == "b_grp_time[1]"
+    )
     assert causal_term_for({"kind": "did"}) == "tau_t2"
     assert (
         causal_term_for({"kind": "did", "resolved_run_plan": {"dose": True}})

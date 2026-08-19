@@ -138,9 +138,12 @@ class GainFactorsPayload(FittedPayload):
 
 @dataclass(frozen=True)
 class LevelFactorsPayload(FittedPayload):
-    """Outcome-informed intercept anchor used by a level-factor fit."""
+    """Outcome-informed intercept anchor and arm-gap parameterisation of a
+    level-factor fit (``"t1"`` balance term + changes, or the ``"free"``
+    per-timepoint comparator, #552)."""
 
     alpha_anchor: float
+    arm_gap_reference: str = "t1"
 
 
 @dataclass(frozen=True)

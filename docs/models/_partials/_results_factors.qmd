@@ -49,6 +49,15 @@ else:
 ```{python}
 # | echo: false
 factor_summary = _csv("factor_summary.csv")
+# Level family, t1-referenced arm-gap parameterisation (#552): the persisted plan
+# names the focal randomised element (``d_grp_time[t2]``; ``b_grp_time[1]`` under the
+# free comparator and on stored pre-#552 fits), so every sentence below that names
+# the focal term reads it from the plan rather than hard-coding it.
+_plan = config.get("resolved_run_plan") or {}
+_lf_t1 = str(_plan.get("arm_gap_reference", "free")) == "t1" and bool(
+    _plan.get("group_by_time", True)
+)
+_focal = str(_plan.get("focal_term") or "b_grp_time[1]")
 factor_summary
 ```
 
@@ -66,7 +75,17 @@ print(
         "role: no term here is causal."
         if _mv
         else "The `role` column flags the single `causal` (randomised) term; "
-        "every other row is an adjusted association."
+        "every other row is an adjusted association"
+        + (
+            " — except the two level-model roles introduced with the t1-referenced "
+            "arm-gap parameterisation (#552): `balance` for `arm_gap_t1`, the "
+            "covariate-adjusted arm difference at t1 before anyone was treated (a "
+            "chance quantity, never an effect), and `levels_view` for the derived "
+            "per-wave arm gaps `b_grp_time[t]` (= `arm_gap_t1 + d_grp_time[t]`), "
+            "kept so the raw per-wave gaps can still be read."
+            if _lf_t1
+            else "."
+        )
     )
 )
 ```
@@ -92,6 +111,15 @@ if factor_summary is not None and "role" in factor_summary.columns:
             f"89% {_r['lo']:+.3f} to {_r['hi']:+.3f}); "
             f"P(> 0) = {_r.prob_positive:.3f} ({_odds(_r.prob_positive)}{_lab}). "
             f"This is the only coefficient identified by randomisation."
+            + (
+                " It is the **change in the adjusted arm gap from t1 to t2** — a "
+                "difference-in-differences of levels: the arm difference at t2 minus "
+                "the arm difference at t1, so the chance covariate-adjusted imbalance "
+                "present before randomisation is removed rather than carried into "
+                "the estimate (#552)."
+                if _lf_t1
+                else ""
+            )
         )
         if str(_r.get("favoured_direction", "positive")) == "negative":
             print(
@@ -122,9 +150,52 @@ if factor_summary is not None and "role" in factor_summary.columns:
 ```{python}
 # | echo: false
 # | output: asis
+# Level family, t1-referenced parameterisation (#552): the pre-randomisation
+# balance term and the derived per-wave levels view, fenced off from both the
+# causal term and the adjusted associations. Gated on the roles being present.
+if (
+    _lf_t1
+    and factor_summary is not None
+    and "role" in factor_summary.columns
+    and factor_summary.role.isin(["balance", "levels_view"]).any()
+):
+    _bal = factor_summary[factor_summary.role == "balance"]
+    _lv = factor_summary[factor_summary.role == "levels_view"]
+    print("### Baseline balance and the per-wave levels view\n")
+    if len(_bal):
+        _b = _bal.iloc[0]
+        print(
+            f"**Baseline balance — `{_b.term}`:** the covariate-adjusted "
+            f"immediate-minus-waitlist difference at **t1**, before anyone was treated: "
+            f"posterior median {_b['median']:+.3f} logits "
+            f"(89% {_b['lo']:+.3f} to {_b['hi']:+.3f}; P(> 0) = {_b.prob_positive:.3f}). "
+            "This is a **chance quantity** under randomisation — it exists because the "
+            "model adjusts for age and ability at every wave and the arms differ "
+            "slightly on both — and it is reported with its own prior as a *balance* "
+            "term, **never as an effect**. The randomised contrast above is the change "
+            "from this gap to the t2 gap, so whatever this gap is, it is subtracted out.\n"
+        )
+    if len(_lv):
+        _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _lv.columns]
+        print(
+            "**Per-wave arm gaps (levels view)** — the derived adjusted arm difference at "
+            "each wave, `b_grp_time[t] = arm_gap_t1 + d_grp_time[t]` (t1 is the balance "
+            "term itself). These are kept so the raw per-wave gaps can still be read — "
+            "`b_grp_time[1]` is the raw adjusted t2 gap the pre-#552 parameterisation "
+            "reported as its headline — but **none of them is the causal estimand**: "
+            "the t2 row still carries the t1 chance imbalance, and the t3/t4 rows are "
+            "post-crossover.\n"
+        )
+        print(_lv[_cols].to_markdown(index=False))
+        print("")
+```
+
+```{python}
+# | echo: false
+# | output: asis
 # Level family only: the group contribution at t2 is
-# (b_grp_time[1] + gamma_grp_ability*ability)*G, but the causal card deliberately adds
-# back only b_grp_time[1] — gamma_grp_ability is a single *time-invariant* coefficient,
+# (focal t2 term + gamma_grp_ability*ability)*G, but the causal card deliberately adds
+# back only the focal term — gamma_grp_ability is a single *time-invariant* coefficient,
 # identified from all four timepoints, three of which are not randomised, so folding it
 # in would import a non-randomised component into a causal claim (#271 item 5; design
 # note Decision 4). That makes the estimand "at mean ability", which the reader has to
@@ -138,8 +209,10 @@ if (
     print(
         "_What the causal effect holds fixed:_ this model also carries a "
         "**group × ability** term, so the full group contribution at t2 is "
-        "`b_grp_time[1] + gamma_grp_ability × ability`. The effect reported above and "
-        "in the items-scale card below adds back **only `b_grp_time[1]`**: every child "
+        f"`{_focal} + gamma_grp_ability × ability`"
+        + (" (plus the t1 balance term `arm_gap_t1`, which is in both arms' prediction and is not part of the effect)" if _lf_t1 else "")
+        + ". The effect reported above and "
+        f"in the items-scale card below adds back **only `{_focal}`**: every child "
         "keeps their own baseline, but each receives the *same* group increment. The "
         "headline is therefore the average effect **at mean ability** — neither a "
         "population-average effect that lets the benefit vary with ability, nor a "
@@ -187,7 +260,11 @@ print(
         "tau_forest.png",
         "Posterior of the on-intervention term (forest, reference line at 0) — a model-dependent association in this moderation variant"
         if _mv
-        else "Posterior of the causal term (forest, reference line at 0)",
+        else (
+            "Posterior of the t1 balance term and the per-wave arm-gap changes (forest, reference line at 0) — only the t2 change is randomised"
+            if _lf_t1
+            else "Posterior of the causal term (forest, reference line at 0)"
+        ),
     )
 )
 print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
@@ -318,8 +395,10 @@ if _has("child_fit_panels.png"):
 # | echo: false
 # | output: asis
 # Adjusted associations, clearly fenced (METHODS.md causal-vs-association discipline).
+# The level model's balance term and derived levels view (#552) carry their own roles
+# and are reported in their own block above, not as associations.
 if factor_summary is not None and "role" in factor_summary.columns:
-    _assoc = factor_summary[factor_summary.role != "causal"]
+    _assoc = factor_summary[~factor_summary.role.isin(["causal", "balance", "levels_view"])]
     if len(_assoc):
         _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _assoc.columns]
         print('::: {.callout-important title="Adjusted associations — not causal"}\n')

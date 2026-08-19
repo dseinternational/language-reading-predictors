@@ -31,13 +31,17 @@ every non-randomised coefficient is an **adjusted association** confounded by la
 general ability (the child random intercept is
 only a partial, shrunken stand-in for between-child heterogeneity, not a control for
 that latent general ability) — "associated with", never "drives". **Crucially,
-the group effect is modelled as `group × time` (a per-timepoint group coefficient
-`b_grp_time[t]`, read as trajectory divergence) because after t2 the waitlist
-crosses over: the group difference across the four timepoints is *not* a clean ITT
-contrast.** The clean randomised contrast lives **only at t2** (`b_grp_time[1]`,
-labelled *causal* in the table below); the t3/t4 group coefficients are
-post-crossover and are cohort/timing associations, not treatment effects. SES is
-excluded (non-DAG / redundant).
+the group effect is modelled as `group × time` — a per-timepoint group coefficient,
+read as trajectory divergence — because after t2 the waitlist crosses over: the
+group difference across the four timepoints is *not* a clean ITT contrast.** The
+per-timepoint coefficient is parameterised as the covariate-adjusted arm gap at t1
+(`arm_gap_t1`, a pre-randomisation *balance* quantity, never an effect) plus the
+change in that gap at each later wave (`d_grp_time[t]`; #552). The clean randomised
+contrast lives **only at t2** — the t2 change `d_grp_time[t2]`, a
+difference-in-differences of adjusted levels, labelled *causal* in the table below;
+the t3/t4 changes are post-crossover and are cohort/timing associations, not
+treatment effects, and the per-wave gaps `b_grp_time[t] = arm_gap_t1 + d_grp_time[t]`
+are kept as a derived levels view. SES is excluded (non-DAG / redundant).
 
 **DAG factor set:** group $\times$ time · age (per timepoint) · cognitive ability
 (block design) $\times$ time · group $\times$ ability · child random intercept.
@@ -55,10 +59,13 @@ $$
 
 with $W_t \sim \operatorname{BetaBinomial}(N, \mu\kappa, (1-\mu)\kappa)$, $N = 79$.
 The per-timepoint group ($b_{\text{grp}[t]}$) and ability ($g_{\text{ability}[t]}$)
-coefficients are the `group × time` and `ability × time` interactions; $t=1$ is t2,
-the clean randomised contrast. Priors follow the shared template in `priors.py`.
+coefficients are the `group × time` and `ability × time` interactions; the clean
+randomised contrast is the change in $b_{\text{grp}[t]}$ from t1 to t2 (see the
+arm-gap parameterisation below). Priors follow the shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+**Arm-gap parameterisation (#552).** The per-timepoint group coefficient is centred on the timepoint-1 arm gap: $b_{\text{grp}[t1]} = a_{t1}$ and $b_{\text{grp}[t]} = a_{t1} + d_{\text{grp}[t]}$ for $t \in \{t2, t3, t4\}$, where $a_{t1}$ (`arm_gap_t1`) is the covariate-adjusted immediate-minus-waitlist gap at t1 — before anyone was treated, so a **chance balance quantity** on the cross-coupling prior, reported and never read as an effect — and $d_{\text{grp}[t]}$ (`d_grp_time[t]`) is the change in that gap from t1, on the outcome-tier treatment prior. A levels model conditions on nothing at baseline while adjusting for age and ability at every wave, so a free per-timepoint vector (the pre-#552 parameterisation, retained as the `arm_gap_reference="free"` comparator) carries the covariate-adjusted chance t1 imbalance straight into the t2 contrast; centring on the t1 gap removes it and puts the prior on the randomised difference directly. The randomised contrast is therefore the **t2 change `d_grp_time[t2]`**, a difference-in-differences of adjusted levels; `d_grp_time[t3]` / `[t4]` are post-crossover associations, and the per-wave arm gaps `b_grp_time[t]` are kept as a derived levels view.
 
 **Intercepts (#389 finding 2).** $\alpha$ is **anchored**: a pooled, arm-blind
 empirical-Bayes anchor at the observed **pre-randomisation t1** logit plus a free

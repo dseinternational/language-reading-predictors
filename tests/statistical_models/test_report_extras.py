@@ -95,6 +95,51 @@ def test_factor_summary_has_direction_label():
     assert row["direction_label"] == evidence_label(row["prob_positive"])
 
 
+def test_factor_summary_labels_vector_elements_by_coordinate_and_applies_roles():
+    """#552: vector elements are labelled by their coordinate value (``b_grp_time[1]``
+    for the integer ``phase`` coordinate, ``d_grp_time[t2]`` for the labelled
+    ``post_phase`` one) — the same string ArviZ and psense use — and
+    ``role_overrides`` adds the level family's ``balance`` / ``levels_view`` roles
+    without touching the causal / association split."""
+    rng = np.random.default_rng(5)
+    ds = xr.Dataset(
+        {
+            "arm_gap_t1": (("chain", "draw"), rng.normal(-0.2, 0.1, (2, 50))),
+            "d_grp_time": (("chain", "draw", "post_phase"), rng.normal(0.3, 0.1, (2, 50, 3))),
+            "b_grp_time": (("chain", "draw", "phase"), rng.normal(0.1, 0.1, (2, 50, 4))),
+            "gamma_A": (("chain", "draw"), rng.normal(0.0, 0.1, (2, 50))),
+        },
+        coords={
+            "chain": np.arange(2), "draw": np.arange(50),
+            "post_phase": ["t2", "t3", "t4"], "phase": np.arange(4),
+        },
+    )
+    df = factor_summary(
+        SimpleNamespace(posterior=ds),
+        ["arm_gap_t1", "d_grp_time", "b_grp_time", "gamma_A"],
+        ci_prob=0.89,
+        causal_terms=("d_grp_time[t2]",),
+        role_overrides={"arm_gap_t1": "balance", "b_grp_time": "levels_view"},
+    )
+    roles = dict(zip(df["term"], df["role"], strict=True))
+    assert roles == {
+        "arm_gap_t1": "balance",
+        "d_grp_time[t2]": "causal",
+        "d_grp_time[t3]": "association",
+        "d_grp_time[t4]": "association",
+        "b_grp_time[0]": "levels_view",
+        "b_grp_time[1]": "levels_view",
+        "b_grp_time[2]": "levels_view",
+        "b_grp_time[3]": "levels_view",
+        "gamma_A": "association",
+    }
+    # The element label matches the value the summary was computed from.
+    t2 = df[df["term"] == "d_grp_time[t2]"].iloc[0]
+    assert t2["median"] == pytest.approx(
+        float(np.median(ds["d_grp_time"].sel(post_phase="t2").values))
+    )
+
+
 def test_rope_markdown_items_and_risk_difference():
     base = {
         "tau_logit_median": 0.3, "tau_logit_lo50": 0.1, "tau_logit_hi50": 0.5,

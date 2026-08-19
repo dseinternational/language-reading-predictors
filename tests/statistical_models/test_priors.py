@@ -18,6 +18,10 @@ def test_prior_info_roles_and_distribution():
     assert priors.prior_info_for_rv("tau")["role"] == "causal"
     assert priors.prior_info_for_rv("beta_trt")["role"] == "causal"  # tau-backed
     assert priors.prior_info_for_rv("b_grp_time")["role"] == "causal"
+    # #552: the level family's t1-referenced arm-gap changes share the tau
+    # constructor; the balance term is a nuisance association on gamma_cross.
+    assert priors.prior_info_for_rv("d_grp_time")["role"] == "causal"
+    assert priors.prior_info_for_rv("arm_gap_t1")["role"] == "association"
     assert priors.prior_info_for_rv("gamma_own")["role"] == "precision"
     assert priors.prior_info_for_rv("gamma_A")["role"] == "precision"
     assert priors.prior_info_for_rv("alpha")["role"] == "nuisance"
@@ -152,8 +156,36 @@ def test_level_factor_prior_role_is_conservative_for_group_time_vector():
         model=None,
     )
     _ctor, role, rationale = _prior_table_overrides(ctx)
+    # #552 default (t1-referenced): the change vector is documented conservatively
+    # (only d_grp_time[t2] is randomised) and the balance term is a nuisance
+    # quantity, never an effect; b_grp_time is a Deterministic with no prior row.
+    assert role["d_grp_time"] == "association"
+    assert "only d_grp_time[t2]" in rationale["d_grp_time"]
+    assert role["arm_gap_t1"] == "nuisance"
+    assert "never interpreted as an effect" in rationale["arm_gap_t1"]
+    assert "b_grp_time" not in role
+
+    # The free comparator keeps the pre-#552 vector documentation.
+    free_spec = ModelSpec(
+        model_id="lrp-test-lf-prior-free",
+        kind="level_factors",
+        title="t",
+        outcome_symbol="W",
+        extra={
+            "group_by_time": True,
+            "ability_covariate": "blocks",
+            "arm_gap_reference": "free",
+        },
+    )
+    free_ctx = SimpleNamespace(
+        spec=free_spec,
+        resolved_plan=resolve_level_factors_run_plan(free_spec),
+        model=None,
+    )
+    _ctor, role, rationale = _prior_table_overrides(free_ctx)
     assert role["b_grp_time"] == "association"
     assert "only b_grp_time[1]" in rationale["b_grp_time"]
+    assert "d_grp_time" not in role
 
 
 def test_gain_factor_moderation_variant_demotes_beta_trt_role():

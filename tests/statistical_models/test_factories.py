@@ -2629,14 +2629,21 @@ def test_gain_factors_rejects_bad_likelihood_and_phase(tmp_path):
 
 
 def test_level_factors_factory_builds(tmp_path):
-    """Level build: anchored + zero-sum intercepts (#389 finding 2), group x time +
-    ability x time + group x ability over the four timepoints, no own baseline."""
+    """Level build: anchored + zero-sum intercepts (#389 finding 2), group x time
+    (t1-referenced by default, #552: balance term + changes with the per-wave
+    vector derived) + ability x time + group x ability over the four timepoints,
+    no own baseline."""
     prep = _prep_levels(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     built = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks")
     names = {v.name for v in built.model.free_RVs}
-    assert {"alpha_offset", "alpha_time", "b_grp_time", "gamma_A", "gamma_ability_time",
-            "gamma_grp_ability", "kappa", "sigma_child"}.issubset(names)
+    assert {"alpha_offset", "alpha_time", "arm_gap_t1", "d_grp_time", "gamma_A",
+            "gamma_ability_time", "gamma_grp_ability", "kappa", "sigma_child"}.issubset(names)
+    # The per-wave arm-gap vector is a Deterministic levels view, not a free RV.
+    assert "b_grp_time" not in names
+    assert "b_grp_time" in {v.name for v in built.model.deterministics}
+    assert built.payload.arm_gap_reference == "t1"
+    assert list(built.model.coords["post_phase"]) == ["t2", "t3", "t4"]
     # The intercept level is a Deterministic around the t1 empirical-Bayes anchor,
     # not a second free location competing with alpha_time (#389 finding 2).
     assert "alpha" not in names
@@ -2654,8 +2661,15 @@ def test_level_factors_factory_builds(tmp_path):
 
     with built.model:
         pp = pm.sample_prior_predictive(draws=20, random_seed=43)
-    # group x time is a per-timepoint vector over the four timepoints
+    # group x time is a per-timepoint vector over the four timepoints, derived from
+    # the balance term plus the three post-t1 changes: b[t1] = a, b[t] = a + d[t].
     assert pp.prior["b_grp_time"].shape[-1] == 4
+    assert pp.prior["d_grp_time"].shape[-1] == 3
+    a = pp.prior["arm_gap_t1"].values
+    d = pp.prior["d_grp_time"].values
+    b = pp.prior["b_grp_time"].values
+    np.testing.assert_allclose(b[..., 0], a, atol=1e-10)
+    np.testing.assert_allclose(b[..., 1:], a[..., None] + d, atol=1e-10)
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
     # alpha_time is an exact zero-sum wave-deviation vector: no translation ridge.
     np.testing.assert_allclose(
@@ -2664,6 +2678,49 @@ def test_level_factors_factory_builds(tmp_path):
     # alpha draws centre on the anchor, not on logit zero.
     alpha_mean = float(pp.prior["alpha"].values.mean())
     assert abs(alpha_mean - built.payload.alpha_anchor) < 1.0
+
+
+def test_level_factors_free_comparator_keeps_free_vector(tmp_path):
+    """``arm_gap_reference="free"`` reproduces the pre-#552 build: one free
+    tau-prior coefficient per timepoint, no balance term, no change vector."""
+    prep = _prep_levels(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_level_factors_model(
+        prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_reference="free"
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "b_grp_time" in names
+    assert "arm_gap_t1" not in names
+    assert "d_grp_time" not in names
+    assert "post_phase" not in built.model.coords
+    assert built.payload.arm_gap_reference == "free"
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=5, random_seed=44)
+    assert pp.prior["b_grp_time"].shape[-1] == 4
+
+
+def test_level_factors_rejects_incoherent_arm_gap_reference(tmp_path):
+    """Centring a pooled group coefficient on the t1 gap is incoherent, and an
+    unknown reference is a typo; both fail before the model is built (#552)."""
+    prep = _prep_levels(tmp_path, n_children=15)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    with pytest.raises(ValueError, match="requires group_by_time"):
+        build_level_factors_model(
+            prep, outcome_symbol="W", ability_covariate="blocks", group_by_time=False
+        )
+    with pytest.raises(ValueError, match="arm_gap_reference"):
+        build_level_factors_model(
+            prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_reference="t2"
+        )
+    # A pooled group term with the free reference is fine.
+    built = build_level_factors_model(
+        prep,
+        outcome_symbol="W",
+        ability_covariate="blocks",
+        group_by_time=False,
+        arm_gap_reference="free",
+    )
+    assert "beta_grp" in {v.name for v in built.model.free_RVs}
 
 
 def test_level_factors_offfloor_anchor_uses_mover_rate(tmp_path):
@@ -2953,8 +3010,16 @@ def test_did_and_gain_and_level_treatment_terms_tiered(tmp_path):
     assert _tau_dist(
         build_gain_factors_model(allp, outcome_symbol="E").model, "beta_trt"
     ) == "Normal(0, 0.3)"
+    # The level family's focal vector is the t1-referenced change vector
+    # ``d_grp_time`` (#552); its balance term ``arm_gap_t1`` is on gamma_cross.
     assert _tau_dist(
         build_level_factors_model(levels, outcome_symbol="E", ability_covariate="blocks").model,
+        "d_grp_time",
+    ) == "Normal(0, 0.3)"
+    assert _tau_dist(
+        build_level_factors_model(
+            levels, outcome_symbol="E", ability_covariate="blocks", arm_gap_reference="free"
+        ).model,
         "b_grp_time",
     ) == "Normal(0, 0.3)"
     # proximal L

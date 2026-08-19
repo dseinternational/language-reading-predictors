@@ -4,7 +4,9 @@
 """Treatment-prior sensitivity sweep for the level-factor family (#389 criterion 6).
 
 The robustness release gate (#482) covers ``level_factors`` on the randomised t2
-contrast ``b_grp_time[1]``, and for a prior-dominant fit it names its release
+contrast — the plan's focal term: ``d_grp_time[t2]``, the change in the adjusted
+arm gap from t1 to t2 under the t1-referenced parameterisation (#552), or
+``b_grp_time[1]`` under the free comparator — and for a prior-dominant fit it names its release
 evidence exactly: *"a tau_prior_sensitivity.csv treatment-prior sweep, computed
 from this fit's own trace, showing the sign of the effect is stable across the
 grid"* (``release._standard_sweep_evidence``). No non-ITT runner produced that
@@ -146,6 +148,8 @@ def _fit_cell(
         phase=built.prepared.phase,
         G=built.prepared.G,
         ability=ability,
+        contrast_term=plan.focal_vector,
+        contrast_index=plan.focal_index,
     )
     lo_q = (1.0 - REPORTING_CI_PROB) / 2.0
     n_trials = 1 if plan.off_floor else int(MEASURES[outcome].n_trials)
@@ -236,7 +240,10 @@ def _fit_cell(
         "model_kind": "level_factors",
         "config": config,
         "outcome": outcome,
-        "focal_term": "b_grp_time[1]",
+        # The plan's focal term (d_grp_time[t2] under the t1 reference, #552), so
+        # the cell provenance names the same element the gate reads.
+        "focal_term": plan.focal_term,
+        "arm_gap_reference": plan.arm_gap_reference,
         "sensitivity_axis": SENSITIVITY_AXIS,
         "tau_sigma": tau_sigma,
         "likelihood": plan.likelihood,

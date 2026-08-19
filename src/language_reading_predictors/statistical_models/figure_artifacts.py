@@ -497,8 +497,9 @@ def save_association_forest(
     Companion to the single causal-term forest: shows every *non-randomised*
     predictor's posterior coefficient (the adjusted associations) so the cross-skill
     predictor->outcome relationships are visible, not only tabulated. Excludes any RV
-    that carries a causal element — e.g. the level model's ``b_grp_time`` vector, whose
-    t2 entry is the one randomised contrast — so the causal/association split stays
+    that carries a causal element — e.g. the level model's ``d_grp_time`` vector (or
+    the free comparator's ``b_grp_time``), whose t2 entry is the one randomised
+    contrast — so the causal/association split stays
     clean. Guarded via :func:`save_forest_plot`.
     """
     assoc = [

@@ -63,6 +63,9 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
     MechanismDesign,
     MechanismPayload,
 )
+from language_reading_predictors.statistical_models.level_factors import (
+    POST_PHASE_LABELS,
+)
 from language_reading_predictors.statistical_models.likelihood import (
     SCORE_MEAN_LINKS,
     ScoreMeanLink,
@@ -4684,6 +4687,13 @@ def build_level_factors_model(
     ability_by_time: bool = True,
     group_ability: bool = True,
     likelihood: str = "beta_binomial",
+    # #552: how the per-timepoint arm coefficients are parameterised. ``"t1"``
+    # (default) centres them on the pre-randomisation t1 gap -- ``arm_gap_t1``
+    # (a balance nuisance term on the cross-coupling prior, the DiD idiom) plus
+    # ``d_grp_time[t]`` changes (outcome-tier tau prior) for t2..t4, with the
+    # per-wave levels view ``b_grp_time`` kept as a Deterministic; ``"free"``
+    # keeps one free tau-prior coefficient per timepoint (the pre-#552 comparator).
+    arm_gap_reference: str = "t1",
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
     # #389 finding 2: the zero-sum wave-deviation scale. Sized so the largest
@@ -4734,11 +4744,31 @@ def build_level_factors_model(
     *not* an available-case modified ITT estimate. The focal ``group x time`` interaction is therefore
     modelled as a per-timepoint group effect ``b_grp[t]`` (dims ``phase`` = the
     timepoint index) — read as trajectory divergence — and the **clean randomised
-    contrast lives only at t2** (``b_grp[1]``). ``ability x time`` is likewise a
+    contrast lives only at t2**. ``ability x time`` is likewise a
     per-timepoint ability effect ``g_ability[t]``. Set ``group_by_time`` /
     ``ability_by_time`` False to collapse either to a single time-invariant
     coefficient. Only the randomised contrast is causal; all other terms are
     adjusted associations under the DAG.
+
+    **Arm-gap reference (#552).** A levels model conditions on nothing at
+    baseline while adjusting for age and ability at every wave, so a free
+    per-timepoint vector carries the covariate-adjusted *chance* t1 arm gap
+    straight into the t2 contrast (in these data the adjusted t1 gap is negative
+    on every outcome). Under ``arm_gap_reference="t1"`` the vector is therefore
+    written as a balance term plus changes::
+
+        b_grp[t] = arm_gap_t1 + d_grp_time[t]      (t = t2, t3, t4)
+        b_grp[t1] = arm_gap_t1
+
+    with ``arm_gap_t1`` on the cross-coupling prior (a nuisance balance quantity,
+    the DiD family's idiom — never an effect) and ``d_grp_time`` (dims
+    ``post_phase`` = ``t2``/``t3``/``t4``) on the outcome-tier tau prior. The
+    randomised contrast is the **t2 change** ``d_grp_time[t2]`` — a
+    difference-in-differences of adjusted levels; ``d_grp_time[t3]`` / ``[t4]``
+    are post-crossover associations. ``b_grp_time`` is kept as a Deterministic so
+    the per-wave levels view (and the pre-#552 raw t2 gap, for the side-by-side
+    comparison) is still in the trace. ``arm_gap_reference="free"`` keeps the
+    former free ``b_grp_time`` vector as an explicit comparator.
 
     ``adjust_for`` (default ()): revised-DAG confounders that are not bounded-count
     measures — hearing status (``hs`` / ``hs_missing``), speech production
@@ -4759,6 +4789,15 @@ def build_level_factors_model(
         raise ValueError(
             "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
             f"got {likelihood!r}"
+        )
+    if arm_gap_reference not in ("t1", "free"):
+        raise ValueError(
+            f"arm_gap_reference must be 't1' or 'free', got {arm_gap_reference!r}"
+        )
+    if arm_gap_reference == "t1" and not group_by_time:
+        raise ValueError(
+            "arm_gap_reference='t1' requires group_by_time=True (a pooled group "
+            "coefficient has no t1 gap to centre on)"
         )
     own = outcome_symbol
     if own not in prepared.post_counts:
@@ -4795,11 +4834,19 @@ def build_level_factors_model(
         failures = float(t1.size * prepared.n_trials[own] - successes)
         alpha_anchor = float(np.log((successes + 0.5) / (failures + 0.5)))
 
+    t1_referenced = group_by_time and arm_gap_reference == "t1"
     coords = {
         "obs_id": np.arange(prepared.n_obs),
         "phase": np.arange(prepared.n_phases),
         "child": np.arange(prepared.n_children),
     }
+    if t1_referenced:
+        if prepared.n_phases != len(POST_PHASE_LABELS) + 1:
+            raise ValueError(
+                "arm_gap_reference='t1' expects the four-wave levels panel "
+                f"(t1 + {POST_PHASE_LABELS}), got {prepared.n_phases} phases"
+            )
+        coords["post_phase"] = list(POST_PHASE_LABELS)
     with pm.Model(coords=coords) as model:
         phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
         child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
@@ -4835,7 +4882,24 @@ def build_level_factors_model(
 
         # group x time (or single group main effect).
         _tau_sigma = _tau_sigma_for(outcome_symbol, tau_prior_sigma)
-        if group_by_time:
+        if t1_referenced:
+            # #552: balance term + changes. ``arm_gap_t1`` is the adjusted
+            # pre-randomisation arm gap (the DiD ``arm_gap_t1`` idiom: the
+            # cross-coupling prior, a nuisance balance quantity); ``d_grp_time``
+            # carries the change from t1 at each later wave on the outcome-tier
+            # tau prior, so the prior sits on the randomised t2 *difference*
+            # directly rather than on two raw gaps whose difference it would be.
+            arm_gap_t1 = _priors.gamma_cross_prior().to_pymc("arm_gap_t1")
+            d_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
+                "d_grp_time", dims="post_phase"
+            )
+            b_grp = pm.Deterministic(
+                "b_grp_time",
+                pt.concatenate([pt.stack([arm_gap_t1]), arm_gap_t1 + d_grp]),
+                dims="phase",
+            )
+            eta = eta + b_grp[phase_d] * G_d
+        elif group_by_time:
             b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
                 "b_grp_time", dims="phase"
             )
@@ -4886,7 +4950,9 @@ def build_level_factors_model(
     return BuiltModel(
         model=model,
         prepared=prepared,
-        payload=LevelFactorsPayload(alpha_anchor=alpha_anchor),
+        payload=LevelFactorsPayload(
+            alpha_anchor=alpha_anchor, arm_gap_reference=arm_gap_reference
+        ),
     )
 
 

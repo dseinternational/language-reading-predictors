@@ -41,7 +41,10 @@ families whose findings box publishes a randomisation-anchored causal claim: ``i
 (``tau``, including the floored P/N primaries), ``joint`` (``tau``, vector-valued —
 one randomised effect per jointly-fitted outcome, aggregated worst-first), ``did``
 (``tau_t2``, or the dose model's own focal slope), ``gain_factors`` (``beta_trt``) and
-``level_factors`` (``b_grp_time[1]``, the t2 element — the only randomised one).
+``level_factors`` (the plan's focal t2 term: ``d_grp_time[t2]``, the change in the
+adjusted arm gap from t1 to t2 under the t1-referenced parameterisation (#552), or
+``b_grp_time[1]`` on a stored pre-#552 fit / the free comparator — the only
+randomised element either way).
 
 Everything else is out, and for one of two reasons. The observational families report
 adjusted associations, which their reports already label as such. A treated-only
@@ -183,11 +186,16 @@ def gate_applies(config: Mapping[str, Any]) -> bool:
 def causal_term_for(config: Mapping[str, Any]) -> str:
     """The psense row this fit's release decision turns on.
 
-    ``level_factors`` fits one ``b_grp_time`` coefficient per timepoint and only the
-    t2 element is randomised (#389 finding 1), so the gate names that element rather
+    ``level_factors`` fits one arm coefficient per timepoint and only the t2
+    element is randomised (#389 finding 1), so the gate names that element rather
     than the vector. Reading the bare name instead returns "unavailable" for all
     eleven fits — a gate that withholds every level-factor headline for a diagnosis
-    that is present and sitting one row away.
+    that is present and sitting one row away. Which element it is depends on the
+    fitted parameterisation (#552): the persisted plan's ``focal_term`` —
+    ``d_grp_time[t2]`` under the t1-referenced default, ``b_grp_time[1]`` under the
+    free comparator. A stored fit whose plan predates the field (every pre-#552
+    reporting fit) was fitted free, so the fallback is ``b_grp_time[1]``; the
+    decision therefore stays reproducible over stored fits without a refit.
 
     The ``did`` dose models have no ``tau_t2`` at all: their focal quantity is the
     dose slope. The choice mirrors ``DiDRunPlan.effect_term`` and is read from the
@@ -198,7 +206,9 @@ def causal_term_for(config: Mapping[str, Any]) -> str:
     if kind == "gain_factors":
         return "beta_trt"
     if kind == "level_factors":
-        return "b_grp_time[1]"
+        plan = config.get("resolved_run_plan") or {}
+        focal = plan.get("focal_term")
+        return str(focal) if focal else "b_grp_time[1]"
     if kind == "did":
         plan = config.get("resolved_run_plan") or {}
         if plan.get("period_varying"):
