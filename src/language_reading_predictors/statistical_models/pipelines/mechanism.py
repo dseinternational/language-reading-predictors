@@ -14,6 +14,8 @@ associations, never as "X drives Y".
 
 from __future__ import annotations
 
+from typing import Any
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -206,6 +208,11 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         )
         meta_extra["moderator_symbol"] = moderator_symbol
         meta_extra["interaction_summary"] = gi
+        # Words-scale re-expression of the interaction (2026-08-19): the sign of
+        # ``gamma_int`` on a bounded outcome is not a statement about items, so
+        # the interquartile-cell contrast in items, with its logit-additive
+        # benchmark, is published alongside it.
+        write_moderation_items(ctx)
 
     _diag.save_trace(ctx)
     _diag.save_prior_posterior_plot(ctx, var_names=_mech_vars)
@@ -642,3 +649,348 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     plt.title(f"Readiness threshold (steepest rise): {sym} -> {outcome}")
     plt.legend(fontsize=8)
     save_styled_figure(ctx.output_dir, "readiness_threshold")
+
+
+# ---------------------------------------------------------------------------
+# Words-scale moderation contrast (2026-08-19)
+# ---------------------------------------------------------------------------
+
+#: Quantiles of the fitted exposure and moderator values at which the words-scale
+#: moderation cells are placed (the interquartile cells of the fitted rows).
+MODERATION_ITEMS_QUANTILES = (0.25, 0.75)
+
+
+def _exact_affine_map(values: np.ndarray, transform, z: np.ndarray, what: str):
+    """Return ``x -> a * transform(x) + b`` with ``z == a * transform(values) + b``.
+
+    The factory standardises the exposure logit and the moderator (logit or raw
+    covariate) on the kept rows; the stored ``constant_data`` vectors are that
+    standardisation. Recovering it as an exact affine map of the transformed
+    natural-unit values — and refusing anything that is not exact — is the
+    row-identity guard: a re-loaded frame whose rows or values differ from the
+    fitted ones cannot silently produce a table. ``transform`` is the logit for a
+    measure (``logit_safe`` with its item count bound) and the identity for a raw
+    covariate.
+    """
+    t = np.asarray(transform(np.asarray(values, dtype=float)), dtype=float)
+    z = np.asarray(z, dtype=float)
+    if t.shape != z.shape:
+        raise ValueError(f"{what}: {t.shape[0]} re-loaded rows vs {z.shape[0]} fitted")
+    if np.ptp(t) == 0:
+        raise ValueError(f"{what}: constant on the fitted rows; no cells to form")
+    a, b = np.polyfit(t, z, 1)
+    err = float(np.max(np.abs(a * t + b - z)))
+    if err > 1e-6:
+        raise ValueError(
+            f"{what}: the re-loaded values are not the fitted standardised vector "
+            f"(max deviation {err:.3g}); rows or data differ from the fit"
+        )
+    return lambda x: a * np.asarray(transform(np.asarray(x, dtype=float)), dtype=float) + b
+
+
+def _cells(values: np.ndarray, *, snap: bool) -> tuple[float, float] | None:
+    """Interquartile low/high cell values, snapped to observed values if asked.
+
+    Falls back to the 10th/90th percentiles when the quartiles coincide (a
+    heavily floored moderator), and returns ``None`` if even those coincide.
+    """
+    values = np.asarray(values, dtype=float)
+    for q_lo, q_hi in (MODERATION_ITEMS_QUANTILES, (0.1, 0.9)):
+        lo, hi = float(np.quantile(values, q_lo)), float(np.quantile(values, q_hi))
+        if snap:
+            observed = np.unique(values)
+            lo = float(observed[np.argmin(np.abs(observed - lo))])
+            hi = float(observed[np.argmin(np.abs(observed - hi))])
+        else:
+            lo, hi = round(lo, 1), round(hi, 1)
+        if hi > lo:
+            return lo, hi
+    return None
+
+
+def moderation_items_rows(
+    post: Any,
+    constant: Any,
+    *,
+    exposure_counts: np.ndarray,
+    exposure_n_trials: int,
+    moderator_values: np.ndarray,
+    moderator_n_trials: int | None,
+    outcome_n_trials: int,
+    ci_prob: float,
+    exposure_symbol: str,
+    moderator_symbol: str,
+    outcome_symbol: str,
+    moderator_unit: str,
+) -> list[dict]:
+    """The moderated mechanism's interaction re-expressed on the outcome's items scale.
+
+    ``gamma_int`` is a product term on the latent logit scale, and on a bounded
+    outcome its sign is not a statement about items: below the midpoint of the
+    scale the logit is concave, so two positive effects that are *additive in
+    items* show a negative logit product, and logit-additivity is items-scale
+    synergy. This table therefore evaluates the fitted surface in items at the
+    interquartile cells of the fitted exposure and moderator values — every other
+    term held at its fitted value for each row and averaged over rows, exactly as
+    the family's end-to-end curve contrast does::
+
+        E(x, m) = N_outcome * mean_rows expit(eta_base + f(x) + gamma_mod z(m)
+                                                + gamma_int z(x) z(m))
+
+    and reports (i) the four cell expectations, (ii) the exposure increment
+    ``E(x_hi, m) - E(x_lo, m)`` at the low and at the high moderator cell, (iii)
+    their difference — the items-scale interaction — (iv) the same difference
+    with ``gamma_int`` set to zero, which is what logit-additivity would have
+    shown in items (the bounded-scale benchmark), and (v) the logit-scale
+    interaction over the same cells, ``gamma_int * dz(x) * dz(m)``. ``post`` and
+    ``constant`` are the posterior and ``constant_data`` groups of the fit's
+    trace; ``exposure_counts`` / ``moderator_values`` are the fitted rows'
+    values in their natural units (counts for a measure, raw units for a
+    covariate moderator, ``moderator_n_trials=None``), which must reproduce the
+    stored standardised vectors exactly. Added 2026-08-19
+    (``notes/202608182200-findings-by-question.md``, question 5 and section 8).
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+    )
+    from language_reading_predictors.statistical_models.reporting import coef_row
+
+    exposure_counts = np.asarray(exposure_counts, dtype=float)
+    moderator_values = np.asarray(moderator_values, dtype=float)
+    z_x_obs = np.asarray(constant["z_mech_logit"].values, dtype=float).reshape(-1)
+    z_m_obs = np.asarray(constant["z_moderator"].values, dtype=float).reshape(-1)
+    z_x = _exact_affine_map(
+        exposure_counts,
+        lambda v: logit_safe(v, exposure_n_trials),
+        z_x_obs,
+        "exposure",
+    )
+    if moderator_n_trials is None:
+        z_m = _exact_affine_map(moderator_values, lambda v: v, z_m_obs, "moderator")
+    else:
+        z_m = _exact_affine_map(
+            moderator_values,
+            lambda v: logit_safe(v, moderator_n_trials),
+            z_m_obs,
+            "moderator",
+        )
+
+    x_cells = _cells(exposure_counts, snap=True)
+    m_cells = _cells(moderator_values, snap=moderator_n_trials is not None)
+    if x_cells is None or m_cells is None:
+        return []
+    x_lo, x_hi = x_cells
+    m_lo, m_hi = m_cells
+
+    eta = post["eta"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
+    if "f_mech" in post:
+        f = post["f_mech"].stack(sample=("chain", "draw")).values
+        f = np.asarray(f).reshape(eta.shape[0], -1)
+        # The curve depends on the exposure only, so its value at a cell is its
+        # value on any fitted row with that exposure count (cells are snapped
+        # to observed counts above).
+        def f_at(x: float) -> np.ndarray:
+            return f[int(np.flatnonzero(exposure_counts == x)[0])]
+    elif "beta_mech" in post:
+        beta = post["beta_mech"].stack(sample=("chain", "draw")).values
+        f = z_x_obs[:, None] * beta[None, :]
+
+        def f_at(x: float) -> np.ndarray:
+            return z_x(x) * beta
+    else:
+        raise KeyError("posterior has neither 'f_mech' nor 'beta_mech'")
+    gamma_mod = post["gamma_mod"].stack(sample=("chain", "draw")).values
+    gamma_int = post["gamma_int"].stack(sample=("chain", "draw")).values
+    eta_base = (
+        eta
+        - f
+        - z_m_obs[:, None] * gamma_mod[None, :]
+        - (z_x_obs * z_m_obs)[:, None] * gamma_int[None, :]
+    )
+
+    def expected_items(x: float, m: float, g_int: np.ndarray) -> np.ndarray:
+        eta_cell = (
+            eta_base
+            + f_at(x)[None, :]
+            + gamma_mod[None, :] * z_m(m)
+            + g_int[None, :] * (z_x(x) * z_m(m))
+        )
+        return expit(eta_cell).mean(axis=0) * float(outcome_n_trials)
+
+    zero = np.zeros_like(gamma_int)
+    cells = {
+        (x_lo, m_lo): expected_items(x_lo, m_lo, gamma_int),
+        (x_hi, m_lo): expected_items(x_hi, m_lo, gamma_int),
+        (x_lo, m_hi): expected_items(x_lo, m_hi, gamma_int),
+        (x_hi, m_hi): expected_items(x_hi, m_hi, gamma_int),
+    }
+    inc_lo = cells[(x_hi, m_lo)] - cells[(x_lo, m_lo)]
+    inc_hi = cells[(x_hi, m_hi)] - cells[(x_lo, m_hi)]
+    interaction = inc_hi - inc_lo
+    additive = (
+        expected_items(x_hi, m_hi, zero) - expected_items(x_lo, m_hi, zero)
+    ) - (expected_items(x_hi, m_lo, zero) - expected_items(x_lo, m_lo, zero))
+    logit_interaction = gamma_int * (z_x(x_hi) - z_x(x_lo)) * (z_m(m_hi) - z_m(m_lo))
+
+    common = {
+        "exposure_symbol": exposure_symbol,
+        "exposure_unit": f"{exposure_symbol} items",
+        "moderator_symbol": moderator_symbol,
+        "moderator_unit": moderator_unit,
+        "outcome_symbol": outcome_symbol,
+        "outcome_unit": f"{outcome_symbol} items",
+        "n_obs": int(eta.shape[0]),
+        "ci_prob": float(ci_prob),
+    }
+
+    def row(label, draws, quantity, scale, xl, xh, ml, mh) -> dict:
+        r = coef_row(label, draws, ci_prob)
+        r.update(
+            quantity=quantity,
+            scale=scale,
+            exposure_low=xl,
+            exposure_high=xh,
+            moderator_low=ml,
+            moderator_high=mh,
+            **common,
+        )
+        return r
+
+    rows = [
+        row(
+            f"E[{outcome_symbol} | {exposure_symbol}={x:g}, {moderator_symbol}={m:g}]",
+            cells[(x, m)],
+            "cell_mean",
+            "items",
+            x,
+            x,
+            m,
+            m,
+        )
+        for (x, m) in cells
+    ]
+    rows += [
+        row(
+            f"{exposure_symbol} {x_lo:g}->{x_hi:g} increment at {moderator_symbol}={m_lo:g}",
+            inc_lo,
+            "increment_at_moderator_low",
+            "items",
+            x_lo,
+            x_hi,
+            m_lo,
+            m_lo,
+        ),
+        row(
+            f"{exposure_symbol} {x_lo:g}->{x_hi:g} increment at {moderator_symbol}={m_hi:g}",
+            inc_hi,
+            "increment_at_moderator_high",
+            "items",
+            x_lo,
+            x_hi,
+            m_hi,
+            m_hi,
+        ),
+        row(
+            "items-scale interaction (increment at high minus low moderator)",
+            interaction,
+            "interaction",
+            "items",
+            x_lo,
+            x_hi,
+            m_lo,
+            m_hi,
+        ),
+        row(
+            "items-scale interaction if logit-additive (gamma_int = 0)",
+            additive,
+            "interaction_if_logit_additive",
+            "items",
+            x_lo,
+            x_hi,
+            m_lo,
+            m_hi,
+        ),
+        row(
+            "logit-scale interaction over the same cells",
+            logit_interaction,
+            "interaction_logit",
+            "logit",
+            x_lo,
+            x_hi,
+            m_lo,
+            m_hi,
+        ),
+    ]
+    return rows
+
+
+#: Raw-unit labels for the covariate moderators a mechanism fit may declare.
+_COVARIATE_MODERATOR_UNITS = {"A": "months", "erbto": "raw-score points"}
+
+
+def write_moderation_items(ctx: Any) -> pd.DataFrame | None:
+    """Write ``moderation_items.csv`` for a moderated fit (see :func:`moderation_items_rows`).
+
+    Returns the table, or ``None`` when the fit has no ``gamma_int`` (no
+    moderator, or a main-effect-only companion) or when the exposure is not a
+    post-score measure count (a covariate or period-start exposure has no items
+    cells to form; none is registered with a moderator). Usable over a stored fit
+    with a lightweight context carrying ``spec``, ``prepared`` (the *fitted* rows,
+    as the factory subsets them), ``trace``, ``output_dir`` and
+    ``reporting.ci_prob`` — it reads the posterior and the fitted rows only, so it
+    needs no refit.
+    """
+    run_plan = _mechanism_run_plan(ctx)
+    if run_plan.moderator_symbol is None or not run_plan.include_interaction:
+        return None
+    if run_plan.mechanism_is_covariate or run_plan.mechanism_at_pre:
+        rprint(
+            "[yellow]write_moderation_items: the exposure is not a post-score "
+            f"measure count for {ctx.spec.model_id}; no moderation_items.csv "
+            "written.[/yellow]"
+        )
+        return None
+    post = ctx.trace.posterior
+    if "gamma_int" not in post:
+        return None
+    prepared = ctx.prepared
+    mech = run_plan.mechanism_symbol
+    mod = run_plan.moderator_symbol
+    outcome = run_plan.outcome_symbol
+    if run_plan.moderator_is_covariate:
+        if mod == "A":
+            moderator_values = np.asarray(prepared.A_months, dtype=float)
+        else:
+            z_loaded = np.asarray(prepared.covariates[mod], dtype=float)
+            scaler = prepared.covariate_scalers.get(mod)
+            moderator_values = scaler.inverse(z_loaded) if scaler is not None else z_loaded
+        moderator_n_trials = None
+        moderator_unit = _COVARIATE_MODERATOR_UNITS.get(mod, f"{mod} raw units")
+    else:
+        moderator_values = np.asarray(prepared.post_counts[mod], dtype=float)
+        moderator_n_trials = int(prepared.n_trials[mod])
+        moderator_unit = f"{mod} items"
+    rows = moderation_items_rows(
+        post,
+        ctx.trace.constant_data,
+        exposure_counts=np.asarray(prepared.post_counts[mech], dtype=float),
+        exposure_n_trials=int(prepared.n_trials[mech]),
+        moderator_values=moderator_values,
+        moderator_n_trials=moderator_n_trials,
+        outcome_n_trials=int(prepared.n_trials[outcome]),
+        ci_prob=float(ctx.reporting.ci_prob),
+        exposure_symbol=mech,
+        moderator_symbol=mod,
+        outcome_symbol=outcome,
+        moderator_unit=moderator_unit,
+    )
+    if not rows:
+        rprint(
+            "[yellow]write_moderation_items: the fitted exposure or moderator has no "
+            f"distinct interquartile cells for {ctx.spec.model_id}; no "
+            "moderation_items.csv written.[/yellow]"
+        )
+        return None
+    df = pd.DataFrame(rows)
+    save_table(ctx, "moderation_items", df, required=False)
+    return df

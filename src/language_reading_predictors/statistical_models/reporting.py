@@ -5572,29 +5572,197 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
         lo50 = _kf_float(interaction["gamma_int_lo50"])
         hi50 = _kf_float(interaction["gamma_int_hi50"])
         p = _kf_float(interaction["prob_gamma_int_pos"])
+        exposure_label = _kf_lower_first(
+            _kf_measure_label(config.get("mechanism_symbol") or "the exposure")
+        )
+        outcome_mid = _kf_lower_first(outcome_label)
+        moderator_label = _kf_moderator_label(config)
         focal = _kf_sentence(
-            "The moderation coefficient — how the letter-sound to word-reading "
-            "slope changes per +1 SD of the moderator, on the latent logit scale — "
-            f"is **{med:+.2f}** (50% interval {lo50:+.2f} to {hi50:+.2f}; 89% "
-            f"{lo:+.2f} to {hi:+.2f}), with P(> 0) = {p:.2f}.",
+            f"The moderation coefficient — how the slope of {outcome_mid} on "
+            f"{exposure_label} changes per +1 SD of {moderator_label}, on the latent "
+            f"logit scale — is **{med:+.2f}** (50% interval {lo50:+.2f} to "
+            f"{hi50:+.2f}; 89% {lo:+.2f} to {hi:+.2f}), with P(> 0) = {p:.2f}.",
             "headline",
         )
+        # The claim is about the logit scale only. On a bounded outcome the sign
+        # of a product term is not a statement about items — below the midpoint
+        # of the scale two positive effects that are additive in items show a
+        # negative logit product — so the items-scale reading is a separate
+        # sentence from moderation_items.csv, never implied here (2026-08-19).
         direction = _kf_sentence(
             _kf_association_direction(
                 interaction["prob_gamma_int_pos"],
                 positive_claim=(
-                    "the letter-sound slope tends to be steeper where the moderator "
-                    "is higher (logit-scale synergy), not additivity in word counts"
+                    f"the {exposure_label} slope tends to be steeper where "
+                    f"{moderator_label} is higher (synergy on the logit scale)"
                 ),
                 negative_claim=(
-                    "the letter-sound slope tends to be shallower where the moderator "
-                    "is higher (logit-scale substitution), not additivity in word counts"
+                    f"the {exposure_label} slope tends to be shallower where "
+                    f"{moderator_label} is higher (substitution on the logit scale)"
                 ),
             ),
             "confidence",
         )
-        sentences = [focal, direction, *sentences]
+        items_sentence = _kf_moderation_items_sentence(
+            output_dir, config, prob_gamma_int_pos=p
+        )
+        if items_sentence is None:
+            sentences = [focal, direction, *sentences]
+        else:
+            # The items-scale sentence needs a slot under the cap. The unmoderated
+            # curve is supporting context on a moderated fit, so its two
+            # sentences fold into one droppable context sentence rather than
+            # the causal sentence falling off the end (#464).
+            causal = [s_ for s_ in sentences if s_.get("kind") == "causal"]
+            context = _kf_mechanism_curve_context(summary, outcome_label)
+            sentences = [
+                focal,
+                direction,
+                items_sentence,
+                *([context] if context is not None else []),
+                *causal,
+            ]
     return sentences
+
+
+def _kf_lower_first(text: str) -> str:
+    """Lower-case the first character for mid-sentence use of a display label."""
+    return text[:1].lower() + text[1:] if text else text
+
+
+#: Display labels for the covariate moderators a mechanism fit may declare
+#: (measures take their registered label).
+_KF_COVARIATE_MODERATOR_LABELS = {
+    "A": "age",
+    "erbto": "phonological memory (word/nonword repetition)",
+}
+
+
+def _kf_moderator_label(config: Mapping) -> str:
+    """Display label for a moderated mechanism fit's moderator, mid-sentence."""
+    extra = config.get("extra") or {}
+    symbol = (
+        config.get("moderator_symbol")
+        or extra.get("moderator_symbol")
+        or (config.get("resolved_run_plan") or {}).get("moderator_symbol")
+    )
+    if not symbol:
+        return "the moderator"
+    symbol = str(symbol)
+    if symbol in _KF_COVARIATE_MODERATOR_LABELS:
+        return _KF_COVARIATE_MODERATOR_LABELS[symbol]
+    return _kf_lower_first(_kf_measure_label(symbol))
+
+
+def _kf_mechanism_curve_context(
+    summary: Mapping | None, outcome_label: str
+) -> dict[str, str] | None:
+    """The unmoderated curve's end-to-end contrast as one context sentence.
+
+    Used on moderated fits once the items-scale moderation sentence is present:
+    the two curve sentences (size, direction) fold into one so the box stays
+    under the cap with the causal sentence intact. Marked ``note`` — the one
+    droppable role here — so a release note can still displace it rather than
+    the interaction or causal sentences.
+    """
+    if summary is None:
+        return None
+    med = _kf_float(summary["items_median"])
+    lo = _kf_float(summary["items_lo"])
+    hi = _kf_float(summary["items_hi"])
+    low = _kf_float(summary["exposure_low"])
+    high = _kf_float(summary["exposure_high"])
+    unit = _kf_dag_unit(summary.get("exposure_unit", "predictor units"))
+    fav = favoured_direction(_kf_float(summary["prob_pos"]))
+    return _kf_sentence(
+        f"For context, across the fitted exposure range ({low:g} to {high:g} "
+        f"{unit}) {_kf_lower_first(outcome_label)} differed by **{med:+.1f} "
+        f"items** on average (89% credible range {lo:+.1f} to {hi:+.1f}; "
+        f"P({fav['favoured_direction']}) = {_kf_pct(fav['favoured_direction_prob'])}%) "
+        "— the unmoderated curve.",
+        "note",
+    )
+
+
+def _kf_moderation_items_sentence(
+    output_dir, config: Mapping, *, prob_gamma_int_pos: float
+) -> dict[str, str] | None:
+    """The moderated fit's interaction re-expressed in outcome items (2026-08-19).
+
+    Reads ``moderation_items.csv`` (``pipelines.mechanism.write_moderation_items``):
+    the interquartile exposure increment in items at the low and at the high
+    moderator cell, their difference — the items-scale interaction — and the
+    same difference under logit-additivity (``gamma_int = 0``), the bounded-scale
+    benchmark. The verdict clause compares the items-scale direction with the
+    logit-scale one on the house evidence ladder: at least moderate evidence in
+    the same direction means the logit-scale pattern is not an artefact of the
+    bounded scale; at least moderate evidence the other way means it is; anything
+    weaker says the items-scale direction is not settled. Returns ``None`` when
+    the table is absent, so older fits keep their previous box.
+    """
+    table = _kf_csv(output_dir, "moderation_items.csv")
+    if table is None or "quantity" not in table.columns:
+        return None
+    by = {str(r["quantity"]): r for _, r in table.iterrows()}
+    needed = (
+        "increment_at_moderator_low",
+        "increment_at_moderator_high",
+        "interaction",
+        "interaction_if_logit_additive",
+    )
+    if any(q not in by for q in needed):
+        return None
+    inter = by["interaction"]
+    inc_lo = _kf_float(by["increment_at_moderator_low"]["median"])
+    inc_hi = _kf_float(by["increment_at_moderator_high"]["median"])
+    dd = _kf_float(inter["median"])
+    lo = _kf_float(inter["lo"])
+    hi = _kf_float(inter["hi"])
+    bench = _kf_float(by["interaction_if_logit_additive"]["median"])
+    x_lo = _kf_float(inter["exposure_low"])
+    x_hi = _kf_float(inter["exposure_high"])
+    m_lo = _kf_float(inter["moderator_low"])
+    m_hi = _kf_float(inter["moderator_high"])
+    exposure_unit = _kf_dag_unit(inter.get("exposure_unit", "items"))
+    moderator_unit = _kf_dag_unit(inter.get("moderator_unit", ""))
+    moderator_label = _kf_moderator_label(config)
+    exposure_label = _kf_lower_first(
+        _kf_measure_label(config.get("mechanism_symbol") or "the exposure")
+    )
+    outcome_label = _kf_lower_first(_kf_outcome_label(config))
+    fav_items = favoured_direction(_kf_float(inter["prob_pos"]))
+    fav_logit = favoured_direction(_kf_float(prob_gamma_int_pos))
+    items_dir = fav_items["favoured_direction"]
+    label = fav_items["favoured_direction_label"]
+    settled = label in ("moderate", "strong", "very strong")
+    pattern = "synergy" if fav_logit["favoured_direction"] == "positive" else "substitution"
+    if settled and items_dir == fav_logit["favoured_direction"]:
+        verdict = (
+            f"{label} evidence that the {pattern} holds in items too, so it is not "
+            "an artefact of the bounded scale"
+        )
+    elif settled:
+        verdict = (
+            f"{label} evidence that the pattern reverses in items, so the "
+            f"logit-scale {pattern} is the bounded scale at work"
+        )
+    elif fav_logit["favoured_direction_label"] == "inconclusive":
+        verdict = "the direction is inconclusive on both scales"
+    else:
+        verdict = (
+            f"on the items scale the direction is {label}, so the logit-scale "
+            f"{pattern} should not be read as a finding about items"
+        )
+    return _kf_sentence(
+        f"In {outcome_label} items, the interquartile {exposure_label} increment "
+        f"({x_lo:g} to {x_hi:g} {exposure_unit}) is worth **{inc_lo:+.1f} items** "
+        f"when {moderator_label} is {m_lo:g} {moderator_unit} and {inc_hi:+.1f} when "
+        f"it is {m_hi:g}: a difference of {dd:+.1f} items (89% {lo:+.1f} to "
+        f"{hi:+.1f}; P({items_dir}) = {_kf_pct(fav_items['favoured_direction_prob'])}%), "
+        f"where additivity on the logit scale would have shown {bench:+.1f} — "
+        f"{verdict}.",
+        "scale",
+    )
 
 
 def _kf_build_mediation(output_dir, config: Mapping) -> list[dict[str, str]]:

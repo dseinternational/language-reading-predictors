@@ -1838,6 +1838,163 @@ def test_mechanism_findings_headline_interaction_when_present(tmp_path):
     assert "fitted exposure range" in _texts(payload)
 
 
+def _moderation_items_rows(**overrides) -> list[dict]:
+    """A ``moderation_items.csv`` as ``pipelines.mechanism.write_moderation_items``
+    writes it (the mech-061 reporting values, rounded)."""
+    common = {
+        "exposure_low": 17.0,
+        "exposure_high": 28.0,
+        "moderator_low": 4.0,
+        "moderator_high": 8.0,
+        "exposure_symbol": "L",
+        "exposure_unit": "L items",
+        "moderator_symbol": "B",
+        "moderator_unit": "B items",
+        "outcome_symbol": "W",
+        "outcome_unit": "W items",
+        "n_obs": 156,
+        "ci_prob": 0.89,
+        "scale": "items",
+    }
+    rows = [
+        {"quantity": "increment_at_moderator_low", "median": 2.896, "lo": 0.927, "hi": 4.771, "prob_pos": 0.99},
+        {"quantity": "increment_at_moderator_high", "median": 1.745, "lo": -0.451, "hi": 3.788, "prob_pos": 0.90},
+        {"quantity": "interaction", "median": -1.147, "lo": -2.327, "hi": -0.049, "prob_pos": 0.047},
+        {"quantity": "interaction_if_logit_additive", "median": 0.179, "lo": 0.011, "hi": 0.430, "prob_pos": 0.958},
+        {"quantity": "interaction_logit", "median": -0.159, "lo": -0.298, "hi": -0.024, "prob_pos": 0.029, "scale": "logit"},
+    ]
+    out = []
+    for r in rows:
+        row = {**common, **r}
+        row.update(overrides.get(r["quantity"], {}))
+        out.append(row)
+    return out
+
+
+def _moderated_mechanism_dir(tmp_path, *, prob_gamma_int_pos=0.03):
+    d = _setup_dir(
+        tmp_path,
+        "mechanism",
+        config=_config(
+            "mechanism",
+            mechanism_symbol="L",
+            extra={"moderator_symbol": "B"},
+        ),
+    )
+    _write_csv(
+        d,
+        "mechanism_summary.csv",
+        {
+            "exposure_low": 2,
+            "exposure_high": 32,
+            "exposure_unit": "L items",
+            "items_median": 6.8,
+            "items_lo": 2.2,
+            "items_hi": 12.1,
+            "prob_pos": 0.995,
+        },
+    )
+    _write_csv(
+        d,
+        "interaction_summary.csv",
+        {
+            "gamma_int_median": -0.11,
+            "gamma_int_mean": -0.11,
+            "gamma_int_lo": -0.21,
+            "gamma_int_hi": -0.02,
+            "gamma_int_lo50": -0.15,
+            "gamma_int_hi50": -0.07,
+            "prob_gamma_int_pos": prob_gamma_int_pos,
+            "gamma_mod_median": 0.16,
+            "gamma_mod_mean": 0.16,
+            "gamma_mod_lo": 0.06,
+            "gamma_mod_hi": 0.25,
+            "gamma_mod_lo50": 0.11,
+            "gamma_mod_hi50": 0.20,
+            "prob_gamma_mod_pos": 0.995,
+        },
+    )
+    return d
+
+
+def test_mechanism_moderation_names_its_skills_and_never_claims_items_additivity(tmp_path):
+    """2026-08-19: the focal sentence names the fitted exposure, outcome and
+    moderator (mech-072 is L -> N, not word reading), and the logit-scale direction
+    claim no longer carries the ", not additivity in word counts" tail, which read
+    as a finding against items-scale additivity the fit never tested."""
+    d = _moderated_mechanism_dir(tmp_path)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    first = payload["sentences"][0]["text"]
+    assert "slope of word reading (WR) on letter-sound knowledge (LS)" in first
+    assert "per +1 SD of phoneme blending (PA)" in first
+    assert "not additivity" not in _texts(payload)
+    assert "substitution on the logit scale" in payload["sentences"][1]["text"]
+    # Without moderation_items.csv the box keeps its previous five-sentence shape.
+    assert [s["kind"] for s in payload["sentences"]] == [
+        "headline",
+        "confidence",
+        "headline",
+        "confidence",
+        "causal",
+    ]
+
+
+def test_mechanism_moderation_items_sentence_reads_the_items_scale_table(tmp_path):
+    """With moderation_items.csv present the box carries the items-scale
+    re-expression — the interquartile increments at the low and high moderator
+    cell, their difference, the logit-additive benchmark and a ladder verdict —
+    and the unmoderated curve folds into one droppable context sentence so the
+    causal sentence stays inside the cap (#464)."""
+    d = _moderated_mechanism_dir(tmp_path)
+    _write_rows(d, "moderation_items.csv", _moderation_items_rows())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert kinds == ["headline", "confidence", "scale", "note", "causal"]
+    items = payload["sentences"][2]["text"]
+    assert "In word reading (WR) items" in items
+    assert "(17 to 28 LS items)" in items
+    assert "**+2.9 items** when phoneme blending (PA) is 4 PA items and +1.7 when it is 8" in items
+    assert "a difference of -1.1 items (89% -2.3 to -0.0; P(negative) = 95%)" in items
+    assert "would have shown +0.2" in items
+    assert "moderate evidence that the substitution holds in items too" in items
+    assert "not an artefact of the bounded scale" in items
+    context = payload["sentences"][3]["text"]
+    assert context.startswith("For context, across the fitted exposure range (2 to 32 LS items)")
+    assert "+6.8 items" in context and "P(positive) = 99.5%" in context
+    assert payload["sentences"][-1]["kind"] == "causal"
+
+
+def test_mechanism_moderation_items_verdicts_follow_the_evidence_ladder(tmp_path):
+    """An items-scale direction below the moderate rung is reported as unsettled;
+    when the logit scale is itself inconclusive the sentence says so for both."""
+    d = _moderated_mechanism_dir(tmp_path)
+    _write_rows(
+        d,
+        "moderation_items.csv",
+        _moderation_items_rows(
+            interaction={"median": -0.7, "lo": -2.2, "hi": 0.7, "prob_pos": 0.21}
+        ),
+    )
+    text = generate_key_findings(d)["sentences"][2]["text"]
+    assert "P(negative) = 79%" in text
+    assert "on the items scale the direction is suggestive" in text
+    assert "should not be read as a finding about items" in text
+
+    (tmp_path / "b").mkdir()
+    d2 = _moderated_mechanism_dir(tmp_path / "b", prob_gamma_int_pos=0.45)
+    _write_rows(
+        d2,
+        "moderation_items.csv",
+        _moderation_items_rows(
+            interaction={"median": -0.2, "lo": -1.8, "hi": 1.4, "prob_pos": 0.42}
+        ),
+    )
+    text2 = generate_key_findings(d2)["sentences"][2]["text"]
+    assert "the direction is inconclusive on both scales" in text2
+
+
 def test_mechanism_findings_without_interaction_are_unchanged(tmp_path):
     """A non-moderated mechanism fit (no interaction_summary.csv) still leads with
     the curve contrast — the interaction headline is strictly conditional."""
