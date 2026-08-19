@@ -513,7 +513,13 @@ def test_taught_contrast_metadata_requires_the_untaught_marginal_for_transfer_cl
         assert metadata["transfer_outcome"] in {"UE", "UR"}
         assert "marginal" in metadata["transfer_interpretation"]
         assert "negligible-effect threshold" in metadata["transfer_interpretation"]
-        assert "randomisation-inference/permutation analysis" in metadata["dependence_note"]
+        # #551: the dependence caveat names the registered LKJ residual-correlation
+        # companion (215 for the expressive pair, 315 for the receptive) and says the
+        # contrast is dependence-checked only once that companion passes the gate.
+        companion = "lrp-rli-itt-215" if spec.model_id == "lrp-rli-itt-015" else "lrp-rli-itt-315"
+        assert companion in metadata["dependence_note"]
+        assert "dependence-model sensitivity" in metadata["dependence_note"]
+        assert "passed the house gate" in metadata["dependence_note"]
 
 
 def test_tau_summary_itt_operating_point_comes_from_full_eta():

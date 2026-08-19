@@ -21,6 +21,13 @@ _JOINT_MODULES = (
     "lrp_rli_itt_016",
     "lrp_rli_itt_115",
 )
+#: #551: the LKJ residual-correlation dependence-sensitivity companions of the
+#: three two-outcome contrasts, keyed companion -> parent.
+_DEPENDENCE_COMPANIONS = {
+    "lrp_rli_itt_215": "lrp_rli_itt_015",
+    "lrp_rli_itt_315": "lrp_rli_itt_115",
+    "lrp_rli_itt_216": "lrp_rli_itt_016",
+}
 _META_FIELDS = (
     "design",
     "estimand",
@@ -157,13 +164,23 @@ def test_correlated_age_gp_plan_drives_factory_and_diagnostics():
     }
     assert plan.factory_kwargs()["partial_pool_age_gp"] is False
     assert plan.joint_structure == "residual_correlated"
+    # The dependence block reports its per-outcome residual SDs and the free
+    # pairwise correlations (#551), and power scaling covers them beside tau.
     assert plan.diagnostic_vars() == [
         "alpha",
         "tau",
         "gamma_own",
         "kappa",
         "sigma_outcome",
+        "u_corr_pair",
     ]
+    assert plan.psense_vars == ["tau", "sigma_outcome", "u_corr_pair"]
+    assert "residual-correlation block" in plan.recipe_markdown(title="t")
+    assert "LKJ" in plan.design
+    assert "dependence model" in plan.causal_status
+    factorised = J.resolve_joint_run_plan(_spec(outcomes=("W", "L")))
+    assert factorised.psense_vars == ["tau"]
+    assert "does not estimate paired cross-outcome residual covariance" in factorised.causal_status
 
 
 def test_split_settings_between_typed_and_extra_is_rejected():
@@ -221,6 +238,49 @@ def test_pipeline_has_no_direct_joint_setting_reads():
     source = inspect.getsource(P)
     assert "spec.extra" not in source
     assert "ctx.spec.extra" not in source
+
+
+def test_dependence_companions_match_their_parents_except_the_block():
+    """#551: each LKJ companion is the parent's fit with the residual block on —
+    same outcomes, precision terms, LOO unit and contrast — and its recipe and
+    causal status describe the block; its dependence note names the parent."""
+    for companion_name, parent_name in _DEPENDENCE_COMPANIONS.items():
+        companion = importlib.import_module(
+            f"language_reading_predictors.statistical_models.{companion_name}"
+        ).SPEC
+        parent = importlib.import_module(
+            f"language_reading_predictors.statistical_models.{parent_name}"
+        ).SPEC
+        assert companion.kind == "joint"
+        cs, ps = companion.model_settings, parent.model_settings
+        assert isinstance(cs, J.JointModelSettings)
+        assert cs.use_residual_correlation is True
+        assert cs.joint_structure == "residual_correlated"
+        assert ps.use_residual_correlation is False
+        # Everything except the block and the note is identical to the parent.
+        for field in ("outcomes", "use_age_gp", "partial_pool_age_gp",
+                      "use_cross_baselines", "use_age_linear", "loo_unit"):
+            assert getattr(cs, field) == getattr(ps, field), (companion_name, field)
+        for field in ("left", "right", "contrast_kind", "contrast_label",
+                      "positive_interpretation", "negative_interpretation",
+                      "transfer_outcome", "transfer_interpretation"):
+            assert getattr(cs.contrast, field) == getattr(ps.contrast, field), (companion_name, field)
+        assert parent.model_id in cs.contrast.dependence_note
+        assert "residual-correlation block is on" in cs.contrast.dependence_note
+        # And the parent's note points at the companion (#551 acceptance: the
+        # parents' dependence caveat cites the companion).
+        assert companion.model_id in ps.contrast.dependence_note
+        plan = J.resolve_joint_run_plan(companion)
+        parent_plan = J.resolve_joint_run_plan(parent)
+        assert plan.joint_structure == "residual_correlated"
+        assert plan.outcomes == parent_plan.outcomes
+        assert plan.difference == parent_plan.difference
+        assert plan.factory_kwargs() == {
+            **parent_plan.factory_kwargs(),
+            "use_residual_correlation": True,
+        }
+        assert plan.diagnostic_vars()[-2:] == ["sigma_outcome", "u_corr_pair"]
+        assert plan.psense_vars == ["tau", "sigma_outcome", "u_corr_pair"]
 
 
 def test_every_registered_joint_model_is_typed_and_preserves_legacy_contract():

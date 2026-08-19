@@ -43,6 +43,8 @@ SPEC = ModelSpec(
     # within-child outcome covariance and is not automatically conservative: the
     # omitted covariance can widen or narrow the contrast interval. The receptive
     # companion LRPITT15b uses the same exploratory sensitivity specification.
+    # The registered dependence-aware companion is lrp-rli-itt-215 (#551): the
+    # same fit with the block on, derived from this SPEC.
     model_settings=JointModelSettings(
         outcomes=("TE", "UE"),
         # DAG-faithful spec, mirroring the single-outcome suite (own baseline +
@@ -77,10 +79,14 @@ SPEC = ModelSpec(
             ),
             dependence_note=(
                 "The fitted model factorises by outcome and does not estimate "
-                "within-child residual covariance, so the current interval omits "
-                "that covariance. Confirmation requires a paired child-level "
-                "randomisation-inference/permutation analysis, bootstrap, sandwich, "
-                "or dependence-model sensitivity."
+                "within-child residual covariance, so this interval omits that "
+                "covariance and is not automatically conservative. The registered "
+                "dependence-model sensitivity is lrp-rli-itt-215 (#551): the "
+                "same contrast with the per-child LKJ residual-correlation block "
+                "on, published as a posterior difference. Read its interval and "
+                "P(> 0) beside this one — the point estimate should agree — and "
+                "treat this contrast as dependence-checked only once that "
+                "companion has passed the house gate."
             ),
         ),
     ),

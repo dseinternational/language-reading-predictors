@@ -732,6 +732,13 @@ def build_joint_model(
         # distinct dim names per axis.
         "outcome2": list(outcomes),
     }
+    if use_residual_correlation:
+        # The strictly-lower-triangle pairs of the residual correlation matrix
+        # (#551): the free correlations as clean scalars, so the summary, the
+        # prior-vs-posterior overlay and power scaling can show them without the
+        # constant unit diagonal of ``u_corr`` breaking the density plots.
+        pair_i, pair_j = np.tril_indices(K, k=-1)
+        coords["outcome_pair"] = [f"{outcomes[i]}|{outcomes[j]}" for i, j in zip(pair_i, pair_j, strict=True)]
 
     G_f = prepared.G.astype(float)
 
@@ -831,6 +838,10 @@ def build_joint_model(
             # the dedicated ``outcome2`` coord to label the second axis.
             pm.Deterministic("u_corr", corr, dims=("outcome", "outcome2"))
             pm.Deterministic("sigma_outcome", sigmas, dims="outcome")
+            # The free correlations as scalars (one per outcome pair, #551).
+            pm.Deterministic(
+                "u_corr_pair", corr[pair_i, pair_j], dims="outcome_pair"
+            )
             z_raw = pm.Normal(
                 "u_z", mu=0.0, sigma=1.0, dims=("obs_id", "outcome")
             )

@@ -863,6 +863,26 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
             "latent 'faster growth on every measure' tempo whose reported quantity is "
             "the per-measure loading, not the scores themselves."
         )
+    # The joint ITT family's per-child LKJ residual-correlation block (#551): the
+    # packed Cholesky factor of the residual covariance and its non-centred
+    # standard-normal offsets. Both are dependence plumbing for the paired contrast's
+    # uncertainty, never effects; the reported quantities are the deterministics
+    # ``sigma_outcome`` and ``u_corr_pair``.
+    if base == "u_chol":
+        return (
+            f"Packed Cholesky factor of the within-child residual covariance across "
+            f"the jointly fitted outcomes ({fitted}): an LKJ(eta = 4) correlation "
+            "prior, weakly favouring small correlations, with HalfNormal(0.5) "
+            "per-outcome residual SDs. A dependence model for the paired contrast's "
+            "uncertainty — reported through sigma_outcome and u_corr_pair — not an "
+            "effect."
+        )
+    if base == "u_z":
+        return (
+            f"Non-centred standard-normal per-child, per-outcome residual offsets "
+            f"({fitted}); scaled by the Cholesky factor u_chol to form the "
+            "within-child residual offsets u = z @ chol.T."
+        )
     # Growth-curve per-measure mean growth rate (Normal(0, 0.5)); keyed to the scale
     # so the concurrent family's Normal(0, 0.3) focal ``beta`` is not described here.
     if base == "beta" and distribution == "Normal(0, 0.5)":
