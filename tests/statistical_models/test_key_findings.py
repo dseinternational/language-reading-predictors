@@ -459,6 +459,83 @@ def test_itt_golden_sentences(tmp_path):
     assert "not the effect for all 57 randomised children" in texts[3]
 
 
+def _bounds_row(**overrides) -> dict:
+    row = {
+        "outcome": "L",
+        "scale": "proportion_correct",
+        "observed_intervention_n": 28,
+        "observed_control_n": 26,
+        "missing_intervention_n": 1,
+        "missing_control_n": 2,
+        "worst_case_items_lower": 4.053,
+        "worst_case_items_upper": 7.442,
+        "n_trials": 32,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_itt_attrition_bounds_are_quoted_in_the_causal_sentence(tmp_path):
+    """Every graded itt fit writes model-free extreme-case attrition bounds; the
+    causal sentence quotes them (2026-08-19) and says whether the direction
+    survives any completion of the missing children. They ride on the causal
+    sentence — never dropped by the five-sentence cap — rather than displacing
+    the size-of-benefit statement as a sixth sentence."""
+    d = _setup_dir(tmp_path, "itt", config=_config("itt", outcome_symbol="L"))
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_csv(d, "attrition_bounds.csv", _bounds_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert kinds == ["headline", "confidence", "rope", "causal"]
+    text = payload["sentences"][3]["text"]
+    assert "not the effect for all 57 randomised children." in text
+    assert "Completing the 3 randomised children with no timepoint-2 score" in text
+    assert "(1 intervention, 2 control)" in text
+    assert "between +4.1 and +7.4 items" in text
+    assert "does not depend on how those outcomes are completed" in text
+    assert "fitted for word reading only" in text
+
+
+def test_itt_attrition_bounds_clause_flags_a_straddling_bound(tmp_path):
+    d = _setup_dir(tmp_path, "itt", config=_config("itt", outcome_symbol="EG"))
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_csv(
+        d,
+        "attrition_bounds.csv",
+        _bounds_row(
+            outcome="EG",
+            missing_control_n=3,
+            worst_case_items_lower=-1.36,
+            worst_case_items_upper=3.88,
+            n_trials=37,
+        ),
+    )
+    text = generate_key_findings(d)["sentences"][3]["text"]
+    assert "Completing the 4 randomised children" in text
+    assert "between -1.4 and +3.9 marks" in text
+    assert "could reverse direction" in text
+
+
+def test_itt_attrition_bounds_clause_is_optional_and_skips_floor_rule_fits(tmp_path):
+    # No table -> no clause, findings unchanged (the golden test above).
+    d = _setup_dir(tmp_path, "itt")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    assert "Completing the" not in generate_key_findings(d)["sentences"][3]["text"]
+    # Floor-rule fits: the raw post-score contrast is not their estimand.
+    cfg = _config("itt", outcome_symbol="P")
+    cfg["resolved_run_plan"] = {"floor_rule": True}
+    d2 = _setup_dir(tmp_path, "itt", config=cfg, directory_name="itt-floor")
+    _write_csv(d2, "rope_summary.csv", _rope_row())
+    _write_csv(
+        d2,
+        "attrition_bounds.csv",
+        _bounds_row(outcome="P", worst_case_items_lower=-14.4, worst_case_items_upper=-1.4),
+    )
+    texts = [s["text"] for s in generate_key_findings(d2)["sentences"]]
+    assert not any("Completing the" in t for t in texts)
+
+
 def test_word_reading_key_findings_label_full_57_as_missing_data_sensitivity(
     tmp_path,
 ):

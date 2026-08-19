@@ -4822,6 +4822,77 @@ def _kf_itt_missingness_sentence(output_dir, config: Mapping) -> str | None:
     )
 
 
+def _kf_itt_attrition_bounds_clause(output_dir, config: Mapping) -> str | None:
+    """A clause for the causal sentence quoting the model-free attrition bounds.
+
+    ``attrition_bounds.csv`` (``itt.write_itt_analysis_set``) completes the
+    randomised children with no timepoint-2 outcome at the test floor or ceiling
+    in the least and most favourable ways and bounds the *raw* timepoint-2 arm
+    difference; every ``itt`` fit writes it, but until 2026-08-19 only word
+    reading's key findings quoted it (inside the mandatory missingness sentence).
+    The bound belongs with the available-case qualification it quantifies, so it
+    is appended to the causal sentence — which the five-sentence cap never drops —
+    rather than added as a sixth sentence that would displace the size-of-benefit
+    statement. Word reading is skipped (already covered); floor-rule fits are
+    skipped because their headline estimand is an off-floor risk difference among
+    baseline-floor children, which the raw post-score contrast does not describe
+    (for phonetic spelling that contrast is dominated by the baseline arm
+    imbalance). Optional: an absent or malformed table yields ``None`` rather than
+    withholding the findings (``notes/202608182200-findings-by-question.md``,
+    question 8).
+    """
+
+    if str(config.get("model_id")) == "lrp-rli-itt-010":
+        return None
+    plan = config.get("resolved_run_plan") or {}
+    if bool(plan.get("floor_rule", False)):
+        return None
+    bounds = _kf_csv(output_dir, "attrition_bounds.csv")
+    needed = {
+        "outcome",
+        "missing_intervention_n",
+        "missing_control_n",
+        "worst_case_items_lower",
+        "worst_case_items_upper",
+    }
+    if bounds is None or len(bounds) != 1 or not needed.issubset(bounds.columns):
+        return None
+    row = bounds.iloc[0]
+    try:
+        missing_i = int(_kf_float(row["missing_intervention_n"]))
+        missing_c = int(_kf_float(row["missing_control_n"]))
+        lo = _kf_float(row["worst_case_items_lower"])
+        hi = _kf_float(row["worst_case_items_upper"])
+    except (TypeError, ValueError):
+        return None
+    if not (np.isfinite(lo) and np.isfinite(hi)) or missing_i + missing_c <= 0:
+        return None
+    symbol = str(row["outcome"])
+    units = (
+        "half-marks on the doubled information scale"
+        if symbol == "EI"
+        else "marks"
+        if symbol in {"EG", "EI40"}
+        else "items"
+    )
+    if lo > 0 or hi < 0:
+        verdict = "so the direction does not depend on how those outcomes are completed"
+    else:
+        verdict = "so unrestricted missing outcomes could reverse direction"
+    n_missing = missing_i + missing_c
+    return (
+        f" Completing the {n_missing} randomised "
+        f"{'child' if n_missing == 1 else 'children'} with no timepoint-2 score on "
+        f"this measure ({missing_i} intervention, {missing_c} control) at the test "
+        "floor or ceiling in the least and most favourable ways bounds the raw "
+        f"timepoint-2 arm difference between {lo:+.1f} and {hi:+.1f} {units}, "
+        f"{verdict}; that bounds the unadjusted post-score contrast, not the "
+        "covariate-adjusted estimate above, and the model-based missing-data "
+        "envelope (MAR, reference-based and delta scenarios) has been fitted for "
+        "word reading only."
+    )
+
+
 def _kf_has_factor_term(output_dir, term: str) -> bool:
     """Whether ``factor_summary.csv`` carries a row for ``term``.
 
@@ -4972,17 +5043,16 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
     missingness_sentence = _kf_itt_missingness_sentence(output_dir, config)
     if missingness_sentence is not None:
         sentences.append(_kf_sentence(missingness_sentence, "sensitivity"))
-    sentences.append(
-        _kf_sentence(
-            _kf_itt_causal_sentence(
-                population,
-                floor_rule=bool(
-                    (config.get("resolved_run_plan") or {}).get("floor_rule", False)
-                ),
-            ),
-            "causal",
-        )
+    causal_sentence = _kf_itt_causal_sentence(
+        population,
+        floor_rule=bool(
+            (config.get("resolved_run_plan") or {}).get("floor_rule", False)
+        ),
     )
+    attrition_clause = _kf_itt_attrition_bounds_clause(output_dir, config)
+    if attrition_clause is not None:
+        causal_sentence += attrition_clause
+    sentences.append(_kf_sentence(causal_sentence, "causal"))
     return sentences
 
 
