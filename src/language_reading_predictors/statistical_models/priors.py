@@ -484,6 +484,10 @@ _RV_TO_CTOR: dict[str, str] = {
     "beta_dose": "beta_mech",
     "beta_trt": "tau",
     "b_grp_time": "tau",
+    # #552: the level family's t1-referenced arm-gap *changes* (t2 randomised,
+    # t3/t4 post-crossover) carry the tau prior; the balance term ``arm_gap_t1``
+    # shares the DiD entry above (gamma_cross).
+    "d_grp_time": "tau",
     "beta_grp": "tau",
     "a_G": "tau",
     "b_G": "tau",

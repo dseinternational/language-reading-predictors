@@ -4,8 +4,11 @@
 """Level-factors orchestration (LRP-RLI-LF, the companion levels view).
 
 ``fit_level_factors`` models the score at each timepoint with no own baseline,
-carrying group×time and ability×time as per-timepoint coefficient vectors. Only
-the t2 group contrast is a clean randomised effect; later timepoints are
+carrying group×time and ability×time as per-timepoint coefficient vectors. Under
+the default t1-referenced parameterisation (#552) the arm-by-time vector is a
+pre-randomisation balance term ``arm_gap_t1`` plus per-wave changes
+``d_grp_time[t]``; only the t2 change is a clean randomised effect (a
+difference-in-differences of adjusted levels); later timepoints are
 post-crossover and flagged as associations. It takes the revised-DAG exogenous
 confounders but no measure-skill adjusters — conditioning a levels model on
 another skill's contemporaneous level would condition on a post-treatment
@@ -107,12 +110,16 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     _lf_diag = plan.diag_vars(effective_adjustment=adjust_for)
     # For the shipped group-by-time LF models the flagged-causal term is the t2
-    # element of the per-timepoint group vector, ``b_grp_time`` (``b_grp_time[1]``,
-    # which reporting.level_t2_marginal_effect reads into the causal ROPE card), so
-    # it must get the same prior-sensitivity + forest evidence as tau/beta_trt
+    # element of the arm-by-time vector — ``d_grp_time[t2]`` under the t1-referenced
+    # parameterisation (#552), ``b_grp_time[1]`` under the free comparator — which
+    # reporting.level_t2_marginal_effect reads into the causal ROPE card, so the
+    # vector must get the same prior-sensitivity + forest evidence as tau/beta_trt
     # rather than being skipped (issue #273). Names come from the plan (#389
-    # finding 6): the run plan is the single source of truth.
+    # finding 6): the run plan is the single source of truth. The forest also shows
+    # the balance term beside the changes under the t1 reference, so the reader sees
+    # the pre-randomisation gap the changes are measured from.
     _causal_lf = plan.causal_vector
+    _forest_vars = [*plan.balance_terms, _causal_lf]
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
@@ -128,19 +135,35 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # Preserve the family's established post-trace order: overlay, forest, then
     # power scaling. The plan opts out of the standard pre-PPC sensitivity slot.
     _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag)
-    save_forest_plot(ctx, [_causal_lf])
-    _diag.run_psense(ctx, var_names=[_causal_lf])
+    save_forest_plot(ctx, _forest_vars)
+    _diag.run_psense(ctx, var_names=_forest_vars)
 
     section_header("Factor summary")
-    # Only the t2 group contrast (b_grp_time[1]) is the clean randomised effect;
-    # the other timepoints are post-crossover (see the level-model caveat).
+    # Only the t2 group contrast (plan.causal_terms) is the clean randomised effect;
+    # the other timepoints are post-crossover (see the level-model caveat). Under the
+    # t1 reference the balance term and the derived per-wave levels view carry their
+    # own roles so they are never read as effects or as adjusted associations.
     causal = plan.causal_terms
     _lf_coefs = plan.coefficient_names(effective_adjustment=adjust_for)
     fs = _report.factor_summary(
-        ctx.trace, _lf_coefs, ci_prob=ctx.reporting.ci_prob, causal_terms=causal
+        ctx.trace,
+        _lf_coefs,
+        ci_prob=ctx.reporting.ci_prob,
+        causal_terms=causal,
+        role_overrides=plan.factor_summary_roles(),
     )
     save_table(ctx, "factor_summary", fs)
-    save_association_forest(ctx, _lf_coefs, causal)
+    # The association forest shows the adjusted associations only: the focal vector
+    # (causal element), the balance term and the derived levels view are excluded.
+    save_association_forest(
+        ctx,
+        [
+            c
+            for c in _lf_coefs
+            if c not in plan.balance_terms and c not in plan.levels_view_terms
+        ],
+        causal,
+    )
     print_table(
         ranked_dataframe_table(
             fs,
@@ -165,10 +188,12 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         ),
     }
     # ROPE-anchored continuous report for the one causal term — the t2 randomised
-    # contrast b_grp_time[1] (notes/202606261304-...). The level model enters group
+    # contrast (plan.focal_term; notes/202606261304-...). The level model enters group
     # as a per-timepoint vector and also carries a group×ability interaction, so the
-    # t2 items-scale AME nets both group terms out at the t2 rows
-    # (reporting.level_t2_marginal_effect) rather than reusing the gain core. Emitted
+    # t2 items-scale AME nets the focal contrast and the interaction out at the t2
+    # rows (reporting.level_t2_marginal_effect) rather than reusing the gain core;
+    # under the t1 reference the balance term stays in both arms and only the t2
+    # change is added back (#552). Emitted
     # when the t2 contrast exists (group_by_time): graded outcomes with an agreed items
     # delta (ROPE_DELTA -> W/R/E/L/B) report on the items scale; the floored outcomes P
     # and N report the off-floor risk difference (A4, 2026-07-13) — previously they got
@@ -195,6 +220,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             phase=built.prepared.phase,
             G=built.prepared.G,
             ability=ability,
+            contrast_term=plan.focal_vector,
+            contrast_index=plan.focal_index,
         )
         if _graded_card:
             n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
@@ -231,6 +258,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 n_trials=n_marg,
                 ability=ability,
                 ci_prob=ctx.reporting.ci_prob,
+                contrast_term=plan.focal_vector,
+                contrast_index=plan.focal_index,
             )
         except Exception as exc:
             rprint(f"[yellow]prior_pushforward skipped: {exc}[/yellow]")

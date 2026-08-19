@@ -427,14 +427,39 @@ def _prior_table_overrides(
         plan = getattr(context, "resolved_plan", None)
         if not isinstance(plan, LevelFactorsRunPlan):
             plan = resolve_level_factors_run_plan(spec)
-        if plan.group_by_time:
+        if plan.t1_referenced:
+            # #552: the arm-by-time vector is a pre-randomisation balance term plus
+            # per-wave changes. The prior table is one row per free RV: the balance
+            # term is a nuisance quantity (never an effect) and ``d_grp_time`` is a
+            # vector whose elements have different interpretation — only
+            # d_grp_time[t2] is the randomised contrast (a difference-in-differences
+            # of adjusted levels); t3/t4 are post-crossover changes. Keep the vector
+            # row conservative and let factor_summary.csv carry the element-level
+            # causal label. ``b_grp_time`` is a Deterministic here (no prior row).
+            role["arm_gap_t1"] = "nuisance"
+            rationale["arm_gap_t1"] = (
+                "Covariate-adjusted pre-randomisation (t1) immediate-minus-waitlist "
+                "arm gap: a balance quantity the per-wave changes are measured from, "
+                "regularised on the cross-coupling prior and never interpreted as an "
+                "effect (#552; the DiD arm_gap_t1 idiom)."
+            )
+            role["d_grp_time"] = "association"
+            rationale["d_grp_time"] = (
+                "Change in the adjusted arm gap from t1 to each later wave; only "
+                "d_grp_time[t2] is the randomised t2 contrast (a "
+                "difference-in-differences of adjusted levels), while the vector row "
+                "is documented conservatively because the t3/t4 elements are "
+                "post-crossover associations."
+            )
+        elif plan.group_by_time:
             # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
             # elements have different interpretation: only b_grp_time[1] is the clean
             # randomised t2 contrast. Keep the vector row conservative and let
             # factor_summary.csv carry the element-level causal label.
             role["b_grp_time"] = "association"
             rationale["b_grp_time"] = (
-                "Level-model group-by-time vector; only b_grp_time[1] is the "
+                "Level-model group-by-time vector (the free per-timepoint comparator, "
+                "#552); only b_grp_time[1] is the "
                 "randomised t2 contrast, while the vector row is documented "
                 "conservatively because other elements are pre-randomisation or "
                 "post-crossover associations."
@@ -613,6 +638,7 @@ def _prior_table_overrides(
             "tau",
             "beta_trt",
             "b_grp_time",
+            "d_grp_time",
             "beta_grp",
             "delta",
             "tau_t2",

@@ -1401,6 +1401,75 @@ def test_level_t2_marginal_effect_nets_group_ability_interaction():
     assert ame == pytest.approx(np.array(ref))
 
 
+def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
+    """#552: under the t1-referenced parameterisation the caller names the change
+    vector (``d_grp_time``, element 0 = t2). The balance term ``arm_gap_t1`` is
+    part of both arms' linear predictor and is *not* netted out or added back;
+    only ``d_grp_time[t2]`` (plus the interaction, netted) is — so the AME is the
+    difference-in-differences contrast, and the logit contrast draws are the t2
+    change, not the raw t2 gap ``b_grp_time[1] = arm_gap_t1 + d_grp_time[t2]``."""
+    n_chain, n_draw, n_obs = 1, 5, 6
+    rng = np.random.default_rng(7)
+    arm_gap = rng.normal(-0.3, 0.1, (n_chain, n_draw))
+    d_grp = rng.normal(0.4, 0.2, (n_chain, n_draw, 3))
+    b_grp = np.concatenate(
+        [arm_gap[..., None], arm_gap[..., None] + d_grp], axis=-1
+    )  # the derived levels view
+    g_ab = rng.normal(-0.1, 0.1, (n_chain, n_draw))
+    eta = rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))
+    phase = np.array([0, 1, 2, 3, 1, 0])
+    G = np.array([1.0, 1.0, 0.0, 1.0, 0.0, 1.0])
+    ability = np.array([0.5, -1.0, 0.2, 0.3, 0.8, -0.4])
+    ds = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "arm_gap_t1": (("chain", "draw"), arm_gap),
+            "d_grp_time": (("chain", "draw", "post_phase"), d_grp),
+            "b_grp_time": (("chain", "draw", "phase"), b_grp),
+            "gamma_grp_ability": (("chain", "draw"), g_ab),
+        },
+        coords={
+            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs), "phase": np.arange(4),
+            "post_phase": ["t2", "t3", "t4"],
+        },
+    )
+    contrast, ame = level_t2_marginal_effect(
+        SimpleNamespace(posterior=ds),
+        phase=phase,
+        G=G,
+        ability=ability,
+        contrast_term="d_grp_time",
+        contrast_index=0,
+    )
+    d_t2 = d_grp.reshape(-1, 3)[:, 0]
+    g_flat = g_ab.reshape(-1)
+    e_flat = eta.reshape(-1, n_obs)
+    rows = np.where(phase == 1)[0]
+    ref = []
+    for s_ in range(n_draw):
+        diffs = []
+        for i in rows:
+            # net out the t2 change and the interaction; arm_gap_t1 stays in eta0
+            e0 = e_flat[s_, i] - (d_t2[s_] + g_flat[s_] * ability[i]) * G[i]
+            diffs.append(expit(e0 + d_t2[s_]) - expit(e0))
+        ref.append(np.mean(diffs))
+    assert contrast == pytest.approx(d_t2)
+    assert ame == pytest.approx(np.array(ref))
+    # The raw t2 gap (the free comparator's focal element) differs by the balance
+    # term, so the two parameterisations do not report the same logit contrast.
+    raw, _ = level_t2_marginal_effect(
+        SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability
+    )
+    assert raw == pytest.approx(d_t2 + arm_gap.reshape(-1))
+    # An out-of-range element is a caller error, not a silent wrap-around.
+    with pytest.raises(ValueError, match="contrast_index"):
+        level_t2_marginal_effect(
+            SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability,
+            contrast_term="d_grp_time", contrast_index=3,
+        )
+
+
 def test_level_t2_marginal_effect_requires_t2_rows():
     eta = np.zeros((1, 2, 3))
     ds = xr.Dataset(

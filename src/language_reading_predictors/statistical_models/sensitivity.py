@@ -580,8 +580,9 @@ def load_primary_standard_references(
 
 # --- Level-factor treatment-prior sweep (#389 criterion 6) -------------------
 #
-# The robustness release gate (#482) extends to ``level_factors`` on
-# ``b_grp_time[1]``, and its per-fit evidence check
+# The robustness release gate (#482) extends to ``level_factors`` on the plan's
+# focal t2 term (``d_grp_time[t2]`` under the t1-referenced parameterisation,
+# #552; ``b_grp_time[1]`` on the free comparator), and its per-fit evidence check
 # (``release._standard_sweep_evidence``) accepts a standard-schema
 # ``tau_prior_sensitivity.csv`` bound to the fit's own config/trace hashes.
 # These constants define the level-family sweep: the five outcomes the #389
@@ -641,10 +642,12 @@ def load_primary_level_reference(
 
     The level analogue of :func:`load_primary_standard_reference`: same identity
     and binding checks (model id, outcome, data hash, sampling provenance,
-    config/trace sha256), with the family's own posterior contract — the focal
-    vector is ``b_grp_time`` (``alpha`` is present as the anchored Deterministic,
-    #389 finding 2) — and arm counts read over the level rows, whose t2 subset is
-    what the randomised contrast is estimated from.
+    config/trace sha256), with the family's own posterior contract — the per-wave
+    arm-gap vector ``b_grp_time`` is present in every parameterisation (free under
+    the pre-#552 comparator, a Deterministic levels view under the t1 reference)
+    and ``alpha`` is the anchored Deterministic (#389 finding 2) — and arm counts
+    read over the level rows, whose t2 subset is what the randomised contrast is
+    estimated from.
     """
     import arviz as az
 
@@ -1060,7 +1063,7 @@ def _validate_cell_trace(
     the recorded free variables, the focal term's presence, the divergence
     count recomputed from ``sample_stats``, and — for a bare-name focal term —
     the row's ``tau_logit_mean`` recomputed from the draws. (An indexed or
-    derived focal term such as the level family's ``b_grp_time[1]`` reports a
+    derived focal term such as the level family's ``d_grp_time[t2]`` reports a
     marginal-contrast summary that is not a raw coefficient mean, so only the
     base variable's presence is checked there.)
     """

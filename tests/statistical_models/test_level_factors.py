@@ -98,12 +98,27 @@ def test_from_legacy_extra_round_trips_known_keys():
 
 
 def test_from_legacy_extra_defaults_flags_true():
-    # The three structural flags default True (the shipped per-timepoint design).
+    # The three structural flags default True (the shipped per-timepoint design),
+    # and the arm-by-time vector is centred on the t1 gap by default (#552).
     settings = LevelFactorsModelSettings.from_legacy_extra({}, model_id="lrp-rli-lf-999")
     assert settings.group_by_time is True
     assert settings.ability_by_time is True
     assert settings.group_ability is True
     assert settings.likelihood == "beta_binomial"
+    assert settings.arm_gap_reference == "t1"
+
+
+def test_settings_reject_unknown_arm_gap_reference():
+    with pytest.raises(ValueError, match="arm_gap_reference"):
+        LevelFactorsModelSettings(arm_gap_reference="t2")
+
+
+def test_from_legacy_extra_round_trips_arm_gap_reference():
+    settings = LevelFactorsModelSettings.from_legacy_extra(
+        {"ability_covariate": "blocks", "arm_gap_reference": "free"},
+        model_id="lrp-rli-lf-999",
+    )
+    assert settings.arm_gap_reference == "free"
 
 
 # --- resolve ------------------------------------------------------------------
@@ -136,6 +151,51 @@ def test_resolve_primary_records_t2_randomised_estimand():
     assert plan.prepare_kwargs()["outcomes"] == ("W",)
     assert plan.prepare_kwargs()["phase_mode"] == "levels"
     assert plan.factory_kwargs()["group_by_time"] is True
+    assert plan.factory_kwargs()["arm_gap_reference"] == "t1"
+    # #552: the default parameterisation names the t2 *change* as the focal term
+    # and records the parameterisation in the persisted plan.
+    assert plan.arm_gap_reference == "t1"
+    assert plan.t1_referenced
+    assert plan.focal_vector == "d_grp_time"
+    assert plan.focal_index == 0
+    assert plan.focal_term == "d_grp_time[t2]"
+    assert "difference-in-differences" in plan.estimand
+    assert "balance" in plan.causal_status
+    recorded = plan.as_dict()
+    assert recorded["arm_gap_reference"] == "t1"
+    assert recorded["focal_term"] == "d_grp_time[t2]"
+    assert "Arm-by-time parameterisation" in plan.recipe_markdown(title="t")
+    assert "d_grp_time[t2]" in plan.recipe_markdown(title="t")
+
+
+def test_resolve_free_comparator_keeps_the_raw_t2_gap_focal():
+    """``arm_gap_reference="free"`` is the pre-#552 comparator: one free
+    coefficient per timepoint, ``b_grp_time[1]`` focal, no balance term."""
+    plan = resolve_level_factors_run_plan(
+        _spec(ability_covariate="blocks", arm_gap_reference="free")
+    )
+    assert plan.arm_gap_reference == "free"
+    assert not plan.t1_referenced
+    assert plan.focal_vector == "b_grp_time"
+    assert plan.focal_index == 1
+    assert plan.focal_term == "b_grp_time[1]"
+    assert plan.causal_terms == ("b_grp_time[1]",)
+    assert plan.balance_terms == ()
+    assert plan.levels_view_terms == ()
+    assert plan.factor_summary_roles() == {}
+    assert plan.coefficient_names()[0] == "b_grp_time"
+    assert "b_grp_time[1]" in plan.estimand
+    assert "comparator" in plan.recipe_markdown(title="t")
+
+
+def test_resolve_rejects_t1_reference_on_a_pooled_group_term():
+    """#552 acceptance criterion: an incoherent declaration (centring a pooled
+    group coefficient on the t1 gap) fails at resolution, before any output
+    directory is reset or data are loaded."""
+    with pytest.raises(ValueError, match="arm_gap_reference='t1' requires group_by_time"):
+        resolve_level_factors_run_plan(
+            _spec(ability_covariate="blocks", group_by_time=False)
+        )
 
 
 def test_resolve_off_floor_sets_bernoulli_node_and_risk_difference():
@@ -235,25 +295,45 @@ def _primary_spec(**extra_overrides) -> ModelSpec:
 
 def test_plan_owns_coefficient_names_and_diag_vars():
     """The run plan is the single source of truth for coefficient and diagnostic
-    names (#389 finding 6): the former pipeline reconstruction is reproduced,
-    with the anchored-intercept nodes (#389 finding 2) in the gated set."""
+    names (#389 finding 6): under the t1-referenced parameterisation (#552) the
+    balance term, the arm-gap changes and the derived levels view lead the report
+    order, with the anchored-intercept nodes (#389 finding 2) in the gated set."""
     plan = resolve_level_factors_run_plan(_primary_spec())
     assert plan.coefficient_names() == [
-        "b_grp_time", "gamma_A", "gamma_ability_time", "gamma_grp_ability",
+        "arm_gap_t1", "d_grp_time", "b_grp_time",
+        "gamma_A", "gamma_ability_time", "gamma_grp_ability",
         "gamma_hs", "gamma_erbto",
     ]
     # A loader-dropped constant covariate shrinks the reported set to match.
     assert plan.coefficient_names(effective_adjustment=("erbto",)) == [
-        "b_grp_time", "gamma_A", "gamma_ability_time", "gamma_grp_ability",
+        "arm_gap_t1", "d_grp_time", "b_grp_time",
+        "gamma_A", "gamma_ability_time", "gamma_grp_ability",
         "gamma_erbto",
     ]
     assert plan.diag_vars(effective_adjustment=()) == [
         "alpha", "alpha_offset", "alpha_time",
-        "b_grp_time", "gamma_A", "gamma_ability_time", "gamma_grp_ability",
+        "arm_gap_t1", "d_grp_time", "b_grp_time",
+        "gamma_A", "gamma_ability_time", "gamma_grp_ability",
         "kappa", "sigma_child",
     ]
+    assert plan.causal_vector == "d_grp_time"
+    assert plan.causal_terms == ("d_grp_time[t2]",)
+    assert plan.balance_terms == ("arm_gap_t1",)
+    assert plan.levels_view_terms == ("b_grp_time",)
+    assert plan.factor_summary_roles() == {
+        "arm_gap_t1": "balance",
+        "b_grp_time": "levels_view",
+    }
+
+
+def test_plan_free_comparator_coefficient_names():
+    """The free comparator reproduces the pre-#552 report order."""
+    plan = resolve_level_factors_run_plan(_primary_spec(arm_gap_reference="free"))
+    assert plan.coefficient_names() == [
+        "b_grp_time", "gamma_A", "gamma_ability_time", "gamma_grp_ability",
+        "gamma_hs", "gamma_erbto",
+    ]
     assert plan.causal_vector == "b_grp_time"
-    assert plan.causal_terms == ("b_grp_time[1]",)
 
 
 def test_plan_offfloor_diag_vars_drop_kappa_and_pooled_group_unflagged():
@@ -261,10 +341,15 @@ def test_plan_offfloor_diag_vars_drop_kappa_and_pooled_group_unflagged():
         _primary_spec(adjust_for=(), likelihood="bernoulli_offfloor")
     )
     assert "kappa" not in off.diag_vars()
-    pooled = resolve_level_factors_run_plan(_primary_spec(adjust_for=(), group_by_time=False))
+    pooled = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), group_by_time=False, arm_gap_reference="free")
+    )
     assert pooled.causal_vector == "beta_grp"
-    # A pooled group coefficient mixes post-crossover waves: never flagged causal.
+    # A pooled group coefficient mixes post-crossover waves: never flagged causal,
+    # and it has no focal element for the release gate to read.
     assert pooled.causal_terms == ()
+    assert pooled.focal_term is None
+    assert pooled.coefficient_names()[0] == "beta_grp"
 
 
 def _toy_prepared(*, drop_arm_at_t2: bool = False, nan_ability: bool = False):

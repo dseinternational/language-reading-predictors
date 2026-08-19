@@ -3408,6 +3408,7 @@ def factor_summary(
     *,
     ci_prob: float,
     causal_terms: tuple[str, ...] = (),
+    role_overrides: Mapping[str, str] | None = None,
 ) -> pd.DataFrame:
     """Per-coefficient posterior summary for a factor model (LRPGF / LRPLF, #127).
 
@@ -3419,19 +3420,34 @@ def factor_summary(
     randomised treatment terms named in ``causal_terms``) or **association** —
     under the locked DAG every non-randomised coefficient is an adjusted
     association confounded by latent general ability and must never be read as
-    "drives".
+    "drives". ``role_overrides`` (term or base name -> role) names the two
+    further roles the level family carries under its t1-referenced arm-gap
+    parameterisation (#552): ``balance`` for the pre-randomisation t1 arm gap
+    and ``levels_view`` for the derived per-wave arm gaps, neither of which is
+    an effect nor an ordinary adjusted association.
+
+    A vector coefficient is expanded to one row per element, labelled by the
+    element's coordinate value (``b_grp_time[1]`` for the integer ``phase``
+    coordinate, ``d_grp_time[t2]`` for the labelled ``post_phase`` one) — the
+    same label ArviZ's summaries and ``psense_summary.csv`` use, so a focal term
+    resolves to the same string everywhere.
     """
     posterior = trace.posterior
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
+    overrides = dict(role_overrides or {})
 
     def _row(term: str, base: str, d: np.ndarray) -> dict[str, object]:
         causal = term in causal_terms or base in causal_terms
+        if causal:
+            role = "causal"
+        else:
+            role = overrides.get(term, overrides.get(base, "association"))
         prob_pos = float(np.mean(d > 0))
         lo50, hi50 = band50(d)
         return {
             "term": term,
-            "role": "causal" if causal else "association",
+            "role": role,
             "median": float(np.median(d)),
             "mean": float(np.mean(d)),
             "lo": float(np.quantile(d, lo_q)),
@@ -3457,9 +3473,14 @@ def factor_summary(
             # one row per element, so an element can be labelled causal on its own
             # (e.g. only the t2 group contrast is the clean randomised effect).
             dim = extra_dims[0]
-            for i in range(int(da.sizes[dim])):
+            labels = (
+                [str(v) for v in da.coords[dim].values]
+                if dim in da.coords
+                else [str(i) for i in range(int(da.sizes[dim]))]
+            )
+            for i, label in enumerate(labels):
                 d = da.isel({dim: i}).stack(sample=("chain", "draw")).values.ravel()
-                rows.append(_row(f"{name}[{i}]", name, d))
+                rows.append(_row(f"{name}[{label}]", name, d))
     return pd.DataFrame(rows)
 
 
@@ -3970,6 +3991,7 @@ def level_t2_marginal_effect(
     G: np.ndarray,
     t2_phase: int = 1,
     contrast_term: str = "b_grp_time",
+    contrast_index: int | None = None,
     interaction_term: str = "gamma_grp_ability",
     ability: np.ndarray | None = None,
     eta_name: str = "eta",
@@ -3977,25 +3999,36 @@ def level_t2_marginal_effect(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Per-draw t2 randomised contrast and its items-scale AME (LRPLF, #127).
 
-    The level model enters group as a per-timepoint vector ``b_grp_time[t]`` because
-    the trial is a waitlist crossover; **only the t2 element is a clean randomised
-    contrast** (later timepoints are post-crossover associations). This isolates that
-    one causal effect on the items scale.
+    The level model enters group as a per-timepoint vector because the trial is a
+    waitlist crossover; **only the t2 element is a clean randomised contrast**
+    (later timepoints are post-crossover associations). This isolates that one
+    causal effect on the items scale.
+
+    ``contrast_term`` names the posterior vector carrying the randomised t2 element
+    and ``contrast_index`` that element's position in it (default: ``t2_phase``,
+    the position in a ``phase``-indexed vector). Under the t1-referenced arm-gap
+    parameterisation (#552) the caller passes ``contrast_term="d_grp_time"`` and
+    ``contrast_index=0`` (the ``t2`` entry of the ``post_phase``-indexed change
+    vector): the balance term ``arm_gap_t1`` then stays in **both** arms' linear
+    predictor and only the t2 *change* is added back, so the AME is the
+    difference-in-differences contrast. Under the free comparator the default
+    ``b_grp_time`` / ``t2_phase`` reproduces the raw t2 gap.
 
     Unlike the gain family's single ``beta_trt * trt`` term, the level model's group
-    contribution at t2 is ``(b_grp_time[t2] + gamma_grp_ability * ability) * G`` — it
-    also carries the group×ability interaction — so the plain ``eta - term*G`` removal
-    of :func:`_itt_ame_draws` does not apply. Restricting to the t2 rows, per draw we
-    net out the *full* group contribution to recover the untreated baseline
-    ``eta0 = eta - (b_grp_time[t2] + gamma_grp_ability*ability)*G``, then add back
-    **only** ``b_grp_time[t2]`` at ``G=1`` and average ``expit(eta1) - expit(eta0)``
+    contribution at t2 is ``(contrast + gamma_grp_ability * ability) * G`` (plus, under
+    the t1 reference, the balance term in both arms) — it also carries the
+    group×ability interaction — so the plain ``eta - term*G`` removal of
+    :func:`_itt_ame_draws` does not apply. Restricting to the t2 rows, per draw we
+    net out the focal contrast and the interaction to recover the untreated baseline
+    ``eta0 = eta - (contrast + gamma_grp_ability*ability)*G``, then add back
+    **only** the focal contrast at ``G=1`` and average ``expit(eta1) - expit(eta0)``
     over the t2 rows. ``gamma_grp_ability`` is a single *time-invariant* coefficient
     (identified mostly from the non-randomised t1/t3/t4 rows), so it is deliberately
     excluded from this causal AME — the card is the clean randomised t2 effect **at
     mean ability**; the group×ability moderation is reported separately, not folded
     into the causal claim (issue #271 item 5).
 
-    Returns ``(contrast_draws, ame_prob)`` — the logit-scale ``b_grp_time[t2]`` draws
+    Returns ``(contrast_draws, ame_prob)`` — the logit-scale focal-contrast draws
     ``(S,)`` (the term flagged causal in the report) and the probability-scale average
     marginal effect per draw ``(S,)``, ready for :func:`rope_card`. ``ability`` is the
     standardised ability covariate aligned with ``eta``'s ``obs_id`` axis (pass
@@ -4027,7 +4060,13 @@ def level_t2_marginal_effect(
     extra = [d for d in bgt.dims if d not in ("chain", "draw")]
     if not extra:
         raise ValueError(f"{contrast_term!r} is not a per-timepoint vector; t2 contrast undefined")
-    contrast_draws = bgt.isel({extra[0]: t2_phase}).stack(sample=("chain", "draw")).values  # (S,)
+    idx = t2_phase if contrast_index is None else int(contrast_index)
+    if not 0 <= idx < int(bgt.sizes[extra[0]]):
+        raise ValueError(
+            f"contrast_index {idx} is outside {contrast_term!r}'s "
+            f"{extra[0]} dimension of size {int(bgt.sizes[extra[0]])}"
+        )
+    contrast_draws = bgt.isel({extra[0]: idx}).stack(sample=("chain", "draw")).values  # (S,)
 
     # δ_i per t2 row and draw: the constant t2 contrast, plus the group×ability slope
     # times each row's ability if the interaction is in the model.
@@ -4044,10 +4083,12 @@ def level_t2_marginal_effect(
     # ability: ``gamma_grp_ability`` is a single time-invariant coefficient
     # (identified mostly from the non-randomised t1/t3/t4 rows), so folding it into
     # the t2 AME would borrow a non-randomised component and ~4×-attenuate any real
-    # t2 moderation. Net the *full* group contribution out to recover the untreated
-    # baseline, but add back only ``b_grp_time[t2]`` (ability is standardised, so
-    # "mean ability" simply drops the interaction). The interaction is reported
-    # separately, not in the causal card (issue #271 item 5).
+    # t2 moderation. Net the focal contrast and the interaction out to recover the
+    # untreated baseline (under the t1 reference the balance term ``arm_gap_t1``
+    # stays in both arms — it is not part of the effect), but add back only the
+    # focal contrast (ability is standardised, so "mean ability" simply drops the
+    # interaction). The interaction is reported separately, not in the causal card
+    # (issue #271 item 5).
     ame_prob = (expit(eta0 + contrast_draws[None, :]) - expit(eta0)).mean(axis=0)  # (S,)
     return contrast_draws, ame_prob
 
@@ -4060,6 +4101,8 @@ def level_prior_pushforward(
     n_trials: int,
     ability: np.ndarray | None = None,
     ci_prob: float = 0.95,
+    contrast_term: str = "b_grp_time",
+    contrast_index: int | None = None,
 ) -> dict[str, float]:
     """Push the **prior** on the t2 group contrast through the items-scale AME (#389 finding 3).
 
@@ -4074,7 +4117,13 @@ def level_prior_pushforward(
     two families' prior checks uniformly.
     """
     contrast_draws, ame_prob = level_t2_marginal_effect(
-        trace, phase=phase, G=G, ability=ability, group="prior"
+        trace,
+        phase=phase,
+        G=G,
+        ability=ability,
+        group="prior",
+        contrast_term=contrast_term,
+        contrast_index=contrast_index,
     )
     return pushforward_values(
         contrast_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
@@ -5256,8 +5305,10 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
     )
     sentences.append(_kf_sentence(headline, "headline"))
     # #389 finding 3 — surfacing the t2 power-scaling verdict beside the headline —
-    # is now the release gate's job rather than this builder's. The gate covers
-    # ``b_grp_time[1]`` for every level-factor fit, and it classifies on the prior and
+    # is now the release gate's job rather than this builder's. The gate covers the
+    # plan's focal t2 term (``d_grp_time[t2]``, or ``b_grp_time[1]`` under the free
+    # comparator / on stored pre-#552 fits) for every level-factor fit, and it
+    # classifies on the prior and
     # likelihood statistics rather than on the marker string, which is the better rule
     # (see ``_kf_psense_diagnosis``: an unrecognised marker on a clean estimate should
     # not publish a caution). Keeping a family-specific warning as well would say the
@@ -5275,16 +5326,30 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         )
     )
     sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
+    plan = config.get("resolved_run_plan") or {}
+    t1_referenced = str(plan.get("arm_gap_reference", "free")) == "t1" and bool(
+        plan.get("group_by_time", True)
+    )
     causal = (
-        "Only this t2 comparison is randomised. A cause-and-effect reading is "
+        "Only this t2 comparison is randomised. "
+        + (
+            "It is the **change** in the arm difference from the pre-randomisation "
+            "baseline (t1) to t2 — a difference-in-differences of adjusted levels — "
+            "so any chance difference between the arms at t1 is taken out rather "
+            "than carried into the estimate. "
+            if t1_referenced
+            else ""
+        )
+        + "A cause-and-effect reading is "
         "limited to the fitted available-case t2 population and assumes outcome "
         "and required-covariate observation do not depend jointly on arm and "
         "potential outcomes; group differences at later timepoints — after the "
         "waiting-list children had crossed over to the intervention — are "
         "associations."
     )
-    # The headline nets out the *full* group contribution and adds back only
-    # b_grp_time[1], so it is the effect at mean ability, not a population average
+    # The headline nets out the focal t2 contrast and the interaction and adds back
+    # only the focal contrast (d_grp_time[t2], or b_grp_time[1] under the free
+    # comparator), so it is the effect at mean ability, not a population average
     # that lets the benefit vary with ability (#271 item 5; design note Decision 4).
     # Appended to the causal sentence rather than added as a sixth: the box truncates
     # at KEY_FINDINGS_MAX_SENTENCES, and on a psense-flagged fit a sixth sentence
