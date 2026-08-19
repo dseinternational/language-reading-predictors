@@ -45,12 +45,17 @@ Parents of $TE$ under the revised DAG (2026-07-10): $\{A, GA, HS, IG, IS, RW, SP
 - $RW$ — phonological memory (`erbto` / `erbto_missing`).
 - $W_{\text{pre}}$ — baseline word reading (temporal precedence; not a collider).
 
-_Open backdoor: intervention sessions (IS) — flagged, not adjusted._ $IS \to TE$ and $IS \to WR$ make session dose a genuine common cause, but $IS$ is
-treatment-affected ($IG \to IS$): conditioning on it would insert a post-treatment
-collider between the randomised arm and latent ability ($IG \to IS \leftarrow GA \to W$).
-Following the family precedent and the signed-off #309 handling, the primary model
-leaves $IS$ unadjusted — **shared session dose is a plausible inflator of this
-slope**. A dose-adjusted sensitivity companion is deferred.
+_Intervention sessions (IS) — adjusted (since 2026-07-17, reversing #309)._ $IS \to TE$ and
+$IS \to WR$ make session dose a genuine common cause, so the model conditions on it
+(`attend`, the sessions delivered during the period, entering as $\gamma_{\text{attend}}$).
+$IS$ is also treatment-affected ($IG \to IS$) and a collider ($IG \to IS \leftarrow GA$);
+the concern that conditioning on it opens $IG \to IS \leftarrow GA \to W$ does not bite
+here, because the model always conditions on the randomised arm ($\beta_G$), which closes
+that path at $IG$ — the formal d-separation check is in
+`notes/202607171700-mech-intervention-sessions-adjustment-collider-review.md`. Adding
+$IS$ moved the endpoint contrast modestly down on the July 2026 fits (TE +9.3 → +8.6
+items), so shared session dose had been mildly inflating the slope; what remains is the
+sessions-adjusted association, still covariation within a treated system.
 
 $EV$, $EG$ and $EI$ are *descendants* of $TE$; conditioning on them would block
 legitimate indirect paths (e.g. $TE \to EV \to W$) and pull the slope toward the
@@ -62,7 +67,7 @@ covariation within a treated system.
 
 ### Interpretation caveats
 
-- *No unmeasured confounder assumption* for $(TE_{\text{post}}, W_{\text{post}})$: strong and not testable, and the flagged $IS$ backdoor is a named violation direction.
+- *No unmeasured confounder assumption* for $(TE_{\text{post}}, W_{\text{post}})$: strong and not testable; latent general ability $GA$ is the named violation direction (the $IS$ backdoor is closed by adjustment).
 - $TE_{\text{post}}$ is measured with error; non-negligible error attenuates the slope toward zero.
 - Across-phase pooling assumes the structural relationship is stable over time; a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag.
 
