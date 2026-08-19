@@ -35,6 +35,10 @@ A child recorded as hearing-impaired satisfies "impaired hearing or repeated ear
 
 **Refit:** held at the author's request until the review is complete. When it runs, every fit that carries `hs` should be refitted together (the `mechanism` sweep is the bulk of it) and the hearing figures in question 7 re-read from the new artefacts.
 
+## How much the adjuster matters (added 2026-08-19)
+
+Two checks made while reviewing question 7 of the question-organised report bound what the refit can change. The flag has construct validity where the causal diagram says it should (flagged children −0.5 SD on speech production at timepoints 1 and 4, −0.6 SD on word/nonword repetition at timepoint 1) and only small associations with the literacy and vocabulary levels it de-confounds (|d| ≤ 0.23 SD). A screening check on the fitted rows of four mechanism models — clustered least squares with each model's own covariates, with and without `hs` / `hs_missing` — moves the focal slopes by 0–4% (letter sounds → word reading +0.434 against +0.425; taught receptive → word reading +0.226 against +0.230; expressive vocabulary → word reading +0.029 against +0.028; speech production → nonword reading +0.421 against +0.422). So the flag is an adequate adjuster for its purpose — there is little hearing confounding of these associations to remove, and the estimates barely depend on it — and the reclassification of one child by the three-valued OR cannot move any focal estimate materially; the refit is housekeeping for the flag's own coefficient and the fitted-data record. It remains unfit for estimating hearing's own association, which no fit does. The composition of the flag (25 flagged = 22 with the impairment indicator + 3 with an ear-infection history alone) and the reason a complete-case sensitivity cannot change the flagged-versus-clear contrast are recorded in question 7.
+
 ## Related wording correction
 
 The same check found that question 8 of the findings note suggested "using the continuous hearing information". There is none — both components are yes/no — so the suggestion now reads "use the two hearing indicators separately".
