@@ -2837,3 +2837,48 @@ def test_a_scalar_term_is_unaffected_by_the_vector_path(tmp_path):
     )
     assert classify_tau_sensitivity(scalar, term="tau") == ("clear", 0.01, 0.02, "✓")
     assert classify_tau_sensitivity(scalar, term="tau_t2")[0] == "unavailable"
+
+
+def test_pooled_levels_covariate_exposure_and_skills_are_named(tmp_path):
+    """#553: a raw-score covariate exposure is read in its own units (the fit's
+    recorded raw-units SD) and the same-wave skill adjusters are named in the
+    causal sentence, so the box never calls a raw score a logit or hides what the
+    model held fixed."""
+    d = _setup_dir(
+        tmp_path,
+        "pooled_levels",
+        config={
+            "kind": "pooled_levels",
+            "outcome_symbol": "W",
+            "mechanism_symbol": "erbto",
+            "resolved_run_plan": {
+                "outcome_symbol": "W",
+                "mechanism_symbol": "erbto",
+                "mechanism_is_covariate": True,
+                "exposure_kind": "raw_covariate",
+                "skill_symbols": ["TR"],
+                "decompose_between_within": True,
+                "waves": [1, 2, 3, 4],
+                "use_wave_intercepts": True,
+            },
+            "extra": {"mechanism_exposure_sd_raw": 9.47},
+        },
+    )
+    _write_rows(
+        d,
+        "pooled_levels_summary.csv",
+        [
+            {"term": "beta_between", "role": "association", "median": 0.91,
+             "lo": 0.61, "hi": 1.25, "prob_positive": 1.0},
+            {"term": "beta_within", "role": "association", "median": 0.14,
+             "lo": -0.04, "hi": 0.31, "prob_positive": 0.886},
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    texts = " ".join(s["text"] for s in payload["sentences"])
+    assert "phonological memory (word/nonword repetition; 1 SD ≈ 9.5 raw points)" in texts
+    assert "holds fixed the same-wave levels of Taught receptive vocabulary" in texts or (
+        "holds fixed the same-wave levels of" in texts
+    )
+    assert "erbto" not in texts

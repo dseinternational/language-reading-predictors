@@ -288,6 +288,14 @@ _MECH = [
     _d("lrppl01", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: letter sounds -> word reading (per-wave intercepts, child RE)"),
     _d("lrppl02", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "N", "wave-pooled between-child level association: letter sounds -> nonword decoding"),
     _d("lrppl101", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "no-wave-intercept comparator for lrppl01 (slope also carries secular co-movement)", "lrppl01"),
+    # #553: the between/within split extended to the other predictors of word
+    # reading. E and R are bounded-count exposures with same-wave skill adjusters
+    # (the mechanism family's adjustment sets minus the own baseline); erbto and
+    # deapp_c are raw-score covariate exposures, complete-case on the exposure.
+    _d("lrppl03", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: expressive vocabulary -> word reading (same-wave TR/TE/R skill adjusters)"),
+    _d("lrppl04", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: receptive vocabulary -> word reading (same-wave TR skill adjuster)"),
+    _d("lrppl05", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: phonological memory (erbto, raw-score covariate exposure) -> word reading"),
+    _d("lrppl06", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: speech production (deapp_c, raw-score covariate exposure) -> word reading"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),

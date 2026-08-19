@@ -172,3 +172,176 @@ def test_model_recipe_is_written_for_the_family(tmp_path):
     assert "beta_between" in text and "beta_within" in text
     assert "adjusted association" in text
     assert "blocks" in text and "hs" in text
+
+
+# --- #553: covariate exposures and same-wave skill adjusters --------------------
+
+
+def _covariate_spec(mech="erbto", **extra) -> ModelSpec:
+    base = {
+        "adjust_for": ("hs", "hs_missing"),
+        "ability_covariate": "blocks",
+        "mechanism_is_covariate": True,
+        "require_observed": (mech,),
+    }
+    base.update(extra)
+    return ModelSpec(
+        model_id="lrp-rli-pl-000",
+        kind="pooled_levels",
+        title="test covariate exposure",
+        outcome_symbol="W",
+        mechanism_symbol=mech,
+        extra=base,
+    )
+
+
+def test_covariate_exposure_plan_loads_the_raw_score_complete_case():
+    """A raw-score exposure (#553) loads as a same-wave covariate with its
+    missingness flag, is complete-case through ``require_observed``, is not a
+    requested outcome, and is excluded from the ``gamma_`` adjuster set."""
+    plan = P.resolve_pooled_levels_run_plan(_covariate_spec())
+    assert plan.mechanism_is_covariate
+    assert plan.exposure_kind == "raw_covariate"
+    assert plan.require_observed == ("erbto",)
+    kwargs = plan.prepare_kwargs()
+    assert kwargs["outcomes"] == ("W",)
+    assert "erbto" in kwargs["post_covariates"]
+    assert "erbto_missing" in kwargs["post_covariates"]
+    assert kwargs["require_observed"] == ("erbto",)
+    assert plan.factory_kwargs()["mechanism_is_covariate"] is True
+    diag = plan.diagnostic_vars(("hs", "erbto", "blocks"))
+    assert "gamma_erbto" not in diag
+    assert "gamma_hs" in diag and "gamma_blocks" in diag
+    assert plan.exposure_label.startswith("phonological memory")
+    assert "standardised raw score" in plan.estimand
+    assert "complete-case" in plan.missing_data_assumption
+    recipe = plan.recipe_markdown(title="t")
+    assert "standardised raw score" in recipe
+    assert "`require_observed`" in recipe and "`erbto`" in recipe
+
+
+def test_covariate_exposure_must_be_complete_case_and_not_a_measure():
+    """The exposure itself is never imputed: ``require_observed`` must name it;
+    a bounded measure cannot be declared raw; an unsupported raw covariate is
+    refused; and a raw symbol without the flag is refused — all before any I/O."""
+    with pytest.raises(ValueError, match="must be declared in require_observed"):
+        P.resolve_pooled_levels_run_plan(_covariate_spec(require_observed=()))
+    with pytest.raises(ValueError, match="cannot be declared as a raw covariate"):
+        P.resolve_pooled_levels_run_plan(
+            _covariate_spec(mech="L", require_observed=())
+        )
+    with pytest.raises(ValueError, match="not a supported filled covariate"):
+        P.resolve_pooled_levels_run_plan(
+            _covariate_spec(mech="attend", require_observed=("attend",))
+        )
+    with pytest.raises(ValueError, match="unknown measure symbol"):
+        P.resolve_pooled_levels_run_plan(
+            _covariate_spec(mechanism_is_covariate=False, require_observed=())
+        )
+    with pytest.raises(ValueError, match="must not also appear in adjust_for"):
+        P.resolve_pooled_levels_run_plan(
+            _covariate_spec(adjust_for=("hs", "hs_missing", "erbto", "erbto_missing"))
+        )
+
+
+def test_skill_adjusters_are_loaded_as_same_wave_measures():
+    """Same-wave skill adjusters (#553) load as further outcomes in the levels
+    frame, get a ``gamma_<symbol>`` coefficient each, and are recorded in the
+    estimand prose; the outcome, the exposure and a bounded ``adjust_for`` entry
+    are refused."""
+    plan = P.resolve_pooled_levels_run_plan(_spec(skill_symbols=("TR", "TE", "R")))
+    assert plan.skill_symbols == ("TR", "TE", "R")
+    kwargs = plan.prepare_kwargs()
+    assert kwargs["outcomes"] == ("W", "L", "TR", "TE", "R")
+    assert plan.factory_kwargs()["skill_symbols"] == ("TR", "TE", "R")
+    diag = plan.diagnostic_vars(("hs", "blocks"))
+    for sym in ("TR", "TE", "R"):
+        assert f"gamma_{sym}" in diag
+    assert "skill adjusters" in plan.design
+    assert "Table-2 fallacy" in plan.causal_status
+    with pytest.raises(ValueError, match="is the outcome"):
+        P.resolve_pooled_levels_run_plan(_spec(skill_symbols=("W",)))
+    with pytest.raises(ValueError, match="is the exposure"):
+        P.resolve_pooled_levels_run_plan(_spec(skill_symbols=("L",)))
+    with pytest.raises(ValueError, match="unknown skill adjuster"):
+        P.resolve_pooled_levels_run_plan(_spec(skill_symbols=("ZZ",)))
+    with pytest.raises(ValueError, match="skill_symbols, not adjust_for"):
+        P.resolve_pooled_levels_run_plan(_spec(adjust_for=("hs", "hs_missing", "TR")))
+    with pytest.raises(ValueError, match="must not repeat"):
+        P.PooledLevelsModelSettings(skill_symbols=("TR", "TR"))
+
+
+def test_typed_settings_and_extra_cannot_be_mixed():
+    with pytest.raises(ValueError, match="cannot be split"):
+        P.resolve_pooled_levels_run_plan(
+            ModelSpec(
+                model_id="lrp-rli-pl-000",
+                kind="pooled_levels",
+                title="t",
+                outcome_symbol="W",
+                mechanism_symbol="L",
+                model_settings=P.PooledLevelsModelSettings(ability_covariate="blocks"),
+                extra={"adjust_for": ("hs", "hs_missing")},
+            )
+        )
+
+
+def test_registered_pl_003_to_006_resolve_as_the_issue_specifies():
+    """#553: E and R are bounded-count exposures with same-wave skill adjusters
+    (the mechanism adjustment sets minus the own baseline); erbto and deapp_c
+    are raw-score covariate exposures, complete-case on the exposure; all four
+    target word reading with blocks and age and no attend."""
+    import importlib
+
+    expected = {
+        "lrp_rli_pl_003": ("E", "bounded_count", ("TR", "TE", "R"), (), ("hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing")),
+        "lrp_rli_pl_004": ("R", "bounded_count", ("TR",), (), ("hs", "hs_missing", "erbto", "erbto_missing")),
+        "lrp_rli_pl_005": ("erbto", "raw_covariate", (), ("erbto",), ("hs", "hs_missing")),
+        "lrp_rli_pl_006": ("deapp_c", "raw_covariate", (), ("deapp_c",), ("hs", "hs_missing", "erbto", "erbto_missing")),
+    }
+    for name, (mech, kind, skills, required, adjust) in expected.items():
+        spec = importlib.import_module(
+            f"language_reading_predictors.statistical_models.{name}"
+        ).SPEC
+        plan = P.resolve_pooled_levels_run_plan(spec)
+        assert plan.outcome_symbol == "W", name
+        assert plan.mechanism_symbol == mech, name
+        assert plan.exposure_kind == kind, name
+        assert plan.skill_symbols == skills, name
+        assert plan.require_observed == required, name
+        assert plan.adjust_for == adjust, name
+        assert plan.ability_covariate == "blocks", name
+        assert "attend" not in plan.adjust_for, name
+        assert plan.use_wave_intercepts and plan.decompose_between_within, name
+        assert plan.settings_source == "typed_settings", name
+
+
+def test_priors_table_documents_skill_adjusters_and_raw_exposures():
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.prior_artifacts import (
+        _prior_table_overrides,
+    )
+
+    spec = _spec(skill_symbols=("TR",))
+    ctx = SimpleNamespace(
+        spec=spec,
+        resolved_plan=P.resolve_pooled_levels_run_plan(spec),
+        model=SimpleNamespace(
+            free_RVs=[SimpleNamespace(name=n) for n in ("beta_between", "gamma_TR", "gamma_hs")]
+        ),
+    )
+    ctor, role, rationale = _prior_table_overrides(ctx)
+    assert ctor["gamma_TR"] == "gamma_cross"
+    assert role["gamma_TR"] == "association"
+    assert "same-wave logit of TR" in rationale["gamma_TR"]
+    assert "exposure logit" in rationale["beta_between"]
+
+    cspec = _covariate_spec()
+    cctx = SimpleNamespace(
+        spec=cspec,
+        resolved_plan=P.resolve_pooled_levels_run_plan(cspec),
+        model=SimpleNamespace(free_RVs=[SimpleNamespace(name="beta_between")]),
+    )
+    _, _, crationale = _prior_table_overrides(cctx)
+    assert "exposure raw score" in crationale["beta_between"]

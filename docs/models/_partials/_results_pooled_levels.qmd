@@ -15,6 +15,10 @@ if _pl is None:
 else:
     _rows = _meta.get("n_child_wave_rows")
     _dropped = _meta.get("n_dropped_incomplete_rows") or 0
+    _dropped_req = _meta.get("n_dropped_require_observed_rows")
+    _covariate = bool(_plan.get("mechanism_is_covariate", False))
+    _skills = list(_plan.get("skill_symbols") or [])
+    _sd_raw = _meta.get("mechanism_exposure_sd_raw")
     _waves = ", ".join(f"t{w}" for w in (_plan.get("waves") or []))
     _lead = (
         f"One Beta-Binomial likelihood over **{_rows}** child-wave rows "
@@ -23,10 +27,39 @@ else:
         "levels estimand rather than the transition estimand the `mechanism` family "
         "reports."
     )
+    if _covariate:
+        _lead += (
+            f" The exposure `{_plan.get('mechanism_symbol')}` is a **raw score**, not "
+            "a bounded count (its documented maximum is recorded nowhere, so a "
+            "bounded-count logit would fabricate a denominator): it enters as the "
+            "standardised raw score, and rows whose exposure was mean-imputed are "
+            "dropped (`require_observed`) — imputation plus an indicator is an "
+            "adjuster policy, never acceptable for the exposure itself."
+            + (
+                f" One SD of the fitted exposure is **{float(_sd_raw):.1f} raw points**."
+                if _sd_raw is not None
+                else ""
+            )
+        )
+    if _skills:
+        _lead += (
+            " The model also holds fixed the **same-wave standardised logits** of "
+            + ", ".join(f"`{sk}`" for sk in _skills)
+            + " (`gamma_<symbol>` rows below): contemporaneous skill levels that may "
+            "themselves be affected by the intervention, so each is an adjusted "
+            "association and the Table-2 fallacy applies to reading them as effects."
+        )
+    if _dropped_req:
+        _lead += (
+            f" {_dropped_req} child-wave row(s) whose "
+            + ", ".join(f"`{c}`" for c in (_meta.get("require_observed") or []))
+            + " value was imputed were dropped before fitting."
+        )
     if _dropped:
         _lead += (
-            f" {_dropped} row(s) carried the exposure but not the outcome and were "
-            "dropped."
+            f" {_dropped} row(s) were missing the outcome, the exposure"
+            + (" or a same-wave skill adjuster" if _skills else "")
+            + " and were dropped."
         )
     if not _plan.get("use_wave_intercepts", True):
         _lead += (
@@ -41,9 +74,14 @@ else:
 
     print(
         "Slopes are on the outcome's logit scale per **1 SD of the pooled row-level "
-        "exposure logit** (the same per-SD unit the `mechanism` family reports); the "
-        "final row translates the focal slope into outcome items at the average "
-        "fitted linear predictor.\n"
+        + (
+            "exposure raw score** (the same per-SD unit the `mechanism` family's "
+            "covariate-exposure fits report)"
+            if _covariate
+            else "exposure logit** (the same per-SD unit the `mechanism` family reports)"
+        )
+        + "; the final row translates the focal slope into outcome items at the "
+        "average fitted linear predictor.\n"
     )
     print("| Term | Median | 89% CrI | P(> 0) |")
     print("| --- | ---: | ---: | ---: |")

@@ -1,0 +1,48 @@
+---
+title: "LRPPL005: Wave-pooled level association, phonological memory (erbto) → word reading (W)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+## Overview
+
+The between/within split extended to **phonological memory** — word/nonword repetition, the ERB total `erbto` (#553): pooled across all four waves, how does phonological-memory level go with word-reading level, and does that association live between children or within a child's own movement? The transition counterpart is `lrp-rli-mech-090`; this model has no own-baseline term.
+
+The exposure is a **raw score, not a bounded count**: its documented test maximum is recorded nowhere in the repository, so registering it as a bounded-count measure would fabricate a denominator (`lrp_rli_mech_090.py` records the reasoning). It therefore enters as the **standardised raw score** (`mechanism_is_covariate`), and `beta_between` / `beta_within` are per +1 SD of the observed ERB total — the raw-units SD is recorded beside the fit and quoted in the results. Child-wave rows whose `erbto` value was mean-imputed are **dropped** (`require_observed`): imputation plus an indicator is an adjuster policy, never acceptable for the exposure itself; the dropped count is reported. `erbto` is measured at every wave, so the within-child term is meaningful; it is also measured with error, which attenuates both slopes toward zero. The adjustment set mirrors `mech-090` minus the own baseline: hearing (with its missing-indicator), the t1 block-design ability proxy and linear age; `attend` is omitted as in `pl-001`.
+
+## Model
+
+$$
+\eta = \alpha_{\text{wave}} + \beta_G G
+  + \beta_{\text{between}}\bar z_i + \beta_{\text{within}}(z_{it} - \bar z_i)
+  + \gamma_A z(A) + \sum_c \gamma_c z(c) + u_{\text{child}}
+$$
+
+where $z_{it}$ is the standardised **raw** ERB total at wave $t$ (not a logit) and
+$\bar z_i$ its child mean. There is deliberately no own-baseline term.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_pooled_levels.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

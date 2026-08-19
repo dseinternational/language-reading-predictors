@@ -1,0 +1,48 @@
+---
+title: "LRPPL006: Wave-pooled level association, speech production (deapp_c) → word reading (W)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+## Overview
+
+The between/within split extended to **speech production accuracy** (`deapp_c`, #553): pooled across all four waves, how does speech-production level go with word-reading level, and does that association live between children or within a child's own movement? Speech production has no `mechanism` fit as an exposure — it appears only as an adjuster (γ +0.10 per SD in `lrp-rli-mech-058`) — and `pl-001`'s speech adjuster (γ +0.26 per SD, P = 0.999) is the strongest level association in question 7 of the question-organised report, which until now could only *infer* a stable between-child correlate from the level-versus-gain contrast. This model tests that directly.
+
+As for phonological memory in `lrp-rli-pl-005`, the exposure is a **raw score with no confirmed maximum**, so it enters as the **standardised raw score** (`mechanism_is_covariate`); `beta_between` / `beta_within` are per +1 SD of the observed score, with the raw-units SD recorded beside the fit. Child-wave rows whose `deapp_c` value was mean-imputed are **dropped** (`require_observed`; the count is reported). `deapp_c` is measured at every wave, so the within-child term is meaningful. Adjustment set: hearing and phonological memory (each with a missing-indicator), the t1 block-design ability proxy and linear age; `attend` is omitted as in `pl-001`.
+
+## Model
+
+$$
+\eta = \alpha_{\text{wave}} + \beta_G G
+  + \beta_{\text{between}}\bar z_i + \beta_{\text{within}}(z_{it} - \bar z_i)
+  + \gamma_A z(A) + \sum_c \gamma_c z(c) + u_{\text{child}}
+$$
+
+where $z_{it}$ is the standardised **raw** speech-production score at wave $t$ (not a
+logit) and $\bar z_i$ its child mean. There is deliberately no own-baseline term.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_pooled_levels.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
