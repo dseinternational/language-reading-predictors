@@ -393,6 +393,14 @@ class Variables:
     """
     Hearing Composite: HEARING || EARINF (0: normal hearing and no repeated ear 
     infections; 1: either impaired hearing or repeated ear infections)
+
+    The stored column was derived upstream with a strict both-known OR, so a child
+    with one component recorded as 1 and the other unrecorded is NaN rather than 1
+    (one RLI child: impaired hearing, ear-infection history unrecorded). The
+    statistical models therefore re-derive the composite from HEARING and EARINF
+    with the three-valued OR — see
+    ``statistical_models.preprocessing.derive_hearing_composite`` — and do not
+    read this column directly (2026-08-19).
     """
 
     NUMCHIL = "numchil"

@@ -187,13 +187,65 @@ def _data_provenance(path: Path) -> tuple[str, str]:
 HEARING_STATUS_COVARIATES: tuple[str, str] = ("hs", "hs_missing")
 
 
+def derive_hearing_composite(df: pd.DataFrame) -> pd.Series | None:
+    """Return the hearing composite (impaired hearing OR repeated ear infections)
+    as a float Series with the **three-valued** OR, or ``None`` when the frame
+    carries no hearing information at all.
+
+    The composite is defined (``data_variables.Variables.HEARING_C``) as 1 when
+    *either* ``hearing`` is impaired *or* ``earinf`` records repeated ear infections,
+    0 when both are clear. A child whose hearing is recorded as impaired therefore
+    satisfies the definition whatever their ear-infection record says, and a child
+    with repeated infections satisfies it whatever their hearing record says. The
+    stored ``hearing_c`` column was derived upstream with a strict both-known OR, which
+    leaves such a child unknown (one RLI child: ``hearing = 1``, ``earinf`` unrecorded)
+    - and the missing-indicator method then fills them to the *clear* reference. The
+    rule here is:
+
+    - 1 if either component is 1 (regardless of the other);
+    - 0 if both components are 0;
+    - unknown (NaN) otherwise - a clear component with the other unrecorded, or both
+      unrecorded - and in that case the stored composite is used as a fallback, so an
+      extract that populated ``hearing_c`` from another record keeps that information.
+
+    If a stored composite and the components disagree where both are known, the data
+    are inconsistent and a :class:`ValueError` is raised rather than silently picking
+    one. When the components are absent the stored composite is returned unchanged;
+    when neither is present the result is ``None``.
+    """
+    have_components = V.HEARING in df.columns and V.EARINF in df.columns
+    stored = (
+        pd.to_numeric(df[V.HEARING_C], errors="coerce")
+        if V.HEARING_C in df.columns
+        else None
+    )
+    if not have_components:
+        return stored
+    hearing = pd.to_numeric(df[V.HEARING], errors="coerce")
+    earinf = pd.to_numeric(df[V.EARINF], errors="coerce")
+    derived = pd.Series(np.nan, index=df.index, dtype=float)
+    derived[(hearing == 0) & (earinf == 0)] = 0.0
+    derived[(hearing == 1) | (earinf == 1)] = 1.0
+    if stored is not None:
+        both_known = derived.notna() & stored.notna()
+        if bool((derived[both_known] != stored[both_known]).any()):
+            raise ValueError(
+                "hearing_c disagrees with hearing/earinf where both are known; "
+                "the hearing columns are inconsistent."
+            )
+        derived = derived.where(derived.notna(), stored)
+    return derived
+
+
 def add_hearing_status(df: pd.DataFrame) -> pd.DataFrame:
     """Derive the missing-indicator hearing-status (HS) covariates.
 
     The revised DAG (2026-07-10, #233/#244) makes hearing status a common cause of
     the vocabulary and code skills, so it enters the observational adjustment sets.
-    ``hearing_c`` (impaired hearing OR repeated ear infections) is missing for some
-    children; per the #244 team decision HS enters by the **missing-indicator
+    The composite (impaired hearing OR repeated ear infections; see
+    :func:`derive_hearing_composite` for the three-valued rule and why it is derived
+    from the components rather than read from the stored ``hearing_c``) is missing for
+    some children; per the #244 team decision HS enters by the **missing-indicator
     method** so no child is dropped for unknown hearing status - see
     ``notes/202607101100-dag-revision-team-decisions.md``. Adds two complete columns:
 
@@ -202,12 +254,13 @@ def add_hearing_status(df: pd.DataFrame) -> pd.DataFrame:
       own adjustment level).
 
     Both are NaN-free, so requesting them as adjusters never triggers complete-case
-    dropping. A no-op when ``hearing_c`` is absent (e.g. other datasets).
+    dropping. A no-op when the frame carries no hearing columns (e.g. other datasets).
+    The stored ``hearing_c`` column is left untouched.
     """
-    if V.HEARING_C not in df.columns:
+    hc = derive_hearing_composite(df)
+    if hc is None:
         return df
     out = df.copy()
-    hc = pd.to_numeric(out[V.HEARING_C], errors="coerce")
     out["hs"] = hc.fillna(0.0)
     out["hs_missing"] = hc.isna().astype(float)
     return out
@@ -1481,7 +1534,8 @@ def load_wave_panel(
         hdf = add_hearing_status(df)
         if "hs" not in hdf.columns:
             raise ValueError(
-                "include_hearing=True but the data has no hearing_c column."
+                "include_hearing=True but the data has no hearing columns "
+                "(hearing/earinf or hearing_c)."
             )
         for col in ("hs", "hs_missing"):
             wide = (

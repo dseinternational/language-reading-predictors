@@ -36,12 +36,96 @@ from language_reading_predictors.statistical_models.preprocessing import (
 
 
 def test_add_hearing_status_missing_indicator():
-    """#244: hearing_c -> hs + hs_missing (missing-indicator; no NaN, no row loss)."""
+    """#244: hearing_c -> hs + hs_missing (missing-indicator; no NaN, no row loss).
+
+    The stored composite is the fallback when the ``hearing`` / ``earinf``
+    components are absent from the frame.
+    """
     df = pd.DataFrame({V.HEARING_C: [1.0, 0.0, np.nan, 1.0, np.nan]})
     out = add_hearing_status(df)
     assert list(out["hs"]) == [1.0, 0.0, 0.0, 1.0, 0.0]  # unknown filled to clear ref
     assert list(out["hs_missing"]) == [0.0, 0.0, 1.0, 0.0, 1.0]  # unknown flagged
     assert int(out[["hs", "hs_missing"]].isna().sum().sum()) == 0
+
+
+def test_derive_hearing_composite_three_valued_or():
+    """The composite is ``hearing OR earinf`` with three-valued logic: a known 1 in
+    either component decides it, both-clear is 0, and only clear-with-unknown or
+    unknown-with-unknown stays unknown (2026-08-19)."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        derive_hearing_composite,
+    )
+
+    df = pd.DataFrame(
+        {
+            V.HEARING: [1.0, np.nan, 0.0, 0.0, np.nan, 1.0, 0.0],
+            V.EARINF: [np.nan, 1.0, np.nan, 0.0, np.nan, 1.0, 1.0],
+        }
+    )
+    hc = derive_hearing_composite(df)
+    expected = [1.0, 1.0, np.nan, 0.0, np.nan, 1.0, 1.0]
+    assert hc.isna().tolist() == [np.isnan(v) for v in expected]
+    assert hc.fillna(-1.0).tolist() == [(-1.0 if np.isnan(v) else v) for v in expected]
+
+
+def test_add_hearing_status_prefers_components_over_strict_stored_composite():
+    """The upstream ``hearing_c`` was a strict both-known OR, so a child recorded as
+    hearing-impaired with no ear-infection record was NaN - and the missing-indicator
+    fill then coded a *known* impairment as the clear reference. The components win:
+    that child is ``hs = 1, hs_missing = 0``; genuinely unknown children keep the
+    stored value as a fallback; the stored column itself is left untouched."""
+    df = pd.DataFrame(
+        {
+            V.HEARING: [1.0, 0.0, np.nan, np.nan],
+            V.EARINF: [np.nan, np.nan, np.nan, np.nan],
+            V.HEARING_C: [np.nan, np.nan, np.nan, 1.0],
+        }
+    )
+    out = add_hearing_status(df)
+    assert list(out["hs"]) == [1.0, 0.0, 0.0, 1.0]
+    assert list(out["hs_missing"]) == [0.0, 1.0, 1.0, 0.0]
+    assert out[V.HEARING_C].isna().tolist() == [True, True, True, False]  # untouched
+
+
+def test_derive_hearing_composite_rejects_inconsistent_columns():
+    """A stored composite that contradicts both-known components is a data fault,
+    not a tie to break silently."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        derive_hearing_composite,
+    )
+
+    df = pd.DataFrame(
+        {V.HEARING: [1.0, 0.0], V.EARINF: [0.0, 0.0], V.HEARING_C: [1.0, 1.0]}
+    )
+    with pytest.raises(ValueError, match="disagrees"):
+        derive_hearing_composite(df)
+
+
+def test_rli_hearing_status_split_after_three_valued_or():
+    """Pin the corrected RLI split: 25 flagged / 20 clear / 9 unknown of 54 children
+    (the stored strict-OR composite gives 24 / 20 / 10; the one child who moves is
+    recorded hearing-impaired with no ear-infection record)."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _default_data_path,
+    )
+
+    df = pd.read_csv(_default_data_path())
+    t1 = add_hearing_status(df[df[V.TIME] == 1])
+    stored = pd.to_numeric(t1[V.HEARING_C], errors="coerce")
+    assert len(t1) == 54
+    assert (int(stored.eq(1).sum()), int(stored.eq(0).sum()), int(stored.isna().sum())) == (
+        24,
+        20,
+        10,
+    )
+    assert (
+        int(t1["hs"].sum()),
+        int(((t1["hs"] == 0) & (t1["hs_missing"] == 0)).sum()),
+        int(t1["hs_missing"].sum()),
+    ) == (25, 20, 9)
+    moved = t1[(t1["hs"] == 1) & stored.isna()]
+    assert len(moved) == 1
+    assert moved[V.HEARING].item() == 1.0 and np.isnan(moved[V.EARINF].item())
 
 
 def test_load_and_prepare_hearing_status_keeps_all_rows():
