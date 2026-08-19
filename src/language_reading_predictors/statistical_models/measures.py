@@ -278,8 +278,11 @@ with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
 # Consumed by ``reporting.rope_summary`` to report ``P(benefit >= delta)``.
 # F/T (basic concepts / receptive grammar) were initially deferred as outside the ITT
 # suite; adopted 2026-07-20 at δ = 1 item each by the same ½-natural-maturation rule
-# (their wait-list t1->t2 gains, ≈0 and ≈1 item, both floor to 1 item). Rule-derived
-# and pending education-lead ratification like the others (#144).
+# (their wait-list t1->t2 gains, ≈0 and ≈1 item, both floor to 1 item); ratified on
+# 2026-08-19 when the rule itself was confirmed as the project's standing,
+# prospectively-applied practical-difference rule
+# (notes/202608191130-practical-difference-rule-confirmed.md): a new outcome's δ is
+# derived by the rule and recorded here before the outcome is fitted.
 ROPE_DELTA: dict[str, float] = {
     "L": 2.0,
     "W": 1.0,
@@ -291,8 +294,8 @@ ROPE_DELTA: dict[str, float] = {
     "UE": 1.0,
     "B": 1.0,
     # Basic concepts (F, CELF) and receptive grammar (T, TROG): both floor to δ = 1
-    # item under the ½-natural-maturation rule (adopted 2026-07-20, pending #144
-    # ratification); previously deferred as outside the ITT suite.
+    # item under the ½-natural-maturation rule (adopted 2026-07-20, ratified with the
+    # rule 2026-08-19); previously deferred as outside the ITT suite.
     "F": 1.0,
     "T": 1.0,
     # Action Picture Test (Renfrew 1997), derived by the same ½-natural-maturation
@@ -303,8 +306,9 @@ ROPE_DELTA: dict[str, float] = {
     # the rounding boundary — δ = 2 of 40 was equally rule-consistent — so the value
     # was escalated rather than settled by the analysis. Both were ratified by the
     # education lead on 2026-08-18 at the values below
-    # (notes/202608182015-apt-delta-threshold-ratification.md); like every δ in this
-    # table they remain post-hoc rather than pre-specified.
+    # (notes/202608182015-apt-delta-threshold-ratification.md); like every δ used in
+    # the August 2026 run they were derived after results existed. From 2026-08-19
+    # the rule is the standing one, so later additions are pre-specified.
     "EG": 1.0,
     "EI": 2.0,
     "EI40": 1.0,
