@@ -282,10 +282,19 @@ def test_joint_factory_two_outcome_taught_contrast(tmp_path):
     )
     names = {v.name for v in built.model.free_RVs}
     assert "tau" in names and "u_chol" in names
+    # #551: the free pairwise residual correlation is exposed as a scalar
+    # Deterministic per outcome pair, labelled by the pair, beside the full matrix.
+    assert list(built.model.coords["outcome_pair"]) == ["UE|TE"]
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=13)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs * 2
     assert pp.prior_predictive["y_post"].dims[-1] == "cell"
+    assert pp.prior["u_corr_pair"].dims[-1] == "outcome_pair"
+    np.testing.assert_allclose(
+        pp.prior["u_corr_pair"].values[..., 0],
+        pp.prior["u_corr"].values[..., 1, 0],
+        atol=1e-12,
+    )
     assert pp.constant_data["y_post_cell_outcome"].dims == ("cell",)
     assert pp.constant_data["y_post_cell_row"].dims == ("cell",)
 
@@ -355,6 +364,12 @@ def test_joint_factory_residual_correlation_flag(tmp_path):
     # (the previous double-scaled HalfNormal was dropped).
     assert "sigma_outcome" in dets
     assert "u_corr" in dets
+    assert "u_corr_pair" in dets
+    # K(K-1)/2 free correlations for the ten-outcome suite.
+    k = len(ITT_OUTCOMES)
+    assert len(built.model.coords["outcome_pair"]) == k * (k - 1) // 2
+    # The factorised build has no pair coordinate at all.
+    assert "outcome_pair" not in build_joint_model(prep).model.coords
 
 
 # ---------------------------------------------------------------------------

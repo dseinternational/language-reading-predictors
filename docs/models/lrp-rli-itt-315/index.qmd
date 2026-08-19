@@ -1,0 +1,59 @@
+---
+title: "LRPITT315: Available-case modified ITT generalisation contrast, receptive vocabulary — LKJ residual-correlation sensitivity companion of LRPITT15b"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPITT315 is the **dependence-aware sensitivity companion** of LRPITT15b (#551): the same two-outcome available-case modified ITT fit — same outcomes, own-baseline and linear-age precision terms, same contrast — with the per-child LKJ residual-correlation block switched on. The parent's description applies unchanged, so it is repeated here. LRPITT15b is the *receptive*-modality companion to LRPITT15: it compares two available-case modified ITT estimates to test whether the assigned-arm contrast is larger for directly-taught than not-taught receptive vocabulary, one component of the broader generalisation claim. Two Block 1 receptive vocabulary outcomes are fitted together — here with the residual-correlation block on, where the parent fits them as factorised marginals — over the randomised window (t1 $\rightarrow$ t2):
+
+- `TR` — directly-taught target words (`b1retau`, $N = 24$);
+- `UR` — not-taught comparison words (`b1rent`, $N = 12$).
+
+The headline quantity is $\mathrm{AME}_{\mathrm{TR}} - \mathrm{AME}_{\mathrm{UR}}$ on the expected proportion-correct risk-difference scale. A positive value means the model estimates a larger assigned-arm difference in expected proportion correct for taught receptive words than for not-taught receptive words. It does **not** by itself show that generalisation was limited: that conclusion also requires the marginal UR contrast to be small against a substantively defined negligible-effect threshold. The conditional logit-coefficient difference is secondary. The per-outcome models are LRPITT01 (TR) and LRPITT03 (UR).
+
+Randomisation created exchangeability in the original full randomised cohort, so these offer contrasts require no baseline-covariate adjustment there. The fitted contrast instead conditions on archive inclusion and the required observed variables for both outcomes. A causal reading of either component or their difference requires that this selection did not induce an association between assigned arm and the potential values of either outcome; extending the result to all 57 randomised children requires further missing-data assumptions and sensitivity.
+
+## Structure
+
+For child $i$ and outcome $k \in \{\mathrm{TR}, \mathrm{UR}\}$:
+
+$$
+\eta_{k,i} = \alpha_k + \tau_k G_i
+           + \gamma^{\text{own}}_k\, \text{logit}_*(k_{\text{pre},i}, N_k)
+           + \gamma^{A}_k\, A_{\text{std},i},
+$$
+
+with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$, **plus** a per-child residual-correlation block (#551): $u_i \sim \mathcal{N}_2(0, \Sigma)$ with $\Sigma = \operatorname{diag}(\sigma)\,\mathrm{Corr}\,\operatorname{diag}(\sigma)$, $\mathrm{Corr} \sim \mathrm{LKJ}(\eta = 4)$ and $\sigma_k \sim \mathrm{HalfNormal}(0.5)$, non-centred through `pm.LKJCholeskyCov` (`u_chol`, `u_z`; deterministics `u_corr`, `sigma_outcome`), added to $\eta_{k,i}$. The parent fit leaves this block **off**, so its likelihood and priors factorise by outcome and its contrast is the difference of two a-posteriori independent quantities — an interval that omits the within-child covariance the same children supplying both outcomes induce, and is therefore not automatically conservative (a positive residual correlation makes it too wide, a negative one too narrow; the point estimate is unaffected). This companion estimates that covariance and publishes the contrast as a posterior difference under it. It is a **sensitivity**, not a replacement: the parent's point estimate stands, and this fit answers whether the parent's interval was too wide or too narrow. The earlier two-outcome attempt mixed poorly because the per-outcome residual SD sat at its zero boundary; under the unrounded house gate a repeat of that geometry withholds the result rather than qualifying it.
+
+_Denominators and caveats._
+
+- Taught ($\mathrm{TR}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
+- Not-taught ($\mathrm{UR}$): $N = 12$ — **observed maximum, not documented** and flagged unconfirmed; the probability-scale interpretation is conditional on that scoring maximum being correct.
+- A positive taught-minus-not-taught difference establishes only that the taught effect is larger. Assess whether transfer is small from the marginal UR AME against a substantively defined negligible-effect threshold.
+- $n \approx 54$; this is an archived observed-data contrast over the randomised window, with the selection and missing-data qualifications above. The headline contrast compares expected proportions correct, not raw words.
+- This is the dependence-aware companion of LRPITT15b. Per-outcome `tau` and the contrast median should agree with the parent to Monte Carlo error; the contrast's 89% interval and P(> 0) may move. Read `u_corr` and `sigma_outcome` against their priors (the prior-versus-posterior overlay and the power-scaling rows) to see how far the block is informed by the data; where it is weakly identified the interval is close to the parent's. The ten-outcome `lrp-rli-itt-012` is left factorised on purpose — its 10 × 10 block was prior-dominated at $n = 53$ in April 2026.
+- PSIS-LOO leaves out a child by summing that child's observed outcome-cell log likelihoods.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_joint.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

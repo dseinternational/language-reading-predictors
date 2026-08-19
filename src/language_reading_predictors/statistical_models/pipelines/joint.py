@@ -142,11 +142,13 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ),
     )
     _diag.save_prior_posterior_plot(ctx, var_names=_joint_vars)
-    # Power-scaling prior sensitivity (#381) on the causal term only, matching the
+    # Power-scaling prior sensitivity (#381) on the causal term, matching the
     # ITT family this shares an estimand with — ``tau`` is vector-valued here, so
     # psense expands it to one row per outcome and the report can say which of the
-    # jointly-fitted effects lean on the prior.
-    _diag.run_psense(ctx, var_names=["tau"])
+    # jointly-fitted effects lean on the prior — plus, when the LKJ residual block
+    # is on (#551), its ``sigma_outcome`` / ``u_corr`` so the report can say
+    # plainly where the dependence block is weakly identified.
+    _diag.run_psense(ctx, var_names=plan.psense_vars)
     # The probability-scale AMEs in tau_summary.csv are the headline effects. This
     # forest is deliberately retained as an explicitly labelled secondary view of
     # the conditional-logit coefficients.

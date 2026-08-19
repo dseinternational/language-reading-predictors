@@ -274,8 +274,24 @@ class JointRunPlan:
         if self.use_age_linear:
             variables.append("gamma_A")
         if self.use_residual_correlation:
-            variables.append("sigma_outcome")
+            # The dependence block's reported quantities (#551): the per-outcome
+            # residual SDs and the free within-child residual correlations (one
+            # scalar per outcome pair — the full ``u_corr`` matrix carries a
+            # constant unit diagonal that breaks the density plots), so the
+            # summary, the prior-vs-posterior overlay and the psense selection show
+            # how far the block is informed by the data rather than its prior.
+            variables.extend(["sigma_outcome", "u_corr_pair"])
         return variables
+
+    @property
+    def psense_vars(self) -> list[str]:
+        """Variables power-scaling covers: the causal ``tau`` vector, plus the
+        dependence block's ``sigma_outcome`` / ``u_corr_pair`` when it is on
+        (#551)."""
+        names = ["tau"]
+        if self.use_residual_correlation:
+            names.extend(["sigma_outcome", "u_corr_pair"])
+        return names
 
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language account generated from the validated plan."""
@@ -304,9 +320,18 @@ class JointRunPlan:
             "## Uncertainty and checks\n\n"
             "The fit reports posterior distributions. Interpret them only after the "
             "convergence gate, posterior-predictive checks and child-level PSIS-LOO "
-            "diagnostics pass. Factorised models do not estimate within-child "
-            "cross-outcome residual covariance, so a paired contrast also requires "
-            "the dependence sensitivity stated in its metadata.\n"
+            "diagnostics pass. "
+            + (
+                "This fit carries a per-child LKJ residual-correlation block, so a "
+                "declared contrast is a posterior difference that includes the "
+                "estimated within-child cross-outcome covariance; read `u_corr` and "
+                "`sigma_outcome` against their priors to see how far the block is "
+                "informed by the data.\n"
+                if self.use_residual_correlation
+                else "Factorised models do not estimate within-child "
+                "cross-outcome residual covariance, so a paired contrast also requires "
+                "the dependence sensitivity stated in its metadata.\n"
+            )
         )
 
 
@@ -354,6 +379,14 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
         "window. Each outcome has its own intercept, assigned-arm term and own "
         "baseline precision term; optional age and cross-baseline terms follow the "
         "declared settings."
+        + (
+            " A per-child multivariate-normal residual offset with an LKJ "
+            "correlation prior (eta = 4) and HalfNormal(0.5) outcome scales links "
+            "the outcomes, so within-child cross-outcome covariance is estimated "
+            "rather than assumed away (#551)."
+            if settings.use_residual_correlation
+            else ""
+        )
     )
     estimand = (
         "Each tau is the available-case modified intention-to-treat assigned-arm "
@@ -364,8 +397,15 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
     causal_status = (
         "The assigned-arm effects use randomisation and are causal for the observed "
         "analysis cases under the stated missing-data assumptions. Precision terms "
-        "are adjusted associations. A factorised fit does not estimate paired "
-        "cross-outcome residual covariance."
+        "are adjusted associations. "
+        + (
+            "The residual-correlation block is a dependence model for the paired "
+            "contrast's uncertainty, not an effect: u_corr and sigma_outcome are "
+            "descriptive of within-child covariance."
+            if settings.use_residual_correlation
+            else "A factorised fit does not estimate paired cross-outcome residual "
+            "covariance."
+        )
     )
     analysis_population = (
         "The 54-child archived RLI cohort, using outcome-specific available cases in "

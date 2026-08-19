@@ -73,7 +73,43 @@ if "_joint_shape_flagged" in globals() and not _joint_shape_flagged.empty:
 
 ## Results — treatment effect by outcome
 
-The registered multi-outcome model is a **product of outcome-specific marginals** fitted in one PyMC graph: it does not estimate residual dependence between outcomes. Each outcome's headline effect is therefore its average marginal effect (AME), expressed as the intervention-minus-control difference in expected proportion correct. This probability scale is comparable across tests with different item denominators. The conditional logit coefficient $\tau_k$ is retained as a secondary model-parameter summary.
+```{python}
+# | echo: false
+# | output: asis
+# Dependence structure (#551): the registered parents factorise by outcome; their
+# LKJ residual-correlation sensitivity companions (lrp-rli-itt-215 / -315 / -216)
+# switch the per-child block on. The prose below reads the persisted plan so a
+# companion report does not describe itself as factorised.
+_joint_plan = config.get("resolved_run_plan") or {}
+_joint_correlated = bool(_joint_plan.get("use_residual_correlation", False)) or (
+    str(config.get("extra", {}).get("joint_structure", "")) == "residual_correlated"
+)
+if _joint_correlated:
+    print(
+        "This multi-outcome model carries a **per-child residual-correlation block** "
+        "(a bivariate-normal offset $u_i$ with $\\Sigma = \\operatorname{diag}(\\sigma)\\,"
+        "\\mathrm{Corr}\\,\\operatorname{diag}(\\sigma)$, $\\mathrm{Corr} \\sim "
+        "\\mathrm{LKJ}(\\eta = 4)$, $\\sigma_k \\sim \\mathrm{HalfNormal}(0.5)$), so "
+        "it estimates the within-child dependence between the outcomes rather than "
+        "assuming it away: any declared contrast is a posterior difference under that "
+        "dependence. Each outcome's headline effect is still its average marginal "
+        "effect (AME), the intervention-minus-control difference in expected "
+        "proportion correct, comparable across tests with different item "
+        "denominators; the conditional logit coefficient $\\tau_k$ is a secondary "
+        "model-parameter summary."
+    )
+else:
+    print(
+        "The registered multi-outcome model is a **product of outcome-specific "
+        "marginals** fitted in one PyMC graph: it does not estimate residual "
+        "dependence between outcomes. Each outcome's headline effect is therefore its "
+        "average marginal effect (AME), expressed as the intervention-minus-control "
+        "difference in expected proportion correct. This probability scale is "
+        "comparable across tests with different item denominators. The conditional "
+        "logit coefficient $\\tau_k$ is retained as a secondary model-parameter "
+        "summary."
+    )
+```
 
 ```{python}
 # | echo: false
@@ -106,7 +142,66 @@ _csv("tau_contrast_matrix.csv", index_col=0)
 
 _How to read the matrix:_ the same probability-scale comparisons as the heatmap. This ordering does not turn distinct instruments into interchangeable measures of learning: content, difficulty and measurement precision still differ.
 
-_Factorised contrast uncertainty._ The probability-scale difference is scientifically easier to compare than a raw logit-coefficient difference, but its posterior uncertainty still comes from factorised outcome marginals. It omits within-child outcome covariance and is therefore not a calibrated paired multivariate contrast; depending on the unknown covariance, uncertainty may be too wide or too narrow. Treat cross-outcome ordering as a factorised sensitivity result until a paired child-level randomisation-inference/permutation analysis, bootstrap or defensible dependence model confirms it. PSIS-LOO is aggregated by child, so its predictive unit is one child rather than one outcome cell.
+```{python}
+# | echo: false
+# | output: asis
+if _joint_correlated:
+    print(
+        "_Dependence-aware contrast uncertainty._ The probability-scale difference "
+        "is scientifically easier to compare than a raw logit-coefficient difference, "
+        "and here its posterior uncertainty carries the estimated within-child "
+        "covariance between the outcomes, so it is a paired contrast under the fitted "
+        "dependence model. How much that covariance is informed by the data — rather "
+        "than by the LKJ prior — is shown by `u_corr` and `sigma_outcome` below and "
+        "in the prior-versus-posterior overlay; where the block is weakly identified "
+        "the contrast interval is close to its factorised parent's. PSIS-LOO is "
+        "aggregated by child, so its predictive unit is one child rather than one "
+        "outcome cell."
+    )
+else:
+    print(
+        "_Factorised contrast uncertainty._ The probability-scale difference is "
+        "scientifically easier to compare than a raw logit-coefficient difference, "
+        "but its posterior uncertainty still comes from factorised outcome marginals. "
+        "It omits within-child outcome covariance and is therefore not a calibrated "
+        "paired multivariate contrast; depending on the unknown covariance, "
+        "uncertainty may be too wide or too narrow. Treat cross-outcome ordering as a "
+        "factorised sensitivity result until a paired child-level "
+        "randomisation-inference/permutation analysis, bootstrap or defensible "
+        "dependence model confirms it. PSIS-LOO is aggregated by child, so its "
+        "predictive unit is one child rather than one outcome cell."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# The dependence block's own posterior (#551): per-outcome residual SDs and the
+# within-child residual correlation, read off the fit's diagnostics summary so the
+# report states plainly where the block is weakly identified.
+if _joint_correlated:
+    _diag_tbl = _csv("diagnostics.csv", index_col=0)
+    if _diag_tbl is not None:
+        _rows = _diag_tbl[
+            _diag_tbl.index.astype(str).str.startswith("sigma_outcome")
+            | _diag_tbl.index.astype(str).str.startswith("u_corr_pair")
+        ]
+        if len(_rows):
+            print("### Within-child residual dependence\n")
+            _cols = [c for c in ["mean", "sd", "eti89_lb", "eti89_ub", "ess_bulk", "r_hat"] if c in _rows.columns]
+            print(_rows[_cols].round(3).to_markdown())
+            print(
+                "\n_How to read it:_ `sigma_outcome[k]` is the per-outcome SD of the "
+                "child-level residual offset (logit scale) and `u_corr_pair[j|k]` the "
+                "residual correlation between the two outcomes within a child; a "
+                "correlation interval spanning zero with SDs reaching towards zero "
+                "means the block is weakly identified and the prior (LKJ η = 4, "
+                "HalfNormal(0.5)) is doing much of the work — compare with the "
+                "prior-versus-posterior overlay and the power-scaling rows for these "
+                "parameters. A positive correlation narrows the paired contrast "
+                "interval relative to the factorised parent; a negative one widens it."
+            )
+```
 
 ::: {.callout-note collapse="true" title="Additional outcome-specific predictive plots"}
 
@@ -115,7 +210,13 @@ The shared diagnostic sections show the first outcome's prior-predictive, poster
 ```{python}
 # | echo: false
 # | output: asis
-_joint_outcomes = config.get("spec_extra", {}).get("outcomes", [])
+# The outcome list lives in the persisted plan for typed joint settings (the
+# legacy ``spec_extra`` is empty there, which used to leave this callout blank).
+_joint_outcomes = (
+    (config.get("resolved_run_plan") or {}).get("outcomes")
+    or (config.get("extra") or {}).get("outcomes")
+    or config.get("spec_extra", {}).get("outcomes", [])
+)
 for _symbol in _joint_outcomes[1:]:
     _suffix = str(_symbol).lower()
     print(f"#### {_symbol}\n")

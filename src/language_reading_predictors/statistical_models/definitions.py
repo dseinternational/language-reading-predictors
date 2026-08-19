@@ -147,6 +147,15 @@ _JOINT = [
     _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (expressive)"),
     _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (receptive)"),
     _d("lrpitt16", "joint", "Modality contrast", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught expressive vs taught receptive"),
+    # #551: dependence-aware sensitivity companions of the three two-outcome
+    # contrasts — the same fit with the per-child LKJ residual-correlation block
+    # on, so the contrast interval carries the within-child covariance the
+    # factorised parents omit. A uniform +200 block (215 / 315 / 216): the +100
+    # slot of 015 is already its receptive ``b`` companion (115), and one role
+    # should live in one block.
+    _d("lrpitt215", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (expressive), LKJ residual-correlation dependence sensitivity", base="lrpitt15"),
+    _d("lrpitt315", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (receptive), LKJ residual-correlation dependence sensitivity", base="lrpitt15b"),
+    _d("lrpitt216", "joint", "Modality contrast", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught expressive vs taught receptive, LKJ residual-correlation dependence sensitivity", base="lrpitt16"),
 ]
 
 # --- SES adjustment + matched complete-case comparators ---------------------------
