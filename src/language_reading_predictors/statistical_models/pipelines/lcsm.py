@@ -14,6 +14,9 @@ are adjusted associations; nothing but that window-1 contrast is causal.
 
 from __future__ import annotations
 
+from itertools import combinations
+from typing import Any, Mapping
+
 import pandas as pd
 
 from language_reading_predictors.models._reporting import (
@@ -52,6 +55,96 @@ from language_reading_predictors.statistical_models.runtime import (
     write_run_metadata,
 )
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
+
+
+def standardised_coupling_rows(
+    post: Any, coupling_names: Mapping[tuple[str, str], str], ci_prob: float
+) -> list[dict]:
+    """SD-standardised level -> change couplings, and contrasts between sources.
+
+    A raw coupling ``g_{src}`` is per unit of the *source's* latent logit, so two
+    sources on different latent scales (letter sounds spread about three times as
+    widely as expressive vocabulary on the logit scale) are not comparable in size.
+    This standardises each coupling by the model's own latent scales, per draw,
+    exactly as the reciprocal-dominance contrast does::
+
+        g* = g * sd(prior source latent levels) / sd(target latent changes)
+
+    so ``g*`` reads as "SDs of later change in the target per SD of prior level
+    of the source". For every target with two or more sources it also returns the
+    signed contrast ``g*_a - g*_b`` and the absolute-dominance contrast
+    ``|g*_a| - |g*_b|`` for each pair. Contrasts are only formed between sources
+    of the *same* target. ``post`` is any mapping of parameter name ->
+    xarray DataArray with ``chain``/``draw`` dims carrying ``x_latent`` with
+    ``(child, wave, outcome)`` dims — the posterior group of the fit's trace.
+    Added 2026-08-19 (``notes/202608182200-findings-by-question.md``, question 8).
+    """
+    x = post["x_latent"]
+    by_target: dict[str, list[str]] = {}
+    for (src, tgt), _pname in coupling_names.items():
+        by_target.setdefault(tgt, []).append(src)
+    rows: list[dict] = []
+    for tgt, sources in by_target.items():
+        sd_target_change = (
+            x.sel(outcome=tgt).diff("wave").std(dim=("child", "wave"))
+        )
+        std_g: dict[str, Any] = {}
+        for src in sources:
+            sd_source_level = (
+                x.isel(wave=slice(0, -1))
+                .sel(outcome=src)
+                .std(dim=("child", "wave"))
+            )
+            g = post[coupling_names[(src, tgt)]]
+            std_g[src] = g * sd_source_level / sd_target_change
+            row = coef_row(
+                f"std g ({src} -> {tgt} change)", std_g[src].values, ci_prob
+            )
+            row["kind"] = "standardised_coupling"
+            row["source"] = src
+            row["target"] = tgt
+            row["sd_source_level_median"] = float(sd_source_level.median())
+            row["sd_target_change_median"] = float(sd_target_change.median())
+            rows.append(row)
+        for a, b in combinations(sources, 2):
+            signed = std_g[a] - std_g[b]
+            row = coef_row(
+                f"std g {a}->{tgt} - std g {b}->{tgt} (contrast)",
+                signed.values,
+                ci_prob,
+            )
+            row["kind"] = "contrast"
+            row["source"] = f"{a} - {b}"
+            row["target"] = tgt
+            rows.append(row)
+            dominance = abs(std_g[a]) - abs(std_g[b])
+            row = coef_row(
+                f"|std g {a}->{tgt}| - |std g {b}->{tgt}| (dominance)",
+                dominance.values,
+                ci_prob,
+            )
+            row["kind"] = "dominance"
+            row["source"] = f"|{a}| - |{b}|"
+            row["target"] = tgt
+            rows.append(row)
+    return rows
+
+
+def write_standardised_couplings(
+    ctx: Any, post: Any, coupling_names: Mapping[tuple[str, str], str]
+) -> pd.DataFrame | None:
+    """Write ``standardised_couplings.csv`` (see :func:`standardised_coupling_rows`).
+
+    Returns the table, or ``None`` when the fit has no level couplings. Usable
+    over a stored fit with a lightweight context (``output_dir`` and
+    ``reporting.ci_prob``) — it reads the posterior only, so it needs no refit.
+    """
+    rows = standardised_coupling_rows(post, coupling_names, ctx.reporting.ci_prob)
+    if not rows:
+        return None
+    df = pd.DataFrame(rows)
+    save_table(ctx, "standardised_couplings", df, required=False)
+    return df
 
 
 def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -276,6 +369,23 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ranked_dataframe_table(
                 dom_df,
                 title="SD-standardised reciprocal couplings",
+                columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
+                rank_column=False,
+                precision=3,
+            )
+        )
+
+    # SD-standardised level -> change couplings for every target, with contrasts
+    # between sources of the same target (2026-08-19): the raw couplings are per
+    # unit of each source's latent logit and are not comparable in size across
+    # sources. Reading-only; derivable from the stored posterior without a refit.
+    section_header("Standardised level -> change couplings")
+    std_df = write_standardised_couplings(ctx, post, coupling_names)
+    if std_df is not None:
+        print_table(
+            ranked_dataframe_table(
+                std_df,
+                title="Standardised couplings (SD change per SD prior level)",
                 columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
                 rank_column=False,
                 precision=3,

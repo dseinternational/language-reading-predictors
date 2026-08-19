@@ -52,27 +52,28 @@ intervention benefit (`G = 2 − group`).
 
 ## At a glance
 
-| Layer | Family (id prefix)                                            | Purpose                                                                                                                     |
-| ----- | ------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)   | Rank predictors of each outcome's gain and level                                                                            |
-| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)         | Available-case modified ITT estimate (+ joint graph, SES, ability/site robustness, generalisation)                          |
-| 2     | Gain factors (`lrp-rli-gf`)                                   | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                        |
-| 2     | Level factors (`lrp-rli-lf`)                                  | Companion levels view: group×time and ability×time per timepoint                                                            |
-| 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity |
-| 2     | Aligned per-protocol (`lrp-rli-al`)                           | Onset-aligned single 40-week gain per child (associational)                                                                 |
-| 2     | Mechanism (`lrp-rli-mech`)                                    | Adjusted dose-response of one skill on another                                                                              |
-| 2     | Joint bivariate mechanism (`lrp-rli-jm`)                      | One exposure → two outcomes jointly (shared child intercept); identified decoding-specificity contrast                      |
-| 2     | Mediation (`lrp-rli-med`; natural + interventional g-formula) | How much of an intervention-outcome contrast runs through a given skill                                                     |
-| 2     | Predictor / dynamics (`lrp-rli-adj`, `lcsm`, `dose`)          | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading     |
-| 2     | Horseshoe ranking cross-check (`lrp-rli-hs`)                  | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                      |
-| 2     | Correlated-factor measurement model (`lrp-rli-mm`)            | Correlated domain-factor measurement model of the skills                                                                    |
-| 2     | Growth curves (`lrp-rli-gc`)                                  | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                           |
-| 2     | Block-2 exposure (`lrp-rli-bx`)                               | Staggered block-2 exposure contrasts, reported as associations requiring a parallel-trends assumption                       |
-| 2     | Floor-sitter survival (`lrp-rli-surv`)                        | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                           |
-| 2     | Concurrent associations (`lrp-rli-ca`)                        | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                          |
-| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf`)          | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                |
-| 2     | Historical growth, Byrne cohort (`lrp-rlm-hg`)                | Descriptive group-by-wave natural-history growth per measure in the Byrne reading-language-memory study (`study_id="rlm"`)  |
-| 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs/ca`)                   | Joint trajectories, measurement, baseline-predictor and confirmed-measure concurrent views                                  |
+| Layer | Family (id prefix)                                            | Purpose                                                                                                                          |
+| ----- | ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)   | Rank predictors of each outcome's gain and level                                                                                 |
+| 2     | ITT suite (`lrp-rli-itt`) + joint (`lrp-rli-itt-012`)         | Available-case modified ITT estimate (+ joint graph, SES, ability/site robustness, generalisation)                               |
+| 2     | Gain factors (`lrp-rli-gf`)                                   | DAG-focused ANCOVA: randomised effect + adjusted associations on each outcome's gain                                             |
+| 2     | Level factors (`lrp-rli-lf`)                                  | Companion levels view: group×time and ability×time per timepoint                                                                 |
+| 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity      |
+| 2     | Aligned per-protocol (`lrp-rli-al`)                           | Onset-aligned single 40-week gain per child (associational)                                                                      |
+| 2     | Mechanism (`lrp-rli-mech`)                                    | Adjusted dose-response of one skill on another                                                                                   |
+| 2     | Joint bivariate mechanism (`lrp-rli-jm`)                      | One exposure → two outcomes jointly (shared child intercept); identified decoding-specificity contrast                           |
+| 2     | Mediation (`lrp-rli-med`; natural + interventional g-formula) | How much of an intervention-outcome contrast runs through a given skill                                                          |
+| 2     | Predictor / dynamics (`lrp-rli-adj`, `lcsm`, `dose`)          | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading          |
+| 2     | Horseshoe ranking cross-check (`lrp-rli-hs`)                  | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                           |
+| 2     | Correlated-factor measurement model (`lrp-rli-mm`)            | Correlated domain-factor measurement model of the skills                                                                         |
+| 2     | Growth curves (`lrp-rli-gc`)                                  | Joint verbal/reading trajectories + whether baseline non-verbal ability predicts trajectory shape                                |
+| 2     | Block-2 exposure (`lrp-rli-bx`)                               | Staggered block-2 exposure contrasts, reported as associations requiring a parallel-trends assumption                            |
+| 2     | Floor-sitter survival (`lrp-rli-surv`)                        | Discrete-time hazard for _when_ a floored child (P / N) first comes off the floor                                                |
+| 2     | Concurrent associations (`lrp-rli-ca`)                        | Per-wave mutually-adjusted associations between contemporaneous skill levels and the focal outcome                               |
+| 2     | Longitudinal correlated-factor model (`lrp-rli-lcf`)          | Per-wave latent-domain correlations and directional conditional slopes from a longitudinal measurement model                     |
+| 2     | Wave-pooled level association (`lrp-rli-pl`)                  | One skill-to-skill level association pooled over all four waves, split into between-child and within-child parts (associational) |
+| 2     | Historical growth, Byrne cohort (`lrp-rlm-hg`)                | Descriptive group-by-wave natural-history growth per measure in the Byrne reading-language-memory study (`study_id="rlm"`)       |
+| 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs/ca`)                   | Joint trajectories, measurement, baseline-predictor and confirmed-measure concurrent views                                       |
 
 Layer-2 totals are generated from the code rather than maintained in prose: `definitions.MODEL_REGISTRY` is the RLI catalogue, while module auto-discovery adds the Byrne `lrp-rlm-*` models. The current checked snapshot is `docs/models/registry-counts.json`; CI runs `python scripts/check_statistical_documentation.py`, which fails if that snapshot differs from `definitions.KINDS`, `definitions.MODEL_REGISTRY`, or `registry.discover_models()`. Regenerate it with the same command plus `--write` after an intentional registry change. Layer-2 selection variants (`…b` / `…base` / `…d`) are included in the per-family tables below.
 
@@ -173,7 +174,7 @@ g-formula, and the floor rule live in the package; each fit writes `trace.nc`,
 `diagnostics_summary.json` (the convergence gate), per-family CSVs, and diagnostic plots
 to `output/statistical_models/models/{model_id}-{config}/`.
 
-### ITT suite — `lrp-rli-itt-001–lrp-rli-itt-028` plus registered companions (`kind="itt"` / `"joint"`)
+### ITT suite — `lrp-rli-itt-001–lrp-rli-itt-030` plus registered companions (`kind="itt"` / `"joint"`)
 
 **Purpose.** The headline randomised layer estimates `τ`, the assigned-arm contrast during t1→t2. Randomisation identifies the full randomised-sample arm contrast before missing outcomes—the own baseline and linear age enter as _precision_ terms, not as an identification set—and attendance/dose is never conditioned on. Of 57 children randomised (29 immediate intervention, 28 waiting control), the published CONSORT diagram records three losses to follow-up: one intervention child who moved school and two waiting-control children, one who moved school and one whose reason is recorded as “refused to participate in testing, school withdrawn”. This left 54 children analysed (28 and 26), who are represented in the repository. Two additional children in each arm discontinued the intervention after moving school but were followed and retained in their assigned groups. Each model then applies outcome- and covariate-observation requirements, giving the sequence `57 randomised → 3 lost to follow-up → 54 analysed and available → model-specific fitted sample` (commonly 54, 53 where a t2 score is unavailable, and smaller in the floor subgroups). The suite is therefore an **available-case modified ITT**, not a full ITT of all randomised children: it handles observed non-adherence by assigned group, but it does not recover the three missing follow-up outcomes. A causal reading even among the fitted children requires that loss to follow-up and any further observed-data restriction do not induce an arm–potential-outcome association; extending that contrast to all 57 randomised children additionally requires a defensible missingness or transportability assumption. Every report must state fitted denominators and exclusions by arm.
 
@@ -187,31 +188,34 @@ to `output/statistical_models/models/{model_id}-{config}/`.
 
 **Word-reading missing outcomes.** `lrp-rli-itt-010` remains the 53-outcome, t1-baseline model of record. Its release additionally requires a converged, trace-backed screening-baseline sub-fit supplied with the checksum-pinned 57-row UK Data Service archive. The sub-fit persists its pre-randomisation-screening-anchored prior and prior-predictive checks; reports a matched common-profile bridge over the same 53 observed outcomes; and standardises both treatment surfaces over all 57 screening profiles under conditional MAR. The no-benefit and complete item-delta grid `{-8, -4, 0, +4, +8}` instead complete the factual randomised arms, using denominators 29 and 28 and modifying only the one intervention and three control missing outcomes in their assigned arms. The zero-delta cell is the factual-arm MAR anchor; the intervention non-starter no-benefit row is a mean-surface restriction, not classical distributional reference-based imputation. The grid is a broad diagnostic stress test, not a fitted distribution over missing outcomes, and boundary clipping is reported beside model-free sharp bounds. These are secondary identifying-assumption sensitivities, not alternative primary results. The importer keeps the external archive gitignored because its ReShare item-level licence is blank, and the loader reconciles the 54 included rows to the repository across 71 fields. The local raw CSV retains upstream source identifiers; returned model data and emitted artefacts omit them, and no subject-ID crosswalk is persisted.
 
-| Model                     | Outcome             | Purpose                                                                                       |
-| ------------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
-| `lrp-rli-itt-001`         | `TR`                | Available-case modified ITT analysis of taught receptive vocabulary (block 1)                 |
-| `lrp-rli-itt-002`         | `TE`                | Available-case modified ITT analysis of taught expressive vocabulary (block 1)                |
-| `lrp-rli-itt-003`         | `UR`                | Available-case modified ITT analysis of not-taught receptive vocabulary (block 1)             |
-| `lrp-rli-itt-004`         | `UE`                | Available-case modified ITT analysis of not-taught expressive vocabulary (block 1)            |
-| `lrp-rli-itt-005`         | `R`                 | Available-case modified ITT analysis of standardised receptive vocabulary                     |
-| `lrp-rli-itt-006`         | `E`                 | Available-case modified ITT analysis of standardised expressive vocabulary                    |
-| `lrp-rli-itt-007`         | `L`                 | Available-case modified ITT analysis of letter-sound knowledge                                |
-| `lrp-rli-itt-008`         | `B`                 | Available-case modified ITT analysis of phoneme blending                                      |
-| `lrp-rli-itt-108`         | `B`                 | Mandatory one-third guessing-floor response-link companion to `lrp-rli-itt-008`               |
-| `lrp-rli-itt-009`         | `P`                 | Available-case modified ITT analysis of phonetic spelling — floor-rule branch                 |
-| `lrp-rli-itt-010`         | `W`                 | **Available-case modified ITT analysis of word reading** (headline primary; supersedes LRP52) |
-| `lrp-rli-itt-011`         | `N`                 | Available-case modified ITT analysis of nonword reading — floor-rule branch                   |
-| `lrp-rli-itt-012`         | joint               | Factorised joint available-case modified ITT graph over ten baseline-bearing outcomes         |
-| `lrp-rli-itt-013` / `13b` | `W` / `L`           | SES-adjusted available-case modified ITT analyses                                             |
-| `lrp-rli-itt-014` / `14b` | `W` / `L`           | Unadjusted available-case modified ITT analyses on the matched SES complete-case subsets      |
-| `lrp-rli-itt-015` / `15b` | contrast            | Available-case modified ITT generalisation contrasts, expressive (`15`) and receptive (`15b`) |
-| `lrp-rli-itt-016`         | contrast            | Available-case modified ITT modality contrast: taught expressive versus receptive vocabulary  |
-| `lrp-rli-itt-017–020`     | `TR`,`TE`,`UR`,`UE` | Ability-adjusted available-case modified ITT robustness across the vocabulary family          |
-| `lrp-rli-itt-021` / `22`  | `R` / `E`           | Ability-adjusted available-case modified ITT robustness, standardised vocabulary              |
-| `lrp-rli-itt-023` / `24`  | `L` / `W`           | Ability-adjusted available-case modified ITT robustness, letter sounds and word reading       |
-| `lrp-rli-itt-025`         | `F`                 | Available-case modified ITT analysis of basic concepts (effect only; no agreed δ)             |
-| `lrp-rli-itt-026`         | `T`                 | Available-case modified ITT analysis of receptive grammar (effect only; no agreed δ)          |
-| `lrp-rli-itt-027` / `28`  | `W` / `L`           | Site-adjusted available-case modified ITT robustness; `area` is complete                      |
+| Model                     | Outcome             | Purpose                                                                                                    |
+| ------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-itt-001`         | `TR`                | Available-case modified ITT analysis of taught receptive vocabulary (block 1)                              |
+| `lrp-rli-itt-002`         | `TE`                | Available-case modified ITT analysis of taught expressive vocabulary (block 1)                             |
+| `lrp-rli-itt-003`         | `UR`                | Available-case modified ITT analysis of not-taught receptive vocabulary (block 1)                          |
+| `lrp-rli-itt-004`         | `UE`                | Available-case modified ITT analysis of not-taught expressive vocabulary (block 1)                         |
+| `lrp-rli-itt-005`         | `R`                 | Available-case modified ITT analysis of standardised receptive vocabulary                                  |
+| `lrp-rli-itt-006`         | `E`                 | Available-case modified ITT analysis of standardised expressive vocabulary                                 |
+| `lrp-rli-itt-007`         | `L`                 | Available-case modified ITT analysis of letter-sound knowledge                                             |
+| `lrp-rli-itt-008`         | `B`                 | Available-case modified ITT analysis of phoneme blending                                                   |
+| `lrp-rli-itt-108`         | `B`                 | Mandatory one-third guessing-floor response-link companion to `lrp-rli-itt-008`                            |
+| `lrp-rli-itt-009`         | `P`                 | Available-case modified ITT analysis of phonetic spelling — floor-rule branch                              |
+| `lrp-rli-itt-010`         | `W`                 | **Available-case modified ITT analysis of word reading** (headline primary; supersedes LRP52)              |
+| `lrp-rli-itt-011`         | `N`                 | Available-case modified ITT analysis of nonword reading — floor-rule branch                                |
+| `lrp-rli-itt-012`         | joint               | Factorised joint available-case modified ITT graph over ten baseline-bearing outcomes                      |
+| `lrp-rli-itt-013` / `13b` | `W` / `L`           | SES-adjusted available-case modified ITT analyses                                                          |
+| `lrp-rli-itt-014` / `14b` | `W` / `L`           | Unadjusted available-case modified ITT analyses on the matched SES complete-case subsets                   |
+| `lrp-rli-itt-015` / `15b` | contrast            | Available-case modified ITT generalisation contrasts, expressive (`15`) and receptive (`15b`)              |
+| `lrp-rli-itt-016`         | contrast            | Available-case modified ITT modality contrast: taught expressive versus receptive vocabulary               |
+| `lrp-rli-itt-017–020`     | `TR`,`TE`,`UR`,`UE` | Ability-adjusted available-case modified ITT robustness across the vocabulary family                       |
+| `lrp-rli-itt-021` / `22`  | `R` / `E`           | Ability-adjusted available-case modified ITT robustness, standardised vocabulary                           |
+| `lrp-rli-itt-023` / `24`  | `L` / `W`           | Ability-adjusted available-case modified ITT robustness, letter sounds and word reading                    |
+| `lrp-rli-itt-025`         | `F`                 | Available-case modified ITT analysis of basic concepts (δ = 1 item under the ½-natural-maturation rule)    |
+| `lrp-rli-itt-026`         | `T`                 | Available-case modified ITT analysis of receptive grammar (δ = 1 item under the ½-natural-maturation rule) |
+| `lrp-rli-itt-027` / `28`  | `W` / `L`           | Site-adjusted available-case modified ITT robustness; `area` is complete                                   |
+| `lrp-rli-itt-029`         | `EI`                | Available-case modified ITT analysis of APT expressive information (doubled half-mark scale, /80)          |
+| `lrp-rli-itt-129`         | `EI40`              | Denominator-sensitivity comparator for `029`: the same score rounded to whole marks (/40)                  |
+| `lrp-rli-itt-030`         | `EG`                | Available-case modified ITT analysis of APT expressive grammar (/37)                                       |
 
 ### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-013` (+ `…b`, `…m`) (`kind="gain_factors"`)
 
@@ -270,7 +274,7 @@ family: `lrp-rli-lf-001` `W`, `02` `R`, `03` `E`, `04` `L`, `05` `P` (off-floor)
 `07` `F`, `08` `T`, `09` `TR`, `10` `TE`, `11` `N` (off-floor).
 The gain-factors naming note applies here too: "factors" means observed regression covariates, not latent factors.
 
-### Waitlist-crossover arm-by-wave sensitivity — `lrp-rli-did-001–lrp-rli-did-013` (+ `lrp-rli-did-101`, `lrp-rli-did-102`, `lrp-rli-did-107`) (`kind="did"`)
+### Waitlist-crossover arm-by-wave sensitivity — `lrp-rli-did-001–lrp-rli-did-015` (+ `lrp-rli-did-101`, `lrp-rli-did-102`, `lrp-rli-did-107`) (`kind="did"`)
 
 **Purpose.** A longitudinal sensitivity analysis alongside the available-case modified ITT estimates. The binary-treatment models jointly model bounded t1/t2/t3 levels with a separate immediate-minus-waitlist gap at each wave: `arm_gap_t1` checks baseline balance, `tau_t2` is the randomised causal contrast, `arm_gap_t3` is a post-crossover association and `delta_crossover = tau_t2 - arm_gap_t3` describes closure of the arm gap rather than a second treatment effect. A child random intercept partially pools stable between-child differences but does not make every child a fixed-effect control. No model conditions on each period's start outcome: t2 is already treatment-affected for the immediate arm when used as the P2 baseline. The heavily floored outcomes (`P`, `N`) use a Bernoulli on wave-specific off-floor status, so their contrasts concern off-floor **prevalence**, not coming off the floor. Dose variants retain the P1/P2 transition frame, adjust for randomised arm, current treatment, t1 outcome and t1 age, and estimate observational treated-centred session-dose associations. The current design decision is `notes/202607151800-did-arm-wave-redesign.md`; it supersedes the historical restricted-model decision in `notes/202606260702-did-crossover-design.md`.
 
@@ -289,6 +293,8 @@ The gain-factors naming note applies here too: "factors" means observed regressi
 | `lrp-rli-did-011` | `P`     | Arm-by-wave phonetic-spelling sensitivity on period-end off-floor prevalence                                                                                   |
 | `lrp-rli-did-012` | `N`     | Arm-by-wave nonword-reading sensitivity on period-end off-floor prevalence                                                                                     |
 | `lrp-rli-did-013` | `W`     | Exploratory waitlist-t3 catch-up heterogeneity; the variance component conflates response, maturation, history and noise                                       |
+| `lrp-rli-did-014` | `EI`    | Arm-by-wave APT expressive-information sensitivity (doubled half-mark scale); randomised t2 contrast plus post-crossover contrasts                             |
+| `lrp-rli-did-015` | `EG`    | Arm-by-wave APT expressive-grammar sensitivity; randomised t2 contrast plus post-crossover contrasts                                                           |
 | `lrp-rli-did-101` | `W`     | Independent-prior intercept sensitivity for `lrp-rli-did-001`: the empirical-Bayes t1 anchor replaced with a free zero-centred intercept (#390 P1 condition 1) |
 | `lrp-rli-did-102` | `L`     | Wide-`tau_t2` prior sensitivity for `lrp-rli-did-002`: the causal contrast's prior widened from the tier Normal(0, 0.5) to Normal(0, 1) (#382 rec 3)           |
 
@@ -308,22 +314,28 @@ cumulative-session dose sensitivity term (a collider — sensitivity only).
 phases, with subject random intercepts and optional linear moderation. Every slope is an
 **adjusted association** (latent-ability confounded), not a causal effect.
 
-| Model                         | Path     | Purpose                                                                                                                                          |
-| ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `lrp-rli-mech-056`            | `R → W`  | Receptive vocabulary → word reading                                                                                                              |
-| `lrp-rli-mech-057`            | `E → W`  | Expressive vocabulary → word reading                                                                                                             |
-| `lrp-rli-mech-058`            | `L → W`  | Letter-sound knowledge → word reading                                                                                                            |
-| `lrp-rli-mech-071`            | `L → W`  | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                                                     |
-| `lrp-rli-mech-072` / `72base` | `L → N`  | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                                            |
-| `lrp-rli-mech-073` / `73base` | `L → W`  | Letter sounds → word reading, moderated by age (with / without the interaction)                                                                  |
-| `lrp-rli-mech-061` / `161`    | `L → W`  | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)                           |
-| `lrp-rli-mech-063` / `163`    | `L → W`  | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)                           |
-| `lrp-rli-mech-088`            | `TR → W` | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                                                      |
-| `lrp-rli-mech-089`            | `TE → W` | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                                                    |
-| `lrp-rli-mech-090`            | `RW → W` | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor)                        |
-| `lrp-rli-mech-102`            | `RW → N` | Phonological memory → nonword decoding (#421; alphabetic-route counterpart of mech-090; covariate exposure, adjust `HS`, linear/floored outcome) |
-| `lrp-rli-mech-103`            | `SP → N` | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome)                |
-| `lrp-rli-mech-104` / `204`    | `L → W`  | Letter sounds → word reading, moderated by phonological memory `RW` (with / without the interaction; #421 Tier 2)                                |
+| Model                         | Path              | Purpose                                                                                                                                                 |
+| ----------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-mech-056`            | `R → W`           | Receptive vocabulary → word reading                                                                                                                     |
+| `lrp-rli-mech-057`            | `E → W`           | Expressive vocabulary → word reading                                                                                                                    |
+| `lrp-rli-mech-058`            | `L → W`           | Letter-sound knowledge → word reading                                                                                                                   |
+| `lrp-rli-mech-071`            | `L → W`           | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                                                            |
+| `lrp-rli-mech-072` / `72base` | `L → N`           | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                                                   |
+| `lrp-rli-mech-073` / `73base` | `L → W`           | Letter sounds → word reading, moderated by age (with / without the interaction)                                                                         |
+| `lrp-rli-mech-061` / `161`    | `L → W`           | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)                                  |
+| `lrp-rli-mech-063` / `163`    | `L → W`           | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)                                  |
+| `lrp-rli-mech-088`            | `TR → W`          | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                                                             |
+| `lrp-rli-mech-089`            | `TE → W`          | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                                                           |
+| `lrp-rli-mech-090`            | `RW → W`          | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor)                               |
+| `lrp-rli-mech-102`            | `RW → N`          | Phonological memory → nonword decoding (#421; alphabetic-route counterpart of mech-090; covariate exposure, adjust `HS`, linear/floored outcome)        |
+| `lrp-rli-mech-103`            | `SP → N`          | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome)                       |
+| `lrp-rli-mech-104` / `204`    | `L → W`           | Letter sounds → word reading, moderated by phonological memory `RW` (with / without the interaction; #421 Tier 2)                                       |
+| `lrp-rli-mech-096` / `101`    | `L → N` / `L → W` | Tier-1 decoding-specificity positive controls (linear); their difference is the pre-specified nonword-minus-word contrast                               |
+| `lrp-rli-mech-097–100`        | `L → R/E/T/F`     | Tier-1 negative controls: letter sounds → receptive / expressive vocabulary, grammar, basic concepts (linear)                                           |
+| `lrp-rli-mech-196–201`        | as `096–101`      | Ability-adjusted mirror of the Tier-1 panel: identical rows and terms plus the t1 block-design proxy via the typed `ability_covariate` setting          |
+| `lrp-rli-mech-258`            | `L → W`           | Ability-adjusted counterpart of the `058` HSGP curve, so shape can be compared curve against curve (`compare_statistical_models.py` writes the overlay) |
+
+The table above is a selection; the family currently has 41 registered models (the curve tests `156–158` / `188–191`, the joint-readiness comparators `093–095` and the remaining companions are catalogued in `definitions.MODEL_REGISTRY` and the family findings note).
 
 ### Mediation — `lrp-rli-med` (`kind="mediation"` / `"mediation_multi"`)
 
@@ -459,6 +471,16 @@ concurrent letter sounds are excluded as a treatment-affected mediator. Descript
 | `lrp-rli-jm-002` | `joint_mechanism` | —       | phase-stacked bivariate ANCOVA companion: identified Tier-1 decoding-specificity contrast |
 
 **Descriptive only.** Every slope is an adjusted association — latent general ability is unobserved and neither dependence block stands in for it — never causal. Δ is a Campbell–Fiske convergent/discriminant argument for decoding use, not identification of a causal decoding effect. `share_retained` conditions on the **latent** nonword logit where `ca-011` conditions on the observed count, so it partials measurement error too and generally retains less; read the two as bracketing. It is also a ratio, interpretable only while the unconditional slope stays clear of zero. Nonword decoding is floored for 72 / 64 / 52 / 40 % of children at t1–t4, so its residual scale is the least well determined quantity in `jm-001`. `scripts/compare_statistical_models.py` (`tier1_decoding_specificity`) now writes the identified Δ from `jm-002` alongside the product-of-marginals row, flagged `identified=True`, rather than replacing it — the sensitivity row stays as the historical comparator.
+
+### Wave-pooled level association — `lrp-rli-pl-001`, `lrp-rli-pl-002` (+ `lrp-rli-pl-101`) (`kind="pooled_levels"`)
+
+**Purpose.** The one skill-to-skill question neither `concurrent` (per-wave levels) nor `mechanism` (post-score given pre-score) asks: how does one skill's level track another's pooled over all four waves? One Beta-Binomial likelihood over every child-wave row with per-wave intercepts and a child random intercept, and a Mundlak split of the exposure into the child's study mean and the wave's deviation from it, because a single random-intercept coefficient returns a precision-weighted blend of the between-child and within-child associations. **Nothing here is causal**: exposure and outcome are contemporaneous, the arm term pools post-crossover waves, and latent ability is unblocked. Adjusters match `concurrent` (hearing, speech, the t1 block-design ability proxy, linear age).
+
+| Model            | Path    | Purpose                                                                                                                               |
+| ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-pl-001` | `L → W` | Letter sounds → word reading, between-child and within-child slopes with per-wave intercepts (primary)                                |
+| `lrp-rli-pl-002` | `L → N` | Letter sounds → nonword decoding, the decoding counterpart on the same scale                                                          |
+| `lrp-rli-pl-101` | `L → W` | Comparator for `001` without wave intercepts: shows how much apparent within-child association secular co-movement alone manufactures |
 
 ### Historical growth, Byrne cohort — `lrp-rlm-hg-001–lrp-rlm-hg-009` (`kind="historical_growth"`, `study_id="rlm"`)
 

@@ -93,6 +93,35 @@ _dom if _dom is not None else None
 ```{python}
 # | echo: false
 # | output: asis
+# SD-standardised level -> change couplings for every target, with contrasts
+# between sources of the same target (2026-08-19). Can be regenerated over a stored fit
+# from its posterior alone (scripts/regenerate_lcsm_standardised_couplings.py).
+_std = _csv("standardised_couplings.csv")
+if _std is not None:
+    print("### Standardised level → change couplings\n")
+    print(
+        "The raw couplings above are per unit of each *source's* latent logit, so "
+        "two sources on different latent scales are not comparable in size (letter "
+        "sounds spread about three times as widely as expressive vocabulary on the "
+        "logit scale). Here each coupling is standardised per posterior draw by the "
+        "model's own latent scales (`g* = g * sd(prior source levels) / sd(target "
+        "changes)`) and reads as SDs of later change in the target per SD of prior "
+        "level of the source; the `contrast` row is the signed difference between "
+        "two sources of the same target and the `dominance` row the difference of "
+        "their absolute values. Every coupling remains an adjusted association — "
+        "read the contrasts as which prior level *predicts* later change more "
+        "strongly, not as which one causes it.\n"
+    )
+```
+
+```{python}
+# | echo: false
+_std if _std is not None else None
+```
+
+```{python}
+# | echo: false
+# | output: asis
 if _has("child_fit_panels.png"):
     print("### Per-child fit\n")
     print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples for the focal reading measure (observed dots, posterior-predictive band)"))

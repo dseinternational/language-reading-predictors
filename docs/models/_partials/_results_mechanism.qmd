@@ -47,6 +47,86 @@ if interaction_summary is not None and len(interaction_summary):
     )
 ```
 
+```{python}
+# | echo: false
+# | output: asis
+# Words-scale re-expression of the interaction (2026-08-19). The sign of
+# gamma_int on a bounded outcome is not a statement about items, so the fitted
+# surface is evaluated in items at the interquartile cells of the fitted
+# exposure and moderator, with the logit-additive benchmark alongside. Can be
+# regenerated over a stored fit from its posterior and fitted rows
+# (scripts/regenerate_mechanism_moderation_items.py).
+_mi = _csv("moderation_items.csv")
+if _mi is not None and "quantity" in _mi.columns:
+    _by = {str(r["quantity"]): r for _, r in _mi.iterrows()}
+    if "interaction" in _by:
+        _r = _by["interaction"]
+        _inc_lo = _by.get("increment_at_moderator_low")
+        _inc_hi = _by.get("increment_at_moderator_high")
+        _bench = _by.get("interaction_if_logit_additive")
+        print("### The interaction on the items scale\n")
+        print(
+            "`gamma_int` is a product term on the latent logit scale, and on a bounded "
+            "outcome its sign is not a statement about items: below the midpoint of the "
+            "scale the logit is concave, so two positive effects that are *additive in "
+            "items* show a negative logit product, and logit-additivity is items-scale "
+            "synergy. The table re-expresses the fitted surface in outcome items at the "
+            "interquartile cells of the fitted exposure and moderator values — every other "
+            "term held at its fitted value for each row and averaged over rows, as the "
+            "end-to-end curve contrast is — and reports the exposure increment at the low "
+            "and at the high moderator cell, their difference (the items-scale "
+            "interaction), the same difference with `gamma_int` set to zero (what "
+            "logit-additivity would have shown in items, the bounded-scale benchmark) and "
+            "the logit-scale interaction over the same cells.\n"
+        )
+        _unit_x = str(_r.get("exposure_unit", "items"))
+        _unit_m = str(_r.get("moderator_unit", ""))
+        _lines = [
+            f"**Cells:** {_r['exposure_symbol']} {_r['exposure_low']:g} → {_r['exposure_high']:g} "
+            f"({_unit_x}) at {_r['moderator_symbol']} = {_r['moderator_low']:g} versus "
+            f"{_r['moderator_high']:g} ({_unit_m}); {int(_r['n_obs'])} fitted rows; "
+            f"{int(round(float(_r['ci_prob']) * 100))}% equal-tailed intervals."
+        ]
+        if _inc_lo is not None and _inc_hi is not None:
+            _lines.append(
+                f"**Exposure increment in {_r['outcome_symbol']} items:** "
+                f"{_inc_lo['median']:+.2f} [{_inc_lo['lo']:+.2f}, {_inc_lo['hi']:+.2f}] at the low "
+                f"moderator cell; {_inc_hi['median']:+.2f} [{_inc_hi['lo']:+.2f}, {_inc_hi['hi']:+.2f}] "
+                "at the high cell."
+            )
+        _lines.append(
+            f"**Items-scale interaction (high minus low):** {_r['median']:+.2f} "
+            f"[{_r['lo']:+.2f}, {_r['hi']:+.2f}]; P(> 0) = {_r['prob_pos']:.3f}."
+        )
+        if _bench is not None:
+            _lines.append(
+                f"**If logit-additive (`gamma_int = 0`):** {_bench['median']:+.2f} "
+                f"[{_bench['lo']:+.2f}, {_bench['hi']:+.2f}] — the part of the logit-scale "
+                "sign that the bounded scale alone would produce."
+            )
+        print("\n\n".join(_lines))
+        print(
+            "\n\n_How to read it:_ if the items-scale interaction and `gamma_int` share a "
+            "sign with at least moderate evidence, the logit-scale pattern (substitution or "
+            "synergy) is not an artefact of the bounded scale; if the items-scale "
+            "interaction sits near the logit-additive benchmark, the logit-scale sign is "
+            "mostly the scale. Cells are the interquartile values of the fitted rows, so "
+            "nothing here extrapolates beyond the data's support; the contrast inherits the "
+            "model's bilinear moderation form and remains an adjusted association."
+        )
+```
+
+```{python}
+# | echo: false
+# The informative columns; the full table (cells, units, n_obs, ci_prob) is
+# moderation_items.csv in the fit directory.
+(
+    _mi[[c for c in ("coefficient", "scale", "median", "lo", "hi", "lo50", "hi50", "prob_pos") if c in _mi.columns]]
+    if _mi is not None
+    else None
+)
+```
+
 ### Mechanism curve (items scale)
 
 _The reader-facing view._ The same fitted dose–response as the analyst's logit

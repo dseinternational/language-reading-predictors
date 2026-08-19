@@ -65,6 +65,30 @@ MEASURES: dict[str, Measure] = {
     # floor at baseline (a near-degenerate pre), so it is not co-loaded as an
     # autoregressive baseline — doing so would drop rows to complete cases for
     # little signal.
+    # Action Picture Test (Renfrew 1997) expressive language. The DAG makes both
+    # direct outcomes of randomised assignment (IG -> EI, EG) but neither had a
+    # confirmed ceiling until 2026-08-18; both are now confirmed from the manual.
+    #
+    # EG - Grammar, 37 whole marks. Observed max 28.
+    "EG": Measure(
+        "EG", V.APTGRAM, 37, "APT expressive grammar (EG)", n_trials_confirmed=True
+    ),
+    # EI - Information, 40 marks with half marks on some items, so the modelled
+    # count is the doubled half-mark scale out of 80 (exact: every observed
+    # fractional part is 0.5). Observed max 37.5 -> 75 of 80. See
+    # ``preprocessing.add_apt_derived_scores``.
+    "EI": Measure(
+        "EI", V.APTINFO_X2, 80, "APT expressive information, half marks (EI)", n_trials_confirmed=True
+    ),
+    # EI40 - the same instrument rounded to whole marks out of 40: the registered
+    # denominator-sensitivity comparator for EI, not a separate construct.
+    "EI40": Measure(
+        "EI40",
+        V.APTINFO_R40,
+        40,
+        "APT expressive information, whole marks (EI40)",
+        n_trials_confirmed=True,
+    ),
     "N": Measure("N", V.NONWORD, 6, "Nonword reading (NW)", n_trials_confirmed=True),
     # --- Taught-vocabulary block tests (intervention-fidelity outcomes) -------
     # Bespoke tests of the words explicitly taught in the intervention (Block 1,
@@ -254,8 +278,11 @@ with the other outcomes (see ``floor`` and ``preprocessing.load_and_prepare``).
 # Consumed by ``reporting.rope_summary`` to report ``P(benefit >= delta)``.
 # F/T (basic concepts / receptive grammar) were initially deferred as outside the ITT
 # suite; adopted 2026-07-20 at δ = 1 item each by the same ½-natural-maturation rule
-# (their wait-list t1->t2 gains, ≈0 and ≈1 item, both floor to 1 item). Rule-derived
-# and pending education-lead ratification like the others (#144).
+# (their wait-list t1->t2 gains, ≈0 and ≈1 item, both floor to 1 item); ratified on
+# 2026-08-19 when the rule itself was confirmed as the project's standing,
+# prospectively-applied practical-difference rule
+# (notes/202608191130-practical-difference-rule-confirmed.md): a new outcome's δ is
+# derived by the rule and recorded here before the outcome is fitted.
 ROPE_DELTA: dict[str, float] = {
     "L": 2.0,
     "W": 1.0,
@@ -267,10 +294,24 @@ ROPE_DELTA: dict[str, float] = {
     "UE": 1.0,
     "B": 1.0,
     # Basic concepts (F, CELF) and receptive grammar (T, TROG): both floor to δ = 1
-    # item under the ½-natural-maturation rule (adopted 2026-07-20, pending #144
-    # ratification); previously deferred as outside the ITT suite.
+    # item under the ½-natural-maturation rule (adopted 2026-07-20, ratified with the
+    # rule 2026-08-19); previously deferred as outside the ITT suite.
     "F": 1.0,
     "T": 1.0,
+    # Action Picture Test (Renfrew 1997), derived by the same ½-natural-maturation
+    # rule from the wait-list t1->t2 (untaught) gain and floored at 1 item:
+    # grammar +1.24 -> half 0.62 -> δ = 1 of 37; information +2.98 -> half 1.49 ->
+    # δ = 1 of 40, which is δ = 2 on EI's doubled half-mark scale so that both
+    # encodings express the same real magnitude. Information's 1.49 sits just under
+    # the rounding boundary — δ = 2 of 40 was equally rule-consistent — so the value
+    # was escalated rather than settled by the analysis. Both were ratified by the
+    # education lead on 2026-08-18 at the values below
+    # (notes/202608182015-apt-delta-threshold-ratification.md); like every δ used in
+    # the August 2026 run they were derived after results existed. From 2026-08-19
+    # the rule is the standing one, so later additions are pre-specified.
+    "EG": 1.0,
+    "EI": 2.0,
+    "EI40": 1.0,
     # Block-2 taught-vocabulary family (block-exposure `bx`), same items-scale δ
     # as their block-1 counterparts.
     "TE2": 1.0,

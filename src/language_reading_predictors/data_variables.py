@@ -56,6 +56,15 @@ class Variables:
     """
 
     APTINFO = "aptinfo"
+    #: APT Information doubled to a half-mark scale (out of 80). The instrument
+    #: scores certain items in halves, so the raw 0-40 score is not an integer
+    #: count; doubling is exact (every fractional part is 0.5) and preserves the
+    #: proportion, which the Beta-Binomial likelihood needs. Derived in
+    #: ``statistical_models.preprocessing``, not present in the source CSV.
+    APTINFO_X2 = "aptinfo_x2"
+    #: APT Information rounded to the nearest whole mark (out of 40) — the
+    #: denominator-sensitivity comparator for APTINFO_X2.
+    APTINFO_R40 = "aptinfo_r40"
     """
     Expressive information raw score. Assessed using the Action Picture Test 
     (Renfrew, 1997).
@@ -384,6 +393,14 @@ class Variables:
     """
     Hearing Composite: HEARING || EARINF (0: normal hearing and no repeated ear 
     infections; 1: either impaired hearing or repeated ear infections)
+
+    The stored column was derived upstream with a strict both-known OR, so a child
+    with one component recorded as 1 and the other unrecorded is NaN rather than 1
+    (one RLI child: impaired hearing, ear-infection history unrecorded). The
+    statistical models therefore re-derive the composite from HEARING and EARINF
+    with the three-valued OR — see
+    ``statistical_models.preprocessing.derive_hearing_composite`` — and do not
+    read this column directly (2026-08-19).
     """
 
     NUMCHIL = "numchil"

@@ -1,0 +1,64 @@
+---
+title: "LRPITT029: Available-case modified ITT analysis of APT expressive information (EI)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+## Overview
+
+**In plain terms.** Did the children offered the intervention express more in the Action Picture
+Test than those who were not — and how large, and how certain, is that difference?
+
+The Action Picture Test (Renfrew 1997) is an expressive-language measure that the project's causal diagram already treats as a direct outcome of randomised assignment (`IG -> {EI, EG}`), but which had no confirmed test ceiling until the manual maxima were supplied on 2026-08-18 — Grammar 37, Information 40. Until then it sat under "Deferred / follow-ups" in the ITT suite design note, and no Bayesian estimate existed for either scale.
+
+Information awards half marks on some items, so the raw 0–40 score is not an integer count and a Beta-Binomial likelihood rejects it. The modelled outcome is the **doubled half-mark scale, out of 80** (`aptinfo_x2`). Doubling is exact — every observed fractional part is 0.5 — and preserves the proportion, so the logit mean structure is unchanged. It does assert 80 exchangeable trials where there are 40 partial-credit items, which overstates per-child precision; the Beta-Binomial concentration absorbs part of that, and [LRPITT129](../lrp-rli-itt-129/) is the registered out-of-40 comparator.
+
+LRPITT029 estimates the assigned-arm contrast in the post-score among children in the fitted
+observed-data analysis set, using the randomised phase only (time 1 $\rightarrow$ time 2).
+Randomisation created exchangeability in the full randomised cohort, but conditioning on archive
+inclusion and observed analytic variables can break it, so a causal reading of the fitted
+contrast requires that selection did not induce an association between assigned arm and
+potential outcomes.
+
+_Identification and sign convention._ Under the locked DAG $G$ is a randomised root, so the
+offer contrast needs no baseline-covariate adjustment; the own baseline $\gamma_{\text{own}}$
+and linear age $\gamma_A$ are **precision terms only**. Attendance is never conditioned on (a DAG
+collider). **Sign convention:** $G = 1$ is the intervention arm, so a **positive** $\tau$ means the
+intervention arm has the higher modelled outcome.
+
+## Model
+
+$$
+\eta_i = \alpha + \tau\, G_i
+       + \gamma_{\text{own}}\, \text{logit}_*(EI_{\mathrm{pre},i}, N)
+       + \gamma_A\, A_{\text{std},i},
+$$
+
+with Beta-Binomial likelihood, $\mu_i = \sigma(\eta_i)$, $N = 80$. Priors follow the shared
+template in `priors.py`.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_itt.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

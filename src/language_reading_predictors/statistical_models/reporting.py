@@ -2818,6 +2818,19 @@ def _did_run_plan(context: StatisticalFitContext) -> DiDRunPlan:
     return resolve_did_run_plan(context.spec)
 
 
+def _pooled_levels_run_plan(context: StatisticalFitContext):
+    """Return the pooled-levels plan resolved before loading, or reconstruct it."""
+    from language_reading_predictors.statistical_models.pooled_levels import (
+        PooledLevelsRunPlan,
+        resolve_pooled_levels_run_plan,
+    )
+
+    resolved_plan = getattr(context, "resolved_plan", None)
+    if isinstance(resolved_plan, PooledLevelsRunPlan):
+        return resolved_plan
+    return resolve_pooled_levels_run_plan(context.spec)
+
+
 def _concurrent_run_plan(context: StatisticalFitContext) -> ConcurrentRunPlan:
     """Return the concurrent plan resolved before loading, or reconstruct it."""
     resolved_plan = getattr(context, "resolved_plan", None)
@@ -2994,6 +3007,8 @@ def _resolved_run_plan(context: StatisticalFitContext):
         return _level_factors_run_plan(context)
     if context.spec.kind == "did":
         return _did_run_plan(context)
+    if context.spec.kind == "pooled_levels":
+        return _pooled_levels_run_plan(context)
     if context.spec.kind == "concurrent":
         return _concurrent_run_plan(context)
     if context.spec.kind == "aligned":
@@ -4807,6 +4822,77 @@ def _kf_itt_missingness_sentence(output_dir, config: Mapping) -> str | None:
     )
 
 
+def _kf_itt_attrition_bounds_clause(output_dir, config: Mapping) -> str | None:
+    """A clause for the causal sentence quoting the model-free attrition bounds.
+
+    ``attrition_bounds.csv`` (``itt.write_itt_analysis_set``) completes the
+    randomised children with no timepoint-2 outcome at the test floor or ceiling
+    in the least and most favourable ways and bounds the *raw* timepoint-2 arm
+    difference; every ``itt`` fit writes it, but until 2026-08-19 only word
+    reading's key findings quoted it (inside the mandatory missingness sentence).
+    The bound belongs with the available-case qualification it quantifies, so it
+    is appended to the causal sentence — which the five-sentence cap never drops —
+    rather than added as a sixth sentence that would displace the size-of-benefit
+    statement. Word reading is skipped (already covered); floor-rule fits are
+    skipped because their headline estimand is an off-floor risk difference among
+    baseline-floor children, which the raw post-score contrast does not describe
+    (for phonetic spelling that contrast is dominated by the baseline arm
+    imbalance). Optional: an absent or malformed table yields ``None`` rather than
+    withholding the findings (``notes/202608182200-findings-by-question.md``,
+    question 8).
+    """
+
+    if str(config.get("model_id")) == "lrp-rli-itt-010":
+        return None
+    plan = config.get("resolved_run_plan") or {}
+    if bool(plan.get("floor_rule", False)):
+        return None
+    bounds = _kf_csv(output_dir, "attrition_bounds.csv")
+    needed = {
+        "outcome",
+        "missing_intervention_n",
+        "missing_control_n",
+        "worst_case_items_lower",
+        "worst_case_items_upper",
+    }
+    if bounds is None or len(bounds) != 1 or not needed.issubset(bounds.columns):
+        return None
+    row = bounds.iloc[0]
+    try:
+        missing_i = int(_kf_float(row["missing_intervention_n"]))
+        missing_c = int(_kf_float(row["missing_control_n"]))
+        lo = _kf_float(row["worst_case_items_lower"])
+        hi = _kf_float(row["worst_case_items_upper"])
+    except (TypeError, ValueError):
+        return None
+    if not (np.isfinite(lo) and np.isfinite(hi)) or missing_i + missing_c <= 0:
+        return None
+    symbol = str(row["outcome"])
+    units = (
+        "half-marks on the doubled information scale"
+        if symbol == "EI"
+        else "marks"
+        if symbol in {"EG", "EI40"}
+        else "items"
+    )
+    if lo > 0 or hi < 0:
+        verdict = "so the direction does not depend on how those outcomes are completed"
+    else:
+        verdict = "so unrestricted missing outcomes could reverse direction"
+    n_missing = missing_i + missing_c
+    return (
+        f" Completing the {n_missing} randomised "
+        f"{'child' if n_missing == 1 else 'children'} with no timepoint-2 score on "
+        f"this measure ({missing_i} intervention, {missing_c} control) at the test "
+        "floor or ceiling in the least and most favourable ways bounds the raw "
+        f"timepoint-2 arm difference between {lo:+.1f} and {hi:+.1f} {units}, "
+        f"{verdict}; that bounds the unadjusted post-score contrast, not the "
+        "covariate-adjusted estimate above, and the model-based missing-data "
+        "envelope (MAR, reference-based and delta scenarios) has been fitted for "
+        "word reading only."
+    )
+
+
 def _kf_has_factor_term(output_dir, term: str) -> bool:
     """Whether ``factor_summary.csv`` carries a row for ``term``.
 
@@ -4957,17 +5043,16 @@ def _kf_build_itt(output_dir, config: Mapping) -> list[dict[str, str]]:
     missingness_sentence = _kf_itt_missingness_sentence(output_dir, config)
     if missingness_sentence is not None:
         sentences.append(_kf_sentence(missingness_sentence, "sensitivity"))
-    sentences.append(
-        _kf_sentence(
-            _kf_itt_causal_sentence(
-                population,
-                floor_rule=bool(
-                    (config.get("resolved_run_plan") or {}).get("floor_rule", False)
-                ),
-            ),
-            "causal",
-        )
+    causal_sentence = _kf_itt_causal_sentence(
+        population,
+        floor_rule=bool(
+            (config.get("resolved_run_plan") or {}).get("floor_rule", False)
+        ),
     )
+    attrition_clause = _kf_itt_attrition_bounds_clause(output_dir, config)
+    if attrition_clause is not None:
+        causal_sentence += attrition_clause
+    sentences.append(_kf_sentence(causal_sentence, "causal"))
     return sentences
 
 
@@ -5487,29 +5572,197 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
         lo50 = _kf_float(interaction["gamma_int_lo50"])
         hi50 = _kf_float(interaction["gamma_int_hi50"])
         p = _kf_float(interaction["prob_gamma_int_pos"])
+        exposure_label = _kf_lower_first(
+            _kf_measure_label(config.get("mechanism_symbol") or "the exposure")
+        )
+        outcome_mid = _kf_lower_first(outcome_label)
+        moderator_label = _kf_moderator_label(config)
         focal = _kf_sentence(
-            "The moderation coefficient — how the letter-sound to word-reading "
-            "slope changes per +1 SD of the moderator, on the latent logit scale — "
-            f"is **{med:+.2f}** (50% interval {lo50:+.2f} to {hi50:+.2f}; 89% "
-            f"{lo:+.2f} to {hi:+.2f}), with P(> 0) = {p:.2f}.",
+            f"The moderation coefficient — how the slope of {outcome_mid} on "
+            f"{exposure_label} changes per +1 SD of {moderator_label}, on the latent "
+            f"logit scale — is **{med:+.2f}** (50% interval {lo50:+.2f} to "
+            f"{hi50:+.2f}; 89% {lo:+.2f} to {hi:+.2f}), with P(> 0) = {p:.2f}.",
             "headline",
         )
+        # The claim is about the logit scale only. On a bounded outcome the sign
+        # of a product term is not a statement about items — below the midpoint
+        # of the scale two positive effects that are additive in items show a
+        # negative logit product — so the items-scale reading is a separate
+        # sentence from moderation_items.csv, never implied here (2026-08-19).
         direction = _kf_sentence(
             _kf_association_direction(
                 interaction["prob_gamma_int_pos"],
                 positive_claim=(
-                    "the letter-sound slope tends to be steeper where the moderator "
-                    "is higher (logit-scale synergy), not additivity in word counts"
+                    f"the {exposure_label} slope tends to be steeper where "
+                    f"{moderator_label} is higher (synergy on the logit scale)"
                 ),
                 negative_claim=(
-                    "the letter-sound slope tends to be shallower where the moderator "
-                    "is higher (logit-scale substitution), not additivity in word counts"
+                    f"the {exposure_label} slope tends to be shallower where "
+                    f"{moderator_label} is higher (substitution on the logit scale)"
                 ),
             ),
             "confidence",
         )
-        sentences = [focal, direction, *sentences]
+        items_sentence = _kf_moderation_items_sentence(
+            output_dir, config, prob_gamma_int_pos=p
+        )
+        if items_sentence is None:
+            sentences = [focal, direction, *sentences]
+        else:
+            # The items-scale sentence needs a slot under the cap. The unmoderated
+            # curve is supporting context on a moderated fit, so its two
+            # sentences fold into one droppable context sentence rather than
+            # the causal sentence falling off the end (#464).
+            causal = [s_ for s_ in sentences if s_.get("kind") == "causal"]
+            context = _kf_mechanism_curve_context(summary, outcome_label)
+            sentences = [
+                focal,
+                direction,
+                items_sentence,
+                *([context] if context is not None else []),
+                *causal,
+            ]
     return sentences
+
+
+def _kf_lower_first(text: str) -> str:
+    """Lower-case the first character for mid-sentence use of a display label."""
+    return text[:1].lower() + text[1:] if text else text
+
+
+#: Display labels for the covariate moderators a mechanism fit may declare
+#: (measures take their registered label).
+_KF_COVARIATE_MODERATOR_LABELS = {
+    "A": "age",
+    "erbto": "phonological memory (word/nonword repetition)",
+}
+
+
+def _kf_moderator_label(config: Mapping) -> str:
+    """Display label for a moderated mechanism fit's moderator, mid-sentence."""
+    extra = config.get("extra") or {}
+    symbol = (
+        config.get("moderator_symbol")
+        or extra.get("moderator_symbol")
+        or (config.get("resolved_run_plan") or {}).get("moderator_symbol")
+    )
+    if not symbol:
+        return "the moderator"
+    symbol = str(symbol)
+    if symbol in _KF_COVARIATE_MODERATOR_LABELS:
+        return _KF_COVARIATE_MODERATOR_LABELS[symbol]
+    return _kf_lower_first(_kf_measure_label(symbol))
+
+
+def _kf_mechanism_curve_context(
+    summary: Mapping | None, outcome_label: str
+) -> dict[str, str] | None:
+    """The unmoderated curve's end-to-end contrast as one context sentence.
+
+    Used on moderated fits once the items-scale moderation sentence is present:
+    the two curve sentences (size, direction) fold into one so the box stays
+    under the cap with the causal sentence intact. Marked ``note`` — the one
+    droppable role here — so a release note can still displace it rather than
+    the interaction or causal sentences.
+    """
+    if summary is None:
+        return None
+    med = _kf_float(summary["items_median"])
+    lo = _kf_float(summary["items_lo"])
+    hi = _kf_float(summary["items_hi"])
+    low = _kf_float(summary["exposure_low"])
+    high = _kf_float(summary["exposure_high"])
+    unit = _kf_dag_unit(summary.get("exposure_unit", "predictor units"))
+    fav = favoured_direction(_kf_float(summary["prob_pos"]))
+    return _kf_sentence(
+        f"For context, across the fitted exposure range ({low:g} to {high:g} "
+        f"{unit}) {_kf_lower_first(outcome_label)} differed by **{med:+.1f} "
+        f"items** on average (89% credible range {lo:+.1f} to {hi:+.1f}; "
+        f"P({fav['favoured_direction']}) = {_kf_pct(fav['favoured_direction_prob'])}%) "
+        "— the unmoderated curve.",
+        "note",
+    )
+
+
+def _kf_moderation_items_sentence(
+    output_dir, config: Mapping, *, prob_gamma_int_pos: float
+) -> dict[str, str] | None:
+    """The moderated fit's interaction re-expressed in outcome items (2026-08-19).
+
+    Reads ``moderation_items.csv`` (``pipelines.mechanism.write_moderation_items``):
+    the interquartile exposure increment in items at the low and at the high
+    moderator cell, their difference — the items-scale interaction — and the
+    same difference under logit-additivity (``gamma_int = 0``), the bounded-scale
+    benchmark. The verdict clause compares the items-scale direction with the
+    logit-scale one on the house evidence ladder: at least moderate evidence in
+    the same direction means the logit-scale pattern is not an artefact of the
+    bounded scale; at least moderate evidence the other way means it is; anything
+    weaker says the items-scale direction is not settled. Returns ``None`` when
+    the table is absent, so older fits keep their previous box.
+    """
+    table = _kf_csv(output_dir, "moderation_items.csv")
+    if table is None or "quantity" not in table.columns:
+        return None
+    by = {str(r["quantity"]): r for _, r in table.iterrows()}
+    needed = (
+        "increment_at_moderator_low",
+        "increment_at_moderator_high",
+        "interaction",
+        "interaction_if_logit_additive",
+    )
+    if any(q not in by for q in needed):
+        return None
+    inter = by["interaction"]
+    inc_lo = _kf_float(by["increment_at_moderator_low"]["median"])
+    inc_hi = _kf_float(by["increment_at_moderator_high"]["median"])
+    dd = _kf_float(inter["median"])
+    lo = _kf_float(inter["lo"])
+    hi = _kf_float(inter["hi"])
+    bench = _kf_float(by["interaction_if_logit_additive"]["median"])
+    x_lo = _kf_float(inter["exposure_low"])
+    x_hi = _kf_float(inter["exposure_high"])
+    m_lo = _kf_float(inter["moderator_low"])
+    m_hi = _kf_float(inter["moderator_high"])
+    exposure_unit = _kf_dag_unit(inter.get("exposure_unit", "items"))
+    moderator_unit = _kf_dag_unit(inter.get("moderator_unit", ""))
+    moderator_label = _kf_moderator_label(config)
+    exposure_label = _kf_lower_first(
+        _kf_measure_label(config.get("mechanism_symbol") or "the exposure")
+    )
+    outcome_label = _kf_lower_first(_kf_outcome_label(config))
+    fav_items = favoured_direction(_kf_float(inter["prob_pos"]))
+    fav_logit = favoured_direction(_kf_float(prob_gamma_int_pos))
+    items_dir = fav_items["favoured_direction"]
+    label = fav_items["favoured_direction_label"]
+    settled = label in ("moderate", "strong", "very strong")
+    pattern = "synergy" if fav_logit["favoured_direction"] == "positive" else "substitution"
+    if settled and items_dir == fav_logit["favoured_direction"]:
+        verdict = (
+            f"{label} evidence that the {pattern} holds in items too, so it is not "
+            "an artefact of the bounded scale"
+        )
+    elif settled:
+        verdict = (
+            f"{label} evidence that the pattern reverses in items, so the "
+            f"logit-scale {pattern} is the bounded scale at work"
+        )
+    elif fav_logit["favoured_direction_label"] == "inconclusive":
+        verdict = "the direction is inconclusive on both scales"
+    else:
+        verdict = (
+            f"on the items scale the direction is {label}, so the logit-scale "
+            f"{pattern} should not be read as a finding about items"
+        )
+    return _kf_sentence(
+        f"In {outcome_label} items, the interquartile {exposure_label} increment "
+        f"({x_lo:g} to {x_hi:g} {exposure_unit}) is worth **{inc_lo:+.1f} items** "
+        f"when {moderator_label} is {m_lo:g} {moderator_unit} and {inc_hi:+.1f} when "
+        f"it is {m_hi:g}: a difference of {dd:+.1f} items (89% {lo:+.1f} to "
+        f"{hi:+.1f}; P({items_dir}) = {_kf_pct(fav_items['favoured_direction_prob'])}%), "
+        f"where additivity on the logit scale would have shown {bench:+.1f} — "
+        f"{verdict}.",
+        "scale",
+    )
 
 
 def _kf_build_mediation(output_dir, config: Mapping) -> list[dict[str, str]]:
@@ -5584,7 +5837,15 @@ def _kf_build_aligned(output_dir, config: Mapping) -> list[dict[str, str]]:
     marginal = _kf_csv_row(output_dir, "cohort_marginal.csv")
     if marginal is None:
         raise _KeyFindingsUnavailable("cohort_marginal.csv is not present")
-    off_floor = (config.get("extra") or {}).get("likelihood") == "bernoulli_offfloor"
+    plan = config.get("resolved_run_plan") or {}
+    extra = config.get("extra") or {}
+    off_floor = bool(
+        plan.get(
+            "off_floor",
+            plan.get("likelihood", extra.get("likelihood"))
+            == "bernoulli_offfloor",
+        )
+    )
     scale = 100.0 if off_floor else 1.0
     unit = "percentage points" if off_floor else "items"
     med = _kf_float(marginal["trt_items_median"]) * scale
@@ -5625,7 +5886,10 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
         raise _KeyFindingsUnavailable("predicted_gain_words.csv is not present")
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
     label = _kf_plain_label(row.get("label", row.get("predictor", "predictor")))
-    med = _kf_float(row["delta_words_mean"])
+    # House standard is the posterior median (METHODS.md); the mean was reported
+    # here until the August 2026 review, which is why an adjusted headline could
+    # disagree with the same fit's tables by a rounding step.
+    med = _kf_float(row.get("delta_words_median", row["delta_words_mean"]))
     lo = _kf_float(row["delta_words_lo"])
     hi = _kf_float(row["delta_words_hi"])
     outcome_label = _kf_outcome_label(config)
@@ -6479,6 +6743,93 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
     return sentences
 
 
+def _kf_build_pooled_levels(output_dir, config: Mapping) -> list[dict[str, str]]:
+    """Key findings for the wave-pooled level family.
+
+    The headline is the *decomposition*, not a single slope: a between-child
+    coefficient beside a within-child one, because the whole reason the family
+    exists is that a random-intercept model with one exposure coefficient returns
+    an uninterpretable blend of the two.
+    """
+    table = _kf_csv(output_dir, "pooled_levels_summary.csv")
+    if table is None:
+        raise _KeyFindingsUnavailable("pooled_levels_summary.csv is not present")
+    plan = config.get("resolved_run_plan") or {}
+    rows = {str(r["term"]): r for _, r in table.iterrows()}
+    outcome = _kf_measure_label(plan.get("outcome_symbol"))
+    exposure = _kf_measure_label(plan.get("mechanism_symbol"))
+
+    sentences: list[dict[str, str]] = []
+    between = rows.get("beta_between")
+    within = rows.get("beta_within")
+    if between is None:
+        blended = rows.get("beta_mech")
+        if blended is None:
+            raise _KeyFindingsUnavailable("no exposure coefficient in the summary")
+        sentences.append(
+            {
+                "text": (
+                    f"Pooled across waves, a 1 SD higher {exposure} level goes with a "
+                    f"**{_kf_float(blended['median']):+.2f}** logit difference in "
+                    f"{outcome} (89% {_kf_float(blended['lo']):+.2f} to "
+                    f"{_kf_float(blended['hi']):+.2f}). This fit does not separate the "
+                    "between-child from the within-child association."
+                ),
+                "kind": "headline",
+            }
+        )
+        return sentences
+
+    sentences.append(
+        {
+            "text": (
+                f"**Between children**, those sitting 1 SD higher on {exposure} across "
+                f"the study sit **{_kf_float(between['median']):+.2f}** logit higher on "
+                f"{outcome} (89% {_kf_float(between['lo']):+.2f} to "
+                f"{_kf_float(between['hi']):+.2f}; "
+                f"P(> 0) = {_kf_float(between['prob_positive']):.3f})."
+            ),
+            "kind": "headline",
+        }
+    )
+    if within is not None:
+        sentences.append(
+            {
+                "text": (
+                    f"**Within a child**, at the waves where they are 1 SD above their "
+                    f"own {exposure} average, {outcome} is "
+                    f"**{_kf_float(within['median']):+.2f}** logit above their own "
+                    f"average (89% {_kf_float(within['lo']):+.2f} to "
+                    f"{_kf_float(within['hi']):+.2f}; "
+                    f"P(> 0) = {_kf_float(within['prob_positive']):.3f})."
+                ),
+                "kind": "confidence",
+            }
+        )
+        sentences.append(
+            {
+                "text": (
+                    "The two are different questions. A large between-child coefficient "
+                    "beside a small within-child one places the association in stable "
+                    "differences between children rather than in a child's own "
+                    "movement — the pattern a shared-cause account predicts."
+                ),
+                "kind": "highlight",
+            }
+        )
+    sentences.append(
+        {
+            "text": (
+                "Exposure and outcome are measured at the same wave, so nothing here "
+                "orders them in time. Every term is an adjusted association, not a "
+                "causal effect."
+            ),
+            "kind": "causal",
+        }
+    )
+    return sentences
+
+
 _KF_BUILDERS = {
     "itt": _kf_build_itt,
     "joint": _kf_build_joint,
@@ -6502,6 +6853,7 @@ _KF_BUILDERS = {
     "block_exposure": _kf_build_block_exposure,
     "concurrent": _kf_build_concurrent,
     "long_corr_factor": _kf_build_long_corr_factor,
+    "pooled_levels": _kf_build_pooled_levels,
 }
 
 #: Roles that may be dropped to make room for a release note. The causal sentence is
@@ -6719,7 +7071,8 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
     if decision.status == "robustness_unresolved":
         payload["status"] = "robustness_unresolved"
         payload["reason"] = decision.reason
-        payload["release"] = decision.robustness.as_dict()
+        if decision.robustness is not None:
+            payload["release"] = decision.robustness.as_dict()
         return _write_key_findings(out, payload)
 
     if not decision.publishable:

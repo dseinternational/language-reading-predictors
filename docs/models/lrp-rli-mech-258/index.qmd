@@ -1,0 +1,57 @@
+---
+title: "LRP258: Ability-adjusted letter sounds (LS) -> word reading (WR) curve"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+## Overview
+
+LRP258 is the **ability-adjusted** counterpart of [LRP58](../lrp-rli-mech-058/), the
+mechanism family's headline curve. It adds `blocks` (WPPSI Block Design) to the matched
+conditioning set and changes nothing else — same exposure, outcome, own baseline, HSGP
+basis and sampler settings — so the two fitted curves differ only by the ability term.
+
+It exists because the family's negative-control panel showed part of every letter-sound
+slope is non-specific, with shared general ability the leading candidate. [LRP201](../lrp-rli-mech-201/)
+tests that on the *linear* anchor; this model tests it on the *shape*, which is what the
+published figure shows.
+
+`blocks` is a single noisy subtest, not the latent ability node, so `f_mech` stays an
+**adjusted association** and the comparison bounds only what the measured proxy accounts
+for.
+
+## Model
+
+$$
+\eta = \alpha + \alpha_{\text{phase}} + \beta_G G
+  + f^L(\operatorname{logit}_* L_{\text{post}})
+  + \gamma_{\text{own}}\operatorname{logit}_*(W_{\text{pre}})
+  + \gamma_A z(A) + \gamma_{\text{blocks}} z(\text{blocks})
+  + \sum_c \gamma_c z(c) + u_{\text{child}}.
+$$
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

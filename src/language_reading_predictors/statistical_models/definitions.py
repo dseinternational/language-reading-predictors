@@ -47,6 +47,9 @@ OUTCOMES: dict[str, str] = {
     "N": "nonword reading",
     "F": "CELF basic concepts",
     "T": "TROG receptive grammar",
+    "EI": "APT expressive information (half marks)",
+    "EG": "APT expressive grammar",
+    "EI40": "APT expressive information (whole marks)",
     "TE2": "taught expressive vocabulary, block 2",
     "TR2": "taught receptive vocabulary, block 2",
     "UE2": "not-taught expressive vocabulary, block 2",
@@ -81,6 +84,7 @@ KINDS: frozenset[str] = frozenset(
         "concurrent",
         "long_corr_factor",
         "joint_mechanism",
+        "pooled_levels",
     }
 )
 
@@ -186,6 +190,8 @@ _DID = [
     # Exploratory unexplained variation in the waitlist arm's t3 catch-up. This is
     # not a random treatment-effect slope and cannot classify causal responders.
     _d("lrpdid13", "did", "Arm-by-wave crossover", Status.ASSOCIATION, "W", "exploratory waitlist t3 catch-up heterogeneity", base="lrpdid01"),
+    _d("lrpdid14", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "EI", "randomised t2 contrast plus post-crossover arm gaps, APT information (80)", base="lrpitt29"),
+    _d("lrpdid15", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "EG", "randomised t2 contrast plus post-crossover arm gaps, APT grammar (37)", base="lrpitt30"),
     # #390 P1 condition 1: the empirical-Bayes pooled-t1 intercept anchor replaced
     # with a genuinely independent zero-centred Normal(0, 1.5); tau_t2 should match
     # LRPDID01 to Monte-Carlo error if the anchor does no work beyond location.
@@ -260,6 +266,19 @@ _MECH = [
     _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
     _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
     _d("lrp100", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "negative-control outcome: letter sounds -> basic concepts"),
+    # Ability-adjusted Tier-1 panel (#: the negative controls came out clearly
+    # positive, so the panel is re-fitted with the measured general-ability proxy
+    # ``blocks`` partialled out; 1NN mirrors its 0NN parent exactly otherwise).
+    _d("lrp196", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "ability-adjusted decoding channel: letter sounds -> nonword decoding (lrp96 + blocks)"),
+    _d("lrp197", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "ability-adjusted negative control: letter sounds -> receptive vocabulary (lrp97 + blocks)", "lrp97"),
+    _d("lrp198", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "ability-adjusted negative control: letter sounds -> expressive vocabulary (lrp98 + blocks)", "lrp98"),
+    _d("lrp199", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "ability-adjusted negative control: letter sounds -> receptive grammar (lrp99 + blocks)", "lrp99"),
+    _d("lrp200", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "ability-adjusted negative control: letter sounds -> basic concepts (lrp100 + blocks)", "lrp100"),
+    _d("lrp201", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted Tier-1 anchor: letter sounds -> word reading (lrp101 + blocks)", "lrp101"),
+    _d("lrp258", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted counterpart of the lrp58 letter-sound -> word-reading HSGP curve (lrp58 + blocks)", "lrp58"),
+    _d("lrppl01", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: letter sounds -> word reading (per-wave intercepts, child RE)"),
+    _d("lrppl02", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "N", "wave-pooled between-child level association: letter sounds -> nonword decoding"),
+    _d("lrppl101", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "no-wave-intercept comparator for lrppl01 (slope also carries secular co-movement)", "lrppl01"),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
     _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
@@ -412,6 +431,14 @@ _ITT_TIER1 = [
     _d("lrpitt26", "itt", "ITT suite", Status.MODEL_OF_RECORD, "T", "available-case modified ITT estimate"),
     _d("lrpitt27", "itt", "Site robustness", Status.ROBUSTNESS, "W", "site-adjusted available-case modified ITT estimate", base="lrpitt10"),
     _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site-adjusted available-case modified ITT estimate", base="lrpitt07"),
+    # Action Picture Test expressive outcomes (Renfrew 1997). DAG-designated direct
+    # outcomes of assignment (IG -> EI, EG) whose manual ceilings were confirmed on
+    # 2026-08-18 (Grammar 37, Information 40), clearing the deferral recorded in
+    # notes/202606251321-lrpitt-suite-design.md. Information is modelled on the
+    # doubled half-mark scale (out of 80); lrpitt129 is its out-of-40 comparator.
+    _d("lrpitt29", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EI", "available-case modified ITT estimate, APT information (half-mark scale, 80)"),
+    _d("lrpitt30", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EG", "available-case modified ITT estimate, APT grammar (37)"),
+    _d("lrpitt129", "itt", "ITT suite", Status.ROBUSTNESS, "EI40", "available-case modified ITT estimate, denominator sensitivity: APT information rounded to whole marks (40)", base="lrpitt29"),
 ]
 
 # Time-to-off-floor survival family (#230 §5): the four-wave generalisation of the

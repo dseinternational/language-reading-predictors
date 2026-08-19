@@ -191,7 +191,7 @@ else:
             '::: {.callout-important title="Findings withheld: robustness evidence '
             'is unresolved"}\n\n'
             f"The fit passed its sampling-quality checks, but {_kf_reason}, so no "
-            f"cause-and-effect statement is released.{_kf_next}\n\n:::"
+            f"scientific findings are released.{_kf_next}\n\n:::"
         )
     elif _kf_status == "inputs_unresolved":
         # #338/#409: a computationally clean Byrne fit is still unpublishable

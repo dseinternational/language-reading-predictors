@@ -183,6 +183,7 @@ def test_measure_exposure_plan_reproduces_loader_factory_and_diagnostics_contrac
         "phase_mode": "all",
         "covariates": (),
         "post_covariates": ("hs", "hs_missing"),
+        "baseline_covariates": (),
         "require_observed": (),
         "pre_required": ("W", "L", "TR"),
         "outcomes": ("W", "L", "TR"),
@@ -601,7 +602,9 @@ def test_pipeline_has_no_direct_mechanism_setting_reads():
 
 def test_every_registered_mechanism_model_resolves_with_audit_metadata():
     specs = _mechanism_specs()
-    assert len(specs) == 34
+    # 34 original + the six-model ability-adjusted Tier-1 panel (196-201)
+    # + mech-258, the ability-adjusted counterpart of the mech-058 curve.
+    assert len(specs) == 41
     for spec in specs:
         plan = M.resolve_mechanism_run_plan(spec)
         assert isinstance(plan, M.MechanismRunPlan)
@@ -612,3 +615,38 @@ def test_every_registered_mechanism_model_resolves_with_audit_metadata():
             )
         assert plan.likelihood == "beta_binomial"
         assert plan.observation_node == "y_post"
+
+
+def test_ability_covariate_loads_from_t1_not_the_post_row():
+    """Block design is recorded once at t1, so it must broadcast, not be pulled per row.
+
+    ``load_and_prepare`` reads the raw CSV, where ``blocks`` is populated only at
+    time 1. Routing it through ``post_covariates`` makes it NaN on every transition
+    and the complete-case filter then drops all 162 rows, which surfaces only as a
+    cryptic "Standard deviation of x must be positive" from age standardisation.
+    The typed ability setting must therefore reach ``baseline_covariates``.
+    """
+    plan = M.resolve_mechanism_run_plan(_spec(ability_covariate="blocks"))
+    kwargs = plan.prepare_kwargs()
+
+    assert plan.ability_covariate == "blocks"
+    assert kwargs["baseline_covariates"] == ("blocks",)
+    assert "blocks" not in kwargs["post_covariates"]
+    assert "blocks" not in kwargs["covariates"]
+
+
+def test_ability_covariate_is_absent_by_default():
+    plan = M.resolve_mechanism_run_plan(_spec())
+
+    assert plan.ability_covariate is None
+    assert plan.prepare_kwargs()["baseline_covariates"] == ()
+
+
+def test_ability_covariate_becomes_a_fitted_adjustment_coefficient():
+    """It loads by a different route but is an ordinary adjustment term in the model."""
+    spec = _spec(ability_covariate="blocks", adjust_for=("hs", "hs_missing"))
+    plan = M.resolve_mechanism_plan(spec)
+
+    assert "blocks" in plan.prepared.covariates
+    assert "blocks" in plan.adjust_for
+    assert plan.factory_kwargs["adjust_for"] == plan.adjust_for

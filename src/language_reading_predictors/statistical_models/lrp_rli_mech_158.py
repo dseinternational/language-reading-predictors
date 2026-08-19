@@ -16,9 +16,14 @@ to both exposure and outcome once the flag is in the model. That is an assumptio
 not a consequence of the method, and it is doing real work here because the
 missingness is not trivial:
 
-- ``hearing_c`` missing for **10 of 54 children at every wave** (~19%);
+- hearing status unknown for **9 of 54 children at every wave** (~17%) under the
+  three-valued composite the loader now derives from ``hearing`` / ``earinf``
+  (the stored ``hearing_c`` column shows 10: one child recorded as hearing-impaired
+  with no ear-infection record was left unknown by its strict OR — see
+  ``notes/202608191030-hearing-composite-three-valued-or.md``);
 - ``deapp_c`` ~4% of rows; ``erbto`` ~6.5% of rows;
-- only **35 of 54 children** are complete on all three at every wave.
+- only **36 of 54 children** are complete on all three at every wave (35 under the
+  stored composite, which is what the August 2026 fit used).
 
 LRP158 is therefore the honest comparator: **identical to LRP58 in every respect**
 except that the mean-imputed rows are dropped (``require_observed``), so every

@@ -459,6 +459,83 @@ def test_itt_golden_sentences(tmp_path):
     assert "not the effect for all 57 randomised children" in texts[3]
 
 
+def _bounds_row(**overrides) -> dict:
+    row = {
+        "outcome": "L",
+        "scale": "proportion_correct",
+        "observed_intervention_n": 28,
+        "observed_control_n": 26,
+        "missing_intervention_n": 1,
+        "missing_control_n": 2,
+        "worst_case_items_lower": 4.053,
+        "worst_case_items_upper": 7.442,
+        "n_trials": 32,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_itt_attrition_bounds_are_quoted_in_the_causal_sentence(tmp_path):
+    """Every graded itt fit writes model-free extreme-case attrition bounds; the
+    causal sentence quotes them (2026-08-19) and says whether the direction
+    survives any completion of the missing children. They ride on the causal
+    sentence — never dropped by the five-sentence cap — rather than displacing
+    the size-of-benefit statement as a sixth sentence."""
+    d = _setup_dir(tmp_path, "itt", config=_config("itt", outcome_symbol="L"))
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_csv(d, "attrition_bounds.csv", _bounds_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert kinds == ["headline", "confidence", "rope", "causal"]
+    text = payload["sentences"][3]["text"]
+    assert "not the effect for all 57 randomised children." in text
+    assert "Completing the 3 randomised children with no timepoint-2 score" in text
+    assert "(1 intervention, 2 control)" in text
+    assert "between +4.1 and +7.4 items" in text
+    assert "does not depend on how those outcomes are completed" in text
+    assert "fitted for word reading only" in text
+
+
+def test_itt_attrition_bounds_clause_flags_a_straddling_bound(tmp_path):
+    d = _setup_dir(tmp_path, "itt", config=_config("itt", outcome_symbol="EG"))
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    _write_csv(
+        d,
+        "attrition_bounds.csv",
+        _bounds_row(
+            outcome="EG",
+            missing_control_n=3,
+            worst_case_items_lower=-1.36,
+            worst_case_items_upper=3.88,
+            n_trials=37,
+        ),
+    )
+    text = generate_key_findings(d)["sentences"][3]["text"]
+    assert "Completing the 4 randomised children" in text
+    assert "between -1.4 and +3.9 marks" in text
+    assert "could reverse direction" in text
+
+
+def test_itt_attrition_bounds_clause_is_optional_and_skips_floor_rule_fits(tmp_path):
+    # No table -> no clause, findings unchanged (the golden test above).
+    d = _setup_dir(tmp_path, "itt")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    assert "Completing the" not in generate_key_findings(d)["sentences"][3]["text"]
+    # Floor-rule fits: the raw post-score contrast is not their estimand.
+    cfg = _config("itt", outcome_symbol="P")
+    cfg["resolved_run_plan"] = {"floor_rule": True}
+    d2 = _setup_dir(tmp_path, "itt", config=cfg, directory_name="itt-floor")
+    _write_csv(d2, "rope_summary.csv", _rope_row())
+    _write_csv(
+        d2,
+        "attrition_bounds.csv",
+        _bounds_row(outcome="P", worst_case_items_lower=-14.4, worst_case_items_upper=-1.4),
+    )
+    texts = [s["text"] for s in generate_key_findings(d2)["sentences"]]
+    assert not any("Completing the" in t for t in texts)
+
+
 def test_word_reading_key_findings_label_full_57_as_missing_data_sensitivity(
     tmp_path,
 ):
@@ -788,6 +865,35 @@ def test_non_itt_blending_outcome_does_not_require_the_paired_bundle(tmp_path):
     assert payload["status"] == "ok", payload.get("reason")
     assert "blending_link_sensitivity_sha256" not in payload
     assert payload["sentences"]
+
+
+def test_aligned_off_floor_uses_resolved_plan_and_percentage_points(tmp_path):
+    """The aligned pipeline stores its likelihood in the resolved run plan."""
+    config = _config(
+        "aligned",
+        outcome_symbol="P",
+        resolved_run_plan={
+            "likelihood": "bernoulli_offfloor",
+            "off_floor": True,
+        },
+    )
+    d = _setup_dir(tmp_path, "aligned", config=config)
+    _write_csv(
+        d,
+        "cohort_marginal.csv",
+        {
+            "trt_items_median": 0.032,
+            "trt_items_lo": -0.072,
+            "trt_items_hi": 0.132,
+            "prob_trt_pos": 0.70,
+        },
+    )
+
+    payload = generate_key_findings(d)
+
+    headline = payload["sentences"][0]["text"]
+    assert "+3.2 percentage points" in headline
+    assert "items" not in headline
 
 
 def test_blending_link_summary_stale_for_current_config_withholds(tmp_path):
@@ -1258,7 +1364,10 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             {
                 "predictor": "L",
                 "label": "Letter sounds",
-                "delta_words_mean": 1.9,
+                # The headline quotes the median (house standard); the mean is
+                # deliberately different so a regression to it would be visible.
+                "delta_words_median": 1.9,
+                "delta_words_mean": 2.3,
                 "delta_words_lo": 0.1,
                 "delta_words_hi": 3.8,
                 "prob_pos": 0.97,
@@ -1492,6 +1601,38 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             ],
         )
         return d, "decoding-use signature"
+    if kind == "pooled_levels":
+        # ``d`` already exists from the shared setup above; the family reads its
+        # symbols from the resolved plan, so only config.json needs replacing.
+        _write_json(
+            d,
+            "config.json",
+            {
+                "kind": "pooled_levels",
+                "outcome_symbol": "W",
+                "mechanism_symbol": "L",
+                "resolved_run_plan": {
+                    "outcome_symbol": "W",
+                    "mechanism_symbol": "L",
+                    "decompose_between_within": True,
+                    "waves": [1, 2, 3, 4],
+                    "use_wave_intercepts": True,
+                },
+            },
+        )
+        # The family's whole point is the split, so the synthetic case carries a
+        # large between-child coefficient beside a near-null within-child one.
+        _write_rows(
+            d,
+            "pooled_levels_summary.csv",
+            [
+                {"term": "beta_between", "role": "association", "median": 1.61,
+                 "lo": 1.34, "hi": 1.87, "prob_positive": 1.0},
+                {"term": "beta_within", "role": "association", "median": 0.04,
+                 "lo": -0.06, "hi": 0.14, "prob_positive": 0.742},
+            ],
+        )
+        return d, "Between children"
     raise AssertionError(f"No synthetic case for {kind}")
 
 
@@ -1695,6 +1836,163 @@ def test_mechanism_findings_headline_interaction_when_present(tmp_path):
     assert "P(> 0) = 0.06" in first
     # The unmoderated curve contrast is retained as supporting context.
     assert "fitted exposure range" in _texts(payload)
+
+
+def _moderation_items_rows(**overrides) -> list[dict]:
+    """A ``moderation_items.csv`` as ``pipelines.mechanism.write_moderation_items``
+    writes it (the mech-061 reporting values, rounded)."""
+    common = {
+        "exposure_low": 17.0,
+        "exposure_high": 28.0,
+        "moderator_low": 4.0,
+        "moderator_high": 8.0,
+        "exposure_symbol": "L",
+        "exposure_unit": "L items",
+        "moderator_symbol": "B",
+        "moderator_unit": "B items",
+        "outcome_symbol": "W",
+        "outcome_unit": "W items",
+        "n_obs": 156,
+        "ci_prob": 0.89,
+        "scale": "items",
+    }
+    rows = [
+        {"quantity": "increment_at_moderator_low", "median": 2.896, "lo": 0.927, "hi": 4.771, "prob_pos": 0.99},
+        {"quantity": "increment_at_moderator_high", "median": 1.745, "lo": -0.451, "hi": 3.788, "prob_pos": 0.90},
+        {"quantity": "interaction", "median": -1.147, "lo": -2.327, "hi": -0.049, "prob_pos": 0.047},
+        {"quantity": "interaction_if_logit_additive", "median": 0.179, "lo": 0.011, "hi": 0.430, "prob_pos": 0.958},
+        {"quantity": "interaction_logit", "median": -0.159, "lo": -0.298, "hi": -0.024, "prob_pos": 0.029, "scale": "logit"},
+    ]
+    out = []
+    for r in rows:
+        row = {**common, **r}
+        row.update(overrides.get(r["quantity"], {}))
+        out.append(row)
+    return out
+
+
+def _moderated_mechanism_dir(tmp_path, *, prob_gamma_int_pos=0.03):
+    d = _setup_dir(
+        tmp_path,
+        "mechanism",
+        config=_config(
+            "mechanism",
+            mechanism_symbol="L",
+            extra={"moderator_symbol": "B"},
+        ),
+    )
+    _write_csv(
+        d,
+        "mechanism_summary.csv",
+        {
+            "exposure_low": 2,
+            "exposure_high": 32,
+            "exposure_unit": "L items",
+            "items_median": 6.8,
+            "items_lo": 2.2,
+            "items_hi": 12.1,
+            "prob_pos": 0.995,
+        },
+    )
+    _write_csv(
+        d,
+        "interaction_summary.csv",
+        {
+            "gamma_int_median": -0.11,
+            "gamma_int_mean": -0.11,
+            "gamma_int_lo": -0.21,
+            "gamma_int_hi": -0.02,
+            "gamma_int_lo50": -0.15,
+            "gamma_int_hi50": -0.07,
+            "prob_gamma_int_pos": prob_gamma_int_pos,
+            "gamma_mod_median": 0.16,
+            "gamma_mod_mean": 0.16,
+            "gamma_mod_lo": 0.06,
+            "gamma_mod_hi": 0.25,
+            "gamma_mod_lo50": 0.11,
+            "gamma_mod_hi50": 0.20,
+            "prob_gamma_mod_pos": 0.995,
+        },
+    )
+    return d
+
+
+def test_mechanism_moderation_names_its_skills_and_never_claims_items_additivity(tmp_path):
+    """2026-08-19: the focal sentence names the fitted exposure, outcome and
+    moderator (mech-072 is L -> N, not word reading), and the logit-scale direction
+    claim no longer carries the ", not additivity in word counts" tail, which read
+    as a finding against items-scale additivity the fit never tested."""
+    d = _moderated_mechanism_dir(tmp_path)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    first = payload["sentences"][0]["text"]
+    assert "slope of word reading (WR) on letter-sound knowledge (LS)" in first
+    assert "per +1 SD of phoneme blending (PA)" in first
+    assert "not additivity" not in _texts(payload)
+    assert "substitution on the logit scale" in payload["sentences"][1]["text"]
+    # Without moderation_items.csv the box keeps its previous five-sentence shape.
+    assert [s["kind"] for s in payload["sentences"]] == [
+        "headline",
+        "confidence",
+        "headline",
+        "confidence",
+        "causal",
+    ]
+
+
+def test_mechanism_moderation_items_sentence_reads_the_items_scale_table(tmp_path):
+    """With moderation_items.csv present the box carries the items-scale
+    re-expression — the interquartile increments at the low and high moderator
+    cell, their difference, the logit-additive benchmark and a ladder verdict —
+    and the unmoderated curve folds into one droppable context sentence so the
+    causal sentence stays inside the cap (#464)."""
+    d = _moderated_mechanism_dir(tmp_path)
+    _write_rows(d, "moderation_items.csv", _moderation_items_rows())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert kinds == ["headline", "confidence", "scale", "note", "causal"]
+    items = payload["sentences"][2]["text"]
+    assert "In word reading (WR) items" in items
+    assert "(17 to 28 LS items)" in items
+    assert "**+2.9 items** when phoneme blending (PA) is 4 PA items and +1.7 when it is 8" in items
+    assert "a difference of -1.1 items (89% -2.3 to -0.0; P(negative) = 95%)" in items
+    assert "would have shown +0.2" in items
+    assert "moderate evidence that the substitution holds in items too" in items
+    assert "not an artefact of the bounded scale" in items
+    context = payload["sentences"][3]["text"]
+    assert context.startswith("For context, across the fitted exposure range (2 to 32 LS items)")
+    assert "+6.8 items" in context and "P(positive) = 99.5%" in context
+    assert payload["sentences"][-1]["kind"] == "causal"
+
+
+def test_mechanism_moderation_items_verdicts_follow_the_evidence_ladder(tmp_path):
+    """An items-scale direction below the moderate rung is reported as unsettled;
+    when the logit scale is itself inconclusive the sentence says so for both."""
+    d = _moderated_mechanism_dir(tmp_path)
+    _write_rows(
+        d,
+        "moderation_items.csv",
+        _moderation_items_rows(
+            interaction={"median": -0.7, "lo": -2.2, "hi": 0.7, "prob_pos": 0.21}
+        ),
+    )
+    text = generate_key_findings(d)["sentences"][2]["text"]
+    assert "P(negative) = 79%" in text
+    assert "on the items scale the direction is suggestive" in text
+    assert "should not be read as a finding about items" in text
+
+    (tmp_path / "b").mkdir()
+    d2 = _moderated_mechanism_dir(tmp_path / "b", prob_gamma_int_pos=0.45)
+    _write_rows(
+        d2,
+        "moderation_items.csv",
+        _moderation_items_rows(
+            interaction={"median": -0.2, "lo": -1.8, "hi": 1.4, "prob_pos": 0.42}
+        ),
+    )
+    text2 = generate_key_findings(d2)["sentences"][2]["text"]
+    assert "the direction is inconclusive on both scales" in text2
 
 
 def test_mechanism_findings_without_interaction_are_unchanged(tmp_path):

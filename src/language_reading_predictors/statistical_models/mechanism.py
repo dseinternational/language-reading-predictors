@@ -63,6 +63,7 @@ _LEGACY_KEYS = frozenset(
         "outcomes",
         "adjust_baseline_symbol",
         "adjust_for",
+        "ability_covariate",
         "require_observed",
         "use_age_gp",
         "phase_specific_mechanism",
@@ -186,6 +187,7 @@ class MechanismModelSettings:
     outcomes: tuple[str, ...] | None = None
     adjust_baseline_symbol: str = "W"
     adjust_for: tuple[str, ...] = ()
+    ability_covariate: str | None = None
     require_observed: tuple[str, ...] = ()
     use_age_gp: bool = False
     phase_specific_mechanism: bool = False
@@ -275,6 +277,7 @@ class MechanismModelSettings:
             outcomes=extra.get("outcomes"),
             adjust_baseline_symbol=extra.get("adjust_baseline_symbol", "W"),
             adjust_for=extra.get("adjust_for", ()),
+            ability_covariate=extra.get("ability_covariate"),
             require_observed=extra.get("require_observed", ()),
             use_age_gp=extra.get("use_age_gp", False),
             phase_specific_mechanism=extra.get("phase_specific_mechanism", False),
@@ -305,6 +308,7 @@ class MechanismRunPlan:
     pre_required: tuple[str, ...]
     adjust_baseline_symbol: str
     adjust_for: tuple[str, ...]
+    ability_covariate: str | None
     require_observed: tuple[str, ...]
     use_age_gp: bool
     phase_specific_mechanism: bool
@@ -368,6 +372,13 @@ class MechanismRunPlan:
             "phase_mode": "all",
             "covariates": pre_adj,
             "post_covariates": post_adj,
+            # Cognitive ability (block design) is recorded once at t1, so a per-row
+            # pull is NaN for every phase after the first. It must be broadcast from
+            # t1 via ``baseline_covariates`` — the same route the gain-/level-factor,
+            # block-exposure and aligned families use for this adjuster.
+            "baseline_covariates": (
+                (self.ability_covariate,) if self.ability_covariate else ()
+            ),
             "require_observed": self.require_observed,
             "pre_required": self.pre_required,
         }
@@ -682,6 +693,7 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         pre_required=pre_required,
         adjust_baseline_symbol=settings.adjust_baseline_symbol,
         adjust_for=settings.adjust_for,
+        ability_covariate=settings.ability_covariate,
         require_observed=settings.require_observed,
         use_age_gp=settings.use_age_gp,
         phase_specific_mechanism=settings.phase_specific_mechanism,
@@ -758,8 +770,14 @@ def resolve_mechanism_plan(
     # A constant covariate (e.g. an all-zero ``_missing`` indicator on the fitted
     # rows) is dropped by the loader and receives no coefficient, so it must not be
     # built into the model nor reported as adjusted-for.
+    # The ability adjuster is declared separately (it loads from t1 via
+    # ``baseline_covariates``) but is an ordinary standardised linear adjustment
+    # coefficient in the fitted model, so it joins the effective adjustment set here.
+    declared_adjust_for = resolved.adjust_for + (
+        (resolved.ability_covariate,) if resolved.ability_covariate else ()
+    )
     adjust_for = tuple(
-        covariate for covariate in resolved.adjust_for if covariate in prepared.covariates
+        covariate for covariate in declared_adjust_for if covariate in prepared.covariates
     )
     if (
         resolved.mechanism_is_covariate

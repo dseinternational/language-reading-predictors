@@ -121,7 +121,7 @@ def _growth_influence_fit_dir(tmp_path: Path) -> Path:
         {
             "study_id": "rlm",
             "resolved_run_plan": {"observation_influence_sensitivity": True},
-            "observation_influence_converged": True,
+            "extra": {"observation_influence_converged": True},
             "publication_input_contract": {
                 "schema_version": 1,
                 "study_id": "rlm",
@@ -135,22 +135,30 @@ def _growth_influence_fit_dir(tmp_path: Path) -> Path:
     (d / "config.json").write_text(json.dumps(config))
     pd.DataFrame(
         {
-            "observation_index": [0, 1],
-            "subject_id": ["R001", "R002"],
-            "wave": [1, 2],
-            "outcome": ["basread", "basread"],
-            "pareto_k": [0.82, 0.40],
-            "good_k_threshold": [0.70, 0.70],
-            "loo_reliable": [False, True],
+            "observation_index": [0, 1, 2],
+            "subject_id": ["R001", "R001", "R002"],
+            "wave": [1, 2, 2],
+            "outcome": ["basread", "basread", "basread"],
+            "pareto_k": [0.82, 0.40, 0.40],
+            "good_k_threshold": [0.70, 0.70, 0.70],
+            "loo_reliable": [False, True, True],
         }
     ).to_csv(d / "pareto_k.csv", index=False)
     pd.DataFrame(
         {
             "coefficient": ["gamma", "delta"],
             "outcome": ["basread", "basread"],
+            "primary_median": [-0.10, 0.20],
+            "primary_lo89": [-0.20, 0.05],
+            "primary_hi89": [-0.02, 0.35],
+            "sensitivity_median": [-0.08, 0.25],
+            "sensitivity_lo89": [-0.18, 0.10],
+            "sensitivity_hi89": [0.01, 0.40],
+            "median_direction_stable": [True, True],
+            "intervals_overlap": [True, True],
             "n_excluded_cells": [1, 1],
             "n_excluded_children": [1, 1],
-            "n_fully_excluded_children": [1, 1],
+            "n_fully_excluded_children": [0, 0],
             "sensitivity_converged": [True, True],
         }
     ).to_csv(d / "growth_influence_sensitivity.csv", index=False)
@@ -671,6 +679,48 @@ def test_mediation_t3_gate_does_not_apply_to_interventional_companion(tmp_path):
 
 def test_clean_growth_influence_bundle_allows_release(tmp_path):
     assert evaluate_publication(_growth_influence_fit_dir(tmp_path)).publishable
+
+
+def test_growth_influence_direction_change_withholds_at_robustness_stage(tmp_path):
+    d = _growth_influence_fit_dir(tmp_path)
+    summary = pd.read_csv(d / "growth_influence_sensitivity.csv")
+    gamma = summary["coefficient"] == "gamma"
+    summary.loc[gamma, "sensitivity_median"] = 0.08
+    summary.loc[gamma, "sensitivity_lo89"] = -0.05
+    summary.loc[gamma, "sensitivity_hi89"] = 0.18
+    summary.loc[gamma, "median_direction_stable"] = False
+    summary.to_csv(d / "growth_influence_sensitivity.csv", index=False)
+
+    decision = evaluate_publication(d)
+
+    assert (decision.status, decision.stage) == (
+        "robustness_unresolved",
+        "robustness",
+    )
+    assert "median direction" in decision.reason
+    payload = generate_key_findings(d, decision=decision)
+    assert payload["status"] == "robustness_unresolved"
+    assert payload["sentences"] == []
+    assert "release" not in payload
+
+
+def test_growth_influence_separated_intervals_withhold_at_robustness_stage(tmp_path):
+    d = _growth_influence_fit_dir(tmp_path)
+    summary = pd.read_csv(d / "growth_influence_sensitivity.csv")
+    gamma = summary["coefficient"] == "gamma"
+    summary.loc[gamma, "sensitivity_median"] = -0.005
+    summary.loc[gamma, "sensitivity_lo89"] = -0.01
+    summary.loc[gamma, "sensitivity_hi89"] = -0.001
+    summary.loc[gamma, "intervals_overlap"] = False
+    summary.to_csv(d / "growth_influence_sensitivity.csv", index=False)
+
+    decision = evaluate_publication(d)
+
+    assert (decision.status, decision.stage) == (
+        "robustness_unresolved",
+        "robustness",
+    )
+    assert "overlapping 89% intervals" in decision.reason
 
 
 def test_growth_influence_nonconvergence_withholds_at_computation_stage(tmp_path):

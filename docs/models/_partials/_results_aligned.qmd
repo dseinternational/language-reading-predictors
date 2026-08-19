@@ -1,3 +1,7 @@
+::: {.callout-note}
+Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
+:::
+
 ## Results
 
 The aligned per-protocol design has no clean randomised treatment coefficient.
@@ -45,26 +49,65 @@ print(
 
 ### Cohort Marginal
 
-This is the aligned immediate-vs-wait-list gap on the items scale, summarising the cohort contrast in words a reader can act on.
+This is the aligned immediate-vs-wait-list gap. For ordinary bounded-count outcomes it is shown in items; for an off-floor Bernoulli outcome it is the difference in the probability of moving above zero, shown in percentage points.
 
 ```{python}
 # | echo: false
 cohort_marginal = _csv("cohort_marginal.csv")
-cohort_marginal if cohort_marginal is not None else "No cohort marginal table."
+_aligned_plan = config.get("resolved_run_plan") or {}
+_aligned_extra = config.get("extra") or {}
+_aligned_off_floor = bool(
+    _aligned_plan.get("off_floor", _aligned_extra.get("off_floor", False))
+)
+if cohort_marginal is None:
+    _cohort_display = "No cohort marginal table."
+elif _aligned_off_floor:
+    _cohort_display = pd.DataFrame(
+        {
+            "risk_difference_pp_median": 100 * cohort_marginal["trt_prob_median"],
+            "risk_difference_pp_lo50": 100 * cohort_marginal["trt_prob_lo50"],
+            "risk_difference_pp_hi50": 100 * cohort_marginal["trt_prob_hi50"],
+            "risk_difference_pp_lo89": 100 * cohort_marginal["trt_prob_lo"],
+            "risk_difference_pp_hi89": 100 * cohort_marginal["trt_prob_hi"],
+            "prob_positive": cohort_marginal["prob_trt_pos"],
+        }
+    )
+else:
+    _cohort_display = cohort_marginal[
+        [
+            "trt_items_median",
+            "trt_items_lo50",
+            "trt_items_hi50",
+            "trt_items_lo",
+            "trt_items_hi",
+            "prob_trt_pos",
+        ]
+    ]
+_cohort_display
 ```
 
-_How to read the cohort marginal:_ `trt_items_median` is the typical difference in items between the immediate and wait-list cohorts (positive favours immediate), `trt_items_lo`/`trt_items_hi` bound the plausible range, and `prob_trt_pos` is the probability that the gap is above zero. It is per-protocol, so read it as association, not a randomised effect.
+_How to read the cohort marginal:_ the median is the typical immediate-minus-wait-list difference (positive favours immediate), the 50% and 89% limits show uncertainty, and `prob_positive` or `prob_trt_pos` is the probability that the gap is above zero. The unit is items for ordinary scores and percentage points for off-floor outcomes. This is per-protocol, so read it as an association, not a randomised effect.
 
 ```{python}
 # | echo: false
 # | output: asis
 if cohort_marginal is not None:
     _c = cohort_marginal.iloc[0]
-    print(
-        f"Aligned immediate-vs-wait-list marginal: median "
-        f"{_c.trt_items_median:+.1f} items "
-        f"(50% CrI {_c.trt_items_lo50:+.1f} to {_c.trt_items_hi50:+.1f}; "
-        f"89% {_c.trt_items_lo:+.1f} to {_c.trt_items_hi:+.1f}); "
-        f"P(> 0) = {_c.prob_trt_pos:.3f}. This is per-protocol and not randomised."
-    )
+    if _aligned_off_floor:
+        print(
+            f"Aligned immediate-vs-wait-list marginal: median "
+            f"{100 * _c.trt_prob_median:+.1f} percentage points "
+            f"(50% CrI {100 * _c.trt_prob_lo50:+.1f} to "
+            f"{100 * _c.trt_prob_hi50:+.1f}; 89% "
+            f"{100 * _c.trt_prob_lo:+.1f} to {100 * _c.trt_prob_hi:+.1f}); "
+            f"P(> 0) = {_c.prob_trt_pos:.3f}. This is per-protocol and not randomised."
+        )
+    else:
+        print(
+            f"Aligned immediate-vs-wait-list marginal: median "
+            f"{_c.trt_items_median:+.1f} items "
+            f"(50% CrI {_c.trt_items_lo50:+.1f} to {_c.trt_items_hi50:+.1f}; "
+            f"89% {_c.trt_items_lo:+.1f} to {_c.trt_items_hi:+.1f}); "
+            f"P(> 0) = {_c.prob_trt_pos:.3f}. This is per-protocol and not randomised."
+        )
 ```

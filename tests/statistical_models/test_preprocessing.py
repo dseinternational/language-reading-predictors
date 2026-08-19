@@ -19,6 +19,7 @@ from language_reading_predictors.statistical_models.measures import (
     unconfirmed_ceilings,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    add_apt_derived_scores,
     HEARING_STATUS_COVARIATES,
     INTERVAL_COVARIATES,
     _subset_prepared,
@@ -35,12 +36,96 @@ from language_reading_predictors.statistical_models.preprocessing import (
 
 
 def test_add_hearing_status_missing_indicator():
-    """#244: hearing_c -> hs + hs_missing (missing-indicator; no NaN, no row loss)."""
+    """#244: hearing_c -> hs + hs_missing (missing-indicator; no NaN, no row loss).
+
+    The stored composite is the fallback when the ``hearing`` / ``earinf``
+    components are absent from the frame.
+    """
     df = pd.DataFrame({V.HEARING_C: [1.0, 0.0, np.nan, 1.0, np.nan]})
     out = add_hearing_status(df)
     assert list(out["hs"]) == [1.0, 0.0, 0.0, 1.0, 0.0]  # unknown filled to clear ref
     assert list(out["hs_missing"]) == [0.0, 0.0, 1.0, 0.0, 1.0]  # unknown flagged
     assert int(out[["hs", "hs_missing"]].isna().sum().sum()) == 0
+
+
+def test_derive_hearing_composite_three_valued_or():
+    """The composite is ``hearing OR earinf`` with three-valued logic: a known 1 in
+    either component decides it, both-clear is 0, and only clear-with-unknown or
+    unknown-with-unknown stays unknown (2026-08-19)."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        derive_hearing_composite,
+    )
+
+    df = pd.DataFrame(
+        {
+            V.HEARING: [1.0, np.nan, 0.0, 0.0, np.nan, 1.0, 0.0],
+            V.EARINF: [np.nan, 1.0, np.nan, 0.0, np.nan, 1.0, 1.0],
+        }
+    )
+    hc = derive_hearing_composite(df)
+    expected = [1.0, 1.0, np.nan, 0.0, np.nan, 1.0, 1.0]
+    assert hc.isna().tolist() == [np.isnan(v) for v in expected]
+    assert hc.fillna(-1.0).tolist() == [(-1.0 if np.isnan(v) else v) for v in expected]
+
+
+def test_add_hearing_status_prefers_components_over_strict_stored_composite():
+    """The upstream ``hearing_c`` was a strict both-known OR, so a child recorded as
+    hearing-impaired with no ear-infection record was NaN - and the missing-indicator
+    fill then coded a *known* impairment as the clear reference. The components win:
+    that child is ``hs = 1, hs_missing = 0``; genuinely unknown children keep the
+    stored value as a fallback; the stored column itself is left untouched."""
+    df = pd.DataFrame(
+        {
+            V.HEARING: [1.0, 0.0, np.nan, np.nan],
+            V.EARINF: [np.nan, np.nan, np.nan, np.nan],
+            V.HEARING_C: [np.nan, np.nan, np.nan, 1.0],
+        }
+    )
+    out = add_hearing_status(df)
+    assert list(out["hs"]) == [1.0, 0.0, 0.0, 1.0]
+    assert list(out["hs_missing"]) == [0.0, 1.0, 1.0, 0.0]
+    assert out[V.HEARING_C].isna().tolist() == [True, True, True, False]  # untouched
+
+
+def test_derive_hearing_composite_rejects_inconsistent_columns():
+    """A stored composite that contradicts both-known components is a data fault,
+    not a tie to break silently."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        derive_hearing_composite,
+    )
+
+    df = pd.DataFrame(
+        {V.HEARING: [1.0, 0.0], V.EARINF: [0.0, 0.0], V.HEARING_C: [1.0, 1.0]}
+    )
+    with pytest.raises(ValueError, match="disagrees"):
+        derive_hearing_composite(df)
+
+
+def test_rli_hearing_status_split_after_three_valued_or():
+    """Pin the corrected RLI split: 25 flagged / 20 clear / 9 unknown of 54 children
+    (the stored strict-OR composite gives 24 / 20 / 10; the one child who moves is
+    recorded hearing-impaired with no ear-infection record)."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _default_data_path,
+    )
+
+    df = pd.read_csv(_default_data_path())
+    t1 = add_hearing_status(df[df[V.TIME] == 1])
+    stored = pd.to_numeric(t1[V.HEARING_C], errors="coerce")
+    assert len(t1) == 54
+    assert (int(stored.eq(1).sum()), int(stored.eq(0).sum()), int(stored.isna().sum())) == (
+        24,
+        20,
+        10,
+    )
+    assert (
+        int(t1["hs"].sum()),
+        int(((t1["hs"] == 0) & (t1["hs_missing"] == 0)).sum()),
+        int(t1["hs_missing"].sum()),
+    ) == (25, 20, 9)
+    moved = t1[(t1["hs"] == 1) & stored.isna()]
+    assert len(moved) == 1
+    assert moved[V.HEARING].item() == 1.0 and np.isnan(moved[V.EARINF].item())
 
 
 def test_load_and_prepare_hearing_status_keeps_all_rows():
@@ -731,3 +816,48 @@ def test_covariate_cannot_be_requested_at_both_waves(tmp_path):
             covariates=("deapp_c",),
             post_covariates=("deapp_c",),
         )
+
+
+def _apt_frame(values):
+    return pd.DataFrame({V.SUBJECT_ID: [f"S{i}" for i in range(len(values))],
+                         V.APTINFO: values})
+
+
+def test_apt_information_doubling_is_exact_on_half_marks():
+    """Half marks are the only fractional part, so x2 is a lossless integer count."""
+    out = add_apt_derived_scores(_apt_frame([0.0, 3.5, 12.0, 37.5]))
+
+    assert out[V.APTINFO_X2].tolist() == [0.0, 7.0, 24.0, 75.0]
+    assert (out[V.APTINFO_X2].dropna() % 1 == 0).all()
+    # the proportion is preserved, which is what keeps the logit mean structure intact
+    assert (out[V.APTINFO_X2] / 80).round(6).tolist() == (
+        out[V.APTINFO] / 40
+    ).round(6).tolist()
+
+
+def test_apt_information_rounding_gives_a_whole_mark_comparator():
+    out = add_apt_derived_scores(_apt_frame([0.0, 3.5, 12.0, 37.5]))
+
+    # numpy/pandas round half to even; the comparator only has to be a valid count
+    assert (out[V.APTINFO_R40].dropna() % 1 == 0).all()
+    assert out[V.APTINFO_R40].max() <= 40
+
+
+def test_apt_doubling_fails_loudly_on_unexpected_fractions():
+    """A quarter mark would make the x2 mapping non-integer; fail rather than coerce."""
+    with pytest.raises(ValueError, match="fractional parts other than 0.5"):
+        add_apt_derived_scores(_apt_frame([1.0, 2.25]))
+
+
+def test_apt_derivation_is_a_noop_without_the_source_column():
+    frame = pd.DataFrame({V.SUBJECT_ID: ["S0"], "basread": [3.0]})
+
+    assert add_apt_derived_scores(frame).equals(frame)
+
+
+def test_apt_measures_are_within_their_confirmed_ceilings():
+    """Renfrew (1997): grammar 37, information 40 (80 on the half-mark scale)."""
+    for symbol, expected in (("EG", 37), ("EI", 80), ("EI40", 40)):
+        measure = MEASURES[symbol]
+        assert measure.n_trials == expected
+        assert measure.n_trials_confirmed

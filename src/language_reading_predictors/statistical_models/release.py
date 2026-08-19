@@ -755,10 +755,10 @@ ReleaseStage = Literal["inputs", "computation", "artifacts", "robustness"]
 
 ``inputs`` the fit's own summary files are missing or unreadable, or its recorded
 scientific-input contract is unresolved; ``computation`` the sampling-quality gate
-failed; ``artifacts`` a required output is not on disk; ``robustness`` the
-treatment-effect sensitivity evidence does not support a causal headline. The order
-is the order below: a fit that did not converge is not asked whether its prior
-sensitivity is acceptable.
+failed; ``artifacts`` a required output is not on disk; ``robustness`` required
+sensitivity evidence does not preserve the released scientific finding. The order is
+the order below: a fit that did not converge is not asked whether its sensitivity
+evidence is acceptable.
 """
 
 
@@ -1053,18 +1053,23 @@ def _missingness_diagnostics_pass(values: Mapping[str, float | int]) -> bool:
 
 def _growth_influence_release_failures(
     output_dir: Path, config: Mapping[str, Any]
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    """Fail closed when a required growth influence refit is absent or failed."""
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Fail closed when a required growth influence refit is absent or unstable."""
     plan = config.get("resolved_run_plan") or {}
     if config.get("kind") != "growth":
-        return (), ()
+        return (), (), ()
     if not isinstance(plan, Mapping):
-        return (), ("config.json (growth influence configuration is unreadable)",)
+        return (
+            (),
+            ("config.json (growth influence configuration is unreadable)",),
+            (),
+        )
     if not plan.get("observation_influence_sensitivity", False):
-        return (), ()
+        return (), (), ()
 
     computation_failures: list[str] = []
     artifact_failures: list[str] = []
+    robustness_failures: list[str] = []
     pareto = _read_csv(output_dir, "pareto_k.csv")
     pareto_columns = {
         "observation_index",
@@ -1076,7 +1081,7 @@ def _growth_influence_release_failures(
         "loo_reliable",
     }
     if pareto is None or pareto.empty or not pareto_columns.issubset(pareto.columns):
-        return (), ("pareto_k.csv (invalid growth observation-cell map)",)
+        return (), ("pareto_k.csv (invalid growth observation-cell map)",), ()
 
     reliable = pareto["loo_reliable"].map(_stored_bool)
     numeric = pareto[
@@ -1104,11 +1109,11 @@ def _growth_influence_release_failures(
             reliable.to_numpy(dtype=bool), expected_reliable.to_numpy()
         )
     ):
-        return (), ("pareto_k.csv (internally inconsistent growth diagnostics)",)
+        return (), ("pareto_k.csv (internally inconsistent growth diagnostics)",), ()
 
     flagged = pareto.loc[~reliable.to_numpy(dtype=bool)]
     if flagged.empty:
-        return (), ()
+        return (), (), ()
 
     summary = _read_csv(output_dir, "growth_influence_sensitivity.csv")
     summary_columns = {
@@ -1118,6 +1123,14 @@ def _growth_influence_release_failures(
         "n_excluded_children",
         "n_fully_excluded_children",
         "sensitivity_converged",
+        "primary_median",
+        "primary_lo89",
+        "primary_hi89",
+        "sensitivity_median",
+        "sensitivity_lo89",
+        "sensitivity_hi89",
+        "median_direction_stable",
+        "intervals_overlap",
     }
     if summary is None or summary.empty or not summary_columns.issubset(summary.columns):
         artifact_failures.append("growth_influence_sensitivity.csv")
@@ -1147,10 +1160,18 @@ def _growth_influence_release_failures(
             summary["n_fully_excluded_children"], errors="coerce"
         )
         expected_children = flagged["subject_id"].astype(str).nunique()
-        all_reliable_by_child = reliable.groupby(
+        # A child is *fully* excluded only when every one of its observed cells is
+        # unreliable — matching the writer, which keeps a child whose retained-cell
+        # count is non-zero and counts the rest under ``all_observed_cells_high_pareto``
+        # (``growth._exclude_cells``). Grouping ``~reliable`` with ``.all()`` asks
+        # exactly that. The previous form, ``~reliable.groupby(...).all()``, negated
+        # *after* the reduction, so it flagged children with **any** unreliable cell —
+        # numerically identical to ``expected_children`` above, making the check both
+        # redundant and unsatisfiable for any fit with a partially-excluded child.
+        none_reliable_by_child = (~reliable).groupby(
             pareto["subject_id"].astype(str)
         ).all()
-        expected_fully_excluded = int((~all_reliable_by_child).sum())
+        expected_fully_excluded = int(none_reliable_by_child.sum())
         if (
             counts.isna().any()
             or not (counts == len(flagged)).all()
@@ -1162,6 +1183,89 @@ def _growth_influence_release_failures(
             artifact_failures.append(
                 "growth_influence_sensitivity.csv (excluded-cell map mismatch)"
             )
+
+        stability_numeric = summary[
+            [
+                "primary_median",
+                "primary_lo89",
+                "primary_hi89",
+                "sensitivity_median",
+                "sensitivity_lo89",
+                "sensitivity_hi89",
+            ]
+        ].apply(pd.to_numeric, errors="coerce")
+        direction_stable = summary["median_direction_stable"].map(_stored_bool)
+        intervals_overlap = summary["intervals_overlap"].map(_stored_bool)
+        stability_values_valid = bool(
+            np.isfinite(stability_numeric.to_numpy(dtype=float)).all()
+            and not direction_stable.isna().any()
+            and not intervals_overlap.isna().any()
+            and (
+                stability_numeric["primary_lo89"]
+                <= stability_numeric["primary_hi89"]
+            ).all()
+            and (
+                stability_numeric["primary_lo89"]
+                <= stability_numeric["primary_median"]
+            ).all()
+            and (
+                stability_numeric["primary_median"]
+                <= stability_numeric["primary_hi89"]
+            ).all()
+            and (
+                stability_numeric["sensitivity_lo89"]
+                <= stability_numeric["sensitivity_hi89"]
+            ).all()
+            and (
+                stability_numeric["sensitivity_lo89"]
+                <= stability_numeric["sensitivity_median"]
+            ).all()
+            and (
+                stability_numeric["sensitivity_median"]
+                <= stability_numeric["sensitivity_hi89"]
+            ).all()
+        )
+        if not stability_values_valid:
+            artifact_failures.append(
+                "growth_influence_sensitivity.csv (invalid coefficient stability values)"
+            )
+        else:
+            expected_direction_stable = (
+                np.sign(stability_numeric["primary_median"])
+                == np.sign(stability_numeric["sensitivity_median"])
+            )
+            expected_intervals_overlap = (
+                np.maximum(
+                    stability_numeric["primary_lo89"],
+                    stability_numeric["sensitivity_lo89"],
+                )
+                <= np.minimum(
+                    stability_numeric["primary_hi89"],
+                    stability_numeric["sensitivity_hi89"],
+                )
+            )
+            if not (
+                np.array_equal(
+                    direction_stable.to_numpy(dtype=bool),
+                    expected_direction_stable.to_numpy(dtype=bool),
+                )
+                and np.array_equal(
+                    intervals_overlap.to_numpy(dtype=bool),
+                    expected_intervals_overlap.to_numpy(dtype=bool),
+                )
+            ):
+                artifact_failures.append(
+                    "growth_influence_sensitivity.csv "
+                    "(coefficient stability verdict mismatch)"
+                )
+            elif not (
+                direction_stable.to_numpy(dtype=bool).all()
+                and intervals_overlap.to_numpy(dtype=bool).all()
+            ):
+                robustness_failures.append(
+                    "growth observation-cell influence sensitivity did not preserve "
+                    "every coefficient's median direction with overlapping 89% intervals"
+                )
         declared = summary["sensitivity_converged"].map(_stored_bool)
         if declared.isna().any():
             artifact_failures.append(
@@ -1240,7 +1344,20 @@ def _growth_influence_release_failures(
                 "subfit_provenance.csv (growth influence trace hash mismatch)"
             )
 
-    metadata_verdict = _stored_bool(config.get("observation_influence_converged"))
+    # The growth pipeline records this verdict inside ``config["extra"]``
+    # (``pipelines.growth`` builds it as part of the spec's extra payload), so read
+    # there as well as at the top level. Looking only at the top level made the
+    # verdict unconditionally "missing" for every growth fit that ran the influence
+    # sensitivity, withholding a fit whose sensitivity had in fact converged.
+    influence_extra = config.get("extra")
+    if not isinstance(influence_extra, Mapping):
+        influence_extra = {}
+    metadata_verdict = _stored_bool(
+        config.get(
+            "observation_influence_converged",
+            influence_extra.get("observation_influence_converged"),
+        )
+    )
     if metadata_verdict is None:
         artifact_failures.append("config.json (growth influence verdict is missing)")
     elif not metadata_verdict:
@@ -1259,6 +1376,7 @@ def _growth_influence_release_failures(
     return (
         tuple(dict.fromkeys(computation_failures)),
         tuple(dict.fromkeys(artifact_failures)),
+        tuple(dict.fromkeys(robustness_failures)),
     )
 
 
@@ -1788,10 +1906,11 @@ def evaluate_publication(
     3. **artifacts** — every artefact the fit recorded as *required* must be on
        disk. A required output that vanished between its write and finalisation is
        a withheld release, not a warning (#394 design point 3).
-    4. **robustness** — for the families the treatment-effect gate covers, the
-       prior-sensitivity and floor-grid evidence must support a causal headline.
-       The saved sampling-preset name also distinguishes publication-grade
-       ``rep-lite`` / ``reporting`` fits from local ``dev`` / ``test`` diagnostics.
+    4. **robustness** — required influence checks must preserve their named
+       scientific quantities; for the families the treatment-effect gate covers,
+       prior-sensitivity and floor-grid evidence must support a causal headline. The
+       saved sampling-preset name also distinguishes publication-grade ``rep-lite`` /
+       ``reporting`` fits from local ``dev`` / ``test`` diagnostics.
 
     Reads only artefacts already in ``output_dir``, so a stored fit can be
     re-decided without refitting — the contract ``evaluate_release`` and
@@ -1896,7 +2015,11 @@ def evaluate_publication(
     t3_gate_failures, t3_artifact_failures = _mediation_t3_release_failures(
         output_dir, config
     )
-    growth_gate_failures, growth_artifact_failures = (
+    (
+        growth_gate_failures,
+        growth_artifact_failures,
+        growth_robustness_failures,
+    ) = (
         _growth_influence_release_failures(output_dir, config)
     )
     itt_missingness_gate_failures, itt_missingness_artifact_failures = (
@@ -1943,6 +2066,15 @@ def evaluate_publication(
                 f"{', '.join(missing)}"
             ),
             missing_artifacts=missing,
+            config=config,
+            **qualification,
+        )
+
+    if growth_robustness_failures:
+        return ReleaseEvaluation(
+            status="robustness_unresolved",
+            stage="robustness",
+            reason="; ".join(growth_robustness_failures),
             config=config,
             **qualification,
         )
