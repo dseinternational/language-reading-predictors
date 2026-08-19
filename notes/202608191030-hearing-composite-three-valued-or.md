@@ -33,7 +33,7 @@ A child recorded as hearing-impaired satisfies "impaired hearing or repeated ear
 
 108 stored reporting fits carry `hs` (mechanism 40, gain_factors 18, mediation 17, concurrent 11, level_factors 6, block_exposure 5, pooled_levels 3, lcsm 3, corr_factor 2, joint_mechanism 2, adjusted 1). All of them used the old coding; none has been refitted. The child concerned is in the immediate arm and read 4, 4, 8 and 14 words across the four timepoints — moving one such child from the unknown group (n = 10) into the flagged group (n = 24) cannot manufacture the positive hearing–gain association reported in `notes/202608182200-findings-by-question.md` (question 7) and is unlikely to move any estimate materially, but it is a misclassification on every adjusted model, and the hearing figures in the notes are read as "stored fits, old coding" until the refit. The findings note and the `adjusted` family note (which reports the same +2.4-words figure) carry a caveat to that effect; the other family notes describe hearing only as an adjuster and need no change.
 
-**Refit:** held at the author's request until the review is complete. When it runs, every fit that carries `hs` should be refitted together (the `mechanism` sweep is the bulk of it) and the hearing figures in question 7 re-read from the new artefacts.
+**Refit:** held at the author's request until the review is complete; scheduled in the post-review batch, issue #554. When it runs, every fit that carries `hs` should be refitted together (the `mechanism` sweep is the bulk of it) and the hearing figures in question 7 re-read from the new artefacts.
 
 ## How much the adjuster matters (added 2026-08-19)
 
