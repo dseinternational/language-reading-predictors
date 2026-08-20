@@ -87,7 +87,6 @@ This closes the two-step loop the methodology promises for this refit: the explo
 - Cross-model comparison: `output/statistical_models/comparison/`.
 - Prior-sensitivity archives: `output/statistical_models/did_tau_prior_sensitivity/`, `gf_tau_prior_sensitivity/`, `floor_tau_prior_sensitivity/`, and each fit's attached `tau_prior_sensitivity.csv`.
 - Blending link bundle: `output/statistical_models/blending_link_sensitivity/`.
-- Plain-language report inputs: `output/summary_report/results.json` and its figures.
 
 ## Known limitation of this run
 
