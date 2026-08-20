@@ -1764,7 +1764,13 @@ def did_summary(
     over the fitted waitlist children per posterior draw and reported separately as
     ``delta_crossover_sample_average_*``. The outcome-scale change-in-gap is omitted
     for that model because a scalar arm-gap toggle would fail to integrate the
-    fitted child-specific catch-up terms.
+    fitted child-specific catch-up terms. For the same reason its t3 standardised
+    quantities (``t3_waitlist_items_*``, ``t3_immediate_items_*``,
+    ``arm_gap_t3_items_*``) are omitted: ``eta_base`` excludes the fitted
+    ``v_delta`` deviations, so a population-mean t3 toggle would misstate the
+    fitted waitlist t3 level. ``arm_gap_t3_items_available`` records the omission;
+    the t1/t2 quantities are unaffected (``v_delta`` enters only waitlist t3 rows),
+    and the logit-scale ``arm_gap_t3`` posterior is always reported.
 
     The legacy ``beta_period``/``delta`` branch remains readable so existing traces
     fail gracefully during the refit transition. Its ``delta_items_*`` quantity is
@@ -1878,6 +1884,7 @@ def did_summary(
                 f"{eta_base.shape[0]} observations; pass the fitted-subset phases."
             )
 
+        varying_catch_up = "delta_crossover_i" in posterior
         wave_effects: dict[str, np.ndarray] = {}
         wave_terms = (
             (0, "t1", "arm_gap_t1"),
@@ -1890,6 +1897,13 @@ def did_summary(
                 raise ValueError(
                     f"wave contains no {wave_name} rows (expected phase code {wave_code})."
                 )
+            if varying_catch_up and wave_code == 2:
+                # The fitted waitlist-child catch-up deviations (v_delta) enter
+                # the waitlist t3 rows but are absent from eta_base, so a scalar
+                # arm-gap toggle would misstate the fitted t3 levels — the same
+                # partial-integration reason delta_crossover_items is withheld
+                # below. Omit rather than publish a partially-integrated summary.
+                continue
             gap = (
                 posterior[term_name]
                 .stack(sample=("chain", "draw"))
@@ -1904,7 +1918,14 @@ def did_summary(
             out[f"{term_name}_items_n_rows"] = int(rows.sum())
             wave_effects[term_name] = arm_gap
 
-        if "delta_crossover_i" not in posterior:
+        out["arm_gap_t3_items_available"] = not varying_catch_up
+        if varying_catch_up:
+            out["arm_gap_t3_items_omission_reason"] = (
+                "the fitted waitlist-child catch-up deviations are not "
+                "integrated by a scalar arm-gap toggle"
+            )
+
+        if not varying_catch_up:
             _effect_summary(
                 wave_effects["tau_t2"] - wave_effects["arm_gap_t3"],
                 prefix="delta_crossover_items",
@@ -2050,7 +2071,9 @@ def did_cell_ppc(
     boundary cell — observed zero-rate exactly 0 or 1, where a plain ``>=`` tail is
     degenerate — is not falsely flagged. These are diagnostics, not hypothesis-test
     p-values. Values near zero or one flag an observed statistic in a predictive tail
-    and should be investigated before interpreting contrasts.
+    and should be investigated before interpreting contrasts. The ``*_tail_flag``
+    columns use fixed 2.5% / 97.5% cutoffs (a 95% two-sided convention) regardless
+    of ``ci_prob``, which shapes only the reported interval columns.
     """
     phase_arr = np.asarray(phase)
     group_arr = np.asarray(G)

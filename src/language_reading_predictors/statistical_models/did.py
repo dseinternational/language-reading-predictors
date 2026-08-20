@@ -15,7 +15,11 @@ missing-data assumption alongside every fit.
 
 Two designs share the family. **Binary** models fit the t1-t3 *levels* frame and
 estimate the arm gap at each wave separately: ``tau_t2`` is the clean randomised t2
-difference-in-differences contrast, ``arm_gap_t3`` the post-crossover
+arm contrast — the covariate-adjusted t2 arm-gap *level*, not the differenced
+quantity ``tau_t2 - arm_gap_t1``; the shared child random intercept and the tight
+``arm_gap_t1`` prior supply a partial, prior-weighted baseline adjustment rather
+than exact differencing (the level-factor family's t1-referenced ``d_grp_time[t2]``,
+#552, is the gap-*change* estimand) — ``arm_gap_t3`` the post-crossover
 40-vs-20-week association, and ``delta_crossover = tau_t2 - arm_gap_t3`` the
 waitlist catch-up. **Dose** variants keep the P1/P2 *transition* frame because
 sessions are interval exposures, carry an explicit treatment-presence term with the
@@ -430,13 +434,17 @@ def resolve_did_run_plan(spec: ModelSpec) -> DiDRunPlan:
             "non-centred child random intercept."
         )
         estimand = (
-            "The t2 arm gap tau_t2 is the clean randomised difference-in-differences "
-            "contrast on the fitted available-case sample; arm_gap_t3 is a "
-            "post-crossover association and delta_crossover is descriptive catch-up."
+            "The t2 arm gap tau_t2 is the clean randomised t2 arm contrast on the "
+            "fitted available-case sample — the covariate-adjusted t2 arm-gap "
+            "level, not the differenced quantity tau_t2 - arm_gap_t1; the child "
+            "random intercept and the tight arm_gap_t1 prior give a partial, "
+            "prior-weighted baseline adjustment rather than exact differencing. "
+            "arm_gap_t3 is a post-crossover association and delta_crossover is "
+            "descriptive catch-up."
         )
         causal_status = (
-            "tau_t2 is randomised (a t2 difference-in-differences contrast on the "
-            "available-case sample); arm_gap_t3, delta_crossover and any dose term "
+            "tau_t2 is randomised (a t2 arm contrast on the available-case "
+            "sample); arm_gap_t3, delta_crossover and any dose term "
             "are latent-ability-confounded associations, never randomised effects."
         )
     analysis_population = (

@@ -24,6 +24,7 @@ from language_reading_predictors.statistical_models.mechanism import (
     resolve_mechanism_run_plan,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    Standardiser,
     logit_safe,
     standardise,
 )
@@ -125,3 +126,64 @@ def test_dose_summary_writes_items_scale_marginal(tmp_path, monkeypatch):
     slope = pd.read_csv(tmp_path / "dose_slope_summary.csv").iloc[0]
     assert slope.dose_mean_sessions == pytest.approx(12.0)
     assert slope.dose_sd_sessions == pytest.approx(4.0)
+
+
+def test_dose_summary_persists_explicit_treated_rows_scaler(tmp_path, monkeypatch):
+    """The DiD dose companions fit slopes per 1 SD of the *treated-rows* session
+    scale (``build_did_model`` re-standardises among treated P1/P2 rows), so
+    ``fit_did`` passes the fitted payload's scaler explicitly. The persisted
+    ``dose_mean_sessions`` / ``dose_sd_sessions`` must come from that scaler on
+    every row — never from the loader's all-rows ``covariate_scalers`` entry,
+    whose SD is diluted by the untreated zero-session cell. The natural-scale
+    marginal likewise averages over the treated rows only (a dose step on an
+    untreated waitlist-P1 row is not a supported counterfactual of the
+    treated-centred design), recorded via ``n_rows`` / ``row_population``."""
+    mu = np.array([[0.2, 0.4, 0.6]])
+    sigma = np.array([[0.1, 0.1, 0.1]])
+    bdp = np.stack([mu, mu + 0.1], axis=-1)  # (chain, draw, dose_phase)
+    # Rows 0/1 (P1, treated at eta = 0) versus rows 2/3 (untreated, parked at a
+    # far-from-0.5 operating point): if the mask leaked, the marginal would mix
+    # the +5 rows' near-zero probability change into the average.
+    eta = np.zeros((1, 3, 4))
+    eta[:, :, 2:] = 5.0
+    posterior = _posterior(
+        mu_dose=(("chain", "draw"), mu),
+        sigma_dose=(("chain", "draw"), sigma),
+        beta_dose_phase=(("chain", "draw", "dose_phase"), bdp),
+        eta=(("chain", "draw", "obs_id"), eta),
+    )
+    ctx = SimpleNamespace(
+        trace=SimpleNamespace(posterior=posterior),
+        spec=SimpleNamespace(outcome_symbol="L", extra={}),
+        prepared=SimpleNamespace(
+            phase=np.array([0, 0, 1, 1]),
+            n_trials={"L": 32},
+            # The loader scaler that must NOT reach the persisted columns.
+            covariate_scalers={"attend": SimpleNamespace(mean=53.5, sd=31.0)},
+        ),
+        reporting=SimpleNamespace(ci_prob=0.95),
+        output_dir=str(tmp_path),
+        tables={},
+    )
+    monkeypatch.setattr(dose_pipeline, "print_table", lambda *_args, **_kwargs: None)
+
+    dose_pipeline.write_dose_slope_summary(
+        ctx,
+        period_varying=True,
+        dose_scaler=Standardiser(mean=70.1, sd=17.1),
+        marginal_row_mask=np.array([True, True, False, False]),
+    )
+
+    slope = pd.read_csv(tmp_path / "dose_slope_summary.csv")
+    assert slope["dose_mean_sessions"].tolist() == pytest.approx(
+        [70.1] * len(slope)
+    )
+    assert slope["dose_sd_sessions"].tolist() == pytest.approx([17.1] * len(slope))
+
+    marginal = pd.read_csv(tmp_path / "dose_marginal_summary.csv").iloc[0]
+    # Masked rows are both phase 0 at eta = 0, so per draw the marginal is
+    # expit(mu) - 0.5 exactly; any leakage of the eta = 5 rows would drag it down.
+    expected = (expit(mu.reshape(-1)) - 0.5) * 32
+    assert marginal.items_median == pytest.approx(float(np.median(expected)))
+    assert marginal.n_rows == 2
+    assert "treated" in marginal.row_population

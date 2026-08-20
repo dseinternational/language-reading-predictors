@@ -54,6 +54,15 @@ if did_summary is not None:
     if "tau_t2_median" in did_summary.columns:
         for _term in ("arm_gap_t1", "tau_t2", "arm_gap_t3", "delta_crossover"):
             _print_arm_term(_term)
+        if "arm_gap_t3_items_available" in did_summary.columns and not bool(
+            _d["arm_gap_t3_items_available"]
+        ):
+            print(
+                "_The t3 standardised (items-scale) translation is omitted for "
+                "this variant: the fitted waitlist-child catch-up deviations are "
+                "not integrated by a scalar arm-gap toggle, so only the "
+                "logit-scale t3 gap is reported._"
+            )
         if "delta_crossover_sample_average_median" in did_summary.columns:
             print(
                 "**Exploratory heterogeneous catch-up:** the sample-average child-specific "
