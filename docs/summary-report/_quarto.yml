@@ -1,6 +1,8 @@
 project:
   type: default
   output-dir: ../../output/summary_report/rendered
+  render:
+    - index.qmd
 
 jupyter: python3
 
@@ -18,6 +20,7 @@ author:
 
 format:
   html:
+    output-file: language-reading-predictors-summary-report
     theme: cosmo
     toc: true
     toc-location: left
@@ -26,8 +29,10 @@ format:
     fig-width: 8
     tbl-cap-location: bottom
   docx:
+    output-file: language-reading-predictors-summary-report
     reference-doc: ../template.docx
   pdf:
+    output-file: language-reading-predictors-summary-report
     documentclass: report
     papersize: a4
     colorlinks: true
