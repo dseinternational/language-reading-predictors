@@ -24,8 +24,8 @@ The `long_corr_factor` model extends this across all four waves with loadings he
 | Model    | Relationship         | Latent correlation | 89% range      |
 | -------- | -------------------- | ------------------ | -------------- |
 | `mm-001` | Vocabulary ↔ grammar | **+0.83**          | +0.67 to +0.93 |
-| `mm-001` | Vocabulary ↔ code    | **+0.78**          | +0.57 to +0.93 |
-| `mm-002` | Vocabulary ↔ code    | **+0.80**          | +0.60 to +0.94 |
+| `mm-001` | Vocabulary ↔ code    | **+0.79**          | +0.57 to +0.93 |
+| `mm-002` | Vocabulary ↔ code    | **+0.80**          | +0.60 to +0.93 |
 
 These correlations are **very high** — high enough to raise a question the models cannot settle: whether these are genuinely distinct domains at all in this sample, or facets of one broadly-varying ability. A latent correlation of 0.83 between vocabulary and grammar means the two domains share about two-thirds of their variance once measurement error is removed.
 

@@ -5,6 +5,8 @@
 
 # Findings: the `gain_factors` family — change from each child's own starting point
 
+**Refreshed from the 2026-08-20 full refit** (`notes/202608200800-full-refit-both-layers-2026-08.md`); the hearing-composite recoding moved several values in the first decimal, and the numbers below are read from the new artefacts.
+
 **Read `findings-00-overview` first.** This note covers the 32 models in the `gain_factors` family, a third model-based specification of the intervention contrast using the same trial.
 
 ## The data
@@ -31,27 +33,27 @@ The reported quantity is the fitted effect of switching the shared on-interventi
 
 | Measure                           | Effect (items) | 89% range    |
 | --------------------------------- | -------------- | ------------ |
-| Letter-sound knowledge (L)        | **+3.3**       | +1.6 to +5.0 |
+| Letter-sound knowledge (L)        | **+3.3**       | +1.6 to +5.1 |
 | Word reading (W)                  | **+2.6**       | +0.9 to +4.3 |
-| Taught expressive vocabulary (TE) | +1.0           | −0.1 to +2.2 |
+| Taught expressive vocabulary (TE) | +1.1           | −0.1 to +2.2 |
 | Taught receptive vocabulary (TR)  | +1.0           | −0.2 to +2.1 |
 | Basic concept knowledge (F)       | **+1.0**       | +0.0 to +2.0 |
-| Expressive vocabulary (E)         | +0.9           | −2.4 to +4.1 |
+| Expressive vocabulary (E)         | +1.0           | −2.3 to +4.2 |
 | Phoneme blending (B)              | **+0.8**       | +0.1 to +1.6 |
-| Receptive grammar (T)             | +0.6           | −0.7 to +2.0 |
+| Receptive grammar (T)             | +0.6           | −0.8 to +2.0 |
 | Nonword reading (N), off-floor    | +2 pp          | −9 to +12 pp |
 | Phonetic spelling (P), off-floor  | −1 pp          | −9 to +7 pp  |
-| Receptive vocabulary (R)          | **−1.8**       | −5.6 to +2.0 |
+| Receptive vocabulary (R)          | **−2.0**       | −5.8 to +1.8 |
 
 ## What was found
 
 **This specification gives a similar result on the main targeted outcomes.** Letter-sound knowledge is +3.3 items (against +3.5 from `itt` and +3.5 from `did`); word reading +2.6 (+2.4 and +2.2); phoneme blending +0.8 (+1.0 and +0.9). These fits reuse the same children and randomised window, so they are not independent evidence, but agreement across their different adjustment and repeated-measures assumptions is a useful robustness check.
 
-**Receptive vocabulary comes out negative here (−1.8 items), and this needs stating precisely rather than waved away.** The 89% range runs from −5.6 to +2.0 and therefore includes zero — but that is not how direction is judged in this project. The posterior probability that the effect is negative is **0.78**, which on the evidence ladder is _suggestive_ evidence of a negative effect, not "inconclusive". Reading it as inconclusive because the interval crosses zero would be the significance-testing habit the overview explicitly warns against.
+**Receptive vocabulary comes out negative here (−2.0 items), and this needs stating precisely rather than waved away.** The 89% range runs from −5.8 to +1.8 and therefore includes zero — but that is not how direction is judged in this project. The posterior probability that the effect is negative is **0.80**, which on the evidence ladder is _suggestive_ evidence of a negative effect, not "inconclusive". Reading it as inconclusive because the interval crosses zero would be the significance-testing habit the overview explicitly warns against.
 
 Suggestive is the weakest rung above inconclusive — roughly 3:1 odds — and the 89% interval still leaves appreciable probability on either side of zero. The project's fixed vocabulary therefore treats this as weak evidence in the harmful direction, not as established harm. The `itt` family gives +0.2 items and `did` gives −0.1; all three intervals overlap. The defensible summary is that broad standardised vocabulary has no well-resolved benefit in these data, with this specification leaning weakly negative. It should be reported neither as a flat zero nor as a firm harmful effect.
 
-Taught vocabulary is weaker here (+1.0) than in the `itt` family (+1.4 and +1.5), with intervals that include zero. The alternative specifications `gf-012` and `gf-013` give +1.1 and +1.2 with intervals just clearing zero. The estimates are consistently positive and modest, but their evidential strength depends on the specification — worth knowing before quoting a single number.
+Taught vocabulary is weaker here (+1.0 receptive and +1.1 expressive) than in the `itt` family (+1.4 and +1.5), with intervals that include zero. The alternative specifications `gf-012` and `gf-013` give +1.2 each, with intervals just clearing zero. The estimates are consistently positive and modest, but their evidential strength depends on the specification — worth knowing before quoting a single number.
 
 ## The two companion sets
 
@@ -61,7 +63,7 @@ Taught vocabulary is weaker here (+1.0) than in the `itt` family (+1.4 and +1.5)
 
 ## The floored measures
 
-Phonetic spelling and nonword reading use the off-floor rule: the outcome is whether the child scored above zero at all, and the effect is a change in that probability. Both are inconclusive (−1 and +2 percentage points, intervals roughly 16–21 percentage points wide). For these two the model uses a **binary** indicator of whether the child was off the floor at the start of the period, rather than their graded starting score, because a graded score on a mostly-zero measure is nearly all zeros and carries almost no information.
+Phonetic spelling and nonword reading use the off-floor rule: the outcome is whether the child scored above zero at all, and the effect is a change in that probability. Both are inconclusive (−1 and +2 percentage points, intervals 16 and 21 percentage points wide). For these two the model uses a **binary** indicator of whether the child was off the floor at the start of the period, rather than their graded starting score, because a graded score on a mostly-zero measure is nearly all zeros and carries almost no information.
 
 Both were initially withheld for prior-dominance and cleared for publication only after a prior-sensitivity sweep confirmed the direction is stable; their release status is the qualified `qualify` tier (prior-informed and exploratory), not an ordinary release. As with the DiD family, that certifies direction, not magnitude — and for these two the direction is inconclusive anyway.
 
