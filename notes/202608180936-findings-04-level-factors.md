@@ -25,35 +25,43 @@ Unlike `gain_factors`, this family adjusts for the non-measure background factor
 
 ## How to read the results
 
-The reported quantity is `b_grp_time[1]` translated to items, positive favouring the immediate-intervention group. The translation applies that same group increment across the observed timepoint-2 profiles, which evaluates the contrast at centred mean ability and deliberately excludes the time-invariant group-by-ability term. It is therefore not a population-average heterogeneous effect that lets the treatment contrast vary with ability; that interaction is partly informed by post-crossover waves and remains an adjusted association.
+**This family was re-parameterised in #552 and refitted on 2026-08-20.** The arm-by-time terms are now centred on the timepoint-1 gap: `arm_gap_t1` is the covariate-adjusted arm difference _before anyone was treated_, and `d_grp_time[t]` is the change in that gap at each later wave. The reported quantity is therefore **`d_grp_time[t2]` — a difference-in-differences of adjusted levels**, translated to items, positive favouring the immediate-intervention group. The per-wave gaps the family used to report (`b_grp_time`) are retained as a `levels_view` Deterministic, and the free per-timepoint parameterisation survives as an explicit comparator (`arm_gap_reference="free"`).
 
-| Measure                           | t2 contrast at mean ability (items) | 89% range     |
-| --------------------------------- | ----------------------------------- | ------------- |
-| Letter-sound knowledge (L)        | **+2.5**                            | +0.2 to +4.9  |
-| Word reading (W)                  | +1.7                                | −1.0 to +4.2  |
-| Basic concept knowledge (F)       | +0.5                                | −0.6 to +1.6  |
-| Phoneme blending (B)              | +0.4                                | −0.4 to +1.3  |
-| Taught expressive vocabulary (TE) | +0.4                                | −1.0 to +1.8  |
-| Taught receptive vocabulary (TR)  | +0.3                                | −1.0 to +1.7  |
-| Receptive grammar (T)             | +0.2                                | −1.4 to +1.8  |
-| Nonword reading (N), off-floor    | +2 pp                               | −10 to +13 pp |
-| Phonetic spelling (P), off-floor  | −1 pp                               | −9 to +8 pp   |
-| Expressive vocabulary (E)         | −2.2                                | −6.3 to +1.9  |
-| Receptive vocabulary (R)          | −3.7                                | −8.1 to +0.7  |
+The change matters because the two quantities answer different questions. `b_grp_time[1]` is _where the arms stood at timepoint 2_, which includes any difference they started with; `d_grp_time[t2]` is _how much the gap moved over the randomised window_, which is the quantity randomisation identifies. The translation to items applies the increment across the observed timepoint-2 profiles at centred mean ability and excludes the time-invariant group-by-ability term, so it is not a population-average heterogeneous effect.
+
+| Measure                           | t2 change in the adjusted gap (items) | 89% range    |
+| --------------------------------- | ------------------------------------- | ------------ |
+| Letter-sound knowledge (L)        | **+2.8**                              | +0.8 to +4.9 |
+| Word reading (W)                  | **+2.3**                              | +0.3 to +4.3 |
+| Taught expressive vocabulary (TE) | +1.3                                  | −0.1 to +2.7 |
+| Taught receptive vocabulary (TR)  | +1.2                                  | −0.3 to +2.6 |
+| Basic concept knowledge (F)       | +0.8                                  | −0.3 to +1.8 |
+| Phoneme blending (B)              | +0.6                                  | −0.1 to +1.4 |
+| Receptive grammar (T)             | +0.6                                  | −1.0 to +2.3 |
+| Nonword reading (N), off-floor    | +2.9 pp                               | −8 to +14 pp |
+| Receptive vocabulary (R)          | +0.2                                  | −4.2 to +4.6 |
+| Expressive vocabulary (E)         | +0.1                                  | −3.9 to +4.2 |
+| Phonetic spelling (P), off-floor  | +0.2 pp                               | −8 to +9 pp  |
 
 ## What was found
 
-**The direction of the main pattern survives, but several outcomes are less certain.** Letter-sound knowledge remains the strongest result (+2.5 items, interval clearing zero), and word reading remains positive (+1.7) but with an interval that now spans zero. Compare across families for word reading: `itt` +2.4 [+0.7, +4.1], `gain_factors` +2.6 [+0.9, +4.3], `did` +2.2 [−0.3, +4.7], and here +1.7 [−1.0, +4.2]. The estimates are compatible; for this outcome the levels model is less precise.
+**Under the timepoint-1-centred parameterisation this family now agrees with the rest of the suite.** Letter-sound knowledge is the strongest result (+2.8 items, interval clearing zero, P = 0.988) and word reading is second (+2.3, interval clearing zero, P = 0.964). Compare across families for word reading: `itt` +2.4 [+0.7, +4.1], `gain_factors` +2.6 [+0.9, +4.3], `did` +2.2 [−0.3, +4.7], and here +2.3 [+0.3, +4.3]. The four are now close in both point and precision.
 
-**This family is generally less informative for the randomised treatment question than the baseline-adjusted ITT model, rather than a refutation of it.** The interval-width change is outcome-specific: word reading is about 53% wider than its `itt` counterpart, receptive vocabulary about 10% wider, and the two off-floor intervals are narrower rather than wider. The levels specification changes both the adjustment and the repeated-measures model, so a blanket 50% rule is not supported.
+**The negative vocabulary contrasts this note previously reported were the baseline gap, and the new parameterisation shows it arithmetically.** Under the old free parameterisation the reported quantity was the timepoint-2 arm gap itself, which came out at −3.7 items for receptive vocabulary and −2.2 for expressive. Those numbers have not changed — they are still what the arms looked like at timepoint 2, and the `levels_view` rows still report them — but they decompose exactly:
 
-**The two broad vocabulary measures come out negative — R at −3.7 items and E at −2.2 — and this is the largest apparent difference among the treatment-family medians.** The arm-by-wave models put the pre-treatment arm-gap medians near zero: receptive vocabulary −0.011 on the log-odds scale (89% −0.184 to +0.163) and expressive vocabulary +0.032 (89% −0.155 to +0.216). Those wide intervals show no clear baseline imbalance, but they also do not rule out chance imbalance large enough to matter. This family's own timepoint-1 group coefficient points the same way as its timepoint-2 one: for receptive vocabulary the ability-adjusted arm offset is −0.154 log-odds at timepoint 1 (89% −0.305 to −0.001) against −0.125 at timepoint 2 (89% −0.274 to +0.026), and for expressive vocabulary −0.091 against −0.085. A negative arm offset that is already present before anyone was treated is a starting-point difference, not an effect, and it is exactly the weakness of a levels model that carries no baseline covariate — so the negative vocabulary contrasts here should be read as inheriting a baseline offset rather than as evidence of harm.
+| Measure                   | Gap before treatment (`arm_gap_t1`) | Change over the randomised window (`d_grp_time[t2]`) | Timepoint-2 gap (`b_grp_time[1]`) |
+| ------------------------- | ----------------------------------: | ---------------------------------------------------: | --------------------------------: |
+| Receptive vocabulary (R)  |             −0.161 [−0.314, −0.007] |                               **+0.008** (P = 0.535) |                            −0.153 |
+| Expressive vocabulary (E) |             −0.123 [−0.290, +0.044] |                               **+0.005** (P = 0.522) |                            −0.118 |
+| Word reading (W)          |             +0.033 [−0.356, +0.425] |                               **+0.347** (P = 0.964) |                            +0.380 |
 
-Both treatment intervals include zero, but direction is judged by the tail probability rather than whether the band clears zero. The posterior probability that the timepoint-2 contrast is negative is **0.909 for receptive vocabulary and 0.80 for expressive vocabulary** — _suggestive_ evidence of a negative contrast on the project's ladder. The receptive-vocabulary value sits on the boundary of the next category (0.91), and with an effective sample size around 10,000 the Monte Carlo error on that tail probability is about ±0.003, so it is best read as borderline suggestive-to-moderate rather than as one or the other.
+For the two vocabulary measures the whole of the timepoint-2 gap is the gap the arms started with, and the randomised change is indistinguishable from zero. For word reading almost all of it is the randomised change. The August reading of this note — that the negative vocabulary contrasts were "inheriting a baseline offset rather than evidence of harm" — was correct, and is now a property the model reports rather than an inference a reader has to make. **The specification sensitivity that discussion was built on is much reduced, though not gone.** This family no longer leans negative on broad vocabulary — receptive +0.2 (P(positive) = 0.54) and expressive +0.1 (0.52), both inconclusive — and neither does `itt` (+0.2) or `did` (−0.1). `gain_factors` still does: receptive vocabulary −2.0 items with P(negative) = 0.80, _suggestive_ on the ladder. So the disagreement that used to run across two families now rests on one, and the family that has dropped out did so because the quantity it reports was corrected, not because its data changed.
 
-The four treatment families therefore should not be summarised as proving that nothing happened on broad vocabulary. For receptive vocabulary this family and `gain_factors` (−1.8 items, P(negative) = 0.78) lean negative at the suggestive level, while `itt` (+0.2) and `did` (−0.1) are directionally inconclusive; for expressive vocabulary only the levels model leans negative — `gain_factors` is +0.9, `itt` +0.2 and `did` +0.8, all inconclusive. Their 89% intervals overlap, and no posterior contrast between specifications was fitted, so this is **specification sensitivity**, not a demonstrated inconsistency.
+**The precision penalty is smaller than previously reported.** With the contrast centred on the timepoint-1 gap, this family's 89% intervals are 11–23% wider than the matching `itt` intervals (word reading 1.20×, letter sounds 1.11×, receptive vocabulary 1.11×, expressive vocabulary 1.23×), not the ~53% recorded under the old parameterisation for word reading. The levels specification still changes both the adjustment and the repeated-measures model, so no single ratio describes the family.
 
-The `itt` estimate remains the planned headline for the randomised question because it uses the randomised window and adjusts for each child's own baseline. The levels model omits that precision term, while `gain_factors` fits one shared treatment coefficient across stacked pre- and post-crossover periods before standardising its marginal to period 1. The honest summary is that broad standardised vocabulary showed no well-resolved benefit, with a weak negative lean in two specifications that is not strong enough to establish harm. That sensitivity warrants follow-up rather than being filed either as a null or as an adverse effect.
+**Power scaling no longer flags the treatment term.** In August two fits in this family were classified prior-dominant and needed a treatment-prior sweep before they could publish. All eleven now publish without one: `d_grp_time[t2]` is likelihood-dominated in nine of the eleven, and the "strong prior / weak likelihood" flag has moved to `arm_gap_t1` in eight of them, where it bears on the baseline-balance quantity rather than on the effect. The two exceptions on the focal term are the floor-rule outcomes P and N, and the gate classifies neither as prior-dominant.
+
+The `itt` estimate remains the planned headline for the randomised question because it uses the randomised window and adjusts for each child's own baseline. This family is now a corroborating view of the same contrast rather than a discrepant one.
 
 ## What these models cannot tell you
 

@@ -5,6 +5,8 @@
 
 # Findings: the `mediation` and `mediation_multi` families — how the reading gain happened
 
+**Refreshed from the 2026-08-20 full refit** (`notes/202608200800-full-refit-both-layers-2026-08.md`). The g-formula fits carry the hearing adjuster, so every decomposition below moved slightly; the direction and the reading are unchanged.
+
 **Read `findings-00-overview` first.** This note covers 15 `mediation` models and 4 `mediation_multi` models, which ask _through what route_ the intervention improved word reading.
 
 ## The data
@@ -40,11 +42,11 @@ The honest reading is therefore: these are **model-based g-formula decomposition
 
 | Quantity                        | Estimate (words) | 89% range          | P(>0)     |
 | ------------------------------- | ---------------- | ------------------ | --------- |
-| Total                           | +1.95            | −0.21 to +4.07     | 0.926     |
-| **Indirect, via letter sounds** | **+1.70**        | **+0.58 to +3.24** | **0.996** |
-| Direct                          | +0.15            | −1.72 to +2.08     | 0.549     |
+| Total                           | +2.06            | −0.18 to +4.23     | 0.931     |
+| **Indirect, via letter sounds** | **+1.79**        | **+0.66 to +3.37** | **0.997** |
+| Direct                          | +0.17            | −1.80 to +2.15     | 0.555     |
 
-**Within this fitted decomposition, almost the entire word-reading gain is allocated to letter-sound knowledge.** The model-based indirect component has very strong directional evidence; the direct component is poorly determined — a point estimate of +0.15 words with P(>0) = 0.55. The proportion mediated is about 0.83, conditional on the assumptions above.
+**Within this fitted decomposition, almost the entire word-reading gain is allocated to letter-sound knowledge.** The model-based indirect component has very strong directional evidence; the direct component is poorly determined — a point estimate of +0.17 words with P(>0) = 0.56. The proportion mediated is about 0.83, conditional on the assumptions above.
 
 Note the pattern: the _total_ effect here is less certain than the _indirect_ component. That is not a contradiction: the quantities are different functions of correlated posterior draws and need not have intervals of the same width. It is not evidence that the indirect component is better identified causally.
 
@@ -54,8 +56,8 @@ The two-mediator fits compare how the fitted decomposition is allocated between 
 
 | Model     | Rival mediator        | Via letter sounds                   | Via the rival                  |
 | --------- | --------------------- | ----------------------------------- | ------------------------------ |
-| `med-064` | Expressive vocabulary | **+1.87** [+0.61, +3.64], P = 0.996 | +0.03 [−0.47, +0.74], P = 0.58 |
-| `med-066` | Phoneme blending      | **+1.62** [+0.52, +3.18], P = 0.995 | −0.03 [−0.64, +0.42], P = 0.42 |
+| `med-064` | Expressive vocabulary | **+2.01** [+0.70, +3.85], P = 0.997 | +0.03 [−0.50, +0.76], P = 0.57 |
+| `med-066` | Phoneme blending      | **+1.77** [+0.60, +3.41], P = 0.996 | −0.06 [−0.68, +0.32], P = 0.36 |
 
 In both fitted decompositions, almost all of the indirect component is allocated to letter-sound knowledge. The rival-mediator posteriors are centred near zero but remain imprecise. The blending result is worth dwelling on, because blending _did_ improve under the intervention — but improving alongside the outcome is not the same as being the route to it.
 
@@ -75,13 +77,13 @@ The point estimate through grammar is small, but this is **not evidence of equiv
 
 ### Sensitivity checks
 
-`med-062` uses a broader composite code-based route: indirect +0.93 [+0.08, +2.16], direct +0.60 — same direction, less concentrated.
+`med-062` uses a broader composite code-based route: indirect +0.86 [+0.01, +2.14], direct +0.84 — same direction, less concentrated.
 
-The named dose-confounding calibration is more consequential. At its point calibration, session-related confounding maps to an NIE of +1.54 words [+0.48, +3.01], close to the primary +1.70. The broad endpoint scenario — an envelope of separate 89% slope endpoints, not a joint credible interval — reaches the tipping point at which the fitted NIE's 89% interval first includes zero (its median is still slightly positive there); that tipping point is only 52.5% of the fitted mediator–outcome slope. The stored verdict is therefore that intervention-session confounding **could plausibly account for the estimated NIE**, not that the decomposition is robust.
+The named dose-confounding calibration is more consequential. At its point calibration, session-related confounding maps to an NIE of +1.63 words [+0.56, +3.14], close to the primary +1.79. The broad endpoint scenario — an envelope of separate 89% slope endpoints, not a joint credible interval — reaches the tipping point at which the fitted NIE's 89% interval first includes zero (its median is still slightly positive there); that tipping point is only 52.5% of the fitted mediator–outcome slope. The stored verdict is therefore that intervention-session confounding **could plausibly account for the estimated NIE**, not that the decomposition is robust.
 
-A temporal-ordering sensitivity uses letter sounds at timepoint 2 and word reading at timepoint 3. It preserves a positive model-based indirect component (+2.97 [+1.21, +5.18]) but changes the total (+1.68 [−1.43, +4.69]) and direct (−1.41 [−3.83, +1.07]) components materially. Because timepoint 3 is post-crossover, this is a temporal check rather than an identified randomised mediation estimand.
+A temporal-ordering sensitivity uses letter sounds at timepoint 2 and word reading at timepoint 3. It preserves a positive model-based indirect component (+3.14 [+1.31, +5.38]) but changes the total (+1.78 [−1.45, +4.87]) and direct (−1.46 [−4.01, +1.13]) components materially. Because timepoint 3 is post-crossover, this is a temporal check rather than an identified randomised mediation estimand.
 
-`med-092` stacks all periods rather than the randomised window alone: total +3.03, indirect +0.75 [+0.29, +1.39], direct +2.24 [+0.28, +4.03], proportion mediated 0.26. **This is the one that disagrees**, putting most of the effect in the direct path. It is also the model whose later periods are post-crossover and therefore not randomised, so its total is not the same estimand. It is reported for completeness; if the fitted decompositions are described, the randomised-window versions are the closer match to the treatment-effect window, but they retain all the mediation-identification failures above.
+`med-092` stacks all periods rather than the randomised window alone: total +3.10, indirect +0.75 [+0.28, +1.39], direct +2.32 [+0.33, +4.18], proportion mediated 0.25. **This is the one that disagrees**, putting most of the effect in the direct path. It is also the model whose later periods are post-crossover and therefore not randomised, so its total is not the same estimand. It is reported for completeness; if the fitted decompositions are described, the randomised-window versions are the closer match to the treatment-effect window, but they retain all the mediation-identification failures above.
 
 ## What these models cannot tell you
 

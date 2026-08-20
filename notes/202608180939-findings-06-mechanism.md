@@ -7,6 +7,8 @@
 
 # Findings: the `mechanism` family — which skills track which
 
+**Refreshed from the 2026-08-20 full refit** (`notes/202608200800-full-refit-both-layers-2026-08.md`). Every fit in this family carries the hearing adjuster, so the slopes below moved in the third decimal; no conclusion changes.
+
 **Read `findings-00-overview` first.** This note covers the 41 models in the `mechanism` family, the largest in the project. **Nothing in this family is causal.** Every number is an adjusted association.
 
 ## The data
@@ -33,12 +35,12 @@ On a common scale (log-odds per standard deviation of the exposure), here is wha
 
 | Route                                     | Role               | Slope     | 89% range        | P(>0)  |
 | ----------------------------------------- | ------------------ | --------- | ---------------- | ------ |
-| Letter sounds → **nonword reading**       | positive control   | **1.030** | +0.739 to +1.336 | 1.000  |
-| Letter sounds → **basic concepts**        | _negative control_ | **0.291** | +0.163 to +0.423 | 0.9998 |
-| Letter sounds → **word reading**          | positive control   | 0.251     | +0.153 to +0.346 | 1.000  |
-| Letter sounds → **grammar**               | _negative control_ | 0.124     | +0.045 to +0.203 | 0.993  |
-| Letter sounds → **receptive vocabulary**  | _negative control_ | 0.109     | +0.061 to +0.157 | 0.9999 |
-| Letter sounds → **expressive vocabulary** | _negative control_ | 0.103     | +0.056 to +0.151 | 0.9997 |
+| Letter sounds → **nonword reading**       | positive control   | **1.029** | +0.740 to +1.337 | 1.000  |
+| Letter sounds → **basic concepts**        | _negative control_ | **0.290** | +0.162 to +0.421 | 0.9998 |
+| Letter sounds → **word reading**          | positive control   | 0.248     | +0.151 to +0.345 | 0.9999 |
+| Letter sounds → **grammar**               | _negative control_ | 0.123     | +0.041 to +0.203 | 0.992  |
+| Letter sounds → **receptive vocabulary**  | _negative control_ | 0.109     | +0.061 to +0.157 | 0.9997 |
+| Letter sounds → **expressive vocabulary** | _negative control_ | 0.103     | +0.055 to +0.151 | 0.9997 |
 
 **The negative controls are not zero.** All four are clearly positive, so letter-sound knowledge carries a broad association that reaches outcomes the diagram gives it no causal path to. Something shared runs through every skill here, and the models cannot say what.
 
@@ -58,16 +60,16 @@ The panel above says a shared cause is doing some of the work but cannot name it
 
 | Route                      | Role               | Without ability | With ability adjusted | Change |
 | -------------------------- | ------------------ | --------------- | --------------------- | ------ |
-| Letter sounds → nonwords   | positive control   | 1.030           | **1.027**             | −0.3%  |
-| Letter sounds → word read. | positive control   | 0.251           | **0.246**             | −2.0%  |
-| Letter sounds → concepts   | _negative control_ | 0.291           | 0.249                 | −14.4% |
-| Letter sounds → grammar    | _negative control_ | 0.124           | 0.072                 | −41.6% |
-| Letter sounds → rec. vocab | _negative control_ | 0.109           | 0.092                 | −15.3% |
-| Letter sounds → exp. vocab | _negative control_ | 0.103           | 0.103                 | −0.6%  |
+| Letter sounds → nonwords   | positive control   | 1.029           | **1.028**             | −0.2%  |
+| Letter sounds → word read. | positive control   | 0.248           | **0.244**             | −1.6%  |
+| Letter sounds → concepts   | _negative control_ | 0.290           | 0.249                 | −14.1% |
+| Letter sounds → grammar    | _negative control_ | 0.123           | 0.072                 | −41.6% |
+| Letter sounds → rec. vocab | _negative control_ | 0.109           | 0.093                 | −14.8% |
+| Letter sounds → exp. vocab | _negative control_ | 0.103           | 0.103                 | +0.1%  |
 
 Three things come out of this, and they do not all point the same way.
 
-**The written-code slopes are untouched.** Nonword reading moves by 0.3% and word reading by 2%, both well inside their own uncertainty. The decoding contrast is unchanged: +0.78 [+0.48, +1.10] before, +0.78 [+0.47, +1.11] after. Whatever the letter-sound-to-decoding excess is, it is not measured general ability.
+**The written-code slopes are untouched.** Nonword reading moves by 0.2% and word reading by 1.6%, both well inside their own uncertainty. The decoding contrast is unchanged: +0.78 [+0.48, +1.10] before, +0.78 [+0.47, +1.11] after. Whatever the letter-sound-to-decoding excess is, it is not measured general ability.
 
 **Measured ability really does predict the oral-language outcomes** — its own coefficient is clearly positive for all four (basic concepts +0.23, grammar +0.19, receptive vocabulary +0.10, expressive vocabulary +0.08, every one with a probability of at least 0.995) — and clearly _not_ for the written-code outcomes (nonwords +0.03, P = 0.57; word reading +0.04, P = 0.77). So the adjustment is doing real work exactly where the panel predicted a general-ability path would run.
 

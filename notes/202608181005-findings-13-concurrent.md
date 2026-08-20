@@ -31,12 +31,12 @@ The strongest relationships in the trial cohort, at the wave where each was clea
 
 | Outcome                    | Strongest same-wave correlate | Association per +1 SD    |
 | -------------------------- | ----------------------------- | ------------------------ |
-| Word reading (t2)          | Letter sounds                 | +9.0 items [+6.3, +11.6] |
-| Letter sounds (t2)         | Word reading                  | +4.2 items [+3.2, +5.1]  |
-| Expressive vocabulary (t3) | Taught expressive vocabulary  | +6.4 items [+2.5, +10.3] |
-| Receptive vocabulary (t3)  | Word reading                  | +6.2 items [+2.3, +10.2] |
-| Receptive grammar (t3)     | Taught receptive vocabulary   | +2.0 items [+0.9, +3.1]  |
-| Basic concepts (t1)        | Taught receptive vocabulary   | +1.6 items [+0.7, +2.4]  |
+| Word reading (t2)          | Letter sounds                 | +9.0 items [+6.3, +11.8] |
+| Letter sounds (t2)         | Word reading                  | +4.2 items [+3.3, +5.1]  |
+| Expressive vocabulary (t3) | Taught expressive vocabulary  | +6.5 items [+2.6, +10.5] |
+| Receptive vocabulary (t3)  | Word reading                  | +5.8 items [+1.9, +9.9]  |
+| Receptive grammar (t3)     | Taught receptive vocabulary   | +2.0 items [+0.8, +3.1]  |
+| Basic concepts (t1)        | Taught receptive vocabulary   | +1.5 items [+0.7, +2.3]  |
 | Phoneme blending (t4)      | Word reading                  | +0.8 items [+0.3, +1.2]  |
 
 **Letter sounds and word reading are each other's strongest correlate**, which is the clearest illustration of why these cannot be read directionally. The same relationship appears from both ends.

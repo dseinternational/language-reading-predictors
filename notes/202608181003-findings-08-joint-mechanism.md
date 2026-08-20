@@ -28,8 +28,8 @@ The two models also differ in machinery. `jm-001` uses a Binomial likelihood wit
 
 | Model    | Design                      | Δ = slope(→nonword) − slope(→word) | 89% range      | Reading                                      |
 | -------- | --------------------------- | ---------------------------------- | -------------- | -------------------------------------------- |
-| `jm-002` | transition (post given pre) | **+0.81**                          | +0.50 to +1.13 | letter sounds track **nonword** reading more |
-| `jm-001` | levels (cross-sectional)    | **−0.49**                          | −0.98 to +0.02 | letter sounds track **word** reading more    |
+| `jm-002` | transition (post given pre) | **+0.81**                          | +0.50 to +1.14 | letter sounds track **nonword** reading more |
+| `jm-001` | levels (cross-sectional)    | **−0.48**                          | −0.98 to +0.03 | letter sounds track **word** reading more    |
 
 **These point in opposite directions, and that should not be smoothed over.** Both are well-converged fits of the same children.
 
@@ -39,7 +39,7 @@ Three considerations explain the disagreement and why the baseline-conditional t
 
 **The factorised numerical cross-check agrees with `jm-002`.** Computing the same contrast from two separate single-outcome mechanism fits gives **+0.78** (89% +0.475 to +1.099), close to `jm-002`'s +0.81. The comparison table correctly marks that product-of-marginals calculation as _not_ an identified posterior contrast and `jm-002` as identified within its joint posterior. The agreement is reassuring only as a numerical cross-check: the fits use the same data and closely related likelihood, prior and adjustment assumptions, so they are not independent evidence.
 
-**`jm-001`'s interval includes zero narrowly** (upper limit +0.02) and its estimate varies across waves from −0.49 to +0.06, so it is not a stable finding even on its own terms.
+**`jm-001`'s interval includes zero narrowly** (upper limit +0.03) and its estimate varies across waves from −0.48 at timepoint 1 through −0.15 and −0.26 to +0.06 at timepoint 4, so it is not a stable finding even on its own terms.
 
 The defensible conclusion: **within the baseline-conditional transition model, letter-sound knowledge is more tightly associated with nonword decoding than with word reading.** That is compatible with a decoding-specific channel, but it does not identify one: residual confounding, differing measurement properties and the severe nonword-reading floor remain alternative explanations for the contrast.
 
