@@ -67,7 +67,7 @@ header = (
 )
 lines = []
 for wave in design["waves"]:
-    age = wave["age_months_immediate"]
+    age = wave["age_months_all"]
     lines.append(
         f"| **{wave['timepoint']}** | {age / 12:.1f} years | "
         f"{wave['cumulative_sessions_immediate']:.0f} sessions | "
@@ -515,21 +515,33 @@ A subtle point with real consequences for teaching. When a study reports that "c
 
 ```{python}
 #| echo: false
-pooled = RESULTS.get("pooled_levels") or []
+# pl-101 repeats pl-001 without wave intercepts as a technical comparator; it
+# belongs on its model page, not in a table a teacher reads.
+pooled = [
+    e
+    for e in (RESULTS.get("pooled_levels") or [])
+    if e.get("between") and e.get("within") and not e["model_id"].endswith("-101")
+]
 if pooled:
-    header = "| Model | Predictor | Comparing children | Within the same child |\n| --- | --- | ---: | ---: |\n"
+    header = (
+        "| Predictor | Outcome | Comparing one child with another | Within the same child |\n"
+        "| --- | --- | ---: | ---: |\n"
+    )
     lines = []
     for entry in pooled:
-        between = entry.get("between") or {}
-        within = entry.get("within") or {}
-        if not between and not within:
-            continue
+        between, within = entry["between"], entry["within"]
         lines.append(
-            f"| `{entry['model_id'].replace('lrp-rli-', '')}` | {entry.get('predictor_label', entry.get('mechanism_symbol'))} | "
-            f"{n(between.get('median'))} [{n(between.get('lo'))}, {n(between.get('hi'))}] | "
-            f"{n(within.get('median'))} [{n(within.get('lo'))}, {n(within.get('hi'))}] |"
+            f"| {entry['predictor_label']} | {label(entry['outcome_symbol'])} | "
+            f"{n(between['median'], 2)} [{n(between['lo'], 2)}, {n(between['hi'], 2)}] | "
+            f"{n(within['median'], 2)} [{n(within['lo'], 2)}, {n(within['hi'], 2)}] |"
         )
-    md(header + "\n".join(lines) if lines else "*Between/within results pending.*")
+    md(
+        header
+        + "\n".join(lines)
+        + "\n\n: Each figure is the change in the outcome's log-odds per standard deviation "
+        "of the predictor. The two columns come from the same model, which separates them "
+        "deliberately. {tbl-colwidths=\"[30,22,24,24]\"}"
+    )
 else:
     md("*Between/within results pending.*")
 ```
@@ -539,7 +551,27 @@ else:
 figure("pooled_levels_between_within", "The same association estimated two ways for each predictor: comparing one child with another, and following one child from one assessment to the next. Positive means more of the predictor goes with more reading.")
 ```
 
-These models separate the two deliberately, and the separation is the point: the between-child part and the within-child part are not the same number, so a single coefficient that blends them — which is what a naive analysis of repeated measures reports — is not a quantity anyone can interpret.
+```{python}
+#| echo: false
+if pooled:
+    ratios = sorted(pooled, key=lambda e: (e["within"]["median"] / e["between"]["median"]) if e["between"]["median"] else 0)
+    weakest, strongest = ratios[0], ratios[-1]
+    md(f"""
+The gap between the two columns is the point. For {weakest['predictor_label'].lower()} the
+between-child association ({n(weakest['between']['median'], 2)}) is more than an order of
+magnitude larger than the within-child one ({n(weakest['within']['median'], 2)}): children with
+more of it read far more words than children with less, while a child who is above their own
+average on it at one assessment is barely above their own average on reading at that same
+assessment. A single coefficient that blends the two — which is what an
+ordinary analysis of repeated measures reports — is not a quantity anyone can interpret.
+
+{strongest['predictor_label']} is the interesting exception: its within-child association
+({n(strongest['within']['median'], 2)}) is the largest of the set and closest to its own
+between-child value ({n(strongest['between']['median'], 2)}). That is the pattern you would
+expect from something that moves with a child rather than merely separating one child from
+another — which makes it worth studying properly, and still does not make it a lever.
+""")
+```
 
 # Hearing and speech {#sec-hearing-speech}
 

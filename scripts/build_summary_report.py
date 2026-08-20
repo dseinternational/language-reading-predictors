@@ -746,7 +746,10 @@ def build_design(art: Artefacts) -> dict[str, Any]:
     waves: list[dict[str, Any]] = []
     for time in sorted(frame["time"].unique()):
         wave = frame[frame["time"] == time]
-        entry: dict[str, Any] = {"timepoint": f"t{int(time)}"}
+        entry: dict[str, Any] = {
+            "timepoint": f"t{int(time)}",
+            "age_months_all": _f(wave["age"].mean()),
+        }
         for code, name in arms.items():
             arm = wave[wave["group"] == code]
             entry[f"n_{name}"] = int(arm["subject_id"].nunique())
