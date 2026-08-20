@@ -337,9 +337,13 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     elif not period_varying:
         # Pooled-dose companions (#381). The period-varying ones route through
         # ``write_dose_slope_summary`` below, which emits the same check from the
-        # shared writer; these do not reach it, so they emit it here.
+        # shared writer; these do not reach it, so they emit it here. The
+        # treated-row mask matches the writer's DiD averaging population: the
+        # dose is treated-centred with untreated rows hard-coded to zero, so
+        # the intensive-margin estimand averages over treated rows only.
         from language_reading_predictors.statistical_models.measures import MEASURES
 
+        _dose_payload = built.require_payload(DidDosePayload, family="did dose")
         write_prior_pushforward(
             ctx,
             marginal_pushforward_rows(
@@ -353,6 +357,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 ],
                 n_trials=1 if off_floor else MEASURES[sym].n_trials,
                 convention="forward",
+                row_mask=np.asarray(_dose_payload.treated) == 1,
             ),
         )
 
@@ -446,7 +451,22 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # answered by the nested PSIS-LOO vs the pooled comparator (lrp-rli-did-107)
         # in compare_statistical_models.py, not by this single-fit table.
         section_header("Period-resolved dose-slope summary")
-        write_dose_slope_summary(ctx, period_varying=True)
+        # The DiD dose factory standardises sessions among treated P1/P2 rows
+        # only, so the persisted per-session calibration must come from the
+        # fitted payload's scaler — not the loader's all-rows scaler, whose SD
+        # (diluted by the untreated zero-session cell and the P3 rows) would
+        # misstate the slope's scale and contradict config.json's
+        # ``dose_standardization`` record. The natural-scale marginal (and its
+        # prior pushforward) averages over the treated rows for the same reason:
+        # a +1 SD dose step on an untreated waitlist-P1 row is not a supported
+        # counterfactual of the treated-centred intensive-margin design.
+        _dose_payload = built.require_payload(DidDosePayload, family="did dose")
+        write_dose_slope_summary(
+            ctx,
+            period_varying=True,
+            dose_scaler=_dose_payload.dose_scaler,
+            marginal_row_mask=np.asarray(_dose_payload.treated) == 1,
+        )
     het = None
     if plan.use_varying_delta:
         section_header("Exploratory waitlist catch-up heterogeneity")

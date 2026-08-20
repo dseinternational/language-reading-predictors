@@ -140,8 +140,9 @@ def _items_translation(
     Arm-by-wave fits use ``did_summary``'s wave-standardised t2 arm gap — the
     exact quantity the primary's report and key findings carry. Dose fits use
     ``_write_dose_slope_summary``'s natural-scale marginal: raise the
-    standardised session dose by 1 on every fitted row with that row's
-    period-specific slope.
+    standardised session dose by 1 on every **treated** fitted row with that
+    row's period-specific slope (untreated rows are excluded — the dose is
+    treated-centred, so a dose step there is not a supported counterfactual).
     """
     from language_reading_predictors.statistical_models.reporting import did_summary
 
@@ -174,6 +175,15 @@ def _items_translation(
     else:
         slope = posterior["beta_dose"].stack(sample=("chain", "draw")).values
         delta_eta = np.broadcast_to(slope[None, :], eta.shape)
+    # Match write_dose_slope_summary's DiD averaging population: the dose is
+    # treated-centred with untreated rows hard-coded to zero, so the
+    # intensive-margin marginal averages over treated rows only.
+    treated = np.asarray(
+        built.require_payload(DidDosePayload, family="did sensitivity").treated
+    )
+    keep = treated == 1
+    eta = eta[keep]
+    delta_eta = delta_eta[keep]
     items = (expit(eta + delta_eta) - expit(eta)).mean(axis=0) * float(n_trials)
     return (
         float(np.mean(items)),

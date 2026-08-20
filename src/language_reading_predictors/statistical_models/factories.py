@@ -2082,6 +2082,11 @@ def build_did_model(
     the legacy restriction that forced those distinct quantities to equal one
     common-current-treatment coefficient.  The t2 period-start outcome is never
     conditioned on because it is treatment-affected in the immediate arm.
+    ``tau_t2`` is the t2 arm-gap *level*, not the differenced ``tau_t2 -
+    arm_gap_t1``: with free per-wave gaps, the shared child random intercept and
+    the tight ``arm_gap_t1`` prior give a partial, prior-weighted baseline
+    adjustment rather than exact differencing (the level-factor family's
+    t1-referenced ``d_grp_time[t2]``, #552, is the gap-change estimand).
 
     Dose variants retain P1/P2 transition rows because sessions are interval
     exposures.  They retain an explicit treatment-presence term, adjust for

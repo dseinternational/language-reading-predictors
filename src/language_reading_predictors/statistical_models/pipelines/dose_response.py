@@ -34,6 +34,7 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    Standardiser,
     load_and_prepare,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
@@ -157,8 +158,31 @@ def write_dose_slope_summary(
     *,
     period_varying: bool,
     dose_covariate: str = "attend",
+    dose_scaler: Standardiser | None = None,
+    marginal_row_mask: np.ndarray | None = None,
 ) -> None:
-    """Posterior dose slope (overall + per-period) on the per-1-SD logit scale."""
+    """Posterior dose slope (overall + per-period) on the per-1-SD logit scale.
+
+    ``dose_scaler`` is the standardisation the fitted slope is per-1-SD *of*,
+    persisted as ``dose_mean_sessions`` / ``dose_sd_sessions``. The default
+    (``None``) reads the loader scaler ``ctx.prepared.covariate_scalers[dose_covariate]``,
+    which is correct for the dose_response family — its factory fits the
+    loader-standardised dose directly. The DiD dose companions must pass their
+    fitted payload's treated-rows scaler instead: ``build_did_model``
+    re-standardises sessions among treated P1/P2 rows only, so the loader scaler
+    would misstate their per-session calibration (and contradict the
+    ``dose_standardization`` block the same fit records in ``config.json``).
+
+    ``marginal_row_mask`` restricts the natural-scale ``dose_marginal_summary``
+    average (and the matching prior pushforward) to a boolean subset of the
+    fitted rows. The default (``None``, all rows) is the dose_response family's
+    definition — its zero-dose rows anchor the slope at dose = 0 on one common
+    standardised scale, so a +1 SD step is meaningful on every row. The DiD dose
+    companions must pass their treated-row mask: their dose is treated-centred
+    with untreated rows hard-coded to zero, so a dose step on an untreated row
+    is not a supported counterfactual of that design and the coherent averaging
+    population for the intensive-margin estimand is the treated rows.
+    """
     post = ctx.trace.posterior
     ci_prob = ctx.reporting.ci_prob
     rows: list[dict[str, object]] = []
@@ -183,11 +207,13 @@ def write_dose_slope_summary(
         rows.append({"term": "dose_pooled", **_summarise_draws(_draws("beta_dose"), ci_prob)})
 
     df = pd.DataFrame(rows)
-    dose_scaler = ctx.prepared.covariate_scalers[dose_covariate]
-    # Persist the original standardisation so downstream named-confounder
-    # calibration can put slopes from separately fitted outcomes onto one common
-    # per-session scale.  Older artefacts are reconstructible from the data, but
-    # new fits should be self-describing (#324).
+    if dose_scaler is None:
+        dose_scaler = ctx.prepared.covariate_scalers[dose_covariate]
+    # Persist the standardisation the slope is per-1-SD of, so downstream
+    # named-confounder calibration can put slopes from separately fitted
+    # outcomes onto one common per-session scale.  Older artefacts are
+    # reconstructible from the data, but new fits should be self-describing
+    # (#324).
     df["dose_mean_sessions"] = float(dose_scaler.mean)
     df["dose_sd_sessions"] = float(dose_scaler.sd)
     save_table(ctx, "dose_slope_summary", df)
@@ -213,6 +239,17 @@ def write_dose_slope_summary(
     else:
         slope = post["beta_dose"].stack(sample=("chain", "draw")).values
         delta_eta = np.broadcast_to(slope[None, :], eta.shape)
+    if marginal_row_mask is not None:
+        keep = np.asarray(marginal_row_mask)
+        if keep.ndim != 1 or keep.dtype != bool or keep.shape[0] != eta.shape[0]:
+            raise ValueError(
+                f"marginal_row_mask must be a 1-D boolean mask with "
+                f"{eta.shape[0]} entries; got dtype {keep.dtype}, shape {keep.shape}."
+            )
+        if not keep.any():
+            raise ValueError("marginal_row_mask selects no rows for the dose marginal.")
+        eta = eta[keep]
+        delta_eta = delta_eta[keep]
     outcome = ctx.spec.outcome_symbol or "W"
     items = (
         expit(eta + delta_eta) - expit(eta)
@@ -227,6 +264,15 @@ def write_dose_slope_summary(
                 "items_lo50": float(np.quantile(items, 0.25)),
                 "items_hi50": float(np.quantile(items, 0.75)),
                 "prob_pos": float(np.mean(items > 0)),
+                # Self-describing averaging population (see marginal_row_mask
+                # in the docstring): the DiD dose companions average over
+                # treated rows only; the dose_response family over all rows.
+                "n_rows": int(eta.shape[0]),
+                "row_population": (
+                    "all fitted rows"
+                    if marginal_row_mask is None
+                    else "masked rows (DiD dose: treated rows only)"
+                ),
             }
         ]
     )
@@ -248,7 +294,8 @@ def write_dose_slope_summary(
     # slope reporting through this writer. ``mu_dose`` is the period-varying
     # family's overall slope, the same term ``dose_overall`` summarises above;
     # ``forward`` matches the ``expit(eta + delta) - expit(eta)`` marginal
-    # computed a few lines up, so prior and estimate share one transform.
+    # computed a few lines up, and ``marginal_row_mask`` carries through, so
+    # prior and estimate share one transform and one averaging population.
     write_prior_pushforward(
         ctx,
         marginal_pushforward_rows(
@@ -262,5 +309,6 @@ def write_dose_slope_summary(
             ],
             n_trials=int(ctx.prepared.n_trials[outcome]),
             convention="forward",
+            row_mask=marginal_row_mask,
         ),
     )

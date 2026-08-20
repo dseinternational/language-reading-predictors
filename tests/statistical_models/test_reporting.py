@@ -725,6 +725,7 @@ def test_did_summary_arm_wave_reports_standardized_cells_and_contrasts():
         float(np.median((gap_t2 - gap_t3) * n_trials))
     )
     assert out["delta_crossover_items_available"] is True
+    assert out["arm_gap_t3_items_available"] is True
     assert out["tau_t2_items_n_rows"] == 2
     assert out["off_floor"] is False
 
@@ -762,6 +763,19 @@ def test_did_summary_varying_crossover_reports_waitlist_sample_average():
     assert "delta_crossover_items_median" not in out
     assert "child-specific catch-up" in out["delta_crossover_items_omission_reason"]
     assert "not integrated" in out["arm_wave_marginal_effect_source"]
+    # The t3 standardised block is withheld for the same partial-integration
+    # reason: eta_base excludes the fitted v_delta deviations, so a scalar
+    # arm-gap toggle would misstate the fitted waitlist t3 level. The t1/t2
+    # quantities (v_delta-free rows) and the logit-scale t3 gap stay.
+    assert out["arm_gap_t3_items_available"] is False
+    assert "not integrated" in out["arm_gap_t3_items_omission_reason"]
+    assert "arm_gap_t3_items_median" not in out
+    assert "t3_waitlist_items_median" not in out
+    assert "t3_immediate_items_median" not in out
+    assert "arm_gap_t3_items_n_rows" not in out
+    assert "tau_t2_items_median" in out
+    assert "t1_waitlist_items_median" in out
+    assert "arm_gap_t3_median" in out
 
 
 def test_did_summary_arm_wave_requires_aligned_three_wave_codes():
