@@ -4743,6 +4743,12 @@ def _kf_blending_link_evidence(
     )
 
     status = evaluate_local_blending_link_sensitivity(output_dir, config=config)
+    if not status.get("required"):
+        # A B-outcome fit outside the registered 008/108 pair has no bundle to
+        # quote (the evaluator returns no ``summary``); the release gate withholds
+        # such a fit separately (2026-08-20 ITT review), so degrade gracefully
+        # here rather than KeyError on the absent key.
+        return None
     if not status.get("ready"):
         raise _KeyFindingsUnavailable(str(status.get("reason") or "B link sensitivity is not ready"))
     summary = status["summary"].set_index("model_id")

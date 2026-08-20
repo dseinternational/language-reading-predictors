@@ -1302,3 +1302,182 @@ def test_report_fail_closes_t3_table_on_verdict_and_trace():
     assert "_has(_t3_trace)" in source
     assert "_mediation_display(mediation_summary_t3) if _t3_ready else None" in source
     assert "Temporal-ordering sensitivity suppressed" in source
+
+
+# ---------------------------------------------------------------------------
+# Floored-outcome per-class treatment (2026-08-20 ITT review, finding 2:
+# notes/202608201205-itt-code-review-findings.md). The grid gates *whether* a
+# floor-rule fit may speak; the class-specific note/qualification mirrors the
+# graded branch so the floored path cannot say less about prior dependence
+# than the policy promises.
+# ---------------------------------------------------------------------------
+
+
+def _floor_fit_dir(
+    tmp_path: Path, *, prior: float, likelihood: float, diagnosis: str
+) -> Path:
+    d = tmp_path / "lrp-rli-itt-009-reporting"
+    d.mkdir(parents=True)
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": "lrp-rli-itt-009",
+                "kind": "itt",
+                "outcome_symbol": "P",
+                "resolved_run_plan": {"floor_rule": True},
+            }
+        )
+    )
+    pd.DataFrame(
+        [{"prior": prior, "likelihood": likelihood, "diagnosis": diagnosis}],
+        index=["tau"],
+    ).to_csv(d / "psense_summary.csv")
+    return d
+
+
+def _ready_grid(monkeypatch) -> None:
+    monkeypatch.setattr(
+        release_module, "load_primary_floor_reference", lambda *a, **k: object()
+    )
+    monkeypatch.setattr(
+        release_module, "evaluate_floor_sensitivity", lambda *a, **k: {"ready": True}
+    )
+
+
+def test_floored_conflict_release_carries_the_attenuation_note(
+    tmp_path, monkeypatch
+):
+    """A released floored ``prior_data_conflict`` must carry the lower-bound note
+    the module policy promises, exactly as the graded branch does."""
+    d = _floor_fit_dir(
+        tmp_path,
+        prior=0.12,
+        likelihood=0.30,
+        diagnosis="potential prior-data conflict",
+    )
+    _ready_grid(monkeypatch)
+    decision = release_module.evaluate_release(d)
+    assert decision.status == "release"
+    assert decision.tau_class == "prior_data_conflict"
+    assert decision.floor_grid_required is True
+    assert decision.floor_grid_ready is True
+    assert "lower bound" in decision.note
+    assert "attenuates" in decision.reason
+
+
+def test_floored_prior_dominant_qualifies_on_grid_evidence(tmp_path, monkeypatch):
+    """A prior-dominant floored fit with a validated grid is qualified, not
+    released bare — the grid is the estimand-matched analogue of the graded
+    branch's trace-bound sweep, which also yields qualify, never release."""
+    d = _floor_fit_dir(
+        tmp_path,
+        prior=0.40,
+        likelihood=0.01,
+        diagnosis="potential strong prior / weak likelihood",
+    )
+    _ready_grid(monkeypatch)
+    decision = release_module.evaluate_release(d)
+    assert decision.status == "qualify"
+    assert decision.tau_class == "prior_dominant"
+    assert "prior-informed and exploratory" in decision.note
+    assert "floor_tau_prior_sensitivity.csv" in decision.evidence
+
+
+def test_floored_clean_diagnosis_still_releases_bare(tmp_path):
+    """A clean tau diagnosis requires no grid and no note (unchanged path)."""
+    d = _floor_fit_dir(tmp_path, prior=0.01, likelihood=0.30, diagnosis="✓")
+    decision = release_module.evaluate_release(d)
+    assert decision.status == "release"
+    assert decision.tau_class == "clear"
+    assert decision.floor_grid_required is False
+    assert decision.note == ""
+
+
+# ---------------------------------------------------------------------------
+# Mandatory phoneme-blending link pair (2026-08-20 ITT review, finding 1:
+# notes/202608201205-itt-code-review-findings.md). The pairing was enforced
+# only by the key-findings builder and the copied report partial;
+# release_decision.json said publishable for an unpaired B fit.
+# ---------------------------------------------------------------------------
+
+
+def _blending_fit_dir(
+    tmp_path: Path,
+    *,
+    model_id: str = "lrp-rli-itt-008",
+    psense_diagnosis: str = "✓",
+) -> Path:
+    d = tmp_path / f"{model_id}-reporting"
+    d.mkdir(parents=True)
+    (d / "diagnostics_summary.json").write_text(json.dumps(_gate(True)))
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "itt",
+                "outcome_symbol": "B",
+                "resolved_run_plan": {
+                    "link_sensitivity_required_for_release": True,
+                    "score_mean_link": "logit",
+                },
+            }
+        )
+    )
+    pd.DataFrame(
+        [{"prior": 0.01, "likelihood": 0.30, "diagnosis": psense_diagnosis}],
+        index=["tau"],
+    ).to_csv(d / "psense_summary.csv")
+    return d
+
+
+def test_unpaired_blending_fit_is_withheld_by_the_release_decision(
+    tmp_path, monkeypatch
+):
+    from language_reading_predictors.statistical_models import (
+        blending_sensitivity as bs,
+    )
+
+    d = _blending_fit_dir(tmp_path)
+    monkeypatch.setattr(
+        bs,
+        "evaluate_local_blending_link_sensitivity",
+        lambda *a, **k: {
+            "required": True,
+            "ready": False,
+            "reason": "stale for testing",
+        },
+    )
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "robustness_unresolved"
+    assert evaluation.stage == "robustness"
+    assert "phoneme-blending link pair" in evaluation.reason
+    assert "stale for testing" in evaluation.reason
+    assert evaluation.publishable is False
+
+
+def test_paired_blending_fit_passes_the_release_decision(tmp_path, monkeypatch):
+    from language_reading_predictors.statistical_models import (
+        blending_sensitivity as bs,
+    )
+
+    d = _blending_fit_dir(tmp_path)
+    monkeypatch.setattr(
+        bs,
+        "evaluate_local_blending_link_sensitivity",
+        lambda *a, **k: {"required": True, "ready": True, "reason": ""},
+    )
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert evaluation.publishable is True
+
+
+def test_declared_link_sensitivity_outside_the_registered_pair_fails_closed(
+    tmp_path,
+):
+    """A future B-outcome ITT fit outside 008/108 declares the pairing in its
+    plan but has no registered bundle; it must withhold, not release unpaired."""
+    d = _blending_fit_dir(tmp_path, model_id="lrp-rli-itt-998")
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "robustness_unresolved"
+    assert evaluation.stage == "robustness"
+    assert "no registered blending-link bundle" in evaluation.reason

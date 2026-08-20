@@ -861,3 +861,73 @@ def test_apt_measures_are_within_their_confirmed_ceilings():
         measure = MEASURES[symbol]
         assert measure.n_trials == expected
         assert measure.n_trials_confirmed
+
+
+def test_subset_helpers_slice_every_per_row_field_together(tmp_path):
+    """Both subset helpers must slice every row-aligned field with the mask.
+
+    ``preprocessing._subset_prepared`` (the floor-rule restriction path) left
+    ``pre_counts`` full-length while every other array was subset — a latent
+    misalignment found in the 2026-08-20 ITT code review (finding 4,
+    ``notes/202608201205-itt-code-review-findings.md``). This test is
+    structural: it discovers the per-row fields of :class:`PreparedData` from
+    the loaded object itself, so a future field added to the dataclass but
+    missed by either helper fails here rather than silently misaligning.
+    """
+    import dataclasses
+
+    from language_reading_predictors.statistical_models.factories import _subset
+    from language_reading_predictors.statistical_models.preprocessing import (
+        _subset_prepared,
+    )
+
+    df = _make_synthetic_long(n_children=20, seed=7)
+    p = tmp_path / "rli.csv"
+    df.to_csv(p, index=False)
+    prep = load_and_prepare(
+        path=p, phase_mode="itt", covariates=(V.MUMEDUPOST16,)
+    )
+    assert prep.pre_counts, "fixture must exercise the pre_counts field"
+    mask = np.zeros(prep.n_obs, dtype=bool)
+    mask[::2] = True
+
+    per_row: dict[str, dict[str | None, np.ndarray]] = {}
+    for f in dataclasses.fields(prep):
+        value = getattr(prep, f.name)
+        if isinstance(value, np.ndarray) and value.shape[:1] == (prep.n_obs,):
+            per_row[f.name] = {None: value}
+        elif isinstance(value, dict):
+            arrays = {
+                key: v
+                for key, v in value.items()
+                if isinstance(v, np.ndarray) and v.shape[:1] == (prep.n_obs,)
+            }
+            if arrays:
+                per_row[f.name] = arrays
+    assert {
+        "subject_ids",
+        "G",
+        "pre_logit",
+        "pre_counts",
+        "post_counts",
+        "covariates",
+    } <= set(per_row)
+
+    for label, subset in (
+        ("preprocessing._subset_prepared", _subset_prepared(prep, mask)),
+        ("factories._subset", _subset(prep, mask)),
+    ):
+        assert subset.n_obs == int(mask.sum())
+        for field_name, arrays in per_row.items():
+            for key, parent in arrays.items():
+                child = getattr(subset, field_name)
+                if key is not None:
+                    child = child[key]
+                assert child.shape[:1] == (subset.n_obs,), (
+                    f"{label}: {field_name}"
+                    f"{'' if key is None else f'[{key}]'} was not sliced with "
+                    "the row mask"
+                )
+                if field_name == "child_idx":
+                    continue  # re-derived densely on the kept subjects
+                np.testing.assert_array_equal(child, parent[mask])

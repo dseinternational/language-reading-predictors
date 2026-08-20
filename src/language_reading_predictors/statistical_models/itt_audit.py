@@ -99,10 +99,15 @@ def randomised_postscore_bounds(
     """Worst-case full-randomised bounds for the marginal t2 score contrast.
 
     Scores are normalised to the proportion-correct scale ``[0, 1]``.  For each
-    randomised participant without an observed fitted post-score, the lower scenario
-    assigns 0 and the upper scenario assigns 1.  The resulting intervention-minus-
-    control interval is a transparent attrition benchmark, not the covariate-adjusted
-    Bayesian estimand and not a missing-at-random analysis.
+    randomised participant without an observed post-score *in the supplied frame*,
+    the lower scenario assigns 0 and the upper scenario assigns 1.  The production
+    caller (``itt.write_itt_analysis_audit``) deliberately passes a fresh minimal
+    load (``pre_required=()``, no covariate restriction), so the published bounds
+    are trial-wide outcome-missingness bounds — pass a covariate-restricted frame
+    and "missing" would silently include covariate-excluded children with observed
+    outcomes (docstring aligned in the 2026-08-20 ITT code review). The resulting
+    intervention-minus-control interval is a transparent attrition benchmark, not
+    the covariate-adjusted Bayesian estimand and not a missing-at-random analysis.
     """
 
     if outcome_symbol not in prepared.post_counts:
