@@ -1896,6 +1896,131 @@ def test_association_marginals_row_mask_restricts_averaging_population():
         )
 
 
+def _assoc_toggle_ref(eta, coef, x, *, interactions=()):
+    """Reference net-out-and-toggle AME for a binary 0/1 indicator, by explicit loop.
+
+    ``eta`` (chain, draw, obs) is the OBSERVED linear predictor (contains the
+    indicator's fitted contribution); ``x`` (obs,) the observed indicator. Per draw
+    and row: Δη_i = coef + Σ γ_int·z_partner_i, η0_i = η_i − x_i·Δη_i, contrast
+    expit(η0_i + Δη_i) − expit(η0_i)."""
+    n_draw, n_obs = eta.shape[1], eta.shape[2]
+    per_draw = []
+    for d in range(n_draw):
+        diffs = []
+        for i in range(n_obs):
+            de = coef[0, d]
+            for gi, zp in interactions:
+                de += gi[0, d] * zp[i]
+            eta0 = eta[0, d, i] - x[i] * de
+            diffs.append(expit(eta0 + de) - expit(eta0))
+        per_draw.append(np.mean(diffs))
+    return np.array(per_draw)
+
+
+def test_association_marginals_binary_toggle_nets_out_the_observed_indicator():
+    # Gain-factors code review 2026-08-20, finding 2: the off-floor own row is
+    # documented as the at-floor -> off-floor SWITCH, so a term carrying its
+    # observed 0/1 vector must use the net-out-and-toggle idiom — and must differ
+    # from the forward shift whenever some rows are already at 1 (there the forward
+    # shift evaluates an out-of-support 1 -> 2 move on the flattened expit curve).
+    rng = np.random.default_rng(29)
+    n_obs = 12
+    x = (rng.random(n_obs) > 0.6).astype(float)  # some rows already off-floor at pre
+    assert x.sum() > 0
+    gamma = rng.normal(2.0, 0.3, (1, 300))  # strongly prognostic indicator
+    eta_base = rng.normal(-1.0, 0.8, (1, 300, n_obs))
+    eta = eta_base + gamma[..., None] * x[None, None, :]  # observed eta contains γ·x
+    trace = _trace_named_vec(eta, scalars={"gamma_own_offfloor": gamma})
+
+    term = AssociationTerm(
+        "own", "gamma_own_offfloor", main_scale=1.0, interactions=(),
+        perturbation_label="off-floor at pre (0 to 1)", toggle_vector=x,
+    )
+    df = association_marginals(trace, terms=[term], n_trials=1, off_floor=True, ci_prob=0.9)
+    row = df.iloc[0]
+    assert row["scale"] == "off-floor at pre (0 to 1)"
+
+    ref = _assoc_toggle_ref(eta, gamma, x)
+    assert row["prob_median"] == pytest.approx(float(np.median(ref)))
+
+    # The pre-fix forward shift is a different (understated) number here.
+    fwd = association_marginals(
+        trace,
+        terms=[AssociationTerm("own", "gamma_own_offfloor", main_scale=1.0)],
+        n_trials=1, off_floor=True, ci_prob=0.9,
+    ).iloc[0]
+    assert abs(row["prob_median"]) > abs(fwd["prob_median"])
+
+    # With every row at 0 the two conventions coincide (nothing to net out).
+    x0 = np.zeros(n_obs)
+    eta0 = eta_base  # no indicator contribution in the observed eta
+    trace0 = _trace_named_vec(eta0, scalars={"gamma_own_offfloor": gamma})
+    tog0 = association_marginals(
+        trace0,
+        terms=[AssociationTerm("own", "gamma_own_offfloor", main_scale=1.0, toggle_vector=x0)],
+        n_trials=1, off_floor=True, ci_prob=0.9,
+    ).iloc[0]
+    fwd0 = association_marginals(
+        trace0,
+        terms=[AssociationTerm("own", "gamma_own_offfloor", main_scale=1.0)],
+        n_trials=1, off_floor=True, ci_prob=0.9,
+    ).iloc[0]
+    assert tog0["prob_median"] == pytest.approx(fwd0["prob_median"])
+
+
+def test_association_marginals_binary_toggle_includes_interactions():
+    # A moderation variant's off-floor own row participates in trt x own: the toggle
+    # must net out and switch the FULL per-row contribution γ + γ_int·trt_i.
+    rng = np.random.default_rng(31)
+    n_obs = 10
+    x = (rng.random(n_obs) > 0.5).astype(float)
+    z_trt = (rng.random(n_obs) > 0.4).astype(float)
+    gamma = rng.normal(1.5, 0.3, (1, 250))
+    gint = rng.normal(-0.4, 0.2, (1, 250))
+    eta_base = rng.normal(-0.8, 0.7, (1, 250, n_obs))
+    eta = (
+        eta_base
+        + gamma[..., None] * x[None, None, :]
+        + gint[..., None] * (z_trt * x)[None, None, :]
+    )
+    trace = _trace_named_vec(
+        eta, scalars={"gamma_own_offfloor": gamma, "gamma_int_trt_own": gint}
+    )
+    term = AssociationTerm(
+        "own", "gamma_own_offfloor", main_scale=1.0,
+        interactions=(("gamma_int_trt_own", z_trt),),
+        perturbation_label="off-floor at pre (0 to 1)", toggle_vector=x,
+    )
+    df = association_marginals(trace, terms=[term], n_trials=1, off_floor=True, ci_prob=0.9)
+    ref = _assoc_toggle_ref(eta, gamma, x, interactions=[(gint, z_trt)])
+    assert df.iloc[0]["prob_median"] == pytest.approx(float(np.median(ref)))
+
+
+def test_association_marginals_binary_toggle_rejects_k_items_and_bad_length():
+    rng = np.random.default_rng(37)
+    eta = rng.normal(0.0, 1.0, (1, 50, 6))
+    gamma = rng.normal(1.0, 0.2, (1, 50))
+    trace = _trace_named_vec(eta, scalars={"gamma_own_offfloor": gamma})
+    x = np.zeros(6)
+    with pytest.raises(ValueError, match="incoherent"):
+        association_marginals(
+            trace,
+            terms=[AssociationTerm(
+                "own", "gamma_own_offfloor", main_scale=1.0,
+                n_items=26, mean_prop=0.2, toggle_vector=x,
+            )],
+            n_trials=1, off_floor=True,
+        )
+    with pytest.raises(ValueError, match="toggle_vector for 'own' has 4 rows"):
+        association_marginals(
+            trace,
+            terms=[AssociationTerm(
+                "own", "gamma_own_offfloor", main_scale=1.0, toggle_vector=np.zeros(4),
+            )],
+            n_trials=1, off_floor=True,
+        )
+
+
 # ---------------------------------------------------------------------------
 # concurrent_marginals — per-predictor items-scale marginals, no interactions (#312)
 # ---------------------------------------------------------------------------

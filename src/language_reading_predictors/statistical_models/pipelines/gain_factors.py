@@ -162,9 +162,14 @@ def _gf_association_terms(
     else:
         # The binary off-floor-at-pre indicator association (#391 finding 2
         # decision): the "+1" perturbation is the at-floor -> off-floor switch.
+        # Passing the observed indicator as toggle_vector makes the marginal use
+        # the net-out-and-toggle idiom rather than a forward shift, so rows
+        # already off the floor at pre contrast the actual 0 -> 1 switch instead
+        # of an out-of-support 1 -> 2 move (code review 2026-08-20, finding 2).
         terms.append(
             AT("own", "gamma_own_offfloor", 1.0, _ints_for("own"),
-               perturbation_label="off-floor at pre (0 to 1)")
+               perturbation_label="off-floor at pre (0 to 1)",
+               toggle_vector=term_vecs["own"])
         )
     terms.append(AT("age", "gamma_A", 1.0, _ints_for("age")))
     if ability_covariate is not None:

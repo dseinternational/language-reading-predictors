@@ -3697,6 +3697,21 @@ class AssociationTerm:
         covariate — e.g. the gain family's off-floor binary off-floor-at-pre
         indicator, whose ``+1`` perturbation is the at-floor -> off-floor switch
         (#391 finding 2 decision) and would be mislabelled as a ``+1 SD`` shift.
+    toggle_vector
+        The observed 0/1 indicator vector (aligned with ``eta``'s ``obs_id`` axis)
+        for a **binary** covariate entered raw — the off-floor path's
+        off-floor-at-pre indicator. When set, the marginal uses the
+        net-out-and-toggle idiom of :func:`_itt_ame_draws`: per row the observed
+        contribution ``x_i·Δη_i`` is removed (``η0 = η − x_i·Δη_i``, exact because
+        the main effect and any interaction product are linear in the indicator)
+        and the full 0 -> 1 switch is contrasted at that baseline for every row.
+        The default forward shift ``expit(η + Δη) − expit(η)`` would instead
+        evaluate an out-of-support 1 -> 2 move on rows whose indicator is already
+        1, understating the switch the label promises (gain-factors code review
+        2026-08-20, finding 2). ``None`` (default) keeps the forward-shift
+        convention, which IS the documented estimand for standardised continuous
+        covariates. Incoherent with ``n_items`` (a ``+k items`` increment of a
+        0/1 indicator has no meaning), and rejected loudly if both are set.
     """
 
     label: str
@@ -3707,6 +3722,7 @@ class AssociationTerm:
     mean_prop: float | None = None
     sd_items: float | None = None
     perturbation_label: str | None = None
+    toggle_vector: np.ndarray | None = None
 
 
 def association_marginals(
@@ -3737,9 +3753,14 @@ def association_marginals(
     i.e. the covariate's main-effect coefficient scaled to the ``+1 SD`` data shift,
     plus each fitted interaction's contribution (the interaction inputs are elementwise
     products of standardised vectors, so a ``+1`` standardised shift moves the product
-    by the partner's standardised vector). This mirrors the treatment marginal's
-    "net out and toggle" idiom (:func:`_itt_ame_draws`), specialised to a covariate
-    increment rather than a 0/1 switch.
+    by the partner's standardised vector). For a continuous covariate the contrast is
+    the **forward shift** from each row's observed ``η`` — the documented estimand.
+    A **binary 0/1 indicator** term (``toggle_vector`` set, e.g. the off-floor path's
+    off-floor-at-pre indicator) instead uses the treatment marginal's full
+    "net out and toggle" idiom (:func:`_itt_ame_draws`): the observed contribution is
+    removed per row and the 0 -> 1 switch contrasted at that baseline, since the
+    forward shift would evaluate an out-of-support 1 -> 2 move on rows already at 1
+    (gain-factors code review 2026-08-20, finding 2).
 
     For **bounded-count** covariates (``n_items`` set) a second ``+{k_items} items`` row
     is emitted, evaluated at the covariate's mean baseline proportion (``mean_prop``):
@@ -3801,6 +3822,12 @@ def association_marginals(
     for term in terms:
         coef = posterior[term.coef].stack(sample=("chain", "draw")).values.ravel()  # (S,)
 
+        if term.toggle_vector is not None and term.n_items:
+            raise ValueError(
+                f"{term.label!r}: toggle_vector marks a binary 0/1 indicator; a "
+                "+k items perturbation is incoherent with it — set one or the other."
+            )
+
         # (scale label, standardised shift Δz). +1 SD is Δz = 1; +k items maps the
         # bounded-count increment to standardised units at the mean operating point.
         # A term may override the unit label (e.g. a 0/1 indicator switch).
@@ -3833,7 +3860,25 @@ def association_marginals(
                 if delta_eta.shape[0] == 1
                 else (delta_eta if mask is None else delta_eta[mask])
             )
-            ame_prob = (expit(eta_sel + de_sel) - expit(eta_sel)).mean(axis=0)  # (S,)
+            if term.toggle_vector is not None:
+                # Binary-indicator toggle (gain-factors code review 2026-08-20,
+                # finding 2): net the observed contribution out per row — exact,
+                # because the main effect and any interaction product are linear in
+                # the indicator — then contrast the full 0 -> 1 switch at that
+                # baseline, mirroring _itt_ame_draws. The forward shift below would
+                # evaluate an out-of-support 1 -> 2 move on rows already at 1,
+                # understating the switch on the flattened part of the expit curve.
+                x = np.asarray(term.toggle_vector, dtype=float)
+                if x.shape[0] != n_obs:
+                    raise ValueError(
+                        f"toggle_vector for {term.label!r} has {x.shape[0]} rows "
+                        f"but eta has {n_obs} observations."
+                    )
+                x_sel = x if mask is None else x[mask]
+                eta_base = eta_sel - de_sel * x_sel[:, None]
+            else:
+                eta_base = eta_sel
+            ame_prob = (expit(eta_base + de_sel) - expit(eta_base)).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
             prob_lo50, prob_hi50 = band50(ame_prob)
             items_lo50, items_hi50 = band50(ame_items)
@@ -4348,8 +4393,11 @@ _KF_FACTOR_LABELS: dict[str, str] = {
     "gamma_ability": "general cognitive ability (block design)",
     "gamma_R": "receptive vocabulary at the start of the period",
     "gamma_E": "expressive vocabulary at the start of the period",
+    "gamma_TR": "taught receptive vocabulary at the start of the period",
+    "gamma_TE": "taught expressive vocabulary at the start of the period",
     "gamma_L": "letter-sound knowledge at the start of the period",
     "gamma_W": "word reading at the start of the period",
+    "gamma_N": "nonword reading at the start of the period",
     "gamma_B": "sound blending at the start of the period",
     "gamma_hs": "hearing",
     "gamma_deapp_c": "speech accuracy",

@@ -1013,6 +1013,27 @@ def test_gain_factors_golden_sentences(tmp_path):
     assert "not a cause" in texts[4]
 
 
+def test_gain_factors_highlight_can_pick_taught_vocabulary_baseline(tmp_path):
+    # Gain-factors code review 2026-08-20, finding 3: gamma_TR / gamma_TE / gamma_N
+    # were absent from the highlight's label map, so the "most clearly resolved
+    # link" sentence silently fell back to a weaker labelled association (live in
+    # the stored gf-008 fit, where gamma_TR at P = 0.9995 lost to gamma_own at
+    # P = 0.9988). With the labels present the strongest association must win.
+    d = _setup_dir(tmp_path, "gain_factors")
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    pd.DataFrame(
+        [
+            {"term": "beta_trt", "role": "causal", "median": 0.4, "prob_positive": 0.95},
+            {"term": "gamma_own", "role": "association", "median": 0.27, "prob_positive": 0.9988},
+            {"term": "gamma_TR", "role": "association", "median": 0.23, "prob_positive": 0.9995},
+        ]
+    ).to_csv(d / "factor_summary.csv", index=False)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    highlight = next(s for s in payload["sentences"] if s["kind"] == "highlight")
+    assert "taught receptive vocabulary at the start of the period" in highlight["text"]
+
+
 def test_gain_factors_treated_only_has_no_causal_headline(tmp_path):
     cfg = _config("gain_factors", extra={"treated_only": True})
     d = _setup_dir(tmp_path, "gain_factors", config=cfg)
@@ -1193,6 +1214,22 @@ def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
     # from the adjusted-associations table.
     assert '_plan.get("focal_term")' in text
     assert '["causal", "balance", "levels_view"]' in text
+
+
+def test_results_factors_partial_renders_off_floor_marginal_in_percentage_points():
+    # Gain-factors code review 2026-08-20, finding 1: the off-floor fits store the
+    # treatment marginal as a risk difference (n_trials = 1), and the partial's
+    # items-scale sentence rendered it as "-0.0 items" in the published gf-005
+    # report. The block must branch on the plan's off_floor flag and render
+    # percentage points (whole numbers) instead — in BOTH the primary and the
+    # moderation-variant sentences, which share the unit machinery.
+    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text()
+    assert '_gf_off = bool(_plan.get("off_floor", False))' in text
+    assert "percentage points** on the chance of being off the floor" in text
+    # The shared value formatter and unit string are used by both branches — the
+    # raw one-decimal items f-string must not survive anywhere in the block.
+    assert text.count("_tm_value(_t.trt_items_median)") == 2
+    assert "{_t.trt_items_median:+.1f}" not in text
 
 
 def test_design_note_records_the_group_ability_exclusion():
