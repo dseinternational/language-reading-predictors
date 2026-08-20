@@ -4723,6 +4723,14 @@ def build_level_factors_model(
     # ``_tau_sigma_for``; the level-factor treatment-prior sweep passes explicit
     # grid values.
     tau_prior_sigma: float | None = None,
+    # Sensitivity override for the ``arm_gap_t1`` balance-term prior scale
+    # (2026-08-20 level-factors review, finding 1): the balance term is
+    # prior-dominated in most reporting fits and trades off directly against
+    # ``d_grp_time[t2]``, so its prior scale needs its own sweep axis. None
+    # keeps the registered cross-coupling default (Normal(0, 0.3)). Only
+    # meaningful under the t1-referenced parameterisation, which is the only
+    # one with a balance term.
+    arm_gap_prior_sigma: float | None = None,
 ) -> BuiltModel[LevelFactorsPayload]:
     """Level-factors model (LRPLF): what is associated with achievement levels.
 
@@ -4815,6 +4823,16 @@ def build_level_factors_model(
             "arm_gap_reference='t1' requires group_by_time=True (a pooled group "
             "coefficient has no t1 gap to centre on)"
         )
+    if arm_gap_prior_sigma is not None and not (
+        group_by_time and arm_gap_reference == "t1"
+    ):
+        # Only the t1-referenced parameterisation has an arm_gap_t1 term; silently
+        # ignoring the override on a free/pooled build would report a sensitivity
+        # cell that never varied anything.
+        raise ValueError(
+            "arm_gap_prior_sigma requires group_by_time=True and "
+            "arm_gap_reference='t1' (no balance term to re-prior otherwise)"
+        )
     own = outcome_symbol
     if own not in prepared.post_counts:
         raise KeyError(f"Outcome {own!r} missing from prepared data (post_counts)")
@@ -4905,7 +4923,11 @@ def build_level_factors_model(
             # carries the change from t1 at each later wave on the outcome-tier
             # tau prior, so the prior sits on the randomised t2 *difference*
             # directly rather than on two raw gaps whose difference it would be.
-            arm_gap_t1 = _priors.gamma_cross_prior().to_pymc("arm_gap_t1")
+            arm_gap_t1 = (
+                _priors.gamma_cross_prior()
+                if arm_gap_prior_sigma is None
+                else _priors.gamma_cross_prior(sigma=arm_gap_prior_sigma)
+            ).to_pymc("arm_gap_t1")
             d_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
                 "d_grp_time", dims="post_phase"
             )

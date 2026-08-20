@@ -556,6 +556,26 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
     return "\n".join(parts)
 
 
+def drop_retired_90_band(card):
+    """Remove the retired ``*_lo90``/``*_hi90`` fields from a ROPE card.
+
+    The external ``rope_card`` still emits a 90% band; the suite retired it
+    (2026-07-17 credible-interval standard) in favour of median + 50% + 89%.
+    Shared so every family that builds a ROPE card — via :func:`rope_summary`
+    or by calling ``rope_card`` directly, as the level pipeline does — strips
+    the same columns (2026-08-20 level-factors review, finding 3). Accepts the
+    plain dict or the DataFrame form ``rope_card`` returns.
+    """
+
+    def _is90(key) -> bool:
+        k = str(key)
+        return k.endswith("_lo90") or k.endswith("_hi90")
+
+    if isinstance(card, dict):
+        return {k: v for k, v in card.items() if not _is90(k)}
+    return card.drop(columns=[c for c in card.columns if _is90(c)])
+
+
 def rope_summary(
     trace: xr.DataTree,
     *,
@@ -616,9 +636,6 @@ def rope_summary(
     # retired it (2026-07-17 credible-interval standard). Drop it here so the raw
     # rope table matches the median + 50% + 89% convention everywhere it surfaces.
     # rope_card returns a plain dict of scalars.
-    def _is90(key: str) -> bool:
-        return key.endswith("_lo90") or key.endswith("_hi90")
-
     # rope_card derives its direction fields (``pd`` / ``direction_label`` /
     # ``favoured_direction*``) from the first argument — the coefficient draws. With
     # active treatment interactions the coefficient and the marginal effect can differ
@@ -635,9 +652,9 @@ def rope_summary(
         return mapping
 
     if isinstance(card, dict):
-        card = {k: v for k, v in card.items() if not _is90(k)}
+        card = drop_retired_90_band(card)
         return _redirect_from_ame(card) if direction_from_ame else card
-    card = card.drop(columns=[c for c in card.columns if _is90(c)])
+    card = drop_retired_90_band(card)
     if direction_from_ame:
         prob_ame_pos = float(np.mean(ame_prob > 0))
         card["pd_coef"] = float(card["pd"].iloc[0])
@@ -4077,14 +4094,18 @@ def level_t2_marginal_effect(
     the position in a ``phase``-indexed vector). Under the t1-referenced arm-gap
     parameterisation (#552) the caller passes ``contrast_term="d_grp_time"`` and
     ``contrast_index=0`` (the ``t2`` entry of the ``post_phase``-indexed change
-    vector): the balance term ``arm_gap_t1`` then stays in **both** arms' linear
-    predictor and only the t2 *change* is added back, so the AME is the
-    difference-in-differences contrast. Under the free comparator the default
-    ``b_grp_time`` / ``t2_phase`` reproduces the raw t2 gap.
+    vector): the balance term ``arm_gap_t1`` is neither netted out nor added
+    back — it enters the fitted predictor multiplied by ``G``, so it appears
+    only in the immediate arm's rows, and leaving it untouched keeps it in both
+    the with- and without-treatment predictions of each treated row, where it
+    cancels from the logit contrast — and only the t2 *change* is added back,
+    so the AME is the difference-in-differences contrast. Under the free
+    comparator the default ``b_grp_time`` / ``t2_phase`` reproduces the raw t2
+    gap.
 
     Unlike the gain family's single ``beta_trt * trt`` term, the level model's group
-    contribution at t2 is ``(contrast + gamma_grp_ability * ability) * G`` (plus, under
-    the t1 reference, the balance term in both arms) — it also carries the
+    contribution at t2 is ``(contrast + gamma_grp_ability * ability) * G`` (plus,
+    under the t1 reference, the untouched balance term) — it also carries the
     group×ability interaction — so the plain ``eta - term*G`` removal of
     :func:`_itt_ame_draws` does not apply. Restricting to the t2 rows, per draw we
     net out the focal contrast and the interaction to recover the untreated baseline
@@ -4094,7 +4115,13 @@ def level_t2_marginal_effect(
     (identified mostly from the non-randomised t1/t3/t4 rows), so it is deliberately
     excluded from this causal AME — the card is the clean randomised t2 effect **at
     mean ability**; the group×ability moderation is reported separately, not folded
-    into the causal claim (issue #271 item 5).
+    into the causal claim (issue #271 item 5). Under the t1 reference the same
+    time-invariance makes the interaction partly a baseline-composition quantity
+    (it exists at pre-randomisation t1, like the balance term that IS kept in
+    ``eta0``); netting it out of ``eta0`` anyway leaves the logit contrast
+    unchanged and only shifts the expit operating points of treated rows — a
+    second-order effect — and the wave-varying alternative belongs to the open
+    #389 finding 1 estimand review (2026-08-20 level-factors review, finding 2).
 
     Returns ``(contrast_draws, ame_prob)`` — the logit-scale focal-contrast draws
     ``(S,)`` (the term flagged causal in the report) and the probability-scale average
@@ -4153,10 +4180,11 @@ def level_t2_marginal_effect(
     # the t2 AME would borrow a non-randomised component and ~4×-attenuate any real
     # t2 moderation. Net the focal contrast and the interaction out to recover the
     # untreated baseline (under the t1 reference the balance term ``arm_gap_t1``
-    # stays in both arms — it is not part of the effect), but add back only the
-    # focal contrast (ability is standardised, so "mean ability" simply drops the
-    # interaction). The interaction is reported separately, not in the causal card
-    # (issue #271 item 5).
+    # is neither netted out nor added back, so it stays in both counterfactual
+    # predictions of each treated row — it is not part of the effect), but add
+    # back only the focal contrast (ability is standardised, so "mean ability"
+    # simply drops the interaction). The interaction is reported separately, not
+    # in the causal card (issue #271 item 5).
     ame_prob = (expit(eta0 + contrast_draws[None, :]) - expit(eta0)).mean(axis=0)  # (S,)
     return contrast_draws, ame_prob
 
@@ -5418,8 +5446,10 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         + (
             "It is the **change** in the arm difference from the pre-randomisation "
             "baseline (t1) to t2 — a difference-in-differences of adjusted levels — "
-            "so any chance difference between the arms at t1 is taken out rather "
-            "than carried into the estimate. "
+            "so the model estimates the chance difference between the arms at t1 "
+            "and subtracts it rather than carrying it into the estimate. That t1 "
+            "difference is itself estimated under a cautious prior, so in a sample "
+            "this small the subtraction is partial rather than exact. "
             if t1_referenced
             else ""
         )

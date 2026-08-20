@@ -182,7 +182,12 @@ def test_resolve_free_comparator_keeps_the_raw_t2_gap_focal():
     assert plan.causal_terms == ("b_grp_time[1]",)
     assert plan.balance_terms == ()
     assert plan.levels_view_terms == ()
-    assert plan.factor_summary_roles() == {}
+    # 2026-08-20 review finding 9: the free vector's t1 element is the
+    # pre-randomisation arm gap — a balance quantity, not an adjusted
+    # association — labelled by element so the summary table fences it off.
+    # balance_terms stays empty because its other consumers (forest / psense
+    # variable lists) need whole variable names.
+    assert plan.factor_summary_roles() == {"b_grp_time[0]": "balance"}
     assert plan.coefficient_names()[0] == "b_grp_time"
     assert "b_grp_time[1]" in plan.estimand
     assert "comparator" in plan.recipe_markdown(title="t")

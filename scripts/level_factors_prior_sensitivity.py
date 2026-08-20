@@ -13,11 +13,22 @@ grid"* (``release._standard_sweep_evidence``). No non-ITT runner produced that
 artefact until now. This script is the level-family runner:
 
 - For each requested outcome (default: the five the #389 review names — W, L, P,
-  B, N, all proximal-tier) it resolves the registered primary model's **typed run
-  plan**, rebuilds the model in-process with the focal contrast's prior moved
-  across the proximal grid (0.25 / 0.5 / 0.75; the registered scale included),
-  holding everything else — data, adjustment set, anchored intercepts (#389
-  finding 2), likelihood — at the registered specification.
+  B, N; all eleven registered LF outcomes are supported, 2026-08-20 review
+  finding 7) it resolves the registered primary model's **typed run plan**,
+  rebuilds the model in-process with the focal contrast's prior moved across the
+  outcome tier's grid (proximal 0.25 / 0.5 / 0.75, distal 0.2 / 0.25 / 0.3 /
+  0.5; the registered scale included either way), holding everything else —
+  data, adjustment set, anchored intercepts (#389 finding 2), likelihood — at
+  the registered specification.
+- ``--axis arm_gap`` sweeps the ``arm_gap_t1`` **balance-prior** scale instead
+  (0.3 / 0.5 / 1.0; 2026-08-20 review finding 1): the balance term is
+  prior-dominated in most reporting fits and trades off directly against the
+  released ``d_grp_time[t2]`` contrast, so this axis measures how much of the
+  #552 t1-imbalance subtraction the prior determines. Its rows go to a separate
+  ``level_arm_gap_prior_sensitivity.csv`` and are **never attached** as gate
+  evidence — the gate's evidence contract is the treatment-prior (tau) sweep
+  only. Requires the t1-referenced parameterisation (every registered LF
+  primary).
 - Each cell is gated on the full convergence criteria over all free variables
   (R-hat <= 1.01, ESS >= 400, BFMI >= 0.3, zero divergences); an unconverged cell
   is not evidence and blocks that outcome's report-local copy.
@@ -35,6 +46,8 @@ Usage:
     python scripts/level_factors_prior_sensitivity.py --config reporting --attach
     python scripts/level_factors_prior_sensitivity.py --config reporting \
         --outcomes W P --attach
+    python scripts/level_factors_prior_sensitivity.py --config reporting \
+        --axis arm_gap
 """
 
 from __future__ import annotations
@@ -53,9 +66,12 @@ from language_reading_predictors.statistical_models.factories import (
     build_level_factors_model,
 )
 from language_reading_predictors.statistical_models.measures import MEASURES
+from language_reading_predictors.statistical_models.measures import is_distal
 from language_reading_predictors.statistical_models.sensitivity import (
+    LEVEL_SENSITIVITY_ARM_GAP_SIGMAS,
     LEVEL_SENSITIVITY_MODEL_IDS,
     LEVEL_SENSITIVITY_OUTCOMES,
+    STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS,
     STANDARD_SENSITIVITY_FILENAME,
     STANDARD_SENSITIVITY_PROVENANCE_ATTR,
     STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS,
@@ -76,9 +92,28 @@ __all__ = [
     "main",
 ]
 
-TAU_SIGMAS = STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
-SENSITIVITY_AXIS = "tau"
 KAPPA_SIGMA = 50.0
+
+#: The arm-gap axis writes to its own combined CSV — never the gate-evidence
+#: ``tau_prior_sensitivity.csv`` schema — and is never attached beside a primary.
+ARM_GAP_SENSITIVITY_FILENAME = "level_arm_gap_prior_sensitivity.csv"
+
+
+def _grid_for(outcome: str, axis: str) -> tuple[float, ...]:
+    """The sweep grid for one outcome and axis.
+
+    ``tau`` follows the outcome tier (the registered scale is in both grids);
+    ``arm_gap`` uses the level family's balance-prior grid (registered 0.3
+    included). Tier membership is ``measures.is_distal``, the same rule
+    ``_tau_sigma_for`` applies at build time.
+    """
+    if axis == "arm_gap":
+        return tuple(LEVEL_SENSITIVITY_ARM_GAP_SIGMAS)
+    return tuple(
+        STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS
+        if is_distal(outcome)
+        else STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
+    )
 
 
 def _resolve_plan(outcome: str):
@@ -99,14 +134,22 @@ def _resolve_plan(outcome: str):
 
 def _fit_cell(
     outcome: str,
-    tau_sigma: float,
+    sigma: float,
     *,
+    axis: str = "tau",
     config: str,
     sampling,
     sensitivity_dir: Path,
     primary_reference: PrimaryStandardReference,
 ) -> dict:
-    """Fit one level-factor sweep cell and return its standard-schema row."""
+    """Fit one level-factor sweep cell and return its standard-schema row.
+
+    ``axis`` selects which prior the cell moves: ``"tau"`` (the focal
+    ``d_grp_time`` treatment prior — the gate-evidence sweep) or ``"arm_gap"``
+    (the ``arm_gap_t1`` balance prior, 2026-08-20 review finding 1). On the
+    ``arm_gap`` axis the row's ``tau_sigma`` is NaN (the registered scale is in
+    use) and an ``arm_gap_sigma`` column carries the swept value.
+    """
     from language_reading_predictors.statistical_models import diagnostics as _diag
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
@@ -120,10 +163,15 @@ def _fit_cell(
     prepared = load_and_prepare(**plan.prepare_kwargs())
     plan.validate_prepared(prepared)
     effective = tuple(c for c in plan.adjust_for if c in prepared.covariates)
+    prior_override = (
+        {"tau_prior_sigma": sigma}
+        if axis == "tau"
+        else {"arm_gap_prior_sigma": sigma}
+    )
     built = build_level_factors_model(
         prepared,
         **plan.factory_kwargs(effective_adjustment=effective),
-        tau_prior_sigma=tau_sigma,
+        **prior_override,
     )
     with built.model:
         trace = pm.sample(
@@ -160,7 +208,7 @@ def _fit_cell(
     )
     free_names = [rv.name for rv in built.model.free_RVs]
     convergence = _diag.subfit_convergence(
-        trace, label=f"{outcome} {SENSITIVITY_AXIS}", var_names=free_names
+        trace, label=f"{outcome} {axis}", var_names=free_names
     )
 
     # Arm counts over all fitted rows, matching load_primary_level_reference's
@@ -191,8 +239,10 @@ def _fit_cell(
         "config": config,
         "outcome": outcome,
         "n_trials": n_trials,
-        "sensitivity_axis": SENSITIVITY_AXIS,
-        "tau_sigma": tau_sigma,
+        "sensitivity_axis": axis,
+        # On the arm_gap axis the registered tau scale is in use, so the column
+        # is NaN and the swept value lives in arm_gap_sigma (added below).
+        "tau_sigma": sigma if axis == "tau" else np.nan,
         # A levels model has no own-baseline term; the column exists so the row
         # carries the standard sweep's full schema.
         "gamma_own_sigma": np.nan,
@@ -232,6 +282,10 @@ def _fit_cell(
         "sampling_random_seed": sampling.random_seed,
         "sampling_nuts_sampler": "nutpie",
     }
+    if axis == "arm_gap":
+        # Only the balance-prior axis carries this column, so the gate-evidence
+        # tau manifest keeps the exact standard schema.
+        row["arm_gap_sigma"] = sigma
     # Level-family provenance stamped on the cell trace. Deliberately NOT the ITT
     # ``standard_trace_provenance`` — that validator asserts the ITT free-variable
     # layout and would mislabel this family — but the same identity content.
@@ -244,8 +298,9 @@ def _fit_cell(
         # the cell provenance names the same element the gate reads.
         "focal_term": plan.focal_term,
         "arm_gap_reference": plan.arm_gap_reference,
-        "sensitivity_axis": SENSITIVITY_AXIS,
-        "tau_sigma": tau_sigma,
+        "sensitivity_axis": axis,
+        "tau_sigma": sigma if axis == "tau" else None,
+        **({"arm_gap_sigma": sigma} if axis == "arm_gap" else {}),
         "likelihood": plan.likelihood,
         "n_trials": n_trials,
         "data_sha256": data_sha256,
@@ -270,11 +325,12 @@ def _fit_cell(
     trace.posterior.attrs[STANDARD_SENSITIVITY_PROVENANCE_ATTR] = json.dumps(
         provenance, sort_keys=True, separators=(",", ":")
     )
-    sigma_token = f"{tau_sigma:g}".replace(".", "p")
+    sigma_token = f"{sigma:g}".replace(".", "p")
+    axis_token = "tau" if axis == "tau" else "armgap"
     semantic = (
         Path("traces")
         / f"level-{config}"
-        / f"trace_{outcome}_tau-{sigma_token}.nc"
+        / f"trace_{outcome}_{axis_token}-{sigma_token}.nc"
     )
     trace_file, trace_sha256 = persist_sensitivity_trace(
         trace,
@@ -291,7 +347,19 @@ def main() -> None:
     ap.add_argument("--config", default="dev", help="sampling preset (dev/test/reporting)")
     ap.add_argument(
         "--outcomes", nargs="+", default=list(LEVEL_SENSITIVITY_OUTCOMES),
-        help="level outcomes to sweep (default: the #389 review's W L P B N)",
+        help=(
+            "level outcomes to sweep (default: the #389 review's W L P B N; "
+            "all eleven registered LF outcomes are supported)"
+        ),
+    )
+    ap.add_argument(
+        "--axis", choices=("tau", "arm_gap"), default="tau",
+        help=(
+            "which prior to sweep: 'tau' (the focal d_grp_time treatment prior "
+            "— the gate-evidence sweep, default) or 'arm_gap' (the arm_gap_t1 "
+            "balance prior, 2026-08-20 review finding 1; writes to its own "
+            "combined CSV and cannot be attached)"
+        ),
     )
     ap.add_argument(
         "--attach", action="store_true",
@@ -320,6 +388,11 @@ def main() -> None:
             f"unsupported level outcomes: {unknown}; choose from "
             f"{sorted(LEVEL_SENSITIVITY_MODEL_IDS)}"
         )
+    if args.axis == "arm_gap" and (args.attach or args.reattach):
+        # The balance-prior sweep is a sensitivity companion, not gate evidence:
+        # attaching it as tau_prior_sensitivity.csv would let a non-treatment
+        # sweep satisfy the release gate's evidence check.
+        ap.error("--attach/--reattach apply only to the tau (gate-evidence) axis")
 
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
@@ -328,7 +401,11 @@ def main() -> None:
     sensitivity_dir.mkdir(parents=True, exist_ok=True)
 
     sampling = _sampling.get_sampling_configuration(args.config, random_seed=20260701)
-    combined_path = sensitivity_dir / f"level_{STANDARD_SENSITIVITY_FILENAME}"
+    combined_path = sensitivity_dir / (
+        f"level_{STANDARD_SENSITIVITY_FILENAME}"
+        if args.axis == "tau"
+        else ARM_GAP_SENSITIVITY_FILENAME
+    )
 
     if args.reattach:
         # Re-install from the existing combined manifest without refitting: every
@@ -368,11 +445,15 @@ def main() -> None:
         # sampled under a different contract is not that fit's evidence.
         assert_primary_sampling_contract(sampling, reference, config=args.config)
         outcome_rows = []
-        for tau_sigma in TAU_SIGMAS:
-            print(f"--- {outcome} ({model_id}): tau_sigma={tau_sigma} ---")
+        for sigma in _grid_for(outcome, args.axis):
+            print(
+                f"--- {outcome} ({model_id}): "
+                f"{'tau_sigma' if args.axis == 'tau' else 'arm_gap_sigma'}={sigma} ---"
+            )
             row = _fit_cell(
                 outcome,
-                float(tau_sigma),
+                float(sigma),
+                axis=args.axis,
                 config=args.config,
                 sampling=sampling,
                 sensitivity_dir=sensitivity_dir,

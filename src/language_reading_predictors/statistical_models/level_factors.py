@@ -329,9 +329,19 @@ class LevelFactorsRunPlan:
 
     def factor_summary_roles(self) -> dict[str, str]:
         """Role overrides for :func:`reporting.factor_summary` beyond the
-        causal / association split: the balance term and the levels view."""
+        causal / association split: the balance term and the levels view.
+
+        Under the free comparator the t1 element of the free vector,
+        ``b_grp_time[0]``, is the covariate-adjusted pre-randomisation arm gap —
+        a balance quantity, not an adjusted association — so it takes the
+        ``balance`` role by element label (2026-08-20 review, finding 9).
+        ``balance_terms`` itself stays t1-reference-only because its other
+        consumers (the forest / psense variable lists) need whole variable
+        names, not indexed elements."""
         roles = {t: "balance" for t in self.balance_terms}
         roles.update({t: "levels_view" for t in self.levels_view_terms})
+        if self.group_by_time and not self.t1_referenced:
+            roles["b_grp_time[0]"] = "balance"
         return roles
 
     def validate_prepared(self, prepared: PreparedData) -> None:

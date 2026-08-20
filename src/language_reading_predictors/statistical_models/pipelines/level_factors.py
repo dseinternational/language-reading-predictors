@@ -195,9 +195,11 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # under the t1 reference the balance term stays in both arms and only the t2
     # change is added back (#552). Emitted
     # when the t2 contrast exists (group_by_time): graded outcomes with an agreed items
-    # delta (ROPE_DELTA -> W/R/E/L/B) report on the items scale; the floored outcomes P
-    # and N report the off-floor risk difference (A4, 2026-07-13) — previously they got
-    # no probability-scale card at all; F/T (no agreed delta) are still skipped.
+    # delta report on the items scale — since the ½-natural-maturation δ ratifications
+    # (F/T adopted 2026-07-20, ratified 2026-08-19) every graded LF outcome has one in
+    # ROPE_DELTA, so no graded fit is skipped today — and the floored outcomes P and N
+    # report the off-floor risk difference (A4, 2026-07-13). An outcome absent from
+    # both delta maps would still be skipped.
     from language_reading_predictors.statistical_models.measures import (
         ROPE_DELTA,
         ROPE_DELTA_PROB,
@@ -266,8 +268,14 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         else:
             save_table(ctx, "prior_pushforward", pd.DataFrame([pf]))
             meta_extra["prior_pushforward"] = pf
-        rope_s = _report.rope_card(
-            contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob
+        # The external rope_card still emits the retired 90% band; strip it so the
+        # level family's rope_summary.csv matches the median + 50% + 89% convention
+        # the other families publish (2026-07-17 standard; 2026-08-20 review,
+        # finding 3).
+        rope_s = _report.drop_retired_90_band(
+            _report.rope_card(
+                contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob
+            )
         )
         if _offfloor_card:
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
