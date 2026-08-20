@@ -14,6 +14,7 @@ AOAS
 aptgram
 aptinfo
 argmax
+armgap
 ArviZ
 asis
 Asparouhov
