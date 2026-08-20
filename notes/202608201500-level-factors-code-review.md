@@ -69,4 +69,16 @@ The shared partial prints that heading unconditionally (`_results_factors.qmd` l
 
 ## Status
 
-Review only — no source changes were made. Findings 3, 5, 6 and 8 are small mechanical fixes; findings 1 and 2 are analysis decisions for the author (finding 1's sweep would be the next artefact to add before the LF t2 headlines are cited outside the repo); findings 4, 7 and 9 are latent hardening.
+Reviewed 2026-08-20; the same-day fix batch (same PR) addressed every finding:
+
+- **Finding 1:** `build_level_factors_model` gained an `arm_gap_prior_sigma` override (guarded to the t1-referenced parameterisation), `gamma_cross_prior` is now sigma-parametrised, and `scripts/level_factors_prior_sensitivity.py` gained `--axis arm_gap` sweeping `LEVEL_SENSITIVITY_ARM_GAP_SIGMAS = (0.3, 0.5, 1.0)` into a separate `level_arm_gap_prior_sensitivity.csv` (never attachable as gate evidence). The reader-facing "subtracted out / taken out" sentences in the partial and the key-findings builder now say the subtraction uses a prior-regularised estimate and is partial in a sample this small. **The sweep itself has not been run** — that is a sampling batch for the author to schedule; prior choice recommendation 3 (a wider balance prior, jointly with the DiD family) remains an open author decision.
+- **Finding 2:** documented in the `level_t2_marginal_effect` docstring (the time-invariant interaction is baseline composition under the t1 reference; netting it out of `eta0` is second-order) and explicitly deferred to the open #389 finding 1 estimand review — no estimand change was made unilaterally.
+- **Finding 3:** the strip is now the shared `reporting.drop_retired_90_band`, used by both `rope_summary` and the level pipeline. Stored `rope_summary.csv` files keep the retired columns until each fit's next refit — they were deliberately not edited in place (the artefact manifest binds fit-time writes).
+- **Finding 4:** `gate_applies` exempts a `level_factors` plan whose `focal_term` key is present and null (the post-#552 pooled case), preserving the key-absent pre-#552 fallback; covered by new tests in `test_release_decision.py`.
+- **Finding 5:** the stale F/T comment in `pipelines/level_factors.py` now states that every graded LF outcome has a ratified δ.
+- **Finding 6:** the "in both arms' prediction" phrasing corrected in the partial, the `level_t2_marginal_effect` docstring and inline comment, and the test docstring; a dated correction was appended to `notes/202608191900-level-factors-t1-gap-reference.md`.
+- **Finding 7:** `LEVEL_SENSITIVITY_MODEL_IDS` now covers all eleven registered LF primaries and the runner picks the tau grid by outcome tier (`STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS` for R/E/F/T); the default sweep set stays the #389 five.
+- **Finding 8:** the "What the model predicts on the test scale" heading in `_results_factors.qmd` is gated on `predicted_scores.csv` existing.
+- **Finding 9:** the free comparator's `b_grp_time[0]` takes the `balance` role by element label (`factor_summary_roles`), and the partial's balance explainer keys on the role being present rather than on the parameterisation.
+
+Fit-time artefacts under `output/` were not modified; the prose and schema changes reach published artefacts at each fit's next refit or key-findings regeneration.

@@ -1481,3 +1481,32 @@ def test_declared_link_sensitivity_outside_the_registered_pair_fails_closed(
     assert evaluation.status == "robustness_unresolved"
     assert evaluation.stage == "robustness"
     assert "no registered blending-link bundle" in evaluation.reason
+
+
+def test_gate_skips_a_pooled_level_factors_plan():
+    """2026-08-20 level-factors review, finding 4: a post-#552 pooled level fit
+    records ``focal_term`` as explicitly null — its pooled ``beta_grp`` mixes
+    post-crossover waves and is never a randomised contrast — so there is no
+    causal headline to gate, and the ``b_grp_time[1]`` fallback (a term the
+    pooled posterior structurally lacks) must never be consulted."""
+    pooled = {
+        "kind": "level_factors",
+        "resolved_run_plan": {"group_by_time": False, "focal_term": None},
+    }
+    assert release_module.gate_applies(pooled) is False
+
+
+def test_gate_keeps_the_pre_552_level_fallback_and_reads_the_plan_focal_term():
+    """A stored pre-#552 fit's plan has no ``focal_term`` key at all; it was
+    fitted free, so the gate still applies and falls back to ``b_grp_time[1]``
+    — the presence of the key, not its value, is what distinguishes the pooled
+    exemption. A t1-referenced plan names ``d_grp_time[t2]``."""
+    stored = {"kind": "level_factors", "resolved_run_plan": {"group_by_time": True}}
+    assert release_module.gate_applies(stored) is True
+    assert release_module.causal_term_for(stored) == "b_grp_time[1]"
+    t1_referenced = {
+        "kind": "level_factors",
+        "resolved_run_plan": {"group_by_time": True, "focal_term": "d_grp_time[t2]"},
+    }
+    assert release_module.gate_applies(t1_referenced) is True
+    assert release_module.causal_term_for(t1_referenced) == "d_grp_time[t2]"

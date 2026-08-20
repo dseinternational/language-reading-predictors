@@ -117,9 +117,16 @@ def gamma_own_prior(sigma: float = 0.25) -> Continuous:
     return pz.Normal(mu=1.0, sigma=sigma)
 
 
-def gamma_cross_prior() -> Continuous:
-    """Cross-baseline coupling gamma_k ~ Normal(0, 0.3)."""
-    return pz.Normal(mu=0.0, sigma=0.3)
+def gamma_cross_prior(sigma: float = 0.3) -> Continuous:
+    """Cross-baseline coupling gamma_k ~ Normal(0, 0.3).
+
+    (Parametrised by ``sigma`` for prior-sensitivity fits — the level-factor
+    family's ``arm_gap_t1`` balance term sits on this prior and the 2026-08-20
+    review's balance-prior sweep varies it; the docstring's numeric value is the
+    registered default that ``_dist_from_doc`` extracts for the name-only table
+    path. When a built RV is available the table reads the actual scale.)
+    """
+    return pz.Normal(mu=0.0, sigma=sigma)
 
 
 def gamma_own_offfloor_prior() -> Continuous:

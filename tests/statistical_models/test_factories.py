@@ -2738,6 +2738,36 @@ def test_level_factors_rejects_incoherent_arm_gap_reference(tmp_path):
     assert "beta_grp" in {v.name for v in built.model.free_RVs}
 
 
+def test_level_factors_arm_gap_prior_sigma_override(tmp_path):
+    """2026-08-20 review finding 1: the balance-prior sweep axis. ``None`` keeps
+    the registered cross-coupling scale (0.3); an explicit value re-priors
+    ``arm_gap_t1``; and the override is rejected where no balance term exists,
+    so a sweep cell can never silently vary nothing."""
+    prep = _prep_levels(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+
+    def _sigma(b):
+        # Normal RV inputs end with (mu, sigma), the _mech_ell_params idiom.
+        return float(np.asarray(b.model["arm_gap_t1"].owner.inputs[-1].eval()))
+
+    default = build_level_factors_model(
+        prep, outcome_symbol="W", ability_covariate="blocks"
+    )
+    wide = build_level_factors_model(
+        prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_prior_sigma=1.0
+    )
+    assert _sigma(default) == pytest.approx(0.3)
+    assert _sigma(wide) == pytest.approx(1.0)
+    with pytest.raises(ValueError, match="arm_gap_prior_sigma"):
+        build_level_factors_model(
+            prep,
+            outcome_symbol="W",
+            ability_covariate="blocks",
+            arm_gap_reference="free",
+            arm_gap_prior_sigma=1.0,
+        )
+
+
 def test_level_factors_offfloor_anchor_uses_mover_rate(tmp_path):
     """The off-floor likelihood anchors on the t1 off-floor rate, not the count
     mean (#389 finding 2; the DiD anchor idiom)."""

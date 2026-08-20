@@ -8,6 +8,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 import xarray as xr
 from scipy.special import expit
@@ -21,6 +22,7 @@ from language_reading_predictors.statistical_models.reporting import (
     did_cell_ppc,
     disattenuation_crosscheck,
     did_summary,
+    drop_retired_90_band,
     eti_bands,
     evidence_label,
     favoured_direction,
@@ -1424,7 +1426,9 @@ def test_level_t2_marginal_effect_nets_group_ability_interaction():
 def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
     """#552: under the t1-referenced parameterisation the caller names the change
     vector (``d_grp_time``, element 0 = t2). The balance term ``arm_gap_t1`` is
-    part of both arms' linear predictor and is *not* netted out or added back;
+    *not* netted out or added back — it enters the fitted predictor only on the
+    immediate arm's rows (it multiplies ``G``), so leaving it untouched keeps it
+    in both counterfactual predictions of each treated row, where it cancels;
     only ``d_grp_time[t2]`` (plus the interaction, netted) is — so the AME is the
     difference-in-differences contrast, and the logit contrast draws are the t2
     change, not the raw t2 gap ``b_grp_time[1] = arm_gap_t1 + d_grp_time[t2]``."""
@@ -1488,6 +1492,28 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
             SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability,
             contrast_term="d_grp_time", contrast_index=3,
         )
+
+
+def test_drop_retired_90_band_strips_dict_and_frame():
+    """2026-08-20 level-factors review, finding 3: the external rope_card still
+    emits the retired 90% band; the shared strip removes it from both the dict
+    and DataFrame forms so every family's rope_summary.csv matches the
+    median + 50% + 89% convention (2026-07-17 standard)."""
+    card = {
+        "items_median": 1.0,
+        "items_lo50": 0.5,
+        "items_hi50": 1.5,
+        "items_lo90": 0.1,
+        "items_hi90": 1.9,
+        "tau_logit_lo90": -0.1,
+        "tau_logit_hi90": 0.9,
+        "pd": 0.97,
+    }
+    stripped = drop_retired_90_band(card)
+    assert set(stripped) == {"items_median", "items_lo50", "items_hi50", "pd"}
+    frame = pd.DataFrame([card])
+    stripped_frame = drop_retired_90_band(frame)
+    assert set(stripped_frame.columns) == {"items_median", "items_lo50", "items_hi50", "pd"}
 
 
 def test_level_t2_marginal_effect_requires_t2_rows():

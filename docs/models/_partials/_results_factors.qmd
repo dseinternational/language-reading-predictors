@@ -58,6 +58,14 @@ _lf_t1 = str(_plan.get("arm_gap_reference", "free")) == "t1" and bool(
     _plan.get("group_by_time", True)
 )
 _focal = str(_plan.get("focal_term") or "b_grp_time[1]")
+# The balance role also appears on a free-comparator fit (its t1 element
+# `b_grp_time[0]`, 2026-08-20 review finding 9), so the explanatory blocks key
+# on the role being present rather than on the parameterisation alone.
+_has_balance_role = (
+    factor_summary is not None
+    and "role" in factor_summary.columns
+    and (factor_summary.role == "balance").any()
+)
 factor_summary
 ```
 
@@ -84,7 +92,13 @@ print(
             "per-wave arm gaps `b_grp_time[t]` (= `arm_gap_t1 + d_grp_time[t]`), "
             "kept so the raw per-wave gaps can still be read."
             if _lf_t1
-            else "."
+            else (
+                " — except the `balance` role on the free vector's t1 element "
+                "`b_grp_time[0]`: the covariate-adjusted arm difference at t1 "
+                "before anyone was treated, a chance quantity, never an effect."
+                if _has_balance_role
+                else "."
+            )
         )
     )
 )
@@ -114,9 +128,12 @@ if factor_summary is not None and "role" in factor_summary.columns:
             + (
                 " It is the **change in the adjusted arm gap from t1 to t2** — a "
                 "difference-in-differences of levels: the arm difference at t2 minus "
-                "the arm difference at t1, so the chance covariate-adjusted imbalance "
-                "present before randomisation is removed rather than carried into "
-                "the estimate (#552)."
+                "the model's estimate of the arm difference at t1, so the chance "
+                "covariate-adjusted imbalance present before randomisation is "
+                "subtracted out to the extent the data identify it. That t1 estimate "
+                "is itself regularised by a cautious prior (see the balance term "
+                "below), so in a sample this small the subtraction is partial rather "
+                "than exact (#552)."
                 if _lf_t1
                 else ""
             )
@@ -150,18 +167,23 @@ if factor_summary is not None and "role" in factor_summary.columns:
 ```{python}
 # | echo: false
 # | output: asis
-# Level family, t1-referenced parameterisation (#552): the pre-randomisation
-# balance term and the derived per-wave levels view, fenced off from both the
-# causal term and the adjusted associations. Gated on the roles being present.
+# Level family: the pre-randomisation balance term (present under the
+# t1-referenced parameterisation, #552, and as the free comparator's t1
+# element, 2026-08-20 review finding 9) and the derived per-wave levels view,
+# fenced off from both the causal term and the adjusted associations. Gated on
+# the roles being present.
 if (
-    _lf_t1
-    and factor_summary is not None
+    factor_summary is not None
     and "role" in factor_summary.columns
     and factor_summary.role.isin(["balance", "levels_view"]).any()
 ):
     _bal = factor_summary[factor_summary.role == "balance"]
     _lv = factor_summary[factor_summary.role == "levels_view"]
-    print("### Baseline balance and the per-wave levels view\n")
+    print(
+        "### Baseline balance and the per-wave levels view\n"
+        if len(_lv)
+        else "### Baseline balance\n"
+    )
     if len(_bal):
         _b = _bal.iloc[0]
         print(
@@ -172,8 +194,18 @@ if (
             "This is a **chance quantity** under randomisation — it exists because the "
             "model adjusts for age and ability at every wave and the arms differ "
             "slightly on both — and it is reported with its own prior as a *balance* "
-            "term, **never as an effect**. The randomised contrast above is the change "
-            "from this gap to the t2 gap, so whatever this gap is, it is subtracted out.\n"
+            "term, **never as an effect**. "
+            + (
+                "The randomised contrast above is the change from this gap to the t2 "
+                "gap. Note the subtraction uses this *posterior* balance estimate, "
+                "which its cautious prior pulls toward zero when the per-wave data "
+                "are weak (the power-scaling diagnostics report when that happens), "
+                "so the correction is partial rather than exact.\n"
+                if _lf_t1
+                else "The raw t2 gap reported above is measured against the same "
+                "baseline that produced this gap, so it carries any covariate-"
+                "adjusted chance imbalance shown here.\n"
+            )
         )
     if len(_lv):
         _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _lv.columns]
@@ -210,7 +242,7 @@ if (
         "_What the causal effect holds fixed:_ this model also carries a "
         "**group × ability** term, so the full group contribution at t2 is "
         f"`{_focal} + gamma_grp_ability × ability`"
-        + (" (plus the t1 balance term `arm_gap_t1`, which is in both arms' prediction and is not part of the effect)" if _lf_t1 else "")
+        + (" (plus the t1 balance term `arm_gap_t1`, which is kept in the prediction both with and without the t2 change — never added or removed — so it is not part of the effect)" if _lf_t1 else "")
         + ". The effect reported above and "
         f"in the items-scale card below adds back **only `{_focal}`**: every child "
         "keeps their own baseline, but each receives the *same* group increment. The "
@@ -319,13 +351,15 @@ if _has("rope_benefit_curve.png"):
     print("\n_How to read it:_ the probability of a benefit as the meaningful threshold delta rises, so you can see how likely a worthwhile gain is, not just any gain above zero.")
 ```
 
-### What the model predicts on the test scale
-
 ```{python}
 # | echo: false
 # | output: asis
+# Heading gated on the artefact: only the gain family writes predicted_scores,
+# so an unconditional heading renders an empty section in every level report
+# (2026-08-20 review, finding 8).
 _pred = _csv("predicted_scores.csv")
 if _pred is not None:
+    print("### What the model predicts on the test scale\n")
     _pop = str(_pred.iloc[0].population)
     _status = str(_pred.iloc[0].contrast_status)
     print(_img("predicted_scores.png", "Predicted period-end scores with and without the intervention"))

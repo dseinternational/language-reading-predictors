@@ -585,18 +585,41 @@ def load_primary_standard_references(
 # #552; ``b_grp_time[1]`` on the free comparator), and its per-fit evidence check
 # (``release._standard_sweep_evidence``) accepts a standard-schema
 # ``tau_prior_sensitivity.csv`` bound to the fit's own config/trace hashes.
-# These constants define the level-family sweep: the five outcomes the #389
-# review names (W, L, P, B, N — all proximal-tier, so the proximal grid
-# applies) and their registered primary model ids.
+# These constants define the level-family sweep. The default sweep set stays
+# the five outcomes the #389 review names (W, L, P, B, N — all proximal-tier),
+# but the model-id map covers every registered LF primary (2026-08-20 review,
+# finding 7): the gate's withhold remedy names a treatment-prior sweep, so a
+# prior-dominant classification on any of the other six outcomes must have a
+# runner path. The runner picks the tau grid by outcome tier
+# (``measures.is_distal``): the proximal grid for the directly-taught /
+# decoding / floored outcomes, the distal grid (which brackets the registered
+# 0.3 scale) for R/E/F/T.
 
 LEVEL_SENSITIVITY_OUTCOMES = ("W", "L", "P", "B", "N")
 LEVEL_SENSITIVITY_MODEL_IDS = {
     "W": "lrp-rli-lf-001",
+    "R": "lrp-rli-lf-002",
+    "E": "lrp-rli-lf-003",
     "L": "lrp-rli-lf-004",
     "P": "lrp-rli-lf-005",
     "B": "lrp-rli-lf-006",
+    "F": "lrp-rli-lf-007",
+    "T": "lrp-rli-lf-008",
+    "TR": "lrp-rli-lf-009",
+    "TE": "lrp-rli-lf-010",
     "N": "lrp-rli-lf-011",
 }
+
+# Balance-prior sweep grid for the level family's ``arm_gap_t1`` term
+# (2026-08-20 review, finding 1): the registered cross-coupling scale (0.3), a
+# midpoint, and the review's recommended weakly-informative comparator (1.0).
+# The balance term is prior-dominated in most reporting fits and trades off
+# directly against the released ``d_grp_time[t2]`` contrast, so this axis
+# measures how much of the #552 t1-imbalance subtraction the prior is
+# determining. Rows go to a separate ``level_arm_gap_prior_sensitivity.csv``
+# and are never attached as gate evidence — the gate's evidence contract is
+# the treatment-prior (tau) sweep only.
+LEVEL_SENSITIVITY_ARM_GAP_SIGMAS = (0.3, 0.5, 1.0)
 
 # The gate likewise covers ``did`` on the plan's focal term (``tau_t2``, or a
 # dose model's own slope — ``release.causal_term_for`` mirrors

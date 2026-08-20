@@ -170,10 +170,26 @@ def gate_applies(config: Mapping[str, Any]) -> bool:
     the causal headline — that lives in the interaction-free primary the variant varies,
     which IS gated. Gating the variant would demand treatment-prior sweep evidence for a
     number the family never releases as causal.
+
+    A ``level_factors`` **pooled** fit (``group_by_time=False``) is the level family's
+    analogue of the treated-only companion: its resolved plan records ``focal_term``
+    explicitly as null because a pooled ``beta_grp`` mixes post-crossover waves and is
+    never a randomised contrast, so there is no causal headline to gate and no focal
+    psense row to read — :func:`causal_term_for`'s ``b_grp_time[1]`` fallback would
+    name a term the posterior structurally lacks and withhold fail-closed (2026-08-20
+    level-factors review, finding 4). The distinction from a stored pre-#552 fit is
+    the *presence* of the key: an old plan has no ``focal_term`` at all and keeps the
+    fallback, so stored fits still re-decide identically without a refit.
     """
     if config.get("kind") not in GATED_KINDS:
         return False
     plan = config.get("resolved_run_plan") or {}
+    if (
+        config.get("kind") == "level_factors"
+        and "focal_term" in plan
+        and plan.get("focal_term") is None
+    ):
+        return False
     return not (
         config.get("kind") == "gain_factors"
         and (
@@ -195,7 +211,10 @@ def causal_term_for(config: Mapping[str, Any]) -> str:
     ``d_grp_time[t2]`` under the t1-referenced default, ``b_grp_time[1]`` under the
     free comparator. A stored fit whose plan predates the field (every pre-#552
     reporting fit) was fitted free, so the fallback is ``b_grp_time[1]``; the
-    decision therefore stays reproducible over stored fits without a refit.
+    decision therefore stays reproducible over stored fits without a refit. A
+    post-#552 pooled plan records ``focal_term`` as explicitly null and never
+    reaches this lookup — :func:`gate_applies` excludes it (2026-08-20 review,
+    finding 4).
 
     The ``did`` dose models have no ``tau_t2`` at all: their focal quantity is the
     dose slope. The choice mirrors ``DiDRunPlan.effect_term`` and is read from the
