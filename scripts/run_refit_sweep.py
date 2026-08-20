@@ -199,6 +199,8 @@ def _build_command(
         command += ["--output-dir", args.output_dir]
     if kind == "statistical" and args.rli_randomised_archive:
         command += ["--rli-randomised-archive", args.rli_randomised_archive]
+    if kind == "statistical" and args.target_accept is not None:
+        command += ["--target-accept", str(args.target_accept)]
     return command
 
 
@@ -259,6 +261,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--force", action="store_true", help="Refit even when a matching stored fit exists")
     parser.add_argument("--output-dir", default=None, help="Override the output root for this sweep")
     parser.add_argument("--rli-randomised-archive", default=None, help="Passed through to the statistical fits")
+    parser.add_argument(
+        "--target-accept",
+        type=float,
+        default=None,
+        help=(
+            "Override NUTS target_accept for the models in this run. Use for a "
+            "remediation refit of a named model; never as a blanket escalation, "
+            "which would LOWER acceptance on any module declaring a higher value."
+        ),
+    )
     parser.add_argument("--stop-on-failure", action="store_true", help="Abort the sweep at the first failure")
     parser.add_argument("--dry-run", action="store_true", help="List what would run, then exit")
     args = parser.parse_args(argv)

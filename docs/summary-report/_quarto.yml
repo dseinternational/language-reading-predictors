@@ -1,0 +1,45 @@
+project:
+  type: default
+  output-dir: ../../output/summary_report/rendered
+
+jupyter: python3
+
+execute:
+  freeze: false
+  echo: false
+  warning: false
+
+bibliography: ../report/references.bib
+csl: ../report/apa.csl
+
+author:
+  - name: Down Syndrome Education International
+    url: https://www.dseinternational.org
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-location: left
+    embed-resources: true
+    fig-align: center
+    fig-width: 8
+    tbl-cap-location: bottom
+  docx:
+    reference-doc: ../template.docx
+  pdf:
+    documentclass: report
+    papersize: a4
+    colorlinks: true
+    link-citations: true
+    fontsize: 11pt
+    mainfont: "Source Sans 3"
+    sansfont: "Source Sans 3"
+    monofont: "Menlo"
+    monofontoptions: "Scale=0.8"
+    linestretch: 1.15
+    geometry:
+      - top=25mm
+      - left=25mm
+      - right=25mm
+      - bottom=25mm

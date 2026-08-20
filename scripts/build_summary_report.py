@@ -281,7 +281,41 @@ def build_itt_suite(art: Artefacts) -> list[dict[str, Any]]:
 
 
 def build_triangulation(art: Artefacts) -> list[dict[str, Any]]:
-    """The same randomised contrast as four model families estimate it."""
+    """The same randomised contrast as the treatment families estimate it.
+
+    Prefers the cross-model comparison's own ``triangulation_consistency.csv``,
+    which puts each family on its canonical items-scale average marginal effect
+    and records whether the designs agree — quantities the report should not
+    re-derive. Falls back to reading each family's summary directly.
+    """
+    canonical = paths.stat_dir() / "comparison" / "triangulation_consistency.csv"
+    if canonical.is_file():
+        table = pd.read_csv(canonical)
+        rows_out: list[dict[str, Any]] = []
+        for record in json.loads(table.to_json(orient="records")):
+            symbol = str(record.get("outcome"))
+            measure = MEASURES.get(symbol)
+            entry: dict[str, Any] = {
+                "symbol": symbol,
+                "label": measure.label if measure else symbol,
+                "source": "triangulation_consistency.csv",
+                "direction_agree": bool(record.get("direction_agree")),
+                "intervals_overlap": bool(record.get("intervals_overlap")),
+                "consistent": bool(record.get("consistent")),
+                "n_designs": record.get("n_designs"),
+            }
+            for prefix, key in (("itt", "itt"), ("did", "did"), ("gf", "gain_factors")):
+                entry[key] = {
+                    "model_id": record.get(f"{prefix}_source"),
+                    "median": _f(record.get(f"{prefix}_items_median")),
+                    "lo": _f(record.get(f"{prefix}_items_lo")),
+                    "hi": _f(record.get(f"{prefix}_items_hi")),
+                    "prob": _f(record.get(f"{prefix}_prob_pos")),
+                    "estimand": record.get(f"{prefix}_estimand"),
+                }
+            rows_out.append(entry)
+        return rows_out
+
     rows: list[dict[str, Any]] = []
     for symbol in OUTCOME_ORDER:
         entry: dict[str, Any] = {"symbol": symbol}
@@ -423,14 +457,59 @@ def build_word_reading(art: Artefacts) -> dict[str, Any]:
     return out
 
 
+def trace_summary(art: Artefacts, model_id: str, parameters: list[str]) -> dict[str, dict[str, Any]]:
+    """House-standard posterior summary for named parameters, read from the trace.
+
+    The per-fit ``diagnostics.csv`` carries a posterior *mean* and an 89% interval
+    but neither a median nor a direction probability, and this project reports the
+    median with a direction probability, so read the draws.
+    """
+    path = art.stat_dir(model_id) / "trace.nc"
+    if not path.is_file():
+        art.missing.append(f"{model_id}:trace.nc")
+        return {}
+    import arviz as az
+
+    trace = az.from_netcdf(path)
+    out: dict[str, dict[str, Any]] = {}
+    for name in parameters:
+        if name not in trace.posterior:
+            art.missing.append(f"{model_id}:{name}")
+            continue
+        draws = np.asarray(trace.posterior[name].values).reshape(-1)
+        out[name] = {
+            "median": float(np.median(draws)),
+            "lo50": float(np.quantile(draws, 0.25)),
+            "hi50": float(np.quantile(draws, 0.75)),
+            "lo": float(np.quantile(draws, 0.055)),
+            "hi": float(np.quantile(draws, 0.945)),
+            "prob_pos": float(np.mean(draws > 0)),
+        }
+    return out
+
+
 def build_mediation(art: Artefacts) -> list[dict[str, Any]]:
-    """How the word-reading contrast divides between routes."""
+    """How the word-reading contrast divides between routes (g-formula)."""
     rows: list[dict[str, Any]] = []
     for model_id, label in MEDIATION_ROUTES:
         table = art.table(model_id, "mediation_summary")
-        if table is None:
+        if table is None or "quantity" not in table.columns:
             continue
-        rows.append({"model_id": model_id, "route": label, "rows": json.loads(table.to_json(orient="records"))})
+        indexed = table.set_index("quantity")
+        entry: dict[str, Any] = {"model_id": model_id, "route": label}
+        for quantity, key in (("total", "total"), ("NIE", "through_route"), ("NDE", "not_through_route")):
+            if quantity not in indexed.index:
+                continue
+            row = indexed.loc[quantity]
+            entry[key] = {
+                "median": _f(row.get("words_median")),
+                "lo": _f(row.get("words_lo")),
+                "hi": _f(row.get("words_hi")),
+                "prob_pos": _f(row.get("prob_pos")),
+            }
+        if "proportion_mediated" in indexed.index:
+            entry["proportion_mediated_median"] = _f(indexed.loc["proportion_mediated"].get("prob_median"))
+        rows.append(entry)
     return rows
 
 
@@ -439,10 +518,27 @@ def build_mechanism(art: Artefacts) -> dict[str, Any]:
     out: dict[str, Any] = {}
 
     # The cross-model comparison is the only place the R/E/L slopes are put on one
-    # scale (per SD of the predictor's logit), so read it rather than re-deriving.
+    # scale (per SD of the predictor's logit), so read it rather than re-deriving:
+    # the curve model has no single slope, and the comparison converts its average
+    # gradient onto the same per-SD scale as the two linear models.
     forest = paths.stat_dir() / "comparison" / "mechanism_forest.csv"
     if forest.is_file():
-        out["per_sd"] = json.loads(pd.read_csv(forest).to_json(orient="records"))
+        table = pd.read_csv(forest)
+        per_sd = []
+        for record in json.loads(table.to_json(orient="records")):
+            name = str(record.get("model", ""))
+            symbol = name.split("(")[-1].split("->")[0].strip() if "(" in name else None
+            per_sd.append(
+                {
+                    "model_id": name.split(" ")[0],
+                    "mechanism_symbol": symbol,
+                    "shape": record.get("mechanism_shape"),
+                    "slope_mean_per_sd": _f(record.get("slope_mean")),
+                    "lo": _f(record.get("slope_lo")),
+                    "hi": _f(record.get("slope_hi")),
+                }
+            )
+        out["per_sd"] = per_sd
 
     rows: list[dict[str, Any]] = []
     for model_id, label in MECHANISM_SLOPES:
@@ -518,24 +614,316 @@ def build_horseshoe(art: Artefacts) -> dict[str, Any]:
     return out
 
 
+PREDICTOR_LABELS = {
+    "L": "Letter-sound knowledge",
+    "E": "Expressive vocabulary",
+    "R": "Receptive vocabulary",
+    "erbto": "Phonological memory (word/nonword repetition)",
+    "deapp_c": "Speech clarity",
+    "hs": "Hearing-difficulty flag",
+}
+
+
 def build_pooled_levels(art: Artefacts) -> list[dict[str, Any]]:
-    """Between-child versus within-child level associations."""
+    """Between-child versus within-child level associations across the four waves."""
     rows: list[dict[str, Any]] = []
-    for model_id in sorted(p.name.replace(f"-{art.config}", "") for p in art.stat_root.glob(f"lrp-rli-pl-*-{art.config}")):
+    for directory in sorted(art.stat_root.glob(f"lrp-rli-pl-*-{art.config}")):
+        model_id = directory.name[: -len(f"-{art.config}")]
         cfg = art.config_json(model_id)
         table = art.table(model_id, "pooled_levels_summary")
-        if cfg is None:
+        if cfg is None or table is None or "term" not in table.columns:
             continue
+        indexed = table.set_index("term")
         entry: dict[str, Any] = {
             "model_id": model_id,
             "title": cfg.get("title"),
             "outcome_symbol": cfg.get("outcome_symbol"),
             "mechanism_symbol": cfg.get("mechanism_symbol"),
+            "predictor_label": PREDICTOR_LABELS.get(str(cfg.get("mechanism_symbol")), str(cfg.get("mechanism_symbol"))),
             "n_rows": cfg.get("n_obs"),
         }
-        if table is not None:
-            entry["rows"] = json.loads(table.to_json(orient="records"))
+        for term, key in (("beta_between", "between"), ("beta_within", "within")):
+            if term in indexed.index:
+                row = indexed.loc[term]
+                entry[key] = {
+                    "median": _f(row.get("median")),
+                    "lo": _f(row.get("lo")),
+                    "hi": _f(row.get("hi")),
+                    "prob_pos": _f(row.get("prob_positive")),
+                }
+        items_term = "beta_between (items per +1 SD)"
+        if items_term in indexed.index:
+            row = indexed.loc[items_term]
+            entry["between_items_per_sd"] = {
+                "median": _f(row.get("median")),
+                "lo": _f(row.get("lo")),
+                "hi": _f(row.get("hi")),
+            }
         rows.append(entry)
+    return rows
+
+
+# Each family names its coefficients differently, so the parameter names are
+# given per model rather than assumed. ``hearing`` and ``speech`` name the role
+# the coefficient plays, which is what the report reads.
+HEARING_SPEECH_VIEWS = [
+    (
+        "lrp-rli-mech-058",
+        "Gain over one period, given the score at the start of it",
+        {"hearing": "gamma_hs", "speech": "gamma_deapp_c"},
+    ),
+    (
+        "lrp-rli-lcsm-082",
+        "Latent change in reading and blending",
+        {"hearing": "b_hs", "speech": "b_deapp_c"},
+    ),
+    (
+        "lrp-rli-mm-002",
+        "Latent code-factor gain",
+        {"hearing": "beta_hs", "speech": "beta_deapp_c"},
+    ),
+    (
+        "lrp-rli-pl-001",
+        "Level pooled across the four assessments",
+        {"hearing": "gamma_hs", "speech": "gamma_deapp_c"},
+    ),
+]
+
+
+def build_hearing_speech(art: Artefacts) -> dict[str, Any]:
+    """The hearing flag and the speech-clarity score as they appear across fits.
+
+    Every one of these coefficients was included to clean up some *other*
+    estimate, so the report states them as adjusted associations and says so.
+    """
+    out: dict[str, Any] = {"views": [], "whole_study_gain": {}}
+
+    words = art.table("lrp-rli-adj-065", "predicted_gain_words")
+    assoc = art.table("lrp-rli-adj-065", "predictor_associations")
+    if words is not None and assoc is not None and "predictor" in words.columns:
+        merged = words.merge(assoc[["predictor", "adj_prob_pos"]], on="predictor", how="left")
+        for predictor in ("hs", "deapp_c", "erbto", "L"):
+            hit = merged[merged["predictor"] == predictor]
+            if hit.empty:
+                continue
+            row = hit.iloc[0]
+            out["whole_study_gain"][predictor] = {
+                "model_id": "lrp-rli-adj-065",
+                "label": PREDICTOR_LABELS.get(predictor, str(row.get("label"))),
+                "words_median": _f(row.get("delta_words_median")),
+                "words_lo": _f(row.get("delta_words_lo")),
+                "words_hi": _f(row.get("delta_words_hi")),
+                "prob_pos": _f(row.get("prob_pos")),
+            }
+
+    for model_id, label, parameters in HEARING_SPEECH_VIEWS:
+        summary = trace_summary(art, model_id, list(parameters.values()))
+        if summary:
+            out["views"].append(
+                {
+                    "model_id": model_id,
+                    "label": label,
+                    "parameters": {
+                        role: {**summary[name], "parameter": name}
+                        for role, name in parameters.items()
+                        if name in summary
+                    },
+                }
+            )
+
+    out["randomised_window_by_subgroup"] = randomised_window_subgroups()
+    return out
+
+
+def build_design(art: Artefacts) -> dict[str, Any]:
+    """The trial's shape as the analysis files record it.
+
+    Taken from the data rather than from the published design description: the
+    two differ after timepoint 3, where both arms received further sessions.
+    """
+    frame = pd.read_csv(REPO_ROOT / "data" / "rli_data_long.csv")
+    arms = {1: "immediate", 2: "waiting"}
+    waves: list[dict[str, Any]] = []
+    for time in sorted(frame["time"].unique()):
+        wave = frame[frame["time"] == time]
+        entry: dict[str, Any] = {"timepoint": f"t{int(time)}"}
+        for code, name in arms.items():
+            arm = wave[wave["group"] == code]
+            entry[f"n_{name}"] = int(arm["subject_id"].nunique())
+            entry[f"age_months_{name}"] = _f(arm["age"].mean())
+            entry[f"cumulative_sessions_{name}"] = _f(arm["attend_cumul"].mean())
+        waves.append(entry)
+
+    baseline = frame[frame["time"] == 1]
+    return {
+        "waves": waves,
+        "n_analysed": int(frame["subject_id"].nunique()),
+        "age_months_min": _f(baseline["age"].min()),
+        "age_months_max": _f(baseline["age"].max()),
+        "age_months_mean": _f(baseline["age"].mean()),
+    }
+
+
+def randomised_window_subgroups() -> list[dict[str, Any]]:
+    """Descriptive t1-to-t2 word-reading gains by arm within baseline subgroups.
+
+    Descriptive, not modelled: the trial cannot support a subgroup treatment
+    estimate at this size, and the report says so. Computed here rather than
+    quoted from a note so the numbers come from the data in this checkout.
+    """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        derive_hearing_composite,
+    )
+
+    frame = pd.read_csv(REPO_ROOT / "data" / "rli_data_long.csv")
+    wide = frame.pivot_table(index="subject_id", columns="time", values="ewrswr")
+    if 1 not in wide.columns or 2 not in wide.columns:
+        return []
+    gain = (wide[2] - wide[1]).rename("gain")
+
+    baseline = frame[frame["time"] == 1].set_index("subject_id")
+    try:
+        hearing = derive_hearing_composite(baseline)
+    except Exception:  # pragma: no cover - loader shape changes
+        hearing = baseline.get("hearing_c")
+
+    speech = baseline.get("deapp_c")
+    rows: list[dict[str, Any]] = []
+    splits: list[tuple[str, pd.Series]] = []
+    if hearing is not None:
+        series = pd.Series(hearing, index=baseline.index)
+        splits.append(("Flagged for hearing difficulty", series == 1))
+        splits.append(("Hearing recorded clear", series == 0))
+    if speech is not None:
+        median = speech.median()
+        splits.append(("Speech clarity at or below the median", speech <= median))
+        splits.append(("Speech clarity above the median", speech > median))
+
+    for label, mask in splits:
+        subset = baseline[mask.reindex(baseline.index, fill_value=False)]
+        joined = subset.join(gain).dropna(subset=["gain"])
+        if joined.empty:
+            continue
+        by_arm = joined.groupby("group")["gain"].agg(["count", "mean"])
+        if 1 not in by_arm.index or 2 not in by_arm.index:
+            continue
+        rows.append(
+            {
+                "subgroup": label,
+                "n_immediate": int(by_arm.loc[1, "count"]),
+                "n_waiting": int(by_arm.loc[2, "count"]),
+                "mean_gain_immediate": float(by_arm.loc[1, "mean"]),
+                "mean_gain_waiting": float(by_arm.loc[2, "mean"]),
+                "difference": float(by_arm.loc[1, "mean"] - by_arm.loc[2, "mean"]),
+            }
+        )
+    return rows
+
+
+def build_prior_dependence(art: Artefacts) -> dict[str, Any]:
+    """How far a treatment estimate moves when its prior is widened.
+
+    Attached by the family prior-sensitivity runners after the primary fit. Two
+    of the treatment families need this evidence before their result may be
+    released, and the report says what it establishes: direction, not size.
+    """
+    out: dict[str, Any] = {}
+    for model_id, label in (("lrp-rli-did-001", "Arm-by-wave model of word reading"),):
+        table = art.table(model_id, "tau_prior_sensitivity")
+        if table is None or "tau_sigma" not in table.columns:
+            continue
+        grid = table.sort_values("tau_sigma")
+        out[model_id] = {
+            "label": label,
+            "cells": [
+                {
+                    "prior_sd": _f(row.get("tau_sigma")),
+                    "items": _f(row.get("items_mean")),
+                    "lo": _f(row.get("items_lo")),
+                    "hi": _f(row.get("items_hi")),
+                    "prob_direction": _f(row.get("pd")),
+                    "converged": bool(row.get("converged")),
+                }
+                for row in json.loads(grid.to_json(orient="records"))
+            ],
+        }
+    return out
+
+
+HORSESHOE_GB_PAIRS = [
+    ("lrp-rli-hs-002", "lrp-rli-gbl-012", "Word reading", "level"),
+    ("lrp-rli-hs-004", "lrp-rli-gbl-009", "Letter sounds", "level"),
+    ("lrp-rli-hs-001", "lrp-rli-gbg-012", "Word reading", "change over a period"),
+    ("lrp-rli-hs-003", "lrp-rli-gbg-009", "Letter sounds", "change over a period"),
+]
+
+
+def build_ranking_agreement(art: Artefacts) -> list[dict[str, Any]]:
+    """Do the two step-1/step-2 ranking methods agree with each other?
+
+    ``scripts/compare_horseshoe_vs_gb.py`` writes the aligned per-construct ranks;
+    the rank correlation is recomputed here so the report's number comes from the
+    stored comparison rather than from a console line someone transcribed.
+    """
+    from scipy.stats import spearmanr
+
+    rows: list[dict[str, Any]] = []
+    for hs_id, gb_id, outcome, kind in HORSESHOE_GB_PAIRS:
+        path = paths.stat_dir() / "comparison" / f"horseshoe_vs_gb_{hs_id.replace('lrp-rli-', '')}.csv"
+        if not path.is_file():
+            art.missing.append(path.name)
+            continue
+        table = pd.read_csv(path)
+        if {"p_abs_gt_delta", "gb_perm_imp"} - set(table.columns) or len(table) < 3:
+            continue
+        # Correlate the two importance scores directly, letting scipy apply the
+        # average-rank tie correction, exactly as compare_horseshoe_vs_gb.py does.
+        # Top-k overlap is deliberately not recomputed here: that tool takes it
+        # from the *full* rankings, and this file holds only shared constructs,
+        # so a value computed from it would disagree with the tool's own output.
+        result = spearmanr(table["p_abs_gt_delta"], table["gb_perm_imp"])
+        rows.append(
+            {
+                "horseshoe_model": hs_id,
+                "gb_model": gb_id,
+                "outcome": outcome,
+                "quantity": kind,
+                "n_shared_constructs": int(len(table)),
+                "spearman_rho": float(result.statistic),
+                "spearman_p": float(result.pvalue),
+            }
+        )
+    return rows
+
+
+def build_blending_link(art: Artefacts) -> list[dict[str, Any]]:
+    """The mandatory phoneme-blending pair: ordinary logit and guessing-floor link.
+
+    Neither result may be reported without the other, so the report reads both
+    from the validated bundle rather than quoting the primary alone.
+    """
+    path = paths.stat_dir() / "blending_link_sensitivity" / "blending_link_sensitivity.csv"
+    if not path.is_file():
+        art.missing.append("blending_link_sensitivity.csv")
+        return []
+    table = pd.read_csv(path)
+    table = table[table["config"] == art.config] if "config" in table.columns else table
+    rows = []
+    for row in json.loads(table.to_json(orient="records")):
+        rows.append(
+            {
+                "model_id": row.get("model_id"),
+                "link": row.get("score_mean_link"),
+                "n": row.get("n"),
+                "median": _f(row.get("effect_items_median")),
+                "lo": _f(row.get("effect_items_lo")),
+                "hi": _f(row.get("effect_items_hi")),
+                "prob_pos": _f(row.get("prob_effect_positive")),
+                "prob_meaningful": _f(row.get("prob_meaningful_benefit")),
+                "elpd_difference": _f(row.get("guessing_floor_minus_logit_elpd")),
+                "elpd_difference_se": _f(row.get("guessing_floor_minus_logit_elpd_se")),
+            }
+        )
     return rows
 
 
@@ -566,10 +954,17 @@ def build_release_inventory(art: Artefacts) -> dict[str, Any]:
             passed = diagnostics.get("passed", diagnostics.get("gate_passed"))
             if passed is False:
                 gate_failures.append(model_id)
+    # The registry also holds models of a separate historical cohort (``rlm``),
+    # which this report does not cover; every withheld fit is one of them, so the
+    # counts must be able to say so.
+    n_trial = sum(1 for directory in art.stat_root.glob(f"*-{art.config}") if "-rli-" in directory.name)
     return {
         "n_fits": total,
+        "n_fits_trial": n_trial,
+        "n_fits_other_cohort": total - n_trial,
         "statuses": statuses,
         "withheld": withheld,
+        "n_withheld_other_cohort": sum(1 for row in withheld if "-rlm-" in row["model_id"]),
         "n_fits_with_divergences": divergences,
         "gate_failures": gate_failures,
     }
@@ -655,7 +1050,7 @@ def figure_word_reading_envelope(results: dict[str, Any], out_dir: Path) -> None
         label, median, lo, hi = row.get("label"), row.get("median"), row.get("lo"), row.get("hi")
         if label and median is not None and lo is not None and hi is not None:
             entries.append((label, median, lo, hi))
-    fig, ax = plt.subplots(figsize=(9.0, 0.62 * len(entries) + 2.2))
+    fig, ax = plt.subplots(figsize=(9.0, 0.52 * len(entries) + 1.6))
     _interval_plot(
         ax,
         [e[0] for e in entries],
@@ -667,16 +1062,18 @@ def figure_word_reading_envelope(results: dict[str, Any], out_dir: Path) -> None
     lo_bound = bounds.get("worst_case_items_lower")
     hi_bound = bounds.get("worst_case_items_upper")
     if lo_bound is not None and hi_bound is not None:
+        n_missing = int(bounds.get("missing_intervention_n") or 0) + int(bounds.get("missing_control_n") or 0)
         ax.axvspan(lo_bound, hi_bound, color="#d9534f", alpha=0.07, zorder=0)
         ax.text(
             lo_bound,
-            len(entries) - 0.35,
-            f"  if the {int(bounds.get('missing_intervention_n') or 0) + int(bounds.get('missing_control_n') or 0)} "
-            f"missing children took the most extreme possible scores: {lo_bound:+.1f} to {hi_bound:+.1f} words",
-            fontsize=8,
+            -0.62,
+            f"if the {n_missing} missing scores took the most extreme values possible: "
+            f"{lo_bound:+.1f} to {hi_bound:+.1f} words",
+            fontsize=8.5,
             color="#a33",
-            va="bottom",
+            va="center",
         )
+        ax.set_ylim(-1.0, len(entries) - 0.4)
     ax.set_xlabel("Word-reading difference in words (of 79), immediate minus waiting")
     ax.set_title("Word reading: the headline estimate and what the missing scores could do to it")
     save_styled_figure(str(out_dir), "word_reading_envelope", fig=fig, data=pd.DataFrame(entries, columns=["analysis", "median", "lo", "hi"]))
@@ -713,24 +1110,90 @@ def figure_trajectories(art: Artefacts, out_dir: Path, model_id: str, name: str,
 def figure_mechanism(results: dict[str, Any], out_dir: Path) -> None:
     """Per-SD slopes of the comparable R/E/L trio, the only common scale they share."""
     rows = (results.get("mechanism") or {}).get("per_sd") or []
-    rows = [r for r in rows if r.get("beta_mech_median") is not None]
+    rows = [r for r in rows if r.get("slope_mean_per_sd") is not None]
     if not rows:
         return
-    names = {"L": "Letter-sound knowledge", "E": "Expressive vocabulary", "R": "Receptive vocabulary"}
-    rows = sorted(rows, key=lambda r: -float(r["beta_mech_median"]))
-    fig, ax = plt.subplots(figsize=(8.2, 0.7 * len(rows) + 2.4))
+    rows = sorted(rows, key=lambda r: -float(r["slope_mean_per_sd"]))
+    fig, ax = plt.subplots(figsize=(8.4, 0.8 * len(rows) + 2.4))
     _interval_plot(
         ax,
-        [names.get(str(r.get("mechanism") or r.get("symbol")), str(r.get("model"))) for r in rows],
-        [float(r["beta_mech_median"]) for r in rows],
-        [float(r["beta_mech_lo"]) for r in rows],
-        [float(r["beta_mech_hi"]) for r in rows],
-        [float(r["beta_mech_lo50"]) for r in rows] if "beta_mech_lo50" in rows[0] else None,
-        [float(r["beta_mech_hi50"]) for r in rows] if "beta_mech_hi50" in rows[0] else None,
+        [PREDICTOR_LABELS.get(str(r.get("mechanism_symbol")), str(r.get("model_id"))) for r in rows],
+        [float(r["slope_mean_per_sd"]) for r in rows],
+        [float(r["lo"]) for r in rows],
+        [float(r["hi"]) for r in rows],
     )
-    ax.set_xlabel("Change in later word reading (log-odds) per standard deviation of the earlier skill")
+    ax.set_xlabel("Association with later word reading (log-odds) per standard deviation of the earlier skill")
     ax.set_title("Which earlier skills track later word reading (associations, not levers)")
     save_styled_figure(str(out_dir), "mechanism_forest", fig=fig, data=pd.DataFrame(rows))
+
+
+def figure_mediation(results: dict[str, Any], out_dir: Path) -> None:
+    """The word-reading contrast split into the part through each route and the rest."""
+    rows = [r for r in (results.get("mediation") or []) if r.get("through_route")]
+    if not rows:
+        return
+    labels = [r["route"] for r in rows]
+    through = [r["through_route"]["median"] for r in rows]
+    direct = [r["not_through_route"]["median"] if r.get("not_through_route") else 0.0 for r in rows]
+    positions = np.arange(len(rows))[::-1]
+
+    fig, ax = plt.subplots(figsize=(8.8, 0.62 * len(rows) + 2.0))
+    ax.barh(positions, through, height=0.42, color="#1f4e79", label="through this route")
+    ax.barh(positions, direct, height=0.42, left=through, color="#c8791a", alpha=0.85, label="not through this route")
+    for index, position in enumerate(positions):
+        entry = rows[index]["through_route"]
+        ax.plot([entry["lo"], entry["hi"]], [position, position], color="#0d2b45", linewidth=1.4)
+    ax.axvline(0.0, color="#666666", linewidth=1.0, linestyle="--")
+    ax.set_yticks(positions)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Words of 79 attributed to each part of the 20-week difference")
+    ax.set_title("Which route the word-reading benefit ran through")
+    ax.legend(frameon=False, loc="lower right")
+    ax.grid(axis="x", alpha=0.3)
+    ax.set_axisbelow(True)
+    save_styled_figure(str(out_dir), "mediation_routes", fig=fig, data=pd.DataFrame(rows))
+
+
+def figure_pooled_levels(results: dict[str, Any], out_dir: Path) -> None:
+    """Between-child against within-child associations, side by side."""
+    # pl-101 is a technical comparator (the same association without wave
+    # intercepts), so it belongs on its model page rather than in this figure.
+    rows = [
+        r
+        for r in (results.get("pooled_levels") or [])
+        if r.get("between") and r.get("within") and not r["model_id"].endswith("-101")
+    ]
+    if not rows:
+        return
+    labels = [
+        f"{r['predictor_label']}\n→ {MEASURES[r['outcome_symbol']].label.split(' (')[0]}"
+        if r.get("outcome_symbol") in MEASURES
+        else r["predictor_label"]
+        for r in rows
+    ]
+    positions = np.arange(len(rows))[::-1]
+    fig, ax = plt.subplots(figsize=(8.8, 0.62 * len(rows) + 2.0))
+    for index, position in enumerate(positions):
+        for key, offset, colour, name in (
+            ("between", 0.16, "#1f4e79", "comparing children"),
+            ("within", -0.16, "#c8791a", "within one child"),
+        ):
+            part = rows[index][key]
+            ax.plot([part["lo"], part["hi"]], [position + offset] * 2, color=colour, linewidth=1.6)
+            ax.plot([part["median"]], [position + offset], "o", color=colour, markersize=6)
+    ax.axvline(0.0, color="#666666", linewidth=1.0, linestyle="--")
+    ax.set_yticks(positions)
+    ax.set_yticklabels(labels)
+    ax.set_xlabel("Association with the outcome level (log-odds per standard deviation)")
+    ax.set_title("The same association, split two ways")
+    handles = [
+        plt.Line2D([], [], color="#1f4e79", marker="o", linestyle="-", label="comparing one child with another"),
+        plt.Line2D([], [], color="#c8791a", marker="o", linestyle="-", label="within one child, wave to wave"),
+    ]
+    ax.legend(handles=handles, frameon=False, loc="upper center", bbox_to_anchor=(0.5, -0.13), ncols=2)
+    ax.grid(axis="x", alpha=0.3)
+    ax.set_axisbelow(True)
+    save_styled_figure(str(out_dir), "pooled_levels_between_within", fig=fig, data=pd.DataFrame(rows))
 
 
 def figure_gb_predictability(results: dict[str, Any], out_dir: Path) -> None:
@@ -802,19 +1265,26 @@ def main(argv: list[str] | None = None) -> int:
             "config": args.config,
             "output_root": str(paths.output_root()),
         },
+        "design": build_design(art),
         "itt_suite": build_itt_suite(art),
         "triangulation": build_triangulation(art),
         "word_reading": build_word_reading(art),
         "mediation": build_mediation(art),
         "mechanism": build_mechanism(art),
         "pooled_levels": build_pooled_levels(art),
+        "hearing_speech": build_hearing_speech(art),
         "gb": build_gb(art),
         "horseshoe": build_horseshoe(art),
+        "ranking_agreement": build_ranking_agreement(art),
+        "prior_dependence": build_prior_dependence(art),
+        "blending_link": build_blending_link(art),
         "release": build_release_inventory(art),
     }
 
     figure_effects_forest(results, out_dir)
     figure_word_reading_envelope(results, out_dir)
+    figure_mediation(results, out_dir)
+    figure_pooled_levels(results, out_dir)
     figure_trajectories(art, out_dir, "lrp-rli-did-001", "trajectory_word_reading", "Word reading")
     figure_trajectories(art, out_dir, "lrp-rli-did-002", "trajectory_letter_sounds", "Letter-sound knowledge")
     figure_mechanism(results, out_dir)

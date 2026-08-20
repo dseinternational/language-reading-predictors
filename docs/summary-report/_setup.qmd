@@ -1,0 +1,173 @@
+```{python}
+#| label: summary-setup
+#| echo: false
+
+import json
+from pathlib import Path
+
+import pandas as pd
+from IPython.display import Markdown, display
+
+
+def _repo_root(start: Path | None = None) -> Path:
+    p = (start or Path.cwd()).resolve()
+    for cand in (p, *p.parents):
+        if (cand / "pyproject.toml").exists():
+            return cand
+    return p
+
+
+REPO = _repo_root()
+RESULTS_DIR = REPO / "output" / "summary_report"
+RESULTS = json.loads((RESULTS_DIR / "results.json").read_text())
+
+ITT = {row["symbol"]: row for row in RESULTS["itt_suite"]}
+TRIANGULATION = {row["symbol"]: row for row in RESULTS["triangulation"]}
+WORD = RESULTS["word_reading"]
+RELEASE = RESULTS["release"]
+
+
+def n(value, places: int = 1, sign: bool = True) -> str:
+    """A number formatted for prose: fixed places, explicit sign by default."""
+    if value is None:
+        return "—"
+    return f"{value:+.{places}f}" if sign else f"{value:.{places}f}"
+
+
+def prob(value) -> str:
+    """A posterior probability, never rounded up to 1 or across an evidence threshold."""
+    if value is None:
+        return "—"
+    if value >= 0.9995:
+        return "greater than 0.999"
+    # Two decimals would print 0.986 as "0.99", which reads as the very-strong
+    # threshold this project sets at 0.99. Keep three from 0.95 upwards.
+    return f"{value:.3f}" if value >= 0.95 else f"{value:.2f}"
+
+
+# Report labels for the measures. The registry labels carry the analysis symbol or
+# the data column (e.g. "Taught expressive vocabulary, block 1 (b1extau)"), which
+# is right on a model page and wrong in a report for teachers.
+PLAIN_LABELS = {
+    "L": "Letter-sound knowledge",
+    "W": "Word reading",
+    "TE": "Taught vocabulary — saying the words",
+    "TR": "Taught vocabulary — understanding the words",
+    "UE": "Untaught words from the taught categories — saying",
+    "UR": "Untaught words from the taught categories — understanding",
+    "B": "Phoneme blending",
+    "F": "Basic concept knowledge",
+    "EG": "Expressive grammar (Action Picture Test)",
+    "EI": "Expressive information (Action Picture Test)",
+    "T": "Receptive grammar (TROG-2)",
+    "R": "Receptive vocabulary (standardised)",
+    "E": "Expressive vocabulary (standardised)",
+    "P": "Phonetic spelling",
+    "N": "Nonword reading",
+}
+
+
+def label(symbol: str) -> str:
+    """The reader-facing name of an outcome."""
+    return PLAIN_LABELS.get(symbol, ITT.get(symbol, {}).get("label", symbol))
+
+
+# What one point on each test is called, so the prose can say "+2.4 words"
+# rather than "+2.4 items". Anything not listed falls back to "items".
+UNIT_NOUNS = {
+    "W": "words",
+    "L": "letter sounds",
+    "N": "nonwords",
+    "TE": "taught words",
+    "TR": "taught words",
+    "UE": "words",
+    "UR": "words",
+    "EG": "marks",
+    "EI": "marks",
+}
+
+
+def unit(symbol: str, value: float | None = None) -> str:
+    """The noun for one point on a test, singular when the value is exactly one."""
+    if ITT.get(symbol, {}).get("floor_rule"):
+        return "percentage points"
+    noun = UNIT_NOUNS.get(symbol, "items")
+    if value is not None and abs(value) == 1:
+        return noun[:-1] if noun.endswith("s") else noun
+    return noun
+
+
+def effect(symbol: str, places: int = 1) -> str:
+    """`+2.4 words (89% range +0.7 to +4.1)` for one outcome's headline estimate."""
+    row = ITT[symbol]
+    return (
+        f"{n(row['median'], places)} {unit(symbol, row['median'])} "
+        f"(89% range {n(row['lo'], places)} to {n(row['hi'], places)})"
+    )
+
+
+def evidence(symbol: str) -> str:
+    """`strong evidence (P = 0.986)` in the project's fixed vocabulary."""
+    row = ITT[symbol]
+    return f"{row['evidence_label']} evidence (P = {prob(row['prob_direction'])})"
+
+
+def md(text: str) -> None:
+    """Render Markdown from a code cell.
+
+    Use this rather than leaving a bare ``Markdown(...)`` as the cell's value:
+    IPython only auto-displays the last *expression* in a cell, so a
+    ``Markdown(...)`` inside an ``if`` block silently renders nothing.
+    """
+    display(Markdown(text))
+
+
+def figure(name: str, caption: str, width: str = "100%") -> None:
+    """Embed a generated figure with its caption.
+
+    The path must be relative to the document being rendered: an absolute path
+    is emitted by Quarto as ``./<abs path>`` and the resource is not found.
+    """
+    import os
+
+    path = os.path.relpath(RESULTS_DIR / f"{name}.png", Path.cwd()).replace(os.sep, "/")
+    display(Markdown(f"![{caption}]({path}){{width={width}}}\n"))
+
+
+def effects_table() -> None:
+    """The headline effect for every outcome, ordered as the figure is."""
+    header = (
+        "| Outcome (test maximum) | Children | Difference after 20 weeks | 89% range | Direction |\n"
+        "| --- | ---: | ---: | :---: | --- |\n"
+    )
+    lines = []
+    for row in RESULTS["itt_suite"]:
+        unit = " pp" if row["floor_rule"] else ""
+        lines.append(
+            f"| {label(row['symbol'])} ({row['n_trials']}) | {row['n_children']} | "
+            f"**{n(row['median'])}{unit}** | {n(row['lo'])} to {n(row['hi'])} | "
+            f"{row['evidence_label']}, P = {prob(row['prob_direction'])} |"
+        )
+    md(header + "\n".join(lines))
+
+
+def triangulation_table(symbols: list[str]) -> None:
+    """The same randomised contrast as the four treatment families estimate it."""
+    header = (
+        "| Outcome | Headline (`itt`) | Arm-by-wave (`did`) | Period-stacked (`gain_factors`) |\n"
+        "| --- | --- | --- | --- |\n"
+    )
+    lines = []
+    for symbol in symbols:
+        row = TRIANGULATION.get(symbol, {})
+        cells = []
+        for family in ("itt", "did", "gain_factors"):
+            entry = row.get(family)
+            cells.append(
+                f"{n(entry['median'])} [{n(entry['lo'])}, {n(entry['hi'])}], P = {prob(entry['prob'])}"
+                if entry
+                else "—"
+            )
+        lines.append(f"| {label(symbol)} | " + " | ".join(cells) + " |")
+    md(header + "\n".join(lines))
+```
