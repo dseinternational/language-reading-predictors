@@ -973,10 +973,20 @@ def _subset_prepared(prepared: PreparedData, mask: np.ndarray) -> PreparedData:
     """Return a copy of ``prepared`` keeping only the rows where ``mask`` is True.
 
     All row-indexed arrays (ids, phase, group, age, every pre/post/covariate
-    column) are filtered together; ``child_idx`` is re-derived on the kept
-    subjects, and ``n_obs`` / ``n_children`` recomputed. Age is left on its
-    original (full-sample) standardised scale — as a precision covariate its unit
-    does not have to be re-anchored on the subset.
+    column, including the raw ``pre_counts`` companions) are filtered together;
+    ``child_idx`` is re-derived on the kept subjects, and ``n_obs`` /
+    ``n_children`` recomputed. Age is left on its original (full-sample)
+    standardised scale — as a precision covariate its unit does not have to be
+    re-anchored on the subset.
+
+    Unlike :func:`factories._subset`, the dropped-row ledger is deliberately
+    untouched: the two callers (:func:`restrict_to_baseline_floored`,
+    :func:`restrict_to_off_floor`) apply *design/estimand* restrictions, not
+    data-quality drops, and the floor pipeline accounts for them explicitly in
+    the eligibility tables and ``config.json`` (``at_risk_n`` / ``total_n``).
+    ``tests/statistical_models/test_preprocessing.py`` pins the two helpers'
+    row-field coverage against each other so they cannot drift again
+    (2026-08-20 ITT review, finding 4).
     """
     mask = np.asarray(mask, dtype=bool)
     subject_ids = np.asarray(prepared.subject_ids)[mask]
@@ -994,6 +1004,7 @@ def _subset_prepared(prepared: PreparedData, mask: np.ndarray) -> PreparedData:
         A_months=_f(prepared.A_months),
         A_std=_f(prepared.A_std),
         pre_logit={k: _f(v) for k, v in prepared.pre_logit.items()},
+        pre_counts={k: _f(v) for k, v in prepared.pre_counts.items()},
         post_counts={k: _f(v) for k, v in prepared.post_counts.items()},
         covariates={k: _f(v) for k, v in prepared.covariates.items()},
         n_obs=int(mask.sum()),

@@ -8,8 +8,11 @@ locked DAG the assigned-arm coefficient requires no adjustment set, so the own
 baseline and linear age are PRECISION terms only and no cross-baselines enter.
 Sign convention: positive ``tau`` means the intervention raises the outcome.
 
-The not-taught set's item count (n_trials = 12) is the observed maximum, flagged
-unconfirmed in ``measures.py``; probability-scale summaries are approximate.
+The not-taught set's item count (n_trials = 12) has been confirmed since #214
+(the taught-word list resolved the 24 taught / 12 not-taught split per modality;
+``measures.py`` records it with ``n_trials_confirmed=True``) — an earlier version
+of this docstring predated that confirmation (corrected in the 2026-08-20 ITT
+code review).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

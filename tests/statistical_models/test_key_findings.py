@@ -87,7 +87,7 @@ def _setup_dir(
     directory_name: str | None = None,
 ) -> Path:
     d = tmp_path / (directory_name or f"{kind}-dev")
-    d.mkdir()
+    d.mkdir(parents=True)
     _write_json(d, "config.json", config or _config(kind))
     _write_json(d, "diagnostics_summary.json", _passing_gate())
     if kind == "itt":
@@ -787,6 +787,15 @@ def _write_blending_link_summary(d: Path) -> Path:
     (companion_dir / "blending_link_sensitivity.csv").write_bytes(
         (d / "blending_link_sensitivity.csv").read_bytes()
     )
+    # The local evaluator byte-binds the installed copies to the central archive
+    # manifest (finding 1, notes/202608201205-itt-code-review-findings.md); the
+    # calling tests therefore nest the fit dirs one level down (``models/<fit>``)
+    # so this per-test archive lands inside tmp_path, mirroring production.
+    archive = d.parent.parent / "blending_link_sensitivity"
+    archive.mkdir(parents=True, exist_ok=True)
+    (archive / "blending_link_sensitivity.csv").write_bytes(
+        (d / "blending_link_sensitivity.csv").read_bytes()
+    )
     return companion_dir
 
 
@@ -799,8 +808,11 @@ def test_blending_headline_is_withheld_without_trace_backed_link_pair(tmp_path):
     )
     _write_csv(d, "rope_summary.csv", _rope_row(items_median=1.0))
     payload = generate_key_findings(d)
-    assert payload["status"] == "not_available"
-    assert "B link sensitivity" in payload["reason"]
+    # Since the 2026-08-20 review the missing pair is caught by the release
+    # decision's robustness stage (finding 1), before the key-findings builder.
+    assert payload["status"] == "robustness_unresolved"
+    assert "phoneme-blending link pair" in payload["reason"]
+    assert "B link sensitivity is missing" in payload["reason"]
     assert payload["sentences"] == []
 
 
@@ -811,7 +823,7 @@ def test_blending_key_findings_show_both_current_links(tmp_path):
         tmp_path,
         "itt",
         config=_blending_config("lrp-rli-itt-008", "logit"),
-        directory_name="lrp-rli-itt-008-dev",
+        directory_name="models/lrp-rli-itt-008-dev",
     )
     # Deliberately conflict with the bundle. B headlines and direction must come
     # from its trace-recomputed paired row, never this separately stored table.
@@ -901,7 +913,7 @@ def test_blending_link_summary_stale_for_current_config_withholds(tmp_path):
         tmp_path,
         "itt",
         config=_blending_config("lrp-rli-itt-008", "logit"),
-        directory_name="lrp-rli-itt-008-dev",
+        directory_name="models/lrp-rli-itt-008-dev",
     )
     _write_csv(d, "rope_summary.csv", _rope_row(items_median=1.0))
     _write_blending_link_summary(d)
@@ -909,7 +921,9 @@ def test_blending_link_summary_stale_for_current_config_withholds(tmp_path):
     config["title"] = "changed after sensitivity installation"
     _write_json(d, "config.json", config)
     payload = generate_key_findings(d)
-    assert payload["status"] == "not_available"
+    # The release decision's robustness stage now catches the stale pair first
+    # (finding 1, 2026-08-20 review); the reason still names the changed file.
+    assert payload["status"] == "robustness_unresolved"
     assert "config has changed" in payload["reason"]
 
 

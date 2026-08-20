@@ -59,7 +59,14 @@ MEASURES: dict[str, Measure] = {
     "B": Measure("B", V.BLENDING, 10, "Phoneme blending (PA)", n_trials_confirmed=True),
     # CELF Preschool-2 basic concepts: 18 items. Observed max 18.
     "F": Measure("F", V.CELF, 18, "Basic concept knowledge (LF)", n_trials_confirmed=True),
-    # TROG-2: 8 blocks of 4 = 32 items. Observed max 27.
+    # TROG-2, trial-specific short administration: "Eight grammatical constructs
+    # were tested in blocks of four items; each correct item was awarded a score
+    # of 1" (Burgoyne et al. 2012, Methods; the participant table lists
+    # "Receptive grammar (32)" — archived at papers/burgoyne-2012.md). So the
+    # ceiling is 8 x 4 = 32 item-scored — NOT the full TROG-2's 20 blocks / 80
+    # items, and not blocks-passed /20 scoring (which the RLM/Byrne cohort uses;
+    # see notes/202607161200-byrne-phase-a-window-and-ceilings.md). Observed
+    # max 27. Provenance confirmed 2026-08-20 (ITT code review, finding 3).
     "T": Measure("T", V.TROG, 32, "Receptive grammar (RG)", n_trials_confirmed=True),
     # Nonword reading: 6 items. It has t1 data, but ~72% of children are at the
     # floor at baseline (a near-degenerate pre), so it is not co-loaded as an

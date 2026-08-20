@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 
 import numpy as np
@@ -327,8 +328,18 @@ def test_local_evaluator_hashes_both_current_fit_directories(tmp_path):
         rows.loc[mask, "row_map_file"] = (
             f"{model_id}-rows-{row_map_sha[:16]}.csv"
         )
+    # The local check byte-binds the installed copy to the central archive
+    # manifest (finding 1, notes/202608201205-itt-code-review-findings.md); the
+    # fixture layout mirrors production: <root>/models/<fit> beside
+    # <root>/blending_link_sensitivity/.
+    archive = tmp_path / "blending_link_sensitivity"
+    archive.mkdir()
+    rows.to_csv(archive / bs.BLENDING_SENSITIVITY_FILENAME, index=False)
     for directory in directories.values():
-        rows.to_csv(directory / bs.BLENDING_SENSITIVITY_FILENAME, index=False)
+        shutil.copyfile(
+            archive / bs.BLENDING_SENSITIVITY_FILENAME,
+            directory / bs.BLENDING_SENSITIVITY_FILENAME,
+        )
 
     status = bs.evaluate_local_blending_link_sensitivity(
         directories[bs.BLENDING_PRIMARY_MODEL_ID]
@@ -357,6 +368,50 @@ def test_local_evaluator_hashes_both_current_fit_directories(tmp_path):
     )
     assert status["ready"] is False
     assert "trace has changed" in status["reason"]
+
+
+def test_local_evaluator_requires_the_central_archive_manifest(tmp_path):
+    """Finding 1 (notes/202608201205-itt-code-review-findings.md): with no
+    central archive manifest the installed pair CSV is only self-referential
+    evidence, so the check fails closed rather than trusting it."""
+    rows = _manifest_rows()
+    models = tmp_path / "models"
+    directory = models / f"{bs.BLENDING_PRIMARY_MODEL_ID}-reporting"
+    directory.mkdir(parents=True)
+    (directory / "config.json").write_text(
+        json.dumps({"model_id": bs.BLENDING_PRIMARY_MODEL_ID})
+    )
+    rows.to_csv(directory / bs.BLENDING_SENSITIVITY_FILENAME, index=False)
+
+    status = bs.evaluate_local_blending_link_sensitivity(directory)
+    assert status["required"] is True
+    assert status["ready"] is False
+    assert "central B link archive manifest is missing" in status["reason"]
+
+
+def test_local_evaluator_rejects_an_installed_summary_the_archive_never_validated(
+    tmp_path,
+):
+    """An edited installed CSV whose hash columns stay coherent must not be
+    quotable: only the byte-identical, build-validated archive manifest counts."""
+    rows = _manifest_rows()
+    models = tmp_path / "models"
+    directory = models / f"{bs.BLENDING_PRIMARY_MODEL_ID}-reporting"
+    directory.mkdir(parents=True)
+    (directory / "config.json").write_text(
+        json.dumps({"model_id": bs.BLENDING_PRIMARY_MODEL_ID})
+    )
+    archive = tmp_path / "blending_link_sensitivity"
+    archive.mkdir()
+    rows.to_csv(archive / bs.BLENDING_SENSITIVITY_FILENAME, index=False)
+    edited = rows.copy()
+    edited.loc[:, "effect_items_median"] = 9.9
+    edited.to_csv(directory / bs.BLENDING_SENSITIVITY_FILENAME, index=False)
+
+    status = bs.evaluate_local_blending_link_sensitivity(directory)
+    assert status["required"] is True
+    assert status["ready"] is False
+    assert "does not match the validated central archive manifest" in status["reason"]
 
 
 def _fit_record(

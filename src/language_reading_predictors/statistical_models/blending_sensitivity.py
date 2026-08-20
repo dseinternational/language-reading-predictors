@@ -12,8 +12,12 @@ conclusion, neither fit is sufficient release evidence on its own.
 This module validates the two completed reporting fits, recomputes their
 items-scale estimands and convergence checks from the saved traces, verifies
 identical fitted children and treatment assignments, and writes a
-content-addressed two-trace bundle.  Reports consume only the small installed CSV;
-the public-release check revalidates the central traces before publication.
+content-addressed two-trace bundle.  Reports consume only the small installed CSV.
+The full trace recomputation runs at build time, and the central archive manifest
+is written only after it passes; every later check (report render, key findings,
+``release.evaluate_publication``) byte-binds the installed CSV to that manifest
+and re-hashes both current fit directories, so a stale or edited pair cannot be
+quoted anywhere without failing closed (2026-08-20 ITT review, finding 1).
 """
 
 from __future__ import annotations
@@ -204,6 +208,24 @@ def _values_match(recorded: Any, recomputed: Any) -> bool:
         and np.isfinite(right)
         and np.isclose(left, right, rtol=1e-9, atol=1e-11)
     )
+
+
+def _recorded_bool(value: Any) -> bool | None:
+    """Parse a manifest boolean strictly; unrecognised text is ``None`` (fail closed).
+
+    ``bool("False")`` is ``True``, so the previous ``bool(row[...])`` idiom was
+    correct only while pandas parsed the column to a boolean dtype — a quoted or
+    mixed-case value would have failed open on ``converged`` and false-alarmed on
+    ``loo_reliable`` (2026-08-20 ITT review, finding 6).
+    """
+    if isinstance(value, (bool, np.bool_)):
+        return bool(value)
+    text = str(value).strip().casefold()
+    if text in {"true", "1", "yes"}:
+        return True
+    if text in {"false", "0", "no"}:
+        return False
+    return None
 
 
 def _load_row_map(
@@ -673,7 +695,6 @@ def build_blending_link_sensitivity(
         row["guessing_floor_minus_logit_elpd_se"] = delta_se
         rows.append(row)
     summary = pd.DataFrame(rows)
-    _atomic_write_csv(summary, archive / BLENDING_SENSITIVITY_FILENAME)
 
     status = evaluate_blending_link_sensitivity(
         summary,
@@ -682,6 +703,12 @@ def build_blending_link_sensitivity(
     )
     if not status["release_ready"]:
         raise ValueError(f"new B link-sensitivity archive failed validation: {status}")
+    # Only a fully validated bundle may replace the previous manifest: writing it
+    # before validation left a failed rebuild squatting on the last good archive
+    # (2026-08-20 ITT review, finding 6). The content-addressed traces installed
+    # above are additive, so validating against ``trace_root=archive`` first is
+    # safe either way.
+    _atomic_write_csv(summary, archive / BLENDING_SENSITIVITY_FILENAME)
     if install_report_copies:
         for record in records:
             _atomic_write_csv(
@@ -747,7 +774,7 @@ def _validate_archive_trace(
         )
         if convergence.get("converged") is not True:
             raise ValueError("trace fails the recomputed convergence gate")
-        if bool(row["converged"]) is not True:
+        if _recorded_bool(row["converged"]) is not True:
             raise ValueError("manifest convergence flag does not match the trace")
         for column in ("max_rhat", "min_ess", "min_bfmi"):
             if not _values_match(row[column], convergence[column]):
@@ -828,7 +855,7 @@ def _validate_archive_row_map(
         raise ValueError("row map does not reproduce pareto_k_max")
     if not _values_match(row["good_k_threshold"], threshold):
         raise ValueError("row map does not reproduce good_k_threshold")
-    if bool(np.all(pareto_k <= threshold)) is not bool(row["loo_reliable"]):
+    if bool(np.all(pareto_k <= threshold)) is not _recorded_bool(row["loo_reliable"]):
         raise ValueError("row map does not reproduce loo_reliable")
     return {"pareto_k": pareto_k}
 
@@ -1216,17 +1243,28 @@ def evaluate_local_blending_link_sensitivity(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    archive_dir: str | Path | None = None,
 ) -> dict[str, Any]:
     """Cheap freshness check for a report-local installed sensitivity summary.
 
     The local report does not reopen two large traces, but it hashes both current
-    fit directories' config, trace, row-map and rendered scientific-artefact bytes
-    and applies the complete pair schema.  The public-release wrapper additionally
-    reopens the central archived traces through
-    :func:`evaluate_blending_link_sensitivity`.
+    fit directories' config, trace, row-map and rendered scientific-artefact bytes,
+    applies the complete pair schema, and **byte-binds the installed summary to the
+    central archive manifest** — the copy written only after the full
+    trace-recomputing validation passed at build time — so an edited installed CSV
+    cannot quote numbers the build never validated (2026-08-20 ITT review,
+    finding 1). ``archive_dir`` names the central archive directory and defaults
+    to ``<statistical-model-root>/blending_link_sensitivity``, discovered two
+    levels above the fit directory; pass it explicitly for non-standard layouts.
+
+    ``output_dir`` is resolved before any sibling lookup: the report partials call
+    this with the relative ``Path(".")``, whose ``.parent`` is itself, which made
+    the paired-fit lookup miss and wrongly withhold a valid pair at render time
+    (2026-08-20 ITT review — the live bug behind the empty rendered 008/108
+    results sections).
     """
 
-    directory = Path(output_dir)
+    directory = Path(output_dir).resolve()
     config_path = directory / "config.json"
     try:
         current = dict(config) if config is not None else _read_json(
@@ -1242,6 +1280,22 @@ def evaluate_local_blending_link_sensitivity(
                 "ready": False,
                 "reason": "mandatory trace-backed B link sensitivity is missing",
             }
+        archive_manifest = (
+            Path(archive_dir).resolve()
+            if archive_dir is not None
+            else directory.parent.parent / "blending_link_sensitivity"
+        ) / BLENDING_SENSITIVITY_FILENAME
+        if not archive_manifest.is_file():
+            raise ValueError(
+                "central B link archive manifest is missing "
+                f"({archive_manifest}); rebuild it with "
+                "scripts/blending_link_sensitivity.py"
+            )
+        if sha256_file(summary_path) != sha256_file(archive_manifest):
+            raise ValueError(
+                "installed B link summary does not match the validated central "
+                "archive manifest, so its numbers are not the build-validated ones"
+            )
         summary = pd.read_csv(summary_path)
         config_names = summary.get("config")
         if config_names is None or config_names.astype(str).nunique() != 1:

@@ -588,6 +588,37 @@ def _floor_decision(
             ),
             **common,
         )
+    # From here the grid is either not required (clean diagnosis) or complete and
+    # trace-validated. The per-class treatment mirrors the graded branch below —
+    # the grid gates *whether* a floored fit may speak, not *how* its prior
+    # dependence is described (2026-08-20 ITT review, finding 2: the floored path
+    # released a ``prior_data_conflict`` verdict without the attenuation note the
+    # module policy promises).
+    if tau_class == "prior_data_conflict":
+        return ReleaseDecision(
+            status="release",
+            note=_PRIOR_ATTENUATION_NOTE,
+            reason=(
+                "power-scaling flags a prior-data conflict on `tau`, but the "
+                "likelihood moves the posterior too, so the conservative prior "
+                "attenuates the estimate rather than determining it; the "
+                "completed treatment-prior grid bounds how far"
+            ),
+            **common,
+        )
+    if tau_class in ("prior_dominant", "unavailable") and grid_required:
+        # The graded branch qualifies these classes when a trace-bound sweep
+        # exists; the completed six-cell grid is this outcome's estimand-matched
+        # sweep, so the same qualification applies rather than a bare release.
+        return ReleaseDecision(
+            status="qualify",
+            note=_QUALIFY_NOTE,
+            evidence=(
+                f"a complete, trace-validated {FLOOR_SENSITIVITY_FILENAME} grid "
+                "showing the off-floor effect across the treatment-prior cells"
+            ),
+            **common,
+        )
     return ReleaseDecision(status="release", **common)
 
 
@@ -1896,6 +1927,55 @@ def _publication_input_failures(config: Mapping[str, Any]) -> tuple[str, ...]:
     )
 
 
+def _blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """Robustness-stage failures for the mandatory phoneme-blending link pair.
+
+    The registered policy is that neither ``lrp-rli-itt-008`` nor
+    ``lrp-rli-itt-108`` may release without the validated trace-backed paired
+    bundle, but until 2026-08-20 that was enforced only in the key-findings
+    builder and the copied report partial — ``release_decision.json``, the
+    artefact whose stated purpose is to combine exactly these policies, said
+    ``publishable: true`` for an unpaired B fit (ITT code review, finding 1,
+    ``notes/202608201205-itt-code-review-findings.md``). The requirement is
+    derived from the module constant (so a stale stored plan cannot bypass it,
+    mirroring the itt-010 missingness gate) *and* from the stored plan's
+    ``link_sensitivity_required_for_release`` (so a future B-outcome ITT fit
+    outside the registered pair fails closed rather than releasing unpaired).
+    """
+    if str(config.get("kind") or "") != "itt":
+        return ()
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        BLENDING_LINK_MODELS,
+        evaluate_local_blending_link_sensitivity,
+    )
+
+    model_id = str(config.get("model_id") or "")
+    plan = config.get("resolved_run_plan") or {}
+    registered = model_id in dict(BLENDING_LINK_MODELS)
+    declared = bool(plan.get("link_sensitivity_required_for_release"))
+    if not registered and not declared:
+        return ()
+    if not registered:
+        return (
+            f"{model_id} declares a mandatory response-link sensitivity pairing, "
+            "but no registered blending-link bundle covers it; register the pair "
+            "before releasing",
+        )
+    try:
+        status = evaluate_local_blending_link_sensitivity(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the B link-sensitivity pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory trace-backed phoneme-blending link pair "
+            "(lrp-rli-itt-008 + lrp-rli-itt-108) is not release-ready: " + reason,
+        )
+    return ()
+
+
 def evaluate_publication(
     output_dir: str | Path,
     *,
@@ -1917,9 +1997,11 @@ def evaluate_publication(
        disk. A required output that vanished between its write and finalisation is
        a withheld release, not a warning (#394 design point 3).
     4. **robustness** — required influence checks must preserve their named
-       scientific quantities; for the families the treatment-effect gate covers,
-       prior-sensitivity and floor-grid evidence must support a causal headline. The
-       saved sampling-preset name also distinguishes publication-grade ``rep-lite`` /
+       scientific quantities; the phoneme-blending fits must carry their current,
+       validated trace-backed link pair (``lrp-rli-itt-008`` + ``lrp-rli-itt-108``);
+       and for the families the treatment-effect gate covers, prior-sensitivity and
+       floor-grid evidence must support a causal headline. The saved
+       sampling-preset name also distinguishes publication-grade ``rep-lite`` /
        ``reporting`` fits from local ``dev`` / ``test`` diagnostics.
 
     Reads only artefacts already in ``output_dir``, so a stored fit can be
@@ -2080,11 +2162,15 @@ def evaluate_publication(
             **qualification,
         )
 
-    if growth_robustness_failures:
+    robustness_failures = (
+        *growth_robustness_failures,
+        *_blending_pair_release_failures(output_dir, config),
+    )
+    if robustness_failures:
         return ReleaseEvaluation(
             status="robustness_unresolved",
             stage="robustness",
-            reason="; ".join(growth_robustness_failures),
+            reason="; ".join(robustness_failures),
             config=config,
             **qualification,
         )

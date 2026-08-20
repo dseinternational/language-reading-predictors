@@ -8,7 +8,7 @@ The generalisation contrasts LRPITT15 (expressive: TE vs UE) and LRPITT15b/115
 asks whether the intervention moved the directly-taught words more in the
 **expressive** modality than in the **receptive** modality. LRPITT16 supplies that
 missing contrast: the two Block 1 *taught* outcomes — expressive taught target words
-(``TE`` = b1extau) and receptive taught target words (``TR`` = b1rectau) — are
+(``TE`` = b1extau) and receptive taught target words (``TR`` = b1retau) — are
 fitted as factorised outcome marginals over the randomised window. The headline
 quantity compares their probability-scale intervention benefits.
 

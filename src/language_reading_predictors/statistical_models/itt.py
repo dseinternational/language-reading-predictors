@@ -69,8 +69,13 @@ _LEGACY_KEYS = frozenset(
         "use_varying_tau",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
-        # read by this family's settings. Listed so a legitimate per-model declaration
-        # is not rejected as a misspelling by the strict unknown-key check.
+        # read by this family's settings. Listed so a *pure-legacy* declaration
+        # (``extra`` with no ``model_settings``) is not rejected as a misspelling by
+        # the strict unknown-key check. Note the limitation found in the 2026-08-20
+        # ITT code review (finding 5): a *typed* module cannot declare it at all —
+        # ``declared_itt_settings`` rejects any non-empty ``extra`` alongside
+        # ``model_settings`` — so the "model-specific default" tier of the
+        # target_accept precedence is currently reachable only from legacy specs.
         "target_accept",
     }
 )
