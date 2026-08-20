@@ -228,16 +228,41 @@ if (
 # | echo: false
 # | output: asis
 # Items-scale treatment effect (gain family) and the on-intervention forest.
+# Off-floor (Bernoulli) fits compute the same marginal with n_trials = 1, so the
+# `trt_items_*` columns hold a RISK DIFFERENCE on the off-floor probability:
+# render it in percentage points, never as "items" (gain-factors code review
+# 2026-08-20, finding 1 — the level family never writes this CSV, so the branch
+# only ever fires for gain fits, whose plan always carries `off_floor`).
 treatment_marginal = _csv("treatment_marginal.csv")
+_gf_off = bool(_plan.get("off_floor", False))
+
+
+def _tm_value(v):
+    if _gf_off:
+        # round() first so a hair-negative value cannot render as "-0"; `or 0.0`
+        # maps the rounded -0 back to +0 (the key-findings-builder idiom).
+        return f"{round(float(v) * 100.0) or 0.0:+.0f}"
+    return f"{float(v):+.1f}"
+
+
+_tm_scale_name = "risk-difference" if _gf_off else "items"
+_tm_unit = (
+    "percentage points** on the chance of being off the floor at the period end"
+    if _gf_off
+    else "items**"
+)
 if treatment_marginal is not None:
     _t = treatment_marginal.iloc[0]
+    _tm_band = (
+        f"(50% CrI {_tm_value(_t.trt_items_lo50)} to {_tm_value(_t.trt_items_hi50)}; "
+        f"89% {_tm_value(_t.trt_items_lo)} to {_tm_value(_t.trt_items_hi)})"
+    )
     if _mv:
         print(
-            f"On the items scale, netting the fitted treatment interactions out of "
+            f"On the {_tm_scale_name} scale, netting the fitted treatment interactions out of "
             f"`beta_trt` and averaging over the period-1 rows gives a median of "
-            f"**{_t.trt_items_median:+.1f} items** "
-            f"(50% CrI {_t.trt_items_lo50:+.1f} to {_t.trt_items_hi50:+.1f}; "
-            f"89% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
+            f"**{_tm_value(_t.trt_items_median)} {_tm_unit} "
+            f"{_tm_band}; "
             f"P(> 0) = {_t.prob_trt_pos:.3f}. Because the netted interactions are "
             f"estimated on all stacked periods, this marginal is **model-dependent "
             f"and partly informed by post-crossover data** — it is *not* "
@@ -246,12 +271,11 @@ if treatment_marginal is not None:
         )
     else:
         print(
-            f"On the items scale the treatment average marginal effect — averaged over the "
+            f"On the {_tm_scale_name} scale the treatment average marginal effect — averaged over the "
             f"**period-1 (randomised) transition only**, the genuinely all-untreated-baseline "
             f"contrast that defines this available-case modified ITT estimate — is a median of "
-            f"**{_t.trt_items_median:+.1f} items** "
-            f"(50% CrI {_t.trt_items_lo50:+.1f} to {_t.trt_items_hi50:+.1f}; "
-            f"89% {_t.trt_items_lo:+.1f} to {_t.trt_items_hi:+.1f}); "
+            f"**{_tm_value(_t.trt_items_median)} {_tm_unit} "
+            f"{_tm_band}; "
             f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
             f"the on-intervention log-odds contrast, not the marginal available-case modified ITT estimate.\n"
         )
