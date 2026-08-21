@@ -1483,6 +1483,131 @@ def test_declared_link_sensitivity_outside_the_registered_pair_fails_closed(
     assert "no registered blending-link bundle" in evaluation.reason
 
 
+# ---------------------------------------------------------------------------
+# Joint dependence pairing (2026-08-21 joint review, finding 3:
+# notes/202608211100-joint-family-code-review.md). The contrast parents'
+# dependence_note has always demanded the LKJ companion pass the house gate
+# before the contrast counts as dependence-checked; the release decision now
+# verifies the registered companion beside the fit and attaches the
+# dependence-unchecked qualifier when it cannot.
+# ---------------------------------------------------------------------------
+
+
+def _joint_contrast_fit_dir(
+    tmp_path: Path,
+    *,
+    model_id: str = "lrp-rli-itt-015",
+    companion: str | None = "lrp-rli-itt-215",
+    data_sha256: str = "abc123",
+) -> Path:
+    d = tmp_path / f"{model_id}-reporting"
+    d.mkdir(parents=True)
+    (d / "diagnostics_summary.json").write_text(json.dumps(_gate(True)))
+    contrast: dict = {"left": "TE", "right": "UE"}
+    if companion is not None:
+        contrast["dependence_companion"] = companion
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "joint",
+                "config_name": "reporting",
+                "data_sha256": data_sha256,
+                "resolved_run_plan": {
+                    "use_residual_correlation": False,
+                    "contrast": contrast,
+                },
+            }
+        )
+    )
+    pd.DataFrame(
+        [
+            {"prior": 0.01, "likelihood": 0.30, "diagnosis": "✓"},
+            {"prior": 0.02, "likelihood": 0.25, "diagnosis": "✓"},
+        ],
+        index=["tau[TE]", "tau[UE]"],
+    ).to_csv(d / "psense_summary.csv")
+    return d
+
+
+def _joint_companion_dir(
+    tmp_path: Path,
+    *,
+    model_id: str = "lrp-rli-itt-215",
+    publishable: bool = True,
+    data_sha256: str = "abc123",
+) -> Path:
+    d = tmp_path / f"{model_id}-reporting"
+    d.mkdir(parents=True)
+    (d / "config.json").write_text(
+        json.dumps(
+            {"model_id": model_id, "kind": "joint", "data_sha256": data_sha256}
+        )
+    )
+    (d / RELEASE_DECISION_FILENAME).write_text(
+        json.dumps(
+            {
+                "status": "ok" if publishable else "robustness_unresolved",
+                "publishable": publishable,
+            }
+        )
+    )
+    return d
+
+
+def test_joint_contrast_with_ready_companion_releases_without_the_qualifier(
+    tmp_path,
+):
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert evaluation.publishable is True
+    assert "dependence-unchecked" not in (evaluation.robustness.note or "")
+
+
+def test_joint_contrast_without_its_companion_releases_with_the_qualifier(
+    tmp_path,
+):
+    """A qualify-note, not a withhold: the marginal effects are valid without
+    the companion — only the paired contrast's interval is unchecked."""
+    d = _joint_contrast_fit_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert evaluation.publishable is True
+    note = evaluation.robustness.note
+    assert "lrp-rli-itt-215" in note
+    assert "dependence-unchecked" in note
+
+
+def test_joint_companion_on_different_data_attaches_the_qualifier(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path, data_sha256="something-else")
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert "dependence-unchecked" in evaluation.robustness.note
+    assert "same input data" in evaluation.robustness.note
+
+
+def test_joint_companion_that_withholds_attaches_the_qualifier(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path, publishable=False)
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert "dependence-unchecked" in evaluation.robustness.note
+    assert "withholds publication" in evaluation.robustness.note
+
+
+def test_a_stored_joint_plan_without_the_companion_field_is_unaffected(tmp_path):
+    """Every pre-field stored fit re-decides identically: no companion id in the
+    plan means no check, mirroring how the level-factors focal_term fallback
+    keeps stored decisions reproducible."""
+    d = _joint_contrast_fit_dir(tmp_path, companion=None)
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert (evaluation.robustness.note or "") == ""
+
+
 def test_gate_skips_a_pooled_level_factors_plan():
     """2026-08-20 level-factors review, finding 4: a post-#552 pooled level fit
     records ``focal_term`` as explicitly null — its pooled ``beta_grp`` mixes

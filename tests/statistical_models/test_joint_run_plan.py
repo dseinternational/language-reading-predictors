@@ -270,6 +270,11 @@ def test_dependence_companions_match_their_parents_except_the_block():
         # And the parent's note points at the companion (#551 acceptance: the
         # parents' dependence caveat cites the companion).
         assert companion.model_id in ps.contrast.dependence_note
+        # The machine-readable pairing (2026-08-21 review, finding 3): the parent
+        # names its registered companion so the release decision can verify it;
+        # the companion — itself the dependence model — must not name one.
+        assert ps.contrast.dependence_companion == companion.model_id
+        assert cs.contrast.dependence_companion is None
         plan = J.resolve_joint_run_plan(companion)
         parent_plan = J.resolve_joint_run_plan(parent)
         assert plan.joint_structure == "residual_correlated"
@@ -281,6 +286,40 @@ def test_dependence_companions_match_their_parents_except_the_block():
         }
         assert plan.diagnostic_vars()[-2:] == ["sigma_outcome", "u_corr_pair"]
         assert plan.psense_vars == ["tau", "sigma_outcome", "u_corr_pair"]
+
+
+def test_a_residual_correlated_fit_must_not_declare_a_dependence_companion():
+    """A correlated fit IS the dependence model (2026-08-21 review, finding 3);
+    naming a further companion would send the release gate chasing a chain."""
+    settings = J.JointModelSettings(
+        outcomes=("TE", "UE"),
+        use_cross_baselines=False,
+        use_age_linear=True,
+        use_residual_correlation=True,
+        joint_structure="residual_correlated",
+        contrast=J.JointContrastSettings(
+            left="TE", right="UE", dependence_companion="lrp-rli-itt-999"
+        ),
+    )
+    with pytest.raises(ValueError, match="must not declare a dependence_companion"):
+        J.resolve_joint_run_plan(_spec(settings=settings))
+
+
+def test_the_dependence_companion_is_plan_only_metadata():
+    """The companion id drives the release decision through the resolved plan; it
+    must reach ``config.json`` but never the ``tau_difference.csv`` metadata."""
+    settings = J.JointModelSettings(
+        outcomes=("TE", "UE"),
+        use_cross_baselines=False,
+        use_age_linear=True,
+        contrast=J.JointContrastSettings(
+            left="TE", right="UE", dependence_companion="lrp-rli-itt-215"
+        ),
+    )
+    plan = J.resolve_joint_run_plan(_spec(settings=settings))
+    assert plan.as_dict()["contrast"]["dependence_companion"] == "lrp-rli-itt-215"
+    metadata = plan.difference_metadata()
+    assert metadata is None or "dependence_companion" not in metadata
 
 
 def test_every_registered_joint_model_is_typed_and_preserves_legacy_contract():

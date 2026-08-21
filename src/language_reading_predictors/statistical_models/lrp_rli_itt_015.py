@@ -88,6 +88,11 @@ SPEC = ModelSpec(
                 "treat this contrast as dependence-checked only once that "
                 "companion has passed the house gate."
             ),
+            # Machine-readable half of the note above: the release decision
+            # verifies this companion is release-ready beside the fit and
+            # attaches a dependence-unchecked qualifier when it is not
+            # (2026-08-21 joint review, finding 3).
+            dependence_companion="lrp-rli-itt-215",
         ),
     ),
 )

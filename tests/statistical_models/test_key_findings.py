@@ -1796,6 +1796,201 @@ def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
     assert "post-hoc, project-agreed smallest-important difference" in _texts(payload)
 
 
+# --- joint contrast-first box (2026-08-21 joint review, findings 2 + 4) ---------
+
+
+def _joint_contrast_case(tmp_path: Path) -> Path:
+    """A two-outcome joint contrast fit (the lrp-rli-itt-015 shape)."""
+    d = _setup_dir(tmp_path, "joint")
+    _write_rows(
+        d,
+        "joint_treatment_marginal.csv",
+        [
+            {
+                "outcome": "TE",
+                "items_median": 1.5,
+                "items_lo": 0.4,
+                "items_hi": 2.7,
+                "prob_pos": 0.98,
+                "delta_items": 1.0,
+                "prob_benefit_ge_delta": 0.79,
+                "prob_in_rope": 0.21,
+            },
+            {
+                "outcome": "UE",
+                "items_median": 0.4,
+                "items_lo": -0.4,
+                "items_hi": 1.2,
+                "prob_pos": 0.79,
+                "delta_items": 1.0,
+                "prob_benefit_ge_delta": 0.08,
+                "prob_in_rope": 0.66,
+            },
+        ],
+    )
+    _write_rows(
+        d,
+        "tau_summary.csv",
+        [
+            {
+                "outcome": "TE",
+                "ame_prob_median": 0.0646,
+                "ame_prob_lo": 0.0172,
+                "ame_prob_hi": 0.1112,
+                "prob_ame_pos": 0.98,
+            },
+            {
+                "outcome": "UE",
+                "ame_prob_median": 0.0304,
+                "ame_prob_lo": -0.0300,
+                "ame_prob_hi": 0.0908,
+                "prob_ame_pos": 0.79,
+            },
+        ],
+    )
+    _write_csv(
+        d,
+        "tau_difference.csv",
+        {
+            "contrast": "TE_minus_UE",
+            "headline_scale": "proportion_correct_risk_difference",
+            "diff_prob_median": 0.0342,
+            "diff_prob_lo": -0.0429,
+            "diff_prob_hi": 0.1109,
+            "diff_prob_lo50": 0.0017,
+            "diff_prob_hi50": 0.0666,
+            "prob_diff_pos": 0.76,
+            "contrast_kind": "generalisation",
+            "contrast_label": "Expressive taught versus not-taught vocabulary",
+            "positive_interpretation": (
+                "A positive contrast means the intervention increased the "
+                "proportion correct more for taught expressive words than for "
+                "not-taught expressive words."
+            ),
+            "negative_interpretation": (
+                "A negative contrast means the opposite ordering."
+            ),
+            "transfer_outcome": "UE",
+            "transfer_interpretation": (
+                "Assess whether expressive generalisation is small from the "
+                "marginal UE average marginal effect against a substantively "
+                "defined negligible-effect threshold."
+            ),
+            "dependence_note": "Factorised; see the registered companion.",
+        },
+    )
+    return d
+
+
+def test_joint_contrast_fit_headlines_the_declared_contrast(tmp_path):
+    """Finding 2: a contrast model's box must state its declared estimand — the
+    between-outcome difference — not only the two better-resolved marginals."""
+    d = _joint_contrast_case(tmp_path)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    headline = payload["sentences"][0]
+    assert headline["kind"] == "headline"
+    assert "generalisation contrast" in headline["text"]
+    assert "Expressive taught versus not-taught vocabulary" in headline["text"]
+    assert "+3.4" in headline["text"]
+    assert "percentage points" in headline["text"]
+    confidence = payload["sentences"][1]
+    assert confidence["kind"] == "confidence"
+    assert "76" in confidence["text"]
+    assert "increased the proportion correct more for taught" in confidence["text"]
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert "transfer" in kinds
+    assert kinds[-1] == "causal"
+    assert "negligible-effect threshold" in _texts(payload)
+
+
+def test_joint_contrast_release_note_drops_the_marginals_not_the_transfer(
+    tmp_path,
+):
+    """With five sentences and a robustness note to insert, the droppable
+    marginals context makes room; the transfer read and causal caveat stay."""
+    d = _joint_contrast_case(tmp_path)
+    _write_psense(d, prior=0.09, likelihood=0.22)  # prior-data conflict -> note
+    payload = generate_key_findings(d)
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert "robustness" in kinds
+    assert "transfer" in kinds
+    assert "note" not in kinds
+    assert kinds[-1] == "causal"
+
+
+def test_joint_range_uses_percentage_points_and_flags_p_and_b(tmp_path):
+    """Finding 4: the cross-outcome range must not pool item units across tests
+    with different denominators, and P / B carry their standing qualifications."""
+    d = _setup_dir(tmp_path, "joint")
+    _write_rows(
+        d,
+        "joint_treatment_marginal.csv",
+        [
+            {
+                "outcome": "W",
+                "items_median": 2.4,
+                "items_lo": -0.3,
+                "items_hi": 5.9,
+                "prob_pos": 0.94,
+                "delta_items": 1.0,
+                "prob_benefit_ge_delta": 0.81,
+                "prob_in_rope": 0.17,
+            },
+            {
+                "outcome": "P",
+                "items_median": 0.4,
+                "items_lo": -0.5,
+                "items_hi": 1.3,
+                "prob_pos": 0.71,
+            },
+            {
+                "outcome": "B",
+                "items_median": 0.6,
+                "items_lo": -0.6,
+                "items_hi": 1.9,
+                "prob_pos": 0.77,
+            },
+        ],
+    )
+    _write_rows(
+        d,
+        "tau_summary.csv",
+        [
+            {
+                "outcome": "W",
+                "ame_prob_median": 0.043,
+                "ame_prob_lo": -0.005,
+                "ame_prob_hi": 0.104,
+                "prob_ame_pos": 0.94,
+            },
+            {
+                "outcome": "P",
+                "ame_prob_median": 0.010,
+                "ame_prob_lo": -0.012,
+                "ame_prob_hi": 0.033,
+                "prob_ame_pos": 0.71,
+            },
+            {
+                "outcome": "B",
+                "ame_prob_median": 0.030,
+                "ame_prob_lo": -0.030,
+                "ame_prob_hi": 0.095,
+                "prob_ame_pos": 0.77,
+            },
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    headline = payload["sentences"][0]["text"]
+    assert "percentage points" in headline
+    assert "items**" not in headline
+    texts = _texts(payload)
+    assert "floor rule" in texts
+    assert "response-link" in texts
+    assert "1 was more likely than not" in texts
+
+
 def test_horseshoe_findings_do_not_claim_threshold_was_pre_specified(tmp_path):
     d, _ = _remaining_family_case(tmp_path, "horseshoe")
 

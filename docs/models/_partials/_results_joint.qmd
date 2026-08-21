@@ -267,7 +267,14 @@ if _diff is not None:
 ```
 
 _Available-case modified ITT versus joint consistency._ The single-outcome LRPITT models and this joint model estimate the *same available-case modified ITT*
-effects; the joint τ per outcome should track the singles. The cross-model
+effects; the joint τ per outcome should track the singles. Two known, deliberate
+differences bound how closely: the joint keeps a **common** Normal(0, 0.5) τ
+prior for every outcome while the singles tier the distal outcomes at
+Normal(0, 0.3), and the joint loader requires **every** declared baseline, so a
+multi-outcome fit's child set is the cross-outcome complete-case intersection —
+on the ten-outcome fit one control child smaller than most singles. A small gap
+on a distal outcome is therefore expected; only a gap beyond what those two
+sources explain flags a genuine inconsistency. The cross-model
 ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 (`output/statistical_models/comparison/`). Phoneme blending (`B`) is deliberately excluded from this ordinary-logit comparison: its result must instead be read across the required `lrp-rli-itt-008` / `lrp-rli-itt-108` ordinary-logit versus guessing-floor response-link sensitivity.
 

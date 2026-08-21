@@ -63,6 +63,9 @@ SPEC = ModelSpec(
         joint_structure="residual_correlated",
         contrast=replace(
             _PARENT_SETTINGS.contrast,
+            # This fit IS the dependence model, so it must not name a companion
+            # (resolve_joint_run_plan rejects a correlated fit that does).
+            dependence_companion=None,
             dependence_note=(
                 "Dependence-aware sensitivity companion of lrp-rli-itt-015: the "
                 "per-child LKJ residual-correlation block is on, so this contrast "
