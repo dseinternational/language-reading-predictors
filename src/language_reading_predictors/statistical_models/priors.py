@@ -695,10 +695,17 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     if (
         base.endswith("_raw")
         or base.startswith(("u_z", "z1_", "zproc_", "factor_z"))
+        # The joint-mechanism LKJ blocks' non-centred offsets (per-observation
+        # residual / per-child intercept).
+        or base in {"u_resid_z", "u_child_z"}
     ):
         return ("nuisance", "")
-    # Correlation / covariance priors (joint LKJ residual, factor covariance).
-    if base.startswith(("u_chol", "u_corr", "factor_cov", "chol")):
+    # Correlation / covariance priors (joint LKJ residual, factor covariance,
+    # the joint-mechanism dependence blocks).
+    if base.startswith(("u_chol", "u_corr", "factor_cov", "chol")) or base in {
+        "u_resid_chol",
+        "u_child_chol",
+    }:
         return ("nuisance", "")
     # LCF trait/state correlation components jointly induce the headline
     # within-wave factor correlations, and the RLM joint-growth Cholesky induces
@@ -890,6 +897,32 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
             f"({fitted}); scaled by the Cholesky factor u_chol to form the "
             "within-child residual offsets u = z @ chol.T."
         )
+    # The joint-mechanism family's bivariate LKJ dependence blocks: the levels
+    # design's per-observation residual block and the transition design's
+    # per-child intercept block. Dependence plumbing, never effects; the reported
+    # quantities are the deterministics sigma_u_resid / sigma_u_child,
+    # rho_outcome and (levels only) the conditional slope built from them.
+    if base in {"u_resid_chol", "u_child_chol"}:
+        block = (
+            "per-observation (within-wave) residual"
+            if base == "u_resid_chol"
+            else "per-child intercept"
+        )
+        return (
+            f"Packed Cholesky factor of the bivariate {block} covariance across "
+            f"the two jointly fitted outcomes ({fitted}): an LKJ correlation "
+            "prior with HalfNormal per-outcome scales baked into chol. A "
+            "dependence model for the identified cross-outcome contrasts — "
+            "reported through the sigma deterministics and rho_outcome — not an "
+            "effect."
+        )
+    if base in {"u_resid_z", "u_child_z"}:
+        unit = "observation" if base == "u_resid_z" else "child"
+        return (
+            f"Non-centred standard-normal per-{unit}, per-outcome offsets "
+            f"({fitted}); scaled by the block's Cholesky factor to form the "
+            "correlated offsets u = z @ chol.T."
+        )
     # Growth-curve per-measure mean growth rate (Normal(0, 0.5)); keyed to the scale
     # so the concurrent family's Normal(0, 0.3) focal ``beta`` is not described here.
     if base == "beta" and distribution == "Normal(0, 0.5)":
@@ -994,7 +1027,15 @@ def prior_info_for_rv(
     # them to ``predictor_slope`` (association) — mislabelling a non-interpretable
     # cohort dummy as a ranked predictor slope. Match the family by prefix here.
     if base.startswith("beta_group_nuisance"):
-        info = _INLINE_PRIORS["beta_group_nuisance"]
+        info = dict(_INLINE_PRIORS["beta_group_nuisance"])
+        # Prefer the built RV's own distribution over the recorded default, as
+        # the inline route below does: the joint-mechanism levels design briefly
+        # built this term from tau_prior (Normal(0, 0.5)) while this record's
+        # hard-coded Normal(0, 1) was published unchallenged (2026-08-21
+        # joint-mechanism review, finding 5).
+        derived = _dist_from_rv(rv) if rv is not None else None
+        if derived:
+            info["distribution"] = derived
         if rationale is not None:
             info = {**info, "rationale": rationale}
         return {"parameter": rv_name, **info, "panel": ""}

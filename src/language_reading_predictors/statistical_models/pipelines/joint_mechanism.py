@@ -32,6 +32,9 @@ from language_reading_predictors.statistical_models import (
     joint_mechanism as _joint_mechanism,
     reporting as _report,
 )
+from language_reading_predictors.statistical_models.adjustment import (
+    effective_adjustment,
+)
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     save_table,
@@ -280,6 +283,9 @@ def _jm_primary_fit_plan(
     LOO-PIT calls raised inside :func:`diagnostics.save_joint_loo_pit_plot` because
     the helper hard-required ``posterior['tau']``, which this family does not have.
     ``posterior_var="beta_mech"`` now names the family's own reported coefficient.
+    With ``compute_loo=False`` (the saturated levels design) both PSIS-based
+    artefacts — LOO and LOO-PIT — are skipped, and the density groups psense needs
+    are attached directly instead.
     """
     def _plot_prior(c: StatisticalFitContext) -> None:
         for index, symbol in enumerate(outcome_symbols):
@@ -322,14 +328,26 @@ def _jm_primary_fit_plan(
                 posterior_var="beta_mech",
             )
 
+    def _density_groups_for_psense(c: StatisticalFitContext) -> None:
+        # The levels design computes no PSIS-LOO (the saturated per-child residual
+        # makes it fail its Pareto-k diagnostics en masse; see the run plan), but
+        # power scaling still needs the log_likelihood / log_prior groups the LOO
+        # step would otherwise have attached — the same direct route the
+        # no-LOO mediation families take (#381).
+        _diag.compute_log_likelihood_and_prior(c, strict=False)
+
     return PrimaryFitPlan(
         diagnostic_vars=tuple(diag_vars),
         plot_prior_predictive=_plot_prior,
+        post_sampling_audit=None if compute_loo else _density_groups_for_psense,
         custom_posterior_predictive=_run_ppc,
         psense_vars=tuple(psense_vars),
         extended_term="delta_ls_decoding",
         include_loo_pit=False,
-        post_extended_audit=_write_loo_pit,
+        # LOO-PIT is importance-sampling-based, so it shares PSIS-LOO's
+        # saturation failure in the levels design and is only written where LOO
+        # itself is computed.
+        post_extended_audit=_write_loo_pit if compute_loo else None,
         compute_loo=compute_loo,
     )
 
@@ -547,6 +565,16 @@ def _fit_joint_mechanism_levels(
             "outcome_symbols": list(outcome_symbols),
             "contrast": list(contrast),
             "covariates": list(covariates),
+            # Requested vs actually-fitted adjustment, with per-term source column,
+            # wave and missing-indicator status — the standard record every
+            # converted family writes (#258 P1; 2026-08-21 review, finding 6).
+            "effective_adjustment": effective_adjustment(
+                spec,
+                ctx.prepared,
+                measure_confounders=plan.confounder_symbols,
+                adjust_for=covariates,
+                requested_adjust_for=plan.declared_adjustment,
+            ),
             "include_group_nuisance": plan.include_group,
             "predictor_slope_sigma": predictor_slope_sigma,
             "diagnostic_anchor_timepoint": primary_wave + 1,
@@ -694,6 +722,16 @@ def _fit_joint_mechanism_transition(
             "outcome_symbols": list(outcome_symbols),
             "contrast": list(contrast),
             "adjust_for": list(adjust_for),
+            # Requested vs actually-fitted adjustment, incl. both outcomes' own
+            # autoregressive baselines (#258 P1; 2026-08-21 review, finding 6).
+            "effective_adjustment": effective_adjustment(
+                spec,
+                ctx.prepared,
+                measure_confounders=plan.confounder_symbols,
+                adjust_for=adjust_for,
+                requested_adjust_for=plan.declared_adjustment,
+                baseline_symbols=plan.outcome_symbols,
+            ),
             "matched_comparators": list(plan.matched_comparators),
             "output_contract": (
                 "joint_mechanism_slopes.csv carries median + inner 50% + outer "

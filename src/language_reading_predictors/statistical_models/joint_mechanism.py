@@ -202,6 +202,11 @@ class JointMechanismRunPlan:
         else:
             kwargs["covariates"] = self.pre_covariates
             kwargs["post_covariates"] = self.post_covariates
+            # Only the two outcome baselines are model terms; the default
+            # ``pre_required`` would also demand the mechanism's period-start
+            # score, which the model never uses — an undeclared row filter
+            # (2026-08-21 joint-mechanism review).
+            kwargs["pre_required"] = self.outcome_symbols
         return kwargs
 
     def factory_kwargs(self) -> dict[str, Any]:
@@ -280,12 +285,28 @@ class JointMechanismRunPlan:
             f"{', '.join(self.confounder_symbols) or 'none'}. Likelihood: "
             f"`{self.likelihood}`; dependence block: `{self.joint_dependence}`.\n\n"
             "## Uncertainty and checks\n\n"
-            f"The observation node is `{self.observation_node}` and PSIS-LOO uses "
-            f"the `{self.loo_unit}` unit. Interpret the posterior only after every "
+            f"{self._loo_sentence()} Interpret the posterior only after every "
             "published fit passes the zero-divergence convergence gate, predictive "
             "checks and power-scaling sensitivity diagnostics. The saved "
             "`config.json` contains the same resolved run plan in machine-readable "
             "form.\n"
+        )
+
+    def _loo_sentence(self) -> str:
+        """The recipe's LOO sentence, honest about the levels design's saturation."""
+        if self.compute_loo:
+            return (
+                f"The observation node is `{self.observation_node}` and PSIS-LOO "
+                f"uses the `{self.loo_unit}` unit."
+            )
+        return (
+            f"The observation node is `{self.observation_node}`. PSIS-LOO is not "
+            "computed for this design: with one bivariate latent residual per "
+            "child over at most two observed cells, importance-sampled "
+            "leave-one-child-out is conditional on a saturated per-child latent "
+            "and fails its Pareto-k diagnostics en masse, so no `elpd` is "
+            "reported. Predictive assessment uses the conditional and new-child "
+            "(marginal) posterior-predictive checks instead."
         )
 
 
@@ -361,6 +382,13 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
             "lkj_residual_within_wave", "lkj_child_intercept"
         ] = "lkj_residual_within_wave"
         min_wave_rows = 10
+        # One bivariate latent residual per child over at most two observed cells:
+        # PSIS-LOO is conditional on a saturated per-child latent (the fitted
+        # reporting run showed p_loo > n and 48/53 Pareto-k above 0.7), so it is
+        # not computed at all rather than published as a check that cannot work
+        # (2026-08-21 joint-mechanism review, finding 2). The same saturation is
+        # why the pipeline publishes the new-child *marginal* predictive check.
+        compute_loo = False
         comparators = ("lrp-rli-ca-010", "lrp-rli-ca-011")
         design_description = (
             "Separate cross-sectional bivariate fits at each RLI wave. Both bounded "
@@ -392,6 +420,10 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         likelihood = "beta_binomial"
         dependence = "lkj_child_intercept"
         min_wave_rows = None
+        # Genuine leave-one-child-out: the factory registers ``loo_child_idx``
+        # (cells -> child), so the shared aggregation sums each child's cells
+        # across all three transitions before importance sampling.
+        compute_loo = True
         comparators = ("lrp-rli-mech-096", "lrp-rli-mech-101")
         design_description = (
             "One phase-stacked bivariate ANCOVA over the three RLI transitions. Each "
@@ -427,7 +459,7 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         likelihood=likelihood,
         joint_dependence=dependence,
         observation_node="y_post",
-        compute_loo=True,
+        compute_loo=compute_loo,
         loo_unit="child",
         min_wave_rows=min_wave_rows,
         matched_comparators=comparators,

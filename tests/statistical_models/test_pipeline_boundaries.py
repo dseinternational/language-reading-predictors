@@ -758,7 +758,9 @@ def test_itt_paths_preserve_prior_plot_ppc_audit_and_late_sensitivity():
 
 
 def test_joint_mechanism_declares_per_outcome_predictive_diagnostics():
-    """Both designs share the declared per-outcome PPC and LOO-PIT profile."""
+    """Both designs share the declared per-outcome PPC profile; the per-outcome
+    LOO-PIT hook is declared exactly where PSIS-LOO itself is computed (the
+    saturated levels design computes neither; 2026-08-21 review, finding 2)."""
     path = PACKAGE / "pipelines" / "joint_mechanism.py"
     tree = ast.parse(path.read_text(encoding="utf-8"))
     function = next(
@@ -779,8 +781,14 @@ def test_joint_mechanism_declares_per_outcome_predictive_diagnostics():
     assert keywords["plot_prior_predictive"].id == "_plot_prior"
     assert isinstance(keywords["custom_posterior_predictive"], ast.Name)
     assert keywords["custom_posterior_predictive"].id == "_run_ppc"
-    assert isinstance(keywords["post_extended_audit"], ast.Name)
-    assert keywords["post_extended_audit"].id == "_write_loo_pit"
+    loo_pit_hook = keywords["post_extended_audit"]
+    assert isinstance(loo_pit_hook, ast.IfExp)
+    assert isinstance(loo_pit_hook.test, ast.Name)
+    assert loo_pit_hook.test.id == "compute_loo"
+    assert isinstance(loo_pit_hook.body, ast.Name)
+    assert loo_pit_hook.body.id == "_write_loo_pit"
+    assert isinstance(loo_pit_hook.orelse, ast.Constant)
+    assert loo_pit_hook.orelse.value is None
     assert isinstance(keywords["extended_term"], ast.Constant)
     assert keywords["extended_term"].value == "delta_ls_decoding"
     assert isinstance(keywords["include_loo_pit"], ast.Constant)

@@ -208,9 +208,17 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
     rows = np.asarray(constant[map_name].values, dtype=int).ravel()
     if rows.size != ll.sizes[unit_dim]:
         raise ValueError("child-row map does not align with y_post log likelihood")
-    n_children = int(constant["G"].size) if "G" in constant else (
-        int(rows.max()) + 1 if rows.size else 0
-    )
+    if map_name == "loo_child_idx":
+        # The explicit map's values ARE dense child indices, so the unit count
+        # comes from the map itself. ``G`` is a per-observation constant, and in a
+        # stacked repeated-row design its size is the number of rows, not the
+        # number of children — reading it here would append silent zero-likelihood
+        # phantom units to the LOO (2026-08-21 joint-mechanism review, finding 3).
+        n_children = int(rows.max()) + 1 if rows.size else 0
+    else:
+        n_children = int(constant["G"].size) if "G" in constant else (
+            int(rows.max()) + 1 if rows.size else 0
+        )
     if rows.size and (rows.min() < 0 or rows.max() >= n_children):
         raise ValueError("child-row map contains an out-of-range child index")
     ordered = ll.transpose("chain", "draw", unit_dim)

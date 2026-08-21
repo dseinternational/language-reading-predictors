@@ -29,6 +29,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_gain_factors_model,
     build_growth_model,
     build_itt_model,
+    build_joint_mechanism_model,
     build_joint_model,
     build_lcsm_model,
     build_level_factors_model,
@@ -46,6 +47,7 @@ from language_reading_predictors.statistical_models.measures import (
     TAUGHT_BLOCK1_OUTCOMES,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    _subset_prepared,
     load_and_prepare,
     load_and_prepare_aligned,
     load_wave_panel,
@@ -209,6 +211,20 @@ def _representative_models(tmp_path) -> dict[str, object]:
     )
     models["growth"] = build_growth_model(
         gpanel, use_shared_factor=True, age_ability_interaction=True
+    ).model
+    # Joint-mechanism family (#421 Tier 3), both designs: the LKJ dependence-block
+    # RVs (u_resid_chol/z, u_child_chol/z) and the per-design group terms were
+    # invisible to the no-'other' guard while the family had no entry here
+    # (2026-08-21 joint-mechanism review, finding 5).
+    jm_levels_all = load_and_prepare(
+        path=p, phase_mode="levels", outcomes=("W", "N", "L")
+    )
+    models["joint_mechanism_levels"] = build_joint_mechanism_model(
+        _subset_prepared(jm_levels_all, jm_levels_all.phase == 2), design="levels"
+    ).model
+    jm_all = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
+    models["joint_mechanism_transition"] = build_joint_mechanism_model(
+        jm_all, design="transition"
     ).model
     return models
 
@@ -417,6 +433,34 @@ def test_corr_factor_beta_G_is_association_not_causal(built_models):
     if "factor_corr_chol" in by:
         assert by["factor_corr_chol"]["role"] == "association"
         assert by["factor_corr_chol"]["rationale"].strip()
+
+
+def test_joint_mechanism_group_terms_and_dependence_blocks(built_models):
+    """jm-002's ``beta_G`` shipped role='causal' with the tau rationale, jm-001's
+    ``beta_group_nuisance`` row published the inline record's Normal(0, 1) even
+    when the fitted prior differed, and the LKJ blocks dropped to role='other' —
+    none catchable while the family was absent from this fixture (2026-08-21
+    joint-mechanism review, finding 5)."""
+    trans = _labelled(
+        built_models["joint_mechanism_transition"], kind="joint_mechanism"
+    )
+    assert trans["beta_G"]["role"] == "association"
+    assert "Treatment effect tau" not in trans["beta_G"]["rationale"]
+    assert "mech-096" in trans["beta_G"]["rationale"]
+    for name in ("u_child_chol", "u_child_z"):
+        assert trans[name]["role"] == "nuisance"
+        assert trans[name]["rationale"].strip()
+
+    levels = _labelled(built_models["joint_mechanism_levels"], kind="joint_mechanism")
+    row = levels["beta_group_nuisance"]
+    assert row["role"] == "nuisance"
+    # The distribution is read off the built RV, never the inline record's
+    # hard-coded default (which silently misreported a differing fitted prior).
+    assert row["distribution"] == "Normal(0, 1)"
+    assert "ca-010" in row["rationale"]
+    for name in ("u_resid_chol", "u_resid_z"):
+        assert levels[name]["role"] == "nuisance"
+        assert levels[name]["rationale"].strip()
 
 
 def test_mechanism_beta_G_and_ell_rationales(built_models):

@@ -362,6 +362,27 @@ def _prior_table_overrides(
             "Mechanism-curve GP lengthscale ell ~ InverseGamma(5, 5) on standardised "
             "inputs (issue #265)."
         )
+    elif spec.kind == "joint_mechanism":
+        # Nothing in this family is causal (the run plan says so in terms). The
+        # transition design's ``beta_G`` reuses the tau constructor exactly as the
+        # mechanism family's does, and without this branch inherits tau's "causal"
+        # role and treatment-effect rationale (2026-08-21 joint-mechanism review,
+        # finding 5). The levels design's ``beta_group_nuisance`` is classified a
+        # nuisance by its name prefix; only its rationale needs the family's own
+        # wording (the inline record describes the RLM cohort dummies).
+        role["beta_G"] = "association"
+        rationale["beta_G"] = (
+            "Group main effect entered as a nuisance adjustment beside the "
+            "mechanism slopes (reuses the tau Normal(0, 0.5) scale, as in the "
+            "matched mech-096 / mech-101 fits); an adjusted association, never "
+            "the randomised treatment effect."
+        )
+        rationale["beta_group_nuisance"] = (
+            "Per-outcome arm-composition nuisance (wide Normal(0, 1), as in the "
+            "matched ca-010 / ca-011 concurrent fits): absorbs arm composition "
+            "at the wave; flagged non-interpretable, never reported as an "
+            "association or a group effect."
+        )
     elif spec.kind == "aligned":
         ctor["beta_cohort"] = "tau"
         role["beta_cohort"] = "association"

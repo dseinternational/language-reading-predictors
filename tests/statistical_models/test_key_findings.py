@@ -1796,6 +1796,46 @@ def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
     assert "post-hoc, project-agreed smallest-important difference" in _texts(payload)
 
 
+def test_joint_mechanism_findings_exclude_non_converged_waves(tmp_path):
+    """A non-converged wave sub-fit is published flagged in the slopes CSV, but it
+    must not lead — or range into — the gate-interlocked findings box: the
+    clearest-wave selection previously ran over every row while the fit-level
+    release gate covers only the anchor wave (2026-08-21 joint-mechanism review,
+    finding 4)."""
+    d, _ = _remaining_family_case(tmp_path, "joint_mechanism")
+
+    def _jm(wave, term, median, prob_pos, converged):
+        return {
+            "wave": wave, "term": term, "label": term, "median": median,
+            "mean": median, "lo50": median - 0.05, "hi50": median + 0.05,
+            "lo": median - 0.2, "hi": median + 0.2, "prob_pos": prob_pos,
+            "converged": converged,
+        }
+
+    _write_rows(
+        d,
+        "joint_mechanism_slopes.csv",
+        [
+            _jm("t3", "beta_mech[W]", 0.24, 1.0, True),
+            _jm("t3", "beta_mech[N]", 1.02, 1.0, True),
+            _jm("t3", "delta_ls_decoding", 0.79, 0.90, True),
+            _jm("t3", "share_retained", 0.71, 1.0, True),
+            # The clearest delta sits on the NON-converged wave: the old
+            # selection would have headlined it.
+            _jm("t4", "beta_mech[W]", 0.29, 1.0, False),
+            _jm("t4", "beta_mech[N]", 0.95, 1.0, False),
+            _jm("t4", "delta_ls_decoding", 0.66, 0.999, False),
+            _jm("t4", "share_retained", 0.20, 1.0, False),
+        ],
+    )
+    payload = generate_key_findings(d)
+    text = _texts(payload)
+    assert payload["status"] == "ok"
+    assert "at t4" not in text
+    assert "t4 0.20" not in text
+    assert "Wave(s) t4 did not meet the convergence gate" in text
+
+
 # --- joint contrast-first box (2026-08-21 joint review, findings 2 + 4) ---------
 
 

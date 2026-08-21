@@ -22,10 +22,11 @@ into within-model deterministics.
 Design. One cross-sectional fit per timepoint (``phase_mode="levels"``, one row per
 child), each regressing *both* word-reading and nonword-decoding levels on the same
 standardised same-wave letter-sound logit, with a per-outcome slope. The adjustment
-set is matched term-for-term to ``ca-010`` / ``ca-011`` - age, hearing (``hs``),
-non-verbal ability (``blocks``) and the flagged group nuisance - and the slope prior
-is the same regularising ``Normal(0, 0.3)``, so the identified ``share_retained``
-replaces their paired-draws ratio like for like. Both outcomes' residuals are drawn
+set is matched term-for-term to ``ca-010`` / ``ca-011`` - age, hearing (``hs`` plus
+its ``hs_missing`` indicator), non-verbal ability (``blocks``) and the flagged group
+nuisance (the same wide ``Normal(0, 1)``) - and the slope prior is the same
+regularising ``Normal(0, 0.3)``, so the identified ``share_retained`` replaces their
+paired-draws ratio like for like. Both outcomes' residuals are drawn
 from one bivariate normal with an LKJ correlation; the likelihood is **Binomial**
 rather than Beta-Binomial because that residual already carries the extra-binomial
 variance (two overdispersion mechanisms on one row is how the ITT joint's LKJ block
@@ -83,10 +84,13 @@ SPEC = ModelSpec(
         # contrast[0] - contrast[1] is the reported Delta; contrast[1] is also the
         # focal outcome whose slope share_retained partials.
         contrast=("N", "W"),
-        # Matched to ca-010 / ca-011: non-verbal ability and hearing as t1 baselines
-        # broadcast across the waves; age via the confounder set; group as a flagged
+        # Matched to ca-010 / ca-011: non-verbal ability and hearing — with the
+        # hs_missing indicator that the missing-indicator policy pairs with the
+        # filled hs (9/54 children have unknown hearing at t1; without it they
+        # would be silently coded hearing-clear) — as t1 baselines broadcast
+        # across the waves; age via the confounder set; group as a flagged
         # non-interpretable nuisance.
-        covariates=("blocks", "hs"),
+        covariates=("blocks", "hs", "hs_missing"),
         confounder_symbols=("G", "A"),
         include_group=True,
         predictor_slope_sigma=0.3,
