@@ -2949,6 +2949,18 @@ def test_aligned_factory_bernoulli_offfloor(tmp_path):
     names = {v.name for v in built.model.free_RVs}
     assert "kappa" not in names
     assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
+    # The off-floor own-baseline term is the binary off-floor-at-onset indicator,
+    # not the graded onset logit (#391 finding 2; 2026-08-21 aligned review,
+    # finding 2).
+    assert "gamma_own_offfloor" in names
+    assert "gamma_own" not in names
+    own_off = np.asarray(
+        built.model["own_offfloor_pre"].get_value(), dtype=float
+    )
+    expected = (
+        np.asarray(built.prepared.pre_counts["P"], dtype=float) > 0
+    ).astype(float)
+    assert np.array_equal(own_off, expected)
 
 
 def test_aligned_factory_rejects_dose_without_covariate_and_wrong_phase(tmp_path):

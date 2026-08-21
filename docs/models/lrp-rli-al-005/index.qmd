@@ -30,7 +30,12 @@ _Off-floor likelihood + per-protocol (NOT randomised)._ Phonetic spelling is **h
 `likelihood="bernoulli_offfloor"` — a **Bernoulli on the off-floor indicator**
 (aligned post $> 0$), with no `kappa`; the linear predictor is the log-odds of
 coming off the floor and the cohort marginal collapses to an **off-floor risk
-difference**.
+difference**. The own-baseline term is the **binary off-floor-at-onset
+indicator** (`gamma_own_offfloor` ~ Normal(0, 1)), not the graded onset logit:
+with most children at the onset floor the graded logit is a near-degenerate
+spike and the graded Normal(1, 0.25) tracking prior implied an unintended,
+strongly pessimistic intercept for at-floor children (#391 finding 2, adopted
+here by the 2026-08-21 aligned review).
 
 The design is also **per-protocol, not randomised**: the cohort term
 (`beta_cohort`) is confounded by age-at-onset and cohort/timing, so **no**
@@ -41,7 +46,7 @@ coefficient is a clean treatment effect — every term is an association.
 $$
 (P_{\text{post(aligned)}} > 0) \sim \operatorname{Bernoulli}(\operatorname{expit}(\eta)),\quad
 \eta = \alpha + \beta_{\text{cohort}}\,\text{immediate}
-  + \gamma_{\text{own}}\operatorname{logit}_*(P_{\text{onset}})
+  + \gamma_{\text{own-offfloor}}\,[P_{\text{onset}} > 0]
   + \gamma_A A_{\text{onset,std}} + \gamma_{\text{ability}}z(\text{blocks}).
 $$
 

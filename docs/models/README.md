@@ -313,7 +313,9 @@ onset (immediate t1→t3, waitlist t2→t4) into one cross-sectional Beta-Binomi
 child. The cohort contrast is **not** randomised (confounded by age-at-onset and timing),
 so _no_ term is causal — every coefficient is an association. Design note:
 `notes/202606261343-lrpal-aligned-design.md`. Outcomes: `lrp-rli-al-001` `W`, `02` `R`, `03` `E`,
-`04` `L`, `05` `P` (off-floor), `06` `B`, `07` `F`, `08` `T`; **`lrp-rli-al-101`** adds a
+`04` `L`, `05` `P` (off-floor: a Bernoulli on the off-floor indicator whose own-baseline term
+is the binary off-floor-at-onset indicator — the #391 floor rule, adopted here by the
+2026-08-21 aligned review), `06` `B`, `07` `F`, `08` `T`; **`lrp-rli-al-101`** adds a
 cumulative-session dose sensitivity term (a collider — sensitivity only).
 
 ### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-090`, `lrp-rli-mech-102–lrp-rli-mech-104` (`kind="mechanism"`)
@@ -419,18 +421,23 @@ survival** model for _when_ a child at the floor at baseline first comes off it 
 The at-risk set is the children at the floor at t1; one person-period row per still-at-floor
 interval (t1→t2, t2→t3, t3→t4); the event is the first score above zero. The hazard uses a
 complementary-log-log link (logistic variant as sensitivity), with a per-interval baseline
-hazard, baseline (t1) letter-sound knowledge and word reading as prognostic covariates, and an
-intervention-aligned treatment hazard shift `tau` (immediate arm treated throughout, waitlist
-arm from its crossover; `G = 2 − group`, positive = benefit).
+hazard, baseline (t1) letter-sound knowledge, word reading and age as prognostic covariates,
+and a treatment hazard contrast `tau` fitted in the **randomised first interval only**
+(`treatment_window="randomised"`, 2026-08-21 survival review, finding 1): every person-period
+row after the wait-list crossover is treatment-on, so the later intervals carry no arm
+contrast and fit their own both-arms-treated baseline hazards (`G = 2 − group`, positive =
+benefit). The legacy pooled all-interval shift — whose split from the post-crossover
+baselines was prior-mediated — remains available as the explicit
+`treatment_window="pooled"` comparator.
 
 | Model              | Kind       | Outcome | Purpose                                                      |
 | ------------------ | ---------- | ------- | ------------------------------------------------------------ |
 | `lrp-rli-surv-009` | `survival` | `P`     | time-to-off-floor hazard, phonetic spelling (base `itt-009`) |
 | `lrp-rli-surv-011` | `survival` | `N`     | time-to-off-floor hazard, nonword reading (base `itt-011`)   |
 
-**Prognostic, not causal.** By t4 both arms have been treated, so `tau` is an association
-anchored on the immediate arm's randomised first interval, not a randomised effect of record;
-concurrent letter sounds are excluded as a treatment-affected mediator. Descriptive companion:
+**Prognostic, not causal.** `tau` is anchored on the randomised first interval among children
+at the floor at t1 and is reported as a prognostic association, not a randomised effect of
+record; concurrent letter sounds are excluded as a treatment-affected mediator. Descriptive companion:
 `notes/…-persistent-floor-sitters-nonword-spelling.md` + `scripts/descriptive/floor_sitters.py`.
 
 ### Concurrent conditional associations — `lrp-rli-ca` (`kind="concurrent"`)

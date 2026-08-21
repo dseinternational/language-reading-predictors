@@ -5208,6 +5208,14 @@ def build_aligned_model(
     treatment effect. ``use_dose`` adds a within-arm cumulative-session covariate,
     a collider descendant of group and ability -- a sensitivity variant, not the
     primary adjustment set.
+
+    Under ``likelihood="bernoulli_offfloor"`` the ``own`` baseline term is the
+    **binary off-floor-at-onset indicator** (raw 0/1, ``gamma_own_offfloor ~
+    Normal(0, 1)``), not the graded onset logit: the Normal(1, 0.25) "post-logit
+    tracks pre-logit 1:1" calibration is a graded test-retest fact that does not
+    transfer to a Bernoulli off-floor outcome, and the onset logit of a heavily
+    floored measure is a near-degenerate spike — the #391 finding-2 decision,
+    adopted for this family by the 2026-08-21 aligned review (finding 2).
     """
     if prepared.phase_mode != "aligned":
         raise ValueError("build_aligned_model requires phase_mode='aligned'")
@@ -5216,9 +5224,15 @@ def build_aligned_model(
             "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
             f"got {likelihood!r}"
         )
+    off_floor = likelihood == "bernoulli_offfloor"
     own = outcome_symbol
     if own not in prepared.post_counts or own not in prepared.pre_logit:
         raise KeyError(f"Outcome {own!r} needs pre+post scores in prepared data")
+    if off_floor and own not in prepared.pre_counts:
+        raise KeyError(
+            f"Outcome {own!r} needs raw onset counts (pre_counts) for the "
+            "off-floor-at-onset indicator; reload with load_and_prepare_aligned"
+        )
     if ability_covariate is not None and ability_covariate not in prepared.covariates:
         raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
     if use_dose and "dose" not in prepared.covariates:
@@ -5228,6 +5242,8 @@ def build_aligned_model(
         )
 
     keep = ~np.isnan(prepared.post_counts[own]) & ~np.isnan(prepared.pre_logit[own])
+    if off_floor:
+        keep = keep & ~np.isnan(np.asarray(prepared.pre_counts[own], dtype=float))
     prepared = _subset(prepared, keep)
 
     post = prepared.post_counts[own].astype(np.int64)
@@ -5242,18 +5258,43 @@ def build_aligned_model(
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
-        own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
 
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
-        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
-        eta = alpha + gamma_own * own_pre_d + gamma_A * A_std_d
+        if off_floor:
+            # Binary off-floor-at-onset indicator (#391 finding 2, adopted for the
+            # aligned floor rule by the 2026-08-21 review, finding 2): with most
+            # children at the onset floor, the graded logit is a spike at the
+            # Haldane floor value and the Normal(1, 0.25) tracking prior turns
+            # into a strongly pessimistic implied intercept for at-floor children.
+            own_off = (
+                np.asarray(prepared.pre_counts[own], dtype=float) > 0
+            ).astype(float)
+            own_off_d = pm.Data("own_offfloor_pre", own_off, dims="obs_id")
+            gamma_own_off = _priors.gamma_own_offfloor_prior().to_pymc(
+                "gamma_own_offfloor"
+            )
+            eta = alpha + gamma_own_off * own_off_d + gamma_A * A_std_d
+        else:
+            own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
+            gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+            eta = alpha + gamma_own * own_pre_d + gamma_A * A_std_d
 
         if use_cohort:
             cohort_d = pm.Data("cohort", cohort, dims="obs_id")
+            # The cohort association deliberately keeps the untiered proximal
+            # tau scale (Normal(0, 0.5)) for every outcome, including the
+            # distal-tier ones whose ITT tau is Normal(0, 0.3): the tier exists
+            # to keep a *causal* prior's item-scale implications plausible,
+            # whereas this term is a non-gated per-protocol association where
+            # the wider prior is the conservative (less informative) choice —
+            # and the family's psense diagnostics are clean under it
+            # (2026-08-21 aligned review, finding 6). The intercept stays
+            # tiered via _alpha_sigma_for because its item-scale argument is
+            # about the level, not the contrast.
             beta_cohort = _priors.tau_prior().to_pymc("beta_cohort")
             eta = eta + beta_cohort * cohort_d
         if ability_covariate is not None:

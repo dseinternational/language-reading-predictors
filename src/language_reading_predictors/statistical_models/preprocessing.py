@@ -1136,6 +1136,19 @@ def load_and_prepare_aligned(
     data_path, data_sha256 = _data_provenance(csv_path)
     df = pd.read_csv(csv_path)
 
+    # Fail loud on a duplicated (subject, time) key — ``pre.iloc[0]`` /
+    # ``post.iloc[0]`` below would otherwise silently pick the first row
+    # (2026-08-21 aligned review, finding 5).
+    dup = df.duplicated(subset=[V.SUBJECT_ID, V.TIME], keep=False)
+    if bool(dup.any()):
+        pairs = sorted(
+            {
+                (str(s), int(t))
+                for s, t in df.loc[dup, [V.SUBJECT_ID, V.TIME]].itertuples(index=False)
+            }
+        )
+        raise ValueError(f"Duplicate (subject, time) rows in aligned source: {pairs}")
+
     windows = {1: (1, 3), 2: (2, 4)}  # group -> (onset pre_t, aligned post_t)
     out_cols = [MEASURES[s].column for s in outcomes]
 
@@ -1204,6 +1217,7 @@ def load_and_prepare_aligned(
     A_std, age_scaler = standardise(A_months)
 
     pre_logit: dict[str, np.ndarray] = {}
+    pre_counts: dict[str, np.ndarray] = {}
     post_counts: dict[str, np.ndarray] = {}
     n_trials_dict: dict[str, int] = {}
     column_map: dict[str, str] = {}
@@ -1231,6 +1245,9 @@ def load_and_prepare_aligned(
                     f"above its n_trials ceiling {m.n_trials}; fix measures.py or data."
                 )
         pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
+        # Raw onset counts: the off-floor likelihood's binary off-floor-at-onset
+        # indicator needs them (2026-08-21 aligned review, finding 2).
+        pre_counts[s] = pre_arr
         n_trials_dict[s] = m.n_trials
         column_map[s] = m.column
 
@@ -1255,6 +1272,7 @@ def load_and_prepare_aligned(
         A_std=A_std,
         age_scaler=age_scaler,
         pre_logit=pre_logit,
+        pre_counts=pre_counts,
         post_counts=post_counts,
         n_trials=n_trials_dict,
         covariates=covariate_values,
@@ -2283,6 +2301,15 @@ def load_rlm_concurrent_frames(
             if observed.size and (float(observed.min()) < 0 or float(observed.max()) > ceiling):
                 raise ValueError(
                     f"Observed {sym!r} at wave {wave} falls outside 0..{ceiling}."
+                )
+            # Bounded-count integrity, matching the RLI loaders: a fractional
+            # value would otherwise be silently truncated by the factory's
+            # int64 cast (2026-08-21 concurrent review, finding 5).
+            if observed.size and np.any(observed != np.rint(observed)):
+                invalid = np.unique(observed[observed != np.rint(observed)])
+                raise ValueError(
+                    f"Measure {sym!r} at wave {wave} must contain integer "
+                    f"counts; found fractional value(s) {invalid.tolist()}"
                 )
             counts[sym] = values
             trials[sym] = ceiling

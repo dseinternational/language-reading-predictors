@@ -27,11 +27,22 @@ Design (fixed in ``notes/…-persistent-floor-sitters-nonword-spelling.md``):
   default link is complementary-log-log (grouped proportional hazards, the direct
   survival generalisation of the off-floor logit); a logistic-hazard variant is the
   documented sensitivity.
-- **Treatment as a hazard shift.** ``treated_ik`` is the intervention-aligned (treatment-on)
-  indicator: the immediate arm (``G == 1``) is treated in every interval; the waitlist
-  arm is treated from interval 2 (its crossover), mirroring the DiD ``treated`` term.
+- **Treatment as a hazard contrast.** ``treated_ik`` is the intervention-aligned
+  (treatment-on) indicator: the immediate arm (``G == 1``) is treated in every interval
+  (session records confirm delivery continues through t3->t4); the waitlist arm is
+  treated from interval 2 (its crossover), mirroring the DiD ``treated`` term.
   ``G = 2 - group`` (positive = benefit), so a positive ``tau`` raises the hazard of
-  coming off the floor.
+  coming off the floor. Because every person-period row outside interval 1 is
+  treatment-on, the likelihood carries **no arm contrast after the first interval**:
+  under the legacy pooled parameterisation the split of the post-crossover hazard
+  between ``tau`` and ``alpha_2``/``alpha_3`` was decided by the zero-centred alpha
+  priors, which (centring the per-interval off-floor probability at 63% against
+  observed 8-29%) dragged ``tau`` negative (2026-08-21 survival review, finding 1).
+  The default ``treatment_window="randomised"`` therefore enters ``tau`` **only in the
+  randomised first interval**, making it the immediate-vs-waitlist off-floor hazard
+  contrast among children at the floor at t1, with the post-crossover intervals
+  fitting their own (both-arms-treated) baseline hazards. The legacy pooled shift is
+  retained as the explicit comparator ``treatment_window="pooled"``.
 - **Covariates** are the *baseline* (t1) letter-sound knowledge (``L0``), word reading
   (``W0``) and age (``A0``) — prognostic, pre-intervention quantities, each entering as a
   weakly-regularised ``beta_*`` slope (concurrent letter sounds would be a
@@ -77,23 +88,40 @@ from language_reading_predictors.statistical_models.preprocessing import (
 # The family-owned settings formerly read directly from ``ModelSpec.extra`` in
 # ``pipelines/survival.py``.  ``target_accept`` remains a centrally resolved sampler
 # option rather than a scientific model setting.
-_LEGACY_KEYS = frozenset({"hazard_link", "use_treatment", "target_accept"})
+_LEGACY_KEYS = frozenset(
+    {"hazard_link", "use_treatment", "treatment_window", "target_accept"}
+)
 _SURVIVAL_OUTCOMES = frozenset({"P", "N"})
 _HAZARD_LINKS = frozenset({"cloglog", "logit"})
+_TREATMENT_WINDOWS = frozenset({"randomised", "pooled"})
 
 
 @dataclass(frozen=True, slots=True)
 class SurvivalModelSettings:
-    """Immutable declaration for one discrete-time off-floor survival model."""
+    """Immutable declaration for one discrete-time off-floor survival model.
+
+    ``treatment_window`` decides where the treatment term enters the hazard:
+    ``"randomised"`` (the default since the 2026-08-21 survival review, finding 1)
+    fits ``tau`` only in the randomised first interval — the immediate-vs-waitlist
+    off-floor hazard contrast among children at the floor at t1 — while the
+    post-crossover intervals (whose person-period rows are all treatment-on and so
+    carry no arm contrast) fit their own baseline hazards. ``"pooled"`` is the
+    legacy proportional-hazards shift across all intervals, retained as an explicit
+    comparator: its split between ``tau`` and the post-crossover baseline hazards
+    is identified only through the alpha priors.
+    """
 
     hazard_link: Literal["cloglog", "logit"] = "cloglog"
     use_treatment: bool = True
+    treatment_window: Literal["randomised", "pooled"] = "randomised"
 
     def __post_init__(self) -> None:
         if self.hazard_link not in _HAZARD_LINKS:
             raise ValueError("hazard_link must be 'cloglog' or 'logit'")
         if not isinstance(self.use_treatment, bool):
             raise TypeError("use_treatment must be a boolean")
+        if self.treatment_window not in _TREATMENT_WINDOWS:
+            raise ValueError("treatment_window must be 'randomised' or 'pooled'")
 
     @classmethod
     def from_legacy_extra(
@@ -109,6 +137,7 @@ class SurvivalModelSettings:
         return cls(
             hazard_link=extra.get("hazard_link", "cloglog"),
             use_treatment=extra.get("use_treatment", True),
+            treatment_window=extra.get("treatment_window", "randomised"),
         )
 
 
@@ -122,6 +151,7 @@ class SurvivalRunPlan:
     outcome_symbol: str
     hazard_link: Literal["cloglog", "logit"]
     use_treatment: bool
+    treatment_window: Literal["randomised", "pooled"]
     likelihood: str
     observation_node: str
     compute_loo: bool
@@ -146,6 +176,7 @@ class SurvivalRunPlan:
         return {
             "hazard_link": self.hazard_link,
             "use_treatment": self.use_treatment,
+            "treatment_window": self.treatment_window,
         }
 
     def diagnostic_vars(self, covariates: Collection[str]) -> tuple[str, ...]:
@@ -158,13 +189,27 @@ class SurvivalRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language recipe generated from the validated plan."""
-        treatment = (
-            "The intervention-aligned treatment-on indicator enters as `tau`; because "
-            "the wait-list arm crosses over, this pooled coefficient is prognostic and "
-            "not a clean randomised treatment effect."
-            if self.use_treatment
-            else "This comparator omits the intervention-aligned treatment term."
-        )
+        if not self.use_treatment:
+            treatment = "This comparator omits the intervention-aligned treatment term."
+        elif self.treatment_window == "randomised":
+            treatment = (
+                "The treatment term `tau` enters only the randomised first interval "
+                "(t1 to t2): it is the immediate-versus-waitlist off-floor hazard "
+                "contrast among children at the floor at wave 1, and the "
+                "post-crossover intervals fit their own (both-arms-treated) baseline "
+                "hazards. It is reported as a prognostic association, not a causal "
+                "effect of record."
+            )
+        else:
+            treatment = (
+                "The intervention-aligned treatment-on indicator enters as a pooled "
+                "`tau` across all intervals (the legacy comparator). Because no "
+                "person-period row outside the first interval is untreated, the "
+                "likelihood identifies this pooled coefficient only through the "
+                "first-interval arm contrast; its split from the post-crossover "
+                "baseline hazards is set by the alpha priors, so it is prognostic "
+                "and prior-mediated, never a clean randomised treatment effect."
+            )
         return (
             "Note: Generated from the validated survival run plan; template drafted "
             "by a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -232,14 +277,48 @@ def resolve_survival_run_plan(spec: ModelSpec) -> SurvivalRunPlan:
         )
 
     settings, source = declared_survival_settings(spec)
-    estimand = (
-        "The interval-specific probability of first moving above the floor. The "
-        "headline tau is the pooled intervention-aligned log-hazard shift across "
-        "the immediate and post-crossover intervals."
-        if settings.use_treatment
-        else "The interval-specific probability of first moving above the floor, "
-        "without an intervention-aligned treatment coefficient."
-    )
+    if not settings.use_treatment:
+        estimand = (
+            "The interval-specific probability of first moving above the floor, "
+            "without an intervention-aligned treatment coefficient."
+        )
+        causal_status = (
+            "Descriptive baseline-hazard comparator: no treatment term is fitted, "
+            "so no arm quantity of any kind is estimated."
+        )
+    elif settings.treatment_window == "randomised":
+        estimand = (
+            "The interval-specific probability of first moving above the floor. The "
+            "headline tau is the intervention hazard contrast in the randomised "
+            "first interval (t1 to t2) among children at the floor at wave 1; the "
+            "post-crossover intervals fit their own baseline hazards and contain no "
+            "arm contrast."
+        )
+        causal_status = (
+            "Randomisation-anchored association: tau contrasts the randomised arms "
+            "within the pre-randomisation at-floor subgroup over the first interval "
+            "only, adjusted for baseline covariates. It is reported as a prognostic "
+            "association rather than a causal effect of record — available-case "
+            "censoring and the covariate adjustment are untested assumptions, and "
+            "this family releases no causal headline."
+        )
+    else:
+        estimand = (
+            "The interval-specific probability of first moving above the floor. The "
+            "headline tau is the pooled intervention-aligned log-hazard shift (the "
+            "legacy comparator). Every person-period row outside the randomised "
+            "first interval is treatment-on, so the likelihood identifies this "
+            "pooled coefficient only through the first-interval arm contrast; its "
+            "split from the post-crossover baseline hazards is prior-mediated "
+            "(2026-08-21 survival review, finding 1)."
+        )
+        causal_status = (
+            "Prognostic, prior-mediated association, not a causal treatment effect: "
+            "only the first interval is randomisation-anchored, both arms are "
+            "treated after the wait-list crossover, and the post-crossover share of "
+            "the pooled coefficient is set by the baseline-hazard priors rather "
+            "than by any observed arm comparison."
+        )
     return SurvivalRunPlan(
         model_id=spec.model_id,
         settings_source=source,
@@ -247,6 +326,7 @@ def resolve_survival_run_plan(spec: ModelSpec) -> SurvivalRunPlan:
         outcome_symbol=spec.outcome_symbol,
         hazard_link=settings.hazard_link,
         use_treatment=settings.use_treatment,
+        treatment_window=settings.treatment_window,
         likelihood="bernoulli_discrete_time_hazard",
         observation_node="y_event",
         compute_loo=True,
@@ -259,12 +339,7 @@ def resolve_survival_run_plan(spec: ModelSpec) -> SurvivalRunPlan:
             f"baseline hazard under a {settings.hazard_link} link."
         ),
         estimand=estimand,
-        causal_status=(
-            "Prognostic association, not a causal treatment effect: the first "
-            "interval is randomisation-anchored, but both arms are treated after the "
-            "wait-list crossover and the fitted treatment coefficient pools those "
-            "periods."
-        ),
+        causal_status=causal_status,
         analysis_population=(
             f"RLI children at the {spec.outcome_symbol} floor at wave 1 who have an "
             "observed wave-2 outcome and can therefore contribute at least one "
@@ -324,6 +399,9 @@ class SurvivalPanel:
     """At-risk children (at floor at t1) who contributed no person-period row because
     their t2 post-score was unobserved (no interval could be placed). Named ``dropped_rows``
     for the shared pipeline-header / ``write_run_metadata`` interface."""
+    dropped_by_reason: dict[str, int] = field(default_factory=dict)
+    """Attribution of ``dropped_rows``, following the shared ledger convention that
+    the values sum to ``dropped_rows`` (2026-08-21 survival review, finding 4)."""
     imputed_covariate_rows: dict[str, int] = field(default_factory=dict)
     """Rows whose (missing) baseline covariate was mean-imputed (z = 0), by name."""
 
@@ -357,6 +435,32 @@ def prepare_survival(symbol: str, df: pd.DataFrame | None = None) -> SurvivalPan
     col = MEASURES[symbol].column
     if df is None:
         df = pd.read_csv(_paths.DATA_DIR / "rli_data_long.csv")
+
+    # Fail-loud source integrity, matching the shared loaders (2026-08-21 survival
+    # review, finding 5): a duplicated (subject, time) key would otherwise surface
+    # as a cryptic Series truth-value error inside the expansion loop, and an
+    # invalid or within-child-unstable group code would silently miscode ``G``.
+    dup = df.duplicated(subset=[V.SUBJECT_ID, V.TIME], keep=False)
+    if bool(dup.any()):
+        pairs = sorted(
+            {
+                (str(s), int(t))
+                for s, t in df.loc[dup, [V.SUBJECT_ID, V.TIME]].itertuples(index=False)
+            }
+        )
+        raise ValueError(f"Duplicate (subject, time) rows in survival source: {pairs}")
+    raw_group = pd.to_numeric(df[V.GROUP], errors="coerce").to_numpy(dtype=float)
+    valid_group = np.isfinite(raw_group) & np.isin(raw_group, (1.0, 2.0))
+    if not valid_group.all():
+        invalid = np.unique(raw_group[~valid_group])
+        raise ValueError(
+            "Group codes must be exactly 1 (immediate intervention) or 2 "
+            f"(wait-list control); found invalid raw value(s) {invalid.tolist()}"
+        )
+    unstable = df.groupby(V.SUBJECT_ID)[V.GROUP].nunique(dropna=False)
+    if bool((unstable > 1).any()):
+        children = sorted(str(c) for c in unstable[unstable > 1].index)
+        raise ValueError(f"Group code changes within child: {children}")
 
     subject_ids: list = []
     interval_idx: list[int] = []
@@ -444,6 +548,9 @@ def prepare_survival(symbol: str, df: pd.DataFrame | None = None) -> SurvivalPan
         n_at_risk_children=n_at_risk,
         n_events=int(event_arr.sum()),
         dropped_rows=dropped,
+        dropped_by_reason=(
+            {"no_observed_wave2_outcome": dropped} if dropped else {}
+        ),
         imputed_covariate_rows=imputed,
     )
 
@@ -453,16 +560,29 @@ def build_survival_model(
     *,
     hazard_link: str = "cloglog",
     use_treatment: bool = True,
+    treatment_window: str = "randomised",
 ) -> BuiltModel[EmptyPayload]:
     """Discrete-time off-floor hazard model on a :class:`SurvivalPanel`.
 
     ``hazard_link`` is ``"cloglog"`` (grouped proportional hazards, the default /
     primary) or ``"logit"`` (logistic-hazard sensitivity). ``tau`` is the treatment
-    hazard shift on the intervention-aligned ``treated`` indicator; set
+    hazard term on the intervention-aligned ``treated`` indicator; set
     ``use_treatment=False`` for a covariate-only baseline-hazard comparator.
+
+    ``treatment_window="randomised"`` (the default since the 2026-08-21 survival
+    review, finding 1) enters ``tau`` only in the randomised first interval, where
+    the panel's ``treated`` indicator equals the arm indicator ``G`` — so ``tau``
+    is the immediate-vs-waitlist off-floor hazard contrast among children at the
+    floor at t1, and ``alpha_2`` / ``alpha_3`` are the (both-arms-treated)
+    post-crossover interval hazards. ``"pooled"`` retains the legacy shift across
+    all intervals as an explicit comparator; because no row outside interval 1 is
+    untreated, its split between ``tau`` and the post-crossover baselines is
+    identified only through the alpha priors.
     """
     if hazard_link not in ("cloglog", "logit"):
         raise ValueError("hazard_link must be 'cloglog' or 'logit'.")
+    if treatment_window not in ("randomised", "pooled"):
+        raise ValueError("treatment_window must be 'randomised' or 'pooled'.")
 
     coords = {
         "obs_id": np.arange(panel.n_obs),
@@ -485,10 +605,16 @@ def build_survival_model(
             beta = _priors.predictor_slope_prior().to_pymc(f"beta_{name}")
             eta = eta + beta * cov_d[name]
 
-        # Treatment as a hazard shift (the randomised-anchored, prognostic term).
+        # Treatment hazard term (the randomised-anchored, prognostic quantity).
+        # Under the "randomised" window tau multiplies treated only in the first
+        # interval (where treated == G); the pooled comparator keeps the legacy
+        # all-interval shift.
         if use_treatment:
             tau = _priors.tau_prior().to_pymc("tau")
-            eta = eta + tau * treated_d
+            trt_term = treated_d
+            if treatment_window == "randomised":
+                trt_term = treated_d * pt.eq(interval_d, 0)
+            eta = eta + tau * trt_term
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
 

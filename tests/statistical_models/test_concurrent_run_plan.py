@@ -142,6 +142,14 @@ def test_resolve_dedups_outcome_in_measure_outcomes():
     assert plan.prepare_kwargs()["outcomes"] == ("W", "L")
 
 
+def test_resolve_rejects_unknown_rli_measure_before_io():
+    # Pre-I/O symbol validation (2026-08-21 concurrent review, finding 5): a
+    # misspelled RLI measure must fail in resolve, before make_context can reset
+    # an output directory — the RLM branch already validated its measures there.
+    with pytest.raises(ValueError, match="unknown RLI measure"):
+        resolve_concurrent_run_plan(_spec(predictor_symbols=("L", "ZZ")))
+
+
 def test_resolve_keeps_covariates_and_explicit_sigma():
     plan = resolve_concurrent_run_plan(
         _spec(

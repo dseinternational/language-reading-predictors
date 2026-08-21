@@ -51,18 +51,31 @@ from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
 def _survival_summary(
-    trace, *, ci_prob: float, hazard_link: str, use_treatment: bool
+    trace,
+    *,
+    ci_prob: float,
+    hazard_link: str,
+    use_treatment: bool,
+    treatment_window: str = "randomised",
 ) -> pd.DataFrame:
-    """Off-floor discrete-time hazard summary (log-hazard, hazard ratio, P>0).
+    """Off-floor discrete-time hazard summary (log-hazard, ratio, P>0).
 
-    Reports the treatment hazard shift and baseline-covariate slopes on the
-    log-hazard scale (with ``exp`` as a hazard ratio and ``P(effect > 0)``), plus
-    the per-interval baseline off-floor probability for an untreated child at mean
-    covariates, on the model's ``hazard_link`` scale. Equal-tailed intervals at
-    ``ci_prob`` with the posterior median as the point estimate (the suite convention).
+    Reports the treatment hazard term and baseline-covariate slopes on the
+    log-hazard scale (with ``exp`` as a hazard ratio under the cloglog link — the
+    column is named ``odds_ratio`` under the logistic-hazard sensitivity link,
+    where ``exp`` is an odds ratio, 2026-08-21 survival review, finding 4 — and
+    ``P(effect > 0)``), plus the per-interval off-floor probability at mean
+    covariates on the model's ``hazard_link`` scale. Under the default
+    ``treatment_window="randomised"`` the first-interval row is the untreated
+    baseline and the later rows are the identified both-arms-treated interval
+    hazards; under the legacy pooled comparator the later "untreated" rows are
+    prior-mediated extrapolations (no untreated children exist there) and are
+    labelled as such. Equal-tailed intervals at ``ci_prob`` with the posterior
+    median as the point estimate (the suite convention).
     """
     post = trace.posterior
     lo, hi = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    ratio_col = "hazard_ratio" if hazard_link == "cloglog" else "odds_ratio"
 
     def _row(term: str, draws: np.ndarray, *, as_ratio: bool) -> dict:
         d = np.asarray(draws).reshape(-1)
@@ -71,13 +84,18 @@ def _survival_summary(
             "median": float(np.median(d)),
             "ci_low": float(np.quantile(d, lo)),
             "ci_high": float(np.quantile(d, hi)),
-            "hazard_ratio": float(np.exp(np.median(d))) if as_ratio else float("nan"),
+            ratio_col: float(np.exp(np.median(d))) if as_ratio else float("nan"),
             "P(>0)": float(np.mean(d > 0)) if as_ratio else float("nan"),
         }
 
     rows: list[dict] = []
     if use_treatment:
-        rows.append(_row("tau (log hazard shift, treated)", post["tau"].values, as_ratio=True))
+        tau_label = (
+            "tau (log hazard contrast, randomised interval t1->t2)"
+            if treatment_window == "randomised"
+            else "tau (log hazard shift, treated, pooled)"
+        )
+        rows.append(_row(tau_label, post["tau"].values, as_ratio=True))
     for name in sorted(v for v in post.data_vars if str(v).startswith("beta_")):
         rows.append(_row(f"{name} (log hazard, per SD)", post[name].values, as_ratio=True))
 
@@ -86,13 +104,28 @@ def _survival_summary(
     for i, lab in enumerate(labels):
         a = alpha.values[i]
         base = 1.0 - np.exp(-np.exp(a)) if hazard_link == "cloglog" else 1.0 / (1.0 + np.exp(-a))
+        if not use_treatment:
+            term = f"off-floor prob [{lab}] (no treatment term)"
+        elif treatment_window == "randomised":
+            term = (
+                f"baseline off-floor prob [{lab}] (untreated)"
+                if i == 0
+                else f"off-floor prob [{lab}] (both arms treated)"
+            )
+        else:
+            term = (
+                f"baseline off-floor prob [{lab}] (untreated)"
+                if i == 0
+                else f"baseline off-floor prob [{lab}] (untreated extrapolation; "
+                "no untreated children in this interval)"
+            )
         rows.append(
             {
-                "term": f"baseline off-floor prob [{lab}]",
+                "term": term,
                 "median": float(np.median(base)),
                 "ci_low": float(np.quantile(base, lo)),
                 "ci_high": float(np.quantile(base, hi)),
-                "hazard_ratio": float("nan"),
+                ratio_col: float("nan"),
                 "P(>0)": float("nan"),
             }
         )
@@ -168,14 +201,20 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ci_prob=ctx.reporting.ci_prob,
         hazard_link=hazard_link,
         use_treatment=use_treatment,
+        treatment_window=plan.treatment_window,
     )
     save_table(ctx, "survival_summary", summary)
+    tau_reading = (
+        "tau = randomised interval-1 arm contrast; reported as prognostic"
+        if plan.treatment_window == "randomised"
+        else "pooled tau is prior-mediated beyond interval 1; prognostic"
+    )
     print_table(
         ranked_dataframe_table(
             summary,
             title=(
                 f"Off-floor discrete-time hazard ({plan.outcome_symbol}, {hazard_link}); "
-                "positive = raises Pr(off-floor); prognostic, not a randomised effect"
+                f"positive = raises Pr(off-floor); {tau_reading}"
             ),
             columns=list(summary.columns),
             rank_column=False,

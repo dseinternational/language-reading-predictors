@@ -6748,10 +6748,29 @@ def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, st
 
 
 def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Discrete-time off-floor hazard model."""
+    """Discrete-time off-floor hazard model.
+
+    Window-aware (2026-08-21 survival review, finding 1): under the default
+    ``treatment_window="randomised"`` the headline tau is the randomised
+    first-interval arm contrast and the later intervals are both-arms-treated
+    hazards; a stored fit whose plan predates the field was fitted with the
+    legacy pooled shift, whose direction beyond interval 1 is prior-mediated —
+    the box says so rather than presenting it as data evidence. The ratio word
+    follows the link (hazard ratio under cloglog, odds ratio under the logistic
+    sensitivity link — finding 4).
+    """
     df = _kf_csv(output_dir, "survival_summary.csv")
     if df is None:
         raise _KeyFindingsUnavailable("survival_summary.csv is not present")
+    plan = config.get("resolved_run_plan") or {}
+    window = str(plan.get("treatment_window", "pooled"))
+    link = str(
+        plan.get(
+            "hazard_link",
+            (config.get("extra") or {}).get("hazard_link", "cloglog"),
+        )
+    )
+    ratio_word = "hazard ratio" if link == "cloglog" else "odds ratio"
     effects = df[np.isfinite(pd.to_numeric(df["P(>0)"], errors="coerce"))]
     if effects.empty:
         raise _KeyFindingsUnavailable("survival summary has no directional effects")
@@ -6763,11 +6782,30 @@ def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
     ratio_lo = np.exp(_kf_float(row["ci_low"]))
     ratio_hi = np.exp(_kf_float(row["ci_high"]))
     label = _kf_plain_label(row["term"])
+    scope = (
+        "in the randomised first interval"
+        if window == "randomised"
+        else "in an interval"
+    )
+    if window == "randomised":
+        causal_text = (
+            "The contrast is anchored on the randomised first interval among "
+            "children at the floor at wave 1; later intervals pool both treated "
+            "arms and carry no arm contrast. It is reported as a prognostic "
+            "association, not a causal effect of record."
+        )
+    else:
+        causal_text = (
+            "This pooled coefficient is prognostic, not a randomised effect of "
+            "record: only the first interval carries an arm contrast, so its "
+            "direction beyond that interval is set by the baseline-hazard priors "
+            "rather than by observed comparisons."
+        )
     sentences = [
         _kf_sentence(
-            f"The {label} corresponded to a hazard ratio of **{ratio:.2f}** "
+            f"The {label} corresponded to a {ratio_word} of **{ratio:.2f}** "
             f"(89% credible range {ratio_lo:.2f} to {ratio_hi:.2f}) for coming "
-            f"off the floor in an interval.",
+            f"off the floor {scope}.",
             "headline",
         ),
         _kf_sentence(
@@ -6778,20 +6816,34 @@ def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
             ),
             "confidence",
         ),
-        _kf_sentence(
-            "This is a prognostic association over all waves; because both arms "
-            "are treated by the final wave, it is not a randomised effect of record.",
-            "causal",
-        ),
+        _kf_sentence(causal_text, "causal"),
     ]
-    baseline = df[df["term"].astype(str).str.startswith("baseline off-floor prob")]
-    if not baseline.empty:
-        values = [_kf_float(v) for v in baseline["median"]]
+    terms = df["term"].astype(str)
+    untreated = df[terms.str.startswith("baseline off-floor prob") & terms.str.contains(r"\(untreated\)", regex=True)]
+    treated_cells = df[terms.str.startswith("off-floor prob") & terms.str.contains("both arms treated")]
+    legacy_baseline = df[terms.str.startswith("baseline off-floor prob")]
+    if window == "randomised" and not untreated.empty:
+        first = _kf_float(untreated.iloc[0]["median"])
+        text = (
+            f"For an untreated child at mean covariates, the fitted first-interval "
+            f"off-floor probability was {_kf_pct(first)}%."
+        )
+        if not treated_cells.empty:
+            values = [_kf_float(v) for v in treated_cells["median"]]
+            text += (
+                f" With both arms treated, the fitted later-interval probabilities "
+                f"ranged from {_kf_pct(min(values))}% to {_kf_pct(max(values))}%."
+            )
+        sentences.append(_kf_sentence(text, "highlight"))
+    elif not legacy_baseline.empty:
+        values = [_kf_float(v) for v in legacy_baseline["median"]]
         sentences.append(
             _kf_sentence(
-                f"For an untreated child at mean covariates, the fitted baseline "
-                f"off-floor probability ranged from {_kf_pct(min(values))}% to "
-                f"{_kf_pct(max(values))}% across intervals.",
+                f"The fitted untreated off-floor probability ranged from "
+                f"{_kf_pct(min(values))}% to {_kf_pct(max(values))}% across "
+                f"intervals; beyond the first interval those untreated values are "
+                f"prior-mediated extrapolations (no untreated children were "
+                f"observed there).",
                 "highlight",
             )
         )

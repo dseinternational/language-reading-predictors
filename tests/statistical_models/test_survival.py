@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from language_reading_predictors.statistical_models import reporting
 from language_reading_predictors.statistical_models.survival import prepare_survival
@@ -73,6 +74,63 @@ def test_intervention_aligned_treated_coding():
     # Waitlist arm (G==0): untreated in interval 0, treated from interval 1 (crossover).
     assert np.all(treated[(G == 0) & (k == 0)] == 0)
     assert np.all(treated[(G == 0) & (k >= 1)] == 1)
+
+
+def test_treatment_window_controls_where_tau_enters_eta():
+    """Under the default "randomised" window tau reaches only the interval-1
+    treated rows; the legacy "pooled" comparator keeps the all-interval shift
+    (2026-08-21 survival review, finding 1)."""
+    from language_reading_predictors.statistical_models.survival import (
+        build_survival_model,
+    )
+
+    p = prepare_survival("N", df=_fixture())
+
+    def _tau_reach(window: str) -> np.ndarray:
+        import pytensor
+
+        built = build_survival_model(p, treatment_window=window)
+        m = built.model
+        point = m.initial_point()
+        rvs = list(m.free_RVs)
+        eta_fn = pytensor.function(
+            [m[rv.name] for rv in rvs], m["eta"], on_unused_input="ignore"
+        )
+        zero = [np.zeros_like(point[rv.name]) for rv in rvs]
+        one = [
+            np.ones_like(point[rv.name])
+            if rv.name == "tau"
+            else np.zeros_like(point[rv.name])
+            for rv in rvs
+        ]
+        return np.asarray(eta_fn(*one)) - np.asarray(eta_fn(*zero))
+
+    randomised = _tau_reach("randomised")
+    pooled = _tau_reach("pooled")
+    expected_randomised = (p.treated * (p.interval_idx == 0)).astype(float)
+    assert np.allclose(randomised, expected_randomised)
+    assert np.allclose(pooled, p.treated.astype(float))
+
+    with pytest.raises(ValueError, match="randomised.*pooled"):
+        build_survival_model(p, treatment_window="all")
+
+
+def test_prepare_survival_rejects_duplicate_rows_and_bad_group_codes():
+    """Source-integrity fail-loud, matching the shared loaders (finding 5)."""
+    dup = pd.concat([_fixture(), _fixture().iloc[[0]]], ignore_index=True)
+    with pytest.raises(ValueError, match="Duplicate \\(subject, time\\) rows"):
+        prepare_survival("N", df=dup)
+
+    bad = _fixture()
+    bad.loc[bad.index[0], "group"] = 3
+    with pytest.raises(ValueError, match="Group codes must be exactly 1"):
+        prepare_survival("N", df=bad)
+
+    unstable = _fixture()
+    c1 = unstable["subject_id"] == "C1"
+    unstable.loc[c1 & (unstable["time"] == 4), "group"] = 2
+    with pytest.raises(ValueError, match="Group code changes within child"):
+        prepare_survival("N", df=unstable)
 
 
 def test_per_child_standardisation_is_row_count_independent():
