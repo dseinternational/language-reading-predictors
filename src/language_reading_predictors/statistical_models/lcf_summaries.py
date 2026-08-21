@@ -138,6 +138,9 @@ def items_scale(
                 slope_z = lam_m * lam_k * rho / (lam_k**2 + sig_k**2)
                 # Δitems_m per +1 item of k at the mean operating point.
                 items_slope = slope_z * (sd_m / sd_k) * (info_m / info_k)
+                # Median + inner-50% bands alongside the mean: the key-findings
+                # headline reads this table and the house lead statistic is the
+                # median (2026-08-21 review, finding 10).
                 rows.append(
                     {
                         "wave": w,
@@ -145,7 +148,10 @@ def items_scale(
                         "target_indicator": m_sym,
                         "predictor_domain": dj,
                         "target_domain": di,
+                        "items_per_item_median": float(np.median(items_slope)),
                         "items_per_item_mean": float(np.mean(items_slope)),
+                        "items_per_item_lo50": float(np.quantile(items_slope, 0.25)),
+                        "items_per_item_hi50": float(np.quantile(items_slope, 0.75)),
                         "items_per_item_lo": float(np.quantile(items_slope, lo_q)),
                         "items_per_item_hi": float(np.quantile(items_slope, 1 - lo_q)),
                         "prob_pos": float(np.mean(items_slope > 0)),

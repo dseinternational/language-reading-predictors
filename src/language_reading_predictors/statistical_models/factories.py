@@ -5741,7 +5741,9 @@ def build_growth_model(
 
     Growth is **linear in standardised age** — the identifiable choice at four
     waves. ``gamma_k`` (baseline non-verbal ability -> growth *rate*) is the
-    headline Q5 estimand; ``delta_k`` is the effect on baseline *level*. Both are
+    headline Q5 estimand; ``delta_k`` is the association with the level at the
+    pooled-mean (mid-study) age (``a`` is standardised over all child-wave cells,
+    so the entry-level association is ``delta_k + gamma_k * E[a at t1]``). Both are
     **adjusted / GA-confounded associations, never causal** (block design is an
     off-DAG ability proxy; see ``notes/202606231600-dag-revision-consolidated.md``).
 

@@ -360,3 +360,12 @@ def test_registered_models_are_typed_and_preserve_the_legacy_contract():
         assert legacy.settings_source == "legacy_extra"
         for field in _META_FIELDS:
             assert isinstance(typed_contract[field], str) and typed_contract[field]
+
+
+def test_declared_empty_couplings_stay_empty():
+    """Finding 8: an explicitly-empty coupling declaration is a couplings-free
+    comparator, not an invitation to substitute the full LRP67 default set."""
+    defaulted = L.resolve_lcsm_run_plan(_spec())
+    assert defaulted.couplings, "the undeclared case must keep the default set"
+    plan = L.resolve_lcsm_run_plan(_spec(couplings={}))
+    assert plan.couplings == ()

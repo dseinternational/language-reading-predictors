@@ -245,3 +245,69 @@ def test_growth_factory_age_ability_interaction_adds_terms(tmp_path):
     y = pp.prior_predictive["y_obs"].values
     assert y.shape[-1] == _n_observed(panel)
     assert y.min() >= 0
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-21 review fixes
+# ---------------------------------------------------------------------------
+
+
+def test_summary_coefs_publish_the_plan_declared_headline():
+    """Finding 1: the interaction plan's registered headline (gamma_int) must be
+    in the coefficient set the pipeline passes to the scientific summary."""
+    from language_reading_predictors.statistical_models.context import ModelSpec
+    from language_reading_predictors.statistical_models.growth import (
+        resolve_growth_run_plan,
+    )
+    from language_reading_predictors.statistical_models.pipelines.growth import (
+        summary_coefs,
+    )
+
+    def _plan(**extra):
+        return resolve_growth_run_plan(
+            ModelSpec(model_id="lrp-rli-gc-000", kind="growth", title="t", extra=extra)
+        )
+
+    assert summary_coefs(_plan()) == ("gamma", "delta", "beta", "loading")
+    assert summary_coefs(_plan(age_ability_interaction=True)) == (
+        "gamma", "delta", "beta", "loading", "gamma_age", "gamma_int",
+    )
+
+
+def test_growth_association_summary_covers_the_interaction_coefficients():
+    rng = np.random.default_rng(3)
+    shape = (2, 200, 3)
+    data = {
+        name: (("chain", "draw", "outcome"), rng.normal(0.0, 0.1, size=shape))
+        for name in ("gamma", "delta", "gamma_age", "gamma_int")
+    }
+    ds = xr.Dataset(
+        data,
+        coords={
+            "chain": np.arange(2),
+            "draw": np.arange(200),
+            "outcome": ["R", "E", "T"],
+        },
+    )
+    df = growth_association_summary(
+        SimpleNamespace(posterior=ds),
+        coefs=("gamma", "delta", "beta", "loading", "gamma_age", "gamma_int"),
+    )
+    assert {"gamma_age", "gamma_int"} <= set(df["coefficient"])
+    gi = df[df["coefficient"] == "gamma_int"]
+    assert set(gi["outcome"]) == {"R", "E", "T"}
+    assert (gi["role"] == "association").all()
+
+
+def test_load_wave_panel_fails_loud_on_a_child_with_no_observed_age(tmp_path):
+    """Finding 9: an all-NaN age row previously survived interpolation and only
+    failed much later with a cryptic sampler logp error."""
+    p = _write_growth_csv(tmp_path, n_children=6)
+    df = pd.read_csv(p)
+    victim = df["subject_id"].iloc[0]
+    df["age"] = df["age"].astype(float)
+    df.loc[df["subject_id"] == victim, "age"] = np.nan
+    bad = tmp_path / "no_age.csv"
+    df.to_csv(bad, index=False)
+    with pytest.raises(ValueError, match="age is unavailable"):
+        load_wave_panel(path=bad, outcomes=_OUTCOMES, baseline_covariates=("blocks",))

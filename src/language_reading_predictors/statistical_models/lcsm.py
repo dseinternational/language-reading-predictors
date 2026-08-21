@@ -406,8 +406,19 @@ def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
             f"outcomes {outcomes!r}"
         )
 
-    couplings = settings.couplings or (
-        (reading_symbol, tuple(symbol for symbol in outcomes if symbol != reading_symbol)),
+    # `is None`, not falsy-or: an explicitly-empty coupling set (a couplings-free
+    # comparator) must stay empty rather than silently fitting the full LRP67
+    # default graph (2026-08-21 review, finding 8). The factory already makes the
+    # same None-versus-empty distinction.
+    couplings = (
+        settings.couplings
+        if settings.couplings is not None
+        else (
+            (
+                reading_symbol,
+                tuple(symbol for symbol in outcomes if symbol != reading_symbol),
+            ),
+        )
     )
     lagged = settings.lagged_change_couplings
     _validate_couplings(couplings, outcomes=outcomes, name="couplings")

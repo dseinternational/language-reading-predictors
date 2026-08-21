@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
@@ -3539,9 +3540,14 @@ def growth_association_summary(
     evidence-language fields (:func:`favoured_direction`, #179).
 
     ``gamma`` (baseline non-verbal ability -> growth *rate*) is the headline Q5
-    estimand; ``delta`` is the effect on baseline *level*; ``beta`` is the mean
-    slope (trajectory characterisation); ``loading`` is the shared growth-tempo
-    loading present only in the factor model (LRP70) and skipped otherwise. Every
+    estimand; ``delta`` is the association with the level at the pooled-mean
+    (mid-study) age — ``age_std`` is standardised over all child-wave cells, so
+    the entry-level association is ``delta + gamma * E[age_std at t1]``, not
+    ``delta``; ``beta`` is the mean slope (trajectory characterisation);
+    ``loading`` is the shared growth-tempo loading present only in the factor
+    model (LRP70) and skipped otherwise. The interaction model (LRP85) passes
+    ``gamma_age``/``gamma_int`` in ``coefs`` so its registered headline reaches
+    this summary (2026-08-21 review, finding 1). Every
     row is an **adjusted association** (``role`` fixed to ``"association"``): under
     the locked DAG these non-randomised, latent-GA-confounded terms are never read
     as "drives". ``ci_prob`` is retained for signature parity with
@@ -4256,7 +4262,11 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
             "beta_sd": float(np.std(b)),
             "beta_hdi_lo": float(hdi[0]),
             "beta_hdi_hi": float(hdi[1]),
-            "sign": "+" if mean > 0 else ("-" if mean < 0 else "0"),
+            # Direction from the median — the house lead statistic, and the same
+            # statistic the key-findings box reads, so the CSV and the box cannot
+            # disagree on a spike-and-slab posterior whose mean and median
+            # straddle zero (2026-08-21 review, finding 10).
+            "sign": "+" if median > 0 else ("-" if median < 0 else "0"),
         }
         if lam is not None:
             row["lambda_mean"] = float(
@@ -4392,8 +4402,13 @@ def disattenuation_crosscheck(latent_df: pd.DataFrame, observed_df: pd.DataFrame
     lat = merged["mean"].abs()
     obs = merged["observed_corr"].abs()
     merged["gap"] = lat - obs
-    # A small tolerance absorbs Monte-Carlo noise around a zero gap.
-    merged["latent_ge_observed"] = (lat + 1e-3) >= obs
+    # A small tolerance absorbs Monte-Carlo noise around a zero gap. A missing
+    # observed comparator (a wave/pair with too few pairwise-complete indicator
+    # pairs, or a merge miss) must stay NA rather than comparing False and being
+    # counted as a reversal (2026-08-21 review, finding 10).
+    flags = pd.array((lat + 1e-3) >= obs, dtype="boolean")
+    flags[obs.isna().to_numpy()] = pd.NA
+    merged["latent_ge_observed"] = flags
     return merged
 
 
@@ -6320,7 +6335,26 @@ def _kf_build_corr_factor(output_dir, config: Mapping) -> list[dict[str, str]]:
             ]
         )
     if structural is not None:
-        row = _kf_most_resolved_row(structural, prob_col="prob_pos")
+        # Only the beta_<domain> factor slopes are structural slopes. Ranking over
+        # every row let the beta_age adjustment covariate win the highlight in all
+        # four released RLI boxes — displacing beta_code, the errors-in-variables
+        # focal slope, in mm-002/102 (2026-08-21 review, finding 2b). A config
+        # without factor names in its plan (a legacy stub) keeps the unfiltered
+        # ranking rather than failing.
+        plan = config.get("resolved_run_plan") or {}
+        factors = list(plan.get("structural_factors") or []) or [
+            domain[0] for domain in (plan.get("domains") or [])
+        ]
+        slopes = structural
+        if factors:
+            wanted = {f"beta_{name}" for name in factors}
+            slopes = structural[structural["coefficient"].astype(str).isin(wanted)]
+            if slopes.empty:
+                raise _KeyFindingsUnavailable(
+                    "structural_summary.csv has no factor-slope rows matching the "
+                    "resolved plan's structural factors"
+                )
+        row = _kf_most_resolved_row(slopes, prob_col="prob_pos")
         sentences.append(
             _kf_sentence(
                 f"The clearest structural slope was "
@@ -6419,11 +6453,17 @@ def _kf_build_lcsm(output_dir, config: Mapping) -> list[dict[str, str]]:
     df = _kf_csv(output_dir, "coupling_summary.csv")
     if df is None:
         raise _KeyFindingsUnavailable("coupling_summary.csv is not present")
-    directed = df[df["coefficient"].astype(str).str.contains("->", regex=False)]
+    # Only the g_/h_ rows are couplings. A contains("->") filter also matched the
+    # age slope and the shared adjuster slopes, so a precision covariate could win
+    # the "clearest longitudinal coupling" headline with a level-worded confidence
+    # sentence (2026-08-21 review, finding 2a) — live in the released 067 box.
+    directed = df[df["coefficient"].astype(str).str.match(r"[gh]_")]
     if directed.empty:
-        directed = df
+        raise _KeyFindingsUnavailable("coupling_summary.csv has no coupling rows")
     row = _kf_most_resolved_row(directed, prob_col="prob_pos")
-    label = _kf_plain_label(row["coefficient"])
+    name = str(row["coefficient"])
+    lagged = name.startswith("h_")
+    label = _kf_plain_label(name)
     if "(" in label and label.endswith(")"):
         label = label.split("(", 1)[1][:-1]
     sentences = [
@@ -6436,8 +6476,16 @@ def _kf_build_lcsm(output_dir, config: Mapping) -> list[dict[str, str]]:
         _kf_sentence(
             _kf_association_direction(
                 row["prob_pos"],
-                positive_claim="a higher earlier level accompanies greater later change",
-                negative_claim="a higher earlier level accompanies less later change",
+                positive_claim=(
+                    "greater earlier change accompanies greater later change"
+                    if lagged
+                    else "a higher earlier level accompanies greater later change"
+                ),
+                negative_claim=(
+                    "greater earlier change accompanies less later change"
+                    if lagged
+                    else "a higher earlier level accompanies less later change"
+                ),
             ),
             "confidence",
         ),
@@ -6449,12 +6497,24 @@ def _kf_build_lcsm(output_dir, config: Mapping) -> list[dict[str, str]]:
     ]
     itt = _kf_csv(output_dir, "itt_window1_contrast.csv")
     if itt is not None:
-        check = _kf_most_resolved_row(itt, prob_col="prob_pos")
+        # Quote the model's focal outcome when its row exists, and always name the
+        # measure — the unnamed most-resolved row silently attributed another
+        # outcome's contrast to the focal measure (finding 2c: 081 quoted W under
+        # a taught-vocabulary model, 091 quoted L under a word-reading model).
+        focal = str(config.get("outcome_symbol") or "")
+        cand = (
+            itt[itt["coefficient"].astype(str).str.startswith(f"itt_w1[{focal}]")]
+            if focal
+            else itt.iloc[0:0]
+        )
+        check = cand.iloc[0] if len(cand) else _kf_most_resolved_row(itt, prob_col="prob_pos")
+        match = re.search(r"itt_w1\[([^\]]+)\]", str(check["coefficient"]))
+        measure = _kf_measure_label(match.group(1)) if match else str(check["coefficient"])
         sentences.append(
             _kf_sentence(
-                f"The separate randomised window-1 consistency contrast was "
-                f"{_kf_float(check['median']):+.2f} latent-logit units (89% credible "
-                f"range {_kf_float(check['lo']):+.2f} to "
+                f"The separate randomised window-1 consistency contrast for "
+                f"{measure} was {_kf_float(check['median']):+.2f} latent-logit "
+                f"units (89% credible range {_kf_float(check['lo']):+.2f} to "
                 f"{_kf_float(check['hi']):+.2f}); it is a check, not the coupling "
                 f"headline.",
                 "highlight",
@@ -6494,6 +6554,57 @@ def _kf_build_horseshoe(output_dir, config: Mapping) -> list[dict[str, str]]:
     ]
 
 
+def _kf_growth_interaction_sentences(
+    gamma_int: pd.DataFrame, gamma: pd.DataFrame
+) -> list[dict[str, str]]:
+    """Key-findings box for the age x ability interaction growth model (LRP85)."""
+    row = _kf_most_resolved_row(gamma_int, prob_col="prob_positive")
+    outcome = _kf_measure_label(row["outcome"])
+    sentences = [
+        _kf_sentence(
+            f"For {outcome}, the clearest interaction result, a child +1 SD older "
+            f"at entry **and** +1 SD higher in baseline non-verbal ability differed "
+            f"in growth rate by **{_kf_float(row['median']):+.2f} logit units** "
+            f"beyond the two main effects (89% credible range "
+            f"{_kf_float(row['lo89']):+.2f} to {_kf_float(row['hi89']):+.2f}).",
+            "headline",
+        ),
+        _kf_sentence(
+            _kf_association_direction(
+                row["prob_positive"],
+                positive_claim=(
+                    "older-and-more-able children progress faster than the main "
+                    "effects alone imply"
+                ),
+                negative_claim=(
+                    "the ability-growth association weakens with age at entry"
+                ),
+            ),
+            "confidence",
+        ),
+    ]
+    same = gamma[gamma["outcome"] == row["outcome"]]
+    if not same.empty:
+        g = same.iloc[0]
+        sentences.append(
+            _kf_sentence(
+                f"The ability main effect (gamma) for the same outcome, at the "
+                f"sample-mean entry age, was {_kf_float(g['median']):+.2f} logit "
+                f"units (89% credible range {_kf_float(g['lo89']):+.2f} to "
+                f"{_kf_float(g['hi89']):+.2f}).",
+                "highlight",
+            )
+        )
+    sentences.append(
+        _kf_sentence(
+            "These trajectory coefficients are adjusted associations, not effects "
+            "of changing non-verbal ability.",
+            "causal",
+        )
+    )
+    return sentences
+
+
 def _kf_build_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
     """Multivariate growth: baseline ability association with growth rate."""
     df = _kf_csv(output_dir, "growth_association_summary.csv")
@@ -6502,9 +6613,20 @@ def _kf_build_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
     gamma = df[df["coefficient"] == "gamma"]
     if gamma.empty:
         raise _KeyFindingsUnavailable("growth summary has no gamma rows")
+    plan = config.get("resolved_run_plan") or {}
+    # The interaction model's registered headline is gamma_int, not gamma
+    # (2026-08-21 review, finding 1); a plan that declares the interaction but a
+    # summary without its rows is a stale pre-fix artefact, so fail loud.
+    if bool(plan.get("age_ability_interaction")):
+        gamma_int = df[df["coefficient"] == "gamma_int"]
+        if gamma_int.empty:
+            raise _KeyFindingsUnavailable(
+                "the plan declares the age x ability interaction but the growth "
+                "summary has no gamma_int rows; regenerate the summary CSV first"
+            )
+        return _kf_growth_interaction_sentences(gamma_int, gamma)
     row = _kf_most_resolved_row(gamma, prob_col="prob_positive")
     outcome = _kf_measure_label(row["outcome"])
-    plan = config.get("resolved_run_plan") or {}
     study_id = str(config.get("study_id") or "rli")
     baseline_symbol = plan.get("baseline_covariate")
     baseline_label = "non-verbal ability"
@@ -6947,11 +7069,18 @@ def _kf_build_long_corr_factor(output_dir, config: Mapping) -> list[dict[str, st
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
     predictor = _kf_measure_label(row["predictor_indicator"])
     target = _kf_measure_label(row["target_indicator"])
+    # Lead with the median (house standard, 2026-08-21 review, finding 10); a
+    # stored pre-fix CSV carries only the mean, so fall back rather than fail.
+    point = (
+        row["items_per_item_median"]
+        if "items_per_item_median" in row
+        else row["items_per_item_mean"]
+    )
     return [
         _kf_sentence(
             f"At wave {int(_kf_float(row['wave']))}, the clearest translated latent "
             f"coupling linked +1 {predictor} item with "
-            f"**{_kf_float(row['items_per_item_mean']):+.2f} {target} items** "
+            f"**{_kf_float(point):+.2f} {target} items** "
             f"(89% credible range {_kf_float(row['items_per_item_lo']):+.2f} "
             f"to {_kf_float(row['items_per_item_hi']):+.2f}).",
             "headline",

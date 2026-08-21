@@ -2410,9 +2410,10 @@ def test_correlated_factor_model_rejects_bad_loading_prior(tmp_path):
 
 
 def test_correlated_factor_focal_slope_sigma_widens_only_focal_terms(tmp_path):
-    """#382 item 1 (LRPMM102): focal_slope_sigma moves beta_factor and beta_G to
-    the primary-mechanism scale while every other slope keeps the association
-    scale — verified on the priors table the report publishes."""
+    """#382 item 1 (LRPMM102): focal_slope_sigma moves beta_factor — and ONLY
+    beta_factor — to the primary-mechanism scale; every other slope, beta_G
+    included, keeps the association scale — verified on the priors table the
+    report publishes."""
     from language_reading_predictors.statistical_models import priors as _priors_mod
 
     p = _write_synthetic(tmp_path, n_children=30)

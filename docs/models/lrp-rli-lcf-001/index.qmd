@@ -30,7 +30,8 @@ regression family gives directed, covariate-conditional observed-score slopes; t
 summarises a latent-domain correlation web while modelling indicator-specific residual
 variation. Only the latent correlation matrix is symmetric; its conditional slopes are
 directional and generally asymmetric. The two analyses have different estimands, so
-neither must be larger. A reproducible 32-row report artefact aligns selected LCF
+neither must be larger. A reproducible 48-row report artefact (twelve directed
+target/predictor pairs across the four waves, #348) aligns selected LCF
 target-item translations with the matching #312 adjusted average marginal effects by
 target, predictor and wave.
 

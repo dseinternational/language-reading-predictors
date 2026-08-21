@@ -147,7 +147,18 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
                 c, strict=False
             ),
-            extended_term=plan.focal_term,
+            # The termless profile plotted every posterior variable (including the
+            # per-child factor offsets), tripping the max-subplots guard so
+            # ess_evolution.png was never written; focus on the released
+            # correlations. LOO-PIT is declared off — with no PSIS-LOO and two
+            # observed nodes the figure could only ever fail (2026-08-21 review,
+            # finding 3).
+            extended_term=(
+                "factor_corr_pairs"
+                if "factor_corr_pairs" in summary_vars
+                else summary_vars[0]
+            ),
+            include_loo_pit=False,
             compute_loo=plan.compute_loo,
         ),
     )
@@ -305,7 +316,14 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
                 c, strict=False
             ),
-            extended_term=plan.focal_term,
+            # Same ESS-evolution / LOO-PIT reasoning as the RLI entry point above
+            # (2026-08-21 review, finding 3).
+            extended_term=(
+                "factor_corr_pairs"
+                if "factor_corr_pairs" in diag_vars
+                else diag_vars[0]
+            ),
+            include_loo_pit=False,
             compute_loo=plan.compute_loo,
         ),
     )

@@ -372,7 +372,13 @@ def horseshoe_tau_prior(tau0: float = 0.1) -> Continuous:
     (Parametrised by ``tau0``; the table reports the default scale.) The global
     scale pulls all coefficients toward zero; the expected number of relevant
     predictors sets it via ``tau0 ~ p0/(D-p0) * 1/sqrt(N)``. For the pilot
-    (~11 constructs, n~54, a handful expected relevant) this is ~0.1.
+    (~11 constructs, n~54, a handful expected relevant) this is ~0.1. That
+    calibration is a Gaussian-sigma=1 heuristic on the ~54-row span frame; the
+    level fits (~210 stacked child-wave rows, where the rule gives ~0.05) and
+    the RLM ports (n = 69-71, D = 6) deliberately reuse the same constant so
+    all seven registered fits share one shrinkage geometry — read the prior
+    pushforward artefact, not the rule, when judging shrinkage-versus-signal
+    (2026-08-21 review, observation).
     """
     return pz.HalfCauchy(beta=tau0)
 

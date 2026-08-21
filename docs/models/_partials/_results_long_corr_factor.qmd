@@ -72,8 +72,9 @@ loadings = _csv("loadings_summary.csv")
 loadings if loadings is not None else "No loadings table."
 ```
 
-_How to read the table:_ `loading_mean` is each indicator's loading on its skill-area
-factor; `communality_mean` (with its interval) is the share of that indicator explained
+_How to read the table:_ `loading_median` (the house lead statistic, with the
+inner-50% and 89% bands; the mean is beside it) is each indicator's loading on its
+skill-area factor; `communality_median` is the share of that indicator explained
 by the factor — high communality means the test is a clean marker of its area,
 low means it carries a lot of test-specific noise.
 
@@ -89,7 +90,8 @@ trait_state = _csv("trait_state_summary.csv")
 trait_state if trait_state is not None else "No trait/state table."
 ```
 
-_How to read the table:_ `trait_share_mean` (0–1, with its interval) is the fraction of
+_How to read the table:_ `trait_share_median` (0–1, the house lead statistic with the
+inner-50% and 89% bands; the mean is beside it) is the fraction of
 the factor variance that is the stable across-wave trait; the remainder is the
 wave-specific state. It also equals the model's same-area correlation between any two
 waves (compound symmetry) — the starting assumption; genuine decay over time is a
@@ -110,7 +112,20 @@ xcheck if xcheck is not None else "No cross-check table."
 # | echo: false
 # | output: asis
 if xcheck is not None and len(xcheck):
-    _rev = int((~xcheck["latent_ge_observed"]).sum()) if "latent_ge_observed" in xcheck else 0
+    # CSV round-trip note: the flag is nullable (blank = no observed comparator,
+    # 2026-08-21 review, finding 10), so count string-wise rather than with ~.
+    if "latent_ge_observed" in xcheck:
+        _flags = xcheck["latent_ge_observed"].astype("string")
+        _rev = int((_flags == "False").sum())
+        _na = int(_flags.isna().sum())
+    else:
+        _rev, _na = 0, 0
+    if _na:
+        print(
+            f"_{_na} wave/pair(s) have no observed comparator (too few "
+            "pairwise-complete indicator pairs) and are excluded from the "
+            "direction count below._\n"
+        )
     if _rev == 0:
         print(
             "Every latent correlation is at least as large as its observed counterpart "
@@ -148,8 +163,10 @@ descriptive association, not a caused gain.
 
 ### Reproducible comparison with #312 concurrent associations
 
-The 32-row comparison below aligns target, predictor and wave for letter sounds `L`
-against `R`/`E`/`TR`/`TE`, and taught vocabulary `TR`/`TE` against `L`/`B`. For each
+The 48-row comparison below aligns target, predictor and wave for letter sounds `L`
+against `R`/`E`/`TR`/`TE`, receptive and expressive vocabulary `R`/`E` against
+`L`/`B`, and taught vocabulary `TR`/`TE` against `L`/`B` (twelve directed pairs
+across the four waves, expanded from the original eight in #348). For each
 row, it places the LCF target-item translation for a **+1 same-wave SD change in the
 predictor**, evaluated at the mean operating point, beside #312's adjusted average
 marginal effect for the same predictor change.

@@ -277,6 +277,15 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
             f"{spec.model_id}: min_outcome_waves cannot exceed the number of waves"
         )
 
+    # Settings-only identification constraint, so it must fail here rather than in
+    # the factory (#455): with one outcome the rank-1 tempo factor is just a second
+    # random-slope term duplicating sigma_slope — an unidentified variance split.
+    if settings.use_shared_factor and len(settings.outcomes) < 2:
+        raise ValueError(
+            f"{spec.model_id}: a shared growth-tempo factor needs at least two "
+            "trajectory outcomes"
+        )
+
     if study_id == "rli":
         if waves != (1, 2, 3, 4):
             raise ValueError(
@@ -362,11 +371,6 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
                 f"{spec.model_id}: pooled RLM growth requires reading-group nuisance "
                 "trajectories"
             )
-        if settings.use_shared_factor and len(settings.outcomes) < 2:
-            raise ValueError(
-                f"{spec.model_id}: a shared growth-tempo factor needs at least two "
-                "trajectory outcomes"
-            )
         if settings.use_random_slope:
             raise ValueError(
                 f"{spec.model_id}: the three-wave single-outcome Byrne port uses "
@@ -381,12 +385,27 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
             "standardised age), with a per-measure child-level random intercept and "
             "slope; optionally a rank-1 shared growth-tempo factor coupling the slopes."
         )
-        estimand = (
-            "gamma (baseline non-verbal ability -> growth RATE) is the headline Q5 "
-            "association; delta is the association with baseline LEVEL. Both are "
-            "adjusted, latent-general-ability-confounded associations, never causal "
-            "(block design is an off-DAG ability proxy)."
-        )
+        # delta sits at age_std = 0, i.e. the pooled-mean (mid-study) age — the
+        # entry-level association is delta + gamma * E[age_std at t1] — so the
+        # estimand of record must not call it a baseline-level association.
+        if settings.age_ability_interaction:
+            estimand = (
+                "gamma_int (the baseline-age x baseline-ability interaction on the "
+                "growth RATE) is the headline: does the ability-growth association "
+                "strengthen with age at entry? gamma and gamma_age are the centred "
+                "main effects; delta is the association with the level at the "
+                "pooled-mean (mid-study) age. All are adjusted, latent-general-"
+                "ability-confounded associations, never causal (block design is an "
+                "off-DAG ability proxy)."
+            )
+        else:
+            estimand = (
+                "gamma (baseline non-verbal ability -> growth RATE) is the headline "
+                "Q5 association; delta is the association with the level at the "
+                "pooled-mean (mid-study) age. Both are adjusted, latent-general-"
+                "ability-confounded associations, never causal (block design is an "
+                "off-DAG ability proxy)."
+            )
         causal_status = (
             "Associational only: every non-randomised term is a latent-general-"
             "ability-confounded adjusted association under the locked DAG, never a "

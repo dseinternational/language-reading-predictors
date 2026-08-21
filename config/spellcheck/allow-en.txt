@@ -79,6 +79,7 @@ cloglog
 CLPM
 coef
 coeffs
+coefs
 collinear
 collinearity
 Cologon
@@ -238,6 +239,7 @@ hyperpriors
 Iacono
 Iarocci
 IDA
+idxmax
 idxmin
 ignorability
 iloc
@@ -298,6 +300,7 @@ Lipsitch
 LKJ
 logit
 logits
+logp
 looic
 LOSO
 Loveall
@@ -575,6 +578,7 @@ Stojanovik
 Stuebing
 subfit
 subfits
+submatrix
 subsetting
 subskill
 suptitle

@@ -346,3 +346,25 @@ def test_phase_bd_specs_well_formed(model_id, expected):
         if model_id == "lrp-rlm-adj-006"
         else "historical_cohort"
     )
+
+
+def test_span_frame_rejects_fractional_and_out_of_range_counts(tmp_path):
+    """2026-08-21 review, finding 9: a fractional count was silently truncated by
+    the factory's int64 cast and an out-of-range predictor surfaced only as an
+    opaque NaN sampler failure."""
+    path = _write_battery_csv(tmp_path)
+    df = pd.read_csv(path)
+    frac_mask = (df.subject_id == "S10") & (df.time == 1)
+    df["bpvs"] = df["bpvs"].astype(float)
+    df.loc[frac_mask, "bpvs"] = 3.5
+    frac = tmp_path / "frac.csv"
+    df.to_csv(frac, index=False)
+    with pytest.raises(ValueError, match="integer counts"):
+        load_rlm_span_frame(path=frac)
+
+    df2 = pd.read_csv(path)
+    df2.loc[frac_mask, "trog"] = 10_000
+    over = tmp_path / "over.csv"
+    df2.to_csv(over, index=False)
+    with pytest.raises(ValueError, match="outside 0"):
+        load_rlm_span_frame(path=over)
