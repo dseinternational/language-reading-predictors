@@ -84,7 +84,7 @@ from __future__ import annotations
 import json
 import os
 from contextlib import suppress
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, Literal, Mapping
 
@@ -1995,6 +1995,85 @@ def _blending_pair_release_failures(
     return ()
 
 
+def _joint_dependence_companion_note(
+    output_dir: Path, config: Mapping[str, Any]
+) -> str:
+    """Qualifying note when a factorised joint contrast's dependence companion is
+    not release-ready beside it (2026-08-21 joint review, finding 3).
+
+    The three contrast parents' ``dependence_note`` prose has always said the
+    contrast is dependence-checked only once the registered LKJ companion
+    (lrp-rli-itt-215/315/216, #551) has passed the house gate — but nothing
+    enforced it, unlike the mandatory phoneme-blending 008/108 pair. This check
+    reads the machine-readable ``dependence_companion`` from the fit's resolved
+    plan and verifies the sibling companion fit of the same configuration is
+    publishable and was fitted on the same input data.
+
+    Deliberately a **qualify-note**, not a withhold: the parent's per-outcome
+    marginal effects are fully valid without the companion — only the paired
+    contrast's interval is dependence-unchecked — so the failure attaches the
+    caveat sentence to the findings box rather than withholding valid marginals.
+    A stored fit whose plan predates the field carries no companion id and is
+    unaffected, so old decisions re-decide identically. During a fresh sweep a
+    parent can finalise before its companion has been fitted; the note then
+    attaches and is cleared by regenerating the decision
+    (``scripts/regenerate_key_findings.py``) once the companion completes.
+    Fail-closed: any error verifying the companion attaches the note with the
+    reason rather than silently releasing an unchecked pairing.
+    """
+    if str(config.get("kind") or "") != "joint":
+        return ""
+    plan = config.get("resolved_run_plan") or {}
+    if not isinstance(plan, Mapping):
+        return ""
+    contrast = plan.get("contrast") or {}
+    companion = (
+        str(contrast.get("dependence_companion") or "")
+        if isinstance(contrast, Mapping)
+        else ""
+    )
+    if not companion or bool(plan.get("use_residual_correlation")):
+        return ""
+
+    def _note(reason: str) -> str:
+        return (
+            f"The declared contrast's dependence-model companion ({companion}) is "
+            f"not release-ready beside this fit ({reason}), so the paired contrast "
+            "is dependence-unchecked: its interval omits within-child cross-outcome "
+            "covariance and is not automatically conservative. Regenerate this "
+            "decision once the companion has passed the house gate."
+        )
+
+    try:
+        directory = Path(output_dir).resolve()
+        model_id = str(config.get("model_id") or "")
+        config_name = str(config.get("config_name") or "") or _config_name(
+            directory, model_id
+        )
+        if not config_name:
+            return _note("this fit's configuration name could not be resolved")
+        companion_dir = directory.parent / f"{companion}-{config_name}"
+        decision, decision_error = _read_json(
+            companion_dir / RELEASE_DECISION_FILENAME
+        )
+        if decision_error is not None or not isinstance(decision, Mapping):
+            return _note("its release decision is missing or unreadable")
+        if not bool(decision.get("publishable")):
+            return _note("its own release decision withholds publication")
+        companion_config = _load_config(companion_dir)
+        if not companion_config:
+            return _note("its config.json is missing or unreadable")
+        if str(companion_config.get("model_id") or "") != companion:
+            return _note("the sibling directory does not identify itself as the companion")
+        theirs = str(companion_config.get("data_sha256") or "")
+        ours = str(config.get("data_sha256") or "")
+        if not theirs or not ours or theirs != ours:
+            return _note("it was not fitted on the same input data as this fit")
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return _note(f"the companion could not be verified: {exc}")
+    return ""
+
+
 def evaluate_publication(
     output_dir: str | Path,
     *,
@@ -2018,8 +2097,11 @@ def evaluate_publication(
     4. **robustness** — required influence checks must preserve their named
        scientific quantities; the phoneme-blending fits must carry their current,
        validated trace-backed link pair (``lrp-rli-itt-008`` + ``lrp-rli-itt-108``);
-       and for the families the treatment-effect gate covers, prior-sensitivity and
-       floor-grid evidence must support a causal headline. The saved
+       for the families the treatment-effect gate covers, prior-sensitivity and
+       floor-grid evidence must support a causal headline; and a factorised joint
+       contrast whose declared LKJ dependence companion is not release-ready
+       beside it releases with a dependence-unchecked qualifier attached
+       (:func:`_joint_dependence_companion_note`). The saved
        sampling-preset name also distinguishes publication-grade ``rep-lite`` /
        ``reporting`` fits from local ``dev`` / ``test`` diagnostics.
 
@@ -2203,6 +2285,15 @@ def evaluate_publication(
             robustness=robustness,
             config=config,
             **qualification,
+        )
+    # Joint dependence pairing (2026-08-21 review, finding 3): a factorised
+    # contrast whose registered LKJ companion is not release-ready beside it
+    # releases with the dependence-unchecked qualifier attached, so the findings
+    # box carries the caveat the prose ``dependence_note`` has always demanded.
+    companion_note = _joint_dependence_companion_note(output_dir, config)
+    if companion_note and robustness is not None:
+        robustness = replace(
+            robustness, note=(robustness.note + " " + companion_note).strip()
         )
     return ReleaseEvaluation(
         status="ok",

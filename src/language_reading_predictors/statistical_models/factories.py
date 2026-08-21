@@ -680,9 +680,11 @@ def build_joint_model(
     by outcome: this is a product of outcome-specific marginal models fitted in
     one PyMC graph, not a dependence-aware joint posterior. Per-outcome effects
     remain valid, but paired cross-outcome contrasts require an explicit
-    dependence sensitivity. All registered ITT multi-outcome specifications use
-    this stable factorised form; none silently claims to estimate within-child
-    outcome covariance.
+    dependence sensitivity. The registered parent specifications (LRPITT12 and
+    the LRPITT15/15b/16 contrast parents) use this stable factorised form; their
+    #551 dependence companions (lrp-rli-itt-215/315/216) switch the residual
+    block on explicitly, so nothing claims within-child outcome covariance it
+    does not model.
 
     ``use_residual_correlation`` (default False): when True, adds an
     ``u_i ~ MvNormal(0, Sigma)`` residual with ``Sigma = diag(sigma) Corr

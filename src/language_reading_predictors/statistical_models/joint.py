@@ -3,12 +3,14 @@
 
 """Typed settings and a resolved run plan for the joint ITT family.
 
-The four registered ``kind="joint"`` models share one multivariate
-Beta-Binomial construction. This module makes that contract explicit and validates
-it before an output transaction is opened or intervention data are loaded (#394
-pillar 4). One resolved plan then drives preparation, factory arguments,
-diagnostics, contrast metadata and the ``config.json`` / ``model_recipe.md`` audit
-trail.
+The registered ``kind="joint"`` models — the ten-outcome suite fit, the three
+two-outcome contrast parents and their #551 LKJ residual-correlation companions
+(``docs/models/README.md`` is the authoritative catalogue) — share one
+multivariate Beta-Binomial construction. This module makes that contract explicit
+and validates it before an output transaction is opened or intervention data are
+loaded (#394 pillar 4). One resolved plan then drives preparation, factory
+arguments, diagnostics, contrast metadata and the ``config.json`` /
+``model_recipe.md`` audit trail.
 
 This is a behaviour-preserving boundary. It does not change prepared rows,
 likelihoods, priors, fitted equations, sampling settings or published table schemas.
@@ -84,7 +86,18 @@ def _optional_text(value: Any, *, name: str) -> str | None:
 
 @dataclass(frozen=True, slots=True)
 class JointContrastSettings:
-    """Typed declaration for one reported between-outcome treatment contrast."""
+    """Typed declaration for one reported between-outcome treatment contrast.
+
+    ``dependence_companion`` is the machine-readable half of the dependence
+    pairing (#551; 2026-08-21 joint review, finding 3): a **factorised** parent
+    names its registered LKJ residual-correlation companion here, so the release
+    decision can verify the companion is release-ready beside the parent instead
+    of relying on the prose ``dependence_note`` alone. It is deliberately *not*
+    part of the contrast metadata written to ``tau_difference.csv`` — it drives
+    the release decision through the resolved plan in ``config.json``. A
+    residual-correlated fit is itself the dependence model and must not name one
+    (enforced in :func:`resolve_joint_run_plan`).
+    """
 
     left: str
     right: str
@@ -95,6 +108,7 @@ class JointContrastSettings:
     transfer_outcome: str | None = None
     transfer_interpretation: str | None = None
     dependence_note: str | None = None
+    dependence_companion: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("left", "right"):
@@ -109,6 +123,11 @@ class JointContrastSettings:
                 name,
                 _optional_text(getattr(self, name), name=name),
             )
+        object.__setattr__(
+            self,
+            "dependence_companion",
+            _optional_text(self.dependence_companion, name="dependence_companion"),
+        )
         if (self.transfer_outcome is None) != (self.transfer_interpretation is None):
             raise ValueError("transfer_outcome and transfer_interpretation must be declared together")
 
@@ -373,6 +392,11 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
         transfer = settings.contrast.transfer_outcome
         if transfer is not None and transfer not in outcomes:
             raise ValueError(f"{spec.model_id}: transfer_outcome {transfer!r} is not in outcomes")
+        if settings.use_residual_correlation and settings.contrast.dependence_companion is not None:
+            raise ValueError(
+                f"{spec.model_id}: a residual-correlated fit is itself the dependence "
+                "model and must not declare a dependence_companion"
+            )
 
     design = (
         "Joint multi-outcome Beta-Binomial model over the randomised t1-to-t2 "
@@ -407,10 +431,27 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
             "covariance."
         )
     )
+    # The loader's default ``pre_required`` covers every declared outcome, so a
+    # multi-outcome fit is a cross-outcome baseline complete-case intersection —
+    # a child missing any one declared baseline is excluded from every outcome,
+    # not only its own. State that mechanism rather than the previous
+    # "outcome-specific available cases" wording, which described only the
+    # post-score side and misread the ten-outcome fit's 53-child set as
+    # per-outcome availability (2026-08-21 joint review, finding 1).
     analysis_population = (
-        "The 54-child archived RLI cohort, using outcome-specific available cases in "
-        "the randomised t1-to-t2 window. Different outcomes may therefore contribute "
-        "different observed child sets."
+        "The archived RLI cohort in the randomised t1-to-t2 window, restricted to "
+        "children with an observed baseline for **every** declared outcome (the "
+        "loader's joint baseline complete-case rule"
+        + (
+            " — with more than one outcome this is the cross-outcome "
+            "intersection, so one missing baseline excludes a child from every "
+            "outcome, and the fitted set can be smaller than the matching "
+            "single-outcome fits'"
+            if len(outcomes) > 1
+            else ""
+        )
+        + "). Post-scores remain available-case per outcome, so observed child "
+        "sets can differ between outcomes only through post-score missingness."
     )
     missing_data_assumption = (
         "Available-case modified ITT: missing post-scores are assumed ignorable for "
