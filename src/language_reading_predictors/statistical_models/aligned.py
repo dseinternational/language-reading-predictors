@@ -19,6 +19,11 @@ the cumulative session dose. One row per child, so there is **no child random
 intercept**. The cohort contrast is a **per-protocol association**, not the
 available-case modified ITT estimate (it is confounded by age-at-onset and cohort/timing), and the
 dose term is a collider descendant of group and ability -- a sensitivity variant.
+The heavily-floored outcome P takes the suite floor rule
+(``likelihood="bernoulli_offfloor"``): a Bernoulli on the off-floor indicator with
+the **binary off-floor-at-onset indicator** as the own-baseline main effect (#391
+finding 2, adopted here by the 2026-08-21 aligned review) and the cohort marginal
+an off-floor risk difference.
 """
 
 from __future__ import annotations
@@ -149,11 +154,16 @@ class AlignedRunPlan:
         }
 
     def coefficient_names(self) -> list[str]:
-        """Interpretable coefficients written to the aligned factor table."""
+        """Interpretable coefficients written to the aligned factor table.
+
+        The off-floor likelihood replaces the graded ``gamma_own`` onset-logit
+        coupling with the binary off-floor-at-onset contrast
+        ``gamma_own_offfloor`` (#391 finding 2, adopted for this family by the
+        2026-08-21 aligned review, finding 2)."""
         names: list[str] = []
         if self.use_cohort:
             names.append("beta_cohort")
-        names += ["gamma_own", "gamma_A"]
+        names += ["gamma_own_offfloor" if self.off_floor else "gamma_own", "gamma_A"]
         if self.ability_covariate:
             names.append("gamma_ability")
         if self.use_dose:
@@ -178,7 +188,16 @@ class AlignedRunPlan:
             f"## Analysis population\n\n{self.analysis_population}\n\n"
             f"## Missing data\n\n{self.missing_data_assumption}\n\n"
             "## Terms\n\n"
-            f"Outcome: `{self.outcome_symbol}`. Ability covariate: "
+            f"Outcome: `{self.outcome_symbol}`. Likelihood: `{self.likelihood}`"
+            + (
+                " (a Bernoulli on the off-floor indicator, aligned post-score > 0, "
+                "with no dispersion parameter; the own-baseline term is the binary "
+                "off-floor-at-onset indicator and the cohort marginal is an "
+                "off-floor risk difference in percentage points)"
+                if self.off_floor
+                else " (a Beta-Binomial on the bounded post-score count)"
+            )
+            + ". Ability covariate: "
             f"{self.ability_covariate or 'none'}. Cohort contrast: {self.use_cohort}. "
             f"Cumulative session dose (sensitivity): {self.use_dose}.\n\n"
             "## Uncertainty and checks\n\n"
@@ -218,23 +237,54 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
         raise ValueError(
             f"{spec.model_id}: outcome_symbol is required for an aligned model"
         )
+    # Validate the outcome against the measure registry *before* make_context can
+    # reset an output directory (2026-08-21 aligned review, finding 5) — the
+    # loader's KeyError otherwise fires only after the reset.
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    if spec.outcome_symbol not in MEASURES:
+        raise ValueError(
+            f"{spec.model_id}: unknown aligned outcome_symbol "
+            f"{spec.outcome_symbol!r}; not in the measure registry"
+        )
 
     settings, source = declared_aligned_settings(spec)
     own = spec.outcome_symbol
     off_floor = settings.likelihood == "bernoulli_offfloor"
 
-    design = (
-        "Per-protocol onset-aligned single-gain ANCOVA: a cross-sectional "
-        "Beta-Binomial regression of the aligned post-score on its own onset baseline, "
-        "age-at-onset and cognitive ability, optionally with a cohort indicator and "
-        "the cumulative session dose. One row per child, so no child random intercept."
-    )
-    estimand = (
-        "The cohort contrast at the two arms' own onset-aligned endpoints -- a "
-        "per-protocol association, NOT an available-case modified ITT estimate (it is confounded by "
-        "age-at-onset and cohort/timing). With the dose variant, the cumulative-session "
-        "covariate is a collider descendant of group and ability, a sensitivity variant."
-    )
+    # The design and estimand must describe the fitted likelihood: the off-floor
+    # variant is a Bernoulli on the off-floor indicator, not a Beta-Binomial on
+    # the post-score (2026-08-21 aligned review, finding 3).
+    if off_floor:
+        design = (
+            "Per-protocol onset-aligned off-floor analysis: a cross-sectional "
+            "Bernoulli (logit) regression of the off-floor indicator (aligned "
+            "post-score > 0) on the binary off-floor-at-onset indicator, "
+            "age-at-onset and cognitive ability, optionally with a cohort "
+            "indicator and the cumulative session dose. One row per child, so no "
+            "child random intercept and no dispersion parameter."
+        )
+        estimand = (
+            "The cohort contrast in the probability of being off the floor at the "
+            "two arms' own onset-aligned endpoints (an off-floor risk difference) "
+            "-- a per-protocol association, NOT an available-case modified ITT "
+            "estimate (it is confounded by age-at-onset and cohort/timing). With "
+            "the dose variant, the cumulative-session covariate is a collider "
+            "descendant of group and ability, a sensitivity variant."
+        )
+    else:
+        design = (
+            "Per-protocol onset-aligned single-gain ANCOVA: a cross-sectional "
+            "Beta-Binomial regression of the aligned post-score on its own onset baseline, "
+            "age-at-onset and cognitive ability, optionally with a cohort indicator and "
+            "the cumulative session dose. One row per child, so no child random intercept."
+        )
+        estimand = (
+            "The cohort contrast at the two arms' own onset-aligned endpoints -- a "
+            "per-protocol association, NOT an available-case modified ITT estimate (it is confounded by "
+            "age-at-onset and cohort/timing). With the dose variant, the cumulative-session "
+            "covariate is a collider descendant of group and ability, a sensitivity variant."
+        )
     causal_status = (
         "Associational / per-protocol: no randomised contrast is estimated. The cohort "
         "term is confounded by age-at-onset and cohort/timing and the dose term is a "

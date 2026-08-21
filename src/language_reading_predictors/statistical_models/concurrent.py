@@ -371,6 +371,20 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
             raise ValueError(
                 f"{spec.model_id}: waves is an RLM-only concurrent setting"
             )
+        # Validate the measure symbols against the registry *before* make_context
+        # can reset an output directory — the RLM branch already did; the RLI
+        # branch previously failed only inside the loader, after the reset
+        # (2026-08-21 concurrent review, finding 5).
+        from language_reading_predictors.statistical_models.measures import (
+            MEASURES as _rli_measures,
+        )
+
+        requested_rli = (spec.outcome_symbol, *settings.predictor_symbols)
+        unknown_rli = sorted(set(requested_rli) - set(_rli_measures))
+        if unknown_rli:
+            raise ValueError(
+                f"{spec.model_id}: unknown RLI measure(s): {', '.join(unknown_rli)}"
+            )
         waves = (1, 2, 3, 4)
     else:
         if settings.covariates or settings.require_observed:

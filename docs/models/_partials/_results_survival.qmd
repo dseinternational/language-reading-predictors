@@ -7,7 +7,13 @@
 # the fit writes; renders the log-hazard / hazard-ratio table and the prognostic
 # reading. Guarded so the partial is a no-op if the artifact is absent.
 _surv = _csv("survival_summary.csv")
-_meta = _json("run_metadata.json") or {}
+# The fit's metadata extras live in config.json's ``extra`` (there is no separate
+# run_metadata.json file); keep the legacy read as a fallback for older layouts.
+_meta = _json("run_metadata.json") or config.get("extra", {}) or {}
+_surv_plan = config.get("resolved_run_plan") or {}
+# A stored fit whose plan predates the field was fitted with the legacy pooled
+# treatment shift (2026-08-21 survival review, finding 1).
+_window = _surv_plan.get("treatment_window", "pooled")
 if _surv is None:
     print("_No survival summary found for this model._\n")
 else:
@@ -37,14 +43,34 @@ else:
     for _, _r in _surv.iterrows():
         print("| " + " | ".join(_fmt(_r[c]) for c in _cols) + " |")
 
-    print(
-        "\n\nPositive log-hazard terms raise the probability of coming off the floor "
-        "in an interval. `tau` is the intervention-aligned treatment hazard shift, "
-        "read as a **prognostic** association anchored on the immediate arm's randomised "
-        "first interval — by t4 both arms have been treated, so it is not a randomised "
-        "effect of record. Baseline letter-sound knowledge and word reading are "
-        "prognostic, pre-intervention covariates; concurrent letter sounds are "
-        "deliberately excluded as a treatment-affected mediator. Intervals wide at "
-        "n≈50; read direction and ordering, not precise magnitudes.\n"
-    )
+    if _window == "randomised":
+        print(
+            "\n\nPositive log-hazard terms raise the probability of coming off the "
+            "floor in an interval. `tau` enters **only the randomised first "
+            "interval** (t1→t2): it is the immediate-vs-waitlist off-floor hazard "
+            "contrast among children at the floor at t1, reported as a "
+            "**prognostic** association rather than a causal effect of record. The "
+            "later intervals fit their own baseline hazards — both arms are "
+            "treated there, so they carry no arm contrast. Baseline letter-sound "
+            "knowledge, word reading and age are prognostic, pre-intervention "
+            "covariates; concurrent letter sounds are deliberately excluded as a "
+            "treatment-affected mediator. Intervals wide at n≈50; read direction "
+            "and ordering, not precise magnitudes.\n"
+        )
+    else:
+        print(
+            "\n\nPositive log-hazard terms raise the probability of coming off the "
+            "floor in an interval. `tau` here is the **legacy pooled** "
+            "intervention-aligned hazard shift: every person-period row outside "
+            "the randomised first interval is treatment-on, so the data identify "
+            "this pooled coefficient only through the first-interval arm "
+            "contrast, and its split from the post-crossover baseline hazards is "
+            "set by the priors (2026-08-21 survival review, finding 1) — read its "
+            "direction with that caveat, never as data evidence from the later "
+            "intervals. Baseline letter-sound knowledge, word reading and age are "
+            "prognostic, pre-intervention covariates; concurrent letter sounds "
+            "are deliberately excluded as a treatment-affected mediator. "
+            "Intervals wide at n≈50; read direction and ordering, not precise "
+            "magnitudes.\n"
+        )
 ```

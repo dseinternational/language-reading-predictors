@@ -423,6 +423,11 @@ SHARED_PRIORS: dict[str, "callable[[], Continuous]"] = {
 _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "tau_distal": tau_prior_distal,
     "alpha_distal": alpha_prior_distal,
+    # The binary off-floor-at-pre baseline contrast (#391 finding 2). Without its
+    # own key the ``gamma`` prefix routed it to gamma_cross, so the priors table
+    # printed a Normal(0, 0.3) cross-coupling rationale beside its actual
+    # Normal(0, 1) distribution (2026-08-21 aligned review, applied globally).
+    "gamma_own_offfloor": gamma_own_offfloor_prior,
     "beta_mech": beta_mech_prior,
     "sigma_dose": sigma_dose_phase_prior,
     "sigma_delta": sigma_delta_prior,
@@ -449,6 +454,7 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "tau": "causal",
     "tau_distal": "causal",
     "gamma_own": "precision",
+    "gamma_own_offfloor": "precision",
     "gamma_cross": "association",
     "gamma_age": "precision",
     "kappa": "nuisance",
@@ -499,6 +505,7 @@ _RV_TO_CTOR: dict[str, str] = {
     "a_G": "tau",
     "b_G": "tau",
     "gamma_own": "gamma_own",
+    "gamma_own_offfloor": "gamma_own_offfloor",
     "gamma_t1": "gamma_own",
     "a_L": "gamma_own",
     "a_comp": "gamma_own",

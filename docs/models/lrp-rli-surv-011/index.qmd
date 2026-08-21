@@ -28,29 +28,38 @@ floor, with the intervention entering as a shift in the hazard of coming off.
 
 **Estimand and design.** The at-risk set is the children at the nonword floor at t1. The
 outcome is the interval (t1→t2, t2→t3, t3→t4) in which a child first scores above zero.
-The hazard carries a per-interval baseline, the *baseline* (t1) letter-sound knowledge and
-word reading as prognostic covariates, and an intervention-aligned treatment hazard shift
-(the immediate arm is treated in every interval; the waitlist arm from its crossover).
-`G = 2 − group`, so a positive `tau` means the intervention raises the off-floor hazard.
+The hazard carries a per-interval baseline, the *baseline* (t1) letter-sound knowledge,
+word reading and age as prognostic covariates, and a treatment hazard contrast fitted **in
+the randomised first interval only**: after the waitlist crossover every person-period row
+is treatment-on, so the later intervals carry no arm contrast and fit their own
+(both-arms-treated) baseline hazards. `G = 2 − group`, so a positive `tau` means the
+intervention arm has the higher first-interval off-floor hazard.
 
-**This is prognostic, not causal.** By t4 both arms have been treated, so the treatment
-term is an association anchored on the immediate arm's randomised first interval — a
-description of who comes off the floor and when, not a licence to gate-keep. Floor status
-mostly reflects incomplete letter-sound foundations (the outcome the intervention moves
-most), pointing to continue-and-extend. See the descriptive companion note and `METHODS.md`.
+**This is prognostic, not causal.** `tau` is anchored on the randomised first interval
+among children at the floor at t1 (a pre-randomisation subgroup), adjusted for the
+baseline covariates — a description of who comes off the floor and when, not a licence to
+gate-keep, and reported as a prognostic association rather than a causal effect of record.
+Floor status mostly reflects incomplete letter-sound foundations (the outcome the
+intervention moves most), pointing to continue-and-extend. See the descriptive companion
+note and `METHODS.md`.
 
 ## Model
 
 With interval baseline hazard $\alpha_k$, treatment-on indicator $\text{trt}_{ik}$, and
-standardised baseline covariates $L_{0,i}$ (letter sounds) and $W_{0,i}$ (word reading),
-the discrete-time hazard of coming off the floor uses a complementary-log-log link:
+standardised baseline covariates $L_{0,i}$ (letter sounds), $W_{0,i}$ (word reading) and
+$A_{0,i}$ (age), the discrete-time hazard of coming off the floor uses a
+complementary-log-log link:
 
 $$
-\text{cloglog}\big(h_{ik}\big) = \alpha_k + \tau\,\text{trt}_{ik}
-  + \beta_L\,L_{0,i} + \beta_W\,W_{0,i},
+\text{cloglog}\big(h_{ik}\big) = \alpha_k + \tau\,\text{trt}_{ik}\,[k = 1]
+  + \beta_L\,L_{0,i} + \beta_W\,W_{0,i} + \beta_A\,A_{0,i},
 \qquad [\,\text{off floor in interval } k\,]_{ik} \sim \text{Bernoulli}(h_{ik}).
 $$
 
+The $[k = 1]$ indicator restricts `tau` to the randomised first interval
+(`treatment_window="randomised"`, 2026-08-21 survival review): the legacy pooled shift
+across all intervals had no likelihood contrast beyond interval 1 and its direction was
+prior-mediated; it remains available as the explicit `treatment_window="pooled"` comparator.
 A logistic-hazard link is the documented sensitivity variant.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}

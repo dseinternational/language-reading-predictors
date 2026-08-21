@@ -67,6 +67,7 @@ def _registered_specs() -> list[ModelSpec]:
     [
         ({"hazard_link": "probit"}, ValueError, "cloglog.*logit"),
         ({"use_treatment": 1}, TypeError, "must be a boolean"),
+        ({"treatment_window": "all"}, ValueError, "randomised.*pooled"),
     ],
 )
 def test_settings_reject_invalid_values(kwargs, error, message):
@@ -114,7 +115,11 @@ def test_default_legacy_plan_preserves_execution_contract():
     assert plan.factory_kwargs() == {
         "hazard_link": "cloglog",
         "use_treatment": True,
+        "treatment_window": "randomised",
     }
+    assert plan.treatment_window == "randomised"
+    assert "randomised first interval" in plan.estimand
+    assert "no arm contrast" in plan.estimand
     assert plan.diagnostic_vars(("L0", "W0", "A0")) == (
         "alpha",
         "beta_L0",
@@ -136,10 +141,24 @@ def test_logit_no_treatment_plan_removes_tau_from_factory_and_diagnostics():
     assert plan.factory_kwargs() == {
         "hazard_link": "logit",
         "use_treatment": False,
+        "treatment_window": "randomised",
     }
     assert plan.diagnostic_vars(("L0",)) == ("alpha", "beta_L0")
     assert plan.focal_term is None
     assert "without an intervention-aligned treatment" in plan.estimand
+
+
+def test_pooled_comparator_plan_records_prior_mediated_identification():
+    """The legacy pooled window survives as an explicit comparator whose plan
+    says its post-crossover split is prior-mediated (2026-08-21 review, F1)."""
+    plan = S.resolve_survival_run_plan(_spec(treatment_window="pooled"))
+
+    assert plan.treatment_window == "pooled"
+    assert plan.factory_kwargs()["treatment_window"] == "pooled"
+    assert "prior-mediated" in plan.estimand
+    assert "prior-mediated" in plan.causal_status
+    recipe = plan.recipe_markdown(title="t")
+    assert "alpha priors" in recipe
 
 
 def test_split_settings_between_typed_and_extra_is_rejected():

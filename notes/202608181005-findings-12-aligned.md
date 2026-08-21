@@ -2,6 +2,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 >
 > Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
+>
+> Phonetic-spelling row revised for the 2026-08-21 al-005 refit by a LLM-based AI tool (Claude Code/Fable 5): the off-floor model's own-baseline term now uses the binary off-floor-at-onset indicator (the #391 floor rule) instead of the graded onset logit, whose Normal(1, 0.25) tracking prior had implied an unintended, strongly pessimistic intercept for at-floor children (see `notes/202608211300-survival-aligned-concurrent-code-review.md`, finding 2).
 
 # Findings: the `aligned` family — a per-protocol view aligned by when the intervention started
 
@@ -31,16 +33,16 @@ The dose variant adds cumulative sessions as a covariate, which is a **collider*
 
 ## What was found
 
-| Outcome                      | Cohort contrast | 89% range        |
-| ---------------------------- | --------------- | ---------------- |
-| Receptive vocabulary         | +2.7 items      | −1.8 to +7.2     |
-| Letter-sound knowledge       | **+2.2 items**  | +0.2 to +4.2     |
-| Word reading                 | +2.1 items      | −0.5 to +4.8     |
-| Phoneme blending             | +0.3 items      | −0.6 to +1.2     |
-| Phonetic spelling, off-floor | +3.2 pp         | −7.2 to +13.2 pp |
-| Basic concept knowledge      | −0.6 items      | −1.7 to +0.5     |
-| Receptive grammar            | −1.4 items      | −3.1 to +0.3     |
-| Expressive vocabulary        | −3.0 items      | −6.9 to +0.8     |
+| Outcome                      | Cohort contrast | 89% range         |
+| ---------------------------- | --------------- | ----------------- |
+| Receptive vocabulary         | +2.7 items      | −1.8 to +7.2      |
+| Letter-sound knowledge       | **+2.2 items**  | +0.2 to +4.2      |
+| Word reading                 | +2.1 items      | −0.5 to +4.8      |
+| Phoneme blending             | +0.3 items      | −0.6 to +1.2      |
+| Phonetic spelling, off-floor | −1.1 pp         | −13.1 to +10.9 pp |
+| Basic concept knowledge      | −0.6 items      | −1.7 to +0.5      |
+| Receptive grammar            | −1.4 items      | −3.1 to +0.3      |
+| Expressive vocabulary        | −3.0 items      | −6.9 to +0.8      |
 
 Only letter-sound knowledge has an interval clearing zero. Word reading (+2.1) sits close to the randomised estimates from the other families but with an interval spanning zero. The dose sensitivity variant for word reading gives +2.1 [−0.4, +4.8], unchanged.
 

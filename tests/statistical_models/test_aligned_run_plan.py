@@ -90,12 +90,12 @@ def test_from_legacy_extra_round_trips_known_keys():
 # --- resolve ------------------------------------------------------------------
 
 
-def _spec(**extra) -> ModelSpec:
+def _spec(*, outcome_symbol: str = "W", **extra) -> ModelSpec:
     return ModelSpec(
         model_id="lrp-rli-al-000",
         kind="aligned",
         title="test",
-        outcome_symbol="W",
+        outcome_symbol=outcome_symbol,
         extra=extra,
     )
 
@@ -132,6 +132,32 @@ def test_resolve_off_floor_sets_bernoulli_node():
     assert plan.off_floor
     assert plan.obs_node == "y_offfloor"
     assert plan.factory_kwargs()["likelihood"] == "bernoulli_offfloor"
+    # The off-floor variant swaps the graded onset-logit coupling for the binary
+    # off-floor-at-onset contrast (#391 finding 2; 2026-08-21 aligned review,
+    # finding 2) and its recorded design/recipe must describe the Bernoulli
+    # likelihood, not the Beta-Binomial (finding 3).
+    assert "gamma_own_offfloor" in plan.coefficient_names()
+    assert "gamma_own" not in plan.coefficient_names()
+    assert "kappa" not in plan.diagnostic_vars()
+    assert "Bernoulli" in plan.design
+    assert "Beta-Binomial" not in plan.design
+    assert "risk difference" in plan.estimand
+    recipe = plan.recipe_markdown(title="t")
+    assert "bernoulli_offfloor" in recipe
+    assert "off-floor-at-onset" in recipe
+
+
+def test_resolve_beta_binomial_design_and_recipe_name_the_likelihood():
+    plan = resolve_aligned_run_plan(_spec())
+    assert "gamma_own" in plan.coefficient_names()
+    assert "gamma_own_offfloor" not in plan.coefficient_names()
+    assert "Beta-Binomial" in plan.design
+    assert "beta_binomial" in plan.recipe_markdown(title="t")
+
+
+def test_resolve_rejects_unknown_outcome_symbol_before_io():
+    with pytest.raises(ValueError, match="unknown aligned outcome_symbol"):
+        resolve_aligned_run_plan(_spec(outcome_symbol="ZZ"))
 
 
 def test_typed_settings_are_accepted_and_sourced():
