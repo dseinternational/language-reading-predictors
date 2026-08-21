@@ -21,15 +21,20 @@ _How to read the ranking:_ each row is one predictor; rows are ordered by `p_abs
 - `p_abs_gt_delta`: posterior `P(|beta| > delta)` with `delta` on the logit / per-SD scale — the ranking key (the horseshoe analogue of permutation importance when a tree-model reference exists).
 - `beta_mean` / `beta_sd` / `beta_hdi_lo` / `beta_hdi_hi`: the standardised coefficient's posterior mean, SD and 89% HDI.
 - `lambda_mean`: mean local shrinkage — small means the predictor was shrunk toward zero (noise-like); large means it escaped the global pull.
-- `sign`: posterior-mean direction of the association.
+- `sign`: posterior-median direction of the association (the same statistic the key-findings box reads).
 
 ```{python}
 # | echo: false
 # | output: asis
+# The two RLI framings differ (2026-08-21 review, finding 4): the gain fits use a
+# fully complete-case span frame, only the level fits mean-impute predictors.
+_hs_plan = config.get("resolved_run_plan") or {}
 if config.get("study_id") == "rlm":
     print("_Missing data:_ this Byrne span model uses a complete-case frame: a child is included only when the outcome is observed at both waves and every wave-1 predictor is observed. No predictor values are imputed. The report's Overview gives the resulting exclusions; the interpretation assumes that complete-case selection has not materially distorted these associations.")
+elif _hs_plan.get("gain", True):
+    print("_Missing data:_ this gain model uses a complete-case span frame: a child is included only when the outcome and every declared predictor, composite component and covariate have observed pre-scores. No predictor values are imputed. The interpretation assumes that complete-case selection has not materially distorted these associations.")
 else:
-    print("_Missing values are mean-imputed._ Unlike the gradient-boosting reference (LightGBM handles `NaN` natively), PyMC cannot take missing inputs, so any missing standardised predictor value is mean-imputed (0 on the standardised scale) before fitting. This is a sensitivity read rather than a calibrated fit, but a construct with more missingness is pulled toward the null, so read its rank cautiously.")
+    print("_Missing values are mean-imputed._ This level model requires only the observed outcome, group and age per row; unlike the gradient-boosting reference (LightGBM handles `NaN` natively), PyMC cannot take missing inputs, so any missing standardised predictor value is mean-imputed (0 on the standardised scale) before fitting. This is a sensitivity read rather than a calibrated fit, but a construct with more missingness is pulled toward the null, so read its rank cautiously.")
 ```
 
 ### Agreement with the gradient-boosting ranking

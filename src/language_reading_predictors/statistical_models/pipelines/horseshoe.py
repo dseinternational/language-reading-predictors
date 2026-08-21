@@ -8,7 +8,9 @@ prior and ranks predictors by posterior ``P(|beta| > delta)``, as an independent
 Bayesian cross-check on the gradient-boosting ranking. ``fit_rlm_horseshoe`` is the
 Byrne (RLM) port; there is no gradient-boosting layer for that cohort, so its
 cross-check partner is the Byrne adjusted fit rather than a GB comparison table.
-Both ports read the RLM span frame through :func:`.adjusted.rlm_nuisance_names`.
+The RLI port reads the trial frames through :func:`..preprocessing.load_and_prepare`;
+only the RLM port reads the span frame and its group nuisances through
+:func:`.adjusted.rlm_nuisance_names`.
 
 A horseshoe ranking is an association ranking. It says which predictors carry
 signal once the others are in the model, not which of them would change the
@@ -73,12 +75,12 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     if plan.port != "rli":
         raise ValueError(f"{spec.model_id}: fit_horseshoe requires the RLI port")
 
-    # 94% intervals, matching the LRP65 adjusted-model convention.
+    # House 89% intervals. The registered modules also lift target_accept above
+    # the tier default (the horseshoe's global-local funnel needs smaller steps
+    # near the neck); make_context applies that per-model override here.
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
     _report.write_model_recipe(ctx)
-    # The horseshoe has a funnel geometry (global-local scales); lift target_accept
-    # above the tier default so the sampler takes smaller steps near the neck.
 
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.rli_prepare_kwargs())
@@ -105,7 +107,11 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
                 c, plan.outcome_symbol, node=plan.observation_node
             ),
-            extended_term=plan.focal_term,
+            # The termless profile plotted every posterior variable (hs_z and
+            # hs_lambda included), tripping the max-subplots guard so
+            # ess_evolution.png was never written; focus on the ranked
+            # coefficient vector (2026-08-21 review, finding 3).
+            extended_term="beta",
             compute_loo=plan.compute_loo,
         ),
     )
@@ -191,7 +197,9 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
                 c, plan.outcome_symbol, node=plan.observation_node
             ),
-            extended_term=plan.focal_term,
+            # Same ESS-evolution reasoning as the RLI entry point above
+            # (2026-08-21 review, finding 3).
+            extended_term="beta",
             compute_loo=plan.compute_loo,
         ),
     )

@@ -3168,3 +3168,148 @@ def test_pooled_levels_covariate_exposure_and_skills_are_named(tmp_path):
         "holds fixed the same-wave levels of" in texts
     )
     assert "erbto" not in texts
+
+
+# --- 2026-08-21 review fixes (finding 2: winner-picking candidate sets) -------
+
+
+def test_lcsm_coupling_headline_excludes_covariate_rows(tmp_path):
+    """The age precision slope out-resolves both couplings but must not win the
+    "clearest longitudinal coupling" headline (live in the released 067 box)."""
+    d = _setup_dir(tmp_path, "lcsm")
+    _write_rows(
+        d,
+        "coupling_summary.csv",
+        [
+            {"coefficient": "g_L (prior L -> W change)", "median": 0.31,
+             "mean": 0.31, "lo": 0.02, "hi": 0.61, "prob_pos": 0.98},
+            {"coefficient": "d_age[W] (age -> W change)", "median": -0.15,
+             "mean": -0.15, "lo": -0.21, "hi": -0.09, "prob_pos": 0.0001},
+            {"coefficient": "b_hs (hs -> W change)", "median": 0.4,
+             "mean": 0.4, "lo": 0.1, "hi": 0.7, "prob_pos": 0.9999},
+        ],
+    )
+    payload = generate_key_findings(d)
+    texts = _texts(payload)
+    assert payload["status"] == "ok"
+    assert "prior L -> W change" in texts
+    assert "age" not in texts.split("causal")[0].split("check")[0]
+
+
+def test_lcsm_lagged_coupling_confidence_uses_change_wording(tmp_path):
+    d = _setup_dir(tmp_path, "lcsm")
+    _write_rows(
+        d,
+        "coupling_summary.csv",
+        [
+            {"coefficient": "h_L (prior L change -> W change)", "median": 0.4,
+             "mean": 0.4, "lo": 0.1, "hi": 0.7, "prob_pos": 0.99},
+            {"coefficient": "g_L (prior L -> W change)", "median": 0.1,
+             "mean": 0.1, "lo": -0.2, "hi": 0.4, "prob_pos": 0.7},
+        ],
+    )
+    payload = generate_key_findings(d)
+    texts = _texts(payload)
+    assert "greater earlier change accompanies" in texts
+    assert "higher earlier level" not in texts
+
+
+def test_lcsm_window1_highlight_names_the_focal_outcome(tmp_path):
+    """081 previously quoted the word-reading contrast, unnamed, under a
+    taught-vocabulary model; the sentence must quote and name the focal row."""
+    d = _setup_dir(
+        tmp_path, "lcsm", config=_config("lcsm", outcome_symbol="TE")
+    )
+    _write_rows(
+        d,
+        "coupling_summary.csv",
+        [
+            {"coefficient": "g_W_TE (prior W -> TE change)", "median": 0.3,
+             "mean": 0.3, "lo": 0.0, "hi": 0.6, "prob_pos": 0.95},
+        ],
+    )
+    _write_rows(
+        d,
+        "itt_window1_contrast.csv",
+        [
+            {"coefficient": "itt_w1[W] (immediate - waitlist, window-1 latent change)",
+             "median": 0.42, "lo": 0.09, "hi": 0.75, "prob_pos": 0.98},
+            {"coefficient": "itt_w1[TE] (immediate - waitlist, window-1 latent change)",
+             "median": 0.29, "lo": -0.02, "hi": 0.60, "prob_pos": 0.95},
+        ],
+    )
+    payload = generate_key_findings(d)
+    highlight = next(
+        s["text"] for s in payload["sentences"] if s["kind"] == "highlight"
+    )
+    assert "+0.29" in highlight
+    assert "+0.42" not in highlight
+
+
+def test_corr_factor_structural_slope_prefers_plan_factors_over_covariates(tmp_path):
+    """beta_age out-resolves the errors-in-variables focal slope but is an
+    adjustment covariate, not a structural factor slope (live in mm-002/102)."""
+    d = _setup_dir(
+        tmp_path,
+        "corr_factor",
+        config=_config(
+            "corr_factor",
+            resolved_run_plan={"structural_factors": ["code"]},
+        ),
+    )
+    _write_rows(
+        d,
+        "structural_summary.csv",
+        [
+            {"coefficient": "beta_code", "median": 0.35, "mean": 0.35,
+             "lo": 0.10, "hi": 0.61, "prob_pos": 0.986},
+            {"coefficient": "beta_age", "median": -0.35, "mean": -0.35,
+             "lo": -0.53, "hi": -0.17, "prob_pos": 0.0013},
+        ],
+    )
+    payload = generate_key_findings(d)
+    texts = _texts(payload)
+    assert "beta code" in texts
+    assert "beta age" not in texts
+
+
+def test_growth_interaction_plan_headlines_gamma_int(tmp_path):
+    """Finding 1: gc-085's box previously answered gc-069's question; with the
+    interaction declared, gamma_int is the headline and a summary without its
+    rows degrades instead of publishing the wrong estimand."""
+    cfg = _config("growth", resolved_run_plan={"age_ability_interaction": True})
+    d = _setup_dir(tmp_path, "growth", config=cfg)
+    _write_rows(
+        d,
+        "growth_association_summary.csv",
+        [
+            {"coefficient": "gamma", "outcome": "RG", "median": 0.15,
+             "lo89": 0.06, "hi89": 0.25, "prob_positive": 0.99},
+            {"coefficient": "gamma_int", "outcome": "RG", "median": 0.08,
+             "lo89": -0.02, "hi89": 0.18, "prob_positive": 0.91},
+        ],
+    )
+    payload = generate_key_findings(d)
+    texts = _texts(payload)
+    assert payload["status"] == "ok"
+    assert "interaction" in texts
+    assert "+0.08" in texts
+    # The gamma main effect stays visible as context, not as the headline.
+    headline = next(
+        s["text"] for s in payload["sentences"] if s["kind"] == "headline"
+    )
+    assert "+0.08" in headline
+
+    stale = _setup_dir(
+        tmp_path, "growth", config=cfg, directory_name="growth-stale"
+    )
+    _write_rows(
+        stale,
+        "growth_association_summary.csv",
+        [
+            {"coefficient": "gamma", "outcome": "RG", "median": 0.15,
+             "lo89": 0.06, "hi89": 0.25, "prob_positive": 0.99},
+        ],
+    )
+    payload = generate_key_findings(stale)
+    assert payload["status"] != "ok" or "gamma_int" not in _texts(payload)

@@ -353,3 +353,41 @@ def test_registered_specs_are_typed_and_match_legacy_contracts():
         else:
             assert typed.rlm_prepare_kwargs() == legacy.rlm_prepare_kwargs()
             assert typed.rlm_factory_kwargs() == legacy.rlm_factory_kwargs()
+
+
+# --- 2026-08-21 review fixes --------------------------------------------------
+
+
+def test_declared_empty_structural_covariates_stay_empty():
+    """Finding 8: a declared-empty covariate set is the natural spelling of an
+    unadjusted structural leg and must not silently become blocks-adjusted."""
+    defaulted = C.resolve_corr_factor_run_plan(_spec())
+    assert "blocks" in defaulted.structural_covariates
+    plan = C.resolve_corr_factor_run_plan(
+        _spec(settings=C.CorrFactorModelSettings(structural_covariates=()))
+    )
+    assert plan.structural_covariates == ()
+
+
+def test_factor_z_stays_out_of_the_curated_diagnostics():
+    """Finding 3: the 153-element non-centred offset destroyed the trace/posterior
+    figures and drowned psense; the gate covers it via the all-free-RV widening."""
+    plan = C.resolve_corr_factor_run_plan(_spec())
+    assert "factor_z" not in plan.diagnostic_vars()
+
+
+def test_rlm_single_domain_diag_list_omits_factor_corr_pairs():
+    """Finding 10: a single-domain declaration builds no factor_corr_pairs node,
+    so the curated list must not name it."""
+    plan = C.resolve_corr_factor_run_plan(
+        _spec(
+            study_id="rlm",
+            outcome_symbol=None,
+            settings=C.CorrFactorModelSettings(
+                domains=(("memory", ("basdig",)),),
+                wave=3,
+                single_indicator_reliability=0.8,
+            ),
+        )
+    )
+    assert plan.diagnostic_vars() == ["lambda_free", "sigma_free"]

@@ -1478,6 +1478,14 @@ def load_wave_panel(
     age_months = pd.DataFrame(_pivot(V.AGE), columns=waves).interpolate(
         axis=1, limit_direction="both"
     ).to_numpy(dtype=float)
+    # A child with no observed age at any wave survives interpolation as an
+    # all-NaN row and would only fail much later with a cryptic sampler logp
+    # error; fail loud here like the RLM loader (2026-08-21 review, finding 9).
+    if not np.isfinite(age_months).all():
+        missing_age = np.asarray(subject_ids)[~np.isfinite(age_months).all(axis=1)]
+        raise ValueError(
+            f"RLI age is unavailable at every requested wave for {missing_age.tolist()}"
+        )
     age_std, age_scaler = standardise(age_months)
 
     # Dose: intervention sessions per wave; missing -> 0 recorded sessions.
@@ -2413,8 +2421,24 @@ def load_rlm_span_frame(
         raise ValueError("No complete RLM span rows remain after required-value checks")
 
     n_out = measures[outcome].n_trials
-    if len(wide) and float(wide[[outcome, "_post"]].to_numpy().max()) > n_out:
-        raise ValueError(f"Observed {outcome!r} exceeds measure ceiling {n_out}.")
+    # Bounded-count integrity for every measure column, matching the concurrent
+    # loader (2026-08-21 review, finding 9): an out-of-range predictor would give
+    # logit_safe a negative denominator and surface only as an opaque NaN sampler
+    # failure, and a fractional outcome would be silently truncated by the
+    # factory's int64 cast.
+    for sym in (outcome, *predictor_measures):
+        ceiling = measures[sym].n_trials
+        values = wide[sym].to_numpy(dtype=float)
+        if sym == outcome:
+            values = np.concatenate([values, wide["_post"].to_numpy(dtype=float)])
+        if values.size and (float(values.min()) < 0 or float(values.max()) > ceiling):
+            raise ValueError(f"Observed {sym!r} falls outside 0..{ceiling}.")
+        if values.size and np.any(values != np.rint(values)):
+            invalid = np.unique(values[values != np.rint(values)])
+            raise ValueError(
+                f"Measure {sym!r} must contain integer counts; found fractional "
+                f"value(s) {invalid.tolist()}"
+            )
 
     predictors: dict[str, np.ndarray] = {}
     scalers: dict[str, Standardiser] = {}

@@ -188,7 +188,14 @@ def fit_longitudinal_corr_factor(
             post_sampling_audit=_stitch_child_loo,
             psense_vars=tuple(plan.psense_vars()),
             psense_timing="before_trace",
-            extended_term=plan.focal_term,
+            # The termless profile plotted every posterior variable (Sigma_z is
+            # 32x32), tripping the max-subplots guard so ess_evolution.png was
+            # never written; focus on the released correlations instead. LOO-PIT
+            # is declared off — the stitched per-child log-likelihood has no
+            # matching posterior-predictive node, so the figure could only ever
+            # fail (2026-08-21 review, finding 3).
+            extended_term="factor_corr_pairs",
+            include_loo_pit=False,
             compute_loo=plan.compute_loo,
         ),
     )
@@ -212,15 +219,24 @@ def fit_longitudinal_corr_factor(
         lam_d = post["lambda_load"].isel(indicator=j).values.reshape(-1)
         com_d = post["communality"].isel(indicator=j).values.reshape(-1)
         corr_d = np.sqrt(com_d)
+        # Median + inner-50% bands alongside the means: the Beta-constrained
+        # communalities are skewed, and every sibling family leads with the
+        # median and both bands (2026-08-21 review, finding 10).
         load_rows.append(
             {
                 "indicator": name,
                 "domain": dom_of.get(name, "?"),
+                "loading_median": float(np.median(lam_d)),
                 "loading_mean": float(np.mean(lam_d)),
+                "loading_lo50": float(np.quantile(lam_d, 0.25)),
+                "loading_hi50": float(np.quantile(lam_d, 0.75)),
                 "loading_lo": float(np.quantile(lam_d, lo_q)),
                 "loading_hi": float(np.quantile(lam_d, 1 - lo_q)),
                 "correlation_mean": float(np.mean(corr_d)),
+                "communality_median": float(np.median(com_d)),
                 "communality_mean": float(np.mean(com_d)),
+                "communality_lo50": float(np.quantile(com_d, 0.25)),
+                "communality_hi50": float(np.quantile(com_d, 0.75)),
                 "communality_lo": float(np.quantile(com_d, lo_q)),
                 "communality_hi": float(np.quantile(com_d, 1 - lo_q)),
             }
@@ -267,7 +283,10 @@ def fit_longitudinal_corr_factor(
         ts_rows.append(
             {
                 "domain": d,
+                "trait_share_median": float(np.median(pi_d)),
                 "trait_share_mean": float(np.mean(pi_d)),
+                "trait_share_lo50": float(np.quantile(pi_d, 0.25)),
+                "trait_share_hi50": float(np.quantile(pi_d, 0.75)),
                 "trait_share_lo": float(np.quantile(pi_d, lo_q)),
                 "trait_share_hi": float(np.quantile(pi_d, 1 - lo_q)),
             }
@@ -280,13 +299,23 @@ def fit_longitudinal_corr_factor(
     obs_df = _lcf_observed_domain_corr(built)
     xcheck_df = _report.disattenuation_crosscheck(corr_df, obs_df)
     save_table(ctx, "disattenuation_crosscheck", xcheck_df)
-    n_latent_below = int((~xcheck_df["latent_ge_observed"]).sum())
-    n_latent_at_or_above = len(xcheck_df) - n_latent_below
+    # Nullable flags: a wave/pair with no observed comparator is neither below
+    # nor above (2026-08-21 review, finding 10).
+    flags = xcheck_df["latent_ge_observed"]
+    n_no_comparator = int(flags.isna().sum())
+    n_latent_below = int((~flags.dropna()).sum())
+    n_latent_at_or_above = int(flags.dropna().sum())
     rprint(
         "[cyan]Latent-versus-observed comparison: "
         f"{n_latent_below} wave/pair(s) are below and {n_latent_at_or_above} are at "
-        "or above the mean observed indicator-pair magnitude. This is a descriptive "
-        "gap direction between different estimands, not a pass/fail ordering.[/cyan]"
+        "or above the mean observed indicator-pair magnitude"
+        + (
+            f" ({n_no_comparator} wave/pair(s) have no observed comparator)"
+            if n_no_comparator
+            else ""
+        )
+        + ". This is a descriptive gap direction between different estimands, "
+        "not a pass/fail ordering.[/cyan]"
     )
 
     # --- Items-scale translation for the headline pairs ---

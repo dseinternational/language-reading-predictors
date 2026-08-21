@@ -354,3 +354,94 @@ def test_registered_models_are_typed_and_preserve_the_legacy_contract():
         assert legacy.settings_source == "legacy_extra"
         for field in _META_FIELDS:
             assert isinstance(typed_contract[field], str) and typed_contract[field]
+
+
+# --- 2026-08-21 review fixes --------------------------------------------------
+
+
+def test_gain_phase_mode_incoherence_fails_at_resolution():
+    """Finding 9: the incoherent pair previously failed only in the factory,
+    after the output-directory reset and a full CSV load."""
+    with pytest.raises(ValueError, match="incoherent"):
+        H.resolve_horseshoe_run_plan(
+            _spec(
+                settings=H.HorseshoeModelSettings(
+                    gain=True, phase_mode="levels", predictors=("L",)
+                )
+            )
+        )
+    with pytest.raises(ValueError, match="incoherent"):
+        H.resolve_horseshoe_run_plan(
+            _spec(
+                settings=H.HorseshoeModelSettings(
+                    gain=False, phase_mode="span", predictors=("L",)
+                )
+            )
+        )
+
+
+def test_levels_plan_rejects_the_span_only_post_time():
+    with pytest.raises(ValueError, match="span-frame setting"):
+        H.resolve_horseshoe_run_plan(
+            _spec(
+                settings=H.HorseshoeModelSettings(
+                    gain=False, post_time=4, predictors=("L",)
+                )
+            )
+        )
+
+
+def test_unknown_rli_predictor_fails_at_resolution():
+    with pytest.raises(ValueError, match="unknown RLI measure"):
+        H.resolve_horseshoe_run_plan(
+            _spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("ZZ",)))
+        )
+
+
+def test_outcome_cannot_rank_itself():
+    with pytest.raises(ValueError, match="own ranked"):
+        H.resolve_horseshoe_run_plan(
+            _spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("W", "L")))
+        )
+
+
+def test_missing_data_contract_follows_the_framing():
+    """Finding 4: the recorded contract said complete-case for the level fits that
+    mean-impute predictors, and the report said the reverse for the gain fits."""
+    gain_plan = H.resolve_horseshoe_run_plan(
+        _spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("L",)))
+    )
+    assert "Complete-case" in gain_plan.missing_data_assumption
+    assert "complete" in gain_plan.analysis_population
+    level_plan = H.resolve_horseshoe_run_plan(
+        _spec(settings=H.HorseshoeModelSettings(gain=False, predictors=("L",)))
+    )
+    assert "mean-imputed" in level_plan.missing_data_assumption
+    assert "Complete-case" not in level_plan.missing_data_assumption
+
+
+def test_rlm_recipe_names_the_ranked_age_predictor():
+    """Finding 10: age is appended to the ranked set by the loader and was the
+    rlm-hs-001 headline survivor, yet absent from the recipe's predictor line."""
+    plan = H.resolve_horseshoe_run_plan(
+        _spec(
+            study_id="rlm",
+            outcome_symbol="basread",
+            settings=H.HorseshoeModelSettings(
+                predictor_measures=("bpvs", "trog"),
+                use_age_predictor=True,
+            ),
+        )
+    )
+    assert "bpvs, trog, age" in plan.recipe_markdown(title="t")
+    without_age = H.resolve_horseshoe_run_plan(
+        _spec(
+            study_id="rlm",
+            outcome_symbol="basread",
+            settings=H.HorseshoeModelSettings(
+                predictor_measures=("bpvs", "trog"),
+                use_age_predictor=False,
+            ),
+        )
+    )
+    assert "bpvs, trog, age" not in without_age.recipe_markdown(title="t")

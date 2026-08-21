@@ -2246,3 +2246,19 @@ def test_disattenuation_crosscheck_records_gap_direction_without_gating():
     # Exactly the forced row has latent magnitude below observed magnitude.
     assert int((~xc["latent_ge_observed"]).sum()) == 1
     assert not bool(xc.iloc[0]["latent_ge_observed"])
+
+
+def test_disattenuation_crosscheck_missing_comparator_is_na_not_a_reversal():
+    """2026-08-21 review, finding 10: a wave/pair without an observed comparator
+    (too few pairwise-complete indicator pairs) must be NA, never counted as
+    "latent below observed"."""
+    dt = _lcf_trace()
+    corr = longitudinal_factor_correlations(dt, ci_prob=0.95)
+    obs = corr[["wave", "domain_i", "domain_j"]].copy()
+    obs["observed_corr"] = (corr["mean"].abs() - 0.05).clip(lower=0.0).values
+    obs.iloc[0, obs.columns.get_loc("observed_corr")] = float("nan")
+    xc = disattenuation_crosscheck(corr, obs)
+    flags = xc["latent_ge_observed"]
+    assert bool(flags.iloc[0] is pd.NA or pd.isna(flags.iloc[0]))
+    # No reversal anywhere: the NA row must not be counted by ~flag arithmetic.
+    assert int((~flags.dropna()).sum()) == 0

@@ -301,8 +301,16 @@ class HorseshoeRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language recipe generated from the validated plan."""
+        # The RLM loader appends age to the ranked set when use_age_predictor is
+        # true, so the recipe must name it too — it was the headline survivor in
+        # rlm-hs-001 yet absent from this line (2026-08-21 review, finding 10).
         predictors = ", ".join(
-            self.predictors if self.port == "rli" else self.predictor_measures
+            self.predictors
+            if self.port == "rli"
+            else (
+                *self.predictor_measures,
+                *(("age",) if self.use_age_predictor else ()),
+            )
         )
         return (
             "Note: Generated from the validated horseshoe run plan; template "
@@ -406,7 +414,26 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
                 f"{spec.model_id}: RLI phase_mode must be 'span' or 'levels', got "
                 f"{phase_mode!r}"
             )
+        # Settings-only coherence, rejected before any output-directory reset or
+        # data I/O (#455): the factory would otherwise fail only after a full CSV
+        # load (2026-08-21 review, finding 9).
+        if (gain and phase_mode != "span") or (not gain and phase_mode != "levels"):
+            raise ValueError(
+                f"{spec.model_id}: gain={gain} is incoherent with "
+                f"phase_mode={phase_mode!r}; gain models fit the span frame and "
+                "level models the levels frame"
+            )
+        if not gain and settings.post_time is not None:
+            raise ValueError(
+                f"{spec.model_id}: post_time is a span-frame setting; the levels "
+                "frame stacks every wave and would silently ignore it"
+            )
         post_time = 4 if settings.post_time is None else settings.post_time
+        if outcome in settings.predictors:
+            raise ValueError(
+                f"{spec.model_id}: the outcome cannot be one of its own ranked "
+                "predictors (its baseline enters separately via gamma_own)"
+            )
         measures = tuple(
             dict.fromkeys(
                 (outcome,)
@@ -418,6 +445,15 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
                 + language
             )
         )
+        from language_reading_predictors.statistical_models.measures import (
+            MEASURES as _rli_measures,
+        )
+
+        unknown_rli = sorted(set(measures) - set(_rli_measures))
+        if unknown_rli:
+            raise ValueError(
+                f"{spec.model_id}: unknown RLI measure(s): {', '.join(unknown_rli)}"
+            )
         port: Literal["rli", "rlm"] = "rli"
         predictor_measures: tuple[str, ...] = ()
         use_age: bool | None = None
@@ -428,10 +464,35 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             "regression for level models, with a regularised horseshoe over the "
             "declared construct predictor set."
         )
-        population = (
-            f"Available RLI rows with observed {outcome} and every declared "
-            "predictor, composite component and covariate."
-        )
+        # The two framings have different missing-data behaviour (2026-08-21
+        # review, finding 4): the span loader complete-cases every declared
+        # pre-score and covariate, while the levels frame requires only the
+        # outcome, group and age, and the factory mean-imputes missing
+        # standardised predictor levels.
+        if gain:
+            population = (
+                f"Available RLI children with observed {outcome} and a complete "
+                "pre-score for every declared predictor, composite component and "
+                "covariate (complete-case span frame)."
+            )
+            missing_data = (
+                "Complete-case analysis over the model's required outcome, "
+                "baseline, predictors and covariates, under ignorable missingness "
+                "conditional on the observed model variables."
+            )
+        else:
+            population = (
+                f"Available RLI child-wave rows with observed {outcome}, group "
+                "and age; declared predictor levels may be missing on retained "
+                "rows."
+            )
+            missing_data = (
+                "Rows require only the observed outcome, group and age; a missing "
+                "standardised predictor level is mean-imputed (0 on the "
+                "standardised scale), which shrinks a patchier predictor's "
+                "realised variance and pulls its coefficient toward the null — "
+                "read its rank cautiously."
+            )
     else:
         rli_fields = {
             "gain": settings.gain,
@@ -504,6 +565,11 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             f"Available RLM children observed at waves {pre_wave} and "
             f"{rlm_post_wave} with all declared predictor measures."
         )
+        missing_data = (
+            "Complete-case analysis over the model's required outcome, baseline, "
+            "predictors and covariates, under ignorable missingness conditional on "
+            "the observed model variables."
+        )
 
     return HorseshoeRunPlan(
         model_id=spec.model_id,
@@ -542,9 +608,5 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             "predictors retain signal jointly; it does not identify intervention effects."
         ),
         analysis_population=population,
-        missing_data_assumption=(
-            "Complete-case analysis over the model's required outcome, baseline, "
-            "predictors and covariates, under ignorable missingness conditional on "
-            "the observed model variables."
-        ),
+        missing_data_assumption=missing_data,
     )

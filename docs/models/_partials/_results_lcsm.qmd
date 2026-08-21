@@ -25,14 +25,16 @@ undecided).
 ```{python}
 # | echo: false
 # | output: asis
+# Restrict to the g_/h_ coupling rows and lead with the most-resolved one and its
+# median — the first "->" row also matched covariate slopes and led with the mean,
+# so the sentence could contradict the model prose's declared headline and the
+# key-findings box (2026-08-21 review, finding 10).
 if coupling_summary is not None:
-    _g = coupling_summary[
-        coupling_summary["coefficient"].str.contains("->", regex=False)
-    ]
+    _g = coupling_summary[coupling_summary["coefficient"].str.match(r"[gh]_")]
     if len(_g):
-        _r = _g.iloc[0]
+        _r = _g.loc[(_g["prob_pos"] - 0.5).abs().idxmax()]
         print(
-            f"Headline coupling `{_r.coefficient}`: mean {_r['mean']:+.3f} "
+            f"Clearest coupling `{_r.coefficient}`: median {_r['median']:+.3f} "
             f"(50% CrI {_r.lo50:+.3f} to {_r.hi50:+.3f}; "
             f"89% {_r.lo:+.3f} to {_r.hi:+.3f}); "
             f"P(> 0) = {_r.prob_pos:.3f}. Read agreement with LRP65 and the "

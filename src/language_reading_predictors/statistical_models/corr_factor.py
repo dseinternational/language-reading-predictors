@@ -239,8 +239,14 @@ class CorrFactorModelSettings:
                 f"{', '.join(unknown)}. Declare CorrFactorModelSettings so "
                 "misspellings fail fast."
             )
+        # `is None`, not falsy-or: an explicitly-empty legacy declaration must
+        # reach _domains and fail loud there, not silently become the default
+        # (2026-08-21 review, finding 8).
+        legacy_domains = extra.get("domains")
         return cls(
-            domains=_domains(extra.get("domains") or _RLI_DEFAULT_DOMAINS),
+            domains=_domains(
+                _RLI_DEFAULT_DOMAINS if legacy_domains is None else legacy_domains
+            ),
             structural_covariates=extra.get("structural_covariates"),
             structural_factors=extra.get("structural_factors"),
             use_group=extra.get("use_group"),
@@ -375,7 +381,20 @@ class CorrFactorRunPlan:
     def diagnostic_vars(self) -> list[str]:
         """Released quantities scanned by summaries and convergence checks."""
         if self.port == "rlm":
-            return ["lambda_free", "sigma_free", "factor_corr_pairs"]
+            # factor_corr_pairs exists only with two or more domains, matching
+            # the RLI guard below: an unconditional entry would crash az.summary
+            # mid-fit for a single-domain declaration (2026-08-21 review,
+            # finding 10).
+            variables = ["lambda_free", "sigma_free"]
+            if len(self.domains) > 1:
+                variables.append("factor_corr_pairs")
+            return variables
+        # factor_z (the 153-element non-centred offset) is deliberately absent:
+        # it joined this list in #261 when it doubled as the gate list, but since
+        # #274 the gate independently widens to all free RVs, and keeping it here
+        # only damaged the artefacts — it tripped the max-subplots guard so no
+        # trace/posterior figure was written, and drowned psense and the
+        # prior-vs-posterior overlay in offset panels (2026-08-21 review, finding 3).
         variables = [
             "alpha",
             "gamma_own",
@@ -384,7 +403,6 @@ class CorrFactorRunPlan:
             "lambda_load",
             "sigma_indicator",
             "communality",
-            "factor_z",
         ]
         if len(self.domains) > 1:
             variables.append("factor_corr_pairs")
@@ -506,7 +524,14 @@ def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
                 f"{spec.model_id}: RLI correlated-factor domains require at least "
                 f"two indicators: {', '.join(short)}"
             )
-        structural_covariates = settings.structural_covariates or ("blocks",)
+        # `is None`, not falsy-or: a declared-empty covariate set is the natural
+        # spelling of an unadjusted structural leg and must stay empty rather
+        # than silently becoming blocks-adjusted (2026-08-21 review, finding 8).
+        structural_covariates = (
+            settings.structural_covariates
+            if settings.structural_covariates is not None
+            else ("blocks",)
+        )
         structural_factors = settings.structural_factors
         if structural_factors == ():
             raise ValueError(f"{spec.model_id}: structural_factors cannot be empty")

@@ -66,6 +66,20 @@ from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
+def summary_coefs(plan) -> tuple[str, ...]:
+    """Coefficients the scientific summary must publish for this plan.
+
+    Every plan-declared headline coefficient must reach the family summary CSV —
+    the age x ability interaction model's registered headline is ``gamma_int``,
+    which the pre-2026-08-21 default coefficient set silently omitted from every
+    scientific output (2026-08-21 review, finding 1).
+    """
+    coefs = ["gamma", "delta", "beta", "loading"]
+    if plan.age_ability_interaction:
+        coefs.extend(["gamma_age", "gamma_int"])
+    return tuple(coefs)
+
+
 def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Fit a declared growth model and report baseline-to-trajectory associations."""
     require_spec(spec, "growth")
@@ -143,6 +157,11 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             diagnostic_vars=tuple(diag_vars),
             ppc_var_names=("y_obs",),
             plot_prior_predictive=_plot_prior_predictive,
+            # The termless profile plotted every posterior variable (per-child
+            # random effects included), tripping the max-subplots guard so
+            # ess_evolution.png was never written; focus on the headline term
+            # (2026-08-21 review, finding 3).
+            extended_term="gamma_int" if age_ability else "gamma",
         ),
     )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
@@ -197,7 +216,9 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # round out the trajectory characterisation. All adjusted associations.
     display_baseline = baseline_label[0].upper() + baseline_label[1:]
     section_header(f"{display_baseline} -> trajectory shape")
-    gs = _report.growth_association_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
+    gs = _report.growth_association_summary(
+        ctx.trace, coefs=summary_coefs(plan), ci_prob=ctx.reporting.ci_prob
+    )
     save_table(ctx, "growth_association_summary", gs)
     save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
     print_table(
@@ -212,6 +233,20 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             precision=3,
         )
     )
+    if age_ability:
+        save_forest_plot(ctx, ["gamma_int"], name="gamma_int_forest.png")
+        print_table(
+            ranked_dataframe_table(
+                gs[gs["coefficient"] == "gamma_int"],
+                title="Baseline-age x ability interaction on growth rate (gamma_int, logit)",
+                columns=[
+                    "outcome", "median", "lo89", "hi89", "prob_positive",
+                    "favoured_direction_label",
+                ],
+                rank_column=False,
+                precision=3,
+            )
+        )
 
     # Factor layer: is there *residual* coupling between baseline non-verbal
     # ability and the common growth tempo, beyond what the model already

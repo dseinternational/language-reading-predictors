@@ -191,16 +191,32 @@ print(_img("pareto_k.png", "Pareto-k (LOO influence; flag k > 0.7)"))
 print(_img("rank_plot.png", "Rank plot of the effect (mixing)"))
 print(_img("ess_evolution.png", "ESS evolution (reference line at the 400 floor)"))
 print(_img("loo_pit.png", "LOO-PIT calibration"))
-print(
-    f"\n_How to read these:_ **Pareto-k** — each point is {_pareto_unit}'s influence on "
-    "the leave-one-out fit; all should sit below 0.7 (points above are overly "
-    "influential and make LOO unreliable)." + _loo_caveat + " **Rank plot** — the "
-    "chains' ranks should look uniform and interleaved (a sloped or lumpy plot signals "
-    "poor mixing). **ESS-evolution** — should climb steadily above the 400 reliability "
-    "floor as sampling proceeds (a well-sampled reporting fit lands far higher). "
-    "**LOO-PIT** — the line should hug zero; large excursions mean "
-    "the model is mis-calibrated over part of the outcome range."
-)
+# Guidance only for figures actually present: a silently-failed figure otherwise
+# keeps its how-to-read prose with nothing above it (2026-08-21 review, finding 3).
+_read_bits = []
+if _has("pareto_k.png"):
+    _read_bits.append(
+        f"**Pareto-k** — each point is {_pareto_unit}'s influence on the "
+        "leave-one-out fit; all should sit below 0.7 (points above are overly "
+        "influential and make LOO unreliable)." + _loo_caveat
+    )
+if _has("rank_plot.png"):
+    _read_bits.append(
+        "**Rank plot** — the chains' ranks should look uniform and interleaved "
+        "(a sloped or lumpy plot signals poor mixing)."
+    )
+if _has("ess_evolution.png"):
+    _read_bits.append(
+        "**ESS-evolution** — should climb steadily above the 400 reliability "
+        "floor as sampling proceeds (a well-sampled reporting fit lands far higher)."
+    )
+if _has("loo_pit.png"):
+    _read_bits.append(
+        "**LOO-PIT** — the line should hug zero; large excursions mean "
+        "the model is mis-calibrated over part of the outcome range."
+    )
+if _read_bits:
+    print("\n_How to read these:_ " + " ".join(_read_bits))
 ```
 
 ```{python}

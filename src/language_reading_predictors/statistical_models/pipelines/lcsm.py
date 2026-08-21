@@ -257,9 +257,11 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         )
     for tgt in couplings:
-        # LRP67's historical row labels are kept verbatim for the single
-        # reading-target shape.
-        legacy = single_target and tgt == reading_symbol
+        # LRP67's historical row labels are kept verbatim ONLY for the actual
+        # LRP67 shape (single word-reading target): keying on outcome_symbol
+        # alone stamped "reading" on lcsm-181's taught-vocabulary rows
+        # (2026-08-21 review, finding 10).
+        legacy = single_target and tgt == reading_symbol and tgt == "W"
         rows.append(
             coef_row(
                 f"b_self[{tgt}] (reading self-feedback)"

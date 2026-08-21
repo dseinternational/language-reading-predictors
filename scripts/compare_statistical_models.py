@@ -151,6 +151,14 @@ DOSE_LOO_IDS: list[str] = ["lrp-rli-dose-077", "lrp-rli-dose-277"]
 # IS collider attend_cumul).
 DID_DOSE_LOO_IDS: list[str] = ["lrp-rli-did-007", "lrp-rli-did-107"]
 
+# LCSM reverse coupling (#229): LRP-RLI-LCSM-081 against its no-reverse-coupling
+# comparator LRP-RLI-LCSM-181 — the "not LOO-worse than 181" half of 081's
+# pre-specified support criterion, which had never been computed or recorded
+# before the 2026-08-21 review (finding 6). The pairing is valid nested PSIS-LOO:
+# 181 is 081 minus exactly the two reverse edges (W -> TE, W -> TR) over
+# identical observed cells and likelihood.
+LCSM_REVERSE_LOO_IDS: list[str] = ["lrp-rli-lcsm-081", "lrp-rli-lcsm-181"]
+
 # Mediation family (#84 + the 2026-07 expansion): every g-formula route to word
 # reading, compared on the shared response (words-out-of-test-length) scale. The
 # mediation fits carry no PSIS-LOO (the g-formula is not a pointwise-likelihood
@@ -1575,6 +1583,45 @@ def phonics_route_loo_compare(config: str, out_path: str) -> bool:
     return _loo_compare(PHONICS_LOO_IDS, config, out_path)
 
 
+def lcsm_reverse_coupling_loo_compare(config: str, out_path: str) -> bool:
+    """LOO comparison of LCSM-081 against its no-reverse-coupling comparator (181).
+
+    Bespoke rather than :func:`_loo_compare`: the LCSM likelihood is one flattened
+    (child, wave, outcome) cell vector (``y_obs``), not an ``obs_id`` row model, so
+    the generic row-identity machinery does not apply. The pairing's own validity
+    condition — identical observed cells and likelihood — is checked directly on
+    the persisted ``observed_data`` before comparing.
+    """
+    ids = LCSM_REVERSE_LOO_IDS
+    for model_id in ids:
+        if not _gate_ok(model_id, config):
+            print(f"[warn] {model_id}: convergence gate not passed; skipping.")
+            return False
+    traces = {}
+    for model_id in ids:
+        trace_path = os.path.join(_run_dir(model_id, config), "trace.nc")
+        if not os.path.exists(trace_path):
+            return False
+        traces[model_id] = az.from_netcdf(trace_path)
+    observed = [
+        np.asarray(traces[model_id].observed_data["y_obs"].values) for model_id in ids
+    ]
+    if observed[0].shape != observed[1].shape or not np.array_equal(*observed):
+        print(
+            "[warn] lcsm 081/181 observed cells differ; the nested pairing's "
+            "precondition fails, not comparing."
+        )
+        return False
+    loo = {model_id: az.loo(traces[model_id], pointwise=True) for model_id in ids}
+    comp = az.compare(loo)
+    comp = comp.reset_index().rename(columns={"index": "model_id"})
+    for model_id in ids:
+        k = np.asarray(loo[model_id].pareto_k, dtype=float)
+        comp.loc[comp["model_id"] == model_id, "pareto_k_max"] = float(k.max())
+    comp.to_csv(out_path, index=False)
+    return True
+
+
 def _copy_compare_beside_runs(
     out_path: str,
     ids: list[str],
@@ -1887,6 +1934,15 @@ def main() -> None:
         print(f"Wrote {did_dose_path}")
     else:
         print("Skipping DiD L-dose LOO compare: LRPDID07 / LRPDID07base runs missing.")
+
+    lcsm_path = os.path.join(args.out, "lcsm_reverse_coupling_loo_compare.csv")
+    if lcsm_reverse_coupling_loo_compare(args.config, lcsm_path):
+        print(f"Wrote {lcsm_path}")
+    else:
+        print(
+            "Skipping LCSM reverse-coupling LOO compare: LCSM-081 / LCSM-181 "
+            "runs missing."
+        )
 
     med_family = build_mediation_family(args.config)
     if med_family is not None:

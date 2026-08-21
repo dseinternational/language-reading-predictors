@@ -40,6 +40,24 @@ factor_correlation = _csv("factor_correlation.csv", index_col=0)
 factor_correlation if factor_correlation is not None else "No factor-correlation matrix."
 ```
 
+_Per-pair uncertainty:_ the matrix above is posterior means only; the house rule is
+never a bare point estimate, so each off-diagonal pair follows with its median,
+inner 50% and 89% equal-tailed credible intervals and `P(> 0)`.
+
+```{python}
+# | echo: false
+# The family's headline quantities with their intervals — written at fit time
+# expressly for this table but never rendered before (2026-08-21 review, finding 7).
+_fc_summary = _csv("factor_correlation_summary.csv")
+(
+    _fc_summary[
+        ["domain_i", "domain_j", "median", "lo50", "hi50", "lo", "hi", "prob_pos"]
+    ].rename(columns={"lo": "lo89", "hi": "hi89", "prob_pos": "P(>0)"}).round(3)
+    if _fc_summary is not None
+    else "No factor-correlation summary table."
+)
+```
+
 ### Structural Slopes
 
 _How to read the structural-slopes table:_ each row is a factor's adjusted association

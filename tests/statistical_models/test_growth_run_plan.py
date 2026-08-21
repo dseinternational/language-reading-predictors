@@ -182,3 +182,24 @@ def test_every_registered_growth_model_resolves_with_metadata():
     assert saw_factor, "no shared-factor growth model found (gc-070)"
     assert saw_interaction, "no age x ability growth model found (gc-085)"
     assert saw_rlm, "no Byrne/RLM growth model found (rlm-gc-001)"
+
+
+# --- 2026-08-21 review fixes --------------------------------------------------
+
+
+def test_estimand_of_record_follows_the_interaction_declaration():
+    """Finding 1/5: the interaction plan's recipe/config estimand must name
+    gamma_int, and neither branch may call delta a baseline-level association."""
+    base = resolve_growth_run_plan(_spec())
+    assert "gamma_int" not in base.estimand
+    assert "pooled-mean (mid-study) age" in base.estimand
+    interaction = resolve_growth_run_plan(_spec(age_ability_interaction=True))
+    assert "gamma_int" in interaction.estimand
+    assert "pooled-mean (mid-study) age" in interaction.estimand
+
+
+def test_single_outcome_shared_factor_is_rejected_for_the_rli_port_too():
+    """Finding 9: the identification constraint must fail at resolution for both
+    ports, not only the RLM branch."""
+    with pytest.raises(ValueError, match="at least two"):
+        resolve_growth_run_plan(_spec(outcomes=("W",), use_shared_factor=True))

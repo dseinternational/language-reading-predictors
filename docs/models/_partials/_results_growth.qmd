@@ -120,6 +120,60 @@ rate also differs (`gamma` ≠ 0) the entry-level association is
 _coef_table("delta")
 ```
 
+### Age × ability interaction on the growth **rate** (`gamma_int`; interaction models only)
+
+```{python}
+# | echo: false
+# | output: asis
+_growth_interaction = bool(_growth_plan.get("age_ability_interaction", False))
+_gi = _coef_table("gamma_int")
+_ga = _coef_table("gamma_age")
+if not _growth_interaction:
+    print("_Not applicable — this model has no age × ability interaction._")
+elif _gi is None:
+    print(
+        "_The plan declares the age × ability interaction but the summary has no "
+        "`gamma_int` rows — regenerate `growth_association_summary.csv` before "
+        "reading this report._"
+    )
+else:
+    print(
+        "For the interaction model this — not `gamma` — is the **registered "
+        "headline**: `gamma_int` is the extra logit growth rate for a child +1 SD "
+        "older at entry **and** +1 SD higher in baseline ability, beyond the two "
+        "centred main effects (`gamma` for ability at the sample-mean entry age, "
+        "`gamma_age` for entry age at the sample-mean ability). A positive "
+        "`P(>0)` reads as \"older-and-more-able children progress faster than the "
+        "main effects alone imply\". The same how-to-read guidance as the `gamma` "
+        "table applies."
+    )
+```
+
+```{python}
+# | echo: false
+_gi if _gi is not None else ""
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _growth_interaction and _ga is not None:
+    print("The centred baseline-age main effect (`gamma_age`), for completeness:")
+```
+
+```{python}
+# | echo: false
+_ga if (_growth_interaction and _ga is not None) else ""
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _has("gamma_int_forest.png"):
+    print(_img("gamma_int_forest.png",
+               "Age × ability interaction on growth rate, by measure (50% + 89% ETI)"))
+```
+
 ### Observation-cell influence sensitivity
 
 The growth likelihood's PSIS diagnostic leaves out one observed child–wave score at a time while retaining that child's other scores and fitted random intercept. It is therefore an observation-cell diagnostic, not leave-one-child-out prediction. When any cell exceeds the recorded Pareto-$k$ reliability threshold, the registered Byrne model refits after masking all flagged cells; a child is removed only when every one of their observed cells is flagged. It then compares the separate marginal posteriors for `gamma` and `delta`. This checks whether those adjusted associations are stable to the diagnosed cells; it neither repairs the PSIS score nor supplies exact LOO.
