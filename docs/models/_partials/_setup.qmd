@@ -92,6 +92,7 @@ _GATE_VISIBLE_DIAGNOSTIC_IMG = frozenset(
 _GATE_VISIBLE_DIAGNOSTIC_IMG_PREFIXES = (
     "loo_pit_",
     "posterior_predictive_check_",
+    "ppc_calibration_",
     "prior_predictive_check_",
 )
 

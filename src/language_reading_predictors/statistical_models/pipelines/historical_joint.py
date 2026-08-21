@@ -119,15 +119,13 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     # PSIS-LOO is undefined — not a likelihood PyMC cannot evaluate), so the groups
     # psense needs are not attached by the sampling stage and have to be requested
     # here. ``strict=False`` because psense is a secondary diagnostic and must not
-    # crash a fit: today both groups are in fact refused, but by a *naming* seam
-    # rather than an intractable likelihood — the model draws
-    # ``pm.LKJCorr("measure_corr_chol", ...)`` and PyMC stores its value variable as
-    # ``measure_corr_chol_cholesky``, which ``get_untransformed_name`` mangles (see
-    # notes/202607261700-psense-coverage-backfill.md and the upstream draft in
-    # notes/assets/). That is plausibly fixable upstream; when it is, this call site
-    # needs no change. Meanwhile the fit degrades to a warning and gets no psense,
-    # which is a *measured and declined* exemption rather than the silent absence it
-    # was before.
+    # crash a fit. An earlier comment here recorded both groups as refused by the
+    # ``measure_corr_chol_cholesky`` naming seam in ``get_untransformed_name``
+    # (notes/202607261700-psense-coverage-backfill.md); that is stale —
+    # ``psense_summary.csv`` is written and populated for both registered fits,
+    # including the ``measure_corr_pairs`` / ``within_corr_pairs`` headline rows
+    # (2026-08-21 historical-families review, finding 9). ``strict=False`` stays as
+    # the guard it always was, not as a declaration that psense is unavailable.
     def _plot_prior_predictive(c: StatisticalFitContext) -> None:
         for symbol, node in zip(measure_syms, plan.observation_nodes, strict=True):
             _diag.save_prior_predictive_plot(
@@ -147,6 +145,14 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 c, strict=False
             ),
             compute_loo=plan.compute_loo,
+            # LOO-PIT is a pointwise PSIS-LOO quantity, and this family declares
+            # that unit undefined. The log-likelihood group exists only as a side
+            # effect of preparing power scaling, so without this the report used
+            # to publish a LOO-PIT calibration figure — with its reading guidance
+            # — for a model whose own results section says there is no PSIS-LOO,
+            # and with no Pareto-k companion to say whether the importance
+            # weights behind it were reliable (2026-08-21 review, finding 9).
+            include_loo_pit=False,
         ),
     )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
@@ -214,6 +220,20 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         save_table(ctx, "within_measure_correlation", within_df, index=True)
         within_stacked = within_draws.stack(sample=("chain", "draw"))
         scale_stacked = post["sigma_within"].stack(sample=("chain", "draw"))
+        # ``sigma_within`` is the scale of the latent deviation BEFORE the double
+        # sum-to-zero sweep, so it exceeds the spread of the departures the linear
+        # predictor actually carries — by the projection factor
+        # sqrt(1 - (n_subjects + G*T - G) / (n_subjects*T)), about 0.8 on the
+        # balanced three-wave panel. Publish the realised SD beside it rather than
+        # letting the fitted parameter stand in for it (2026-08-21 review,
+        # finding 6). Measured from the fit's own draws, not derived from a
+        # formula, so a different panel shape cannot make it wrong.
+        realised = post.get("within_offset")
+        realised_sd = (
+            realised.std(dim="obs").stack(sample=("chain", "draw"))
+            if realised is not None
+            else None
+        )
         scale_rows = []
         scale_resolvable: dict[str, bool] = {}
         for i, measure in enumerate(mnames):
@@ -221,21 +241,31 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             prob_gt = float(np.mean(values > _MIN_RESOLVABLE_WITHIN_SD))
             resolved = prob_gt >= _MIN_RESOLVABLE_PROB
             scale_resolvable[measure] = resolved
-            scale_rows.append(
-                {
-                    "measure": measure,
-                    "label": labels[measure],
-                    "median": float(np.median(values)),
-                    "mean": float(np.mean(values)),
-                    "lo": float(np.quantile(values, lo_q)),
-                    "hi": float(np.quantile(values, 1 - lo_q)),
-                    "lo50": float(np.quantile(values, 0.25)),
-                    "hi50": float(np.quantile(values, 0.75)),
-                    "minimum_resolvable_sd": _MIN_RESOLVABLE_WITHIN_SD,
-                    "prob_above_minimum": prob_gt,
-                    "resolvable": resolved,
-                }
-            )
+            row = {
+                "measure": measure,
+                "label": labels[measure],
+                "median": float(np.median(values)),
+                "mean": float(np.mean(values)),
+                "lo": float(np.quantile(values, lo_q)),
+                "hi": float(np.quantile(values, 1 - lo_q)),
+                "lo50": float(np.quantile(values, 0.25)),
+                "hi50": float(np.quantile(values, 0.75)),
+                "minimum_resolvable_sd": _MIN_RESOLVABLE_WITHIN_SD,
+                "prob_above_minimum": prob_gt,
+                "resolvable": resolved,
+            }
+            if realised_sd is not None:
+                observed = np.asarray(
+                    realised_sd.isel(measure=i).values
+                ).reshape(-1)
+                row["realised_departure_sd_median"] = float(np.median(observed))
+                row["realised_departure_sd_lo"] = float(
+                    np.quantile(observed, lo_q)
+                )
+                row["realised_departure_sd_hi"] = float(
+                    np.quantile(observed, 1 - lo_q)
+                )
+            scale_rows.append(row)
         scale_summary_df = pd.DataFrame(scale_rows)
         save_table(ctx, "within_scale_summary", scale_summary_df)
         within_rows = []

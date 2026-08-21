@@ -25,6 +25,10 @@ from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import resolve_dataset
+from language_reading_predictors.statistical_models.historical_growth import (
+    check_declared_waves,
+    check_extension_after_core,
+)
 
 __all__ = [
     "HistoricalJointModelSettings",
@@ -36,6 +40,7 @@ __all__ = [
 
 _DEFAULT_MEASURES = ("basread", "bpvs", "basdig")
 _DEFAULT_WAVES = (1, 2, 3)
+_DEFAULT_KAPPA_SIGMA = 50.0
 _LEGACY_KEYS = frozenset(
     {
         "study_id",
@@ -98,7 +103,7 @@ class HistoricalJointModelSettings:
     extension_waves: tuple[int, ...] = ()
     eta_prior_sigma: float = 1.5
     sigma_subject_prior_sigma: float = 1.0
-    kappa_prior_sigma: float = 50.0
+    kappa_prior_sigma: float = _DEFAULT_KAPPA_SIGMA
     lkj_eta: float = 2.0
     within_correlation: bool = False
     sigma_within_prior_sigma: float = 0.5
@@ -119,6 +124,7 @@ class HistoricalJointModelSettings:
         overlap = sorted(set(self.waves) & set(self.extension_waves))
         if overlap:
             raise ValueError(f"extension_waves overlap the complete-case core waves: {overlap}")
+        check_extension_after_core(self.waves, self.extension_waves)
         for name in (
             "eta_prior_sigma",
             "sigma_subject_prior_sigma",
@@ -137,6 +143,17 @@ class HistoricalJointModelSettings:
             raise ValueError(
                 "within_correlation requires a balanced complete-case window; "
                 "extension_waves must be empty"
+            )
+        if self.within_correlation and self.kappa_prior_sigma != _DEFAULT_KAPPA_SIGMA:
+            # The within-child branch has a Binomial likelihood with no
+            # Beta-Binomial concentration term, so this setting has no effect
+            # there. Silently discarding an explicitly-declared value is exactly
+            # the incoherent cross-field combination #455 asks resolution to
+            # reject (2026-08-21 review, finding 10).
+            raise ValueError(
+                "kappa_prior_sigma has no effect when within_correlation is true: "
+                "that branch fits a Binomial likelihood with no Beta-Binomial "
+                "concentration term. Leave it at its default."
             )
 
     @classmethod
@@ -194,8 +211,8 @@ class HistoricalJointRunPlan:
     kappa_prior_sigma: float | None
     lkj_eta: float
     within_correlation: bool
-    sigma_within_prior_sigma: float
-    within_lkj_eta: float
+    sigma_within_prior_sigma: float | None
+    within_lkj_eta: float | None
     compute_loo: bool
     loo_unit: str
     loo_reason: str
@@ -329,6 +346,13 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
     unknown = sorted(set(settings.measures) - set(catalogue))
     if unknown:
         raise ValueError(f"{spec.model_id}: unregistered {spec.study_id!r} measure symbol(s): {', '.join(unknown)}")
+    check_declared_waves(
+        catalogue,
+        settings.measures,
+        model_id=spec.model_id,
+        waves=settings.waves,
+        extension_waves=settings.extension_waves,
+    )
 
     loo_reason = (
         "the model has one likelihood node per measure, so no single pooled pointwise predictive unit is defined"
@@ -348,7 +372,18 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
             "on the latent logit scale. The matched between-child stable-level "
             "correlation matrix is reported alongside it. Both are symmetric "
             "descriptive associations shared across cohort groups; neither estimates "
-            "direction."
+            "direction. Two limits are structural rather than incidental. The "
+            "wave-specific residual carries ALL extra-Binomial variance, because "
+            "this branch fits a Binomial likelihood with no separate concentration "
+            "term: true within-child fluctuation and measurement noise are one term "
+            "and cannot be separated, so an independent measurement-error share "
+            "attenuates the reported correlation toward zero by an amount the model "
+            "cannot estimate. A small or unresolvable residual scale therefore "
+            "cannot distinguish 'these skills do not co-fluctuate' from 'they do, "
+            "but the measurements are too noisy for this design to see it'. And the "
+            "double sum-to-zero centring makes the realised departures smaller than "
+            "sigma_within (the fitted scale parameter); the correlation itself is "
+            "unaffected, because the same projection is applied to every measure."
         )
     else:
         design = (
@@ -408,13 +443,22 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         observation_nodes=tuple(f"score_{measure}" for measure in settings.measures),
         eta_prior_sigma=settings.eta_prior_sigma,
         sigma_subject_prior_sigma=settings.sigma_subject_prior_sigma,
+        # Every prior scale the fitted model does not contain is recorded as
+        # null, in both directions. config.json is the estimand of record; it
+        # must not name a prior the posterior lacks, and before the 2026-08-21
+        # review (finding 10) it nulled the unused kappa but kept live
+        # within-child scales for the between-child model, which has neither.
         kappa_prior_sigma=(
             None if settings.within_correlation else settings.kappa_prior_sigma
         ),
         lkj_eta=settings.lkj_eta,
         within_correlation=settings.within_correlation,
-        sigma_within_prior_sigma=settings.sigma_within_prior_sigma,
-        within_lkj_eta=settings.within_lkj_eta,
+        sigma_within_prior_sigma=(
+            settings.sigma_within_prior_sigma if settings.within_correlation else None
+        ),
+        within_lkj_eta=(
+            settings.within_lkj_eta if settings.within_correlation else None
+        ),
         compute_loo=False,
         loo_unit="not_defined_multiple_likelihood_nodes",
         loo_reason=loo_reason,

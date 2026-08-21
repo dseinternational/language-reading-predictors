@@ -21,6 +21,7 @@ import pytest
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import priors
+from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
 from language_reading_predictors.statistical_models.factories import (
     build_aligned_model,
     build_correlated_factor_model,
@@ -28,6 +29,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_dose_response_model,
     build_gain_factors_model,
     build_growth_model,
+    build_historical_growth_model,
     build_itt_model,
     build_joint_mechanism_model,
     build_joint_model,
@@ -36,6 +38,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_longitudinal_corr_factor_model,
     build_mechanism_model,
     build_mediation_model,
+    build_rlm_joint_growth_model,
     build_two_mediator_model,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
@@ -50,6 +53,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
     load_and_prepare,
     load_and_prepare_aligned,
+    load_longitudinal_panel,
     load_wave_panel,
 )
 
@@ -226,7 +230,64 @@ def _representative_models(tmp_path) -> dict[str, object]:
     models["joint_mechanism_transition"] = build_joint_mechanism_model(
         jm_all, design="transition"
     ).model
+
+    # The two Byrne (RLM) historical families. Neither had ever been under this
+    # guard — the fixture built only RLI models — which is how the within-child
+    # joint model shipped a reporting-tier fit whose HEADLINE prior
+    # (``within_corr_chol``) was published as role='other' with an empty
+    # rationale, alongside ``z_within`` and an unexplained ``sigma_within``
+    # (2026-08-21 historical-families review, finding 7).
+    rlm_path = _write_rlm_synthetic(tmp_path)
+    rlm_measures = ("basread", "bpvs", "basdig")
+    rlm_panel = load_longitudinal_panel(
+        _rlm_dataset(rlm_path),
+        [RLM_MEASURES[m] for m in rlm_measures],
+        waves=(1, 2, 3),
+    )
+    models["historical_growth"] = build_historical_growth_model(
+        rlm_panel, measure="basread"
+    ).model
+    models["historical_joint"] = build_rlm_joint_growth_model(
+        rlm_panel, measures=rlm_measures
+    ).model
+    models["historical_joint_within"] = build_rlm_joint_growth_model(
+        rlm_panel, measures=rlm_measures, within_correlation=True
+    ).model
     return models
+
+
+def _write_rlm_synthetic(tmp_path, n_per_group: int = 6, seed: int = 11):
+    """A Byrne-shaped long CSV: three reading groups x three waves, three measures."""
+    rng = np.random.default_rng(seed)
+    rows = []
+    for group in (1, 2, 3):
+        for k in range(n_per_group):
+            for wave in (1, 2, 3):
+                row = {
+                    "subject_id": f"S{group}{k}",
+                    "time": wave,
+                    "readgrp": group,
+                }
+                for symbol in ("basread", "bpvs", "basdig"):
+                    ceiling = RLM_MEASURES[symbol].n_trials
+                    row[symbol] = int(
+                        rng.integers(0, max(2, ceiling // 2)) + 2 * (wave - 1)
+                    )
+                rows.append(row)
+    path = tmp_path / "rlm_prior_inventory_long.csv"
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return path
+
+
+def _rlm_dataset(path):
+    from language_reading_predictors.statistical_models.datasets import DatasetSpec
+
+    return DatasetSpec(
+        study_id="rlm_test",
+        label="synthetic",
+        path=path,
+        group_labels={1: "Down syndrome", 2: "Average readers", 3: "Reading-matched"},
+    )
 
 
 @pytest.fixture(scope="module")

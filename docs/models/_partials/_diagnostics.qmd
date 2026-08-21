@@ -336,8 +336,16 @@ if _has("posterior_predictive_check.png"):
 # | output: asis
 # Per-observation calibration panel (count families): deviations from the diagonal
 # are directly readable.
-print(_img("ppc_calibration.png", "Per-observation calibration"))
-if _has("ppc_calibration.png"):
+# One panel per measure for a family carrying one likelihood node per measure
+# (the first keeps the unsuffixed name; #338 historical-joint, 2026-08-21 review
+# finding 4). Sorted so the page order is stable across renders.
+_cal_panels = ["ppc_calibration.png"] + sorted(
+    _p.name
+    for _p in _here.glob("ppc_calibration_*.png")
+)
+for _cal in _cal_panels:
+    print(_img(_cal, "Per-observation calibration"))
+if any(_has(_cal) for _cal in _cal_panels):
     print(
         "\n_How to read it:_ each point is one observation — its observed score (x) "
         "against the model's predicted median (y), with whiskers for the 90% "

@@ -121,17 +121,23 @@ else:
         )
 ```
 
-### Prior vs posterior
-
-_How to read it:_ each panel overlays the prior (blue) and posterior (orange) for a
-parameter. A posterior clearly shifted from, or much narrower than, the prior means
-the **data were informative** for that parameter; heavy overlap means the estimate
-is carried mostly by the prior.
-
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("prior_posterior.png", "Prior vs posterior overlay"))
+# Heading and guidance only when the figure exists: a silently-failed overlay
+# otherwise leaves the reader instructions for reading a figure that is not there
+# (2026-08-21 historical-families review, finding 1 — this had been the published
+# state of all eleven RLM fits).
+if _has("prior_posterior.png"):
+    print("### Prior vs posterior\n")
+    print(
+        "_How to read it:_ each panel overlays the prior (blue) and posterior "
+        "(orange) for a parameter. A posterior clearly shifted from, or much "
+        "narrower than, the prior means the **data were informative** for that "
+        "parameter; heavy overlap means the estimate is carried mostly by the "
+        "prior.\n"
+    )
+    print(_img("prior_posterior.png", "Prior vs posterior overlay"))
 ```
 
 ::: {.callout-note collapse="true" title="Power-scaling prior/likelihood sensitivity (psense)"}

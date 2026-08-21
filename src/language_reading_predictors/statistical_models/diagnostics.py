@@ -35,6 +35,7 @@ from __future__ import annotations
 import os
 import re
 import tempfile
+from collections.abc import Sequence
 from typing import Any
 
 import arviz as az
@@ -697,17 +698,68 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
     return result
 
 
+def _ess_evolution_vars(
+    context: StatisticalFitContext,
+    causal_term: str | None,
+    fallback_var_names: Sequence[str] | None,
+) -> list[str] | None:
+    """Variables for the ESS-evolution panel, bounded by ArviZ's subplot guard.
+
+    A family with a causal term plots that term alone. A descriptive family has
+    none, and ``None`` would enumerate every posterior variable — per-observation
+    and per-subject deterministics included — so the plot exceeds
+    ``rcParams["plot.max_subplots"]`` and is lost to ``_save_pc``'s guard
+    (2026-08-21 historical-families review, finding 5). Fall back to the curated
+    headline variables the caller already has, trimmed greedily to the subplot
+    limit so a wide curated list still yields a figure rather than none.
+    """
+    if causal_term:
+        return [causal_term]
+    if not fallback_var_names:
+        return None
+    try:
+        posterior = context.trace.posterior
+    except Exception:  # pragma: no cover - defensive
+        return list(fallback_var_names) or None
+    limit = az.rcParams["plot.max_subplots"] or 40
+    chosen: list[str] = []
+    panels = 0
+    for name in fallback_var_names:
+        if name not in posterior:
+            continue
+        size = int(
+            np.prod(
+                [
+                    length
+                    for dim, length in posterior[name].sizes.items()
+                    if dim not in {"chain", "draw"}
+                ],
+                dtype=int,
+            )
+        )
+        if chosen and panels + size > limit:
+            break
+        chosen.append(name)
+        panels += size
+    return chosen or None
+
+
 def run_extended_diagnostics(
     context: StatisticalFitContext,
     *,
     causal_term: str | None = None,
     include_loo_pit: bool = True,
+    fallback_var_names: Sequence[str] | None = None,
 ) -> None:
     """Pareto-k, rank, ESS-evolution and LOO-PIT plots (issue #125 Area 3).
 
     Called after posterior-predictive sampling so all groups are present. Pareto-k
     reuses ``context.loo`` (computed ``pointwise=True``); rank focuses on the
     causal term; LOO-PIT needs the posterior-predictive group. All guarded.
+
+    ``fallback_var_names`` is the family's curated diagnostic list, used for the
+    ESS-evolution panel when no ``causal_term`` is declared — see
+    :func:`_ess_evolution_vars`.
     """
     out = context.output_dir
     import arviz_plots as azp
@@ -738,11 +790,20 @@ def run_extended_diagnostics(
     # under the 400 reference line and contradict the "ESS climbs above 400"
     # guidance (issue #270 item 1). Only the pathologically-slow plot_rank needs
     # the thinned view.
+    #
+    # A descriptive family declares no causal term, and ``var_names=None`` then
+    # enumerates *every* posterior variable — including the per-observation and
+    # per-subject deterministics — which trips ArviZ's max-subplots guard and
+    # loses the figure entirely (493 requested panels against a limit of 40 for
+    # a historical-growth fit; 2026-08-21 review, finding 5, and the same cause
+    # recorded for four other termless families on 2026-08-21). Fall back to the
+    # curated headline scalars instead of the whole posterior.
+    ess_vars = _ess_evolution_vars(context, causal_term, fallback_var_names)
     _save_pc(
         out,
         lambda: azp.plot_ess_evolution(
             context.trace,
-            var_names=[causal_term] if causal_term else None,
+            var_names=ess_vars,
             min_ess=ESS_THRESHOLD,
         ),
         "ess_evolution.png",
@@ -759,6 +820,52 @@ def run_extended_diagnostics(
             )
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]loo_pit skipped: {exc}[/yellow]")
+
+
+# Dimensions ``arviz_plots.plot_prior_posterior`` introduces on the combined
+# tree: it concatenates the prior and posterior groups along a new ``group``
+# dimension. A model *coordinate* named ``group`` — the cohort reading-group
+# dimension in both RLM historical families — collides with it.
+_PRIOR_POSTERIOR_RESERVED_DIMS = ("group",)
+
+
+def _prior_posterior_plot_view(
+    trace, var_names: list[str] | None
+) -> tuple[object, list[str] | None]:
+    """Return a trace view whose dimensions cannot collide with the plot's own.
+
+    ``plot_prior_posterior`` concatenates the prior and posterior groups along a
+    new dimension it calls ``group``, so a model that declares its own ``group``
+    coordinate raises ``conflicting sizes for dimension 'group'`` before any
+    figure exists. The concat runs on the whole dataset, so selecting different
+    ``var_names`` cannot avoid the clash — the colliding *dimension* has to be
+    renamed, exactly as :func:`_psense_plot_view` does for power scaling's own
+    reserved dims (issue #340; 2026-08-21 historical-families review, finding 1,
+    where this had silently suppressed the overlay in all eleven RLM fits).
+
+    Renaming rather than dropping: ``group`` is a real reported dimension here
+    (``sigma_subject`` / ``kappa`` / the growth deterministics are all indexed by
+    it), so its panels must survive, labelled ``group (dimension)`` to separate
+    them from the prior/posterior legend. Guarded — an unexpected structure
+    degrades to the original pair, i.e. to the pre-existing behaviour.
+    """
+    try:
+        renames = {
+            dim: f"{dim} (dimension)"
+            for dim in _PRIOR_POSTERIOR_RESERVED_DIMS
+            if dim in trace.posterior.dims
+        }
+        if not renames:
+            return trace, var_names
+        groups = {}
+        for group in trace.children:
+            ds = trace[group].to_dataset()
+            present = {k: v for k, v in renames.items() if k in ds.dims}
+            groups[group] = ds.rename(present) if present else ds
+        return type(trace).from_dict(groups), var_names
+    except Exception as exc:  # pragma: no cover - plotting stays guarded below
+        rprint(f"[yellow]prior/posterior plot view unchanged: {exc}[/yellow]")
+        return trace, var_names
 
 
 def save_prior_posterior_plot(
@@ -778,6 +885,9 @@ def save_prior_posterior_plot(
     # Thin only the posterior: thinning the whole tree would decimate the small
     # 1-chain prior group and misrepresent the overlay (issue #270 item 1).
     tr = thin_posterior_only(context.trace)
+    # Rename any model dimension the plot reserves for its own use, before the
+    # panel count is derived from it (the names are unchanged by the rename).
+    tr, var_names = _prior_posterior_plot_view(tr, var_names)
 
     # ``plot_prior_posterior`` expands every non-sampling coordinate into a
     # separate panel.  ArviZ's default 40-panel guard therefore rejects the

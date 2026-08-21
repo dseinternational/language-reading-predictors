@@ -13,19 +13,25 @@ contrasts describe how the groups differ, not what caused the difference.
 
 ### Group-by-wave fitted vs observed
 
-Posterior population expected item score per supported group-by-wave cell,
-alongside the observed mean it is calibrated against (on the complete-case core
-window, the Table 2 audit).
+Posterior expected item score per supported group-by-wave cell, alongside the
+observed mean it is calibrated against (on the complete-case core window, the
+Table 2 audit).
 
 _How to read the table:_ each row is one reading group at one assessment wave.
-`posterior_population_mean` is the model's expected item score for that cell and
-`q_lo`/`q_hi` bracket it with a 89% credible interval; `observed_complete_case_mean`
-is the real data mean it should match, and `posterior_mean_minus_observed_mean` is
-the gap between them — near zero means the reproduction lands on the published
-Table 2. `window` marks whether the cell sits on the complete-case **core**
-window (the audit cells) or the attrition-selected **extension** tail (#338),
-and `n_obs` is the cell's own observation count — extension cells shrink with
-follow-up attrition, so read them alongside their `n`.
+**`posterior_mean` is the calibration quantity**: it is the model's expected item
+score averaged over the children actually in that cell, `posterior_q_lo`/`q_hi`
+bracket it with an 89% credible interval, `observed_cell_mean` is the real data
+mean it should match, and `posterior_mean_minus_observed_mean` is the gap between
+them — near zero means the reproduction lands on the published Table 2.
+`posterior_median_child_mean` is a **different** quantity: the level for a child
+at the middle of their group rather than the group average. Because the model
+works on the logit scale and between-child spread is large here, the two differ
+by several items and in opposite directions above and below the halfway mark, so
+the median-child column is not the one to compare with the observed mean.
+`window` marks whether the cell sits on the complete-case **core** window (the
+audit cells) or the attrition-selected **extension** tail (#338), and `n_obs` is
+the cell's own observation count — extension cells shrink with follow-up
+attrition, so read them alongside their `n`.
 
 ```{python}
 # | echo: false
@@ -33,10 +39,13 @@ cells = _csv("posterior_cell_summary.csv")
 cells if cells is not None else "No cell summary (run the fit first)."
 ```
 
-- `posterior_population_mean` (+ `q_lo` / `q_hi`): expected item score for the
-  group-by-wave cell on the population mean.
-- `observed_complete_case_mean`: the observed complete-case mean for the same
-  cell; `posterior_mean_minus_observed_mean` is the calibration gap.
+- `posterior_mean` (+ `posterior_q_lo` / `posterior_q_hi`): expected item score
+  for the group-by-wave cell, averaged over the children in it.
+- `observed_cell_mean`: the observed mean for the same cell;
+  `posterior_mean_minus_observed_mean` is the calibration gap.
+- `posterior_median_child_mean` (+ its own `q_lo` / `q_hi`): the level for a
+  mid-group child — a different quantity from the cell average, not a
+  calibration target.
 
 ### Growth (items)
 

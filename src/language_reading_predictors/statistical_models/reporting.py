@@ -1496,8 +1496,20 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
     ]
     if usable.empty:
         return ""
-    d = usable.drop_duplicates("level_pct").set_index("level_pct")
+    # Pool across likelihood nodes by summing counts, never by averaging rates:
+    # a family with one node per measure writes one row per (node, level), and
+    # ``drop_duplicates`` would have rendered the first measure's coverage as if
+    # it covered all of them (2026-08-21 historical-families review, finding 4).
+    # With a single node this is the identity on the one row per level.
+    d = (
+        usable.groupby("level_pct", as_index=True)[["n_total", "n_inside"]]
+        .sum()
+        .assign(coverage=lambda f: f["n_inside"] / f["n_total"])
+    )
+    n_nodes = int(usable["node"].nunique()) if "node" in usable.columns else 1
     unit = str(usable["unit"].iloc[0])
+    if n_nodes > 1:
+        unit = f"{unit} across {n_nodes} measures"
     quantity = str(usable["quantity"].iloc[0])
     clauses: list[str] = []
     if 90 in d.index:
@@ -4570,7 +4582,18 @@ def _kf_most_resolved_row(
     usable["_kf_resolution"] = (
         pd.to_numeric(usable[prob_col], errors="coerce") - 0.5
     ).abs()
-    return usable.sort_values("_kf_resolution", ascending=False).iloc[0].to_dict()
+    # ``kind="stable"``: the metric saturates at 0.5 once several rows reach
+    # P(positive) = 1, and pandas' default quicksort leaves the winner among
+    # tied rows dependent on pandas' internals rather than on the data — so the
+    # published headline could change without the fit changing (2026-08-21
+    # historical-families review, finding 3, where one fit had eight tied rows).
+    # A stable sort makes the choice "the first tied row in the artefact's own
+    # order", which is reproducible and inspectable.
+    return (
+        usable.sort_values("_kf_resolution", ascending=False, kind="stable")
+        .iloc[0]
+        .to_dict()
+    )
 
 
 def _kf_plain_label(value) -> str:
@@ -6668,15 +6691,50 @@ def _kf_build_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
 
 
 def _kf_build_historical_growth(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Historical-cohort natural-history reproduction."""
+    """Historical-cohort natural-history reproduction.
+
+    Window-aware (2026-08-21 historical-families review, finding 3). The
+    within-group intervals mix complete-case **core** rows with the
+    attrition-selected **extension** tail (#338), and the selector's
+    ``P(positive)`` metric saturates at 1 for most of them — so ranking alone
+    used to headline an extension interval, unflagged, in five of six
+    publishable fits. Prefer a core interval when the fit has one, say so when
+    the headline is an extension row, and always report the interval's own
+    subject count. The between-group contrasts — the estimand the family's prior
+    pushforward checks — get their own sentence rather than being filtered out.
+    """
     df = _kf_csv(output_dir, "posterior_growth_summary.csv")
     if df is None:
         raise _KeyFindingsUnavailable("posterior_growth_summary.csv is not present")
-    within = df[df["readgrp_label"].fillna("").astype(str).str.len() > 0]
+    labels = df["readgrp_label"].fillna("").astype(str).str.strip()
+    within = df[labels.str.len() > 0]
+    contrasts = df[labels.str.len() == 0]
     if within.empty:
         within = df
-    row = _kf_most_resolved_row(within, prob_col="p_gt_0")
+        contrasts = df.iloc[0:0]
+    # Prefer the audited core window; fall back to the extension tail only when
+    # the fit supports no core interval at all.
+    core = (
+        within[within["window"].astype(str) == "core"]
+        if "window" in within.columns
+        else within
+    )
+    candidates = core if not core.empty else within
+    row = _kf_most_resolved_row(candidates, prob_col="p_gt_0")
     group = _kf_plain_label(row.get("readgrp_label", "historical cohort"))
+    window = str(row.get("window", "")).strip()
+    n_subjects = row.get("n_subjects")
+    try:
+        n_text = f", {int(float(n_subjects))} children"
+    except (TypeError, ValueError):
+        n_text = ""
+    window_text = (
+        " This interval is on the attrition-selected follow-up extension, not "
+        "the audited complete-case core, so it describes the children who "
+        "remained in the study."
+        if window == "extension"
+        else ""
+    )
     fav = favoured_direction(_kf_float(row["p_gt_0"]))
     positive = fav["favoured_direction"] == "positive"
     direction = "positive" if positive else "negative"
@@ -6690,7 +6748,7 @@ def _kf_build_historical_growth(output_dir, config: Mapping) -> list[dict[str, s
             f"For the {group} group, {_kf_plain_label(row['label'])} was "
             f"**{_kf_float(row['mean']):+.1f} items** (89% credible range "
             f"{_kf_float(row['q_lo']):+.1f} to "
-            f"{_kf_float(row['q_hi']):+.1f}).",
+            f"{_kf_float(row['q_hi']):+.1f}{n_text}).{window_text}",
             "headline",
         ),
         _kf_sentence(
@@ -6699,24 +6757,52 @@ def _kf_build_historical_growth(output_dir, config: Mapping) -> list[dict[str, s
             f"{fav['favoured_direction_label']} evidence that {claim}.",
             "confidence",
         ),
+    ]
+    if not contrasts.empty:
+        contrast = _kf_most_resolved_row(contrasts, prob_col="p_gt_0")
+        c_fav = favoured_direction(_kf_float(contrast["p_gt_0"]))
+        sentences.append(
+            _kf_sentence(
+                f"Comparing groups over the window every group supports, "
+                f"{_kf_plain_label(contrast['label'])} was "
+                f"**{_kf_float(contrast['mean']):+.1f} items** (89% credible "
+                f"range {_kf_float(contrast['q_lo']):+.1f} to "
+                f"{_kf_float(contrast['q_hi']):+.1f}; "
+                f"{c_fav['favoured_direction_label']} evidence it is "
+                f"{c_fav['favoured_direction']}).",
+                "highlight",
+            )
+        )
+    sentences.append(
         _kf_sentence(
             "This is descriptive natural-history growth in a historical cohort, "
             "not an intervention effect or an explanation of group differences.",
             "causal",
-        ),
-    ]
+        )
+    )
     cells = _kf_csv(output_dir, "posterior_cell_summary.csv")
     if cells is not None and "posterior_mean_minus_observed_mean" in cells.columns:
-        gaps = [
-            abs(_kf_float(v)) for v in cells["posterior_mean_minus_observed_mean"]
-        ]
-        sentences.append(
-            _kf_sentence(
-                f"As a reproduction check, the largest fitted-minus-observed cell "
-                f"mean gap was {max(gaps):.1f} items.",
-                "highlight",
-            )
+        # The published audit is the complete-case core (Table 2); an extension
+        # cell was never in it, so it must not set the reproduction figure.
+        audit = (
+            cells[cells["window"].astype(str) == "core"]
+            if "window" in cells.columns
+            else cells
         )
+        gaps = [
+            abs(_kf_float(v))
+            for v in audit["posterior_mean_minus_observed_mean"]
+            if np.isfinite(_kf_float(v))
+        ]
+        if gaps:
+            sentences.append(
+                _kf_sentence(
+                    f"As a reproduction check on the complete-case core window, "
+                    f"the largest fitted-minus-observed cell mean gap was "
+                    f"{max(gaps):.1f} items.",
+                    "highlight",
+                )
+            )
     return sentences
 
 

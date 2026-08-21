@@ -270,3 +270,92 @@ def test_registered_within_companion_resolves_balanced_dynamic_contract():
     assert "within-child correlation matrix" in plan.estimand
     assert "Extension waves are excluded" in plan.analysis_population
     assert plan.causal_status.startswith("Descriptive only")
+
+
+# --- 2026-08-21 historical-families code review -----------------------------
+
+
+def _review_spec(**settings) -> ModelSpec:
+    return ModelSpec(
+        model_id="lrp-rlm-jc-test",
+        kind="historical_joint",
+        title="test",
+        outcome_symbol=None,
+        study_id="rlm",
+        model_settings=HJ.HistoricalJointModelSettings(**settings),
+    )
+
+
+def test_plan_nulls_every_prior_scale_the_fitted_model_lacks():
+    """Finding 10: config.json must not name a prior the posterior lacks.
+
+    The plan already nulled ``kappa_prior_sigma`` for the within-child branch but
+    kept live within-child scales for the between-child model, which has neither
+    of them.
+    """
+    between = HJ.resolve_historical_joint_run_plan(_review_spec(within_correlation=False))
+    assert between.kappa_prior_sigma == 50.0
+    assert between.sigma_within_prior_sigma is None
+    assert between.within_lkj_eta is None
+
+    within = HJ.resolve_historical_joint_run_plan(
+        _review_spec(within_correlation=True, extension_waves=())
+    )
+    assert within.kappa_prior_sigma is None
+    assert within.sigma_within_prior_sigma == 0.5
+    assert within.within_lkj_eta == 2.0
+
+    # The factory is fed only the arguments its branch actually takes.
+    assert "kappa_prior_sigma" not in within.factory_kwargs()
+    assert "sigma_within_prior_sigma" not in between.factory_kwargs()
+
+
+def test_a_kappa_scale_is_rejected_on_the_within_child_branch():
+    """Finding 10: an explicitly-declared setting must never be silently discarded."""
+    with pytest.raises(ValueError, match="no effect when within_correlation is true"):
+        HJ.HistoricalJointModelSettings(
+            within_correlation=True, kappa_prior_sigma=25.0
+        )
+    # The default is not a declaration, so it stays acceptable.
+    HJ.HistoricalJointModelSettings(within_correlation=True)
+
+
+def test_declared_waves_are_checked_against_the_measure_catalogue():
+    """Finding 10: the joint resolver checks every measure's available window."""
+    with pytest.raises(ValueError, match="no data at waves"):
+        HJ.resolve_historical_joint_run_plan(
+            _review_spec(measures=("basread", "basmat"), waves=(1, 2, 3))
+        )
+    # basmat is wave-3+ only; a window inside it resolves.
+    HJ.resolve_historical_joint_run_plan(
+        _review_spec(measures=("basread", "basmat"), waves=(3, 4), extension_waves=(5,))
+    )
+
+
+def test_within_child_estimand_records_the_attenuation_and_scale_limits():
+    """Finding 6: the structural limits belong in the estimand of record.
+
+    The within-child residual carries the measurement noise (no Beta-Binomial
+    concentration term in that branch) and the double centring shrinks the
+    realised departures below ``sigma_within``. Both reach ``model_recipe.md``
+    and ``config.json`` through the plan's estimand string.
+    """
+    plan = HJ.resolve_historical_joint_run_plan(_review_spec(within_correlation=True))
+    estimand = plan.estimand.lower()
+    assert "measurement noise" in estimand
+    assert "attenuates" in estimand
+    assert "sigma_within" in estimand
+    # The between-child branch makes no such claim: it fits kappa separately.
+    between = HJ.resolve_historical_joint_run_plan(_review_spec(within_correlation=False))
+    assert "measurement noise" not in between.estimand.lower()
+
+
+def test_registered_joint_models_declare_windows_their_measures_support():
+    """Every registered declaration resolves under the new catalogue check."""
+    for model_id in ("lrp-rlm-jc-001", "lrp-rlm-jc-002"):
+        module = importlib.import_module(
+            "language_reading_predictors.statistical_models."
+            + model_id.replace("-", "_")
+        )
+        plan = HJ.resolve_historical_joint_run_plan(module.SPEC)
+        assert plan.model_id == model_id

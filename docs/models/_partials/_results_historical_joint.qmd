@@ -39,7 +39,7 @@ if within is not None:
     scale = _csv("within_scale_summary.csv")
     if scale is not None:
         display(Markdown("#### Residual-scale identifiability"))
-        display(Markdown("A correlation is not substantively interpretable when either measure's wave-specific residual variance collapses to zero. `prob_above_minimum` is the posterior probability that the residual standard deviation exceeds the deliberately small 0.05-logit identifiability threshold; `resolvable` requires at least 0.95 support. This is not a minimum important effect threshold."))
+        display(Markdown("A correlation is not substantively interpretable when either measure's wave-specific residual variance collapses to zero. `prob_above_minimum` is the posterior probability that the residual standard deviation exceeds the deliberately small 0.05-logit identifiability threshold; `resolvable` requires at least 0.95 support. This is not a minimum important effect threshold. `median` is the fitted scale parameter `sigma_within`; `realised_departure_sd_median` is the spread of the departures the model actually carries, which is smaller because those departures are constrained to average to zero within each child and within each group-by-wave cell. **This residual also carries the measurement noise.** The likelihood here is Binomial rather than Beta-Binomial, so true wave-to-wave fluctuation and measurement error are a single term that cannot be separated; independent measurement noise attenuates the correlations below toward zero by an amount the model cannot estimate, so an unresolvable pair means this design cannot see co-fluctuation, not that there is none. The correlations themselves are unaffected by the centring, since the same constraint is applied to every measure."))
         display(scale)
     display(Markdown("The latent within-child correlation asks whether a wave when a child is above their own stable level on one measure is also an above-level wave on another, after removing the group-by-wave mean. `median` is the posterior correlation on the logit scale; `lo50`/`hi50` and `lo`/`hi` are the inner 50% and outer 89% credible intervals; `prob_pos` is its posterior probability of being positive. `pair_resolvable` must be true before interpreting a row; false means at least one residual scale is not distinguishable from measurement noise."))
     display(within)
@@ -78,9 +78,12 @@ for _m in _jc_measures:
     display(_growth if _growth is not None else Markdown("No growth summary."))
 ```
 
-- `posterior_population_mean` (+ `q_lo` / `q_hi`): expected item score for the
-  group-by-wave cell on the population mean; `observed_complete_case_mean` is
-  the observed mean it is calibrated against.
+- `posterior_mean` (+ `posterior_q_lo` / `posterior_q_hi`): expected item score
+  for the group-by-wave cell, averaged over the children in it;
+  `observed_cell_mean` is the observed mean it is calibrated against and
+  `posterior_mean_minus_observed_mean` is the gap. `posterior_median_child_mean`
+  is a different quantity — the level for a mid-group child rather than the cell
+  average — and is not a calibration target.
 - Growth rows: `mean` (+ `q_lo` / `q_hi`) is posterior growth in items over
   the interval, computed on the `n_subjects` children observed at both
   endpoint waves; `p_gt_0` is the posterior probability it is positive.

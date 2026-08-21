@@ -33,6 +33,8 @@ from language_reading_predictors.statistical_models.datasets import resolve_data
 __all__ = [
     "HistoricalGrowthModelSettings",
     "HistoricalGrowthRunPlan",
+    "check_declared_waves",
+    "check_extension_after_core",
     "declared_historical_growth_settings",
     "evaluate_historical_growth_influence_bundle",
     "exclude_historical_growth_observations",
@@ -92,6 +94,65 @@ def _positive_float(value: Any, *, name: str) -> float:
     return out
 
 
+def check_declared_waves(
+    catalogue: Mapping[str, Any],
+    measures: Collection[str],
+    *,
+    model_id: str,
+    waves: Collection[int],
+    extension_waves: Collection[int],
+) -> None:
+    """Reject a wave a measure was never administered at, before any data I/O.
+
+    The study catalogue records ``available_waves`` per measure, and the
+    ``concurrent`` and ``growth`` resolvers already check declarations against
+    it. Neither historical family did (2026-08-21 review, finding 10). A core
+    wave a measure lacks empties the complete-case panel and fails late and
+    loudly; an *extension* wave it lacks fails silently — the loader simply
+    appends no rows, and the report then shows a wave of zero ``n`` that reads
+    as total attrition rather than as a declaration error.
+    """
+    for symbol in measures:
+        measure = catalogue.get(symbol)
+        available = tuple(getattr(measure, "available_waves", ()) or ())
+        if not available:
+            # The catalogue does not record a window for this measure; nothing
+            # to check against (an unset window is not an empty one).
+            continue
+        for label, declared in (
+            ("waves", waves),
+            ("extension_waves", extension_waves),
+        ):
+            absent = sorted(set(declared) - set(available))
+            if absent:
+                raise ValueError(
+                    f"{model_id}: {symbol!r} has no data at {label} {absent}; "
+                    f"the catalogue records available_waves={list(available)}"
+                )
+
+
+def check_extension_after_core(
+    waves: Collection[int],
+    extension_waves: Collection[int],
+) -> None:
+    """Reject an "extension" wave that precedes the complete-case core window.
+
+    The family's own plan text, its ``window`` labels and the reports' prose all
+    describe the extension as a later, attrition-selected follow-up tail; a
+    declared extension wave *before* the core would make every one of them wrong
+    (2026-08-21 review, finding 10).
+    """
+    if not extension_waves or not waves:
+        return
+    last_core = max(waves)
+    early = sorted(wave for wave in extension_waves if wave < last_core)
+    if early:
+        raise ValueError(
+            f"extension_waves {early} precede the last complete-case core wave "
+            f"{last_core}; extension waves are a later follow-up tail"
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class HistoricalGrowthModelSettings:
     """Immutable declaration for one historical-cohort growth model."""
@@ -116,6 +177,7 @@ class HistoricalGrowthModelSettings:
         overlap = sorted(set(self.waves) & set(self.extension_waves))
         if overlap:
             raise ValueError(f"extension_waves overlap the complete-case core waves: {overlap}")
+        check_extension_after_core(self.waves, self.extension_waves)
         for name in (
             "eta_prior_sigma",
             "sigma_subject_prior_sigma",
@@ -287,6 +349,13 @@ def resolve_historical_growth_run_plan(spec: ModelSpec) -> HistoricalGrowthRunPl
             f"{spec.model_id}: outcome_symbol={spec.outcome_symbol!r} contradicts "
             f"historical_growth measure={settings.measure!r}"
         )
+    check_declared_waves(
+        catalogue,
+        (settings.measure,),
+        model_id=spec.model_id,
+        waves=settings.waves,
+        extension_waves=settings.extension_waves,
+    )
 
     return HistoricalGrowthRunPlan(
         model_id=spec.model_id,

@@ -49,7 +49,14 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from language_reading_predictors.statistical_models.registry import discover_models
 from language_reading_predictors.statistical_models.sensitivity import sha256_file
 
-PARETO_FILENAME = "pareto_k.csv"
+# The fit writes its own required, manifest-recorded ``pareto_k.csv``; this audit
+# must not overwrite it. Overwriting left the fit's manifest describing a file
+# with different columns, and made the bundle's ``primary_pareto_k_sha256`` a
+# hash of the script's own output rather than of a primary-fit artefact
+# (2026-08-21 historical-families review, finding 11). Write the enriched
+# row-mapped table under its own name instead.
+PARETO_FILENAME = "pareto_k_rows.csv"
+PRIMARY_PARETO_FILENAME = "pareto_k.csv"
 SUMMARY_FILENAME = "historical_growth_influence_sensitivity.csv"
 PROVENANCE_FILENAME = "historical_growth_influence_provenance.json"
 TRACE_FILENAME = "trace_historical_growth_influence_sensitivity.nc"
@@ -162,8 +169,14 @@ def run(
     primary_trace = az.from_netcdf(primary_trace_path)
     loo = az.loo(primary_trace, pointwise=True)
     pareto = historical_growth_pareto_table(panel, loo, measure=plan.measure)
-    pareto_path = model_dir / PARETO_FILENAME
-    _atomic_write_csv(pareto, pareto_path)
+    _atomic_write_csv(pareto, model_dir / PARETO_FILENAME)
+    # Hash the fit's OWN untouched table, so the bundle is bound to a primary-fit
+    # artefact rather than to something this run just wrote.
+    pareto_path = model_dir / PRIMARY_PARETO_FILENAME
+    if not pareto_path.is_file():
+        raise FileNotFoundError(
+            f"required completed-fit artefact is missing: {pareto_path}"
+        )
     flagged = pareto.loc[~pareto["loo_reliable"]].copy()
 
     base_provenance: dict[str, Any] = {

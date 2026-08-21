@@ -58,6 +58,13 @@ _PPC_FAMILY_OWN_OVERLAY_KINDS = {"joint"}
 _PPC_BINARY_NODES = {"y_offfloor", "y_event"}
 # Bounded-count outcome nodes that take the count-interval treatment.
 _PPC_COUNT_NODES = {"y_post", "y_obs", "score"}
+# Families carrying one bounded-count likelihood node PER MEASURE (rather than one
+# node flattening several). Their node names are measure-suffixed, so they used to
+# miss ``_PPC_COUNT_NODES`` by name and fall through to the measurement/latent
+# overlay — publishing no coverage statistic and no calibration panel, and pooling
+# denominators of 90/32/34 on one axis (2026-08-21 historical-families review,
+# finding 4). They take the count treatment once per node instead.
+_PPC_PER_NODE_KINDS = {"historical_joint"}
 
 
 def save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") -> None:
@@ -69,6 +76,9 @@ def save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") ->
     """
     node = primary_node
     symbol = context.spec.outcome_symbol
+    if context.spec.kind in _PPC_PER_NODE_KINDS:
+        _save_per_node_count_ppc(context)
+        return
     if node in _PPC_BINARY_NODES:
         _save_offfloor_ppc(context, node, symbol)
     elif node in _PPC_COUNT_NODES:
@@ -102,6 +112,65 @@ def _save_count_ppc(
         _save_multi_outcome_ppc_overlays(context, node, kind)
     else:
         _ppc_overlay_figure(context, node, symbol)
+
+
+def _save_per_node_count_ppc(context: StatisticalFitContext) -> None:
+    """Count-interval coverage, calibration and overlay, once per likelihood node.
+
+    For a family with one bounded-count node per measure, the coverage schema's
+    ``node`` column already distinguishes the measures, so the per-node frames
+    concatenate into one ``ppc_summary.csv`` and ``ppc_coverage_markdown`` pools
+    them by summing counts. Calibration and overlay figures are per measure —
+    the denominators differ, so a shared axis would be meaningless.
+
+    Node names come from the resolved run plan rather than being re-derived, so a
+    reconstructed ordering cannot silently misalign a measure with another's
+    counts. Every sub-step is independently guarded, as in the single-node route.
+    """
+    plan = getattr(context, "resolved_plan", None)
+    nodes = tuple(str(n) for n in (getattr(plan, "observation_nodes", ()) or ()))
+    symbols = tuple(str(m) for m in (getattr(plan, "measures", ()) or ()))
+    if not nodes or len(symbols) != len(nodes):
+        rprint(
+            "[yellow]PPC per-node coverage unavailable "
+            f"(nodes={nodes or None}, measures={symbols or None}); "
+            "falling back to the pooled overlay.[/yellow]"
+        )
+        _save_legacy_ppc_overlay(context)
+        return
+
+    frames: list[pd.DataFrame] = []
+    with guard_optional(
+        context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
+    ):
+        for node in nodes:
+            frames.append(_report.ppc_interval_coverage(context.trace, node=node))
+        save_table(
+            context, "ppc_summary", pd.concat(frames, ignore_index=True), required=False
+        )
+
+    for position, (node, symbol) in enumerate(zip(nodes, symbols, strict=True)):
+        stem = (
+            "ppc_calibration"
+            if position == 0
+            else f"ppc_calibration_{symbol.lower()}"
+        )
+        with guard_optional(
+            context, f"PPC calibration table ({symbol})",
+            filename=f"{stem}.csv", kind="figure", verb="skipped",
+        ):
+            cal = _report.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
+            _ppc_calibration_figure(context, symbol, cal, filename_stem=stem)
+        _ppc_overlay_figure(
+            context,
+            node,
+            symbol,
+            filename_stem=(
+                "posterior_predictive_check"
+                if position == 0
+                else f"posterior_predictive_check_{symbol.lower()}"
+            ),
+        )
 
 
 def _save_multi_outcome_ppc_overlays(
@@ -195,9 +264,26 @@ def _offfloor_group_labels(context: StatisticalFitContext) -> np.ndarray | None:
     return arm
 
 
-def _ppc_measure_label(symbol: str | None) -> tuple[str, int | None]:
-    """Human label + denominator for the PPC axes (falls back gracefully)."""
+def _ppc_measure_label(
+    symbol: str | None, study_id: str | None = None
+) -> tuple[str, int | None]:
+    """Human label + denominator for the PPC axes (falls back gracefully).
+
+    ``study_id`` routes a non-RLI symbol to its own study catalogue, so a Byrne
+    measure gets its real label and ceiling on the axis instead of the bare
+    symbol and an inferred limit.
+    """
     measure = MEASURES.get(symbol) if symbol else None
+    if measure is None and symbol and study_id and study_id != "rli":
+        try:
+            from language_reading_predictors.statistical_models.datasets import (
+                resolve_dataset,
+            )
+
+            _dataset, catalogue = resolve_dataset(study_id)
+            measure = catalogue.get(symbol)
+        except (KeyError, TypeError):  # pragma: no cover - defensive
+            measure = None
     if measure is not None:
         return measure.label, int(measure.n_trials)
     return (symbol or "outcome"), None
@@ -232,7 +318,9 @@ def _ppc_overlay_figure(
             y_rep, y_obs = y_rep[row_mask], y_obs[row_mask]
         finite = np.isfinite(y_obs)
         y_rep, y_obs = y_rep[finite], y_obs[finite]
-        label, n_trials = _ppc_measure_label(symbol)
+        label, n_trials = _ppc_measure_label(
+            symbol, getattr(context.spec, "study_id", None)
+        )
         hi = int(n_trials) if n_trials else int(max(y_obs.max(), y_rep.max()))
         bins = np.arange(0, hi + 2) - 0.5  # integer-centred bins
         centers = 0.5 * (bins[:-1] + bins[1:])
@@ -271,20 +359,27 @@ def _ppc_overlay_figure(
 
 
 def _ppc_calibration_figure(
-    context: StatisticalFitContext, symbol: str | None, cal: pd.DataFrame
+    context: StatisticalFitContext,
+    symbol: str | None,
+    cal: pd.DataFrame,
+    *,
+    filename_stem: str = "ppc_calibration",
 ) -> None:
     """Per-observation calibration panel: observed vs posterior-predictive median.
 
     Observed score (x) against the predictive median with a 90% interval (y) and a
     ``y = x`` diagonal; points off the diagonal are directly-readable mis-fits, and
     observations whose observed score falls outside the 90% range are flagged.
-    Writes ``ppc_calibration.png`` (+ the per-observation data CSV).
+    Writes ``ppc_calibration.png`` (+ the per-observation data CSV); a per-measure
+    caller passes its own ``filename_stem`` so the panels do not overwrite.
     """
     with guard_optional(
         context, "PPC calibration figure",
-        filename="ppc_calibration.png", kind="figure", verb="failed",
+        filename=f"{filename_stem}.png", kind="figure", verb="failed",
     ):
-        label, n_trials = _ppc_measure_label(symbol)
+        label, n_trials = _ppc_measure_label(
+            symbol, getattr(context.spec, "study_id", None)
+        )
         obs = cal["observed"].to_numpy(float)
         med = cal["pp_median"].to_numpy(float)
         lo = cal["pp_lo"].to_numpy(float)
@@ -306,7 +401,7 @@ def _ppc_calibration_figure(
         plt.ylabel("posterior-predictive median (90% range)")
         plt.title(f"Per-observation calibration: {label}")
         plt.legend(fontsize=8)
-        save_styled_figure(context.output_dir, "ppc_calibration", data=cal)
+        save_styled_figure(context.output_dir, filename_stem, data=cal)
 
 
 def _ppc_offfloor_figure(

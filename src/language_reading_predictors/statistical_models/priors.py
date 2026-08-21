@@ -725,15 +725,28 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # the headline between-child cross-measure correlation — association parameters
     # rather than unreported covariance plumbing.
     if (
-        base in {"trait_corr_chol", "measure_corr_chol", "factor_corr_chol"}
+        base
+        in {
+            "trait_corr_chol",
+            "measure_corr_chol",
+            # The RLM joint-growth within-child block's Cholesky induces
+            # ``within_corr``, the headline estimand of lrp-rlm-jc-002 — an
+            # association, exactly like its between-child sibling above. It was
+            # dropping to role='other' with an empty rationale, published in the
+            # report's own priors table (2026-08-21 review, finding 7).
+            "within_corr_chol",
+            "factor_corr_chol",
+        }
         or base.startswith("state_corr_chol_w")
     ):
         return ("association", "")
     # RLM historical-growth / joint-growth bespoke offsets and level grid: the
-    # per-subject non-centred offsets ``z_subject`` and the group-by-wave
-    # population level grid ``eta_cell`` are intercept-class nuisances (the reported
-    # cells/intervals are deterministics of ``eta_cell``), not skill couplings.
-    if base in {"z_subject", "eta_cell"}:
+    # per-subject non-centred offsets ``z_subject``, the per-row within-child
+    # offsets ``z_within`` and the group-by-wave population level grid
+    # ``eta_cell`` are intercept-class nuisances (the reported cells/intervals are
+    # deterministics of ``eta_cell``, and the reported correlations are carried by
+    # the Cholesky blocks above), not skill couplings.
+    if base in {"z_subject", "eta_cell", "z_within"}:
         return ("nuisance", "")
     # Latent growth-curve (LRP69/70/85) random-effect offsets and the shared
     # growth-tempo factor scores: non-centred standard normals whose meaning is
@@ -876,6 +889,29 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
             f"LKJ(eta=2) prior on the Cholesky factor of the between-child "
             f"cross-measure correlation ({fitted}); R = chol @ chol.T is the headline "
             "reading-language-memory coupling estimand."
+        )
+    if base == "within_corr_chol":
+        return (
+            f"LKJ prior on the Cholesky factor of the WITHIN-child cross-measure "
+            f"correlation of wave-specific departures ({fitted}); "
+            "within_corr = chol @ chol.T is the headline estimand of the "
+            "within-child companion. Interpretable only for a measure pair whose "
+            "residual scales are resolvable."
+        )
+    if base == "z_within":
+        return (
+            f"Non-centred standard-normal per-row, per-measure within-child offsets "
+            f"({fitted}); correlated through within_corr_chol, double-centred within "
+            "child and within group-by-wave cell, and scaled by sigma_within."
+        )
+    if base == "sigma_within":
+        return (
+            f"Scale of the wave-specific within-child departure on the logit scale "
+            f"({fitted}). This model's likelihood is Binomial rather than "
+            "Beta-Binomial, so this term carries ALL extra-Binomial variance — true "
+            "within-child fluctuation and measurement noise together — and the "
+            "double sum-to-zero centring makes the realised departure SD smaller "
+            "than this parameter."
         )
     if base in {"z_intercept", "z_slope"}:
         which = "intercept" if base == "z_intercept" else "slope"
