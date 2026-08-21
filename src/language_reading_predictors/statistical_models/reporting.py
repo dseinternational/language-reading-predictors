@@ -6968,14 +6968,26 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
     df = _kf_csv(output_dir, "joint_mechanism_slopes.csv")
     if df is None:
         raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv is missing")
-    for column in ("wave", "term", "median", "lo50", "hi50", "lo", "hi", "prob_pos"):
+    for column in (
+        "wave", "term", "median", "lo50", "hi50", "lo", "hi", "prob_pos", "converged",
+    ):
         if column not in df.columns:
             raise _KeyFindingsUnavailable(
                 f"joint_mechanism_slopes.csv has no {column!r} column"
             )
+    # The per-wave sub-fits publish flagged, never silently dropped — but the
+    # gate-interlocked findings box must not headline (or range over) a wave whose
+    # fit did not converge, exactly as the concurrent builder filters its per-wave
+    # marginals (2026-08-21 joint-mechanism review, finding 4). The fit-level
+    # release gate covers only the diagnostic-anchor wave.
+    converged_rows = df["converged"].astype(str).str.lower().isin({"true", "1"})
+    excluded_waves = [str(w) for w in df.loc[~converged_rows, "wave"].drop_duplicates()]
+    df = df[converged_rows]
     delta = df[df["term"] == "delta_ls_decoding"]
     if delta.empty:
-        raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv has no delta row")
+        raise _KeyFindingsUnavailable(
+            "joint_mechanism_slopes.csv has no converged delta_ls_decoding row"
+        )
     waves = [str(w) for w in df["wave"].drop_duplicates()]
     per_wave = len(waves) > 1
     # The family's own keys live under ``extra``; the top-level ``design`` is the
@@ -7035,8 +7047,8 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
     if hi_row is not None and lo_row is not None:
         sentences.append(
             _kf_sentence(
-                f"The two letter-sound slopes{where}: nonword decoding "
-                f"{_kf_jm_interval(hi_row)} versus word reading "
+                f"The two letter-sound slopes{where}: {_kf_measure_label(hi_sym)} "
+                f"{_kf_jm_interval(hi_row)} versus {_kf_measure_label(lo_sym)} "
                 f"{_kf_jm_interval(lo_row)}, on one commensurate logit-per-SD scale.",
                 "detail",
             )
@@ -7054,21 +7066,23 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
         tail = ""
         if not lead_cond.empty:
             tail = (
-                f" At {lead_wave} the letter-sound slope on word reading holding "
-                f"decoding fixed is {_kf_jm_interval(lead_cond.iloc[0])} logit per SD."
+                f" At {lead_wave} the letter-sound slope on "
+                f"{_kf_measure_label(lo_sym)} holding {_kf_measure_label(hi_sym)} "
+                f"fixed is {_kf_jm_interval(lead_cond.iloc[0])} logit per SD."
             )
         # Stated as a measured fraction, not as "it survives": the direction is the
         # fit's to report, and a share near zero would make the claim false.
         sentences.append(
             _kf_sentence(
-                "Holding nonword decoding fixed, the identified share of the "
-                f"letter-sound → word-reading association retained is {by_wave} "
-                f"(median {min(shares):.2f}–{max(shares):.2f} across waves).{tail} "
+                f"Holding {_kf_measure_label(hi_sym)} fixed, the identified share "
+                f"of the letter-sound → {_kf_measure_label(lo_sym)} association "
+                f"retained is {by_wave} (median {min(shares):.2f}–{max(shares):.2f} "
+                f"across waves).{tail} "
                 "This replaces the paired-draws ratio of two separate fits; it "
-                "partials the *latent* decoding skill, so it retains less than a "
-                "version conditioning on the observed nonword count. Read it as a "
-                "ratio — informative only while the unconditional slope stays clear "
-                "of zero.",
+                "partials the *latent* held-fixed skill, so it retains less than a "
+                "version conditioning on the observed count. Read it as a ratio — "
+                "informative only while the unconditional slope stays clear of "
+                "zero.",
                 "detail",
             )
         )
@@ -7088,6 +7102,23 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
                 )
             )
 
+    if design == "levels":
+        # A levels-scale reversal has a ready non-causal reading; the ANCOVA
+        # design's negative claim must not borrow it (2026-08-21 review).
+        negative_claim = (
+            "letter sounds track word reading more closely than pure "
+            "decoding, which on the levels scale is what a shared "
+            "reading-development / general-ability component would produce "
+            "and what the 6-item nonword floor would exaggerate (an adjusted "
+            "association, not a causal effect)"
+        )
+    else:
+        negative_claim = (
+            "letter sounds track word reading more closely than pure decoding "
+            "on this ANCOVA parameterisation — a reversal of the Tier-1 "
+            "contrast, to be read against the matched mech-096 / mech-101 pair "
+            "(an adjusted association, not a causal effect)"
+        )
     sentences.append(
         _kf_sentence(
             _kf_association_direction(
@@ -7097,17 +7128,21 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
                     "the mixed word-reading channel — the decoding-use signature (an "
                     "adjusted association, not a causal effect)"
                 ),
-                negative_claim=(
-                    "letter sounds track word reading more closely than pure "
-                    "decoding, which on the levels scale is what a shared "
-                    "reading-development / general-ability component would produce "
-                    "and what the 6-item nonword floor would exaggerate (an adjusted "
-                    "association, not a causal effect)"
-                ),
+                negative_claim=negative_claim,
             ),
             "confidence",
         )
     )
+    if excluded_waves:
+        sentences.append(
+            _kf_sentence(
+                f"Wave(s) {', '.join(excluded_waves)} did not meet the convergence "
+                "gate; their rows are published flagged in "
+                "joint_mechanism_slopes.csv but are excluded from every number "
+                "above.",
+                "detail",
+            )
+        )
     return sentences
 
 

@@ -39,7 +39,7 @@ slopes = _csv("joint_mechanism_slopes.csv")
 slopes if slopes is not None else "No joint-mechanism slope table."
 ```
 
-_How to read the table:_ one row per fitted wave and term. `median` is the posterior median; `lo50`/`hi50` the inner 50% and `lo`/`hi` the outer 89% equal-tailed credible interval; `prob_pos` the posterior probability the quantity exceeds zero. `beta_mech[·]` are the per-outcome letter-sound slopes on one commensurate logit-per-SD scale; `delta_ls_decoding` is their identified difference; `rho_outcome` is the cross-outcome correlation of the dependence block; `beta_mech_focal_given_held` and `share_retained` (levels design only) are the letter-sound → word-reading slope holding decoding fixed and its ratio to the unconditional slope. `converged` must be true before a row is interpreted.
+_How to read the table:_ one row per fitted wave and term. `median` is the posterior median; `lo50`/`hi50` the inner 50% and `lo`/`hi` the outer 89% equal-tailed credible interval; `prob_pos` the posterior probability the quantity exceeds zero. `beta_mech[·]` are the per-outcome letter-sound slopes on one commensurate logit-per-SD scale; `delta_ls_decoding` is their identified difference; `rho_outcome` is the cross-outcome correlation of the dependence block; `beta_mech_focal_given_held` and `share_retained` (levels design only) are the letter-sound → word-reading slope holding decoding fixed and its ratio to the unconditional slope. `converged` must be true before a row is interpreted — the prose below excludes any wave whose row fails it, and says so.
 
 ```{python}
 # | echo: false
@@ -52,13 +52,27 @@ def _fmt(row):
 
 
 if slopes is not None and len(slopes):
+    # A wave whose sub-fit failed the convergence gate is published flagged in the
+    # table above, but must not lead or enter the prose selections below.
+    _conv_mask = slopes["converged"].astype(str).str.lower().isin({"true", "1"})
+    _excluded_waves = [str(w) for w in slopes.loc[~_conv_mask, "wave"].drop_duplicates()]
+    slopes = slopes[_conv_mask]
+    _contrast = list(_extra.get("contrast") or ["N", "W"])
+    if _excluded_waves:
+        print(
+            f"**Excluded from the prose below:** wave(s) {', '.join(_excluded_waves)} "
+            "did not meet the convergence gate; their rows remain in the table, "
+            "flagged.\n"
+        )
+if slopes is not None and len(slopes):
     _waves = [str(w) for w in slopes["wave"].drop_duplicates()]
     _delta = slopes[slopes["term"] == "delta_ls_decoding"]
     if len(_delta):
         _lead = _delta.iloc[(_delta["prob_pos"] - 0.5).abs().argmax()]
         _at = f" at {_lead['wave']}" if len(_waves) > 1 else ""
         print(
-            f"**Identified decoding-specificity contrast (Δ = β[N] − β[W]).** "
+            f"**Identified decoding-specificity contrast "
+            f"(Δ = β[{_contrast[0]}] − β[{_contrast[1]}]).** "
             f"{_fmt(_lead)} logit per SD{_at}; P(Δ > 0) = {_lead['prob_pos']:.3f}."
         )
         if len(_waves) > 1:
@@ -191,6 +205,19 @@ _Each outcome is checked on its own denominator_ (word reading over 79 items, no
 # | output: asis
 print(_img("posterior_predictive_check.png", "Posterior predictive check — word reading"))
 print(_img("posterior_predictive_check_n.png", "Posterior predictive check — nonword decoding"))
+# The second outcome's prior-predictive companion: the shared prior-predictive
+# partial shows only the unsuffixed word-reading figure, and a generated file no
+# partial displays is a silent gap (2026-08-21 review, finding 7).
+print(
+    _img(
+        "prior_predictive_check_n.png",
+        "Prior predictive check — nonword decoding",
+    )
+)
+# Per-outcome LOO-PIT (transition design only — the levels design computes no
+# PSIS-based diagnostics; see the note below). The word-reading `loo_pit.png` is
+# already shown in the technical section; this is its nonword sibling.
+print(_img("loo_pit_n.png", "LOO-PIT calibration — nonword decoding"))
 ```
 
 ```{python}
@@ -213,5 +240,25 @@ if jm_marginal is not None and len(jm_marginal):
         "predictive for a **new** child with the same covariates — and gives "
         f"{_lines}. Coverage close to the nominal level there is the check that could "
         "actually have failed."
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _design == "levels":
+    print(
+        "\n**Why there is no PSIS-LOO for this design.** The same saturation "
+        "applies to importance-sampled leave-one-out: each child's bivariate "
+        "residual is informed almost solely by that child's own two cells, so "
+        "leave-one-child-out importance ratios fail their Pareto-k diagnostics "
+        "en masse (a prior fit showed more effective parameters than "
+        "observations and 48 of 53 children flagged). PSIS-LOO — and the "
+        "LOO-PIT built on the same weights — is therefore not computed at all "
+        "for the levels design, rather than published as a check that cannot "
+        "work; predictive assessment rests on the conditional and new-child "
+        "checks above. The transition companion, whose dependence sits at the "
+        "child level over three transitions, keeps its leave-one-child-out "
+        "PSIS-LOO."
     )
 ```

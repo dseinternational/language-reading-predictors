@@ -159,6 +159,9 @@ def test_default_levels_plan_preserves_execution_contract():
     ]
     assert plan.likelihood == "binomial"
     assert plan.min_wave_rows == 10
+    # Saturated per-child residual: PSIS-LOO is not computed for this design
+    # (2026-08-21 joint-mechanism review, finding 2).
+    assert plan.compute_loo is False
 
 
 def test_transition_plan_owns_loader_factory_and_diagnostics():
@@ -182,6 +185,9 @@ def test_transition_plan_owns_loader_factory_and_diagnostics():
         "outcomes": ("W", "N", "L"),
         "covariates": ("attend",),
         "post_covariates": ("hs", "hs_missing", "deapp_c", "deapp_c_missing"),
+        # Only the two fitted baselines are required — without this the loader's
+        # default would also demand the mechanism's unused period-start score.
+        "pre_required": ("W", "N"),
     }
     assert plan.factory_kwargs() == {
         "design": "transition",
@@ -231,6 +237,10 @@ def test_transition_plan_owns_loader_factory_and_diagnostics():
     ]
     assert plan.likelihood == "beta_binomial"
     assert plan.min_wave_rows is None
+    # Child-level dependence over three transitions: leave-one-child-out LOO is
+    # meaningful here (via the factory's ``loo_child_idx`` map) and stays on.
+    assert plan.compute_loo is True
+    assert plan.loo_unit == "child"
 
 
 @pytest.mark.parametrize(
@@ -340,6 +350,9 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     assert "validated joint-mechanism run plan" in text
     assert "Adjusted association only" in text
     assert "zero-divergence convergence gate" in text
+    # The default (levels) plan computes no PSIS-LOO and the recipe says why.
+    assert "PSIS-LOO is not computed" in text
+    assert "saturated per-child latent" in text
 
 
 def test_pipeline_has_no_direct_joint_mechanism_setting_reads():

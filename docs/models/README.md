@@ -61,7 +61,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity      |
 | 2     | Aligned per-protocol (`lrp-rli-al`)                           | Onset-aligned single 40-week gain per child (associational)                                                                      |
 | 2     | Mechanism (`lrp-rli-mech`)                                    | Adjusted dose-response of one skill on another                                                                                   |
-| 2     | Joint bivariate mechanism (`lrp-rli-jm`)                      | One exposure → two outcomes jointly (shared child intercept); identified decoding-specificity contrast                           |
+| 2     | Joint bivariate mechanism (`lrp-rli-jm`)                      | One exposure → two outcomes jointly (LKJ cross-outcome dependence block); identified decoding-specificity contrast               |
 | 2     | Mediation (`lrp-rli-med`; natural + interventional g-formula) | How much of an intervention-outcome contrast runs through a given skill                                                          |
 | 2     | Predictor / dynamics (`lrp-rli-adj`, `lcsm`, `dose`)          | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading          |
 | 2     | Horseshoe ranking cross-check (`lrp-rli-hs`)                  | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                           |

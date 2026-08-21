@@ -27,6 +27,7 @@ def effective_adjustment(
     requested_adjust_for: tuple[str, ...] | None = None,
     ability_covariate: str | None = None,
     baseline_symbol: str | None = None,
+    baseline_symbols: tuple[str, ...] = (),
     skill_baselines: tuple[str, ...] = (),
 ) -> dict:
     """Describe the adjustment set the model **actually fitted**.
@@ -139,6 +140,20 @@ def effective_adjustment(
                 "term": f"{baseline_symbol}_pre",
                 "kind": "autoregressive_baseline",
                 "source_column": prepared.column_map.get(baseline_symbol, baseline_symbol),
+                "wave": "pre",
+                "missing_indicator": False,
+            }
+        )
+    for s in baseline_symbols:
+        # Multi-outcome ANCOVA (the joint-mechanism transition design): each
+        # jointly fitted outcome keeps its own autoregressive baseline, so the
+        # record carries one term per outcome rather than the singular
+        # ``baseline_symbol``.
+        terms.append(
+            {
+                "term": f"{s}_pre",
+                "kind": "autoregressive_baseline",
+                "source_column": prepared.column_map.get(s, s),
                 "wave": "pre",
                 "missing_indicator": False,
             }

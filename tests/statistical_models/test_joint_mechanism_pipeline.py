@@ -205,8 +205,10 @@ def test_registered_specs_declare_their_designs_and_comparators():
     levels = resolve_joint_mechanism_run_plan(JM001)
     transition = resolve_joint_mechanism_run_plan(JM002)
     assert levels.design == "levels"
-    # ca-010 / ca-011 adjust for block design and hearing at a Normal(0, 0.3) slope.
-    assert levels.declared_adjustment == ("blocks", "hs")
+    # ca-010 / ca-011 adjust for block design and hearing — including the
+    # hs_missing indicator the missing-indicator policy pairs with the filled hs
+    # (2026-08-21 joint-mechanism review, finding 1) — at a Normal(0, 0.3) slope.
+    assert levels.declared_adjustment == ("blocks", "hs", "hs_missing")
     assert levels.predictor_slope_sigma == 0.3
 
     assert transition.design == "transition"
@@ -349,6 +351,47 @@ def test_primary_plan_declares_psense_and_writes_custom_diagnostics(
     assert _silent_diagnostics["loo_pit"] == [("W", "beta_mech"), ("N", "beta_mech")]
     # No marginal companion unless the design asks for one.
     assert not (tmp_path / "ppc_summary_marginal.csv").exists()
+
+
+def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
+    """The saturated levels design computes no PSIS-LOO: the plan must skip both
+    PSIS-based artefacts (LOO and the per-outcome LOO-PIT built on the same
+    weights) while still attaching the log-density groups power scaling needs —
+    the mediation families' no-LOO route (2026-08-21 review, finding 2)."""
+    plan = _jm_primary_fit_plan(
+        outcome_symbols=_OUTCOMES,
+        diag_vars=["beta_mech"],
+        psense_vars=["beta_mech"],
+        compute_loo=False,
+    )
+    assert plan.compute_loo is False
+    assert plan.post_extended_audit is None
+    assert plan.post_sampling_audit is not None
+
+    calls: list = []
+
+    class _Diag:
+        @staticmethod
+        def compute_log_likelihood_and_prior(ctx, *, strict):
+            calls.append(strict)
+
+    real = _jm_pipeline._diag
+    try:
+        _jm_pipeline._diag = _Diag
+        plan.post_sampling_audit(SimpleNamespace())
+    finally:
+        _jm_pipeline._diag = real
+    assert calls == [False]
+
+    with_loo = _jm_primary_fit_plan(
+        outcome_symbols=_OUTCOMES,
+        diag_vars=["beta_mech"],
+        psense_vars=["beta_mech"],
+        compute_loo=True,
+    )
+    assert with_loo.compute_loo is True
+    assert with_loo.post_extended_audit is not None
+    assert with_loo.post_sampling_audit is None
 
 
 def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagnostics):

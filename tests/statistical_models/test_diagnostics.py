@@ -372,6 +372,31 @@ def test_marked_repeated_rows_are_aggregated_by_child():
     assert got.attrs["aggregation"] == "sum over repeated child rows"
 
 
+def test_marked_repeated_rows_ignore_per_row_G_for_the_unit_count():
+    """With ``loo_child_idx`` present the unit count comes from the map itself: a
+    per-observation ``G`` in a stacked repeated-row design has one entry per ROW,
+    and reading its size would append silent zero-likelihood phantom children to
+    the LOO (2026-08-21 joint-mechanism review, finding 3)."""
+    values = np.array([[[1.0, 2.0, 4.0], [10.0, 20.0, 40.0]]])
+    trace = xr.DataTree.from_dict(
+        {
+            "log_likelihood": xr.Dataset(
+                {"y_post": (("chain", "draw", "cell"), values)}
+            ),
+            "constant_data": xr.Dataset(
+                {
+                    "G": ("obs_id", np.array([1.0, 0.0, 1.0])),
+                    "loo_child_idx": ("cell", np.array([0, 1, 0])),
+                }
+            ),
+        }
+    )
+    got = diag._joint_log_likelihood_by_child(trace)
+    assert got is not None
+    assert got.sizes["loo_child"] == 2
+    np.testing.assert_allclose(got.values, [[[5.0, 2.0], [50.0, 20.0]]])
+
+
 def test_child_level_influence_maps_repeated_rows_to_one_subject():
     context = SimpleNamespace(
         loo=SimpleNamespace(

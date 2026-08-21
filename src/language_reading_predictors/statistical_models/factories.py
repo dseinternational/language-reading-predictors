@@ -1050,9 +1050,12 @@ def build_joint_mechanism_model(
     specifies. Expects a **single-wave** subset of the ``phase_mode="levels"`` frame
     (the pipeline slices ``prepared.phase == wave`` and calls once per wave), so there
     is one row per child. Each outcome's *level* is regressed on the standardised
-    same-wave letter-sound logit, age, a group nuisance and the trait covariates,
-    matched term-for-term to ``ca-010`` / ``ca-011`` so the identified share-retained
-    replaces their paired-draws ratio like for like. The likelihood is **Binomial**,
+    same-wave letter-sound logit, age, a group nuisance and the trait covariates
+    (including the ``hs_missing`` indicator — the missing-indicator policy pairs it
+    with the filled ``hs``), matched term-for-term to ``ca-010`` / ``ca-011`` —
+    covariate set, Normal(0, 0.3) slope prior and the wide Normal(0, 1) group
+    nuisance alike — so the identified share-retained replaces their paired-draws
+    ratio like for like. The likelihood is **Binomial**,
     not Beta-Binomial: the bivariate residual already models extra-binomial variance,
     and carrying ``kappa`` as well would leave two overdispersion mechanisms competing
     on the same row — the route by which the ITT joint's LKJ block went
@@ -1222,11 +1225,19 @@ def build_joint_mechanism_model(
 
         if include_group or "G" in confounder_symbols:
             # Group is a NON-INTERPRETABLE nuisance in the levels design (it only
-            # absorbs arm composition at the wave, as in build_concurrent_model); in
-            # the transition design it is the same arm term the mechanism family
-            # carries. Named per design so no consumer reads one as the other.
-            g_name = "beta_group_nuisance" if design == "levels" else "beta_G"
-            beta_G = _priors.tau_prior().to_pymc(g_name, dims="outcome")
+            # absorbs arm composition at the wave), on the same deliberately wide
+            # Normal(0, 1) build_concurrent_model uses — matching ca-010 / ca-011
+            # term-for-term is the design's warrant, and the first cut's tau_prior
+            # halved the width (2026-08-21 joint-mechanism review, finding 1). In
+            # the transition design it is the same tau-scaled arm term the
+            # mechanism family carries. Named per design so no consumer reads one
+            # as the other.
+            if design == "levels":
+                beta_G = pm.Normal(
+                    "beta_group_nuisance", mu=0.0, sigma=1.0, dims="outcome"
+                )
+            else:
+                beta_G = _priors.tau_prior().to_pymc("beta_G", dims="outcome")
             eta = eta + beta_G[None, :] * pt.shape_padright(G_d)
 
         if "A" in confounder_symbols:
@@ -1282,6 +1293,17 @@ def build_joint_mechanism_model(
         # for predictive checks (incompatible denominators are never pooled).
         pm.Data("y_post_cell_row", idx_row.astype("int64"), dims="cell")
         pm.Data("y_post_cell_outcome", idx_col.astype("int64"), dims="cell")
+        if design == "transition":
+            # Cell -> child map for genuine leave-one-child-out PSIS-LOO. Without
+            # it the shared aggregation falls back to ``y_post_cell_row``, whose
+            # rows here are child-by-transition rows — a defensible unit, but not
+            # the ``loo_unit="child"`` the run plan and recipe declare (2026-08-21
+            # joint-mechanism review, finding 3).
+            pm.Data(
+                "loo_child_idx",
+                prepared.child_idx.astype("int64")[idx_row],
+                dims="cell",
+            )
 
         mu = pm.math.clip(pm.math.sigmoid(eta), EPSILON, 1 - EPSILON)
         if design == "levels":

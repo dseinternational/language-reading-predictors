@@ -1072,6 +1072,14 @@ def test_joint_mechanism_transition_uses_bivariate_child_intercept(tmp_path):
     assert built.payload.joint_dependence == "lkj_child_intercept"
     assert built.payload.likelihood == "beta_binomial"
 
+    # Cell -> child map for genuine leave-one-child-out PSIS-LOO — without it the
+    # shared aggregation falls back to child-by-transition rows while the run plan
+    # declares loo_unit="child" (2026-08-21 joint-mechanism review, finding 3).
+    rows = built.model["y_post_cell_row"].eval()
+    loo_map = built.model["loo_child_idx"].eval()
+    np.testing.assert_array_equal(loo_map, built.prepared.child_idx[rows])
+    assert int(loo_map.max()) + 1 == built.prepared.n_children
+
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=9)
     assert pp.prior_predictive["y_post"].shape[-1] > built.prepared.n_obs
