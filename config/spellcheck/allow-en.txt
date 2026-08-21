@@ -396,6 +396,7 @@ myvar
 Naess
 Nalavany
 ncol
+nanmax
 ndarray
 networkx
 NeurIPS
@@ -615,6 +616,7 @@ ungated
 unidimensionality
 univariates
 unmodelled
+unprojected
 unrepresentable
 unsuffixed
 untiered
