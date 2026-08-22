@@ -27,7 +27,7 @@ _LEGACY_REGISTERED_EXTRA = {
     "extension_waves": (4, 5),
     "eta_prior_sigma": 1.5,
     "sigma_subject_prior_sigma": 1.0,
-    "kappa_prior_sigma": 50.0,
+    "dispersion_prior_sigma": 0.25,
     "lkj_eta": 2.0,
 }
 _META_FIELDS = (
@@ -91,7 +91,7 @@ def test_settings_accept_global_target_accept_without_owning_it():
         ({"waves": (1, 2), "extension_waves": (2, 3)}, "overlap"),
         ({"eta_prior_sigma": 0.0}, "positive finite"),
         ({"sigma_subject_prior_sigma": True}, "positive finite"),
-        ({"kappa_prior_sigma": float("inf")}, "positive finite"),
+        ({"dispersion_prior_sigma": float("inf")}, "positive finite"),
         ({"lkj_eta": -1.0}, "positive finite"),
         ({"sigma_within_prior_sigma": 0.0}, "positive finite"),
         ({"within_lkj_eta": float("nan")}, "positive finite"),
@@ -132,7 +132,7 @@ def test_default_legacy_plan_preserves_loader_factory_and_diagnostic_contract():
         "measures": ("basread", "bpvs", "basdig"),
         "eta_prior_sigma": default_of(build_rlm_joint_growth_model, "eta_prior_sigma"),
         "sigma_subject_prior_sigma": default_of(build_rlm_joint_growth_model, "sigma_subject_prior_sigma"),
-        "kappa_prior_sigma": default_of(build_rlm_joint_growth_model, "kappa_prior_sigma"),
+        "dispersion_prior_sigma": default_of(build_rlm_joint_growth_model, "dispersion_prior_sigma"),
         "lkj_eta": default_of(build_rlm_joint_growth_model, "lkj_eta"),
     }
     assert plan.diagnostic_vars() == [
@@ -229,7 +229,7 @@ def test_registered_model_is_typed_and_preserves_the_legacy_contract():
         "measures": ("basread", "bpvs", "basdig"),
         "eta_prior_sigma": 1.5,
         "sigma_subject_prior_sigma": 1.0,
-        "kappa_prior_sigma": 50.0,
+        "dispersion_prior_sigma": 0.25,
         "lkj_eta": 2.0,
     }
     for field in _META_FIELDS:
@@ -265,7 +265,7 @@ def test_registered_within_companion_resolves_balanced_dynamic_contract():
         "within_corr_pairs",
         "measure_corr_pairs",
     ]
-    assert plan.kappa_prior_sigma is None
+    assert plan.dispersion_prior_sigma is None
     assert plan.likelihood == "logistic_normal_binomial"
     assert "within-child correlation matrix" in plan.estimand
     assert "Extension waves are excluded" in plan.analysis_population
@@ -289,32 +289,32 @@ def _review_spec(**settings) -> ModelSpec:
 def test_plan_nulls_every_prior_scale_the_fitted_model_lacks():
     """Finding 10: config.json must not name a prior the posterior lacks.
 
-    The plan already nulled ``kappa_prior_sigma`` for the within-child branch but
+    The plan already nulled the concentration scale for the within-child branch but
     kept live within-child scales for the between-child model, which has neither
     of them.
     """
     between = HJ.resolve_historical_joint_run_plan(_review_spec(within_correlation=False))
-    assert between.kappa_prior_sigma == 50.0
+    assert between.dispersion_prior_sigma == 0.25
     assert between.sigma_within_prior_sigma is None
     assert between.within_lkj_eta is None
 
     within = HJ.resolve_historical_joint_run_plan(
         _review_spec(within_correlation=True, extension_waves=())
     )
-    assert within.kappa_prior_sigma is None
+    assert within.dispersion_prior_sigma is None
     assert within.sigma_within_prior_sigma == 0.5
     assert within.within_lkj_eta == 2.0
 
     # The factory is fed only the arguments its branch actually takes.
-    assert "kappa_prior_sigma" not in within.factory_kwargs()
+    assert "dispersion_prior_sigma" not in within.factory_kwargs()
     assert "sigma_within_prior_sigma" not in between.factory_kwargs()
 
 
 def test_a_kappa_scale_is_rejected_on_the_within_child_branch():
     """Finding 10: an explicitly-declared setting must never be silently discarded."""
-    with pytest.raises(ValueError, match="no effect when within_correlation is true"):
+    with pytest.raises(ValueError, match="no effect when within_correlation is\\s+true"):
         HJ.HistoricalJointModelSettings(
-            within_correlation=True, kappa_prior_sigma=25.0
+            within_correlation=True, dispersion_prior_sigma=0.5
         )
     # The default is not a declaration, so it stays acceptable.
     HJ.HistoricalJointModelSettings(within_correlation=True)

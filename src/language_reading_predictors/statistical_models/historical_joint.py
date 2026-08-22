@@ -40,7 +40,7 @@ __all__ = [
 
 _DEFAULT_MEASURES = ("basread", "bpvs", "basdig")
 _DEFAULT_WAVES = (1, 2, 3)
-_DEFAULT_KAPPA_SIGMA = 50.0
+_DEFAULT_DISPERSION_SIGMA = 0.25
 _LEGACY_KEYS = frozenset(
     {
         "study_id",
@@ -49,7 +49,7 @@ _LEGACY_KEYS = frozenset(
         "extension_waves",
         "eta_prior_sigma",
         "sigma_subject_prior_sigma",
-        "kappa_prior_sigma",
+        "dispersion_prior_sigma",
         "lkj_eta",
         "within_correlation",
         "sigma_within_prior_sigma",
@@ -103,7 +103,9 @@ class HistoricalJointModelSettings:
     extension_waves: tuple[int, ...] = ()
     eta_prior_sigma: float = 1.5
     sigma_subject_prior_sigma: float = 1.0
-    kappa_prior_sigma: float = _DEFAULT_KAPPA_SIGMA
+    dispersion_prior_sigma: float = _DEFAULT_DISPERSION_SIGMA
+    """Scale of the HalfNormal on ``1/sqrt(kappa)``; see
+    :func:`priors.inv_sqrt_kappa_prior`."""
     lkj_eta: float = 2.0
     within_correlation: bool = False
     sigma_within_prior_sigma: float = 0.5
@@ -128,7 +130,7 @@ class HistoricalJointModelSettings:
         for name in (
             "eta_prior_sigma",
             "sigma_subject_prior_sigma",
-            "kappa_prior_sigma",
+            "dispersion_prior_sigma",
             "lkj_eta",
             "sigma_within_prior_sigma",
             "within_lkj_eta",
@@ -144,16 +146,19 @@ class HistoricalJointModelSettings:
                 "within_correlation requires a balanced complete-case window; "
                 "extension_waves must be empty"
             )
-        if self.within_correlation and self.kappa_prior_sigma != _DEFAULT_KAPPA_SIGMA:
+        if (
+            self.within_correlation
+            and self.dispersion_prior_sigma != _DEFAULT_DISPERSION_SIGMA
+        ):
             # The within-child branch has a Binomial likelihood with no
             # Beta-Binomial concentration term, so this setting has no effect
             # there. Silently discarding an explicitly-declared value is exactly
             # the incoherent cross-field combination #455 asks resolution to
             # reject (2026-08-21 review, finding 10).
             raise ValueError(
-                "kappa_prior_sigma has no effect when within_correlation is true: "
-                "that branch fits a Binomial likelihood with no Beta-Binomial "
-                "concentration term. Leave it at its default."
+                "dispersion_prior_sigma has no effect when within_correlation is "
+                "true: that branch fits a Binomial likelihood with no "
+                "Beta-Binomial concentration term. Leave it at its default."
             )
 
     @classmethod
@@ -165,6 +170,13 @@ class HistoricalJointModelSettings:
         spec_study_id: str,
     ) -> HistoricalJointModelSettings:
         """Strictly translate the former ``spec.extra`` declaration."""
+        if "kappa_prior_sigma" in extra:
+            raise ValueError(
+                f"{model_id}: 'kappa_prior_sigma' was replaced by "
+                "'dispersion_prior_sigma' when the overdispersion prior moved "
+                "onto the dispersion scale (1/sqrt of the concentration). The "
+                "reviewed default is 0.25; see priors.inv_sqrt_kappa_prior."
+            )
         unknown = sorted(set(extra) - _LEGACY_KEYS)
         if unknown:
             raise ValueError(
@@ -185,7 +197,9 @@ class HistoricalJointModelSettings:
             extension_waves=extra.get("extension_waves", ()),
             eta_prior_sigma=extra.get("eta_prior_sigma", 1.5),
             sigma_subject_prior_sigma=extra.get("sigma_subject_prior_sigma", 1.0),
-            kappa_prior_sigma=extra.get("kappa_prior_sigma", 50.0),
+            dispersion_prior_sigma=extra.get(
+                "dispersion_prior_sigma", _DEFAULT_DISPERSION_SIGMA
+            ),
             lkj_eta=extra.get("lkj_eta", 2.0),
             within_correlation=extra.get("within_correlation", False),
             sigma_within_prior_sigma=extra.get("sigma_within_prior_sigma", 0.5),
@@ -208,7 +222,7 @@ class HistoricalJointRunPlan:
     observation_nodes: tuple[str, ...]
     eta_prior_sigma: float
     sigma_subject_prior_sigma: float
-    kappa_prior_sigma: float | None
+    dispersion_prior_sigma: float | None
     lkj_eta: float
     within_correlation: bool
     sigma_within_prior_sigma: float | None
@@ -251,7 +265,7 @@ class HistoricalJointRunPlan:
                 }
             )
         else:
-            kwargs["kappa_prior_sigma"] = self.kappa_prior_sigma
+            kwargs["dispersion_prior_sigma"] = self.dispersion_prior_sigma
         return kwargs
 
     def diagnostic_vars(self) -> list[str]:
@@ -274,7 +288,12 @@ class HistoricalJointRunPlan:
             "residual supplies the extra-Binomial variance, so no Beta-Binomial "
             "concentration term is fitted"
             if self.within_correlation
-            else "Beta-Binomial counts with group-specific overdispersion"
+            else (
+                "Beta-Binomial counts with group-specific overdispersion, whose "
+                "prior is placed on the dispersion scale (1/sqrt of the "
+                "concentration) so that a measure showing no extra-Binomial "
+                "dispersion is permitted rather than excluded"
+            )
         )
         correlation_terms = (
             "one between-measure correlation matrix for stable child levels and "
@@ -448,8 +467,10 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         # must not name a prior the posterior lacks, and before the 2026-08-21
         # review (finding 10) it nulled the unused kappa but kept live
         # within-child scales for the between-child model, which has neither.
-        kappa_prior_sigma=(
-            None if settings.within_correlation else settings.kappa_prior_sigma
+        dispersion_prior_sigma=(
+            None
+            if settings.within_correlation
+            else settings.dispersion_prior_sigma
         ),
         lkj_eta=settings.lkj_eta,
         within_correlation=settings.within_correlation,

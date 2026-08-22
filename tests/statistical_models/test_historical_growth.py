@@ -62,9 +62,12 @@ def test_build_historical_growth_model(tmp_path):
     built = build_historical_growth_model(panel, measure="basread")
 
     names = {v.name for v in built.model.free_RVs}
-    assert {"eta_cell", "sigma_subject", "z_subject", "kappa"}.issubset(names)
+    # 1/sqrt(kappa) is the sampled dispersion parameter since the 2026-08-21
+    # review (finding 8); kappa remains the published Deterministic.
+    assert {"eta_cell", "sigma_subject", "z_subject", "inv_sqrt_kappa"}.issubset(names)
     dets = {v.name for v in built.model.deterministics}
     assert {
+        "kappa",
         "subject_offset",
         "mean_items",
         "growth_first_next_items",
@@ -368,7 +371,7 @@ def test_non_itt_typed_settings_reach_config_json(tmp_path):
         "extension_waves": [],
         "eta_prior_sigma": 1.5,
         "sigma_subject_prior_sigma": 1.0,
-        "kappa_prior_sigma": 50.0,
+        "dispersion_prior_sigma": 0.25,
     }
     assert cfg["spec_extra"] == {}
     assert cfg["resolved_run_plan"]["settings_source"] == "typed"

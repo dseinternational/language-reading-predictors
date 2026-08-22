@@ -6412,7 +6412,11 @@ def build_historical_growth_model(
     # the HalfNormal(0.5) 99th percentile). Every registered consumer sets the
     # value explicitly in its spec; this default matches the reviewed choice.
     sigma_subject_prior_sigma: float = 1.0,
-    kappa_prior_sigma: float = 50.0,
+    # 1/sqrt(kappa) ~ HalfNormal(0.25) since the 2026-08-21 review (finding 8):
+    # a HalfNormal on kappa itself cannot reach the near-Binomial limit, which is
+    # the answer the data prefer for most of these measures. See
+    # ``priors.inv_sqrt_kappa_prior`` for the calibration.
+    dispersion_prior_sigma: float = 0.25,
 ) -> BuiltModel[EmptyPayload]:
     """Descriptive group-by-wave growth model for a historical cohort.
 
@@ -6423,6 +6427,7 @@ def build_historical_growth_model(
         score_it ~ BetaBinomial(n, p_it, kappa[group_i])
         logit(p_it) = eta_cell[cell(group_i, wave_t)] + subject_offset_i
         subject_offset_i = (z_i - mean(z, group_i)) * sigma_subject[group_i]
+        kappa[g] = 1 / inv_sqrt_kappa[g]^2,  inv_sqrt_kappa ~ HalfNormal(0.25)
 
     ``eta_cell`` ranges over the cells that actually carry data, so a ragged
     follow-up window (the Byrne wave-5 Down-syndrome-only extension, #338) adds
@@ -6512,7 +6517,18 @@ def build_historical_growth_model(
             * sigma_subject[subject_group],
             dims="subject",
         )
-        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="group")
+        # Sample the DISPERSION, publish the concentration. ``u = 1/sqrt(kappa)``
+        # puts the no-extra-Binomial-dispersion limit at u = 0, where a HalfNormal
+        # has its mode, instead of in a tail the old HalfNormal(50) on kappa gave
+        # probability 0.001 (2026-08-21 review, finding 8). The 1e-6 floor keeps
+        # kappa finite and the gradient smooth as u -> 0; at the fitted range
+        # (kappa 28-121, u 0.09-0.19) it shifts kappa by under 0.01%.
+        inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(
+            sigma=dispersion_prior_sigma
+        ).to_pymc("inv_sqrt_kappa", dims="group")
+        kappa = pm.Deterministic(
+            "kappa", 1.0 / (inv_sqrt_kappa**2 + 1e-6), dims="group"
+        )
 
         eta_obs = eta_cell[obs_cell_idx] + subject_offset[subject_idx]
         p_obs = pm.math.sigmoid(eta_obs)
@@ -7042,7 +7058,9 @@ def build_rlm_joint_growth_model(
     # the HalfNormal(0.5) 99th percentile). Every registered consumer sets the
     # value explicitly in its spec; this default matches the reviewed choice.
     sigma_subject_prior_sigma: float = 1.0,
-    kappa_prior_sigma: float = 50.0,
+    # See build_historical_growth_model: dispersion-scale prior (2026-08-21
+    # review, finding 8).
+    dispersion_prior_sigma: float = 0.25,
     lkj_eta: float = 2.0,
     within_correlation: bool = False,
     sigma_within_prior_sigma: float = 0.5,
@@ -7056,6 +7074,7 @@ def build_rlm_joint_growth_model(
     stable offsets are **correlated across measures** through an LKJ prior::
 
         score_imt ~ BetaBinomial(n_m, p_imt, kappa[m, group_i])
+        kappa[m, g] = 1 / inv_sqrt_kappa[m, g]^2,  inv_sqrt_kappa ~ HalfNormal(0.25)
         logit(p_imt) = eta_cell[m, cell(group_i, wave_t)] + u_im
         (u_i1..u_iM) ~ MVN(0, diag(sigma[m, group_i]) R diag(sigma[m, group_i]))
 
@@ -7166,8 +7185,14 @@ def build_rlm_joint_growth_model(
         )
         kappa = None
         if not within_correlation:
-            kappa = pm.HalfNormal(
-                "kappa", sigma=kappa_prior_sigma, dims=("measure", "group")
+            # Dispersion-scale prior, as in build_historical_growth_model.
+            inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(
+                sigma=dispersion_prior_sigma
+            ).to_pymc("inv_sqrt_kappa", dims=("measure", "group"))
+            kappa = pm.Deterministic(
+                "kappa",
+                1.0 / (inv_sqrt_kappa**2 + 1e-6),
+                dims=("measure", "group"),
             )
 
         # Correlated per-child stable offsets across measures. The environment's

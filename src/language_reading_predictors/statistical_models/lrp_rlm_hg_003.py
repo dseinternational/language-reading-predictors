@@ -62,7 +62,14 @@ SPEC = ModelSpec(
         # Widened 0.5 -> 1.0 (#383): DS sigma_subject posteriors sat at/beyond
         # the HalfNormal(0.5) 99th percentile — see lrp_rlm_hg_001.py.
         sigma_subject_prior_sigma=1.0,
-        kappa_prior_sigma=50.0,
+        # Dispersion-scale prior (2026-08-21 review, finding 8): the previous
+        # HalfNormal(50) on kappa itself gave the near-Binomial limit a prior
+        # probability of 0.001 at these denominators, and 20 of 27 fitted cells
+        # had a kappa posterior no narrower than its prior. 1/sqrt(kappa) ~
+        # HalfNormal(0.25) preserves the old prior's median variance inflation
+        # at every denominator while letting "no extra-Binomial dispersion" be
+        # an ordinary outcome. See priors.inv_sqrt_kappa_prior.
+        dispersion_prior_sigma=0.25,
     ),
 )
 

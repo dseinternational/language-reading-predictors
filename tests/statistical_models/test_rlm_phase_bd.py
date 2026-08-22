@@ -260,9 +260,17 @@ def test_build_rlm_joint_growth(tmp_path):
         panel, measures=("basread", "bpvs", "basdig")
     )
     names = {v.name for v in built.model.free_RVs}
+    # The sampled dispersion parameter is 1/sqrt(kappa) since the 2026-08-21
+    # review (finding 8); kappa stays available as the interpretable
+    # Deterministic the reports and diagnostics use.
     assert {
-        "eta_cell", "sigma_subject", "kappa", "measure_corr_chol", "z_subject",
+        "eta_cell",
+        "sigma_subject",
+        "inv_sqrt_kappa",
+        "measure_corr_chol",
+        "z_subject",
     }.issubset(names)
+    assert "kappa" in {v.name for v in built.model.deterministics}
     # Group-indexed scales per measure: (measure, group) = (3, 3).
     assert built.model.named_vars["sigma_subject"].eval().shape == (3, 3)
     assert built.model.named_vars["kappa"].eval().shape == (3, 3)
