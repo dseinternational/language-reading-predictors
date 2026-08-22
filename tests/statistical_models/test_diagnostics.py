@@ -180,6 +180,87 @@ def test_run_psense_atomically_replaces_summary(
     assert context.tables["psense_summary"].equals(expected)
 
 
+def test_psense_excludes_the_child_level_loo_aggregate_from_the_likelihood(tmp_path):
+    """2026-08-22 adjusted-family review, finding 1.
+
+    ``compute_log_likelihood_and_loo`` writes the child-summed ``y_post_child``
+    into the ``log_likelihood`` group beside the row-level ``y_post`` so PSIS-LOO
+    can leave a whole child out. arviz-stats' power scaling sums every variable in
+    that group unless told otherwise, so the likelihood was counted twice: every
+    published likelihood sensitivity of ``lrp-rlm-adj-006`` and of the eight joint
+    / joint-mechanism fits was doubled. The summary written by ``psense_artifacts``
+    must equal the one computed on ``y_post`` alone.
+    """
+    import arviz_stats as azs
+
+    rng = np.random.default_rng(3)
+    chains, draws, rows, children = 2, 200, 12, 4
+    theta = rng.normal(size=(chains, draws))
+    # Row log-likelihoods that depend on theta, and their within-child sums.
+    ll_rows = -0.5 * (theta[..., None] - rng.normal(size=rows)) ** 2
+    child_idx = np.repeat(np.arange(children), rows // children)
+    ll_child = np.stack(
+        [ll_rows[..., child_idx == c].sum(axis=-1) for c in range(children)],
+        axis=-1,
+    )
+    trace = xr.DataTree.from_dict(
+        {
+            "posterior": xr.Dataset(
+                {"theta": (("chain", "draw"), theta)},
+                coords={"chain": np.arange(chains), "draw": np.arange(draws)},
+            ),
+            "log_prior": xr.Dataset(
+                {"theta": (("chain", "draw"), -0.5 * theta**2)},
+                coords={"chain": np.arange(chains), "draw": np.arange(draws)},
+            ),
+            "log_likelihood": xr.Dataset(
+                {
+                    "y_post": (("chain", "draw", "obs_id"), ll_rows),
+                    diag.LOO_CHILD_AGGREGATE_NODE: (
+                        ("chain", "draw", "child"),
+                        ll_child,
+                    ),
+                },
+                coords={
+                    "chain": np.arange(chains),
+                    "draw": np.arange(draws),
+                    "obs_id": np.arange(rows),
+                    "child": np.arange(children),
+                },
+            ),
+            "sample_stats": xr.Dataset(
+                {"diverging": (("chain", "draw"), np.zeros((chains, draws), bool))},
+                coords={"chain": np.arange(chains), "draw": np.arange(draws)},
+            ),
+        }
+    )
+    assert diag.psense_likelihood_var_names(trace) == ["y_post"]
+    single = xr.DataTree.from_dict(
+        {
+            "posterior": trace.posterior.to_dataset(),
+            "log_prior": trace.log_prior.to_dataset(),
+            "log_likelihood": trace.log_likelihood.to_dataset().drop_vars(
+                diag.LOO_CHILD_AGGREGATE_NODE
+            ),
+        }
+    )
+    assert diag.psense_likelihood_var_names(single) is None
+    expected = azs.psense_summary(single, var_names=["theta"])
+    written = diag.psense_artifacts(trace, str(tmp_path), ["theta"])
+    assert written is not None
+    expected_df = expected.to_dataframe() if hasattr(expected, "to_dataframe") else pd.DataFrame(expected)
+    np.testing.assert_allclose(
+        written["likelihood"].to_numpy(dtype=float),
+        expected_df["likelihood"].to_numpy(dtype=float),
+    )
+    # And it is genuinely different from the doubled (both-variables) value.
+    doubled = azs.psense_summary(trace, var_names=["theta"])
+    doubled_df = doubled.to_dataframe() if hasattr(doubled, "to_dataframe") else pd.DataFrame(doubled)
+    assert float(doubled_df["likelihood"].iloc[0]) > float(
+        expected_df["likelihood"].iloc[0]
+    )
+
+
 def _psense_trace(posterior_names: tuple[str, ...]) -> xr.DataTree:
     """A minimal trace with the groups ``plot_psense_dist`` needs."""
     rng = np.random.default_rng(0)

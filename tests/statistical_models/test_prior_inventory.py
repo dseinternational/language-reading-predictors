@@ -23,6 +23,7 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import priors
 from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
 from language_reading_predictors.statistical_models.factories import (
+    build_adjusted_model,
     build_aligned_model,
     build_correlated_factor_model,
     build_did_model,
@@ -38,7 +39,11 @@ from language_reading_predictors.statistical_models.factories import (
     build_longitudinal_corr_factor_model,
     build_mechanism_model,
     build_mediation_model,
+    build_rlm_adjusted_model,
+    build_rlm_concurrent_model,
+    build_rlm_horseshoe_model,
     build_rlm_joint_growth_model,
+    build_rlm_transition_adjusted_model,
     build_two_mediator_model,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
@@ -54,6 +59,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
     load_longitudinal_panel,
+    load_rlm_concurrent_frames,
+    load_rlm_span_frame,
+    load_rlm_transition_frame,
     load_wave_panel,
 )
 
@@ -252,6 +260,50 @@ def _representative_models(tmp_path) -> dict[str, object]:
     ).model
     models["historical_joint_within"] = build_rlm_joint_growth_model(
         rlm_panel, measures=rlm_measures, within_correlation=True
+    ).model
+    # Adjusted family, both ports (2026-08-22 review, finding 8): none of the three
+    # factories had ever been under this guard, which is how the stacked Byrne
+    # transition model's ``alpha_transition`` reached a published priors table as
+    # role='other'.
+    span = load_and_prepare(
+        path=p,
+        phase_mode="span",
+        outcomes=("W", "L", "B", "R", "E", "F"),
+        covariates=(V.BLOCKS, V.BEHAV),
+    )
+    models["adjusted"] = build_adjusted_model(
+        span, outcome_symbol="W",
+        predictors=["L", "lang", "B", "age", V.BLOCKS, V.BEHAV],
+    ).model
+    rlm_span = load_rlm_span_frame(
+        path=rlm_path, predictor_measures=("bpvs", "basdig"), include_age=False
+    )
+    models["rlm_adjusted"] = build_rlm_adjusted_model(rlm_span).model
+    rlm_transition = load_rlm_transition_frame(
+        path=rlm_path,
+        predictor_measures=("bpvs", "basdig"),
+        include_age=False,
+        transition_waves=(1, 2, 3),
+    )
+    models["rlm_transition_adjusted"] = build_rlm_transition_adjusted_model(
+        rlm_transition
+    ).model
+    models["rlm_transition_adjusted_varying"] = build_rlm_transition_adjusted_model(
+        rlm_transition, varying_slopes=True
+    ).model
+    # The Byrne horseshoe and concurrent factories share the dispersion-scale
+    # concentration prior since 2026-08-22; they join the guard with the family
+    # whose frames they partner.
+    models["rlm_horseshoe"] = build_rlm_horseshoe_model(rlm_span).model
+    rlm_wave = load_rlm_concurrent_frames(
+        path=rlm_path,
+        outcome="basread",
+        predictor_measures=("bpvs", "basdig"),
+        waves=(1,),
+        include_age=False,
+    )[1]
+    models["rlm_concurrent"] = build_rlm_concurrent_model(
+        rlm_wave, predictor_symbols=("bpvs", "basdig"), include_age=False
     ).model
     return models
 

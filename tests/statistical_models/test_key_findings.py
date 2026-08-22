@@ -1778,6 +1778,162 @@ def test_concurrent_findings_qualify_missingness_indicators_as_nuisance(tmp_path
     assert "nuisance subgroup offsets, not skill effects" in _texts(payload)
 
 
+# --- adjusted family, 2026-08-22 review ----------------------------------------
+
+#: A non-RLI fit must carry its fit-time input snapshot or the release decision
+#: withholds at the inputs stage (fail-closed); this is the "all confirmed" form.
+_RLM_READY_CONTRACT = {"study_id": "rlm", "publication_ready": True, "blockers": []}
+
+
+def _adjusted_words_rows() -> list[dict]:
+    return [
+        {
+            "predictor": "age",
+            "label": "Age (months)",
+            "delta_words_median": -1.1,
+            "delta_words_mean": -1.1,
+            "delta_words_lo": -2.3,
+            "delta_words_hi": 0.2,
+            "prob_pos": 0.08,
+        },
+        {
+            "predictor": "bassim",
+            "label": "BAS similarities/verbal reasoning",
+            "delta_words_median": 0.6,
+            "delta_words_mean": 0.6,
+            "delta_words_lo": -0.8,
+            "delta_words_hi": 2.0,
+            "prob_pos": 0.77,
+        },
+    ]
+
+
+def test_adjusted_rlm_headline_names_the_byrne_measure_not_the_title(tmp_path):
+    """Finding 2: the outcome label resolves through the study catalogue, as
+    ``_setup.qmd`` does — the stored Byrne boxes read "... items of difference in
+    Byrne wave-1 predictors of verbal-memory gain, waves 1-3 (...)"."""
+    d = _setup_dir(
+        tmp_path,
+        "adjusted",
+        config=_config(
+            "adjusted",
+            outcome_symbol="basdig",
+            study_id="rlm",
+            title="Byrne wave-1 predictors of verbal-memory gain, waves 1-3",
+            publication_input_contract=_RLM_READY_CONTRACT,
+        ),
+    )
+    _write_rows(d, "predicted_gain_words.csv", _adjusted_words_rows())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    headline = payload["sentences"][0]["text"]
+    assert "BAS recall of digits" in headline
+    assert "Byrne wave-1 predictors" not in headline
+    assert "between-child adjusted association" in _texts(payload)
+
+
+def test_adjusted_transition_design_gets_a_repeated_transition_causal_sentence(
+    tmp_path,
+):
+    """Finding 6: the stacked Byrne transition model is not between-child."""
+    d = _setup_dir(
+        tmp_path,
+        "adjusted",
+        config=_config(
+            "adjusted",
+            outcome_symbol="basread",
+            study_id="rlm",
+            resolved_run_plan={"transition_waves": [1, 2, 3, 4, 5]},
+            publication_input_contract=_RLM_READY_CONTRACT,
+        ),
+    )
+    _write_rows(d, "predicted_gain_words.csv", _adjusted_words_rows())
+    payload = generate_key_findings(d)
+    texts = _texts(payload)
+    assert "repeated-transition adjusted association" in texts
+    assert "between-child" not in texts
+    assert "BAS word reading" in payload["sentences"][0]["text"]
+
+
+def test_adjusted_headline_never_ranks_a_missing_data_indicator(tmp_path):
+    """Finding 3: a stored pre-fix natural-scale table still carries the
+    ``*_missing`` nuisance rows; the most resolved of them must not be headlined."""
+    rows = _adjusted_words_rows()
+    rows.append(
+        {
+            "predictor": "deapp_c_missing",
+            "label": "Speech missing (indicator)",
+            "delta_words_median": -2.0,
+            "delta_words_mean": -2.0,
+            "delta_words_lo": -4.0,
+            "delta_words_hi": -0.1,
+            "prob_pos": 0.01,
+        }
+    )
+    d = _setup_dir(tmp_path, "adjusted")
+    _write_rows(d, "predicted_gain_words.csv", rows)
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    assert "Speech missing" not in _texts(payload)
+    assert "Age (months)" in payload["sentences"][0]["text"]
+
+
+def _concurrent_row(timepoint, term, items, prob, **overrides) -> dict:
+    row = {
+        "timepoint": timepoint,
+        "adjustment": "adjusted",
+        "term": term,
+        "label": term,
+        "role": "association",
+        "scale": "+1 SD",
+        "items_median": items,
+        "items_lo": items - 2.0,
+        "items_hi": items + 2.0,
+        "prob_pos": prob,
+        "converged": True,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_concurrent_headline_tie_break_is_primary_wave_then_larger_contrast(tmp_path):
+    """2026-08-22 review (extension): rows at the resolution ceiling are tied at the
+    reported precision, and ties go to the primary (first) wave, then the larger
+    items-scale contrast — not to whichever row's Monte-Carlo noise happens to
+    round higher (``rlm-ca-001``'s headline had flipped t1 → t2 between refits)."""
+    d = _setup_dir(tmp_path, "concurrent")
+    _write_rows(
+        d,
+        "concurrent_marginals.csv",
+        [
+            # t2 is "more resolved" only below the reported precision.
+            _concurrent_row(2, "bassim", 8.7, 1.0),
+            _concurrent_row(1, "bassim", 7.5, 0.99997),
+            # Same wave, same resolution, smaller contrast: loses the tie.
+            _concurrent_row(1, "trog", 3.1, 0.99998),
+            # A later wave that is genuinely less resolved never wins.
+            _concurrent_row(3, "basdig", 9.9, 0.93),
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    headline = payload["sentences"][0]["text"]
+    assert headline.startswith("At t1, ")
+    assert "bassim" in headline and "+7.5" in headline
+    # A genuinely more resolved later wave still wins over the primary wave.
+    _write_rows(
+        d,
+        "concurrent_marginals.csv",
+        [
+            _concurrent_row(1, "bassim", 7.5, 0.97),
+            _concurrent_row(2, "trog", 1.2, 0.999),
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["sentences"][0]["text"].startswith("At t2, ")
+    assert "trog" in payload["sentences"][0]["text"]
+
+
 def test_mediation_findings_use_generic_causal_qualification(tmp_path):
     d, _ = _remaining_family_case(tmp_path, "mediation")
 

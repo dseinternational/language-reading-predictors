@@ -121,6 +121,11 @@ def test_rlm_concurrent_factory_builds_mutual_and_single_skill_models():
     assert "beta_age" in names
     assert len({name for name in names if name.startswith("beta_group_nuisance_")}) == 2
     assert "gamma_own" not in names
+    # Dispersion-scale Beta-Binomial prior, shared with the other Byrne factories
+    # (2026-08-22): the free RV is inv_sqrt_kappa, kappa its Deterministic.
+    assert "inv_sqrt_kappa" in names
+    assert "kappa" not in names
+    assert "kappa" in {rv.name for rv in mutual.model.deterministics}
     with mutual.model:
         prior = pm.sample_prior_predictive(draws=3, random_seed=17)
     assert prior.prior_predictive["y_post"].shape[-1] == frame.n_obs

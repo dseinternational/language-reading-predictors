@@ -49,6 +49,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
+    at_mean_pushforward_rows,
     marginal_pushforward_rows,
     pushforward_n_trials,
     pushforward_outcome_label,
@@ -78,8 +79,12 @@ _ADJ_LABELS = {
     "age": "Age (T1)",
     "blocks": "Non-verbal MA (T1)",
     "behav": "Behaviour (T1)",
-    # Revised-DAG upstream traits, entered as tested covariates (#247).
-    "hs": "Hearing status (T1)",
+    # Revised-DAG upstream traits, entered as tested covariates (#247). Hearing
+    # status is a 0/1 flag entered standardised like every other predictor, so its
+    # "+1 SD" rows are roughly half the clear-versus-impaired contrast — say so in
+    # the label, since the tables never otherwise distinguish a binary covariate
+    # (2026-08-22 review, finding 10).
+    "hs": "Hearing status (T1, 0/1 flag; per SD)",
     "hs_missing": "Hearing missing (indicator)",
     "deapp_c": "Speech production (T1)",
     "deapp_c_missing": "Speech missing (indicator)",
@@ -92,6 +97,184 @@ _ADJ_LABELS = {
 
 def _adj_label(key: str) -> str:
     return _ADJ_LABELS.get(key, key)
+
+
+#: Column order of ``predictor_associations.csv`` — identical for the RLI and Byrne
+#: ports (2026-08-22 review, finding 9). ``adj_*`` / ``biv_*`` are the prefixes the
+#: concurrent family also uses for its adjusted-versus-single-skill table.
+PREDICTOR_ASSOCIATION_COLUMNS: tuple[str, ...] = (
+    "predictor", "label",
+    "adj_median", "adj_mean", "adj_lo", "adj_hi", "adj_lo50", "adj_hi50",
+    "adj_prob_pos",
+    "biv_median", "biv_mean", "biv_lo", "biv_hi", "biv_lo50", "biv_hi50",
+    "biv_prob_pos",
+    "adj_converged", "biv_converged",
+)
+
+#: Column order of ``prior_sensitivity.csv`` — identical for every port. The fitted
+#: model is the first block (its own slope / own-baseline prior SDs), then one block
+#: per swept slope SD and one per swept own-baseline SD; ``subfit_converged`` is
+#: the primary gate verdict for the fitted block and the sub-fit verdict otherwise.
+PRIOR_SENSITIVITY_COLUMNS: tuple[str, ...] = (
+    "predictor_slope_sigma", "gamma_own_sigma", "predictor", "label",
+    "median", "mean", "lo", "hi", "lo50", "hi50", "prob_pos",
+    "subfit_converged",
+)
+
+
+def reported_predictors(predictors: list[str]) -> list[str]:
+    """The predictors the family *reports*: every key except the missing-data indicators.
+
+    ``{cov}_missing`` coefficients are subgroup mean-offsets under the
+    missing-indicator method — nuisance terms (Greenland & Finkle 1995), labelled so
+    in the priors table (#384) and kept out of ``predictor_associations.csv``. The
+    natural-scale table, the prior pushforward and the key-findings ranking have to
+    use the same list, or an indicator can be headlined as "the clearest adjusted
+    predictor" (2026-08-22 review, finding 3).
+    """
+    return [key for key in predictors if not key.endswith("_missing")]
+
+
+def _association_row(
+    key: str,
+    label: str,
+    adjusted: dict,
+    bivariate: dict,
+    *,
+    adj_converged,
+    biv_converged,
+) -> dict:
+    return {
+        "predictor": key,
+        "label": label,
+        "adj_median": adjusted["median"],
+        "adj_mean": adjusted["mean"],
+        "adj_lo": adjusted["lo"],
+        "adj_hi": adjusted["hi"],
+        "adj_lo50": adjusted["lo50"],
+        "adj_hi50": adjusted["hi50"],
+        "adj_prob_pos": adjusted["prob_pos"],
+        "biv_median": bivariate["median"],
+        "biv_mean": bivariate["mean"],
+        "biv_lo": bivariate["lo"],
+        "biv_hi": bivariate["hi"],
+        "biv_lo50": bivariate["lo50"],
+        "biv_hi50": bivariate["hi50"],
+        "biv_prob_pos": bivariate["prob_pos"],
+        # Convergence flags: the adjusted column is the primary (gated) fit; the
+        # bivariate column is a sub-fit that bypasses the primary gate (B1).
+        "adj_converged": adj_converged,
+        "biv_converged": biv_converged,
+    }
+
+
+def _sensitivity_rows(
+    trace,
+    predictors: list[str],
+    labels,
+    *,
+    predictor_slope_sigma: float,
+    gamma_own_sigma: float,
+    converged,
+    ci_prob: float,
+) -> list[dict]:
+    """One ``prior_sensitivity.csv`` row per reported predictor for one prior setting."""
+    rows = []
+    for key in predictors:
+        summary = beta_summary(trace, f"beta_{key}", ci_prob)
+        rows.append(
+            {
+                "predictor_slope_sigma": float(predictor_slope_sigma),
+                "gamma_own_sigma": float(gamma_own_sigma),
+                "predictor": key,
+                "label": labels(key),
+                **{k: summary[k] for k in ("median", "mean", "lo", "hi", "lo50", "hi50", "prob_pos")},
+                "subfit_converged": converged,
+            }
+        )
+    return rows
+
+
+def _prior_sweep_table(
+    ctx: StatisticalFitContext,
+    *,
+    plan: _adjusted.AdjustedRunPlan,
+    build,
+    predictors: list[str],
+    labels,
+    primary_converged,
+    ci_prob: float,
+) -> pd.DataFrame:
+    """The slope-prior and own-baseline-prior sweep, shared by all three ports.
+
+    ``build(predictor_slope_sigma=..., gamma_own_sigma=...)`` returns the built
+    model for one prior setting. The fitted model contributes the first block from
+    ``ctx.trace`` (no refit); every other block is a ``run_subfit`` with its own
+    provenance row. The own-baseline sweep is the ``gamma_own_prior`` docstring's
+    "required 0.25-vs-0.5 sensitivity", which this family did not run before the
+    2026-08-22 review (finding 5).
+    """
+    rows: list[dict] = []
+    rows.extend(
+        _sensitivity_rows(
+            ctx.trace,
+            predictors,
+            labels,
+            predictor_slope_sigma=plan.predictor_slope_sigma,
+            gamma_own_sigma=plan.gamma_own_sigma,
+            converged=primary_converged,
+            ci_prob=ci_prob,
+        )
+    )
+    settings = [
+        *((sigma, plan.gamma_own_sigma, f"sigma={sigma}") for sigma in plan.prior_sensitivity_sigmas),
+        *(
+            (plan.predictor_slope_sigma, sigma, f"gamma_own_sigma={sigma}")
+            for sigma in plan.gamma_own_sensitivity_sigmas
+        ),
+    ]
+    for slope_sigma, own_sigma, tag in settings:
+        candidate = build(
+            predictor_slope_sigma=float(slope_sigma), gamma_own_sigma=float(own_sigma)
+        )
+        result = run_subfit(
+            ctx,
+            candidate,
+            label=f"{ctx.spec.model_id} prior-sweep {tag}",
+            role="prior_sweep",
+        )
+        rows.extend(
+            _sensitivity_rows(
+                result.trace,
+                predictors,
+                labels,
+                predictor_slope_sigma=slope_sigma,
+                gamma_own_sigma=own_sigma,
+                converged=result.converged,
+                ci_prob=ci_prob,
+            )
+        )
+    return pd.DataFrame(rows, columns=list(PRIOR_SENSITIVITY_COLUMNS))
+
+
+def _write_influence(ctx: StatisticalFitContext) -> tuple:
+    """Persist the per-child PSIS-LOO Pareto-k table the results partial reads.
+
+    Shared by all three ports: the Byrne fits previously wrote only the shared
+    ``pareto_k.csv`` and the report's Influence section printed its how-to-read
+    prose under "No per-child influence table." (2026-08-22 review, finding 7).
+    """
+    section_header("Influence (PSIS-LOO Pareto-k)")
+    infl_df, k_thr, n_flagged = _diag.influence_diagnostics(ctx)
+    if infl_df is not None:
+        save_table(ctx, "influence", infl_df)
+        rprint(
+            f"  max Pareto-k = {infl_df['pareto_k'].max():.2f}; "
+            f"{n_flagged} of {len(infl_df)} LOO units exceed k = {k_thr:.2f}"
+        )
+    else:
+        rprint("[yellow]Pareto-k unavailable from LOO; influence check skipped[/yellow]")
+    return infl_df, k_thr, n_flagged
 
 
 def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float) -> None:
@@ -130,6 +313,15 @@ def _natural_scale_contrasts(
     wave — i.e. the differential gain, in words out of ``N``. Computed per
     posterior draw then summarised, so the interval carries the full uncertainty.
     This turns the per-SD logit coefficients into something a teacher can read.
+
+    This is a single *at-the-mean* operating point (``alpha + gamma_own · mean
+    pre-logit``, every standardised predictor at zero), not the row-averaged
+    contrast of the stacked transition design; on a logit model the two differ by
+    a few tenths of an item here. The prior pushforward uses the same functional
+    (``prior_artifacts.at_mean_pushforward_rows``), and the recipe, the results
+    partial and ``config.json`` state the operating point (2026-08-22 review,
+    finding 6). ``headline`` should be the *reported* predictors — the missing-data
+    indicators are nuisance subgroup offsets and belong in no published table.
     """
     from scipy.special import expit
 
@@ -187,7 +379,8 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     sigma0 = plan.predictor_slope_sigma
     prior_sens = list(plan.prior_sensitivity_sigmas)
 
-    # 94% intervals (the brief's convention) rather than the project-wide 95%.
+    # House-standard 89% equal-tailed intervals (METHODS.md; see
+    # notes/202607172359-credible-interval-standard.md).
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
     _report.write_model_recipe(ctx)
@@ -242,10 +435,15 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # --- Adjusted vs bivariate associations --------------------------------
     section_header("Predictor associations (adjusted vs bivariate)")
-    adjusted = {k: beta_summary(ctx.trace, f"beta_{k}", hdi) for k in headline}
+    # ``reported`` is the one list the associations table, the bivariate
+    # sub-fits, the natural-scale table, the prior pushforward and the prior sweep
+    # all share: every headline key except the missing-data indicators, which are
+    # nuisance subgroup offsets and belong in no published table (finding 3).
+    reported = reported_predictors(headline)
+    adjusted = {k: beta_summary(ctx.trace, f"beta_{k}", hdi) for k in reported}
     bivariate: dict[str, dict] = {}
     biv_converged: dict[str, object] = {}
-    for k in headline:
+    for k in reported:
         b = _factories.build_adjusted_model(
             prepared,
             **plan.rli_factory_kwargs(predictors=(k,)),
@@ -256,66 +454,49 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         bivariate[k] = beta_summary(res.trace, f"beta_{k}", hdi)
         biv_converged[k] = res.converged
 
-    rows = []
-    for k in headline:
-        a, bv = adjusted[k], bivariate[k]
-        rows.append(
-            {
-                "predictor": k,
-                "label": _adj_label(k),
-                "adj_median": a["median"],
-                "adj_mean": a["mean"],
-                "adj_lo": a["lo"],
-                "adj_hi": a["hi"],
-                "adj_lo50": a["lo50"],
-                "adj_hi50": a["hi50"],
-                "adj_prob_pos": a["prob_pos"],
-                "biv_median": bv["median"],
-                "biv_mean": bv["mean"],
-                "biv_lo": bv["lo"],
-                "biv_hi": bv["hi"],
-                "biv_lo50": bv["lo50"],
-                "biv_hi50": bv["hi50"],
-                "biv_prob_pos": bv["prob_pos"],
-                # Convergence flags: the adjusted column is the primary (gated) fit;
-                # the bivariate column is a sub-fit that bypasses the primary gate (B1).
-                "adj_converged": _primary_converged,
-                "biv_converged": biv_converged[k],
-            }
+    rows = [
+        _association_row(
+            k,
+            _adj_label(k),
+            adjusted[k],
+            bivariate[k],
+            adj_converged=_primary_converged,
+            biv_converged=biv_converged[k],
         )
-    assoc_df = pd.DataFrame(rows)
+        for k in reported
+    ]
     # Missing-data-indicator coefficients are subgroup mean-offsets under the
     # missing-indicator method, not interpretable predictor associations — the same
     # basis on which the prior table now labels them nuisance (the missing-indicator
     # sweep in _prior_table_overrides; #384 review, Frank). Keep them out of the
     # reported associations table + forest so it does not contradict that nuisance
     # label; they remain in the fitted model (as adjusters) and in the full
-    # diagnostics summary above.
-    _missing_mask = assoc_df["predictor"].astype(str).str.endswith("_missing")
-    if _missing_mask.any():
-        assoc_df = assoc_df[~_missing_mask].reset_index(drop=True)
+    # diagnostics summary above. ``reported`` is the one list the associations
+    # table, the natural-scale table, the prior pushforward and the prior sweep all
+    # share (2026-08-22 review, finding 3).
+    assoc_df = pd.DataFrame(
+        [row for row in rows if row["predictor"] in reported],
+        columns=list(PREDICTOR_ASSOCIATION_COLUMNS),
+    )
     save_table(ctx, "predictor_associations", assoc_df)
-    _pf_assoc = assoc_df
-    # Estimand-scale prior check on the headline adjusted associations (#381).
-    # Driven off the association table just written, not off ``headline``: the
-    # missing-data indicators are dropped from that table as nuisance
-    # subgroup offsets, and a prior row for a term the report does not show
-    # would contradict the nuisance labelling it was dropped for.
+    # Estimand-scale prior check on the headline adjusted associations (#381),
+    # pushed through the same at-the-mean functional as the posterior contrast
+    # below (2026-08-22 review, finding 6).
     _pf_n = pushforward_n_trials(ctx, outcome)
     _pf_outcome = pushforward_outcome_label(ctx, outcome)
     write_prior_pushforward(
         ctx,
-        marginal_pushforward_rows(
+        at_mean_pushforward_rows(
             ctx,
             [
                 (
                     f"beta_{r.predictor}",
                     f"the adjusted association of +1 SD {r.label} with {_pf_outcome}",
                 )
-                for r in _pf_assoc.itertuples()
+                for r in assoc_df.itertuples()
             ],
             n_trials=_pf_n,
-            convention="forward",
+            own_pre_logit_mean=float(np.mean(ctx.prepared.pre_logit[outcome])),
         ),
     )
     print_table(
@@ -335,38 +516,18 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _plot_associations(ctx, assoc_df, hdi)
 
     # --- Prior sensitivity (does the clear-zero conclusion move?) ----------
-    section_header("Prior sensitivity")
-    ps_rows = []
-    for sig in [sigma0, *prior_sens]:
-        if sig == sigma0:
-            tr = ctx.trace
-            sig_converged = _primary_converged  # headline sigma is the gated primary
-        else:
-            b = _factories.build_adjusted_model(
-                prepared,
-                **{
-                    **plan.rli_factory_kwargs(),
-                    "predictor_slope_sigma": sig,
-                },
-            )
-            res = run_subfit(
-                ctx,
-                b,
-                label=f"{spec.model_id} prior-sweep sigma={sig}",
-                role="prior_sweep",
-            )
-            tr = res.trace
-            sig_converged = res.converged
-        for k in headline:
-            ps_rows.append(
-                {
-                    "sigma": sig,
-                    "predictor": k,
-                    **beta_summary(tr, f"beta_{k}", hdi),
-                    "converged": sig_converged,
-                }
-            )
-    ps_df = pd.DataFrame(ps_rows)
+    section_header("Prior sensitivity (slope and own-baseline prior SDs)")
+    ps_df = _prior_sweep_table(
+        ctx,
+        plan=plan,
+        build=lambda **kw: _factories.build_adjusted_model(
+            prepared, **{**plan.rli_factory_kwargs(), **kw}
+        ),
+        predictors=reported,
+        labels=_adj_label,
+        primary_converged=_primary_converged,
+        ci_prob=hdi,
+    )
     save_table(ctx, "prior_sensitivity", ps_df)
 
     # --- SES complete-case sensitivity -------------------------------------
@@ -424,7 +585,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # --- Natural-scale interpretation (predicted gain, in words) -----------
     section_header("Predicted gain on the natural (words) scale")
-    words_df = _natural_scale_contrasts(ctx, ctx.prepared, headline, outcome, hdi)
+    words_df = _natural_scale_contrasts(ctx, ctx.prepared, reported, outcome, hdi)
     save_table(ctx, "predicted_gain_words", words_df)
     print_table(
         ranked_dataframe_table(
@@ -443,16 +604,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
 
     # --- Influence (does the fit rest on a few children?) ------------------
-    section_header("Influence (PSIS-LOO Pareto-k)")
-    infl_df, k_thr, n_flagged = _diag.influence_diagnostics(ctx)
-    if infl_df is not None:
-        save_table(ctx, "influence", infl_df)
-        rprint(
-            f"  max Pareto-k = {infl_df['pareto_k'].max():.2f}; "
-            f"{n_flagged} of {len(infl_df)} children exceed k = {k_thr:.2f}"
-        )
-    else:
-        rprint("[yellow]Pareto-k unavailable from LOO; influence check skipped[/yellow]")
+    infl_df, k_thr, n_flagged = _write_influence(ctx)
 
     write_run_metadata(
         ctx,
@@ -461,8 +613,12 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "design": "between_child",
             "post_time": post_time,
             "predictors": headline,
+            "reported_predictors": reported,
             "predictor_slope_sigma": sigma0,
             "prior_sensitivity_sigmas": prior_sens,
+            "gamma_own_sigma": plan.gamma_own_sigma,
+            "gamma_own_sensitivity_sigmas": list(plan.gamma_own_sensitivity_sigmas),
+            "contrast_operating_point": "at_mean",
             "language_composite_symbols": list(lang_symbols),
             "n_children": int(ctx.prepared.n_children),
             "ses_n_children": ses_n,
@@ -537,7 +693,15 @@ def _rlm_natural_scale_contrasts(
 def _rlm_transition_natural_scale_contrasts(
     ctx: StatisticalFitContext, frame, headline: list[str], hdi: float
 ) -> pd.DataFrame:
-    """Average +1 within-transition SD contrasts on the outcome-item scale."""
+    """Average +1 within-transition SD contrasts on the outcome-item scale.
+
+    Operating point: the contrast ``N · [expit(eta_fixed + β) − expit(eta_fixed)]``
+    is taken at every fitted row's own covariates with the child random intercept
+    at zero (``eta_fixed`` excludes ``u_child``) and averaged over rows — a
+    row-averaged, median-child contrast, unlike the span ports' single
+    at-the-mean operating point. Stated in the recipe, the results partial and
+    ``config.json`` (``contrast_operating_point``; 2026-08-22 review, finding 6).
+    """
     from scipy.special import expit
 
     posterior = ctx.trace.posterior
@@ -679,32 +843,21 @@ def _fit_rlm_transition_adjusted(
         )
         bivariate[key] = beta_summary(result.trace, f"beta_{key}", hdi)
         bivariate_converged[key] = result.converged
-    association_rows = []
-    for key in headline:
-        adj, biv = adjusted[key], bivariate[key]
-        association_rows.append(
-            {
-                "predictor": key,
-                "label": frame.predictor_labels.get(key, key),
-                "adj_median": adj["median"],
-                "adj_mean": adj["mean"],
-                "adj_lo": adj["lo"],
-                "adj_hi": adj["hi"],
-                "adj_lo50": adj["lo50"],
-                "adj_hi50": adj["hi50"],
-                "adj_prob_pos": adj["prob_pos"],
-                "biv_median": biv["median"],
-                "biv_mean": biv["mean"],
-                "biv_lo": biv["lo"],
-                "biv_hi": biv["hi"],
-                "biv_lo50": biv["lo50"],
-                "biv_hi50": biv["hi50"],
-                "biv_prob_pos": biv["prob_pos"],
-                "adjusted_converged": primary_converged,
-                "bivariate_converged": bivariate_converged[key],
-            }
-        )
-    associations = pd.DataFrame(association_rows)
+    reported = reported_predictors(headline)
+    associations = pd.DataFrame(
+        [
+            _association_row(
+                key,
+                frame.predictor_labels.get(key, key),
+                adjusted[key],
+                bivariate[key],
+                adj_converged=primary_converged,
+                biv_converged=bivariate_converged[key],
+            )
+            for key in reported
+        ],
+        columns=list(PREDICTOR_ASSOCIATION_COLUMNS),
+    )
     save_table(ctx, "predictor_associations", associations)
     _plot_associations(ctx, associations, hdi)
     write_prior_pushforward(
@@ -726,42 +879,26 @@ def _fit_rlm_transition_adjusted(
 
     section_header("Items-scale +1 SD contrasts")
     gain_words = _rlm_transition_natural_scale_contrasts(
-        ctx, frame, headline, hdi
+        ctx, frame, reported, hdi
     )
     save_table(ctx, "predicted_gain_words", gain_words)
 
-    section_header("Prior sensitivity (slope sigma)")
-    sensitivity_rows = []
-    for sigma in [sigma0, *prior_sens]:
-        if sigma == sigma0:
-            trace, converged = ctx.trace, primary_converged
-        else:
-            candidate = _factories.build_rlm_transition_adjusted_model(
-                frame,
-                predictors=headline,
-                predictor_slope_sigma=float(sigma),
-            )
-            result = run_subfit(
-                ctx,
-                candidate,
-                label=f"{spec.model_id} sigma={sigma}",
-                role="prior_sweep",
-            )
-            trace, converged = result.trace, result.converged
-        for key in headline:
-            summary = beta_summary(trace, f"beta_{key}", hdi)
-            sensitivity_rows.append(
-                {
-                    "predictor_slope_sigma": float(sigma),
-                    "predictor": key,
-                    "mean": summary["mean"],
-                    "lo": summary["lo"],
-                    "hi": summary["hi"],
-                    "prob_pos": summary["prob_pos"],
-                    "subfit_converged": converged,
-                }
-            )
-    save_table(ctx, "prior_sensitivity", pd.DataFrame(sensitivity_rows))
+    section_header("Prior sensitivity (slope and own-baseline prior SDs)")
+    save_table(
+        ctx,
+        "prior_sensitivity",
+        _prior_sweep_table(
+            ctx,
+            plan=plan,
+            build=lambda **kw: _factories.build_rlm_transition_adjusted_model(
+                frame, **{**plan.rlm_factory_kwargs(headline), **kw}
+            ),
+            predictors=reported,
+            labels=lambda k: frame.predictor_labels.get(k, k),
+            primary_converged=primary_converged,
+            ci_prob=hdi,
+        ),
+    )
 
     if plan.common_horizon_last_wave is not None:
         section_header("Common-horizon sensitivity")
@@ -859,6 +996,8 @@ def _fit_rlm_transition_adjusted(
             ctx, "transition_slope_sensitivity", pd.DataFrame(transition_rows)
         )
 
+    infl_df, _k_thr, n_flagged = _write_influence(ctx)
+
     write_run_metadata(
         ctx,
         extra={
@@ -869,7 +1008,16 @@ def _fit_rlm_transition_adjusted(
             "transition_n_obs": frame.transition_n_obs,
             "transition_group_counts": frame.transition_group_counts,
             "predictors": headline,
+            "reported_predictors": reported,
             "predictors_standardised_within_transition": True,
+            "prior_sensitivity_sigmas": prior_sens,
+            "gamma_own_sigma": plan.gamma_own_sigma,
+            "gamma_own_sensitivity_sigmas": list(plan.gamma_own_sensitivity_sigmas),
+            "contrast_operating_point": "row_averaged_median_child",
+            "max_pareto_k": (
+                float(infl_df["pareto_k"].max()) if infl_df is not None else None
+            ),
+            "n_pareto_k_flagged": n_flagged,
             "group_nuisance_terms": nuisance,
             "source_n_children": frame.source_n_children,
             "eligible_n_children": frame.eligible_n_children,
@@ -915,7 +1063,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     sigma0 = plan.predictor_slope_sigma
     prior_sens = list(plan.prior_sensitivity_sigmas)
 
-    # 94% intervals, matching the RLI adjusted-family convention.
+    # House-standard 89% equal-tailed intervals, as in the RLI port.
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
     _report.write_model_recipe(ctx)
@@ -963,55 +1111,41 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         )
         bivariate[k] = beta_summary(res.trace, f"beta_{k}", hdi)
         biv_converged[k] = res.converged
-    rows = []
-    for k in headline:
-        a, bv = adjusted[k], bivariate[k]
-        rows.append(
-            {
-                "predictor": k,
-                "label": frame.predictor_labels.get(k, k),
-                "adj_median": a["median"],
-                "adj_mean": a["mean"],
-                "adj_lo": a["lo"],
-                "adj_hi": a["hi"],
-                "adj_lo50": a["lo50"],
-                "adj_hi50": a["hi50"],
-                "adj_prob_pos": a["prob_pos"],
-                "biv_median": bv["median"],
-                "biv_mean": bv["mean"],
-                "biv_lo": bv["lo"],
-                "biv_hi": bv["hi"],
-                "biv_lo50": bv["lo50"],
-                "biv_hi50": bv["hi50"],
-                "biv_prob_pos": bv["prob_pos"],
-                "adjusted_converged": _primary_converged,
-                "bivariate_converged": biv_converged[k],
-            }
-        )
-    assoc = pd.DataFrame(rows)
+    reported = reported_predictors(headline)
+    assoc = pd.DataFrame(
+        [
+            _association_row(
+                k,
+                frame.predictor_labels.get(k, k),
+                adjusted[k],
+                bivariate[k],
+                adj_converged=_primary_converged,
+                biv_converged=biv_converged[k],
+            )
+            for k in reported
+        ],
+        columns=list(PREDICTOR_ASSOCIATION_COLUMNS),
+    )
     save_table(ctx, "predictor_associations", assoc)
     _plot_associations(ctx, assoc, hdi)
-    _pf_assoc = assoc
-    # Estimand-scale prior check on the headline adjusted associations (#381).
-    # Driven off the association table just written, not off ``headline``: the
-    # missing-data indicators are dropped from that table as nuisance
-    # subgroup offsets, and a prior row for a term the report does not show
-    # would contradict the nuisance labelling it was dropped for.
+    # Estimand-scale prior check on the headline adjusted associations (#381),
+    # pushed through the same at-the-mean functional as the posterior contrast
+    # (reference group, sample-mean own baseline; 2026-08-22 review, finding 6).
     _pf_n = pushforward_n_trials(ctx, outcome)
     _pf_outcome = pushforward_outcome_label(ctx, outcome)
     write_prior_pushforward(
         ctx,
-        marginal_pushforward_rows(
+        at_mean_pushforward_rows(
             ctx,
             [
                 (
                     f"beta_{r.predictor}",
                     f"the adjusted association of +1 SD {r.label} with {_pf_outcome}",
                 )
-                for r in _pf_assoc.itertuples()
+                for r in assoc.itertuples()
             ],
             n_trials=_pf_n,
-            convention="forward",
+            own_pre_logit_mean=float(np.mean(frame.pre_logit[outcome])),
         ),
     )
     print_table(
@@ -1030,43 +1164,25 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
 
     # --- Items-scale contrasts (the key-findings headline) ------------------
     section_header("Items-scale +1 SD contrasts")
-    gain_words = _rlm_natural_scale_contrasts(ctx, frame, headline, hdi)
+    gain_words = _rlm_natural_scale_contrasts(ctx, frame, reported, hdi)
     save_table(ctx, "predicted_gain_words", gain_words)
 
-    # --- Prior-sensitivity sweep over the slope sigma ------------------------
-    section_header("Prior sensitivity (slope sigma)")
-    sens_rows = []
-    for sig in [sigma0, *prior_sens]:
-        if sig == sigma0:
-            t, sig_converged = ctx.trace, _primary_converged
-        else:
-            b = _factories.build_rlm_adjusted_model(
-                frame,
-                **{
-                    **plan.rlm_factory_kwargs(headline),
-                    "predictor_slope_sigma": float(sig),
-                },
-            )
-            res = run_subfit(
-                ctx, b, label=f"{spec.model_id} sigma={sig}", role="prior_sweep"
-            )
-            t = res.trace
-            sig_converged = res.converged
-        for k in headline:
-            s = beta_summary(t, f"beta_{k}", hdi)
-            sens_rows.append(
-                {
-                    "predictor_slope_sigma": float(sig),
-                    "predictor": k,
-                    "mean": s["mean"],
-                    "lo": s["lo"],
-                    "hi": s["hi"],
-                    "prob_pos": s["prob_pos"],
-                    "subfit_converged": sig_converged,
-                }
-            )
-    sens = pd.DataFrame(sens_rows)
+    # --- Prior-sensitivity sweep (slope and own-baseline prior SDs) ----------
+    section_header("Prior sensitivity (slope and own-baseline prior SDs)")
+    sens = _prior_sweep_table(
+        ctx,
+        plan=plan,
+        build=lambda **kw: _factories.build_rlm_adjusted_model(
+            frame, **{**plan.rlm_factory_kwargs(headline), **kw}
+        ),
+        predictors=reported,
+        labels=lambda k: frame.predictor_labels.get(k, k),
+        primary_converged=_primary_converged,
+        ci_prob=hdi,
+    )
     save_table(ctx, "prior_sensitivity", sens)
+
+    infl_df, _k_thr, n_flagged = _write_influence(ctx)
 
     write_run_metadata(
         ctx,
@@ -1076,6 +1192,15 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             "pre_wave": pre_wave,
             "post_wave": post_wave,
             "predictors": headline,
+            "reported_predictors": reported,
+            "gamma_own_sigma": plan.gamma_own_sigma,
+            "gamma_own_sensitivity_sigmas": list(plan.gamma_own_sensitivity_sigmas),
+            "prior_sensitivity_sigmas": prior_sens,
+            "contrast_operating_point": "at_mean_reference_group",
+            "max_pareto_k": (
+                float(infl_df["pareto_k"].max()) if infl_df is not None else None
+            ),
+            "n_pareto_k_flagged": n_flagged,
             "group_nuisance_terms": nuisance,
             "group_codes": sorted(set(frame.group_code.astype(int))),
             "group_labels": {

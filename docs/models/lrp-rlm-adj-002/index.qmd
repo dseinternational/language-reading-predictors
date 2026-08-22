@@ -43,7 +43,7 @@ y_i \sim \mathrm{BetaBinomial}(90,\ p_i,\ \kappa),
 \beta_{\text{bassim}}z_{\text{bassim},i}.
 $$
 
-Here $y_i$ is wave-3 BAS word reading out of 90. The three mutually adjusted slopes have $\mathrm{Normal}(0, 0.3)$ priors and are reported per one-standard-deviation predictor difference on both the logit and expected-word scales. No group nuisance coefficient is fitted because every row belongs to the Down syndrome group. Baseline-only bivariate refits and slope-prior sensitivity refits at prior standard deviations 0.5 and 0.7 remain required companions.
+Here $y_i$ is wave-3 BAS word reading out of 90. The three mutually adjusted slopes have $\mathrm{Normal}(0, 0.3)$ priors and are reported per one-standard-deviation predictor difference on both the logit and expected-word scales. No group nuisance coefficient is fitted because every row belongs to the Down syndrome group. Baseline-only bivariate refits, slope-prior sensitivity refits at prior standard deviations 0.5 and 0.7, and an own-baseline-prior refit widening $\gamma_{\text{own}} \sim \mathrm{Normal}(1, 0.25)$ to SD 0.5 remain required companions. The Beta-Binomial concentration takes the dispersion-scale prior of the Byrne historical families, $1/\sqrt{\kappa} \sim \mathrm{HalfNormal}(0.25)$, so the near-Binomial limit is not excluded a priori (2026-08-22 adjusted-family review).
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

@@ -39,9 +39,17 @@ _FAMILY_KEYS = frozenset(
         "require_confirmed_inputs",
         "predictor_slope_sigma",
         "prior_sensitivity_sigmas",
+        "gamma_own_sensitivity_sigmas",
         "study_id",
     }
 )
+
+#: The own-baseline coupling prior SD every adjusted fit uses
+#: (``priors.gamma_own_prior``'s default, ``Normal(1, 0.25)``). Recorded here so
+#: the plan can refuse a sensitivity sweep that merely repeats the fitted value;
+#: ``tests/statistical_models/test_adjusted_run_plan.py`` pins it to the prior
+#: constructor's default so the two cannot drift apart.
+GAMMA_OWN_SIGMA: float = 0.25
 
 
 def _symbols(value: Any, *, name: str) -> tuple[str, ...]:
@@ -118,6 +126,14 @@ class AdjustedModelSettings:
     require_confirmed_inputs: bool = False
     predictor_slope_sigma: float = 0.3
     prior_sensitivity_sigmas: tuple[float, ...] = (0.5, 0.7)
+    gamma_own_sensitivity_sigmas: tuple[float, ...] = (0.5,)
+    """Own-baseline prior SDs for the sensitivity sweep (the fitted value is
+    :data:`GAMMA_OWN_SIGMA`). ``gamma_own ~ Normal(1, 0.25)`` is the one shared
+    prior informative in its mean and its docstring asks for a 0.25-vs-0.5 check;
+    this family never ran it until the 2026-08-22 review (finding 5): the baseline
+    the slopes condition on is itself a member of the correlated ability cluster
+    the predictors come from, so a prior-pulled baseline slope redistributes shared
+    variance into the partial slopes the family reports."""
 
     def __post_init__(self) -> None:
         if self.design is not None and (
@@ -183,6 +199,17 @@ class AdjustedModelSettings:
         if len(sigmas) != len(set(sigmas)):
             raise ValueError("prior_sensitivity_sigmas contains duplicates")
         object.__setattr__(self, "prior_sensitivity_sigmas", sigmas)
+        if isinstance(self.gamma_own_sensitivity_sigmas, str) or not isinstance(
+            self.gamma_own_sensitivity_sigmas, Sequence
+        ):
+            raise TypeError("gamma_own_sensitivity_sigmas must be a sequence")
+        own_sigmas = tuple(
+            _positive_float(value, name="gamma_own_sensitivity_sigmas")
+            for value in self.gamma_own_sensitivity_sigmas
+        )
+        if len(own_sigmas) != len(set(own_sigmas)):
+            raise ValueError("gamma_own_sensitivity_sigmas contains duplicates")
+        object.__setattr__(self, "gamma_own_sensitivity_sigmas", own_sigmas)
 
     @classmethod
     def from_legacy_extra(
@@ -218,6 +245,9 @@ class AdjustedModelSettings:
             prior_sensitivity_sigmas=extra.get(
                 "prior_sensitivity_sigmas", (0.5, 0.7)
             ),
+            gamma_own_sensitivity_sigmas=extra.get(
+                "gamma_own_sensitivity_sigmas", (0.5,)
+            ),
         )
 
 
@@ -248,6 +278,8 @@ class AdjustedRunPlan:
     require_confirmed_inputs: bool
     predictor_slope_sigma: float
     prior_sensitivity_sigmas: tuple[float, ...]
+    gamma_own_sigma: float
+    gamma_own_sensitivity_sigmas: tuple[float, ...]
     observation_nodes: tuple[str, ...]
     compute_loo: bool
     loo_unit: str
@@ -365,7 +397,8 @@ class AdjustedRunPlan:
                 "bounded score is conditioned on its own t1 score."
             )
             sensitivity_checks = (
-                "Every bivariate, prior-width and SES sensitivity refit"
+                "Every bivariate, slope-prior, own-baseline-prior and SES "
+                "sensitivity refit"
             )
         else:
             population = (
@@ -396,7 +429,8 @@ class AdjustedRunPlan:
                     f"{self.post_wave}, restricted to {population}."
                 )
                 sensitivity_checks = (
-                    "Every bivariate and prior-width sensitivity refit"
+                    "Every bivariate, slope-prior and own-baseline-prior "
+                    "sensitivity refit"
                 )
             else:
                 transitions = ", ".join(
@@ -413,10 +447,31 @@ class AdjustedRunPlan:
                     "predictors standardised separately within each transition."
                 )
                 sensitivity_checks = (
-                    "Every bivariate and prior-width sensitivity refit, the "
-                    f"common-horizon refit through wave {self.common_horizon_last_wave}, "
-                    "and the transition-specific-slope refit"
+                    "Every bivariate, slope-prior and own-baseline-prior "
+                    "sensitivity refit, the common-horizon refit through wave "
+                    f"{self.common_horizon_last_wave}, and the "
+                    "transition-specific-slope refit"
                 )
+        if self.transition_waves is not None:
+            operating_point = (
+                "Each +1 SD items-scale contrast is averaged over the fitted "
+                "transition rows at their observed covariates, with the child "
+                "random intercept at zero (a median-child, row-averaged contrast); "
+                "the prior pushforward uses the same row-averaged functional."
+            )
+        else:
+            operating_point = (
+                "Each +1 SD items-scale contrast is evaluated at one operating "
+                "point: a child at the sample-mean own baseline with every other "
+                "standardised predictor at zero"
+                + (
+                    " and the group-nuisance dummies at zero (the reference group)"
+                    if self.port == "rlm"
+                    else ""
+                )
+                + " — two such children who differ by one SD on one predictor. The "
+                "prior pushforward uses the same at-the-mean functional."
+            )
         return (
             "Note: Generated from the validated adjusted-association run plan; "
             "template drafted by a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -428,13 +483,17 @@ class AdjustedRunPlan:
                 else "between-child associations"
             )
             + " and their baseline-only bivariate "
-            "comparators, with +1 SD contrasts translated to outcome items.\n\n"
+            "comparators, with +1 SD contrasts translated to outcome items. "
+            f"{operating_point}\n\n"
             f"## Causal status\n\n{self.causal_status}\n\n"
             f"## Analysis population\n\n{self.analysis_population}\n\n"
             f"## Missing data\n\n{self.missing_data_assumption}\n\n"
             f"## Terms\n\n{terms} Predictor-slope prior SD: "
             f"{self.predictor_slope_sigma:g}; sensitivity SDs: "
-            f"{', '.join(f'{value:g}' for value in self.prior_sensitivity_sigmas)}.\n\n"
+            f"{', '.join(f'{value:g}' for value in self.prior_sensitivity_sigmas)}. "
+            f"Own-baseline coupling prior SD: {self.gamma_own_sigma:g}; "
+            "own-baseline sensitivity SDs: "
+            f"{', '.join(f'{value:g}' for value in self.gamma_own_sensitivity_sigmas)}.\n\n"
             "## Uncertainty and checks\n\nRelease requires the convergence gate, "
             "child-level PSIS-LOO and posterior-predictive checks. "
             f"{sensitivity_checks} records its own convergence and "
@@ -482,6 +541,11 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
     if settings.predictor_slope_sigma in settings.prior_sensitivity_sigmas:
         raise ValueError(
             "prior_sensitivity_sigmas must not repeat predictor_slope_sigma"
+        )
+    if GAMMA_OWN_SIGMA in settings.gamma_own_sensitivity_sigmas:
+        raise ValueError(
+            "gamma_own_sensitivity_sigmas must not repeat the fitted own-baseline "
+            f"prior SD {GAMMA_OWN_SIGMA:g}"
         )
 
     if spec.study_id == "rli":
@@ -700,6 +764,8 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         require_confirmed_inputs=settings.require_confirmed_inputs,
         predictor_slope_sigma=settings.predictor_slope_sigma,
         prior_sensitivity_sigmas=settings.prior_sensitivity_sigmas,
+        gamma_own_sigma=GAMMA_OWN_SIGMA,
+        gamma_own_sensitivity_sigmas=settings.gamma_own_sensitivity_sigmas,
         observation_nodes=("y_post",),
         compute_loo=True,
         loo_unit="child",

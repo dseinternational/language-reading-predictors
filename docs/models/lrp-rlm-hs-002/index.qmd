@@ -34,7 +34,7 @@ _No gradient-boosting comparison._ No gradient-boosting layer exists for the Byr
 
 ## Model
 
-The likelihood and own-baseline/group-nuisance structure match `lrp-rlm-adj-003`: wave-3 BPVS is Beta-Binomial with confirmed ceiling 32, conditional on wave-1 BPVS. The five focal slopes instead share a regularised ("Finnish") horseshoe prior with global scale $\tau_0 = 0.1$, slab scale 2 and slab degrees of freedom 4. Predictors are ranked by posterior $P(|\beta| > 0.1)$ on the per-SD logit scale. Group-nuisance dummies remain outside the horseshoe, and sampling uses a raised `target_accept` for the global-local funnel.
+The likelihood and own-baseline/group-nuisance structure match `lrp-rlm-adj-003`: wave-3 BPVS is Beta-Binomial with confirmed ceiling 32, conditional on wave-1 BPVS. The five focal slopes instead share a regularised ("Finnish") horseshoe prior with global scale $\tau_0 = 0.1$, slab scale 2 and slab degrees of freedom 4. Predictors are ranked by posterior $P(|\beta| > 0.1)$ on the per-SD logit scale. Group-nuisance dummies remain outside the horseshoe, and sampling uses a raised `target_accept` for the global-local funnel. The Beta-Binomial concentration takes the dispersion-scale prior shared by the Byrne families, $1/\sqrt{\kappa} \sim \mathrm{HalfNormal}(0.25)$, as `lrp-rlm-adj-003` does (2026-08-22 adjusted-family review), so the near-Binomial limit is not excluded a priori at this 32-item denominator.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

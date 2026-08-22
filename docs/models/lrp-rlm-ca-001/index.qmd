@@ -24,7 +24,7 @@ Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 ## Overview
 
-RLM-CA-001 describes the same-wave correlates of BAS word reading in the Byrne, MacDonald and Buckley historical cohort. At each of waves 1–4 it fits a separate between-child Beta-Binomial regression of BAS word-reading level (`basread`) on receptive vocabulary (`bpvs`), receptive grammar (`trog`), auditory digit recall (`basdig`) and verbal similarities (`bassim`), plus age and reading-group nuisance terms. The mutually adjusted result is shown beside a single-skill comparator for each predictor.
+RLM-CA-001 describes the same-wave correlates of BAS word reading in the Byrne, MacDonald and Buckley historical cohort. At each of waves 1–4 it fits a separate between-child Beta-Binomial regression of BAS word-reading level (`basread`) on receptive vocabulary (`bpvs`), receptive grammar (`trog`), auditory digit recall (`basdig`) and verbal similarities (`bassim`), plus age and reading-group nuisance terms. The mutually adjusted result is shown beside a single-skill comparator for each predictor. The Beta-Binomial concentration takes the dispersion-scale prior shared by the Byrne families, $1/\sqrt{\kappa} \sim \mathrm{HalfNormal}(0.25)$ (2026-08-22 adjusted-family review), so the near-Binomial limit is not excluded a priori.
 
 _Estimand: descriptive association, with no causal warrant._ The coefficient for a predictor compares children at the same wave who are alike on the model's other included variables. It does not estimate what would happen if that skill were changed. The reading-matched group was selected on reading level, so neither its nuisance coefficient nor a pooled association should be read as an unselected population contrast.
 

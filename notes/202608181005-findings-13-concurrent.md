@@ -53,7 +53,7 @@ The strongest relationships in the trial cohort, at the wave where each was clea
 
 These are not three sequentially nested adjustments. `ca-011` adds nonword decoding to the same minimal specification as `ca-010`, reducing the letter-sound estimate from +11.0 to +7.2 items; `ca-001` instead uses a substantially broader six-skill and background adjustment set and should not be read as the middle step. All estimate conditional associations, but what is held constant differs. No single number is _the_ answer, and quoting one without its adjustment set would be misleading.
 
-In the **historical cohort**, verbal reasoning is the strongest same-wave correlate of BAS word reading at wave 1 (+7.5 items [+3.9, +11.3]) — consistent with the general-ability reading of these associations, since verbal reasoning is about as close to a general-ability marker as this battery has.
+In the **historical cohort**, verbal reasoning is the strongest same-wave correlate of BAS word reading at wave 1 (+7.5 items [+3.8, +11.3]; 2026-08-22 refit under the dispersion-scale concentration prior, unchanged at one decimal) — consistent with the general-ability reading of these associations, since verbal reasoning is about as close to a general-ability marker as this battery has.
 
 ## What these models cannot tell you
 

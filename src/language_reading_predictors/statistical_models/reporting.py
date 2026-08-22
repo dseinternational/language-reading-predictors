@@ -4566,12 +4566,25 @@ def _kf_most_resolved_row(
     df: pd.DataFrame,
     *,
     prob_col: str,
+    resolution_decimals: int | None = None,
+    tie_breakers: Sequence[tuple[str, bool]] = (),
 ) -> dict:
     """Return the row whose direction is clearest, never the largest estimate.
 
     The ranking is distance of ``P(positive)`` from 0.5.  This avoids presenting
     differently-scaled coefficients as though their raw magnitudes were
     comparable, and it keeps the selection rule tied to uncertainty.
+
+    ``resolution_decimals`` and ``tie_breakers`` are opt-in (the default keeps
+    every existing builder's behaviour): a builder whose rows can all sit at the
+    resolution ceiling passes the number of decimals at which two probabilities
+    count as tied — chosen well above the Monte-Carlo noise in ``P`` (the
+    concurrent family uses 2, i.e. ties to the nearest 1 %) — and a sequence of
+    ``(column, ascending)`` secondary keys that decide among tied rows on a
+    stated, data-meaningful basis (the concurrent family's primary wave first,
+    then the larger items-scale contrast — 2026-08-22 adjusted-family review,
+    extension follow-up: ``rlm-ca-001``'s headline wave had flipped t1 → t2
+    between two refits on a 1e-4 difference in ``P``).
     """
     if prob_col not in df.columns:
         raise _KeyFindingsUnavailable(f"{prob_col} is missing")
@@ -4579,18 +4592,25 @@ def _kf_most_resolved_row(
     usable = df[np.isfinite(probabilities)].copy()
     if usable.empty:
         raise _KeyFindingsUnavailable(f"{prob_col} has no finite values")
-    usable["_kf_resolution"] = (
-        pd.to_numeric(usable[prob_col], errors="coerce") - 0.5
-    ).abs()
+    resolution = (pd.to_numeric(usable[prob_col], errors="coerce") - 0.5).abs()
+    if resolution_decimals is not None:
+        resolution = resolution.round(int(resolution_decimals))
+    usable["_kf_resolution"] = resolution
+    for column, _ascending in tie_breakers:
+        if column not in usable.columns:
+            raise _KeyFindingsUnavailable(f"tie-break column {column} is missing")
     # ``kind="stable"``: the metric saturates at 0.5 once several rows reach
     # P(positive) = 1, and pandas' default quicksort leaves the winner among
     # tied rows dependent on pandas' internals rather than on the data — so the
     # published headline could change without the fit changing (2026-08-21
     # historical-families review, finding 3, where one fit had eight tied rows).
     # A stable sort makes the choice "the first tied row in the artefact's own
-    # order", which is reproducible and inspectable.
+    # order" (after any declared tie-breakers), which is reproducible and
+    # inspectable.
+    by = ["_kf_resolution", *(column for column, _ in tie_breakers)]
+    ascending = [False, *(bool(flag) for _, flag in tie_breakers)]
     return (
-        usable.sort_values("_kf_resolution", ascending=False, kind="stable")
+        usable.sort_values(by, ascending=ascending, kind="stable")
         .iloc[0]
         .to_dict()
     )
@@ -4646,11 +4666,31 @@ def _kf_association_direction(
 
 
 def _kf_outcome_label(config: Mapping) -> str:
-    """Outcome display label, mirroring the ``_setup.qmd`` derivation."""
+    """Outcome display label, mirroring the ``_setup.qmd`` derivation.
+
+    The RLI ``MEASURES`` map first; for any other study the registered dataset
+    catalogue (``datasets.resolve_dataset``), exactly as ``_setup.qmd`` does.
+    Without that second step every Byrne (RLM) key-findings headline fell through
+    to the model *title* and read "… items of difference in Byrne wave-1 predictors
+    of receptive-vocabulary gain, waves 1-3 (confirmed-input, mutually adjusted)"
+    where it should have named BPVS receptive vocabulary (2026-08-22 adjusted-family
+    review, finding 2).
+    """
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     symbol = config.get("outcome_symbol")
     measure = MEASURES.get(symbol) if symbol else None
+    study_id = config.get("study_id")
+    if measure is None and symbol and study_id and study_id != "rli":
+        try:
+            from language_reading_predictors.statistical_models.datasets import (
+                resolve_dataset,
+            )
+
+            _dataset, study_measures = resolve_dataset(study_id)
+            measure = study_measures.get(symbol)
+        except (KeyError, TypeError):
+            measure = None
     if measure is not None:
         return measure.label
     return config.get("title") or symbol or "the outcome"
@@ -6290,6 +6330,17 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
     df = _kf_csv(output_dir, "predicted_gain_words.csv")
     if df is None:
         raise _KeyFindingsUnavailable("predicted_gain_words.csv is not present")
+    # Missing-data indicators (``{cov}_missing``) are subgroup mean-offsets under
+    # the missing-indicator method — nuisance terms the associations table and the
+    # priors table already exclude. The pipeline now filters them out of this table
+    # too; this guard keeps a stored pre-fix file from headlining "Speech missing
+    # (indicator)" as the clearest predictor (2026-08-22 review, finding 3).
+    if "predictor" in df.columns:
+        df = df[~df["predictor"].astype(str).str.endswith("_missing")]
+        if df.empty:
+            raise _KeyFindingsUnavailable(
+                "predicted_gain_words.csv carries only missing-indicator rows"
+            )
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
     label = _kf_plain_label(row.get("label", row.get("predictor", "predictor")))
     # House standard is the posterior median (METHODS.md); the mean was reported
@@ -6299,6 +6350,23 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
     lo = _kf_float(row["delta_words_lo"])
     hi = _kf_float(row["delta_words_hi"])
     outcome_label = _kf_outcome_label(config)
+    # The design is read from the persisted plan: the stacked Byrne transition
+    # model pools annual transitions with a child random intercept, so its slopes
+    # are repeated-transition associations, not the one-row-per-child
+    # between-child contrast of the span designs (2026-08-22 review, finding 6).
+    plan = config.get("resolved_run_plan") or {}
+    if plan.get("transition_waves"):
+        causal = (
+            "This is a pooled repeated-transition adjusted association (annual "
+            "transitions stacked, with a child random intercept); neither the "
+            "temporal ordering nor the random intercept identifies what would "
+            "happen if the predictor were changed."
+        )
+    else:
+        causal = (
+            "This is a between-child adjusted association; it does not identify "
+            "what would happen if the predictor were changed."
+        )
     return [
         _kf_sentence(
             f"The clearest adjusted predictor was {label}: a 1-SD increase was "
@@ -6315,11 +6383,7 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
             ),
             "confidence",
         ),
-        _kf_sentence(
-            "This is a between-child adjusted association; it does not identify "
-            "what would happen if the predictor were changed.",
-            "causal",
-        ),
+        _kf_sentence(causal, "causal"),
     ]
 
 
@@ -7107,7 +7171,27 @@ def _kf_build_concurrent(output_dir, config: Mapping) -> list[dict[str, str]]:
         raise _KeyFindingsUnavailable(
             "no converged adjusted +1 SD concurrent marginals are present"
         )
-    row = _kf_most_resolved_row(rows, prob_col="prob_pos")
+    # Several wave × predictor rows routinely sit at P(>0) ≈ 1 in this family, so
+    # the "most resolved row" has to be decided among ties on a stated basis:
+    # rows whose P(>0) agree to the nearest 1 % are tied (2 decimals — an order
+    # of magnitude above the Monte-Carlo noise in P at 36 000 draws; 3 decimals
+    # still flipped on a 1e-4 difference), and ties go to the family's primary
+    # wave first (the first declared wave is the primary fit — the largest
+    # sample; the later waves are sub-fits), then to the larger items-scale
+    # contrast within that wave. Without this the headline wave flipped between
+    # two refits of ``lrp-rlm-ca-001`` (t1 → t2; P(>0) 0.99967 / 0.99958 against
+    # 0.99944 / 0.99953) on noise below anything the box reports (2026-08-22
+    # adjusted-family review, extension).
+    rows = rows.assign(
+        _kf_timepoint=pd.to_numeric(rows["timepoint"], errors="coerce"),
+        _kf_abs_items=pd.to_numeric(rows["items_median"], errors="coerce").abs(),
+    )
+    row = _kf_most_resolved_row(
+        rows,
+        prob_col="prob_pos",
+        resolution_decimals=2,
+        tie_breakers=(("_kf_timepoint", True), ("_kf_abs_items", False)),
+    )
     label = _kf_plain_label(row.get("label", row["term"]))
     if config.get("study_id", "rli") == "rli":
         causal_note = (

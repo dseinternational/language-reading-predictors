@@ -177,6 +177,37 @@ def sample_posterior(context: StatisticalFitContext) -> None:
     context.trace = trace
 
 
+#: Name of the child-aggregated log-likelihood that
+#: :func:`compute_log_likelihood_and_loo` writes next to the row-level ``y_post``
+#: so PSIS-LOO can leave one whole child out. It is a *re-expression* of ``y_post``
+#: (each draw's row contributions summed within child), not a second likelihood:
+#: anything that sums the ``log_likelihood`` group — power scaling above all —
+#: must skip it, or the likelihood is counted twice (2026-08-22 adjusted-family
+#: review, finding 1: every published likelihood sensitivity of the stacked
+#: Byrne transition fit and the eight joint / joint-mechanism fits was doubled).
+LOO_CHILD_AGGREGATE_NODE = "y_post_child"
+
+
+def psense_likelihood_var_names(trace) -> list[str] | None:
+    """The ``log_likelihood`` variables power scaling should sum over.
+
+    Every variable in the group except :data:`LOO_CHILD_AGGREGATE_NODE`; ``None``
+    (arviz-stats' "all of them") when the group is absent or carries no aggregate,
+    so a trace without the child re-expression is handled exactly as before.
+    """
+    log_likelihood = getattr(trace, "log_likelihood", None)
+    if log_likelihood is None:
+        return None
+    try:
+        names = list(log_likelihood.data_vars)
+    except AttributeError:  # pragma: no cover - defensive
+        return None
+    if LOO_CHILD_AGGREGATE_NODE not in names:
+        return None
+    kept = [name for name in names if name != LOO_CHILD_AGGREGATE_NODE]
+    return kept or None
+
+
 def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
     """Aggregate a marked repeated-row likelihood to the child unit.
 
@@ -346,9 +377,9 @@ def compute_log_likelihood_and_loo(context: StatisticalFitContext) -> None:
     compute_log_likelihood_and_prior(context)
     child_ll = _joint_log_likelihood_by_child(context.trace)
     if child_ll is not None:
-        context.trace.log_likelihood["y_post_child"] = child_ll
+        context.trace.log_likelihood[LOO_CHILD_AGGREGATE_NODE] = child_ll
         context.loo = az.loo(
-            context.trace, var_name="y_post_child", pointwise=True
+            context.trace, var_name=LOO_CHILD_AGGREGATE_NODE, pointwise=True
         )
     else:
         context.loo = az.loo(context.trace, pointwise=True)
@@ -1080,8 +1111,13 @@ def psense_artifacts(
         # The published psense_summary.csv is a numeric diagnostic — compute it on
         # the FULL trace (thin_for_plots' own contract: "numeric summaries always
         # use the full trace"); the thinned view is only for the figure below
-        # (issue #270 item 2).
-        s = azs.psense_summary(trace, var_names=var_names)
+        # (issue #270 item 2). ``likelihood_var_names`` keeps the child-level LOO
+        # aggregate out of the likelihood sum (see LOO_CHILD_AGGREGATE_NODE).
+        s = azs.psense_summary(
+            trace,
+            var_names=var_names,
+            likelihood_var_names=psense_likelihood_var_names(trace),
+        )
         if hasattr(s, "to_dataframe"):
             df = s.to_dataframe()
         else:
@@ -1110,10 +1146,16 @@ def psense_artifacts(
 
     tr, plot_var_names = _psense_plot_view(thin_for_plots(trace), var_names)
     plot_kwargs, rc = _psense_layout(tr, plot_var_names)
+    likelihood_var_names = psense_likelihood_var_names(tr)
     with az.rc_context(rc):
         _save_pc(
             out,
-            lambda: azp.plot_psense_dist(tr, var_names=plot_var_names, **plot_kwargs),
+            lambda: azp.plot_psense_dist(
+                tr,
+                var_names=plot_var_names,
+                likelihood_var_names=likelihood_var_names,
+                **plot_kwargs,
+            ),
             "psense.png",
             title="Prior/likelihood power-scaling sensitivity",
         )

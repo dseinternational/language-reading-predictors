@@ -613,13 +613,37 @@ def test_growth_summary_skips_an_interval_with_no_bridging_child(tmp_path):
     long = panel.long.copy()
     wave5 = long[wave_col] == 5
     long.loc[wave5, subject_col] = "ghost"
-    broken = replace(panel, long=long.reset_index(drop=True))
+    # The ghost has to be a subject the panel indexes: a row naming a subject
+    # outside ``subject_ids`` used to be cast NaN -> int, which is 0 on arm64 and
+    # INT64_MIN on x86-64 (the factory now refuses it; see the test below).
+    broken = replace(
+        panel,
+        long=long.reset_index(drop=True),
+        subject_ids=[*panel.subject_ids, "ghost"],
+        n_subjects=panel.n_subjects + 1,
+    )
     trace = _prior_trace(broken)
 
     growth = _historical.growth_summary(trace, broken, "basread")
     assert "growth_4_5_items" not in set(growth["quantity"])
     # The intervals that DO have bridging children are unaffected.
     assert "growth_3_4_items" in set(growth["quantity"])
+
+
+def test_historical_factory_refuses_rows_naming_an_unknown_subject(tmp_path):
+    """A tidy row whose subject is not in ``panel.subject_ids`` fails loudly.
+
+    ``Series.map(...).to_numpy(dtype=int)`` silently cast the NaN of an unknown
+    key to 0 on arm64 and to INT64_MIN on x86-64, so the same fixture sampled from
+    subject 0 locally and from out-of-bounds memory in CI (a Beta-Binomial domain
+    error on 2026-08-22). The factory now checks subject and group keys.
+    """
+    panel = _panel(tmp_path, extension=True, extension_waves=(4, 5))
+    long = panel.long.copy()
+    long.loc[long[panel.dataset.wave_col] == 5, panel.dataset.subject_col] = "ghost"
+    broken = replace(panel, long=long.reset_index(drop=True))
+    with pytest.raises(ValueError, match="subject.*ghost"):
+        build_historical_growth_model(broken, measure="basread")
 
 
 def test_declared_waves_are_checked_against_the_catalogue():

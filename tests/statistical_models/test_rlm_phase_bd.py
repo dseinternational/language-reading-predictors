@@ -133,7 +133,12 @@ def test_build_rlm_adjusted_and_horseshoe(tmp_path):
 
     adj = build_rlm_adjusted_model(frame)
     names = {v.name for v in adj.model.free_RVs}
-    assert {"alpha", "gamma_own", "kappa"}.issubset(names)
+    # The concentration takes the dispersion-scale prior of the RLM historical
+    # families (2026-08-22 adjusted review, finding 4): the free RV is
+    # inv_sqrt_kappa and kappa is its Deterministic re-expression.
+    assert {"alpha", "gamma_own", "inv_sqrt_kappa"}.issubset(names)
+    assert "kappa" not in names
+    assert "kappa" in {v.name for v in adj.model.deterministics}
     assert {f"beta_{k}" for k in frame.predictors}.issubset(names)
     # Group nuisance: exactly two dummies (three groups, largest = reference).
     assert sum(n.startswith("beta_group_nuisance_") for n in names) == 2
@@ -142,6 +147,11 @@ def test_build_rlm_adjusted_and_horseshoe(tmp_path):
     hs_names = {v.name for v in hs.model.free_RVs}
     assert {"hs_tau", "hs_c2", "hs_lambda", "hs_z"}.issubset(hs_names)
     assert "beta" in {v.name for v in hs.model.deterministics}
+    # The horseshoe partner shares the adjusted fit's frame and, since
+    # 2026-08-22, its dispersion-scale concentration prior.
+    assert "inv_sqrt_kappa" in hs_names
+    assert "kappa" not in hs_names
+    assert "kappa" in {v.name for v in hs.model.deterministics}
 
     with adj.model:
         pp = pm.sample_prior_predictive(draws=3, random_seed=1)
@@ -172,9 +182,10 @@ def test_transition_frame_and_factory_preserve_child_loo_unit(tmp_path):
 
     built = build_rlm_transition_adjusted_model(frame)
     names = {variable.name for variable in built.model.free_RVs}
-    assert {"alpha_transition", "gamma_own", "sigma_child", "kappa"}.issubset(
-        names
-    )
+    assert {
+        "alpha_transition", "gamma_own", "sigma_child", "inv_sqrt_kappa"
+    }.issubset(names)
+    assert "kappa" in {v.name for v in built.model.deterministics}
     assert {f"beta_{key}" for key in frame.predictors}.issubset(names)
     assert "loo_child_idx" in built.model.named_vars
     with built.model:
@@ -185,6 +196,39 @@ def test_transition_frame_and_factory_preserve_child_loo_unit(tmp_path):
     varying_names = {variable.name for variable in varying.model.free_RVs}
     assert "beta_transition" in varying_names
     assert not any(name.startswith("beta_bpvs") for name in varying_names)
+
+
+def test_rlm_adjusted_factories_take_the_dispersion_scale_and_own_baseline_priors(
+    tmp_path,
+):
+    """2026-08-22 adjusted-family review, findings 4 and 5.
+
+    Both Byrne adjusted factories put the Beta-Binomial concentration on the
+    dispersion scale (``inv_sqrt_kappa ~ HalfNormal(dispersion_prior_sigma)``,
+    ``kappa`` a Deterministic) exactly as the RLM historical factories do, and
+    expose the own-baseline prior SD for the family's 0.25-vs-0.5 sweep.
+    """
+    from pymc.printing import str_for_dist
+
+    path = _write_battery_csv(tmp_path, waves=(1, 2, 3, 4, 5))
+    span = load_rlm_span_frame(path=path)
+    transition = load_rlm_transition_frame(path=path, transition_waves=(1, 2, 3))
+    for built in (
+        build_rlm_adjusted_model(span, gamma_own_sigma=0.5, dispersion_prior_sigma=0.4),
+        build_rlm_transition_adjusted_model(
+            transition, gamma_own_sigma=0.5, dispersion_prior_sigma=0.4
+        ),
+    ):
+        free = {v.name: v for v in built.model.free_RVs}
+        assert "kappa" not in free
+        assert "0.4" in str_for_dist(free["inv_sqrt_kappa"], formatting="plain")
+        assert "0.5" in str_for_dist(free["gamma_own"], formatting="plain")
+        assert "kappa" in {v.name for v in built.model.deterministics}
+        with built.model:
+            prior = pm.sample_prior_predictive(draws=50, random_seed=2)
+        kappa = prior.prior["kappa"].values.ravel()
+        inv = prior.prior["inv_sqrt_kappa"].values.ravel()
+        np.testing.assert_allclose(kappa, 1.0 / (inv**2 + 1e-6))
 
 
 def test_build_rlm_corr_factor_single_indicator_fixed(tmp_path):

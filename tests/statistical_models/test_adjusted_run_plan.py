@@ -354,3 +354,85 @@ def test_pipeline_has_no_direct_family_extra_reads():
     source = inspect.getsource(pipeline)
     assert "spec.extra" not in source
     assert "resolve_adjusted_run_plan(spec)" in source
+
+
+# --- 2026-08-22 adjusted-family review -----------------------------------------
+
+
+def test_gamma_own_sweep_is_declared_validated_and_pinned_to_the_prior_default():
+    """Finding 5: the own-baseline prior SD sweep is part of the plan, and the
+    fitted value the plan records is the shared constructor's default."""
+    from language_reading_predictors.statistical_models import priors
+    from language_reading_predictors.statistical_models.adjusted import (
+        GAMMA_OWN_SIGMA,
+    )
+
+    assert GAMMA_OWN_SIGMA == inspect.signature(priors.gamma_own_prior).parameters[
+        "sigma"
+    ].default
+    plan = resolve_adjusted_run_plan(get_spec())
+    assert plan.gamma_own_sigma == GAMMA_OWN_SIGMA
+    assert plan.gamma_own_sensitivity_sigmas == (0.5,)
+    rlm = resolve_adjusted_run_plan(RLM_TRANSITION_SPEC)
+    assert rlm.gamma_own_sensitivity_sigmas == (0.5,)
+    # Legacy declarations get the same default, so typed/legacy stay identical.
+    legacy = resolve_adjusted_run_plan(
+        _spec(extra={"covariates": ("blocks",), "gamma_own_sensitivity_sigmas": (0.4, 0.6)})
+    )
+    assert legacy.gamma_own_sensitivity_sigmas == (0.4, 0.6)
+    with pytest.raises(ValueError, match="must not repeat the fitted own-baseline"):
+        resolve_adjusted_run_plan(
+            _spec(settings=AdjustedModelSettings(gamma_own_sensitivity_sigmas=(0.25,)))
+        )
+    with pytest.raises(ValueError, match="contains duplicates"):
+        AdjustedModelSettings(gamma_own_sensitivity_sigmas=(0.5, 0.5))
+    with pytest.raises(ValueError, match="positive"):
+        AdjustedModelSettings(gamma_own_sensitivity_sigmas=(0.0,))
+
+
+def test_recipe_states_the_operating_point_and_both_prior_sweeps():
+    """Finding 6: the items-scale contrast's operating point differs between the
+    span and stacked-transition designs and must be stated; finding 5: the recipe
+    names the own-baseline sweep beside the slope sweep."""
+    span = resolve_adjusted_run_plan(get_spec()).recipe_markdown(title="t")
+    assert "one operating point" in span
+    assert "sample-mean own baseline" in span
+    assert "Own-baseline coupling prior SD: 0.25" in span
+    assert "own-baseline sensitivity SDs: 0.5" in span
+    assert "own-baseline-prior" in span
+    rlm_span = resolve_adjusted_run_plan(RLM_SPEC).recipe_markdown(title="t")
+    assert "reference group" in rlm_span
+    transition = resolve_adjusted_run_plan(RLM_TRANSITION_SPEC).recipe_markdown(
+        title="t"
+    )
+    assert "averaged over the fitted transition rows" in transition
+    assert "child random intercept at zero" in transition
+    assert "one operating point" not in transition
+
+
+def test_both_ports_share_one_artefact_schema():
+    """Finding 9: the two ports publish identical ``predictor_associations.csv`` /
+    ``prior_sensitivity.csv`` column sets, built through the shared row helpers."""
+    assert pipeline.PREDICTOR_ASSOCIATION_COLUMNS[-2:] == (
+        "adj_converged",
+        "biv_converged",
+    )
+    assert "median" in pipeline.PRIOR_SENSITIVITY_COLUMNS
+    assert "lo50" in pipeline.PRIOR_SENSITIVITY_COLUMNS
+    assert pipeline.PRIOR_SENSITIVITY_COLUMNS[:2] == (
+        "predictor_slope_sigma",
+        "gamma_own_sigma",
+    )
+    source = inspect.getsource(pipeline)
+    # No port builds its own association dict: every writer goes through the
+    # helper, and neither legacy RLM column name survives.
+    assert source.count("_association_row(") >= 4  # definition + three ports
+    assert '"adjusted_converged"' not in source
+    assert '"bivariate_converged"' not in source
+    # The missing-data indicators are filtered once, by name, and every table
+    # (associations, natural scale, pushforward, sweep) takes the filtered list.
+    assert pipeline.reported_predictors(["L", "hs", "hs_missing", "deapp_c_missing"]) == [
+        "L",
+        "hs",
+    ]
+    assert source.count("reported_predictors(headline)") == 3

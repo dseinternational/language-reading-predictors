@@ -1225,6 +1225,48 @@ def test_adjusted_factory_bivariate_single_predictor(tmp_path):
     assert betas == {"beta_lang"}
 
 
+def test_adjusted_factory_standardises_covariates_and_age_on_the_fitted_rows(tmp_path):
+    """2026-08-22 adjusted-family review, finding 11.
+
+    The span loader standardises covariates and age on every child with any
+    requested outcome at the post wave; the factory then drops the children whose
+    focal outcome is missing there. The predictors the model sees must be mean-0 /
+    SD-1 on the rows it fits — the skills already were, the covariates and age
+    were not — and the own-baseline prior SD is exposed for the family's sweep.
+    """
+    p = _write_synthetic(tmp_path, n_children=30)
+    df = pd.read_csv(p)
+    # One child keeps a t4 row with letter sounds but loses word reading there, so
+    # the loader keeps it (any post observed) and the factory drops it.
+    victim = df.loc[df[V.TIME] == 4, V.SUBJECT_ID].iloc[0]
+    df.loc[(df[V.SUBJECT_ID] == victim) & (df[V.TIME] == 4), V.EWRSWR] = np.nan
+    df.to_csv(p, index=False)
+    prep = load_and_prepare(
+        path=p,
+        phase_mode="span",
+        post_time=4,
+        outcomes=("W", "L", "B", "R", "E", "F"),
+        covariates=(V.BLOCKS, V.BEHAV),
+    )
+    assert prep.n_obs == 30
+    built = build_adjusted_model(
+        prep,
+        outcome_symbol="W",
+        predictors=["L", "lang", "age", V.BLOCKS, V.BEHAV],
+        gamma_own_sigma=0.5,
+    )
+    assert built.prepared.n_obs == 29
+    for name in ("x_beta_L", "x_beta_lang", "x_beta_age", f"x_beta_{V.BLOCKS}", f"x_beta_{V.BEHAV}"):
+        values = np.asarray(built.model[name].get_value(), dtype=float)
+        assert values.shape == (29,)
+        assert abs(float(values.mean())) < 1e-8, name
+        assert abs(float(values.std(ddof=1)) - 1.0) < 1e-8, name
+    # The own-baseline coupling prior carries the requested SD.
+    from pymc.printing import str_for_dist
+
+    assert "0.5" in str_for_dist(built.model["gamma_own"], formatting="plain")
+
+
 def test_concurrent_factory_builds(tmp_path):
     """#312: one-wave concurrent model — standardised same-wave logit predictors, age,
     group nuisance; no own-baseline, no phase/child random intercept."""

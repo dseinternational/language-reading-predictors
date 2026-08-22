@@ -822,6 +822,74 @@ def write_indicator_prior_check(
     )
 
 
+def at_mean_pushforward_rows(
+    ctx: StatisticalFitContext,
+    terms: Sequence[tuple[str, str]],
+    *,
+    n_trials: int,
+    own_pre_logit_mean: float,
+    role: str = "association",
+    intercept: str = "alpha",
+    own_slope: str = "gamma_own",
+) -> list[dict[str, object]]:
+    """Prior pushforward at the span families' *at-the-mean* operating point (#381).
+
+    The between-child adjusted span fits (RLI ``adj-065``, Byrne ``adj-001``–``005``)
+    publish their items-scale contrast as ``N · [expit(α + γ_own·m̄ + β) −
+    expit(α + γ_own·m̄)]`` — two children at the sample-mean own baseline ``m̄``,
+    every other standardised predictor (and any group-nuisance dummy) at zero, who
+    differ by one SD on one predictor. The prior check has to push the prior through
+    the same functional, or the prior and posterior rows of the report describe two
+    different estimands: :func:`marginal_pushforward_rows`' ``"forward"``
+    convention is the *row-averaged* contrast the stacked transition design uses,
+    not this one (2026-08-22 adjusted-family review, finding 6). Each entry of
+    ``terms`` is ``(term, label)``; a term the prior group does not carry yields an
+    ``unavailable`` row naming it, exactly like the marginal helper.
+    """
+    from scipy.special import expit
+
+    source = getattr(ctx, "prior_samples", None) or ctx.trace
+    prior = source.prior
+
+    def draws(name: str) -> np.ndarray:
+        return prior[name].stack(sample=("chain", "draw")).values.ravel()
+
+    rows: list[dict[str, object]] = []
+    try:
+        base_eta = draws(intercept) + draws(own_slope) * float(own_pre_logit_mean)
+    except Exception as exc:  # noqa: BLE001 - an absent base term must stay legible
+        return [
+            _report.unavailable_pushforward(
+                estimand=term,
+                estimand_label=label,
+                role=role,
+                reason=f"at-mean base term unavailable: {exc}",
+            )
+            for term, label in terms
+        ]
+    base_items = float(n_trials) * expit(base_eta)
+    for term, label in terms:
+        try:
+            beta = draws(term)
+            items = float(n_trials) * expit(base_eta + beta) - base_items
+            values = _report.pushforward_values(
+                beta, items, n_trials=n_trials, ci_prob=ctx.reporting.ci_prob
+            )
+        except Exception as exc:  # noqa: BLE001
+            rows.append(
+                _report.unavailable_pushforward(
+                    estimand=term, estimand_label=label, role=role, reason=str(exc)
+                )
+            )
+        else:
+            rows.append(
+                _report.labelled_pushforward(
+                    values, estimand=term, estimand_label=label, role=role
+                )
+            )
+    return rows
+
+
 def write_prior_pushforward(
     ctx: StatisticalFitContext, rows: Sequence[Mapping[str, object]]
 ) -> None:
