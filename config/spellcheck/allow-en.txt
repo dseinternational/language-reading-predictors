@@ -490,6 +490,7 @@ pyproject
 pyreadstat
 pytest
 PYTHONPATH
+PYTHONUTF
 Raftery
 Rasch
 Ratz

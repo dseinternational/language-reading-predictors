@@ -20,8 +20,8 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 def test_transition_analysis_set_is_gate_visible_but_sensitivities_are_not():
-    setup = (REPO / "docs/models/_partials/_setup.qmd").read_text()
-    results = (REPO / "docs/models/_partials/_results_adjusted.qmd").read_text()
+    setup = (REPO / "docs/models/_partials/_setup.qmd").read_text(encoding="utf-8")
+    results = (REPO / "docs/models/_partials/_results_adjusted.qmd").read_text(encoding="utf-8")
     assert '"analysis_set_by_transition.csv"' in setup
     assert '"common_horizon_sensitivity.csv"' not in setup
     assert '"transition_slope_sensitivity.csv"' not in setup
@@ -185,7 +185,7 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
         text=True,
     )
 
-    html = (tmp_path / "index.html").read_text()
+    html = (tmp_path / "index.html").read_text(encoding="utf-8")
     assert "Sampling-quality gate: failed" in html
     assert "R-hat" in html
     assert "divergent transitions" in html
@@ -312,7 +312,7 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
         text=True,
     )
 
-    html = (tmp_path / "index.html").read_text()
+    html = (tmp_path / "index.html").read_text(encoding="utf-8")
     assert "Sampling-quality gate: failed" in html
     assert "No loadings summary" in html
     assert "No factor-correlation matrix" in html

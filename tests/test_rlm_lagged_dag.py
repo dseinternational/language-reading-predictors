@@ -33,7 +33,7 @@ REVERSE_TARGETS = {"bpvs", "trog", "basdig"}
 
 def parse_dagitty(path: Path) -> tuple[nx.DiGraph, set[frozenset[str]]]:
     """Parse the repository's simple edge syntax and retain bidirected pairs."""
-    src = path.read_text()
+    src = path.read_text(encoding="utf-8")
     body = src[src.index("dag {") + len("dag {") : src.rindex("}")]
     graph = nx.DiGraph()
     bidirected: set[frozenset[str]] = set()

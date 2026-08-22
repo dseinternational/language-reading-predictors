@@ -280,7 +280,7 @@ def test_concurrent_output_writer_enforces_full_published_fit_contract(tmp_path)
 
 def test_shared_concurrent_results_partial_is_focal_outcome_neutral():
     repo = Path(__file__).resolve().parents[2]
-    text = (repo / "docs/models/_partials/_results_concurrent.qmd").read_text()
+    text = (repo / "docs/models/_partials/_results_concurrent.qmd").read_text(encoding="utf-8")
     assert "word reading" not in text.lower()
     assert "words read" not in text.lower()
     assert "`adjustment`" in text
@@ -294,7 +294,7 @@ def test_concurrent_spec_docs_avoid_unqualified_attenuation_claims():
     repo = Path(__file__).resolve().parents[2]
     model_dir = repo / "src/language_reading_predictors/statistical_models"
     for number in range(1, 7):
-        text = (model_dir / f"lrp_rli_ca_{number:03d}.py").read_text().lower()
+        text = (model_dir / f"lrp_rli_ca_{number:03d}.py").read_text(encoding="utf-8").lower()
         assert "associations attenuate toward zero" not in text
         assert "gap is itself informative" not in text
 
@@ -302,13 +302,13 @@ def test_concurrent_spec_docs_avoid_unqualified_attenuation_claims():
 def test_concurrent_reports_name_comparator_and_missingness_policy_accurately():
     repo = Path(__file__).resolve().parents[2]
     for number in range(1, 12):
-        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text()
+        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text(encoding="utf-8")
         assert "Every adjusted and bivariate fit" not in text
         assert "adjusted-versus-bivariate" not in text
         assert "Drafted by a LLM-based AI tool (Codex/GPT-5)." in text
 
     for number in range(1, 10):
-        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text()
+        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text(encoding="utf-8")
         assert "single-skill, trait-adjusted comparator" in text
         assert "informative flags are nuisance subgroup offsets" in text
         assert "flags that are constant" in text

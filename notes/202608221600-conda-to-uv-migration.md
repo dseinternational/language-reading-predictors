@@ -31,6 +31,18 @@ Existing published fits keep their schema-1 locks. Nothing reads the `conda_pack
 
 The migration had to touch that line anyway, so it is fixed rather than transliterated: `provenance` now exposes `environment_lock_payload()` and `environment_lock_sha256()`, `write_environment_lock` serialises through the former, and the sweep digests the same bytes the fit wrote. A test asserts the two agree, which is what makes the comparison correct by construction rather than by coincidence.
 
+## 5. Adding Windows to CI exposed two latent portability bugs
+
+Neither is caused by the migration; both were dormant because CI had only ever run on linux-64. They are fixed here because the Windows leg is added here.
+
+**Text-mode line endings broke the environment lock's own integrity check.** `write_environment_lock` digested the in-memory `\n` payload but wrote it in text mode, which translates to `\r\n` on Windows — so the digest `config.json` records described bytes that were not the ones on disk, and `tests/statistical_models/test_itt_pipeline.py` (which re-hashes the file) failed. The payload is now written with `write_bytes`, so the digest is byte-exact by construction on every platform. On Linux the two were accidentally identical, which is why it never surfaced.
+
+**Reads of repository text files used the locale encoding.** `path.read_text()` with no `encoding` decodes as cp1252 on Windows, and 3 of the 292 `docs/models/*/index.qmd` files contain a byte (0x9d) that cp1252 does not define — `lrp-rli-did-007`, `-011` and `-012`. The other 289 decoded by luck, not by design. Every read of a repository-tracked text file in `tests/` and `scripts/` now names `encoding="utf-8"`, as do the remaining unencoded text reads and writes in `src/`. Reads of JSON that `json.dump` produced are left alone: `ensure_ascii=True` makes those files pure ASCII, so they decode identically under any locale.
+
+To keep this from regressing without a Windows machine to hand, the suite was run locally under `PYTHONUTF8=0 LC_ALL=C` — an ASCII default encoding, which is stricter than cp1252. That found two further cases the Windows job had not (the rendered-HTML reads in `test_report_restructure.py`, whose typography happens to be cp1252-representable). All 2283 tests now pass under it.
+
+`.gitattributes` also pins `*.lock` to LF. Without it `* text=auto` plus the Windows runner's `core.autocrlf=true` would check `uv.lock` out with CRLF, giving the same committed file a different SHA-256 on Windows than on Linux — which would make the digest recorded in `project_environment_spec` platform-dependent and defeat the point of recording it.
+
 ## Consequences for contributors
 
 - **Windows no longer needs WSL.** `jaxlib` was the package with no conda-forge win-64 build; native win-amd64 wheels now exist for the whole stack, and `windows-latest` is added to the CI test matrix.
@@ -40,4 +52,4 @@ The migration had to touch that line anyway, so it is fixed rather than translit
 
 ## Verification
 
-`uv sync` resolves 194 packages against CPython 3.14.5; `ruff check src/ scripts/`, `python -m mypy` (36 files), `scripts/check_statistical_documentation.py` and the full `pytest` suite (2283 passed) all pass in the uv environment, as do `npm run spellcheck` and `npm run format:check`. No model was refitted for this change and none needs to be: nothing in the fitted numerics moved.
+CI runs on `ubuntu-26.04` and `windows-latest`. `uv sync` resolves 194 packages against CPython 3.14.5; `ruff check src/ scripts/`, `python -m mypy` (36 files), `scripts/check_statistical_documentation.py` and the full `pytest` suite (2283 passed) all pass in the uv environment, as do `npm run spellcheck` and `npm run format:check`. No model was refitted for this change and none needs to be: nothing in the fitted numerics moved.

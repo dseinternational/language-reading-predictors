@@ -787,7 +787,7 @@ def _load_config(output_dir: Path) -> dict[str, Any] | None:
     if not os.path.exists(path):
         return None
     try:
-        with open(path) as handle:
+        with open(path, encoding="utf-8") as handle:
             loaded = json.load(handle)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None
@@ -922,7 +922,7 @@ def _read_json(path: str | Path) -> tuple[Any, str | None]:
     if not os.path.exists(path):
         return None, "missing"
     try:
-        with open(path) as handle:
+        with open(path, encoding="utf-8") as handle:
             return json.load(handle), None
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None, "unreadable"

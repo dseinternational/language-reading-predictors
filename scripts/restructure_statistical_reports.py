@@ -199,7 +199,7 @@ def restructure(*, write: bool) -> int:
     errors: list[tuple[Path, str]] = []
     candidates = 0
     for path in sorted(MODELS_DIR.glob("*/index.qmd")):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         if not is_statistical_template(text):
             continue
         candidates += 1

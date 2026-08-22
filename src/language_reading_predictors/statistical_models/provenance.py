@@ -235,12 +235,17 @@ def environment_lock_sha256() -> str:
 
 
 def write_environment_lock(output_dir: str | Path) -> tuple[Path, str]:
-    """Write the environment snapshot beside a fit and return path plus SHA-256."""
+    """Write the environment snapshot beside a fit and return path plus SHA-256.
+
+    The payload is written as bytes rather than text: text mode translates ``\n``
+    to ``\r\n`` on Windows, which would leave the returned digest — the one
+    ``config.json`` records — describing bytes that are not the ones on disk.
+    """
     path = Path(output_dir) / "environment-lock.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = environment_lock_payload()
-    path.write_text(payload, encoding="utf-8")
-    return path, hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    payload = environment_lock_payload().encode("utf-8")
+    path.write_bytes(payload)
+    return path, hashlib.sha256(payload).hexdigest()
 
 
 def _safe_model_id(model_id: str) -> str:

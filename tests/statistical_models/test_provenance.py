@@ -218,7 +218,9 @@ def test_environment_lock_records_the_uv_lockfile_not_conda(monkeypatch, tmp_pat
     )
     repository_root = tmp_path / "repo"
     (repository_root / "src" / "pkg" / "statistical_models").mkdir(parents=True)
-    (repository_root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    # Bytes, not text: text mode would translate the newline on Windows and the
+    # expected digest below would describe different bytes than the file holds.
+    (repository_root / "uv.lock").write_bytes(b"version = 1\n")
     monkeypatch.setattr(
         provenance,
         "__file__",

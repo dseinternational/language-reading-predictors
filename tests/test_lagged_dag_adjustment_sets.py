@@ -58,7 +58,7 @@ ITT_TARGETS = ["TR", "TE", "PA", "LS", "WR", "PS", "EI", "EG"]
 
 
 def parse_dagitty(path: Path) -> nx.DiGraph:
-    src = path.read_text()
+    src = path.read_text(encoding="utf-8")
     body = src[src.index("dag {") + len("dag {") : src.rindex("}")]
     g = nx.DiGraph()
     for line in body.splitlines():

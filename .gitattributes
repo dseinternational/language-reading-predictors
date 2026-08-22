@@ -17,6 +17,7 @@
 *.json      text eol=lf
 *.txt       text eol=lf
 *.csv       text eol=lf
+*.lock      text eol=lf
 *.cff       text eol=lf
 *.tex       text eol=lf
 *.csl       text eol=lf

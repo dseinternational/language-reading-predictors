@@ -3420,7 +3420,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "extra": _json_safe(extra or {}),
         **_itt_analysis_set_metadata(context),
     }
-    with open(os.path.join(out, "config.json"), "w") as f:
+    with open(os.path.join(out, "config.json"), "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2)
 
 
@@ -3429,7 +3429,7 @@ def write_loo_summary(context: StatisticalFitContext) -> None:
         return
     out = context.output_dir
     path = os.path.join(out, "loo.txt")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.write(str(context.loo))
 
 
@@ -7918,7 +7918,7 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
 
 
 def _write_key_findings(output_dir: str, payload: dict) -> dict:
-    with open(os.path.join(output_dir, KEY_FINDINGS_FILENAME), "w") as f:
+    with open(os.path.join(output_dir, KEY_FINDINGS_FILENAME), "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
         f.write("\n")
     return payload
