@@ -10,7 +10,7 @@
       "Bash(gh pr *)",
       "Bash(npm run *)",
       "Bash(ruff check *)",
-      "Bash(conda info *)"
+      "Bash(uv tree *)"
     ]
   },
   "additionalDirectories": [

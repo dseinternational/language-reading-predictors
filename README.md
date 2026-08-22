@@ -45,13 +45,19 @@ git clone https://github.com/dseinternational/research.git
 
 #### Fitting models
 
-To fit models, a recent Python installation is required. Some of our dependencies are best installed from [conda-forge](https://conda-forge.org/), for which either [Miniconda](https://www.anaconda.com/docs/getting-started/miniconda/main) or [Miniforge](https://conda-forge.org/download/) is required.
+To fit models, [uv](https://docs.astral.sh/uv/getting-started/installation/) is required. It provisions the Python interpreter itself, so no separate Python installation is needed.
 
-Then, to install Python dependencies, from the repository root:
+Then, to create the environment from the committed lockfile, from the repository root:
 
 ```bash
-conda env update -f environment.yml
+uv sync
 ```
+
+Run commands inside that environment with `uv run` — for example `uv run pytest` or `uv run python scripts/fit_model.py LRP01`. Activating `.venv` in the usual way also works.
+
+Supported platforms are Linux (x86-64 and arm64), Apple Silicon macOS, and Windows (x86-64). Intel macOS is not supported, because [numba](https://numba.pydata.org/) no longer publishes macOS x86-64 wheels.
+
+Plotting model graphs additionally requires the system [Graphviz](https://graphviz.org/) `dot` binary, which is not a Python package: `brew install graphviz`, `apt install graphviz` or `winget install Graphviz.Graphviz`.
 
 #### Creating reports
 

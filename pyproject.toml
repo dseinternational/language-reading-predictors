@@ -12,45 +12,54 @@ license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Frank Buckley" }]
 
 dependencies = [
-  "arviz-plots>=1.3.0",
-  "arviz-stats>=1.3.0",
-  "arviz>=1.3.0",
-  "dse-research-utils>=0.10.0",
-  "graphviz",
-  "lightgbm>=4.7.0",
-  "matplotlib>=3.11.1",
-  "networkx",
-  # pymc -> pytensor -> numba pins numpy <2.5; matches the shared conda core.
-  # Do not raise this ceiling ahead of the core: numba 0.66.0 (the newest that
-  # pytensor 3.3.0 admits) still pins numpy <2.5, so a higher ceiling here only
-  # declares a range that cannot actually be solved.
-  "numpy>=2.4.6,<2.5",
-  "pandas>=3.0.5",
-  "preliz>=0.27.1",
-  "pymc>=6.3.1",
-  "rich>=15.0.0",
-  "scikit-learn>=1.9.0",
-  "seaborn>=0.13.2",
-  "shap>=0.52.0",
-  "scipy>=1.18.0",
-  "xarray>=2026.7.0"
+  # The compiled scientific core is no longer restated here: it is declared once
+  # in dse-research-utils' own pyproject.toml and inherited transitively, so the
+  # floors (numpy <2.5, pymc, pytensor, arviz, …) cannot drift between repos.
+  # Extras carry the optional layers this repo actually imports:
+  #   boosting   lightgbm, shap           (models/, scripts/rank_predictors.py)
+  #   columnar   pyreadstat               (scripts/audit_rlm_source_provenance.py)
+  #   dependence dcor                     (distance_corr_matrix in stats_utils.py)
+  #   graphs     graphviz, networkx       (model graphs; ALSO needs the system `dot`)
+  #   io         orjson, tabulate         (shared library I/O helpers)
+  #   notebook   jupyter, jupytext        (notebooks/ are Jupytext-paired)
+  #   tuning     optuna                   (scripts/tune_model.py)
+  #   viz        seaborn                  (plot_utils.py and friends)
+  # No `jax` extra: every pm.sample call site hardcodes nuts_sampler="nutpie"
+  # and nothing imports jax or numpyro, so the JAX backend the old shared conda
+  # core installed everywhere is genuinely unused here. No `storage` extra
+  # either: h5netcdf/h5py — what ArviZ needs to write trace.nc — moved into the
+  # library's base dependencies in v0.11.1, leaving only zarr behind that extra,
+  # and nothing here imports zarr.
+  "dse-research-utils[boosting,columnar,dependence,graphs,io,notebook,tuning,viz]"
 ]
 
-[project.optional-dependencies]
-audit = [
-  "pyreadstat>=1.3.5"
-]
+[dependency-groups]
 dev = [
-  "jupyter>=1.1.1",
   "mypy>=1.18.2",
-  "pytest>=9.1.1"
+  "pandas-stubs",
+  "pytest>=9.1.1",
+  "ruff>=0.16.1",
+  "scipy-stubs"
+]
+
+[tool.uv]
+# Platforms the lockfile resolves for, copied from the research repo so both
+# resolve for the same set. Intel macOS is deliberately absent: numba publishes
+# no macOS x86_64 wheels and shap pins numba<0.63 there, so the stack cannot
+# solve on that platform. Native win-amd64 is now covered — the conda-forge
+# stack could not serve it (no win-64 jaxlib), so Windows no longer needs WSL.
+environments = [
+  "sys_platform == 'linux' and platform_machine == 'x86_64'",
+  "sys_platform == 'linux' and platform_machine == 'aarch64'",
+  "sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "sys_platform == 'win32' and platform_machine == 'AMD64'"
 ]
 
 [tool.uv.sources]
 # dse-research-utils isn't published to PyPI — resolve it from the public git
-# tag. (The conda env in environment.yml installs it from the same tag in its
-# pip layer; this entry is only consumed by uv.)
-dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.10.0" }
+# tag. To develop against a sibling checkout, replace this entry with:
+#   dse-research-utils = { path = "../research/src/python", editable = true }
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.11.2" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"

@@ -8,6 +8,8 @@
 > Phoneme-blending link-sensitivity policy updated by a LLM-based AI tool (Codex/GPT-5).
 >
 > Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> conda-to-uv environment migration updated by a LLM-based AI tool (Claude Code/Opus 5).
 
 > **Keep in sync:** This file, `CLAUDE.md`, and `.github/copilot-instructions.md` share the same content. When updating one, update all three.
 
@@ -24,25 +26,26 @@ See `METHODS.md` for the full methodology: the gradient-boosting and Bayesian wo
 
 ## Environment Setup
 
-Hybrid two-layer environment (shared across DSE research repos): the compiled scientific core (`numpy`/`scipy`/`pandas`/`pymc`/`nutpie`/`jax`/`arviz`, …) comes from **conda-forge** and must match the canonical spec shipped in `dse-research-utils` (verify with `dse-check-env environment.yml`); the pure-Python tail and the shared library install in the pip layer. `dse-research-utils` installs from the public git tag `v0.10.0` (`dse-research-utils[viz,notebook,dependence,tuning,io] @ git+https://github.com/dseinternational/research.git@v0.10.0#subdirectory=src/python`); a commented local-dev override in `environment.yml` points at a sibling `../research/src/python` checkout instead. On Windows there is no conda-forge `jax`/`jaxlib` win-64 build, so use **WSL** (Ubuntu, linux-64). GPU acceleration is an opt-in `jax[cuda]` overlay.
+Single-layer [uv](https://docs.astral.sh/uv/) environment (shared across DSE research repos, migrated from conda in #573). PyMC compiles with the Numba backend, so no C toolchain or BLAS is needed and every package ships a CPython 3.14 wheel. The compiled scientific core (`numpy`/`scipy`/`pandas`/`pymc`/`nutpie`/`arviz`, …) is no longer restated here — it is declared once in `dse-research-utils`' own `pyproject.toml` and inherited transitively, so the floors cannot drift between repos. This repo composes the extras it imports: `boosting`, `columnar`, `dependence`, `graphs`, `io`, `notebook`, `tuning`, `viz`. There is deliberately **no `jax` extra** (every `pm.sample` call site hardcodes `nuts_sampler="nutpie"`) and no `storage` extra (the netCDF engines behind `trace.nc` are base dependencies from v0.11.1; only `zarr`, which nothing here imports, remains in that extra). `dse-research-utils` resolves from the public git tag `v0.11.2`; to develop against a sibling `../research/src/python` checkout, swap the `[tool.uv.sources]` entry for a `path` source. **Windows no longer needs WSL** (the whole stack now has native win-amd64 wheels); **Intel macOS is no longer supported** (numba publishes no macOS x86_64 wheels — upstream's decision, not ours).
 
 ```bash
-conda env create -f environment.yml
-conda activate dse-language-reading-predictors
+uv sync
 ```
+
+`uv run <command>` runs inside the environment without activating it (`uv run pytest`, `uv run python scripts/fit_model.py …`); `source .venv/bin/activate` also works. Plotting model graphs additionally needs the system Graphviz `dot` binary, which is not a Python package (`brew install graphviz`, `apt install graphviz`, `winget install Graphviz.Graphviz`).
 
 ## Commands
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run a single test file or test
-pytest tests/test_stats_utils.py
-pytest tests/test_stats_utils.py::test_standardize -v
+uv run pytest tests/test_stats_utils.py
+uv run pytest tests/test_stats_utils.py::test_standardize -v
 
 # Lint
-ruff check src/
+uv run ruff check src/
 
 # Spell check (markdown and Quarto files)
 npm run spellcheck
@@ -52,16 +55,16 @@ npm run format
 npm run format:check
 
 # Fit a model (artifacts saved to output/models/{model_id}/)
-python scripts/fit_model.py LRP01                               # dev config (fast, default)
-python scripts/fit_model.py LRP01 --config test                 # test config (moderate)
-python scripts/fit_model.py LRP01 --config reporting            # full config (production)
-python scripts/fit_model.py all --config dev --render           # all final models, render reports
-python scripts/fit_model.py all --include-variants --config dev # include selection variants
-python scripts/fit_model.py lrp01_select01 --config dev         # run a specific variant
+uv run python scripts/fit_model.py LRP01                               # dev config (fast, default)
+uv run python scripts/fit_model.py LRP01 --config test                 # test config (moderate)
+uv run python scripts/fit_model.py LRP01 --config reporting            # full config (production)
+uv run python scripts/fit_model.py all --config dev --render           # all final models, render reports
+uv run python scripts/fit_model.py all --include-variants --config dev # include selection variants
+uv run python scripts/fit_model.py lrp01_select01 --config dev         # run a specific variant
 
 # Hyperparameter tuning with Optuna (output/tuning/{model_id}/)
-python scripts/tune_model.py lrp01                 # LGBM, 50 trials, GroupKFold
-python scripts/tune_model.py lrp01 --n-trials 200 --timeout 1800
+uv run python scripts/tune_model.py lrp01                 # LGBM, 50 trials, GroupKFold
+uv run python scripts/tune_model.py lrp01 --n-trials 200 --timeout 1800
 
 # Preview research report
 quarto preview docs/report/
@@ -70,11 +73,11 @@ quarto preview docs/report/
 quarto render docs/report/
 ```
 
-**Output location.** Runs write under a configurable **output root** (default: repo-local `output/`, with the relative layout unchanged). Redirect it to a scratch disk for VM runs via the `DSE_LRP_OUTPUT_DIR` environment variable, or per command with `--output-dir` (which takes precedence): `DSE_LRP_OUTPUT_DIR=/mnt/scratch/lrp python scripts/fit_statistical_model.py lrp-rli-itt-010 --config reporting`, or `python scripts/fit_model.py lrp-rli-gbg-012 --output-dir /mnt/scratch/lrp`. Resolution lives in `src/language_reading_predictors/paths.py`; the resolved root is printed at the start of each long-running command and recorded in `config.json`. Scratch disks are ephemeral — `--upload` (or copy) durable artefacts before teardown.
+**Output location.** Runs write under a configurable **output root** (default: repo-local `output/`, with the relative layout unchanged). Redirect it to a scratch disk for VM runs via the `DSE_LRP_OUTPUT_DIR` environment variable, or per command with `--output-dir` (which takes precedence): `DSE_LRP_OUTPUT_DIR=/mnt/scratch/lrp uv run python scripts/fit_statistical_model.py lrp-rli-itt-010 --config reporting`, or `uv run python scripts/fit_model.py lrp-rli-gbg-012 --output-dir /mnt/scratch/lrp`. Resolution lives in `src/language_reading_predictors/paths.py`; the resolved root is printed at the start of each long-running command and recorded in `config.json`. Scratch disks are ephemeral — `--upload` (or copy) durable artefacts before teardown.
 
 ## Architecture
 
-The Python package is in `src/language_reading_predictors/` and is installed in editable mode via conda/pip.
+The Python package is in `src/language_reading_predictors/` and is installed in editable mode by `uv sync`.
 
 ### Central data schema (`data_variables.py`)
 
@@ -193,7 +196,7 @@ When generating Markdown — `notes/` entries and documents, and especially pull
 Before creating a commit or opening a pull request, all of the following must pass:
 
 ```bash
-ruff check src/         # Python lint
+uv run ruff check src/  # Python lint
 npm run format:check    # Markdown formatting
 npm run spellcheck      # Markdown + Quarto spelling (British English, en-GB)
 ```
@@ -202,7 +205,7 @@ If `ruff` reports issues, fix them — do not silence rules or add blanket `noqa
 
 If `cspell` flags a legitimate term (Python identifier, package name, domain term, project acronym, British spelling not in the base dictionary), add it to `config/spellcheck/allow-en.txt` rather than rewording the prose. Only add terms that are genuinely correct — do not use the allow list to paper over actual typos.
 
-Do not bypass these checks with `--no-verify`, skipped CI, or by committing from a different working tree. If either command cannot run (e.g. the conda env is inactive, `npm` is missing), resolve the setup issue rather than proceeding.
+Do not bypass these checks with `--no-verify`, skipped CI, or by committing from a different working tree. If either command cannot run (e.g. `uv sync` has not been run, `npm` is missing), resolve the setup issue rather than proceeding.
 
 ## Licensing
 

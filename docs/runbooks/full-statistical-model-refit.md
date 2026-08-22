@@ -24,18 +24,20 @@ This runbook is the operational companion to the [`lrp-fit-statistical`](../../.
 Do all of these once, before you start. A failure here is the most common reason a later step dies halfway.
 
 ```bash
-# 1. Activate the environment (the Bash-tool shell has NO conda env active by default).
-conda activate dse-language-reading-predictors
+# 1. Create and activate the environment (the Bash-tool shell has NO environment
+#    active by default). `uv sync --locked` fails rather than silently resolving
+#    something other than the committed uv.lock. Activating means the bare
+#    `python …` commands in the later steps run against it; `uv run python …`
+#    works without activating.
+uv sync --locked
+source .venv/bin/activate    # Windows: .venv\Scripts\activate
 
-# 2. Verify the scientific core matches the canonical spec.
-dse-check-env environment.yml
-
-# 3. Authenticate to Azure with an account that has the write role on the
+# 2. Authenticate to Azure with an account that has the write role on the
 #    public `dseresearch` container (Frank's `az login` identity does).
 az login          # run interactively in your own terminal (prefix with `!` in Claude Code)
 az account show   # confirm the right tenant/subscription
 
-# 4. Make sure Quarto is on PATH and points at the env Python.
+# 3. Make sure Quarto is on PATH and points at the env Python.
 export PATH="/Applications/quarto/bin:$PATH"
 export QUARTO_PYTHON="$(python -c 'import sys; print(sys.executable)')"
 quarto --version
@@ -1050,14 +1052,14 @@ Commit with a Conventional Commit message, open the PR, and reference the issue 
 
 ## Troubleshooting quick reference
 
-| Symptom                                     | Cause                                                | Fix                                                                         |
-| ------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- |
-| Completed fits have no `index.html`         | `--render` batches after all fits; sweep interrupted | Run the freshness-aware standalone renderer (Step 3)                        |
-| Sweep died partway                          | external kill / OOM on a slow model                  | Resume missing fits only within the same manifested fresh run root (Step 1) |
-| `--upload` fails with 403                   | VM managed identity lacks the write role             | Use the `AzureCliCredential` wrapper with `AZURE_CLIENT_ID` unset (Step 5)  |
-| Script exits 1 but "N fitted, 0 failed"     | the upload step raised, not the fits                 | Read the log; the fits may be fine                                          |
-| `xargs` render: "command line … too long"   | BSD xargs + multi-line `sh -c` template              | Use the `render_all.sh` bash loop (Step 3)                                  |
-| `quarto render` can't find Python           | `QUARTO_PYTHON` unset                                | `export QUARTO_PYTHON="$(python -c 'import sys;print(sys.executable)')"`    |
-| Published dir has no current report page    | missing, failed or stale render                      | Run the renderer and its check-only mode in Step 3 before Step 5            |
-| A model won't clear the divergence gate     | hard posterior geometry                              | Raise `--target-accept` (0.97 / 0.99); if a funnel, reparameterise          |
-| `conda: command not found` in a fresh shell | no env active                                        | `conda activate dse-language-reading-predictors` (Step 0)                   |
+| Symptom                                       | Cause                                                | Fix                                                                         |
+| --------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------- |
+| Completed fits have no `index.html`           | `--render` batches after all fits; sweep interrupted | Run the freshness-aware standalone renderer (Step 3)                        |
+| Sweep died partway                            | external kill / OOM on a slow model                  | Resume missing fits only within the same manifested fresh run root (Step 1) |
+| `--upload` fails with 403                     | VM managed identity lacks the write role             | Use the `AzureCliCredential` wrapper with `AZURE_CLIENT_ID` unset (Step 5)  |
+| Script exits 1 but "N fitted, 0 failed"       | the upload step raised, not the fits                 | Read the log; the fits may be fine                                          |
+| `xargs` render: "command line … too long"     | BSD xargs + multi-line `sh -c` template              | Use the `render_all.sh` bash loop (Step 3)                                  |
+| `quarto render` can't find Python             | `QUARTO_PYTHON` unset                                | `export QUARTO_PYTHON="$(python -c 'import sys;print(sys.executable)')"`    |
+| Published dir has no current report page      | missing, failed or stale render                      | Run the renderer and its check-only mode in Step 3 before Step 5            |
+| A model won't clear the divergence gate       | hard posterior geometry                              | Raise `--target-accept` (0.97 / 0.99); if a funnel, reparameterise          |
+| `ModuleNotFoundError: arviz` in a fresh shell | no environment active                                | `source .venv/bin/activate`, or prefix commands with `uv run` (Step 0)      |

@@ -53,6 +53,7 @@ Biobehavioral
 Biometrika
 Birkinshaw
 bivariately
+BLAS
 blockable
 Boudreau
 BPVS
@@ -144,6 +145,7 @@ dsep
 dseresearch
 dtype
 dtypes
+duckdb
 earinf
 econlet
 ecresq
@@ -260,6 +262,7 @@ iterrows
 itertuples
 Jakulin
 Jarrold
+jaxlib
 jcomdis
 JCPP
 jecp
@@ -420,6 +423,7 @@ NUCA
 numba
 numchil
 numpy
+numpyro
 nunique
 nutpie
 NVIQ
@@ -483,8 +487,10 @@ pushforward
 pushforwards
 pymc
 pyproject
+pyreadstat
 pytest
 PYTHONPATH
+PYTHONUTF
 Raftery
 Rasch
 Ratz
@@ -631,6 +637,7 @@ vars
 vcfg
 vecs
 Vehtari
+venv
 Verhoeven
 vocab
 vpreds
@@ -644,6 +651,7 @@ Westreich
 WIAT
 Wiig
 Wilcoxon
+winget
 woco
 workstream
 worktree
@@ -665,6 +673,7 @@ ypre
 Yuill
 YYYYMMDDHHMM
 Zaalen
+zarr
 Zigler
 Zotero
 zproc

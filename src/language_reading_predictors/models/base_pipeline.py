@@ -1298,7 +1298,7 @@ class EstimatorPipeline:
             config_dict["run_config_overrides"] = overrides
 
         config_path = context.output_dir / "config.json"
-        config_path.write_text(json.dumps(config_dict, indent=2))
+        config_path.write_text(json.dumps(config_dict, indent=2), encoding="utf-8")
 
     def save_metrics(self) -> None:
         """Save aggregated diagnostic metrics for cross-variant comparison."""
@@ -1391,7 +1391,9 @@ class EstimatorPipeline:
             "in_sample_medae": ism["medae"],
         }
 
-        (context.output_dir / "metrics.json").write_text(json.dumps(metrics, indent=2))
+        (context.output_dir / "metrics.json").write_text(
+            json.dumps(metrics, indent=2), encoding="utf-8"
+        )
 
     def report(self) -> None:
         """Copy the Quarto report template into the output directory.

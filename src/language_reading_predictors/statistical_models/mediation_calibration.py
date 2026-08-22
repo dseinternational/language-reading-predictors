@@ -265,7 +265,7 @@ def _read_dose_slope(
             f"{model_id}-{config} has not produced gate and dose-slope artefacts"
         )
     try:
-        with diag_path.open() as f:
+        with diag_path.open(encoding="utf-8") as f:
             diagnostics = json.load(f)
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
         raise _CalibrationUnavailable(

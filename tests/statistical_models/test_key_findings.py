@@ -1205,7 +1205,7 @@ def test_level_factors_keeps_the_causal_sentence_when_psense_also_flags(tmp_path
 def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
     # The report prose and the key-findings prose must make the same claim, and the
     # partial must print it only for a fit that actually has the term (#389 finding 1).
-    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text()
+    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text(encoding="utf-8")
     assert 'factor_summary.term == "gamma_grp_ability"' in text
     assert "at mean ability" in text
     assert "notes/202606261230-gain-level-factors-design.md" in text
@@ -1223,7 +1223,7 @@ def test_results_factors_partial_renders_off_floor_marginal_in_percentage_points
     # report. The block must branch on the plan's off_floor flag and render
     # percentage points (whole numbers) instead — in BOTH the primary and the
     # moderation-variant sentences, which share the unit machinery.
-    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text()
+    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text(encoding="utf-8")
     assert '_gf_off = bool(_plan.get("off_floor", False))' in text
     assert "percentage points** on the chance of being off the floor" in text
     # The shared value formatter and unit string are used by both branches — the
@@ -1235,7 +1235,7 @@ def test_results_factors_partial_renders_off_floor_marginal_in_percentage_points
 def test_design_note_records_the_group_ability_exclusion():
     # The rationale used to live only in a comment on level_t2_marginal_effect, which
     # is why #389 re-derived it from the outside as an open question (#271 item 5).
-    text = (REPO / "notes/202606261230-gain-level-factors-design.md").read_text()
+    text = (REPO / "notes/202606261230-gain-level-factors-design.md").read_text(encoding="utf-8")
     assert "Decision 4" in text
     assert "gamma_grp_ability" in text
     assert "at mean ability" in text
@@ -2580,7 +2580,7 @@ def test_sentence_cap_and_no_nan_everywhere(tmp_path):
 
 
 def test_key_findings_partial_is_a_self_contained_renderer():
-    text = (REPO / "docs/models/_partials/_key_findings.qmd").read_text()
+    text = (REPO / "docs/models/_partials/_key_findings.qmd").read_text(encoding="utf-8")
     assert "key_findings.json" in text
     assert "convergence_gate_clean_passed" in text
     assert "gate_failed" in text
@@ -2602,7 +2602,7 @@ def test_key_findings_partial_is_a_self_contained_renderer():
 
 
 def test_itt_results_require_the_trace_backed_blending_link_pair():
-    text = (REPO / "docs/models/_partials/_results_itt.qmd").read_text()
+    text = (REPO / "docs/models/_partials/_results_itt.qmd").read_text(encoding="utf-8")
     assert "evaluate_local_blending_link_sensitivity" in text
     assert "Phoneme-blending findings withheld" in text
     assert "lrp-rli-itt-008" in text
@@ -2614,7 +2614,7 @@ def test_itt_results_require_the_trace_backed_blending_link_pair():
 
 
 def test_reading_guide_is_a_collapsed_callout():
-    text = (REPO / "docs/models/_partials/_reading_guide.qmd").read_text()
+    text = (REPO / "docs/models/_partials/_reading_guide.qmd").read_text(encoding="utf-8")
     assert 'collapse="true"' in text
     assert "How to read this report" in text
     for term in (
@@ -2646,7 +2646,7 @@ def test_all_statistical_reports_use_the_findings_first_order():
     )
     statistical_reports = []
     for path in sorted((REPO / "docs/models").glob("*/index.qmd")):
-        text = path.read_text()
+        text = path.read_text(encoding="utf-8")
         if "_partials/_setup.qmd" not in text:
             continue
         statistical_reports.append(path)
@@ -2662,7 +2662,7 @@ def test_all_statistical_reports_use_the_findings_first_order():
 
 
 def test_technical_partial_keeps_full_checks_inside_the_fold():
-    text = (REPO / "docs/models/_partials/_technical.qmd").read_text()
+    text = (REPO / "docs/models/_partials/_technical.qmd").read_text(encoding="utf-8")
     assert 'collapse="true"' in text
     assert 'title="Technical checks"' in text
     assert text.count("_partials/_convergence.qmd") == 1
@@ -2670,7 +2670,7 @@ def test_technical_partial_keeps_full_checks_inside_the_fold():
 
 
 def test_integrated_report_uses_the_same_fail_closed_gate():
-    text = (REPO / "docs/report/_report_data.qmd").read_text()
+    text = (REPO / "docs/report/_report_data.qmd").read_text(encoding="utf-8")
     assert "convergence_gate_clean_passed" in text
     assert 'diag.get("passed") is True' not in text
 

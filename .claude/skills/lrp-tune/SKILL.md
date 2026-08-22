@@ -9,7 +9,7 @@ Step 0 of the workflow: retune the LightGBM hyperparameters, then **review** bef
 
 ## Prerequisites
 
-- `conda activate dse-language-reading-predictors` (verify with `dse-check-env environment.yml`).
+- `uv sync`, then either `source .venv/bin/activate` or prefix each command with `uv run`.
 - All 50 GB models (`lrp-rli-gbg-001…022` gain, `lrp-rli-gbl-001…028` level) use `LGBMPipeline` (target transform `none`) + the MAE objective, so one uniform policy applies.
 
 ## The reviewed policy (#169)
