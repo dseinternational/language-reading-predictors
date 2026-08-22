@@ -6431,6 +6431,27 @@ def build_longitudinal_corr_factor_model(
 # ---------------------------------------------------------------------------
 
 
+def _map_panel_rows(values, index: dict, *, what: str) -> np.ndarray:
+    """Map tidy-row keys to dense model indices, refusing keys the panel lacks.
+
+    The previous ``Series.map(index).to_numpy(dtype=int)`` turned an unknown key
+    into NaN and then cast it to int — undefined behaviour that is silently 0 on
+    arm64 and INT64_MIN on x86-64, so a row naming a subject outside
+    ``panel.subject_ids`` sampled from subject 0 on one platform and from
+    out-of-bounds memory on the other (a test fixture did exactly that, and CI
+    failed with a Beta-Binomial domain error while the same test passed on macOS,
+    2026-08-22). Failing loudly is the only portable behaviour.
+    """
+    mapped = np.array([index.get(value, -1) for value in values], dtype=np.int64)
+    if mapped.size and (mapped < 0).any():
+        unknown = sorted({str(value) for value in values if value not in index})
+        raise ValueError(
+            f"panel rows name {what}(s) the panel does not index: {unknown}; "
+            f"the tidy frame and the panel's {what} list must agree"
+        )
+    return mapped
+
+
 def build_historical_growth_model(
     panel: LongitudinalPanel,
     *,
@@ -6498,7 +6519,7 @@ def build_historical_growth_model(
         if all((g, w) in cell_index for g in group_codes)
     ]
 
-    group_idx = df[grp].map(group_index).to_numpy(dtype=int)
+    group_idx = _map_panel_rows(df[grp].tolist(), group_index, what="group code")
     obs_cell_idx = np.array(
         [
             cell_index[(int(g), int(w))]
@@ -6506,7 +6527,7 @@ def build_historical_growth_model(
         ],
         dtype=int,
     )
-    subject_idx = df[subj].map(subject_index).to_numpy(dtype=int)
+    subject_idx = _map_panel_rows(df[subj].tolist(), subject_index, what="subject")
     observed = df[measure].to_numpy(dtype=int)
     subject_group = (
         df.drop_duplicates(subj)
@@ -7217,7 +7238,7 @@ def build_rlm_joint_growth_model(
         if all((g, w) in cell_index for g in group_codes)
     ]
 
-    group_idx = df[grp].map(group_index).to_numpy(dtype=int)
+    group_idx = _map_panel_rows(df[grp].tolist(), group_index, what="group code")
     obs_cell_idx = np.array(
         [
             cell_index[(int(g), int(w))]
@@ -7225,7 +7246,7 @@ def build_rlm_joint_growth_model(
         ],
         dtype=int,
     )
-    subject_idx = df[subj].map(subject_index).to_numpy(dtype=int)
+    subject_idx = _map_panel_rows(df[subj].tolist(), subject_index, what="subject")
     subject_group = (
         df.drop_duplicates(subj)
         .set_index(subj)

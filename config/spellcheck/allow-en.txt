@@ -43,6 +43,7 @@ behav
 Behavioral
 Belzak
 Bertelson
+betabinom
 Betancourt
 BFMI
 bidirected
@@ -416,6 +417,7 @@ nonzero
 noqa
 Nordahl
 NUCA
+numba
 numchil
 numpy
 nunique
