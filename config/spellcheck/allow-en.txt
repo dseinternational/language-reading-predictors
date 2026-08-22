@@ -673,6 +673,7 @@ ypre
 Yuill
 YYYYMMDDHHMM
 Zaalen
+zarr
 Zigler
 Zotero
 zproc

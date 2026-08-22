@@ -3,12 +3,12 @@ revision = 3
 requires-python = ">=3.14"
 resolution-markers = [
     "python_full_version >= '3.15' and platform_machine == 'x86_64' and sys_platform == 'linux'",
-    "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'linux'",
     "python_full_version >= '3.15' and platform_machine == 'aarch64' and sys_platform == 'linux'",
-    "python_full_version < '3.15' and platform_machine == 'aarch64' and sys_platform == 'linux'",
     "python_full_version >= '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin'",
-    "python_full_version < '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin'",
     "python_full_version >= '3.15' and platform_machine == 'AMD64' and sys_platform == 'win32'",
+    "python_full_version < '3.15' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+    "python_full_version < '3.15' and platform_machine == 'aarch64' and sys_platform == 'linux'",
+    "python_full_version < '3.15' and platform_machine == 'arm64' and sys_platform == 'darwin'",
     "python_full_version < '3.15' and platform_machine == 'AMD64' and sys_platform == 'win32'",
 ]
 supported-markers = [
@@ -602,7 +602,7 @@ wheels = [
 name = "dse-language-reading-predictors"
 source = { editable = "." }
 dependencies = [
-    { name = "dse-research-utils", extra = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "storage", "tuning", "viz"] },
+    { name = "dse-research-utils", extra = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "tuning", "viz"] },
 ]
 
 [package.dev-dependencies]
@@ -615,7 +615,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dse-research-utils", extras = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "storage", "tuning", "viz"], git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.11.0" }]
+requires-dist = [{ name = "dse-research-utils", extras = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "tuning", "viz"], git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.11.2" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -628,8 +628,8 @@ dev = [
 
 [[package]]
 name = "dse-research-utils"
-version = "0.11.0"
-source = { git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.11.0#fbc022fd6db48917ae57f9ba38b12ccf239523a9" }
+version = "0.11.2"
+source = { git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.11.2#2d19c5ef2d2f3a66c64a92a232760f36ee580a37" }
 dependencies = [
     { name = "arviz" },
     { name = "arviz-base" },
@@ -637,6 +637,8 @@ dependencies = [
     { name = "arviz-stats" },
     { name = "azure-identity" },
     { name = "azure-storage-blob" },
+    { name = "h5netcdf" },
+    { name = "h5py" },
     { name = "matplotlib" },
     { name = "numba" },
     { name = "numpy" },
@@ -680,11 +682,6 @@ io = [
 notebook = [
     { name = "jupyter" },
     { name = "jupytext" },
-]
-storage = [
-    { name = "h5netcdf" },
-    { name = "h5py" },
-    { name = "zarr" },
 ]
 tuning = [
     { name = "optuna" },

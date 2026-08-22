@@ -22,13 +22,15 @@ dependencies = [
   #   graphs     graphviz, networkx       (model graphs; ALSO needs the system `dot`)
   #   io         orjson, tabulate         (shared library I/O helpers)
   #   notebook   jupyter, jupytext        (notebooks/ are Jupytext-paired)
-  #   storage    h5netcdf, h5py           (trace.nc via ArviZ to_netcdf/from_netcdf)
   #   tuning     optuna                   (scripts/tune_model.py)
   #   viz        seaborn                  (plot_utils.py and friends)
   # No `jax` extra: every pm.sample call site hardcodes nuts_sampler="nutpie"
   # and nothing imports jax or numpyro, so the JAX backend the old shared conda
-  # core installed everywhere is genuinely unused here.
-  "dse-research-utils[boosting,columnar,dependence,graphs,io,notebook,storage,tuning,viz]"
+  # core installed everywhere is genuinely unused here. No `storage` extra
+  # either: h5netcdf/h5py — what ArviZ needs to write trace.nc — moved into the
+  # library's base dependencies in v0.11.1, leaving only zarr behind that extra,
+  # and nothing here imports zarr.
+  "dse-research-utils[boosting,columnar,dependence,graphs,io,notebook,tuning,viz]"
 ]
 
 [dependency-groups]
@@ -57,7 +59,7 @@ environments = [
 # dse-research-utils isn't published to PyPI — resolve it from the public git
 # tag. To develop against a sibling checkout, replace this entry with:
 #   dse-research-utils = { path = "../research/src/python", editable = true }
-dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.11.0" }
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.11.2" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"
