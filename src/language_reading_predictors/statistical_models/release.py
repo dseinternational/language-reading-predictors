@@ -928,6 +928,37 @@ def _read_json(path: str | Path) -> tuple[Any, str | None]:
         return None, "unreadable"
 
 
+#: The stored path's minimum evidence that a directory *is* a completed fit:
+#: a posterior and the two tables every registered family writes. Deliberately
+#: narrow (2026-08-22 ITT audit, finding 2). The manifest requirement below is
+#: what actually closes the hole the audit found; this floor exists so a gutted
+#: or legacy directory cannot coast on a manifest that under-declares. Family
+#: result tables are *not* listed: the key-findings layer already checks each
+#: family's own outputs for presence and internal consistency, and duplicating
+#: that here would move those verdicts to a stage that cannot explain them.
+_CORE_ARTIFACTS_BASE: tuple[str, ...] = (
+    "trace.nc",
+    "diagnostics.csv",
+    "priors_table.csv",
+)
+
+
+def _core_artifact_failures(output_dir: Path) -> list[str]:
+    """Core scientific outputs absent from a stored fit directory.
+
+    The stored-path floor. A fit's own manifest is the authority on what *it*
+    wrote, but a manifest cannot vouch for a directory that has no manifest — and
+    before this floor existed an otherwise-empty directory carrying only clean
+    ``diagnostics_summary.json`` / ``config.json`` was declared publishable
+    (2026-08-22 ITT audit, finding 2).
+    """
+    return [
+        name
+        for name in _CORE_ARTIFACTS_BASE
+        if not os.path.exists(output_dir / name)
+    ]
+
+
 def _recorded_required_artifacts(
     output_dir: Path, artifacts: Any
 ) -> tuple[str, ...]:
@@ -941,29 +972,55 @@ def _recorded_required_artifacts(
     Only *required* artefacts count. An optional figure that a backend hiccup
     skipped is already recorded with its failure and does not withhold anything;
     that distinction is the whole point of the required/optional split.
+
+    The stored path **fails closed** (2026-08-22 ITT audit, finding 2). A missing,
+    unreadable or entry-less ``artifact_manifest.json`` used to return "nothing is
+    missing", so a directory holding only a clean gate and config published — and
+    that path is not hypothetical: ``_key_findings.qmd`` re-decides publication
+    over the stored directory at *render* time, as does
+    ``scripts/regenerate_key_findings.py``. An unusable manifest is now itself a
+    missing artefact, and :func:`_core_artifact_failures` is applied underneath so
+    a manifest that under-declares cannot wave through a directory with no trace
+    or no headline table.
     """
     records = getattr(artifacts, "records", None)
     if records is not None:
+        # Fit-time: the live log is the authority and the manifest does not exist
+        # yet (finalisation writes it *after* this decision).
         declared = [
             (rec.filename, rec.status, bool(rec.required)) for rec in records.values()
         ]
-    else:
-        manifest, _err = _read_json(output_dir / "artifact_manifest.json")
-        entries = (manifest or {}).get("artifacts") if isinstance(manifest, dict) else None
-        if not entries:
-            return ()
-        declared = [
-            (str(e.get("filename")), str(e.get("status")), bool(e.get("required")))
-            for e in entries
+        missing = [
+            filename
+            for filename, status, required in declared
+            if required
+            and status in ("written", "missing")
+            and not os.path.exists(output_dir / filename)
         ]
-    missing = [
+        return tuple(sorted(missing))
+
+    missing = _core_artifact_failures(output_dir)
+    manifest, error = _read_json(output_dir / "artifact_manifest.json")
+    entries = (manifest or {}).get("artifacts") if isinstance(manifest, dict) else None
+    if not entries:
+        reason = {
+            "missing": "is missing",
+            "unreadable": "could not be parsed",
+        }.get(error or "", "records no artefacts")
+        missing.append(f"artifact_manifest.json ({reason})")
+        return tuple(sorted(set(missing)))
+    declared = [
+        (str(e.get("filename")), str(e.get("status")), bool(e.get("required")))
+        for e in entries
+    ]
+    missing.extend(
         filename
         for filename, status, required in declared
         if required
         and status in ("written", "missing")
         and not os.path.exists(output_dir / filename)
-    ]
-    return tuple(sorted(missing))
+    )
+    return tuple(sorted(set(missing)))
 
 
 def _mediation_t3_release_failures(

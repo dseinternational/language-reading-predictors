@@ -152,8 +152,23 @@ def arm_overlap_summary(
     population: str,
     contrast_status: str,
     score_mean_link: ScoreMeanLink = "logit",
+    effect_quantity: str = "average_marginal_effect",
+    superiority_quantity: str = "p_intervention_higher",
 ) -> pd.DataFrame:
-    """Tabulate the citable overlap quantities as ``<figure>.csv`` (issue #208)."""
+    """Tabulate the citable overlap quantities as ``<figure>.csv`` (issue #208).
+
+    ``effect_quantity`` and ``superiority_quantity`` name the two contrast rows.
+    They are parameters rather than constants because the two figures this backs
+    plot genuinely different quantities (2026-08-22 ITT audit, finding 4): the
+    *mean* figure's effect is the analytic average marginal effect and its
+    superiority is P(AME > 0), while the *predictive* figure's are a difference
+    between two **independently simulated children** and the probability one such
+    child out-scores another. Both used to be written as
+    ``average_marginal_effect`` / ``p_intervention_higher``, so one fit directory
+    published two contradictory values under each name — for lrp-rli-itt-001,
+    1.368 items [0.19, 2.53] beside 1.0 items [-5, 8], and 0.968 beside 0.582 —
+    with only the filename to tell a reader which was which.
+    """
 
     def _row(quantity: str, draws: np.ndarray, scale: str) -> dict:
         median, lo, hi, lo50, hi50 = _band(draws, ci_prob)
@@ -189,9 +204,9 @@ def arm_overlap_summary(
     rows = [
         _row("no_intervention_level", control, level_scale),
         _row("intervention_level", intervention, level_scale),
-        _row("average_marginal_effect", effect, effect_scale),
+        _row(effect_quantity, effect, effect_scale),
         _scalar("overlap_coefficient", overlap_coefficient, "fraction"),
-        _scalar("p_intervention_higher", float(np.mean(np.asarray(effect) > 0)),
+        _scalar(superiority_quantity, float(np.mean(np.asarray(effect) > 0)),
                 "probability"),
     ]
     return pd.DataFrame(rows)
@@ -318,7 +333,13 @@ def save_arm_overlap_predictive(
     n = float(contrast.n_trials)
     pc = np.asarray(contrast.score_control, dtype=float) / n * 100.0
     pt = np.asarray(contrast.score_intervention, dtype=float) / n * 100.0
-    diff_items = np.asarray(contrast.score_difference, dtype=float)  # paired, items
+    # Two *independently* simulated children, not one child under both arms: the
+    # simulation shares the posterior draw, reference row, kappa and child
+    # intercept but resamples the Beta propensity and the Binomial count per arm
+    # (2026-08-22 ITT audit, finding 4). The difference is therefore a
+    # between-children comparison inflated by two draws of sampling noise, and is
+    # named and described as one.
+    diff_items = np.asarray(contrast.score_difference_independent, dtype=float)
 
     curves = overlap_curves(pc, pt)
     summary = arm_overlap_summary(
@@ -333,6 +354,8 @@ def save_arm_overlap_predictive(
         population=population,
         contrast_status=contrast_status,
         score_mean_link=contrast.score_mean_link,
+        effect_quantity="predicted_score_difference_independent_children",
+        superiority_quantity="p_intervention_child_higher",
     )
 
     fig, ax = plt.subplots(figsize=FIGSIZE_LG)
@@ -347,7 +370,7 @@ def save_arm_overlap_predictive(
         0.02, 0.98,
         (
             f"median: {np.median(pt):.0f}% vs {np.median(pc):.0f}%\n"
-            f"paired effect: {np.median(diff_items):+.1f} items\n"
+            f"average effect: {np.median(np.asarray(contrast.ame_items)):+.1f} items\n"
             f"overlap = {curves.overlap_coefficient:.0%}"
         ),
         transform=ax.transAxes, va="top", ha="left", fontsize=8,

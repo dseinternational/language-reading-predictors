@@ -57,17 +57,47 @@ def _gate(passed: bool = True) -> dict:
     }
 
 
+def _write_core_artifacts(d: Path, kind: str) -> None:
+    """Place the stored-path core inventory and a matching manifest.
+
+    The stored release path fails closed without a readable, non-empty
+    ``artifact_manifest.json`` *and* without the family's core outputs
+    (2026-08-22 ITT audit, finding 2), so a fixture standing in for a *complete*
+    stored fit has to carry both. Generated from the release module's own
+    contract rather than a hand-written list, so a new family added to
+    ``_CORE_ARTIFACTS_BY_KIND`` cannot silently leave these fixtures behind.
+    """
+    names = release_module._CORE_ARTIFACTS_BASE
+    for name in names:
+        path = d / name
+        if not path.exists():
+            path.write_bytes(b"fixture")
+    (d / "artifact_manifest.json").write_text(
+        json.dumps(
+            {
+                "model_id": "lrp-test-001",
+                "artifacts": [
+                    {"filename": name, "status": "written", "required": True}
+                    for name in names
+                ],
+            }
+        )
+    )
+
+
 def _fit_dir(
     tmp_path: Path,
     *,
     gate_passed: bool = True,
     kind: str = "mechanism",
     config_name: str = "reporting",
+    core_artifacts: bool = True,
 ) -> Path:
-    """A minimal stored fit: a gate payload and a config, nothing else.
+    """A minimal *complete* stored fit: gate payload, config, core inventory.
 
     ``mechanism`` is deliberately an *ungated* family, so the robustness stage is
-    out of scope and each test exercises the stage it names.
+    out of scope and each test exercises the stage it names. Pass
+    ``core_artifacts=False`` for the incomplete-directory case.
     """
     d = tmp_path / f"lrp-test-001-{config_name}"
     d.mkdir(parents=True)
@@ -82,6 +112,8 @@ def _fit_dir(
             }
         )
     )
+    if core_artifacts:
+        _write_core_artifacts(d, kind)
     return d
 
 
@@ -1427,6 +1459,7 @@ def _blending_fit_dir(
         [{"prior": 0.01, "likelihood": 0.30, "diagnosis": psense_diagnosis}],
         index=["tau"],
     ).to_csv(d / "psense_summary.csv")
+    _write_core_artifacts(d, "itt")
     return d
 
 
@@ -1527,6 +1560,7 @@ def _joint_contrast_fit_dir(
         ],
         index=["tau[TE]", "tau[UE]"],
     ).to_csv(d / "psense_summary.csv")
+    _write_core_artifacts(d, "joint")
     return d
 
 
@@ -1635,3 +1669,75 @@ def test_gate_keeps_the_pre_552_level_fallback_and_reads_the_plan_focal_term():
     }
     assert release_module.gate_applies(t1_referenced) is True
     assert release_module.causal_term_for(t1_referenced) == "d_grp_time[t2]"
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 2)
+# ---------------------------------------------------------------------------
+
+
+def test_stored_evaluation_without_a_manifest_fails_closed(tmp_path):
+    """A stored fit with no ``artifact_manifest.json`` cannot publish.
+
+    ``_recorded_required_artifacts`` returned an empty tuple - "nothing is
+    missing" - whenever the manifest was absent, unreadable or entry-less, so a
+    directory holding only a clean gate and config was declared publishable.
+    This path is live: ``_key_findings.qmd`` re-decides publication over the
+    stored directory at render time.
+    """
+    d = _fit_dir(tmp_path, core_artifacts=False)
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is False
+    assert evaluation.status == "artifacts_incomplete"
+    assert evaluation.stage == "artifacts"
+    assert any("artifact_manifest.json" in m for m in evaluation.missing_artifacts)
+
+
+@pytest.mark.parametrize("payload", ["not json at all", "[]", '{"artifacts": []}'])
+def test_stored_evaluation_rejects_an_unusable_manifest(tmp_path, payload):
+    d = _fit_dir(tmp_path)
+    (d / "artifact_manifest.json").write_text(payload)
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is False
+    assert any("artifact_manifest.json" in m for m in evaluation.missing_artifacts)
+
+
+def test_stored_evaluation_requires_the_core_inventory(tmp_path):
+    """A manifest cannot wave through a directory missing the core outputs.
+
+    The floor is deliberately narrow — a posterior and the two tables every
+    family writes. Family result tables stay with the key-findings layer, which
+    checks them for internal consistency as well as presence.
+    """
+    d = _fit_dir(tmp_path, kind="itt")
+    (d / "trace.nc").unlink()
+    (d / "priors_table.csv").unlink()
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is False
+    assert evaluation.stage == "artifacts"
+    assert "trace.nc" in evaluation.missing_artifacts
+    assert "priors_table.csv" in evaluation.missing_artifacts
+
+
+def test_a_complete_stored_fit_still_publishes(tmp_path):
+    """The guard must not withhold an intact bundle.
+
+    ``mechanism`` as elsewhere in this module: an ungated family, so the
+    robustness stage is out of scope and this test speaks only to the artefacts
+    stage it is about.
+    """
+    assert evaluate_publication(_fit_dir(tmp_path)).status == "ok"
+
+
+def test_fit_time_evaluation_does_not_require_the_manifest(tmp_path):
+    """At fit time the live log is the authority - the manifest is written after.
+
+    ``stages`` calls ``evaluate_publication(..., artifacts=ctx.artifacts)`` and
+    only then writes ``artifact_manifest.json``, so requiring the file on the
+    fit-time path would withhold every fit.
+    """
+    d = _fit_dir(tmp_path, core_artifacts=False)
+    log = ArtifactLog()
+    evaluation = evaluate_publication(d, artifacts=log)
+    assert evaluation.status == "ok"
+    assert evaluation.publishable is True

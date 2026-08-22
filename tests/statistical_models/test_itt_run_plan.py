@@ -362,3 +362,59 @@ def test_contradictory_settings_fail_during_plan_resolution(
 ):
     with pytest.raises(ValueError, match=message):
         resolve_itt_run_plan(_spec(settings, outcome=outcome))
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 7)
+# ---------------------------------------------------------------------------
+
+
+def test_an_unknown_outcome_symbol_is_rejected_during_resolution():
+    """Resolution, not ``MEASURES[s]`` inside the loader, must reject it.
+
+    ``pipelines.itt`` resolves the plan, then calls ``make_context`` - which
+    resets the output directory - and only then loads data. An unrecognised
+    symbol therefore used to destroy the previous fit's artefacts before failing
+    with a bare ``KeyError`` from preprocessing.
+    """
+    with pytest.raises(ValueError, match="unknown outcome symbol"):
+        resolve_itt_run_plan(
+            _spec(
+                IttModelSettings(outcomes=("ZZ",), pre_required=("ZZ",)),
+                outcome="ZZ",
+            )
+        )
+
+
+def test_a_baseline_term_without_its_complete_pre_restriction_is_rejected():
+    """``pre_required`` is checked against the terms that consume a baseline.
+
+    It used to be validated only as a *subset* of the loaded outcomes, so a model
+    keeping ``use_own_baseline`` while dropping the matching restriction resolved
+    cleanly, carried NaN baselines through preprocessing, and failed only when
+    PyMC received them.
+    """
+    with pytest.raises(ValueError, match="not in pre_required"):
+        resolve_itt_run_plan(
+            _spec(IttModelSettings(use_own_baseline=True, pre_required=()))
+        )
+
+
+def test_the_registered_floor_models_resolve_without_a_pre_restriction():
+    """The floor rule replaces the graded pre logit with a binary indicator.
+
+    LRPITT9 (P) and LRPITT11 (N) both declare ``pre_required=()`` with no
+    own-baseline term, so the new complete-pre requirement has nothing to demand
+    and the floor family needs no carve-out from it.
+    """
+    from language_reading_predictors.statistical_models.lrp_rli_itt_009 import (
+        SPEC as FLOOR_P,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_011 import (
+        SPEC as FLOOR_N,
+    )
+
+    for spec in (FLOOR_P, FLOOR_N):
+        assert spec.model_settings.floor_rule
+        assert spec.model_settings.pre_required == ()
+        assert resolve_itt_run_plan(spec) is not None

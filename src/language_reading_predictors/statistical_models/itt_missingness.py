@@ -190,7 +190,16 @@ def _numeric(frame: pd.DataFrame, column: str) -> np.ndarray:
 
 
 def _validate_binary_codes(values: np.ndarray, *, name: str, allowed: set[int]) -> None:
-    if not np.isfinite(values).all() or set(values.astype(int)) != allowed:
+    # Integrality is checked *before* the cast (2026-08-22 ITT audit, finding 9).
+    # ``astype(int)`` truncates toward zero, so a corrupt 0.4 or 1.7 silently
+    # became a valid 0 or 1 and passed the exact-code comparison. The pinned
+    # archive checksum protects production, but this validator is what a future
+    # archive revision is checked against.
+    if not np.isfinite(values).all():
+        raise ValueError(f"{name} must be finite")
+    if not np.all(values == np.rint(values)):
+        raise ValueError(f"{name} must contain whole numbers, not fractional codes")
+    if set(values.astype(int)) != allowed:
         raise ValueError(f"{name} must contain exactly the codes {sorted(allowed)}")
 
 
@@ -349,6 +358,12 @@ def load_randomised_w_archive(
     observed_mask = np.isfinite(post)
     if np.any((post[observed_mask] < 0) | (post[observed_mask] > WORD_READING_N)):
         raise ValueError(f"word_reading_t2 must lie in [0, {WORD_READING_N}]")
+    # Bounds alone left the later ``astype(np.int64)`` free to truncate a
+    # fractional count — 34.7 would be modelled as 34 with no complaint
+    # (2026-08-22 ITT audit, finding 9). The ordinary ITT loader already checks
+    # count integrality; this loader now matches it.
+    if not np.all(post[observed_mask] == np.rint(post[observed_mask])):
+        raise ValueError("word_reading_t2 must contain whole item counts")
     observed_counts = {
         1: int(np.sum((G_target == 1) & observed_mask)),
         0: int(np.sum((G_target == 0) & observed_mask)),
@@ -1116,6 +1131,9 @@ def run_missingness_subfit(
 ) -> dict[str, Any]:
     """Fit, persist and summarise the screening-baseline sensitivity sub-fit."""
 
+    from language_reading_predictors.statistical_models import (
+        priors as _provenance_priors,
+    )
     from language_reading_predictors.statistical_models.artifacts import (
         record_artifact,
         save_table,
@@ -1271,12 +1289,21 @@ def run_missingness_subfit(
             "within_archive_word_reading_missing_n": WITHIN_ARCHIVE_W_MISSING_N,
             "screening_covariates": list(data.covariate_names),
             "covariate_scalers": data.covariate_scalers,
+            # Every sampled coefficient, not only the screening block: ``tau`` and
+            # ``kappa`` were omitted, so the provenance record described a model
+            # without a treatment effect or a dispersion parameter (2026-08-22 ITT
+            # audit, finding 9). The release check's own convergence scan has
+            # always covered both. The three that come from the shared
+            # constructors are rendered from them rather than restated, so the
+            # record cannot drift from the model the factory builds.
             "coefficient_priors": {
                 "alpha": (
                     "Normal(mean all-57 pre-randomisation screening-W logit, 1.0)"
                 ),
-                "beta_screening_age": "Normal(0, 0.3)",
+                "tau": str(_provenance_priors.tau_prior()),
+                "beta_screening_age": str(_provenance_priors.gamma_age_prior()),
                 "beta_screening_word": "Normal(0, 1.0)",
+                "kappa": str(_provenance_priors.kappa_prior()),
             },
             "intercept_anchor_logit": data.covariate_scalers[
                 "screening_word_reading"

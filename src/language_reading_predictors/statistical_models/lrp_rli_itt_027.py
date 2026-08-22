@@ -6,9 +6,10 @@
 Site-robustness companion to LRPITT10: the uniform LRPITT spec (own baseline +
 linear age, no cross-baselines) plus a linear adjustment for study site (``area``:
 1 = North, 2 = South; two sites, 30/24 children). ``area`` is fully observed, so -
-unlike the SES-adjusted LRPITT13 - there is no complete-case dropping and the fit
-stays on all 54 children, directly comparable to the unadjusted LRPITT10 tau (no
-matched comparator needed). ``area`` enters as a precision / adjustment term only;
+unlike the SES-adjusted LRPITT13 - it drops no rows of its own: the fit is on the
+same 53 children as the unadjusted LRPITT10 (the 54-child archive cohort less the
+one child with no t2 word-reading score), so the two taus are directly comparable
+and no matched comparator is needed. ``area`` enters as a precision / adjustment term only;
 randomisation still identifies tau by the empty adjustment set. Sign convention:
 positive tau => intervention helps.
 """

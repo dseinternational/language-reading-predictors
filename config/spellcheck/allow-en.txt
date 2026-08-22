@@ -399,6 +399,7 @@ mypy
 myvar
 Naess
 Nalavany
+nanmin
 ncol
 nanmax
 ndarray
@@ -611,6 +612,7 @@ Tsvg
 Tunmer
 UKDA
 unadjustable
+unassessable
 unblockable
 uncentred
 unclustered

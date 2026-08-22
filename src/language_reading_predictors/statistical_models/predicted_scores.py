@@ -9,7 +9,8 @@ This module adds the undergraduate-readability artefacts:
 
 1. a **predicted-scores contrast panel** — the posterior-predictive distribution
    of the test score for a *new typical child* under the treated and untreated
-   counterfactuals, medians marked and the items-scale difference annotated;
+   counterfactuals, medians marked and the items-scale average marginal effect
+   annotated;
 2. an **items-scale effect density** with the ROPE band shaded and the three
    probabilities (benefit >= delta / negligible / harm >= delta) printed on the
    plot — the numbers already in ``rope_summary.csv``, drawn rather than
@@ -140,8 +141,25 @@ class PredictiveContrast:
         return self.ame_prob_new_child * float(self.n_trials)
 
     @property
-    def score_difference(self) -> np.ndarray:
-        """Paired treated-minus-untreated score per simulated child (CRN)."""
+    def score_difference_independent(self) -> np.ndarray:
+        """Treated-minus-untreated score for two **independently drawn** children.
+
+        Not a paired / common-random-number contrast, despite what this property
+        was called until the 2026-08-22 ITT audit (finding 4). ``_scores`` is
+        invoked once per arm and resamples both the Beta propensity and the
+        Binomial count each time, so only the posterior draw, reference row,
+        ``kappa`` and child intercept are shared. Two independent draws of
+        extra-Binomial and sampling noise therefore enter the difference: with the
+        treatment effect fixed to zero the differences are overwhelmingly non-zero
+        and the interval is items-wide, where a genuine within-child contrast
+        would be identically zero.
+
+        It is a legitimate *between-children superiority* quantity — how much one
+        intervention child out-scores one wait-list child — and is reported under
+        that reading. The within-child average treatment effect is
+        :attr:`ame_items` / :attr:`ame_prob`, which is what the effect annotations
+        and ``rope_summary.csv`` use.
+        """
         return self.score_intervention - self.score_control
 
 
@@ -445,11 +463,14 @@ def predicted_scores_table(
     over (#391 finding 4). The ``average_marginal_effect`` row is the
     **observed-child, sample-conditional** effect whose median must agree with
     ``treatment_marginal.csv`` / ``rope_summary.csv`` (guard test). For graded
-    outcomes the per-arm predictive score distributions and their paired difference
-    (common random numbers → the treated-minus-untreated score for the *same*
-    simulated child) are **new-child, population-average** quantities. For the
-    binary floor rule: the per-arm off-floor probabilities (observed-child) and
-    their risk difference.
+    outcomes the per-arm predictive score distributions and their difference are
+    **new-child, population-average** quantities; that difference is between two
+    *independently drawn* children, not one child under both arms (2026-08-22 ITT
+    audit, finding 4 — see
+    :attr:`PredictiveContrast.score_difference_independent`), and is named
+    ``predicted_score_difference_independent_children`` so it cannot be read as a
+    within-child potential-outcome contrast. For the binary floor rule: the
+    per-arm off-floor probabilities (observed-child) and their risk difference.
 
     When the model has a child random intercept, a companion
     ``average_marginal_effect_new_child_population`` row (and, for the floor rule,
@@ -495,7 +516,12 @@ def predicted_scores_table(
             _row("predicted_score_intervention", contrast.score_intervention, "items", newchild_basis)
         )
         rows.append(
-            _row("predicted_score_paired_difference", contrast.score_difference, "items", newchild_basis)
+            _row(
+                "predicted_score_difference_independent_children",
+                contrast.score_difference_independent,
+                "items",
+                newchild_basis,
+            )
         )
         rows.append(_row("average_marginal_effect", contrast.ame_items, "items", observed_basis))
         if has_new:

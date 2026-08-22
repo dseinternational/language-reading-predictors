@@ -79,6 +79,34 @@ def _rope_row(**overrides) -> dict:
     return row
 
 
+def _write_core_inventory(d: Path) -> None:
+    """Place the stored-path core inventory and a matching manifest.
+
+    The release decision's artefacts stage fails closed without a readable,
+    non-empty ``artifact_manifest.json`` and without the core outputs every
+    family writes (2026-08-22 ITT audit, finding 2). A fixture standing in for a
+    *stored* fit needs both before the key-findings assertions below can be about
+    key findings. Taken from the release module's own contract so widening the
+    floor cannot silently leave these fixtures behind.
+    """
+    from language_reading_predictors.statistical_models import release as _release
+
+    for name in _release._CORE_ARTIFACTS_BASE:
+        path = d / name
+        if not path.exists():
+            path.write_bytes(b"fixture")
+    _write_json(
+        d,
+        "artifact_manifest.json",
+        {
+            "artifacts": [
+                {"filename": name, "status": "written", "required": True}
+                for name in _release._CORE_ARTIFACTS_BASE
+            ]
+        },
+    )
+
+
 def _setup_dir(
     tmp_path: Path,
     kind: str,
@@ -90,6 +118,7 @@ def _setup_dir(
     d.mkdir(parents=True)
     _write_json(d, "config.json", config or _config(kind))
     _write_json(d, "diagnostics_summary.json", _passing_gate())
+    _write_core_inventory(d)
     if kind == "itt":
         _write_rows(
             d,
@@ -687,6 +716,9 @@ def _write_blending_link_summary(d: Path) -> Path:
     (companion_dir / "analysis_set.csv").write_bytes(
         (d / "analysis_set.csv").read_bytes()
     )
+    # Built by hand rather than through ``_setup_dir``, so it needs the stored
+    # path's core inventory explicitly.
+    _write_core_inventory(companion_dir)
     _write_psense(companion_dir)
 
     def _artifact_hashes(directory: Path, label: str) -> str:

@@ -26,7 +26,10 @@ from language_reading_predictors.statistical_models.likelihood import (
     SCORE_MEAN_LINKS,
     ScoreMeanLink,
 )
-from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
+from language_reading_predictors.statistical_models.measures import (
+    ITT_OUTCOMES,
+    MEASURES,
+)
 
 if TYPE_CHECKING:
     from language_reading_predictors.statistical_models.context import (
@@ -583,6 +586,19 @@ def _reject_duplicates(model_id: str, name: str, values: tuple[str, ...]) -> Non
         raise ValueError(f"{model_id}: {name} contains duplicate symbols: {values!r}")
 
 
+def _reject_unknown_measures(
+    model_id: str, name: str, values: Sequence[str]
+) -> None:
+    """Reject outcome symbols with no registered measure, during resolution."""
+    unknown = sorted({symbol for symbol in values if symbol not in MEASURES})
+    if unknown:
+        raise ValueError(
+            f"{model_id}: {name} names unknown outcome symbol(s): "
+            f"{', '.join(unknown)}. Registered symbols: "
+            f"{', '.join(sorted(MEASURES))}"
+        )
+
+
 def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
     """Resolve and validate an ITT specification before any data are loaded."""
     if spec.kind != "itt":
@@ -609,6 +625,25 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         ("restrict_complete", settings.restrict_complete),
     ):
         _reject_duplicates(spec.model_id, name, values)
+    # Outcome symbols are checked here, not left to ``MEASURES[s]`` inside the
+    # loader (2026-08-22 ITT audit, finding 7). ``pipelines.itt`` resolves the
+    # plan, *then* calls ``make_context`` — which resets the output directory —
+    # and only then loads data, so an unrecognised symbol used to destroy the
+    # previous fit's artefacts before failing with a bare ``KeyError``. Resolution
+    # is meant to reject an incoherent declaration before either happens.
+    _reject_unknown_measures(spec.model_id, "outcomes", outcomes)
+    _reject_unknown_measures(spec.model_id, "cross_symbols", cross_symbols)
+    _reject_unknown_measures(spec.model_id, "pre_required", settings.pre_required or ())
+    # Only the *baseline* branch names a measure; with
+    # ``tau_moderator_is_covariate`` the symbol is a covariate column (``blocks``,
+    # or ``"A"`` for age) that ``MEASURES`` knows nothing about.
+    if (
+        settings.tau_moderator_symbol is not None
+        and not settings.tau_moderator_is_covariate
+    ):
+        _reject_unknown_measures(
+            spec.model_id, "tau_moderator_symbol", (settings.tau_moderator_symbol,)
+        )
     if own not in outcomes:
         raise ValueError(
             f"{spec.model_id}: outcome_symbol {own!r} must appear in outcomes={outcomes!r}"
@@ -633,6 +668,26 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
             raise ValueError(
                 f"{spec.model_id}: pre_required contains unloaded outcome(s): "
                 f"{', '.join(missing_pre)}"
+            )
+        # ``pre_required`` was checked only as a *subset* of the loaded outcomes,
+        # never against the terms that actually consume a baseline (2026-08-22 ITT
+        # audit, finding 7). A model keeping ``use_own_baseline`` / cross-baselines
+        # while dropping the matching complete-pre restriction resolved cleanly,
+        # carried NaN baselines through preprocessing, and failed only when PyMC
+        # received them. No floor-rule carve-out is needed: the floor rule already
+        # cannot set ``use_own_baseline`` (rejected a few lines below), and a floor
+        # model that did carry cross-baselines would need them restricted too.
+        needs_pre: list[str] = []
+        if settings.use_own_baseline and own not in settings.pre_required:
+            needs_pre.append(own)
+        needs_pre.extend(
+            symbol for symbol in cross_symbols if symbol not in settings.pre_required
+        )
+        if needs_pre:
+            raise ValueError(
+                f"{spec.model_id}: these baselines enter the linear predictor "
+                "but are not in pre_required, so their rows are not restricted "
+                f"to complete pre scores: {', '.join(sorted(set(needs_pre)))}"
             )
     if settings.use_age_gp and settings.use_age_linear:
         raise ValueError(

@@ -539,7 +539,7 @@ def test_table_schema_graded_and_binary():
     assert list(graded.quantity) == [
         "predicted_score_control",
         "predicted_score_intervention",
-        "predicted_score_paired_difference",
+        "predicted_score_difference_independent_children",
         "average_marginal_effect",
     ]
     assert set(graded.columns) >= {
@@ -660,3 +660,44 @@ def test_writer_skips_icon_array_without_delta(tmp_path):
     )
     assert (tmp_path / "predicted_scores.png").exists()
     assert not (tmp_path / "icon_array.png").exists()
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 4)
+# ---------------------------------------------------------------------------
+
+
+def test_the_simulated_arm_difference_is_not_a_within_child_contrast():
+    """A zero treatment effect must not yield a zero simulated difference.
+
+    ``_scores`` is called once per arm and resamples both the Beta propensity and
+    the Binomial count, so only the posterior draw, reference row, ``kappa`` and
+    child intercept are shared. The quantity was nevertheless named
+    ``predicted_score_paired_difference`` and annotated as a common-random-number
+    contrast for the *same* simulated child. This pins the actual behaviour so the
+    name and the arithmetic cannot drift apart again: under a zero effect a true
+    paired difference is identically zero, while this one is items-wide.
+    """
+    eta, tau, _, kappa = _rng_trace(seed=7)
+    trace = _trace(eta, np.zeros_like(tau), kappa=kappa)
+    G = (np.arange(eta.shape[2]) % 2).astype(float)
+
+    contrast = counterfactual_predictive_contrast(
+        trace, G=G, n_trials=32, term="tau", varying_term="",
+        rng=np.random.default_rng(3),
+    )
+    difference = np.asarray(contrast.score_difference_independent, dtype=float)
+
+    # The analytic average marginal effect is exactly zero, as it must be.
+    assert np.allclose(contrast.ame_prob, 0.0)
+    # The simulated difference is not: it carries two independent draws of noise.
+    assert np.count_nonzero(difference) > 0.5 * difference.size
+    assert difference.std() > 1.0
+
+    table = predicted_scores_table(
+        contrast, outcome_symbol="L", ci_prob=0.89,
+        population="pop", contrast_status="status",
+    )
+    # Named for what it is, and never as the average marginal effect.
+    assert "predicted_score_difference_independent_children" in set(table.quantity)
+    assert "predicted_score_paired_difference" not in set(table.quantity)
