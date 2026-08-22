@@ -3501,3 +3501,36 @@ def test_growth_interaction_plan_headlines_gamma_int(tmp_path):
     )
     payload = generate_key_findings(stale)
     assert payload["status"] != "ok" or "gamma_int" not in _texts(payload)
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 9)
+# ---------------------------------------------------------------------------
+
+
+def test_analysis_set_reads_without_the_deprecated_t1_alias(tmp_path):
+    """New fits stop writing ``available_t1_n``; the reader must not require it.
+
+    It was a duplicate of ``analysed_archive_n`` under a name that claimed
+    outcome-specific t1 availability, which is measure-specific: 50 children have
+    a t1 nonword score against 53 for word reading.
+    """
+    d = _setup_dir(tmp_path, "itt")
+    audit = pd.read_csv(d / "analysis_set.csv").drop(columns=["available_t1_n"])
+    audit.to_csv(d / "analysis_set.csv", index=False)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+
+
+def test_a_stored_bundle_keeping_the_alias_is_still_cross_checked(tmp_path):
+    """Old bundles keep the column, and the equality that made it redundant."""
+    d = _setup_dir(tmp_path, "itt")
+    audit = pd.read_csv(d / "analysis_set.csv")
+    assert "available_t1_n" in audit.columns
+    audit["available_t1_n"] = audit["available_t1_n"] + 1
+    audit.to_csv(d / "analysis_set.csv", index=False)
+    _write_csv(d, "rope_summary.csv", _rope_row())
+    payload = generate_key_findings(d)
+    assert payload["status"] == "not_available"
+    assert "arithmetic" in payload["reason"]

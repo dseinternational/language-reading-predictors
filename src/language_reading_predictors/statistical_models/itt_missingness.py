@@ -184,6 +184,56 @@ class ScreeningWordReadingData:
     source_path: str
 
 
+def missingness_design_record(data: "ScreeningWordReadingData") -> dict[str, Any]:
+    """Machine-checkable identity of the all-57 target design.
+
+    Fresh generation validates the target count, the likelihood rows and the
+    arm / missingness masks against the trial contract, but none of that reached
+    the persisted artefacts, so stored release evaluation could only check that
+    the trace carried variables of the right *names* (2026-08-22 ITT audit,
+    finding 8). This records the design itself: the dimensions, the arm split of
+    the 57 randomised targets, how many are observed and in the original
+    analysis, and a digest over the four target arrays that define the
+    completion problem.
+
+    The digest covers ``target_G``, ``target_outcome_observed``,
+    ``target_in_original_analysis`` and the standardised screening design
+    ``target_X`` — the arrays a bridge/MAR/J2R/delta completion is computed over.
+    Two runs agreeing on it are completing the same 57 profiles from the same
+    observed set, which counts alone cannot establish.
+    """
+    hasher = hashlib.sha256()
+    for name, array in (
+        ("target_G", data.target_G),
+        ("target_outcome_observed", data.target_outcome_observed),
+        ("target_in_original_analysis", data.target_in_original_analysis),
+        ("target_X", data.target_X),
+    ):
+        values = np.asarray(array)
+        hasher.update(name.encode("ascii"))
+        hasher.update(str(values.shape).encode("ascii"))
+        hasher.update(np.ascontiguousarray(values, dtype=float).tobytes())
+    observed = np.asarray(data.target_outcome_observed, dtype=bool)
+    arm = np.asarray(data.target_G, dtype=int)
+    return {
+        "target_profile_n": int(arm.size),
+        "observed_outcome_n": int(data.n_obs),
+        "target_by_arm": {
+            "intervention": int((arm == 1).sum()),
+            "control": int((arm == 0).sum()),
+        },
+        "target_observed_by_arm": {
+            "intervention": int((observed & (arm == 1)).sum()),
+            "control": int((observed & (arm == 0)).sum()),
+        },
+        "target_in_original_analysis_n": int(
+            np.asarray(data.target_in_original_analysis, dtype=bool).sum()
+        ),
+        "covariate_names": list(data.covariate_names),
+        "target_design_sha256": hasher.hexdigest(),
+    }
+
+
 def _numeric(frame: pd.DataFrame, column: str) -> np.ndarray:
     values = pd.to_numeric(frame[column], errors="coerce").to_numpy(dtype=float)
     return values
@@ -1289,6 +1339,7 @@ def run_missingness_subfit(
             "within_archive_word_reading_missing_n": WITHIN_ARCHIVE_W_MISSING_N,
             "screening_covariates": list(data.covariate_names),
             "covariate_scalers": data.covariate_scalers,
+            "design": missingness_design_record(data),
             # Every sampled coefficient, not only the screening block: ``tau`` and
             # ``kappa`` were omitted, so the provenance record described a model
             # without a treatment effect or a dispersion parameter (2026-08-22 ITT

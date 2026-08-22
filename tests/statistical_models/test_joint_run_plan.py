@@ -373,3 +373,101 @@ def test_every_registered_joint_model_is_typed_and_preserves_legacy_contract():
             assert metadata is not None
             assert "contrast_kind" in metadata
             assert "dependence_note" in metadata
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 3)
+# ---------------------------------------------------------------------------
+
+
+def _dependence_trace(*, post_sd: float, prior_sd: float = 1 / 3, seed: int = 0):
+    """A two-outcome trace carrying the dependence block's reported parameters."""
+    import arviz as az
+    import numpy as np
+    import xarray as xr
+
+    rng = np.random.default_rng(seed)
+    nc, nd, npr = 4, 2000, 2000
+    coords_post = {"chain": np.arange(nc), "draw": np.arange(nd), "outcome_pair": ["UE|TE"], "outcome": ["TE", "UE"]}
+    posterior = xr.Dataset(
+        {
+            "u_corr_pair": (("chain", "draw", "outcome_pair"), rng.normal(0.0, post_sd, size=(nc, nd, 1))),
+            "sigma_outcome": (("chain", "draw", "outcome"), np.abs(rng.normal(0.15, 0.10, size=(nc, nd, 2)))),
+        },
+        coords=coords_post,
+    )
+    coords_prior = {"chain": [0], "draw": np.arange(npr), "outcome_pair": ["UE|TE"], "outcome": ["TE", "UE"]}
+    prior = xr.Dataset(
+        {
+            "u_corr_pair": (("chain", "draw", "outcome_pair"), rng.normal(0.0, prior_sd, size=(1, npr, 1))),
+            "sigma_outcome": (("chain", "draw", "outcome"), np.abs(rng.normal(0.0, 0.5, size=(1, npr, 2)))),
+        },
+        coords=coords_prior,
+    )
+    # ``az.from_dict`` renames labelled dims to ``<var>_dim_0``; build the tree
+    # directly so ``outcome_pair`` / ``outcome`` survive, as they do on a real fit.
+    del az
+    return xr.DataTree.from_dict({"posterior": posterior, "prior": prior})
+
+
+def test_dependence_summary_flags_a_correlation_that_never_left_its_prior():
+    """The registered companions' correlation posterior *is* their prior.
+
+    Their prose invited the reader to treat the companion's interval as the
+    data's verdict on within-child covariance. Posterior-to-prior SD ratios of
+    1.002, 1.008 and 1.001 say otherwise, and the table has to make that legible
+    rather than leaving it to be reconstructed from a wide interval.
+    """
+    frame = R.dependence_identification_summary(
+        _dependence_trace(post_sd=1 / 3), ci_prob=0.89
+    )
+    correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
+    assert correlation["prior_source"] == "fitted prior draws"
+    assert correlation["posterior_prior_sd_ratio"] == pytest.approx(1.0, abs=0.05)
+    assert correlation["verdict"] == "prior-dominated"
+    # The residual SDs are a different story, and the table must say so per
+    # parameter rather than with one verdict for the whole block.
+    assert (frame.loc[frame["role"] == "residual SD", "verdict"] == "informed").all()
+
+
+def test_dependence_summary_reports_an_informed_correlation_as_informed():
+    frame = R.dependence_identification_summary(
+        _dependence_trace(post_sd=0.05), ci_prob=0.89
+    )
+    correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
+    assert correlation["posterior_prior_sd_ratio"] < 0.75
+    assert correlation["verdict"] == "informed"
+
+
+def test_dependence_summary_is_none_without_the_block():
+    import arviz as az
+    import numpy as np
+    import xarray as xr
+
+    posterior = xr.Dataset(
+        {"tau": (("chain", "draw"), np.zeros((2, 10)))},
+        coords={"chain": np.arange(2), "draw": np.arange(10)},
+    )
+    del az
+    assert R.dependence_identification_summary(
+        xr.DataTree.from_dict({"posterior": posterior}), ci_prob=0.89
+    ) is None
+
+
+def test_the_lkj_prior_sd_closed_form_matches_the_two_outcome_case():
+    """Verified against draws; only used when no prior group was persisted.
+
+    For d = 2 the closed form and this environment's sampler agree exactly. For
+    d > 2 they do not — ``pm.LKJCorr(n=3, eta=4)`` yields off-diagonal SDs of
+    0.316, 0.302 and 0.301 where a true LKJ is exchangeable — which is why the
+    summary prefers the fit's own prior draws.
+    """
+    from language_reading_predictors.statistical_models.priors import (
+        JOINT_RESIDUAL_LKJ_ETA,
+        residual_correlation_prior_sd,
+    )
+
+    assert JOINT_RESIDUAL_LKJ_ETA == 4.0
+    assert residual_correlation_prior_sd(2) == pytest.approx(1 / 3, abs=1e-12)
+    with pytest.raises(ValueError):
+        residual_correlation_prior_sd(1)

@@ -59,10 +59,12 @@ def analysis_set_table(
     finite.  The table therefore works for ordinary ITTs, covariate-restricted
     robustness fits and the baseline-floor subgroup.
 
-    ``analysed_archive_n`` and its deprecated alias ``available_t1_n`` both hold the
-    paper's analysed/archive cohort (28 intervention + 26 control). Neither is a
-    count of t1 *outcome* availability, which is measure-specific — see
-    :data:`RLI_AVAILABLE_T1_BY_G`.
+    ``analysed_archive_n`` holds the paper's analysed/archive cohort (28
+    intervention + 26 control). It is not a count of t1 *outcome* availability,
+    which is measure-specific — 50 children for N against 53 for W. The duplicate
+    ``available_t1_n`` column that used to carry the same number under that
+    misleading name is no longer written (2026-08-22 ITT audit, finding 9);
+    ``reporting`` still accepts and cross-checks it on stored bundles.
     """
 
     G = np.asarray(prepared.G, dtype=int)
@@ -93,7 +95,6 @@ def analysis_set_table(
                 "discontinued_but_followed_n": (
                     RLI_DISCONTINUED_BUT_FOLLOWED_BY_G[g]
                 ),
-                "available_t1_n": available_n,
                 "fitted_n": fitted_n,
                 "absent_from_archive_n": randomised_n - available_n,
                 "not_in_fitted_analysis_n": randomised_n - fitted_n,

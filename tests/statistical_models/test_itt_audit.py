@@ -29,7 +29,6 @@ def test_analysis_set_table_distinguishes_randomised_available_and_fitted():
     assert table.loc["intervention", "lost_to_follow_up_n"] == 1
     assert table.loc["intervention", "analysed_archive_n"] == 28
     assert table.loc["intervention", "discontinued_but_followed_n"] == 2
-    assert table.loc["intervention", "available_t1_n"] == 28
     assert table.loc["intervention", "fitted_n"] == 27
     assert table.loc["intervention", "absent_from_archive_n"] == 1
     assert table.loc["intervention", "not_in_fitted_analysis_n"] == 2
@@ -38,11 +37,14 @@ def test_analysis_set_table_distinguishes_randomised_available_and_fitted():
     assert table.loc["control", "lost_to_follow_up_n"] == 2
     assert table.loc["control", "analysed_archive_n"] == 26
     assert table.loc["control", "discontinued_but_followed_n"] == 2
-    assert table.loc["control", "available_t1_n"] == 26
     assert table.loc["control", "fitted_n"] == 24
     assert table.loc["control", "absent_from_archive_n"] == 2
     assert table.loc["control", "not_in_fitted_analysis_n"] == 4
     assert table.loc["control", "excluded_after_archive_n"] == 2
+    # The deprecated duplicate of ``analysed_archive_n`` is no longer written: it
+    # never held outcome-specific t1 availability, which is measure-specific — 50
+    # children for N against 53 for W (2026-08-22 ITT audit, finding 9).
+    assert "available_t1_n" not in table.columns
 
 
 def test_randomised_postscore_bounds_assign_extreme_missing_scores():

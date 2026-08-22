@@ -26,6 +26,9 @@ from language_reading_predictors.statistical_models.artifacts import (
     ArtifactRecord,
     save_table,
 )
+from language_reading_predictors.statistical_models import (
+    itt_missingness as release_module_missingness,
+)
 from language_reading_predictors.statistical_models import release as release_module
 from language_reading_predictors.statistical_models.release import (
     GROWTH_INFLUENCE_TRACE_FILENAME,
@@ -240,20 +243,30 @@ def _write_clean_missingness_trace(
         },
         coords=coords,
     )
+    # The registered design's dimensions, not one of each. Stored evaluation now
+    # checks that the persisted trace covers all 57 randomised target profiles and
+    # the 53 observed word-reading rows, because names alone are not a design
+    # (2026-08-22 ITT audit, finding 8) — and this fixture, with one target and
+    # one observation, is precisely what used to qualify.
+    _n_targets = release_module_missingness.RANDOMISED_N
+    _n_observed = (
+        release_module_missingness.OBSERVED_INTERVENTION_N
+        + release_module_missingness.OBSERVED_CONTROL_N
+    )
     prior = xr.Dataset(
         {
             "p0_target": (
                 ("chain", "draw", "target_id"),
-                np.full((1, 2, 1), 0.4),
+                np.full((1, 2, _n_targets), 0.4),
             ),
             "p1_target": (
                 ("chain", "draw", "target_id"),
-                np.full((1, 2, 1), 0.6),
+                np.full((1, 2, _n_targets), 0.6),
             ),
         }
     )
     prior_predictive = xr.Dataset(
-        {"y_post": (("chain", "draw", "obs_id"), np.full((1, 2, 1), 10))}
+        {"y_post": (("chain", "draw", "obs_id"), np.full((1, 2, _n_observed), 10))}
     )
     groups = {"posterior": posterior, "sample_stats": sample_stats}
     if include_prior_groups:
@@ -261,7 +274,9 @@ def _write_clean_missingness_trace(
     xr.DataTree.from_dict(groups).to_netcdf(path)
     if not include_prior_groups:
         return {}
-    diagnostics, error = release_module._missingness_trace_diagnostics(path)
+    diagnostics, error = release_module._missingness_trace_diagnostics(
+        path, expected_targets=_n_targets, expected_observations=_n_observed
+    )
     assert error is None
     assert diagnostics is not None
     assert release_module._missingness_diagnostics_pass(diagnostics)
@@ -941,7 +956,7 @@ def test_raw_missingness_thresholds_override_a_stored_true_verdict(
     monkeypatch.setattr(
         release_module,
         "_missingness_trace_diagnostics",
-        lambda _path: (raw, None),
+        lambda _path, **_kwargs: (raw, None),
     )
 
     decision = evaluate_publication(d)
@@ -1741,3 +1756,58 @@ def test_fit_time_evaluation_does_not_require_the_manifest(tmp_path):
     evaluation = evaluate_publication(d, artifacts=log)
     assert evaluation.status == "ok"
     assert evaluation.publishable is True
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 3)
+# ---------------------------------------------------------------------------
+
+
+def _dependence_table(verdict: str) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "parameter": "u_corr_pair[UE|TE]",
+                "role": "residual correlation",
+                "posterior_sd": 0.334,
+                "prior_sd": 0.334,
+                "posterior_prior_sd_ratio": 1.0,
+                "verdict": verdict,
+            },
+            {
+                "parameter": "sigma_outcome[TE]",
+                "role": "residual SD",
+                "posterior_sd": 0.117,
+                "prior_sd": 0.313,
+                "posterior_prior_sd_ratio": 0.373,
+                "verdict": "informed",
+            },
+        ]
+    )
+
+
+def test_a_prior_dominated_dependence_block_attaches_a_qualifier(tmp_path):
+    """A companion whose block learned nothing must say so beside its interval."""
+    d = _fit_dir(tmp_path, kind="joint")
+    _dependence_table("prior-dominated").to_csv(
+        d / "dependence_identification.csv", index=False
+    )
+    note = release_module._dependence_identification_note(d)
+    assert "did not move off its prior" in note
+    assert "u_corr_pair[UE|TE]" in note
+    # A note, never a withhold: the fit is valid and its residual SDs are informed.
+    assert "prior-informed sensitivity" in note
+
+
+def test_an_informed_dependence_block_attaches_nothing(tmp_path):
+    d = _fit_dir(tmp_path, kind="joint")
+    _dependence_table("informed").to_csv(
+        d / "dependence_identification.csv", index=False
+    )
+    assert release_module._dependence_identification_note(d) == ""
+
+
+def test_a_fit_without_the_dependence_table_is_unaffected(tmp_path):
+    """Stored fits written before the table existed must re-decide identically."""
+    d = _fit_dir(tmp_path, kind="joint")
+    assert release_module._dependence_identification_note(d) == ""

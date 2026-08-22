@@ -368,3 +368,95 @@ def test_the_provenance_records_every_sampled_coefficient_prior():
     # And the constructors render something a reader can act on.
     assert "0.5" in str(p.tau_prior())
     assert "50" in str(p.kappa_prior())
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 8)
+# ---------------------------------------------------------------------------
+
+
+def test_the_design_record_pins_the_all_57_target_design(tmp_path):
+    """Counts and a digest, so a stored fit can be checked without the archive.
+
+    Fresh generation validated the target count, the likelihood rows and the
+    arm / missingness masks, but none of it reached the persisted artefacts — so
+    stored release evaluation could only check that the trace carried variables
+    of the right *names*.
+    """
+    record = missing.missingness_design_record(_loaded(tmp_path))
+    assert record["target_profile_n"] == missing.RANDOMISED_N == 57
+    assert record["observed_outcome_n"] == 53
+    assert record["target_by_arm"] == {"intervention": 29, "control": 28}
+    assert record["target_observed_by_arm"] == {"intervention": 28, "control": 25}
+    assert record["target_in_original_analysis_n"] == 54
+    assert len(record["target_design_sha256"]) == 64
+
+
+def test_the_design_digest_separates_two_different_target_sets(tmp_path):
+    """Counts alone cannot establish that two runs completed the same profiles."""
+    base = missing.missingness_design_record(_loaded(tmp_path))
+
+    other = tmp_path / "other"
+    other.mkdir()
+    path = other / "archive.csv"
+
+    def mutate(frame):
+        # Every arm size, mask and count held fixed; one child's screening
+        # covariate moved. The completion problem is a different one, and only
+        # the digest can see it.
+        frame["age_ts"] = frame["age_ts"].astype(float)
+        frame.loc[0, "age_ts"] = float(frame.loc[0, "age_ts"]) + 11.0
+
+    digest = _write_mutated_archive(path, mutate)
+    moved = missing.missingness_design_record(
+        missing.load_randomised_w_archive(
+            path, expected_sha256=digest, local_wide_path=None
+        )
+    )
+    assert moved["target_by_arm"] == base["target_by_arm"]
+    assert moved["target_observed_by_arm"] == base["target_observed_by_arm"]
+    assert moved["observed_outcome_n"] == base["observed_outcome_n"]
+    assert moved["target_in_original_analysis_n"] == base["target_in_original_analysis_n"]
+    assert moved["target_design_sha256"] != base["target_design_sha256"]
+
+
+@pytest.mark.parametrize(
+    ("targets", "observations", "fragment"),
+    [
+        (57, 53, None),
+        (57, 1, "y_post covers 1 observations"),
+        (1, 53, "p0_target covers 1 target profiles"),
+    ],
+)
+def test_stored_evaluation_checks_the_trace_design_dimensions(
+    targets, observations, fragment
+):
+    """Names are not a design: a one-target trace used to qualify."""
+    import numpy as np
+    import xarray as xr
+
+    from language_reading_predictors.statistical_models import release as R
+
+    coords = {"chain": [0], "draw": np.arange(4)}
+    tree = xr.DataTree.from_dict(
+        {
+            "prior": xr.Dataset(
+                {
+                    name: (("chain", "draw", "target_id"), np.zeros((1, 4, targets)))
+                    for name in ("p0_target", "p1_target")
+                },
+                coords={**coords, "target_id": np.arange(targets)},
+            ),
+            "prior_predictive": xr.Dataset(
+                {"y_post": (("chain", "draw", "obs_id"), np.zeros((1, 4, observations)))},
+                coords={**coords, "obs_id": np.arange(observations)},
+            ),
+        }
+    )
+    error = R._missingness_design_dimension_error(
+        tree, expected_targets=57, expected_observations=53
+    )
+    if fragment is None:
+        assert error is None
+    else:
+        assert error is not None and fragment in error

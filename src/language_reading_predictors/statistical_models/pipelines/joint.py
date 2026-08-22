@@ -167,6 +167,19 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         G=built.prepared.G,
     )
     save_table(ctx, "tau_summary", tau_df)
+
+    # How far the dependence block is actually informed (2026-08-22 ITT audit,
+    # finding 3). A companion exists to say whether the parent's factorised
+    # interval was too wide or too narrow; that answer is only the data's if the
+    # correlation posterior has moved off its prior. At n = 53 it has not — the
+    # ratio is ~1.00 for all three registered companions — so the table is written
+    # beside the contrast rather than left for a reader to reconstruct, and
+    # ``release`` reads it to attach the prior-dominated qualifier.
+    dependence = _report.dependence_identification_summary(
+        ctx.trace, ci_prob=ctx.reporting.ci_prob
+    )
+    if dependence is not None and not dependence.empty:
+        save_table(ctx, "dependence_identification", dependence)
     print_table(
         ranked_dataframe_table(
             tau_df,
