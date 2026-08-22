@@ -147,6 +147,11 @@ def test_build_rlm_adjusted_and_horseshoe(tmp_path):
     hs_names = {v.name for v in hs.model.free_RVs}
     assert {"hs_tau", "hs_c2", "hs_lambda", "hs_z"}.issubset(hs_names)
     assert "beta" in {v.name for v in hs.model.deterministics}
+    # The horseshoe partner shares the adjusted fit's frame and, since
+    # 2026-08-22, its dispersion-scale concentration prior.
+    assert "inv_sqrt_kappa" in hs_names
+    assert "kappa" not in hs_names
+    assert "kappa" in {v.name for v in hs.model.deterministics}
 
     with adj.model:
         pp = pm.sample_prior_predictive(draws=3, random_seed=1)

@@ -40,6 +40,8 @@ from language_reading_predictors.statistical_models.factories import (
     build_mechanism_model,
     build_mediation_model,
     build_rlm_adjusted_model,
+    build_rlm_concurrent_model,
+    build_rlm_horseshoe_model,
     build_rlm_joint_growth_model,
     build_rlm_transition_adjusted_model,
     build_two_mediator_model,
@@ -57,6 +59,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_aligned,
     load_longitudinal_panel,
+    load_rlm_concurrent_frames,
     load_rlm_span_frame,
     load_rlm_transition_frame,
     load_wave_panel,
@@ -287,6 +290,20 @@ def _representative_models(tmp_path) -> dict[str, object]:
     ).model
     models["rlm_transition_adjusted_varying"] = build_rlm_transition_adjusted_model(
         rlm_transition, varying_slopes=True
+    ).model
+    # The Byrne horseshoe and concurrent factories share the dispersion-scale
+    # concentration prior since 2026-08-22; they join the guard with the family
+    # whose frames they partner.
+    models["rlm_horseshoe"] = build_rlm_horseshoe_model(rlm_span).model
+    rlm_wave = load_rlm_concurrent_frames(
+        path=rlm_path,
+        outcome="basread",
+        predictor_measures=("bpvs", "basdig"),
+        waves=(1,),
+        include_age=False,
+    )[1]
+    models["rlm_concurrent"] = build_rlm_concurrent_model(
+        rlm_wave, predictor_symbols=("bpvs", "basdig"), include_age=False
     ).model
     return models
 

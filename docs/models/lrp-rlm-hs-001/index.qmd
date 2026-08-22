@@ -47,6 +47,10 @@ slab df 4; Piironen & Vehtari 2017) instead of independent
 $\mathrm{Normal}(0, 0.3)$ priors. The group-nuisance dummies stay unshrunk
 ($\mathrm{Normal}(0,1)$): the cohort factor is a nuisance, not a ranked
 construct. Sampling uses a raised `target_accept` for the global-local funnel.
+The Beta-Binomial concentration takes the dispersion-scale prior shared by the
+Byrne families, $1/\sqrt{\kappa} \sim \mathrm{HalfNormal}(0.25)$, as its
+adjusted partner does (2026-08-22 adjusted-family review), so the near-Binomial
+limit is not excluded a priori.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

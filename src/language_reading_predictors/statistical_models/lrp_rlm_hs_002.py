@@ -52,8 +52,14 @@ SPEC = ModelSpec(
     ),
     extra={
         # The horseshoe's global-local funnel needs smaller steps than the
-        # tier defaults, matching the RLI and Byrne word-reading horseshoes.
-        "target_accept": 0.99,
+        # tier defaults. 0.99 cleared the gate under the HalfNormal(50)
+        # concentration prior; with the dispersion-scale prior the Byrne
+        # factories share since 2026-08-22 the reporting refit produced five
+        # divergences in 36 000 draws (R-hat 1.0004, ESS > 11 000, BFMI 0.8 —
+        # sporadic funnel divergences, not a boundary pile-up), and the
+        # horseshoe ranking is zero-divergence-only, so this model takes the
+        # 0.999 its TROG sibling lrp-rlm-hs-003 already uses.
+        "target_accept": 0.999,
     },
 )
 

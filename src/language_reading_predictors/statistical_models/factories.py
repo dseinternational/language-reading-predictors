@@ -6643,6 +6643,7 @@ def build_rlm_concurrent_model(
     include_age: bool = True,
     include_group: bool = True,
     predictor_slope_sigma: float = 0.3,
+    dispersion_prior_sigma: float = 0.25,
 ) -> BuiltModel[EmptyPayload]:
     """One-wave Byrne concurrent conditional-associations model (#409 C1).
 
@@ -6651,6 +6652,14 @@ def build_rlm_concurrent_model(
     optional age, and observational reading-group nuisance dummies. Predictor
     missingness is mean-imputed at zero after within-wave standardisation, matching
     the established family policy. Every reported slope is descriptive.
+
+    The Beta-Binomial concentration takes the Byrne families' **dispersion-scale**
+    prior (``1/sqrt(kappa) ~ HalfNormal(dispersion_prior_sigma)``, ``kappa`` a
+    Deterministic, via :func:`_rlm_dispersion_kappa`) rather than
+    ``kappa_prior``'s ``HalfNormal(50)``, which at these denominators excludes
+    the near-Binomial limit a priori (2026-08-21 historical review, finding 8;
+    extended to the adjusted, horseshoe and concurrent RLM factories on
+    2026-08-22).
     """
     outcome = frame.outcome
     if outcome not in frame.post_counts:
@@ -6693,7 +6702,7 @@ def build_rlm_concurrent_model(
             eta = _rlm_group_nuisance(frame, eta)
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
-        kappa = _priors.kappa_prior().to_pymc("kappa")
+        kappa = _rlm_dispersion_kappa(dispersion_prior_sigma)
         beta_binomial_from_logit(
             "y_post",
             eta,
@@ -6894,8 +6903,15 @@ def build_rlm_horseshoe_model(
     tau0: float = 0.1,
     slab_scale: float = 2.0,
     slab_df: float = 4.0,
+    dispersion_prior_sigma: float = 0.25,
 ) -> BuiltModel[EmptyPayload]:
     """Byrne regularised-horseshoe ranking model (#338 Phase D, ``lrp-rlm-hs-001``).
+
+    The Beta-Binomial concentration takes the Byrne families' dispersion-scale
+    prior (``1/sqrt(kappa) ~ HalfNormal(dispersion_prior_sigma)``, ``kappa`` a
+    Deterministic; :func:`_rlm_dispersion_kappa`), as the RLM adjusted partner of
+    each horseshoe frame does since 2026-08-22 — the two fits share a frame and
+    must share the dispersion prior.
 
     The RLI gain-framing ``build_horseshoe_model`` on the Byrne span frame: the
     outcome's later-wave count conditioned on its own pre-wave logit
@@ -6928,7 +6944,7 @@ def build_rlm_horseshoe_model(
         beta = _build_horseshoe_betas(tau0=tau0, slab_scale=slab_scale, slab_df=slab_df)
         eta = eta + pt.dot(X_d, beta)
         eta = pm.Deterministic("eta", eta, dims="obs_id")
-        kappa = _priors.kappa_prior().to_pymc("kappa")
+        kappa = _rlm_dispersion_kappa(dispersion_prior_sigma)
         beta_binomial_from_logit(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
