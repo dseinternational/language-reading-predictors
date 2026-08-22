@@ -187,6 +187,45 @@ def kappa_prior(sigma: float = 50.0) -> Continuous:
     return pz.HalfNormal(sigma=sigma)
 
 
+def inv_sqrt_kappa_prior(sigma: float = 0.25) -> Continuous:
+    """Beta-binomial dispersion 1/sqrt(kappa) ~ HalfNormal(0.25).
+
+    The RLM historical families' replacement for a HalfNormal directly on the
+    concentration (2026-08-21 historical-families review, finding 8). The defect
+    was the prior's *shape*, not its scale. A HalfNormal on ``kappa`` cannot
+    reach the near-Binomial limit ``kappa >> n``, which for a bounded count is
+    the perfectly ordinary hypothesis "this measure shows no extra-Binomial
+    dispersion beyond the child random intercept". Under ``HalfNormal(50)`` the
+    prior probability that the Beta-Binomial variance is within 10% of the
+    Binomial variance is **0.000-0.001** at every RLM denominator (n = 18-90) —
+    the answer was excluded a priori. The fitted posteriors showed exactly what
+    that costs: in 20 of 27 group-by-measure cells the posterior standard
+    deviation was 90-99% of the prior's, and the posterior piled up against the
+    prior's ceiling (P(kappa > 100) = 0.046 under the prior, 0.37-0.78 in those
+    posteriors). ``kappa`` was carrying the prior, not the data.
+
+    Reparameterising onto ``u = 1/sqrt(kappa)`` — the standard weakly-informative
+    scale for a dispersion parameter, on which the no-dispersion limit is simply
+    ``u = 0`` — fixes the shape. The default ``0.25`` is chosen to be
+    **calibration-preserving on the observable scale**: it reproduces the old
+    prior's median Beta-Binomial variance inflation at every RLM denominator to
+    within 3% (n=18: 1.47 against 1.49; n=32: 1.85 against 1.89; n=90: 3.45
+    against 3.56), with comparable upper limits. So it asserts no new belief
+    about *how much* dispersion there is; it only stops forbidding "none",
+    raising P(inflation < 1.1) from ~0.000 to 0.11-0.24 and P(kappa > 100) from
+    0.046 to 0.311. Every fitted kappa in the current suite (28 to 121) sits
+    within 0.4-0.75 prior standard deviations of the mode, so neither tail is
+    truncated.
+
+    ``kappa`` itself remains available as a Deterministic, so the reports,
+    diagnostics and prior-vs-posterior overlay still speak in the units the
+    family documents. Scoped to the RLM historical families; :func:`kappa_prior`
+    is unchanged for every other family, whose high-denominator RLI outcomes are
+    the case its own docstring reasons about.
+    """
+    return pz.HalfNormal(sigma=sigma)
+
+
 def beta_mech_prior(sigma: float = 1.0) -> Continuous:
     """Linear-mechanism slope beta_mech ~ Normal(0, 1).
 
@@ -435,6 +474,7 @@ _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     # Normal(0, 1) distribution (2026-08-21 aligned review, applied globally).
     "gamma_own_offfloor": gamma_own_offfloor_prior,
     "beta_mech": beta_mech_prior,
+    "inv_sqrt_kappa": inv_sqrt_kappa_prior,
     "sigma_dose": sigma_dose_phase_prior,
     "sigma_delta": sigma_delta_prior,
     "b_path": b_path_prior,
@@ -464,6 +504,7 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "gamma_cross": "association",
     "gamma_age": "precision",
     "kappa": "nuisance",
+    "inv_sqrt_kappa": "nuisance",
     "predictor_slope": "association",
     "beta_mech": "association",
     "sigma_dose": "nuisance",
@@ -520,6 +561,7 @@ _RV_TO_CTOR: dict[str, str] = {
     "kappa": "kappa",
     "kappa_M": "kappa",
     "kappa_Y": "kappa",
+    "inv_sqrt_kappa": "inv_sqrt_kappa",
     "beta_mech": "beta_mech",
     "mu_dose": "beta_mech",
     "sigma_dose": "sigma_dose",
@@ -725,15 +767,28 @@ def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str
     # the headline between-child cross-measure correlation — association parameters
     # rather than unreported covariance plumbing.
     if (
-        base in {"trait_corr_chol", "measure_corr_chol", "factor_corr_chol"}
+        base
+        in {
+            "trait_corr_chol",
+            "measure_corr_chol",
+            # The RLM joint-growth within-child block's Cholesky induces
+            # ``within_corr``, the headline estimand of lrp-rlm-jc-002 — an
+            # association, exactly like its between-child sibling above. It was
+            # dropping to role='other' with an empty rationale, published in the
+            # report's own priors table (2026-08-21 review, finding 7).
+            "within_corr_chol",
+            "factor_corr_chol",
+        }
         or base.startswith("state_corr_chol_w")
     ):
         return ("association", "")
     # RLM historical-growth / joint-growth bespoke offsets and level grid: the
-    # per-subject non-centred offsets ``z_subject`` and the group-by-wave
-    # population level grid ``eta_cell`` are intercept-class nuisances (the reported
-    # cells/intervals are deterministics of ``eta_cell``), not skill couplings.
-    if base in {"z_subject", "eta_cell"}:
+    # per-subject non-centred offsets ``z_subject``, the per-row within-child
+    # offsets ``z_within`` and the group-by-wave population level grid
+    # ``eta_cell`` are intercept-class nuisances (the reported cells/intervals are
+    # deterministics of ``eta_cell``, and the reported correlations are carried by
+    # the Cholesky blocks above), not skill couplings.
+    if base in {"z_subject", "eta_cell", "z_within"}:
         return ("nuisance", "")
     # Latent growth-curve (LRP69/70/85) random-effect offsets and the shared
     # growth-tempo factor scores: non-centred standard normals whose meaning is
@@ -876,6 +931,29 @@ def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
             f"LKJ(eta=2) prior on the Cholesky factor of the between-child "
             f"cross-measure correlation ({fitted}); R = chol @ chol.T is the headline "
             "reading-language-memory coupling estimand."
+        )
+    if base == "within_corr_chol":
+        return (
+            f"LKJ prior on the Cholesky factor of the WITHIN-child cross-measure "
+            f"correlation of wave-specific departures ({fitted}); "
+            "within_corr = chol @ chol.T is the headline estimand of the "
+            "within-child companion. Interpretable only for a measure pair whose "
+            "residual scales are resolvable."
+        )
+    if base == "z_within":
+        return (
+            f"Non-centred standard-normal per-row, per-measure within-child offsets "
+            f"({fitted}); correlated through within_corr_chol, double-centred within "
+            "child and within group-by-wave cell, and scaled by sigma_within."
+        )
+    if base == "sigma_within":
+        return (
+            f"Scale of the wave-specific within-child departure on the logit scale "
+            f"({fitted}). This model's likelihood is Binomial rather than "
+            "Beta-Binomial, so this term carries ALL extra-Binomial variance — true "
+            "within-child fluctuation and measurement noise together — and the "
+            "double sum-to-zero centring makes the realised departure SD smaller "
+            "than this parameter."
         )
     if base in {"z_intercept", "z_slope"}:
         which = "intercept" if base == "z_intercept" else "slope"
@@ -1091,6 +1169,18 @@ def prior_info_for_rv(
     }
 
 
+#: Deterministics that merely re-express a sampled parameter on another scale,
+#: mapped to the free RV they are derived from. Such a variable has no prior of
+#: its own, so it must not pull in the shared-prior panel named after it — the
+#: panel would show a density the model does not use. (``kappa`` is
+#: ``1 / inv_sqrt_kappa**2`` in the RLM historical families since the 2026-08-21
+#: review, finding 8.) Deterministics that reach a panel by the *distribution*
+#: fallback are unaffected: their panel key differs from their own name, so they
+#: are not matched here — the ``dose_response`` and ``joint_mechanism`` derived
+#: ``beta_*`` slopes keep their ``predictor_slope`` panel.
+_REPARAMETERISED_DETERMINISTICS: dict[str, str] = {"kappa": "inv_sqrt_kappa"}
+
+
 def used_prior_keys(
     model,
     *,
@@ -1101,10 +1191,20 @@ def used_prior_keys(
     Derived from :func:`prior_info_for_rv` so a panel reached only via the RV-
     distribution fallback — e.g. the ``gamma_cross`` panel behind an inline
     Normal(0, 0.3) coupling like ``b_R``, or an HSGP ``eta_main`` / ``ell``
-    amplitude/lengthscale — is not dropped (issue #141).
+    amplitude/lengthscale — is not dropped (issue #141). A deterministic listed
+    in :data:`_REPARAMETERISED_DETERMINISTICS` whose source RV the model
+    actually samples is skipped: it re-expresses that RV rather than carrying a
+    prior.
     """
+    free_names = {rv.name.split("[")[0] for rv in model.free_RVs}
     keys: list[str] = []
-    for rv in list(model.free_RVs) + list(getattr(model, "deterministics", [])):
+    deterministics = list(getattr(model, "deterministics", []))
+    determ_names = {rv.name for rv in deterministics}
+    for rv in list(model.free_RVs) + deterministics:
+        base = rv.name.split("[")[0]
+        source = _REPARAMETERISED_DETERMINISTICS.get(base)
+        if source and rv.name in determ_names and source in free_names:
+            continue
         panel = prior_info_for_rv(rv.name, rv=rv, ctor_overrides=ctor_overrides)[
             "panel"
         ]

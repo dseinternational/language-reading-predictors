@@ -24,5 +24,16 @@ if _has("loo.txt"):
             "grouping on the same rows (as the nested interaction/dose comparators are)."
         )
 else:
-    print("_No LOO summary for this model (e.g. the mediation family does not compute one)._")
+    # Prefer the fit's OWN recorded reason over a generic example naming another
+    # family (2026-08-21 historical-families review, finding 9: a joint historical
+    # fit was told its LOO was absent "e.g. the mediation family does not compute
+    # one", when its plan records a specific and better reason).
+    _loo_reason = str((config.get("resolved_run_plan") or {}).get("loo_reason") or "")
+    if _loo_reason:
+        print(f"_No PSIS-LOO for this model: {_loo_reason.rstrip('.')}._")
+    else:
+        print(
+            "_No LOO summary for this model (e.g. the mediation family does not "
+            "compute one)._"
+        )
 ```

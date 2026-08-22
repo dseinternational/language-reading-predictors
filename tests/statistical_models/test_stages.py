@@ -62,8 +62,14 @@ def _patch_primary_fit_diag(monkeypatch, events):
     monkeypatch.setattr(
         stages._diag,
         "run_extended_diagnostics",
-        lambda _ctx, *, causal_term, include_loo_pit: events.append(
-            f"extended[{causal_term},loo_pit={include_loo_pit}]"
+        # ``fallback_var_names`` carries the curated list the ESS-evolution panel
+        # falls back to when a family declares no causal term; recorded here so
+        # the stage contract is pinned, not just tolerated.
+        lambda _ctx, *, causal_term, include_loo_pit, fallback_var_names=None: (
+            events.append(
+                f"extended[{causal_term},loo_pit={include_loo_pit},"
+                f"fallback={tuple(fallback_var_names or ())}]"
+            )
         ),
     )
     monkeypatch.setattr(
@@ -254,7 +260,7 @@ def test_run_primary_fit_owns_the_invariant_sequence(monkeypatch):
         "save_ppc",
         "Extended diagnostics",
         "gate['alpha', 'tau']",
-        "extended[tau,loo_pit=True]",
+        "extended[tau,loo_pit=True,fallback=('alpha', 'tau')]",
         "save_trace",
     ]
 
@@ -321,7 +327,7 @@ def test_run_primary_fit_can_leave_late_psense_to_the_family(monkeypatch):
     assert not any(event.startswith("psense") for event in events)
     assert events[-3:] == [
         "gate['alpha', 'tau']",
-        "extended[tau,loo_pit=True]",
+        "extended[tau,loo_pit=True,fallback=('alpha', 'tau')]",
         "save_trace",
     ]
 
@@ -414,7 +420,7 @@ def test_run_primary_fit_orders_exceptional_phase_hooks(monkeypatch):
         "Anchor diagnostics",
         "gate['alpha']",
         "post_gate_audit",
-        "extended[None,loo_pit=False]",
+        "extended[None,loo_pit=False,fallback=('alpha',)]",
         "custom_diagnostics",
         "psense['alpha']",
         "save_trace",
@@ -433,7 +439,7 @@ def test_run_primary_fit_supports_termless_extended_diagnostics(monkeypatch):
         PrimaryFitPlan(diagnostic_vars=("alpha",), extended_term=None),
     )
 
-    assert "extended[None,loo_pit=True]" in events
+    assert "extended[None,loo_pit=True,fallback=('alpha',)]" in events
 
 
 def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):

@@ -33,6 +33,8 @@ from language_reading_predictors.statistical_models.datasets import resolve_data
 __all__ = [
     "HistoricalGrowthModelSettings",
     "HistoricalGrowthRunPlan",
+    "check_declared_waves",
+    "check_extension_after_core",
     "declared_historical_growth_settings",
     "evaluate_historical_growth_influence_bundle",
     "exclude_historical_growth_observations",
@@ -52,7 +54,7 @@ _LEGACY_KEYS = frozenset(
         "extension_waves",
         "eta_prior_sigma",
         "sigma_subject_prior_sigma",
-        "kappa_prior_sigma",
+        "dispersion_prior_sigma",
         # Global sampler setting resolved by ``make_context``, not this family.
         "target_accept",
     }
@@ -92,6 +94,65 @@ def _positive_float(value: Any, *, name: str) -> float:
     return out
 
 
+def check_declared_waves(
+    catalogue: Mapping[str, Any],
+    measures: Collection[str],
+    *,
+    model_id: str,
+    waves: Collection[int],
+    extension_waves: Collection[int],
+) -> None:
+    """Reject a wave a measure was never administered at, before any data I/O.
+
+    The study catalogue records ``available_waves`` per measure, and the
+    ``concurrent`` and ``growth`` resolvers already check declarations against
+    it. Neither historical family did (2026-08-21 review, finding 10). A core
+    wave a measure lacks empties the complete-case panel and fails late and
+    loudly; an *extension* wave it lacks fails silently — the loader simply
+    appends no rows, and the report then shows a wave of zero ``n`` that reads
+    as total attrition rather than as a declaration error.
+    """
+    for symbol in measures:
+        measure = catalogue.get(symbol)
+        available = tuple(getattr(measure, "available_waves", ()) or ())
+        if not available:
+            # The catalogue does not record a window for this measure; nothing
+            # to check against (an unset window is not an empty one).
+            continue
+        for label, declared in (
+            ("waves", waves),
+            ("extension_waves", extension_waves),
+        ):
+            absent = sorted(set(declared) - set(available))
+            if absent:
+                raise ValueError(
+                    f"{model_id}: {symbol!r} has no data at {label} {absent}; "
+                    f"the catalogue records available_waves={list(available)}"
+                )
+
+
+def check_extension_after_core(
+    waves: Collection[int],
+    extension_waves: Collection[int],
+) -> None:
+    """Reject an "extension" wave that precedes the complete-case core window.
+
+    The family's own plan text, its ``window`` labels and the reports' prose all
+    describe the extension as a later, attrition-selected follow-up tail; a
+    declared extension wave *before* the core would make every one of them wrong
+    (2026-08-21 review, finding 10).
+    """
+    if not extension_waves or not waves:
+        return
+    last_core = max(waves)
+    early = sorted(wave for wave in extension_waves if wave < last_core)
+    if early:
+        raise ValueError(
+            f"extension_waves {early} precede the last complete-case core wave "
+            f"{last_core}; extension waves are a later follow-up tail"
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class HistoricalGrowthModelSettings:
     """Immutable declaration for one historical-cohort growth model."""
@@ -101,7 +162,10 @@ class HistoricalGrowthModelSettings:
     extension_waves: tuple[int, ...] = ()
     eta_prior_sigma: float = 1.5
     sigma_subject_prior_sigma: float = 1.0
-    kappa_prior_sigma: float = 50.0
+    dispersion_prior_sigma: float = 0.25
+    """Scale of the HalfNormal on ``1/sqrt(kappa)``; see
+    :func:`priors.inv_sqrt_kappa_prior` for why the prior is on the dispersion
+    rather than on the concentration, and how 0.25 was calibrated."""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "measure", _non_empty_string(self.measure, name="measure"))
@@ -116,10 +180,11 @@ class HistoricalGrowthModelSettings:
         overlap = sorted(set(self.waves) & set(self.extension_waves))
         if overlap:
             raise ValueError(f"extension_waves overlap the complete-case core waves: {overlap}")
+        check_extension_after_core(self.waves, self.extension_waves)
         for name in (
             "eta_prior_sigma",
             "sigma_subject_prior_sigma",
-            "kappa_prior_sigma",
+            "dispersion_prior_sigma",
         ):
             object.__setattr__(self, name, _positive_float(getattr(self, name), name=name))
 
@@ -133,6 +198,17 @@ class HistoricalGrowthModelSettings:
         outcome_symbol: str | None,
     ) -> HistoricalGrowthModelSettings:
         """Strictly translate the former ``spec.extra`` declaration."""
+        if "kappa_prior_sigma" in extra:
+            # Renamed with the parameterisation, so a stale declaration cannot be
+            # silently reinterpreted on the new scale: 50 meant HalfNormal(50) on
+            # the concentration; the field now scales a HalfNormal on
+            # 1/sqrt(concentration) (2026-08-21 review, finding 8).
+            raise ValueError(
+                f"{model_id}: 'kappa_prior_sigma' was replaced by "
+                "'dispersion_prior_sigma' when the overdispersion prior moved "
+                "onto the dispersion scale (1/sqrt of the concentration). The "
+                "reviewed default is 0.25; see priors.inv_sqrt_kappa_prior."
+            )
         unknown = sorted(set(extra) - _LEGACY_KEYS)
         if unknown:
             raise ValueError(
@@ -154,7 +230,7 @@ class HistoricalGrowthModelSettings:
             extension_waves=extra.get("extension_waves", ()),
             eta_prior_sigma=extra.get("eta_prior_sigma", 1.5),
             sigma_subject_prior_sigma=extra.get("sigma_subject_prior_sigma", 1.0),
-            kappa_prior_sigma=extra.get("kappa_prior_sigma", 50.0),
+            dispersion_prior_sigma=extra.get("dispersion_prior_sigma", 0.25),
         )
 
 
@@ -173,7 +249,7 @@ class HistoricalGrowthRunPlan:
     observation_node: str
     eta_prior_sigma: float
     sigma_subject_prior_sigma: float
-    kappa_prior_sigma: float
+    dispersion_prior_sigma: float
     compute_loo: bool
     loo_unit: str
     design: str
@@ -200,7 +276,7 @@ class HistoricalGrowthRunPlan:
             "measure": self.measure,
             "eta_prior_sigma": self.eta_prior_sigma,
             "sigma_subject_prior_sigma": self.sigma_subject_prior_sigma,
-            "kappa_prior_sigma": self.kappa_prior_sigma,
+            "dispersion_prior_sigma": self.dispersion_prior_sigma,
         }
 
     def diagnostic_vars(self, available_vars: Collection[str]) -> list[str]:
@@ -231,7 +307,10 @@ class HistoricalGrowthRunPlan:
             f"Available-case extension waves: {extension}. Likelihood: "
             "Beta-Binomial bounded counts with group-by-wave means, "
             "group-specific child-level scales and group-specific "
-            "overdispersion.\n\n"
+            "overdispersion. The overdispersion prior is placed on the "
+            "dispersion scale (1/sqrt of the concentration), so a measure "
+            "showing no extra-Binomial dispersion is an outcome the prior "
+            "permits rather than one it excludes.\n\n"
             "## Uncertainty and checks\n\n"
             "Interpret the posterior only after the convergence gate, PSIS-LOO, "
             "posterior-predictive checks and prior-sensitivity diagnostics pass. "
@@ -287,6 +366,13 @@ def resolve_historical_growth_run_plan(spec: ModelSpec) -> HistoricalGrowthRunPl
             f"{spec.model_id}: outcome_symbol={spec.outcome_symbol!r} contradicts "
             f"historical_growth measure={settings.measure!r}"
         )
+    check_declared_waves(
+        catalogue,
+        (settings.measure,),
+        model_id=spec.model_id,
+        waves=settings.waves,
+        extension_waves=settings.extension_waves,
+    )
 
     return HistoricalGrowthRunPlan(
         model_id=spec.model_id,
@@ -300,7 +386,7 @@ def resolve_historical_growth_run_plan(spec: ModelSpec) -> HistoricalGrowthRunPl
         observation_node="score",
         eta_prior_sigma=settings.eta_prior_sigma,
         sigma_subject_prior_sigma=settings.sigma_subject_prior_sigma,
-        kappa_prior_sigma=settings.kappa_prior_sigma,
+        dispersion_prior_sigma=settings.dispersion_prior_sigma,
         compute_loo=True,
         loo_unit="observation_row",
         design=(

@@ -17,7 +17,12 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from language_reading_predictors.statistical_models import diagnostics as _diagnostics
+from dataclasses import replace
+
+from language_reading_predictors.statistical_models import (
+    diagnostics as _diagnostics,
+    historical as _historical,
+)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
 from language_reading_predictors.statistical_models.factories import (
@@ -25,6 +30,7 @@ from language_reading_predictors.statistical_models.factories import (
 )
 from language_reading_predictors.statistical_models.historical_growth import (
     HistoricalGrowthModelSettings,
+    check_declared_waves,
     evaluate_historical_growth_influence_bundle,
     exclude_historical_growth_observations,
     historical_growth_influence_summary,
@@ -56,9 +62,12 @@ def test_build_historical_growth_model(tmp_path):
     built = build_historical_growth_model(panel, measure="basread")
 
     names = {v.name for v in built.model.free_RVs}
-    assert {"eta_cell", "sigma_subject", "z_subject", "kappa"}.issubset(names)
+    # 1/sqrt(kappa) is the sampled dispersion parameter since the 2026-08-21
+    # review (finding 8); kappa remains the published Deterministic.
+    assert {"eta_cell", "sigma_subject", "z_subject", "inv_sqrt_kappa"}.issubset(names)
     dets = {v.name for v in built.model.deterministics}
     assert {
+        "kappa",
         "subject_offset",
         "mean_items",
         "growth_first_next_items",
@@ -362,7 +371,7 @@ def test_non_itt_typed_settings_reach_config_json(tmp_path):
         "extension_waves": [],
         "eta_prior_sigma": 1.5,
         "sigma_subject_prior_sigma": 1.0,
-        "kappa_prior_sigma": 50.0,
+        "dispersion_prior_sigma": 0.25,
     }
     assert cfg["spec_extra"] == {}
     assert cfg["resolved_run_plan"]["settings_source"] == "typed"
@@ -514,3 +523,137 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
     assert counts["intervention"]["fitted_n"] == 2
     assert counts["control"]["randomised_n"] == 28
     assert counts["control"]["fitted_n"] == 1
+
+
+# --- 2026-08-21 historical-families code review -----------------------------
+
+
+def _prior_trace(panel, measure: str = "basread", seed: int = 21):
+    """A cheap stand-in posterior: prior draws carry the same shapes and coords."""
+    built = build_historical_growth_model(panel, measure=measure)
+    with built.model:
+        prior = pm.sample_prior_predictive(draws=40, random_seed=seed)
+    return SimpleNamespace(posterior=prior.prior)
+
+
+def test_cell_summary_separates_the_calibration_target_from_the_median_child(tmp_path):
+    """Finding 2: the cell average and the median-child level are distinct columns.
+
+    ``posterior_mean`` averages the per-row conditional expectation over the
+    cell's own rows and is what ``observed_cell_mean`` is compared with;
+    ``posterior_median_child_mean`` is ``mean_items`` at the group-centred zero
+    offset. The old name ``posterior_population_mean`` invited the wrong
+    comparison and the report prose asked for it.
+    """
+    panel = _panel(tmp_path)
+    trace = _prior_trace(panel)
+    baseline = observed_baseline_for(panel)
+    cells = _historical.cell_summary(trace, panel, "basread", "BAS word reading", baseline)
+
+    assert "posterior_population_mean" not in cells.columns
+    assert "observed_complete_case_mean" not in cells.columns
+    for column in (
+        "posterior_mean",
+        "posterior_median_child_mean",
+        "posterior_median_child_q_lo",
+        "posterior_median_child_q_hi",
+        "observed_cell_mean",
+        "observed_cell_sd",
+    ):
+        assert column in cells.columns, column
+    # The gap column is derived from the cell average, never from the
+    # median-child level.
+    assert np.allclose(
+        cells["posterior_mean_minus_observed_mean"],
+        cells["posterior_mean"] - cells["observed_cell_mean"],
+    )
+
+
+def observed_baseline_for(panel):
+    return _historical.observed_baseline(panel, "basread", "BAS word reading")
+
+
+def test_growth_summary_publishes_the_contrasts_own_components(tmp_path):
+    """Finding 12: a contrast must be reconstructable from published rows.
+
+    The Down-syndrome group's own window runs past the common one, so its
+    first-to-last row spans a longer interval than the contrast does. Without a
+    common-window row for it, the between-group contrast could not be checked
+    against anything in the table.
+    """
+    panel = _panel(tmp_path, extension=True, extension_waves=(4, 5))
+    trace = _prior_trace(panel)
+    growth = _historical.growth_summary(trace, panel, "basread")
+
+    contrasts = growth[growth["quantity"].str.startswith("total_growth")]
+    assert not contrasts.empty
+    assert contrasts["n_subjects_detail"].notna().all()
+
+    common = growth[growth["quantity"].str.startswith("common_window_growth")]
+    # Emitted only where the within-group loop did not already cover that exact
+    # interval, so there is no duplicated row.
+    assert not common.empty
+    assert not common.duplicated(subset=["quantity", "readgrp_label"]).any()
+
+    # Every group referenced by a contrast has a published total over the common
+    # window, under one quantity name or the other.
+    totals = growth[growth["readgrp_label"].astype(str).str.len() > 0]
+    for label in panel.group_labels:
+        rows = totals[totals["readgrp_label"] == label]
+        assert rows["quantity"].str.contains("_1_4_items").any(), label
+
+
+def test_growth_summary_skips_an_interval_with_no_bridging_child(tmp_path):
+    """Finding 12: an unsupported interval is skipped, not raised after sampling."""
+    panel = _panel(tmp_path, extension=True, extension_waves=(4, 5))
+    subject_col = panel.dataset.subject_col
+    wave_col = panel.dataset.wave_col
+    # Give wave 5 an entirely different set of children from wave 4, so no child
+    # bridges the two.
+    long = panel.long.copy()
+    wave5 = long[wave_col] == 5
+    long.loc[wave5, subject_col] = "ghost"
+    broken = replace(panel, long=long.reset_index(drop=True))
+    trace = _prior_trace(broken)
+
+    growth = _historical.growth_summary(trace, broken, "basread")
+    assert "growth_4_5_items" not in set(growth["quantity"])
+    # The intervals that DO have bridging children are unaffected.
+    assert "growth_3_4_items" in set(growth["quantity"])
+
+
+def test_declared_waves_are_checked_against_the_catalogue():
+    """Finding 10: a wave a measure was never administered at fails at resolution."""
+    with pytest.raises(ValueError, match="no data at extension_waves"):
+        check_declared_waves(
+            RLM_MEASURES,
+            ("basnum",),  # available waves 1-4
+            model_id="test",
+            waves=(1, 2, 3),
+            extension_waves=(5,),
+        )
+    with pytest.raises(ValueError, match="no data at waves"):
+        check_declared_waves(
+            RLM_MEASURES,
+            ("basmat",),  # available waves 3-5
+            model_id="test",
+            waves=(1, 2),
+            extension_waves=(),
+        )
+    # The registered declarations are all inside their catalogue windows.
+    check_declared_waves(
+        RLM_MEASURES,
+        ("basread",),
+        model_id="test",
+        waves=(1, 2, 3),
+        extension_waves=(4, 5),
+    )
+
+
+def test_extension_waves_must_follow_the_core_window():
+    """Finding 10: an "extension" wave before the core contradicts every label."""
+    with pytest.raises(ValueError, match="precede the last complete-case core wave"):
+        HistoricalGrowthModelSettings(
+            measure="basmat", waves=(3, 4), extension_waves=(1,)
+        )
+    HistoricalGrowthModelSettings(measure="basmat", waves=(3, 4), extension_waves=(5,))

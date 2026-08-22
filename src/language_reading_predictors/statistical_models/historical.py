@@ -92,14 +92,21 @@ def observed_baseline(
 def _cell_obs_index(
     panel: LongitudinalPanel, label: str, wave: int, subjects: set | None = None
 ) -> np.ndarray:
-    """Row indices of one (group, wave) cell, optionally restricted to ``subjects``."""
+    """Row positions of one (group, wave) cell, optionally restricted to ``subjects``.
+
+    The result indexes the trace's ``obs`` dimension positionally, so it must be
+    row *positions*, not index labels. Both panel construction paths reset to a
+    0..n-1 RangeIndex, which made the two coincide; take positions explicitly so
+    a future panel carrying any other index cannot silently misalign a cell with
+    another cell's draws (2026-08-21 review).
+    """
     df = panel.long
     mask = (df[panel.group_label_col] == label) & (
         df[panel.dataset.wave_col] == wave
     )
     if subjects is not None:
         mask &= df[panel.dataset.subject_col].isin(subjects)
-    return df.index[mask].to_numpy()
+    return np.flatnonzero(mask.to_numpy())
 
 
 def _cell_values(
@@ -165,6 +172,19 @@ def cell_summary(
     One row per **supported** (group, wave) cell. ``window`` marks whether the
     cell is on the complete-case core window (the Table 2 audit cells) or the
     attrition-selected extension tail (#338); ``n_obs`` is the cell's own count.
+
+    Two distinct fitted quantities are published per cell, and only one of them
+    is a calibration target. ``posterior_mean`` averages the per-row conditional
+    expected count over the cell's own observations — the population-average
+    level, and the quantity that should match ``observed_cell_mean``;
+    ``posterior_mean_minus_observed_mean`` is that gap.
+    ``posterior_median_child_mean`` is ``mean_items`` — the level for a child at
+    the group-centred zero offset. Because the link is nonlinear and
+    ``sigma_subject`` exceeds one logit in these cohorts, the two differ
+    substantially and in a direction set by whether the cell sits below or above
+    p = 0.5. They are not interchangeable and must not be compared with each
+    other or with the observed mean interchangeably (2026-08-21 review,
+    finding 2).
     """
     posterior = trace.posterior
     population = posterior[mean_var].stack(sample=("chain", "draw"))
@@ -192,12 +212,25 @@ def cell_summary(
                 "window": "core" if wave in panel.waves else "extension",
                 "n_complete": int(audit_row["n_complete"]),
                 "n_obs": int(audit_row[f"time_{wave}_n"]),
-                "observed_complete_case_mean": observed_mean,
-                "observed_complete_case_sd": float(audit_row[f"time_{wave}_sd"]),
+                # Named for the cell, not the window: on the core waves these
+                # are the complete-case audit figures, but an extension cell is
+                # available-case among the retained cohort, so the former
+                # ``observed_complete_case_*`` names contradicted the ``window``
+                # and ``n_obs`` columns beside them (2026-08-21 review).
+                "observed_cell_mean": observed_mean,
+                "observed_cell_sd": float(audit_row[f"time_{wave}_sd"]),
                 "posterior_mean_minus_observed_mean": fitted["mean"] - observed_mean,
-                "posterior_population_mean": pop["mean"],
-                "posterior_population_q_lo": pop["q_lo"],
-                "posterior_population_q_hi": pop["q_hi"],
+                # The level at the group-centred zero offset — the *median*
+                # child, not the cell average. ``sigmoid`` is nonlinear and
+                # ``sigma_subject`` runs above one logit here, so this sits well
+                # below (above) the cell mean when p is below (above) 0.5. The
+                # calibration comparison against the observed mean is
+                # ``posterior_mean`` (2026-08-21 review, finding 2: the former
+                # name ``posterior_population_mean`` invited exactly the wrong
+                # comparison, and the report prose asked for it).
+                "posterior_median_child_mean": pop["mean"],
+                "posterior_median_child_q_lo": pop["q_lo"],
+                "posterior_median_child_q_hi": pop["q_hi"],
                 **{f"posterior_{k}": v for k, v in fitted.items()},
             }
         )
@@ -231,10 +264,16 @@ def growth_summary(
     per_group = _group_waves(panel, measure)
     common = _common_waves(panel, measure)
 
-    def _interval(label: str, start: int, end: int) -> dict[str, Any]:
+    def _interval(label: str, start: int, end: int) -> dict[str, Any] | None:
         subjects = _cell_subjects(panel, label, start) & _cell_subjects(
             panel, label, end
         )
+        if not subjects:
+            # No child bridges the two waves, so this interval has no matched
+            # comparison to make. Skip it rather than raising: the summaries run
+            # after sampling, and losing the whole fit to one unsupported
+            # interval would be a poor trade (2026-08-21 review).
+            return None
         start_vals = _cell_values(
             posterior, panel, label, start, subjects, fitted_var=fitted_var
         )
@@ -255,33 +294,62 @@ def growth_summary(
 
     # Within-group growth across consecutive supported intervals and
     # first-to-last of the group's own window.
+    emitted: set[tuple[str, int, int]] = set()
     for label in panel.group_labels:
         waves = per_group[label]
         intervals = [(waves[i], waves[i + 1]) for i in range(len(waves) - 1)]
         if len(waves) > 2:
             intervals.append((waves[0], waves[-1]))
         for start, end in intervals:
+            interval = _interval(label, start, end)
+            if interval is None:
+                continue
+            emitted.add((label, start, end))
             rows.append(
                 {
                     "quantity": f"growth_{start}_{end}_items",
                     "label": f"Wave {start} to wave {end}",
-                    **_interval(label, start, end),
+                    **interval,
                 }
             )
     # Pairwise total growth contrasts between groups, over the common window.
     if len(common) >= 2:
         start, end = common[0], common[-1]
         total = {}
+        n_common: dict[str, int] = {}
+        window = (
+            "core" if (start in panel.waves and end in panel.waves) else "extension"
+        )
         for label in panel.group_labels:
             subjects = _cell_subjects(panel, label, start) & _cell_subjects(
                 panel, label, end
             )
+            if not subjects:
+                continue
+            n_common[label] = len(subjects)
             total[label] = _cell_values(
                 posterior, panel, label, end, subjects, fitted_var=fitted_var
             ) - _cell_values(
                 posterior, panel, label, start, subjects, fitted_var=fitted_var
             )
-        labels = panel.group_labels
+            # Publish each group's own total over the common window when the
+            # within-group loop above did not already cover that exact interval.
+            # A group whose own supported window runs past the common one shows a
+            # longer interval there instead, so without this row the between-group
+            # contrasts below cannot be reconstructed from anything visible in the
+            # table (2026-08-21 review, finding 12).
+            if (label, start, end) not in emitted:
+                rows.append(
+                    {
+                        "quantity": f"common_window_growth_{start}_{end}_items",
+                        "label": f"Common-window growth (waves {start} to {end})",
+                        "readgrp_label": label,
+                        "window": window,
+                        "n_subjects": len(subjects),
+                        **_summarize(total[label]),
+                    }
+                )
+        labels = [label for label in panel.group_labels if label in total]
         for i in range(len(labels)):
             for j in range(i + 1, len(labels)):
                 a, b = labels[i], labels[j]
@@ -292,12 +360,9 @@ def growth_summary(
                             f"Total growth (waves {start}-{end}): {b} minus {a}"
                         ),
                         "readgrp_label": "",
-                        "window": (
-                            "core"
-                            if (start in panel.waves and end in panel.waves)
-                            else "extension"
-                        ),
+                        "window": window,
                         "n_subjects": pd.NA,
+                        "n_subjects_detail": f"{b}: {n_common[b]}, {a}: {n_common[a]}",
                         **_summarize(total[b] - total[a]),
                     }
                 )

@@ -31,7 +31,7 @@ RECONCILED_FACTORY_DEFAULTS = [
     # HalfNormal(0.5) 99th percentile — a genuine prior-data conflict.
     (factories.build_historical_growth_model, "sigma_subject_prior_sigma", 1.0),
     (factories.build_rlm_joint_growth_model, "sigma_subject_prior_sigma", 1.0),
-    (factories.build_historical_growth_model, "kappa_prior_sigma", 50.0),
+    (factories.build_historical_growth_model, "dispersion_prior_sigma", 0.25),
     # Default loading geometry is the communality scale (#383): communality ~
     # Beta(2, 2) with lambda = sqrt(c), sigma = sqrt(1 - c), enforcing the
     # lambda**2 + sigma**2 = 1 budget standardised indicators imply while keeping

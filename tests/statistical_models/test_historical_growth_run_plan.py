@@ -93,12 +93,12 @@ def test_settings_reject_unknown_legacy_key():
 
 def test_settings_accept_global_target_accept_without_owning_it():
     settings = HG.HistoricalGrowthModelSettings.from_legacy_extra(
-        {"target_accept": 0.99, "kappa_prior_sigma": 25.0},
+        {"target_accept": 0.99, "dispersion_prior_sigma": 0.5},
         model_id="lrp-rlm-hg-999",
         spec_study_id="rlm",
         outcome_symbol="basread",
     )
-    assert settings.kappa_prior_sigma == 25.0
+    assert settings.dispersion_prior_sigma == 0.5
     assert "target_accept" not in settings.__dataclass_fields__
 
 
@@ -111,7 +111,7 @@ def test_settings_accept_global_target_accept_without_owning_it():
         ({"waves": (1, 2), "extension_waves": (2, 3)}, "overlap"),
         ({"eta_prior_sigma": 0.0}, "positive finite"),
         ({"sigma_subject_prior_sigma": True}, "positive finite"),
-        ({"kappa_prior_sigma": float("inf")}, "positive finite"),
+        ({"dispersion_prior_sigma": float("inf")}, "positive finite"),
     ],
 )
 def test_settings_reject_misshaped_or_incoherent_values(kwargs, message):
@@ -150,7 +150,7 @@ def test_default_legacy_plan_preserves_loader_factory_diagnostics_and_loo_contra
         "sigma_subject_prior_sigma": default_of(
             build_historical_growth_model, "sigma_subject_prior_sigma"
         ),
-        "kappa_prior_sigma": default_of(build_historical_growth_model, "kappa_prior_sigma"),
+        "dispersion_prior_sigma": default_of(build_historical_growth_model, "dispersion_prior_sigma"),
     }
     assert plan.diagnostic_vars(
         {"eta_cell", "sigma_subject", "kappa", "growth_first_last_items"}
@@ -163,7 +163,7 @@ def test_default_legacy_plan_preserves_loader_factory_diagnostics_and_loo_contra
 def test_split_settings_between_typed_and_extra_is_rejected():
     spec = _spec(
         settings=HG.HistoricalGrowthModelSettings(),
-        kappa_prior_sigma=25.0,
+        dispersion_prior_sigma=0.5,
     )
     with pytest.raises(ValueError, match="cannot be split"):
         HG.resolve_historical_growth_run_plan(spec)
@@ -282,7 +282,7 @@ def test_every_registered_model_is_typed_and_preserves_its_legacy_contract():
                     "extension_waves": extension_waves,
                     "eta_prior_sigma": 1.5,
                     "sigma_subject_prior_sigma": 1.0,
-                    "kappa_prior_sigma": 50.0,
+                    "dispersion_prior_sigma": 0.25,
                 },
             )
         )
@@ -302,7 +302,7 @@ def test_every_registered_model_is_typed_and_preserves_its_legacy_contract():
             "measure": measure,
             "eta_prior_sigma": 1.5,
             "sigma_subject_prior_sigma": 1.0,
-            "kappa_prior_sigma": 50.0,
+            "dispersion_prior_sigma": 0.25,
         }
         for field in _META_FIELDS:
             assert isinstance(typed.as_dict()[field], str) and typed.as_dict()[field]

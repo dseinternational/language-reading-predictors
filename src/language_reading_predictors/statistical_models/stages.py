@@ -241,6 +241,10 @@ class SharedFitStages:
                 ctx,
                 causal_term=plan.extended_term,
                 include_loo_pit=plan.include_loo_pit,
+                # A termless (descriptive) family gets the curated headline list
+                # for the ESS-evolution panel; without it the plot enumerates the
+                # whole posterior and is lost to the max-subplots guard.
+                fallback_var_names=diag_vars,
             )
         if plan.post_extended_audit is not None:
             plan.post_extended_audit(ctx)
