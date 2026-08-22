@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /
     schedule:
       interval: daily
@@ -11,6 +11,12 @@ updates:
       python-dependencies:
         patterns:
           - "*"
+    # pytensor pins numba <=0.66.0 and numba 0.66.0 pins numpy <2.5, so numpy
+    # 2.5 is unreachable however it is declared. Lift when a PyTensor release
+    # admits numba 0.67.
+    ignore:
+      - dependency-name: "numpy"
+        versions: [">=2.5.0"]
     assignees:
       - frankbuckley
 

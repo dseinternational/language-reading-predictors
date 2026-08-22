@@ -9,7 +9,7 @@ Step 1 of the two-step methodology: exploratory LightGBM + permutation importanc
 
 ## Prerequisites
 
-`conda activate dse-language-reading-predictors`. Apply tuned params first if retuning (see `lrp-tune`).
+`uv sync`, then either `source .venv/bin/activate` or prefix each command with `uv run`. Apply tuned params first if retuning (see `lrp-tune`).
 
 ## Fit
 

@@ -16,7 +16,7 @@ Step 2 of the methodology: PyMC models for interactions and DAG-supported causal
 
 ## Prerequisites
 
-`conda activate dse-language-reading-predictors`. Shared model-construction helpers remain in `statistical_models/factories.py`; family orchestration lives in one module per kind under `statistical_models/pipelines/`. The aggregate `pipeline.py` facade has been retired. Models are auto-discovered — a new `lrp_rli_*` / `lrp_rlm_*` module with a top-level `fit()` registers itself.
+`uv sync`, then either `source .venv/bin/activate` or prefix each command with `uv run`. Shared model-construction helpers remain in `statistical_models/factories.py`; family orchestration lives in one module per kind under `statistical_models/pipelines/`. The aggregate `pipeline.py` facade has been retired. Models are auto-discovered — a new `lrp_rli_*` / `lrp_rlm_*` module with a top-level `fit()` registers itself.
 
 ## Fit
 

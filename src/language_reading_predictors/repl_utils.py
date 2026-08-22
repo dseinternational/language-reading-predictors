@@ -4,10 +4,10 @@
 """REPL / notebook environment banner.
 
 Delegates to the shared ``dse_research_utils`` helpers so the environment and
-package-version report stays consistent across DSE research repos. torch is no
-longer a dependency (it was only used for a CUDA banner); GPU acceleration is an
-opt-in jax overlay and is surfaced via the reported ``jax``/``jaxlib`` versions
-rather than a bespoke CUDA probe.
+package-version report stays consistent across DSE research repos. Neither torch
+nor the JAX stack is a dependency here: torch was only ever used for a CUDA
+banner, and every ``pm.sample`` call site hardcodes ``nuts_sampler="nutpie"``,
+so this repo does not take the shared library's ``jax`` extra (#573).
 """
 
 from dse_research_utils.environment.info import report_environment_info
@@ -25,9 +25,6 @@ _REPORTED_PACKAGES = [
     "pymc",
     "pytensor",
     "nutpie",
-    "numpyro",
-    "jax",
-    "jaxlib",
     "arviz",
     "lightgbm",
     "xgboost",

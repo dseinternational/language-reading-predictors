@@ -131,41 +131,6 @@ def _file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _conda_lock_records(prefix: Path) -> list[dict[str, Any]]:
-    """Read exact conda package builds without requiring the conda executable."""
-    records: list[dict[str, Any]] = []
-    for path in sorted((prefix / "conda-meta").glob("*.json")):
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeError, json.JSONDecodeError):
-            continue
-        record = {
-            key: raw.get(key)
-            for key in (
-                "name",
-                "version",
-                "build",
-                "build_number",
-                "channel",
-                "subdir",
-                "fn",
-                "sha256",
-                "md5",
-            )
-            if raw.get(key) is not None
-        }
-        if record.get("name") and record.get("version"):
-            records.append(record)
-    return sorted(
-        records,
-        key=lambda item: (
-            str(item.get("name", "")).casefold(),
-            str(item.get("version", "")),
-            str(item.get("build", "")),
-        ),
-    )
-
-
 def _sanitise_direct_url(raw_text: str | None) -> dict[str, Any] | None:
     """Retain reproducible direct-install metadata without credentials or queries."""
     if not raw_text:
@@ -223,22 +188,26 @@ def _python_distribution_lock_records() -> list[dict[str, Any]]:
 
 @lru_cache(maxsize=1)
 def environment_lock() -> dict[str, Any]:
-    """Snapshot the exact installed conda builds and Python distributions.
+    """Snapshot the resolved project lockfile and the installed distributions.
 
-    This complements ``environment.yml``: the YAML declares compatible ranges,
-    while this record identifies the concrete environment that produced a fit.
+    This complements ``uv.lock``: the lockfile declares one exact resolution for
+    every supported platform, while this record identifies the concrete
+    environment that produced a fit. Schema 2 replaced the schema-1
+    ``conda_packages`` list when the project moved from the hybrid conda + pip
+    environment to uv (#573); ``python_distributions`` now covers the whole
+    environment rather than only its pip layer.
     """
     prefix = Path(sys.prefix).resolve()
     repository_root = Path(__file__).resolve().parents[3]
-    spec_path = repository_root / "environment.yml"
+    spec_path = repository_root / "uv.lock"
     project_spec = None
     if spec_path.is_file():
         project_spec = {
-            "path": "environment.yml",
+            "path": "uv.lock",
             "sha256": _file_sha256(spec_path),
         }
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "python": {
             "version": platform.python_version(),
             "implementation": platform.python_implementation(),
@@ -246,16 +215,30 @@ def environment_lock() -> dict[str, Any]:
             "prefix": str(prefix),
         },
         "project_environment_spec": project_spec,
-        "conda_packages": _conda_lock_records(prefix),
         "python_distributions": _python_distribution_lock_records(),
     }
+
+
+def environment_lock_payload() -> str:
+    """Serialise the environment snapshot exactly as it is written to disk."""
+    return json.dumps(environment_lock(), indent=2, sort_keys=True) + "\n"
+
+
+def environment_lock_sha256() -> str:
+    """Digest the current environment snapshot.
+
+    Callers comparing a stored fit's ``environment_lock_sha256`` against the
+    running environment must digest the *serialised snapshot*, not the project
+    lockfile: the two are different documents.
+    """
+    return hashlib.sha256(environment_lock_payload().encode("utf-8")).hexdigest()
 
 
 def write_environment_lock(output_dir: str | Path) -> tuple[Path, str]:
     """Write the environment snapshot beside a fit and return path plus SHA-256."""
     path = Path(output_dir) / "environment-lock.json"
     path.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(environment_lock(), indent=2, sort_keys=True) + "\n"
+    payload = environment_lock_payload()
     path.write_text(payload, encoding="utf-8")
     return path, hashlib.sha256(payload.encode("utf-8")).hexdigest()
 

@@ -177,40 +177,6 @@ def test_failure_records_do_not_collide_within_one_second(monkeypatch, tmp_path)
     assert all(path.exists() for path in paths)
 
 
-def test_conda_lock_records_exact_builds_and_skips_broken_metadata(tmp_path):
-    conda_meta = tmp_path / "conda-meta"
-    conda_meta.mkdir()
-    (conda_meta / "numpy.json").write_text(
-        json.dumps(
-            {
-                "name": "numpy",
-                "version": "2.4.6",
-                "build": "py314h123_0",
-                "build_number": 0,
-                "channel": "https://conda.anaconda.org/conda-forge",
-                "subdir": "osx-arm64",
-                "fn": "numpy-2.4.6-py314h123_0.conda",
-                "sha256": "abc123",
-            }
-        ),
-        encoding="utf-8",
-    )
-    (conda_meta / "broken.json").write_text("not json", encoding="utf-8")
-
-    assert provenance._conda_lock_records(tmp_path) == [
-        {
-            "name": "numpy",
-            "version": "2.4.6",
-            "build": "py314h123_0",
-            "build_number": 0,
-            "channel": "https://conda.anaconda.org/conda-forge",
-            "subdir": "osx-arm64",
-            "fn": "numpy-2.4.6-py314h123_0.conda",
-            "sha256": "abc123",
-        }
-    ]
-
-
 def test_direct_url_sanitisation_removes_credentials_query_and_fragment():
     raw = json.dumps(
         {
@@ -229,8 +195,8 @@ def test_write_environment_lock_is_stable_and_returns_content_hash(
     monkeypatch, tmp_path
 ):
     lock = {
-        "schema_version": 1,
-        "conda_packages": [{"name": "numpy", "version": "2.4.6"}],
+        "schema_version": 2,
+        "python_distributions": [{"name": "numpy", "version": "2.4.6"}],
     }
     monkeypatch.setattr(provenance, "environment_lock", lambda: lock)
 
@@ -240,3 +206,43 @@ def test_write_environment_lock_is_stable_and_returns_content_hash(
     assert path.name == "environment-lock.json"
     assert json.loads(payload) == lock
     assert digest == hashlib.sha256(payload).hexdigest()
+
+
+def test_environment_lock_records_the_uv_lockfile_not_conda(monkeypatch, tmp_path):
+    """The snapshot pins the resolved uv lockfile, and carries no conda layer."""
+    provenance.environment_lock.cache_clear()
+    monkeypatch.setattr(
+        provenance,
+        "_python_distribution_lock_records",
+        lambda: [{"name": "numpy", "version": "2.4.6"}],
+    )
+    repository_root = tmp_path / "repo"
+    (repository_root / "src" / "pkg" / "statistical_models").mkdir(parents=True)
+    (repository_root / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    monkeypatch.setattr(
+        provenance,
+        "__file__",
+        str(repository_root / "src" / "pkg" / "statistical_models" / "provenance.py"),
+    )
+
+    lock = provenance.environment_lock()
+
+    assert lock["schema_version"] == 2
+    assert "conda_packages" not in lock
+    assert lock["project_environment_spec"] == {
+        "path": "uv.lock",
+        "sha256": hashlib.sha256(b"version = 1\n").hexdigest(),
+    }
+    provenance.environment_lock.cache_clear()
+
+
+def test_environment_lock_sha256_matches_the_written_snapshot(monkeypatch, tmp_path):
+    """The sweep driver's reuse check must digest the same bytes the fit wrote."""
+    monkeypatch.setattr(
+        provenance, "environment_lock", lambda: {"schema_version": 2}
+    )
+
+    path, digest = provenance.write_environment_lock(tmp_path)
+
+    assert digest == provenance.environment_lock_sha256()
+    assert digest == hashlib.sha256(path.read_bytes()).hexdigest()

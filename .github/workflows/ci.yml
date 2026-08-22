@@ -36,45 +36,43 @@ jobs:
       - uses: actions/checkout@v7.0.1
 
 
-      - name: Setup Python
-        uses: actions/setup-python@v7.0.0
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.0.1
         with:
-          python-version: "3.14"
-
-      - name: Install ruff
-        run: pip install ruff
+          enable-cache: true
 
       - name: Lint
-        run: ruff check src/ scripts/
+        run: uv run ruff check src/ scripts/
 
   test-python:
-    # CI runs on linux-64 only. Native Windows cannot be covered at all:
-    # jax/jaxlib have no conda-forge win-64 build, so the compiled stack cannot
-    # solve there, and Windows users work in Ubuntu on WSL (linux-64) anyway.
-    # macOS (osx-arm64) is no longer built here either — linux-64 is the
-    # platform the analyses are actually run on.
-    runs-on: ubuntu-26.04
-    defaults:
-      run:
-        shell: bash -el {0}
+    # uv provisions the interpreter itself from .python-version, so no
+    # setup-python step is needed. Native Windows is covered now that the whole
+    # stack ships wheels — the conda-forge layer could not solve there (no
+    # win-64 jaxlib), which is why contributors previously needed WSL. Intel
+    # macOS is absent because numba publishes no macOS x86_64 wheels at all.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7.0.1
 
-      - name: Setup conda environment
-        uses: mamba-org/setup-micromamba@v3.2.1
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v10.0.1
         with:
-          environment-file: environment.yml
-          cache-environment: true
-          cache-downloads: true
+          enable-cache: true
 
-      - name: Verify environment core matches the canonical spec
-        run: dse-check-env environment.yml
+      - name: Install dependencies
+        # --locked fails the build on a stale lockfile rather than silently
+        # resolving something other than what is committed.
+        run: uv sync --locked
 
       - name: Check registry-derived documentation
-        run: python scripts/check_statistical_documentation.py
+        run: uv run python scripts/check_statistical_documentation.py
 
       - name: Type-check specification and reporting boundaries
-        run: python -m mypy
+        run: uv run python -m mypy
 
       - name: Run pytest
-        run: pytest
+        run: uv run pytest

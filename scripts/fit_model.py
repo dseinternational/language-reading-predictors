@@ -193,8 +193,8 @@ def main():
             try:
                 # Pin Quarto's Jupyter kernel to the interpreter that ran the
                 # fit (it has the scientific stack). Otherwise Quarto resolves
-                # its own ``python3`` from PATH, which fails when the conda env
-                # is not the first interpreter on PATH.
+                # its own ``python3`` from PATH, which fails when the project
+                # environment is not the first interpreter on PATH.
                 render_env = {**os.environ, "QUARTO_PYTHON": sys.executable}
                 subprocess.run(
                     ["quarto", "render", str(qmd_path)], check=True, env=render_env

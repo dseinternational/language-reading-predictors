@@ -46,6 +46,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from language_reading_predictors import paths  # noqa: E402
+from language_reading_predictors.statistical_models.provenance import (  # noqa: E402
+    environment_lock_sha256,
+)
 
 
 FIT_SCRIPTS = {
@@ -96,7 +99,7 @@ class SweepIdentity:
         return cls(
             commit=_git(["rev-parse", "HEAD"]),
             dirty=None if status is None else bool(status),
-            environment_sha256=_sha256_file(REPO_ROOT / "environment.yml"),
+            environment_sha256=environment_lock_sha256(),
         )
 
     def as_dict(self) -> dict[str, object]:
@@ -173,7 +176,7 @@ def _reuse_reason(
     if bool(source.get("dirty")) != bool(identity.dirty):
         return f"dirty flag {source.get('dirty')!r} != {identity.dirty!r}"
     if stored.get("environment_lock_sha256") != identity.environment_sha256:
-        return "environment.yml digest changed"
+        return "environment lock digest changed"
 
     data_path = stored.get("data_path")
     recorded_data_sha = stored.get("data_sha256")
