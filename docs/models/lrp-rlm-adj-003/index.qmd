@@ -44,7 +44,7 @@ y_i \sim \mathrm{BetaBinomial}(32,\ p_i,\ \kappa),
 \mathbf{d}_i ,
 $$
 
-where $y_i$ is the wave-3 BPVS receptive-vocabulary count (confirmed ceiling 32), $\beta_k \sim \mathrm{Normal}(0, 0.3)$ are the mutually adjusted per-SD slopes, and $\mathbf{d}_i$ are the group-nuisance dummies (reference: average readers, the largest fitted group). The bivariate comparison refits each predictor alone while retaining the own baseline and nuisance structure, and the prior-sensitivity sweep varies the slope sigma from 0.3 to 0.5 and 0.7.
+where $y_i$ is the wave-3 BPVS receptive-vocabulary count (confirmed ceiling 32), $\beta_k \sim \mathrm{Normal}(0, 0.3)$ are the mutually adjusted per-SD slopes, and $\mathbf{d}_i$ are the group-nuisance dummies (reference: average readers, the largest fitted group). The bivariate comparison refits each predictor alone while retaining the own baseline and nuisance structure, and the prior-sensitivity sweep varies the slope sigma from 0.3 to 0.5 and 0.7 and widens the own-baseline coupling prior $\gamma_{\text{own}} \sim \mathrm{Normal}(1, 0.25)$ to SD 0.5. The Beta-Binomial concentration takes the dispersion-scale prior of the Byrne historical families, $1/\sqrt{\kappa} \sim \mathrm{HalfNormal}(0.25)$: at this 32-item denominator a HalfNormal on the concentration itself gave the near-Binomial limit essentially no prior mass and held the fitted concentration against it (2026-08-22 adjusted-family review).
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

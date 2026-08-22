@@ -58,6 +58,25 @@ _loo_caveat = (
     if _is_re
     else ""
 )
+# The stacked Byrne transition ANCOVA (adjusted family, a resolved plan with
+# transition_waves) leaves one *whole child* out — every transition row together,
+# with the child's random intercept integrated away — the marginal new-child
+# target, not the conditional row-level one above. PSIS handles that target
+# poorly under a per-child intercept, so a substantial flagged share is the
+# expected failure mode rather than a sampler problem (2026-08-22 review,
+# finding 7).
+if config.get("kind") == "adjusted" and (config.get("resolved_run_plan") or {}).get(
+    "transition_waves"
+):
+    _pareto_unit = "one child (all of that child's transition rows, left out together)"
+    _loo_caveat = (
+        " This fit's PSIS-LOO is **child-level and marginal**: it sums each child's "
+        "transition rows and integrates the child's random intercept away, so it "
+        "scores new-child prediction — the target on which importance sampling is "
+        "least reliable under a per-child intercept. A large flagged share here "
+        "means the LOO score is unreliable for model comparison, not that the "
+        "sampler or the reported associations are in question."
+    )
 _pareto = _csv("pareto_k.csv")
 _pareto_required = {"subject_id", "pareto_k", "good_k_threshold"}
 if _pareto is not None and _pareto_required.issubset(_pareto.columns):

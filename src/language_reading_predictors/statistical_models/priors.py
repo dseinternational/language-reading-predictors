@@ -614,6 +614,21 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "distribution": "HalfNormal(0.5)",
         "rationale": "Child random-intercept SD sigma_child ~ HalfNormal(0.5).",
     },
+    "alpha_transition": {
+        # The stacked Byrne transition ANCOVA's per-transition intercept vector
+        # (build_rlm_transition_adjusted_model). Intercept-class nuisance: it
+        # absorbs the mean developmental trajectory so the pooled slopes compare
+        # children within a transition. Published as role='other' with a generic
+        # rationale until the 2026-08-22 adjusted-family review (finding 8).
+        "role": "nuisance",
+        "distribution": "Normal(0, 1.5)",
+        "rationale": (
+            "Per-transition intercept alpha_transition ~ Normal(0, 1.5), the "
+            "proximal-tier intercept scale, one free element per annual "
+            "transition; absorbs the mean trajectory between waves and is never "
+            "a reported association."
+        ),
+    },
     "beta_dose_phase_raw": {
         "role": "nuisance",
         "distribution": "Normal(0, 1)",

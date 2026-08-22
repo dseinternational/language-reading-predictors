@@ -55,19 +55,35 @@ These are **associations, not causal effects** (n ≈ 51). The corresponding ran
 result is the available-case modified ITT estimate in `lrp-rli-itt-010` (which supersedes
 LRP52); the randomised gain-side coefficient lives in `lrp-rli-gf-001`.
 
-![Causal DAG. Latent general ability `g` (dashed, not fitted) drives the correlated T1 baselines; the dashed edges from non-verbal MA, behaviour and SES to gain are the associations the model is built to test.](dag.svg){#fig-dag .lightbox fig-align="left"}
+![Causal DAG. Latent general ability `g` (dashed, not fitted) drives the correlated T1 baselines; hearing status, speech production and phonological memory sit upstream of the skill cluster (revised DAG, #247); the dashed edges from non-verbal MA, behaviour, SES and the three upstream traits to gain are the associations the model is built to test.](dag.svg){#fig-dag .lightbox fig-align="left"}
 
 ## Adjustment set and predictors
 
 - **Predictors of interest (standardised T1, per-SD):** letter sounds (`yarclet`), an
   equal-weight **language composite** (ROWPVT + EOWPVT + CELF), blending, age.
 - **Baseline conditioning:** $W_{\text{pre}}$ (T1 word reading) via $\gamma_{\text{own}}$.
-- **Tested covariates:** non-verbal MA (block design) and behaviour, entered to
-  *demonstrate* whether they carry independent signal. SES is adjudicated in a separate
-  complete-case sensitivity fit (it has notable missingness).
+- **Tested covariates:** non-verbal MA (block design) and behaviour, plus — under the
+  revised 2026-07-10 DAG (#247) — the three upstream traits it places above the
+  baseline-skill cluster: hearing status (`hs`, a 0/1 flag derived from the hearing
+  composite), speech production (`deapp_c`) and phonological memory (`erbto`), each
+  entered by the missing-indicator method so no child is dropped for a missing trait.
+  All are entered to *demonstrate* whether they carry independent signal. SES is
+  adjudicated in a separate complete-case sensitivity fit (it has notable missingness).
+- **Units.** Every predictor is standardised on the fitted children, so each slope is
+  per SD. Hearing status is a binary flag (29 clear / 25 impaired at t1), so its "+1 SD"
+  rows are roughly half the clear-versus-impaired contrast; the `_missing` indicators are
+  nuisance subgroup offsets and are kept out of the association tables. Randomised arm is
+  **not** in the model: by randomisation it is orthogonal to the t1 predictors in
+  expectation (the realised imbalance is ≤ 0.22 SD on any predictor), so it is a
+  precision choice rather than a confounding one; the t1→t4 window contains both arms'
+  intervention periods at different times.
 
 Each predictor's **adjusted** (mutual) coefficient is reported alongside its **bivariate**
-(baseline-only-adjusted) association, so the shared-variance shift is visible.
+(baseline-only-adjusted) association, so the shared-variance shift is visible. The
+items-scale contrasts are evaluated at one operating point — a child at the sample-mean
+t1 word-reading logit with every other standardised predictor at zero — for two such
+children who differ by one SD on one predictor; the prior pushforward uses the same
+functional.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 

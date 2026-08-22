@@ -3494,11 +3494,32 @@ def _resolve_adjusted_predictor(
     a covariate column already on ``prepared.covariates`` (``"blocks"``,
     ``"behav"``, ``"mumedupost16"``) -> that standardised covariate. Every key
     maps to coefficient ``beta_<key>``.
+
+    Every predictor is standardised on the rows the model actually fits. The
+    loader standardises covariates and age on *its* row set (every child with any
+    requested outcome observed at the post wave), and :func:`build_adjusted_model`
+    then drops the children missing the focal outcome's post score — so a
+    loader-scale z-score is not mean-0 / SD-1 on the fitted rows and "+1 SD" would
+    mean slightly different things for the skills (standardised here) and the
+    covariates (2026-08-22 adjusted-family review, finding 11). Re-standardising
+    here puts every key on the fitted-row scale, matching the Byrne loaders, which
+    standardise on the complete-case rows they return. A covariate that is constant
+    on the fitted rows (a ``_missing`` indicator whose only flagged child was
+    dropped) cannot be re-scaled and keeps its loader-scale values unchanged — the
+    coefficient then carries no information and the prior holds it.
     """
     from language_reading_predictors.statistical_models.measures import MEASURES
     from language_reading_predictors.statistical_models.preprocessing import (
         standardise,
     )
+
+    def _fitted_scale(values: np.ndarray) -> np.ndarray:
+        arr = np.asarray(values, dtype=float)
+        sd = float(np.std(arr, ddof=1)) if arr.size > 1 else 0.0
+        if not np.isfinite(sd) or sd <= 0.0:
+            return arr
+        z, _ = standardise(arr)
+        return z
 
     coef = f"beta_{key}"
     if key == "lang":
@@ -3506,9 +3527,9 @@ def _resolve_adjusted_predictor(
             "Language composite (" + "+".join(language_symbols) + ", T1)"
         )
     if key == "age":
-        return coef, np.asarray(prepared.A_std, dtype=float), "Age (T1)"
+        return coef, _fitted_scale(prepared.A_months), "Age (T1)"
     if key in prepared.covariates:
-        return coef, np.asarray(prepared.covariates[key], dtype=float), f"{key} (T1)"
+        return coef, _fitted_scale(prepared.covariates[key]), f"{key} (T1)"
     if key in prepared.pre_logit:
         z, _ = standardise(prepared.pre_logit[key])
         label = MEASURES[key].label if key in MEASURES else key
@@ -3523,6 +3544,7 @@ def build_adjusted_model(
     predictors: Iterable[str] = ("L", "lang", "B", "age", "blocks", "behav"),
     language_composite_symbols: Iterable[str] = ("R", "E", "F"),
     predictor_slope_sigma: float = 0.3,
+    gamma_own_sigma: float = 0.25,
 ) -> BuiltModel[EmptyPayload]:
     """Between-child adjusted model: standardised T1 baselines -> word-reading gain.
 
@@ -3540,6 +3562,11 @@ def build_adjusted_model(
         eta_i = alpha + gamma_own * logit(W_pre_i) + sum_k beta_k * z_{k,i}
 
     with a Beta-Binomial likelihood on the outcome post-count.
+
+    ``gamma_own_sigma`` is the SD of the own-baseline coupling prior
+    (``Normal(1, gamma_own_sigma)``, default 0.25); the family's prior sweep
+    refits at the wider 0.5, the "required 0.25-vs-0.5 sensitivity" of
+    :func:`priors.gamma_own_prior` (2026-08-22 review, finding 5).
     """
     if prepared.phase_mode not in {"span", "itt"}:
         raise ValueError(
@@ -3569,7 +3596,9 @@ def build_adjusted_model(
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
-        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
+            "gamma_own"
+        )
         eta = alpha + gamma_own * own_pre_d
 
         for coef_name, vec, _label in resolved:
@@ -6682,6 +6711,8 @@ def build_rlm_adjusted_model(
     *,
     predictors: Iterable[str] | None = None,
     predictor_slope_sigma: float = 0.3,
+    gamma_own_sigma: float = 0.25,
+    dispersion_prior_sigma: float = 0.25,
 ) -> BuiltModel[EmptyPayload]:
     """Byrne between-child adjusted model (#338 Phase D, ``lrp-rlm-adj-001``).
 
@@ -6694,6 +6725,19 @@ def build_rlm_adjusted_model(
     here is causal, and there is no treatment term to protect). No child random
     intercept: one row per child keeps the coefficients genuinely between-child.
     Passing a single-element ``predictors`` gives the bivariate comparison fit.
+
+    ``gamma_own_sigma`` is the own-baseline coupling prior SD (``Normal(1, ·)``,
+    default 0.25; the family's sweep refits at 0.5). The Beta-Binomial
+    concentration takes the **dispersion-scale** prior of the RLM historical
+    families — ``1/sqrt(kappa) ~ HalfNormal(dispersion_prior_sigma)`` with
+    ``kappa`` kept as a Deterministic — rather than ``kappa_prior``'s
+    ``HalfNormal(50)``: at the Byrne denominators of the confirmed-input outcomes
+    (BPVS 32, TROG 20, digit recall 34) a HalfNormal on the concentration gives
+    the near-Binomial limit ``kappa >> n`` essentially no prior mass, and the
+    stored ``adj-003``/``004``/``005`` posteriors sat against that prior (posterior
+    SD 0.90-0.96 of the prior's, P(kappa > 100) 0.31-0.45 against the prior's
+    0.046). See :func:`priors.inv_sqrt_kappa_prior` for the calibration
+    (2026-08-22 adjusted-family review, finding 4).
     """
     keys = list(predictors) if predictors is not None else list(frame.predictors)
     missing = [k for k in keys if k not in frame.predictors]
@@ -6708,7 +6752,9 @@ def build_rlm_adjusted_model(
     with pm.Model(coords=coords) as model:
         own_pre_d = pm.Data("own_pre_logit", frame.pre_logit[outcome], dims="obs_id")
         alpha = _priors.alpha_prior(sigma=1.5).to_pymc("alpha")
-        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
+            "gamma_own"
+        )
         eta = alpha + gamma_own * own_pre_d
 
         for k in keys:
@@ -6720,12 +6766,27 @@ def build_rlm_adjusted_model(
 
         eta = _rlm_group_nuisance(frame, eta)
         eta = pm.Deterministic("eta", eta, dims="obs_id")
-        kappa = _priors.kappa_prior().to_pymc("kappa")
+        kappa = _rlm_dispersion_kappa(dispersion_prior_sigma)
         beta_binomial_from_logit(
             "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
         )
 
     return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())
+
+
+def _rlm_dispersion_kappa(dispersion_prior_sigma: float):
+    """``kappa`` on the dispersion scale, as in the RLM historical factories.
+
+    ``inv_sqrt_kappa ~ HalfNormal(dispersion_prior_sigma)`` with the Deterministic
+    ``kappa = 1 / (inv_sqrt_kappa**2 + 1e-6)`` (the nugget keeps kappa finite and
+    the gradient smooth as the dispersion goes to zero; at the fitted range it moves
+    kappa by under 0.01%). Call inside a model context. Shared by the Byrne
+    adjusted span and stacked-transition factories so the two cannot drift.
+    """
+    inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(
+        sigma=dispersion_prior_sigma
+    ).to_pymc("inv_sqrt_kappa")
+    return pm.Deterministic("kappa", 1.0 / (inv_sqrt_kappa**2 + 1e-6))
 
 
 def build_rlm_transition_adjusted_model(
@@ -6734,6 +6795,8 @@ def build_rlm_transition_adjusted_model(
     predictors: Iterable[str] | None = None,
     predictor_slope_sigma: float = 0.3,
     varying_slopes: bool = False,
+    gamma_own_sigma: float = 0.25,
+    dispersion_prior_sigma: float = 0.25,
 ) -> BuiltModel[EmptyPayload]:
     """Pooled annual-transition Byrne ANCOVA with repeated-child dependence.
 
@@ -6747,6 +6810,11 @@ def build_rlm_transition_adjusted_model(
     ``loo_child_idx`` is deliberately separate from the model's ``child_idx``. It
     marks this likelihood for child-level aggregation in the shared PSIS-LOO code
     without changing the established row-level LOO of other repeated-row families.
+
+    ``gamma_own_sigma`` and ``dispersion_prior_sigma`` are as in
+    :func:`build_rlm_adjusted_model`: the own-baseline prior SD (0.25, swept at
+    0.5) and the dispersion-scale Beta-Binomial prior shared with the RLM
+    historical families (2026-08-22 adjusted-family review, findings 4 and 5).
     """
     keys = list(predictors) if predictors is not None else list(frame.predictors)
     missing = [key for key in keys if key not in frame.predictors]
@@ -6774,7 +6842,9 @@ def build_rlm_transition_adjusted_model(
         alpha_transition = pm.Normal(
             "alpha_transition", mu=0.0, sigma=1.5, dims="transition"
         )
-        gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
+            "gamma_own"
+        )
         eta_fixed = alpha_transition[phase_d] + gamma_own * own_pre_d
 
         if varying_slopes:
@@ -6804,7 +6874,7 @@ def build_rlm_transition_adjusted_model(
         eta_fixed = pm.Deterministic("eta_fixed", eta_fixed, dims="obs_id")
         eta = _add_child_random_intercept(eta_fixed, child_d)
         eta = pm.Deterministic("eta", eta, dims="obs_id")
-        kappa = _priors.kappa_prior().to_pymc("kappa")
+        kappa = _rlm_dispersion_kappa(dispersion_prior_sigma)
         beta_binomial_from_logit(
             "y_post",
             eta,

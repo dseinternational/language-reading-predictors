@@ -4646,11 +4646,31 @@ def _kf_association_direction(
 
 
 def _kf_outcome_label(config: Mapping) -> str:
-    """Outcome display label, mirroring the ``_setup.qmd`` derivation."""
+    """Outcome display label, mirroring the ``_setup.qmd`` derivation.
+
+    The RLI ``MEASURES`` map first; for any other study the registered dataset
+    catalogue (``datasets.resolve_dataset``), exactly as ``_setup.qmd`` does.
+    Without that second step every Byrne (RLM) key-findings headline fell through
+    to the model *title* and read "… items of difference in Byrne wave-1 predictors
+    of receptive-vocabulary gain, waves 1-3 (confirmed-input, mutually adjusted)"
+    where it should have named BPVS receptive vocabulary (2026-08-22 adjusted-family
+    review, finding 2).
+    """
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     symbol = config.get("outcome_symbol")
     measure = MEASURES.get(symbol) if symbol else None
+    study_id = config.get("study_id")
+    if measure is None and symbol and study_id and study_id != "rli":
+        try:
+            from language_reading_predictors.statistical_models.datasets import (
+                resolve_dataset,
+            )
+
+            _dataset, study_measures = resolve_dataset(study_id)
+            measure = study_measures.get(symbol)
+        except (KeyError, TypeError):
+            measure = None
     if measure is not None:
         return measure.label
     return config.get("title") or symbol or "the outcome"
@@ -6290,6 +6310,17 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
     df = _kf_csv(output_dir, "predicted_gain_words.csv")
     if df is None:
         raise _KeyFindingsUnavailable("predicted_gain_words.csv is not present")
+    # Missing-data indicators (``{cov}_missing``) are subgroup mean-offsets under
+    # the missing-indicator method — nuisance terms the associations table and the
+    # priors table already exclude. The pipeline now filters them out of this table
+    # too; this guard keeps a stored pre-fix file from headlining "Speech missing
+    # (indicator)" as the clearest predictor (2026-08-22 review, finding 3).
+    if "predictor" in df.columns:
+        df = df[~df["predictor"].astype(str).str.endswith("_missing")]
+        if df.empty:
+            raise _KeyFindingsUnavailable(
+                "predicted_gain_words.csv carries only missing-indicator rows"
+            )
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
     label = _kf_plain_label(row.get("label", row.get("predictor", "predictor")))
     # House standard is the posterior median (METHODS.md); the mean was reported
@@ -6299,6 +6330,23 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
     lo = _kf_float(row["delta_words_lo"])
     hi = _kf_float(row["delta_words_hi"])
     outcome_label = _kf_outcome_label(config)
+    # The design is read from the persisted plan: the stacked Byrne transition
+    # model pools annual transitions with a child random intercept, so its slopes
+    # are repeated-transition associations, not the one-row-per-child
+    # between-child contrast of the span designs (2026-08-22 review, finding 6).
+    plan = config.get("resolved_run_plan") or {}
+    if plan.get("transition_waves"):
+        causal = (
+            "This is a pooled repeated-transition adjusted association (annual "
+            "transitions stacked, with a child random intercept); neither the "
+            "temporal ordering nor the random intercept identifies what would "
+            "happen if the predictor were changed."
+        )
+    else:
+        causal = (
+            "This is a between-child adjusted association; it does not identify "
+            "what would happen if the predictor were changed."
+        )
     return [
         _kf_sentence(
             f"The clearest adjusted predictor was {label}: a 1-SD increase was "
@@ -6315,11 +6363,7 @@ def _kf_build_adjusted(output_dir, config: Mapping) -> list[dict[str, str]]:
             ),
             "confidence",
         ),
-        _kf_sentence(
-            "This is a between-child adjusted association; it does not identify "
-            "what would happen if the predictor were changed.",
-            "causal",
-        ),
+        _kf_sentence(causal, "causal"),
     ]
 
 

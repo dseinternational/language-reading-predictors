@@ -35,7 +35,17 @@ print(f"\n_How to read the plot:_ one row per baseline predictor. Each row shows
 
 ### Natural-Scale Differences
 
-_In plain terms:_ this puts the associations back on the outcome's item scale — how many items the outcome differs by for a typical change in each predictor — so the size is readable without thinking in standardised units.
+_In plain terms:_ this puts the associations back on the outcome's item scale — how many items the outcome differs by for a one-SD difference in each predictor — so the size is readable without thinking in standardised units.
+
+```{python}
+# | echo: false
+# | output: asis
+if _adjusted_plan.get("transition_waves"):
+    print("_Where the contrast is taken:_ each row is averaged over the fitted transition rows at their observed covariates, with the child random intercept at zero — a row-averaged, median-child contrast. The prior pushforward in the priors section uses the same functional.")
+else:
+    _ref_group = " and the reading-group dummies at zero (the reference group)" if config.get("study_id") == "rlm" else ""
+    print(f"_Where the contrast is taken:_ each row is evaluated at one operating point — a child at the sample-mean own baseline with every other standardised predictor at zero{_ref_group} — for two such children who differ by one SD on one predictor. On a logit-scale model the same coefficient gives a somewhat different item difference elsewhere on the scale; the prior pushforward in the priors section uses this same at-the-mean functional.")
+```
 
 ```{python}
 # | echo: false
@@ -43,11 +53,11 @@ predicted_gain = _csv("predicted_gain_words.csv")
 predicted_gain if predicted_gain is not None else "No predicted-gain table."
 ```
 
-_How to read the table:_ each row translates a predictor's association into a difference in outcome items, with its 89% credible interval. Read it as "how much the outcome differs by", an adjusted association on a plain scale — not a caused gain.
+_How to read the table:_ each row translates a predictor's association into a difference in outcome items, with its 89% credible interval. Read it as "how much the outcome differs by", an adjusted association on a plain scale — not a caused gain. Missing-data indicators are nuisance subgroup offsets and are not listed here.
 
 ### Sensitivity Checks
 
-_In plain terms:_ these checks ask whether the conclusions hold up when the prior on predictor slopes is tightened or loosened. The RLI model additionally checks socioeconomic-status (SES) adjustment; the Byrne cohort models do not have that SES sensitivity. Estimates that barely move are less dependent on the prior choice; ones that swing are more prior-sensitive.
+_In plain terms:_ these checks ask whether the conclusions hold up when the prior on the predictor slopes is loosened, and when the own-baseline coupling prior — the one prior centred away from zero, at a 1:1 coupling — is widened. The RLI model additionally checks socioeconomic-status (SES) adjustment; the Byrne cohort models do not have that SES sensitivity. Estimates that barely move are less dependent on the prior choice; ones that swing are more prior-sensitive.
 
 ```{python}
 # | echo: false
@@ -55,7 +65,7 @@ prior_sensitivity = _csv("prior_sensitivity.csv")
 prior_sensitivity if prior_sensitivity is not None else "No prior-sensitivity table."
 ```
 
-_How to read the table:_ each row re-fits under a different prior setting (the assumption fed in before seeing the data); compare the estimates across rows — small shifts mean the data, not the prior, is doing the work.
+_How to read the table:_ each row re-fits under a different prior setting (the assumption fed in before seeing the data): `predictor_slope_sigma` is the SD of the slope prior, `gamma_own_sigma` the SD of the own-baseline coupling prior (the first block of rows is the fitted model itself). Compare the estimates across rows — small shifts mean the data, not the prior, is doing the work.
 
 ```{python}
 # | echo: false
@@ -81,20 +91,41 @@ if transition_slopes is not None:
 
 ```{python}
 # | echo: false
+# | output: asis
+# The SES complete-case refit exists only for the RLI port; gate the prose on the
+# file so the Byrne reports do not carry a how-to-read paragraph under a "no
+# table" line (2026-08-22 review, finding 7).
 ses_sensitivity = _csv("ses_sensitivity.csv")
-ses_sensitivity if ses_sensitivity is not None else "No SES sensitivity table."
+if ses_sensitivity is not None:
+    print("#### SES complete-case refit (RLI only)\n")
+    display(ses_sensitivity)
+    print("\n_How to read the table:_ it refits the headline model on the children with parental-education data, with SES added as a covariate; a predictor whose estimate stays put is not merely standing in for SES. `n_children` is the complete-case count.")
 ```
-
-_How to read the table:_ when present, it contrasts the associations with and without adjusting for SES; a predictor whose estimate stays put is not merely standing in for SES.
 
 ### Influence
 
-_In plain terms:_ this flags whether any single child is pulling the results, listing the children whose removal would move the estimates the most.
+_In plain terms:_ this flags whether any single child is pulling the results — the children whose removal would move the leave-one-out fit the most, measured by the PSIS-LOO Pareto-k value.
 
 ```{python}
 # | echo: false
+# | output: asis
 influence = _csv("influence.csv")
-influence.head(10) if influence is not None else "No per-child influence table."
+_pareto = _csv("pareto_k.csv")
+_flag_threshold = None
+_n_flagged = None
+if _pareto is not None and {"pareto_k", "good_k_threshold"}.issubset(_pareto.columns):
+    _k = pd.to_numeric(_pareto["pareto_k"], errors="coerce")
+    _flag_threshold = float(pd.to_numeric(_pareto["good_k_threshold"], errors="coerce").iloc[0])
+    _n_flagged = int((_k > _flag_threshold).sum())
+if _adjusted_plan.get("transition_waves"):
+    print("_What the unit is here:_ the LOO is **child-level** — each child's transition rows are left out together and the child's random intercept is integrated away (new-child prediction). Importance sampling handles that target poorly under a per-child intercept, so a substantial share of flagged children is the expected failure mode of the LOO score, not evidence against the sampler or the reported associations; the score should not be used for model comparison while children are flagged.")
+else:
+    print("_What the unit is here:_ one row per child, so each point is one child left out.")
+if _flag_threshold is not None and _n_flagged is not None:
+    print(f"\n{_n_flagged} of {len(_pareto)} leave-one-out points exceed the Pareto-k reliability threshold {_flag_threshold:.2f}.")
+if influence is not None:
+    display(influence.head(10))
+    print("\n_How to read the table:_ rows are the most influential children (top ten), ranked by Pareto-k — how much dropping each one would shift the leave-one-out fit. Values above the threshold warrant a look; if even the top rows are small, no one child is driving the conclusions.")
+else:
+    print("\n_No per-child influence table was written for this fit._")
 ```
-
-_How to read the table:_ rows are the most influential children (top ten), ranked by how much dropping each one would shift the fit. Large values warrant a look; if even the top rows are small, no one child is driving the conclusions.
