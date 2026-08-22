@@ -299,3 +299,72 @@ def test_bundle_validator_can_record_a_failed_subfit_before_release_withholds(
 
     assert any("failed or was not checked" in error for error in strict_errors)
     assert write_time_errors == ()
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 9)
+# ---------------------------------------------------------------------------
+
+
+def _write_mutated_archive(path: Path, mutate) -> str:
+    frame = _archive_frame()
+    mutate(frame)
+    frame.to_csv(path, index=False)
+    return missing.sha256_file(path)
+
+
+@pytest.mark.parametrize(
+    ("column", "value", "message"),
+    [
+        ("group", 1.7, "whole numbers"),
+        ("included", 0.4, "whole numbers"),
+        ("word_reading_t2", 12.5, "whole item counts"),
+    ],
+)
+def test_the_archive_validator_rejects_fractional_values(
+    tmp_path, column, value, message
+):
+    """Integrality is checked before the cast, not silently truncated by it.
+
+    ``_validate_binary_codes`` compared ``set(values.astype(int))`` against the
+    allowed codes, and ``astype`` truncates toward zero - so 1.7 became a valid 1
+    and 0.4 a valid 0. ``word_reading_t2`` was bounds-checked only, then cast with
+    ``astype(np.int64)``, so 12.5 was modelled as 12. The pinned archive checksum
+    protects production, but this validator is what a future archive revision is
+    checked against.
+    """
+    path = tmp_path / "archive.csv"
+
+    def mutate(frame):
+        # Widen first: the fixture's integer columns reject a float in place.
+        frame[column] = frame[column].astype(float)
+        frame.loc[0, column] = value
+
+    digest = _write_mutated_archive(path, mutate)
+    with pytest.raises(ValueError, match=message):
+        missing.load_randomised_w_archive(
+            path, expected_sha256=digest, local_wide_path=None
+        )
+
+
+def test_the_provenance_records_every_sampled_coefficient_prior():
+    """``tau`` and ``kappa`` were missing from ``coefficient_priors``.
+
+    The record described a model with no treatment effect and no dispersion
+    parameter, while the release check's own convergence scan covered both. The
+    three shared-constructor entries are rendered from the constructors so the
+    record cannot drift from the model the factory builds.
+    """
+    import inspect
+
+    from language_reading_predictors.statistical_models import priors as p
+
+    source = inspect.getsource(missing.run_missingness_subfit)
+    assert '"tau": str(_provenance_priors.tau_prior())' in source
+    assert '"kappa": str(_provenance_priors.kappa_prior())' in source
+    assert (
+        '"beta_screening_age": str(_provenance_priors.gamma_age_prior())' in source
+    )
+    # And the constructors render something a reader can act on.
+    assert "0.5" in str(p.tau_prior())
+    assert "50" in str(p.kappa_prior())

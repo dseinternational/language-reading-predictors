@@ -36,8 +36,14 @@ RLI_RANDOMISED_BY_G = {INTERVENTION_G: 29, CONTROL_G: 28}
 RLI_LOST_TO_FOLLOW_UP_BY_G = {INTERVENTION_G: 1, CONTROL_G: 2}
 RLI_ANALYSED_BY_G = {INTERVENTION_G: 28, CONTROL_G: 26}
 RLI_DISCONTINUED_BUT_FOLLOWED_BY_G = {INTERVENTION_G: 2, CONTROL_G: 2}
-# Compatibility name retained for stored-table readers. It is the paper's
-# analysed/archive cohort, not an unexplained t1 availability state.
+# Deprecated alias. It is the paper's analysed/archive cohort — 28 + 26 = 54
+# children — and **not** outcome-specific t1 availability, which differs by
+# measure: W is observed at t1 for 53 children and N for only 50 (2026-08-22 ITT
+# audit, finding 9). The name is retained because every stored `analysis_set.csv`
+# carries the column and `reporting.py` validates against it; `analysed_archive_n`
+# in the same table is the correctly named column and should be preferred by new
+# readers. Renaming the published column needs a regeneration pass over the
+# stored bundles and is tracked separately.
 RLI_AVAILABLE_T1_BY_G = RLI_ANALYSED_BY_G
 
 
@@ -52,6 +58,11 @@ def analysis_set_table(
     ``outcome_symbol`` is supplied, a row counts as fitted only when its post-score is
     finite.  The table therefore works for ordinary ITTs, covariate-restricted
     robustness fits and the baseline-floor subgroup.
+
+    ``analysed_archive_n`` and its deprecated alias ``available_t1_n`` both hold the
+    paper's analysed/archive cohort (28 intervention + 26 control). Neither is a
+    count of t1 *outcome* availability, which is measure-specific — see
+    :data:`RLI_AVAILABLE_T1_BY_G`.
     """
 
     G = np.asarray(prepared.G, dtype=int)
@@ -69,8 +80,8 @@ def analysis_set_table(
         fitted_n = int(np.sum((G == g) & keep))
         if fitted_n > available_n:
             raise ValueError(
-                f"Fitted {ARM_LABELS[g]} count {fitted_n} exceeds the archived "
-                f"t1-available count {available_n}."
+                f"Fitted {ARM_LABELS[g]} count {fitted_n} exceeds the "
+                f"{ARM_LABELS[g]} arm's analysed/archive cohort of {available_n}."
             )
         rows.append(
             {

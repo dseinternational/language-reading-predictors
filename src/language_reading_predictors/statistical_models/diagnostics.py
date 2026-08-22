@@ -32,6 +32,7 @@ substantive output.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import tempfile
@@ -658,12 +659,67 @@ def write_diagnostics_summary(
     #274 item 2). The curated ``var_names`` still drive the human-readable
     ``diagnostics.csv`` (via :func:`summary_diagnostics`) and the prior-overlay.
     """
-    return _shared_write_diagnostics_summary(
+    gate_names = _gate_var_names(context, var_names)
+    payload = _shared_write_diagnostics_summary(
         context.trace,
         context.output_dir,
-        var_names=_gate_var_names(context, var_names),
+        var_names=gate_names,
         tables=context.tables,
     )
+    return _fail_on_unassessable(context, payload, gate_names)
+
+
+def _fail_on_unassessable(
+    context: StatisticalFitContext,
+    payload: dict,
+    gate_names: list[str] | None,
+) -> dict:
+    """Fail the gate when a gated variable's R-hat / ESS could not be assessed.
+
+    The shared writer reduces R-hat / ESS with NaN-skipping operations
+    (``np.nanmax``, a row-wise minimum, ``np.nanmin``), and a NaN also compares
+    False against the thresholds, so it never reaches ``rhat_failing`` /
+    ``ess_failing`` either. A trace holding one healthy parameter and one
+    constant or unsampled one therefore returned ``passed=true`` with finite
+    extrema and empty failing lists (2026-08-22 ITT audit, finding 1). Its BFMI
+    check was already hardened against exactly this; R-hat and ESS were not.
+
+    The scan runs over the same gated set as the writer — the model's free RVs
+    plus the curated headline terms — so a *mathematically constant*
+    deterministic (an ``LKJCorr`` matrix diagonal, the only non-finite rows in
+    the stored bundles) cannot trip it: those are never free RVs and the curated
+    lists do not name them. Recorded as its own ``diagnostics_assessable`` check
+    rather than folded into ``rhat``, because "we measured this and it failed" and
+    "we could not measure this" are different verdicts;
+    ``reporting.convergence_gate_failures`` already fails closed on any non-``True``
+    check it does not recognise, so the release gate picks it up unchanged.
+    """
+    try:
+        signals = _sampling_quality(context.trace, var_names=gate_names)
+    except Exception as exc:  # pragma: no cover - defensive
+        rprint(f"[yellow]unassessable-parameter scan failed: {exc}[/yellow]")
+        return payload
+    unassessable = list(signals.unassessable)
+    payload["checks"]["diagnostics_assessable"] = not unassessable
+    payload["unassessable_parameters"] = unassessable
+    if unassessable:
+        payload["passed"] = False
+        shown = ", ".join(unassessable[:6])
+        if len(unassessable) > 6:
+            shown += f", ... ({len(unassessable)} in total)"
+        rprint(
+            "[red]  Convergence gate: REVIEW — R-hat / ESS could not be assessed "
+            f"for {shown}[/red]"
+        )
+        with open(
+            os.path.join(context.output_dir, "diagnostics_summary.json"),
+            "w",
+            encoding="utf-8",
+        ) as handle:
+            json.dump(payload, handle, indent=2, default=str)
+    if context.tables is not None:
+        context.tables["diagnostics_summary"] = payload
+    return payload
 
 
 def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None) -> dict:
@@ -687,6 +743,7 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         "min_ess": None,
         "min_bfmi": None,
         "n_divergences": None,
+        "unassessable_parameters": "",
     }
     try:
         # Unrounded extraction lives in ``sampling_quality`` — see that module for the
@@ -707,8 +764,17 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
             min_bfmi=min_bfmi,
             n_divergences=n_div,
         )
+        # An unassessable parameter fails the sub-fit gate for the same reason it
+        # fails the primary one: the NaN-skipping extrema cannot see it, so
+        # ``max_rhat`` / ``min_ess`` would report the healthy parameters alone
+        # (2026-08-22 ITT audit, finding 1).
+        # Comma-separated, not a list: this dict is spread into one-row provenance
+        # frames (``influence.summarise_influence_refit``,
+        # ``subfits.SubfitResult``) where an empty list cannot become a column.
+        result["unassessable_parameters"] = ", ".join(signals.unassessable)
         result["converged"] = bool(
-            max_rhat <= RHAT_MAX
+            not signals.unassessable
+            and max_rhat <= RHAT_MAX
             and min_ess >= ESS_THRESHOLD
             and min_bfmi is not None
             and min_bfmi >= BFMI_THRESHOLD
@@ -723,8 +789,13 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
             f"[red]Sub-fit '{label}' did not meet the convergence gate "
             f"(max R-hat={result['max_rhat']:.4f}, min ESS={result['min_ess']:.0f}, "
             f"min BFMI={result['min_bfmi'] if result['min_bfmi'] is not None else 'missing'}, "
-            f"divergences={result['n_divergences']}); its published estimates are "
-            "flagged not-converged.[/red]"
+            f"divergences={result['n_divergences']}"
+            + (
+                f", unassessable={result['unassessable_parameters']}"
+                if result.get("unassessable_parameters")
+                else ""
+            )
+            + "); its published estimates are flagged not-converged.[/red]"
         )
     return result
 

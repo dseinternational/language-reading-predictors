@@ -34,6 +34,7 @@ from dataclasses import dataclass
 
 import arviz as az
 import numpy as np
+import pandas as pd
 from dse_research_utils.statistics.diagnostics import _bfmi_per_chain
 
 __all__ = ["SamplingQuality", "sampling_quality"]
@@ -51,6 +52,16 @@ class SamplingQuality:
     """Smallest per-chain BFMI, or ``None`` when it cannot be computed."""
     n_divergences: int | None
     """Total divergent transitions, or ``None`` when ``sample_stats`` lacks them."""
+    unassessable: tuple[str, ...] = ()
+    """Summarised variables whose R-hat or ESS is non-finite.
+
+    The reductions above skip NaN, so a variable ArviZ could not assess leaves no
+    trace in ``max_rhat`` / ``min_ess``: mixed with one healthy parameter, a
+    constant or unsampled one yields finite extrema and empty failing lists, and
+    the fit passes (2026-08-22 ITT audit, finding 1). Extracting the names here
+    keeps this module's contract — read the signals, decide nothing — while giving
+    every gate the one fact it cannot recover from the extrema.
+    """
 
     def summary_line(self) -> str:
         """One-line human-readable rendering for logs and prototype scripts."""
@@ -85,9 +96,20 @@ def sampling_quality(trace, *, var_names: list[str] | None = None) -> SamplingQu
     # ``round_to="none"`` must be the string — see the module docstring.
     summ = az.summary(trace, var_names=var_names, round_to="none", kind="diagnostics")
     # pandas ``.max()`` / ``.min()`` skip NaN by default, so a constant or unsampled
-    # variable does not poison the reduction.
+    # variable does not poison the reduction. That is the right *extraction*
+    # behaviour — one unassessable nuisance term should not make ``max_rhat``
+    # meaningless — but it is not a verdict: the skipped rows are reported
+    # separately through ``unassessable`` so a gate can fail closed on them.
     max_rhat = float(summ["r_hat"].max())
     min_ess = float(min(summ["ess_bulk"].min(), summ["ess_tail"].min()))
+    diagnostic_columns = [c for c in ("r_hat", "ess_bulk", "ess_tail") if c in summ]
+    unassessable = tuple(
+        str(name)
+        for name in summ.index[
+            ~np.isfinite(summ[diagnostic_columns].apply(pd.to_numeric, errors="coerce"))
+            .all(axis=1)
+        ]
+    )
 
     n_div: int | None = None
     sample_stats = getattr(trace, "sample_stats", None)
@@ -104,4 +126,5 @@ def sampling_quality(trace, *, var_names: list[str] | None = None) -> SamplingQu
         min_ess=min_ess,
         min_bfmi=min_bfmi,
         n_divergences=n_div,
+        unassessable=unassessable,
     )

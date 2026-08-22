@@ -880,6 +880,9 @@ def test_subfit_convergence_marks_diagnostic_errors_unchecked(monkeypatch):
         "min_ess": None,
         "min_bfmi": None,
         "n_divergences": None,
+        # No scan ran, so nothing is *known* to be unassessable — the whole
+        # verdict is ``None``/unchecked, which is the distinction this test pins.
+        "unassessable_parameters": "",
     }
 
 
@@ -1152,3 +1155,77 @@ def test_repaired_lkjcorr_log_prior_matches_a_direct_logp_evaluation():
     expected = np.array([float(np.asarray(logp_fn(draw))) for draw in flat])
     got = np.asarray(out.log_prior["corr"].values).reshape(-1)
     np.testing.assert_allclose(got, expected, rtol=0, atol=0)
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577)
+# ---------------------------------------------------------------------------
+
+
+def _degenerate_trace(*, include_constant: bool = True):
+    """A clean trace, optionally carrying one unassessable parameter.
+
+    ``stuck`` is constant across every draw and chain, so ArviZ reports a
+    non-finite R-hat for it. The gate's NaN-skipping reductions could not see
+    that: mixed with a healthy parameter it produced finite extrema, empty
+    failing lists and ``passed=true`` (2026-08-22 ITT audit, finding 1).
+    """
+    rng = np.random.default_rng(0)
+    nc, nd = 4, 1000
+    variables = {"good": (("chain", "draw"), rng.normal(size=(nc, nd)))}
+    if include_constant:
+        variables["stuck"] = (("chain", "draw"), np.full((nc, nd), 2.5))
+    coords = {"chain": np.arange(nc), "draw": np.arange(nd)}
+    posterior = xr.Dataset(variables, coords=coords)
+    sample_stats = xr.Dataset(
+        {
+            "diverging": (("chain", "draw"), np.zeros((nc, nd), dtype=bool)),
+            "energy": (("chain", "draw"), rng.normal(size=(nc, nd))),
+        },
+        coords=coords,
+    )
+    return az.from_dict({"posterior": posterior, "sample_stats": sample_stats})
+
+
+def test_sampling_quality_names_variables_whose_diagnostics_are_non_finite():
+    from language_reading_predictors.statistical_models.sampling_quality import (
+        sampling_quality,
+    )
+
+    signals = sampling_quality(
+        _degenerate_trace(), var_names=["good", "stuck"]
+    )
+    # The NaN-skipping extrema still report the healthy parameter, which is the
+    # right extraction behaviour - but the skipped row is now named.
+    assert np.isfinite(signals.max_rhat)
+    assert signals.unassessable == ("stuck",)
+
+    clean = sampling_quality(
+        _degenerate_trace(include_constant=False), var_names=["good"]
+    )
+    assert clean.unassessable == ()
+
+
+def test_subfit_gate_fails_when_a_parameter_cannot_be_assessed():
+    from language_reading_predictors.statistical_models.diagnostics import (
+        subfit_convergence,
+    )
+
+    verdict = subfit_convergence(
+        _degenerate_trace(), label="audit-577", var_names=["good", "stuck"]
+    )
+    # Zero divergences, R-hat 1.0003 and ESS ~3900 on the parameter it *could*
+    # measure: without the unassessable check this passed.
+    assert verdict["n_divergences"] == 0
+    assert verdict["max_rhat"] <= 1.01
+    assert verdict["unassessable_parameters"] == "stuck"
+    assert verdict["converged"] is False
+
+    clean = subfit_convergence(
+        _degenerate_trace(include_constant=False),
+        label="audit-577-clean",
+        var_names=["good"],
+    )
+    assert clean["unassessable_parameters"] == ""
+    assert clean["converged"] is True
+

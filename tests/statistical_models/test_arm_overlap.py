@@ -229,3 +229,51 @@ def test_summary_csv_is_tidy(tmp_path):
     }
     # The saved sidecar matches the returned table.
     pd.testing.assert_frame_equal(saved, tables["arm_overlap_mean"])
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 4)
+# ---------------------------------------------------------------------------
+
+
+def test_the_two_overlap_figures_do_not_share_contrast_quantity_names():
+    """The mean and predictive figures publish different contrasts.
+
+    Both tables used to write ``average_marginal_effect`` and
+    ``p_intervention_higher``, so one fit directory carried two contradictory
+    values under each name - for lrp-rli-itt-001, 1.368 items [0.19, 2.53] beside
+    1.0 items [-5, 8], and 0.968 beside 0.582 - distinguishable only by filename.
+    """
+    from language_reading_predictors.statistical_models.arm_overlap import (
+        arm_overlap_summary,
+    )
+
+    draws = np.linspace(-1.0, 3.0, 400)
+    shared = {
+        "outcome_symbol": "W",
+        "control": draws,
+        "intervention": draws + 1.0,
+        "effect": draws,
+        "level_scale": "percent",
+        "overlap_coefficient": 0.5,
+        "ci_prob": 0.89,
+        "population": "pop",
+        "contrast_status": "status",
+    }
+    mean = arm_overlap_summary(effect_scale="percentage_points", **shared)
+    predictive = arm_overlap_summary(
+        effect_scale="items",
+        effect_quantity="predicted_score_difference_independent_children",
+        superiority_quantity="p_intervention_child_higher",
+        **shared,
+    )
+    assert "average_marginal_effect" in set(mean.quantity)
+    assert "p_intervention_higher" in set(mean.quantity)
+    assert not set(mean.quantity) & {
+        "predicted_score_difference_independent_children",
+        "p_intervention_child_higher",
+    }
+    assert not set(predictive.quantity) & {
+        "average_marginal_effect",
+        "p_intervention_higher",
+    }
