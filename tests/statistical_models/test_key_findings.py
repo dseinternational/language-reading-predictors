@@ -1878,6 +1878,62 @@ def test_adjusted_headline_never_ranks_a_missing_data_indicator(tmp_path):
     assert "Age (months)" in payload["sentences"][0]["text"]
 
 
+def _concurrent_row(timepoint, term, items, prob, **overrides) -> dict:
+    row = {
+        "timepoint": timepoint,
+        "adjustment": "adjusted",
+        "term": term,
+        "label": term,
+        "role": "association",
+        "scale": "+1 SD",
+        "items_median": items,
+        "items_lo": items - 2.0,
+        "items_hi": items + 2.0,
+        "prob_pos": prob,
+        "converged": True,
+    }
+    row.update(overrides)
+    return row
+
+
+def test_concurrent_headline_tie_break_is_primary_wave_then_larger_contrast(tmp_path):
+    """2026-08-22 review (extension): rows at the resolution ceiling are tied at the
+    reported precision, and ties go to the primary (first) wave, then the larger
+    items-scale contrast — not to whichever row's Monte-Carlo noise happens to
+    round higher (``rlm-ca-001``'s headline had flipped t1 → t2 between refits)."""
+    d = _setup_dir(tmp_path, "concurrent")
+    _write_rows(
+        d,
+        "concurrent_marginals.csv",
+        [
+            # t2 is "more resolved" only below the reported precision.
+            _concurrent_row(2, "bassim", 8.7, 1.0),
+            _concurrent_row(1, "bassim", 7.5, 0.99997),
+            # Same wave, same resolution, smaller contrast: loses the tie.
+            _concurrent_row(1, "trog", 3.1, 0.99998),
+            # A later wave that is genuinely less resolved never wins.
+            _concurrent_row(3, "basdig", 9.9, 0.93),
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["status"] == "ok"
+    headline = payload["sentences"][0]["text"]
+    assert headline.startswith("At t1, ")
+    assert "bassim" in headline and "+7.5" in headline
+    # A genuinely more resolved later wave still wins over the primary wave.
+    _write_rows(
+        d,
+        "concurrent_marginals.csv",
+        [
+            _concurrent_row(1, "bassim", 7.5, 0.97),
+            _concurrent_row(2, "trog", 1.2, 0.999),
+        ],
+    )
+    payload = generate_key_findings(d)
+    assert payload["sentences"][0]["text"].startswith("At t2, ")
+    assert "trog" in payload["sentences"][0]["text"]
+
+
 def test_mediation_findings_use_generic_causal_qualification(tmp_path):
     d, _ = _remaining_family_case(tmp_path, "mediation")
 
