@@ -8,8 +8,28 @@
 # and the randomised headline lives in the interaction-free primary. Every
 # causal-framing sentence in this partial branches on that flag so a variant
 # report cannot contradict its own status.
-_mv = bool((config.get("resolved_run_plan") or {}).get("moderation_variant", False))
-if _mv:
+_plan_intro = config.get("resolved_run_plan") or {}
+_mv = bool(_plan_intro.get("moderation_variant", False))
+# A supported-but-unregistered pooled level plan (``group_by_time=False``) has no
+# randomised element at all: its plan resolves ``focal_term`` to null and its
+# summary carries no causal role, so this partial must not open by promising one
+# (#584 lower-severity 6). Keyed on the plan rather than the family, so it holds
+# for any future plan whose focal term is absent.
+_no_focal = "focal_term" in _plan_intro and not _plan_intro.get("focal_term")
+if _no_focal and not _mv:
+    print(
+        "This model reports **no causal coefficient**. Its group term is pooled "
+        "across all four timepoints, so it mixes the randomised window with the "
+        "waves after the waiting-list children had crossed over and is not a "
+        "randomised contrast. Under the revised DAG (2026-07-10) every coefficient "
+        "below is an adjusted association: confounded by latent general ability, "
+        "which the child random intercept does **not** control. Read them as "
+        "*associated with*, never *drives*.\n\n"
+        "_In plain terms:_ this section reports side-by-side relationships between "
+        "skills and the outcome, with no cause-and-effect figure — the randomised "
+        "comparison lives in the models that keep the timepoints apart."
+    )
+elif _mv:
     print(
         "This **moderation variant** reports **no causal coefficient**. It refits "
         "the outcome's gain-factor model with the pre-specified treatment "
@@ -160,7 +180,8 @@ if factor_summary is not None and "role" in factor_summary.columns:
     else:
         print(
             "_This is a factor-association model with no randomised treatment term — "
-            "every coefficient below is an adjusted association among the treated._"
+            "every coefficient below is an adjusted association"
+            + ("._" if _no_focal else " among the treated._")
         )
 ```
 

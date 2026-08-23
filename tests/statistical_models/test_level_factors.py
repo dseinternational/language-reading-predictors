@@ -121,6 +121,32 @@ def test_from_legacy_extra_round_trips_arm_gap_reference():
     assert settings.arm_gap_reference == "free"
 
 
+
+def test_settings_reject_duplicate_adjusters():
+    """#584 lower-severity 4: a repeated adjuster used to reach PyMC, where the
+    duplicate ``gamma_<c>`` name failed after the output directory had been reset."""
+    with pytest.raises(ValueError, match="repeats hs"):
+        LevelFactorsModelSettings(
+            ability_covariate="blocks", adjust_for=("hs", "hs_missing", "hs")
+        )
+
+
+def test_settings_reject_a_missing_indicator_without_its_base_term():
+    """#584 lower-severity 4: an indicator with no covariate to flag is not the
+    two-term missing-indicator idiom the reports describe."""
+    with pytest.raises(ValueError, match="without the covariate they flag"):
+        LevelFactorsModelSettings(
+            ability_covariate="blocks", adjust_for=("hs_missing",)
+        )
+
+
+def test_settings_accept_a_paired_missing_indicator():
+    settings = LevelFactorsModelSettings(
+        ability_covariate="blocks", adjust_for=("hs", "hs_missing")
+    )
+    assert settings.adjust_for == ("hs", "hs_missing")
+
+
 # --- resolve ------------------------------------------------------------------
 
 
@@ -265,6 +291,41 @@ def test_split_settings_between_typed_and_extra_is_rejected():
         resolve_level_factors_run_plan(spec)
 
 
+def test_resolve_rejects_ability_by_time_without_an_ability_covariate():
+    """#584 lower-severity 4: ``ability_by_time`` silently did nothing without a
+    covariate to vary, so a declaration could claim a per-wave ability vector the
+    fit never built."""
+    spec = ModelSpec(
+        model_id="lrp-test-lf-noability",
+        kind="level_factors",
+        title="t",
+        outcome_symbol="W",
+        model_settings=LevelFactorsModelSettings(
+            ability_covariate=None,
+            group_ability=False,
+            group_by_time=False,
+            arm_gap_reference="free",
+        ),
+    )
+    with pytest.raises(ValueError, match="ability_by_time requires"):
+        resolve_level_factors_run_plan(spec)
+
+
+def test_resolve_pooled_plan_prose_claims_no_randomised_contrast():
+    """#584 lower-severity 6: a pooled plan has no focal term, so the generated
+    estimand and causal-status prose must not name a t2 randomised contrast."""
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), group_by_time=False, arm_gap_reference="free")
+    )
+    assert plan.focal_term is None
+    assert plan.estimand.startswith("No randomised contrast")
+    assert "The t2 randomised group contrast" not in plan.estimand
+    assert plan.causal_status.startswith("No coefficient in this fit is causal")
+    # The per-timepoint plans keep the t2 wording.
+    primary = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    assert primary.estimand.startswith("The t2 randomised group contrast")
+
+
 # --- registered-specification coverage (acceptance criterion) -----------------
 
 
@@ -284,6 +345,96 @@ def test_every_registered_level_factor_model_resolves_with_metadata():
             )
         # The outcome is always loaded as its own (only) outcome.
         assert plan.prepare_kwargs()["outcomes"] == (spec.outcome_symbol,)
+
+
+#: The exact registered level-factor suite (#584 lower-severity 3 & 5). The
+#: dynamic coverage test above only asserts "at least eleven, each internally
+#: consistent"; this table pins the contract a reader of the reports relies on —
+#: which outcome each model fits, on which likelihood, and exactly which
+#: background terms enter its linear predictor — so an accidental change to an
+#: adjustment set, a likelihood or the arm-gap parameterisation, or an unintended
+#: extra registration, fails here rather than silently changing a published
+#: adjusted association.
+_REGISTERED_CONTRACT: dict[str, dict[str, object]] = {
+    "lrp-rli-lf-001": {"outcome": "W", "likelihood": "beta_binomial", "adjust_for": ()},
+    "lrp-rli-lf-002": {
+        "outcome": "R",
+        "likelihood": "beta_binomial",
+        "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),
+    },
+    "lrp-rli-lf-003": {
+        "outcome": "E",
+        "likelihood": "beta_binomial",
+        "adjust_for": (
+            "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+        ),
+    },
+    "lrp-rli-lf-004": {
+        "outcome": "L",
+        "likelihood": "beta_binomial",
+        "adjust_for": ("hs", "hs_missing", "deapp_c", "deapp_c_missing"),
+    },
+    "lrp-rli-lf-005": {
+        "outcome": "P",
+        "likelihood": "bernoulli_offfloor",
+        "adjust_for": ("erbto", "erbto_missing"),
+    },
+    "lrp-rli-lf-006": {
+        "outcome": "B",
+        "likelihood": "beta_binomial",
+        "adjust_for": (
+            "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+        ),
+    },
+    "lrp-rli-lf-007": {"outcome": "F", "likelihood": "beta_binomial", "adjust_for": ()},
+    "lrp-rli-lf-008": {"outcome": "T", "likelihood": "beta_binomial", "adjust_for": ()},
+    "lrp-rli-lf-009": {
+        "outcome": "TR",
+        "likelihood": "beta_binomial",
+        "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),
+    },
+    "lrp-rli-lf-010": {
+        "outcome": "TE",
+        "likelihood": "beta_binomial",
+        "adjust_for": (
+            "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+        ),
+    },
+    "lrp-rli-lf-011": {
+        "outcome": "N",
+        "likelihood": "bernoulli_offfloor",
+        "adjust_for": ("deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
+    },
+}
+
+
+def test_registered_suite_matches_the_declared_contract():
+    """Pin the exact registered ID / outcome / likelihood / adjustment map."""
+    specs = {spec.model_id: spec for spec in _level_factor_specs()}
+    assert set(specs) == set(_REGISTERED_CONTRACT)
+    for model_id, expected in _REGISTERED_CONTRACT.items():
+        plan = resolve_level_factors_run_plan(specs[model_id])
+        assert plan.outcome_symbol == expected["outcome"], model_id
+        assert plan.likelihood == expected["likelihood"], model_id
+        assert plan.adjust_for == expected["adjust_for"], model_id
+        # Every registered model is a per-wave t1-centred fit on baseline block
+        # design, with the group x ability term and the randomised t2 focal change.
+        assert plan.ability_covariate == "blocks", model_id
+        assert (plan.group_by_time, plan.ability_by_time, plan.group_ability) == (
+            True, True, True,
+        ), model_id
+        assert plan.arm_gap_reference == "t1", model_id
+        assert plan.focal_term == "d_grp_time[t2]", model_id
+
+
+def test_every_registered_model_declares_typed_settings():
+    """#584 lower-severity 3: METHODS and docs/models/README say converted
+    families declare immutable typed settings; the eleven level modules used to
+    declare legacy mutable ``extra`` dictionaries instead."""
+    for spec in _level_factor_specs():
+        assert isinstance(spec.model_settings, LevelFactorsModelSettings), spec.model_id
+        assert not spec.extra, spec.model_id
+        assert resolve_level_factors_run_plan(spec).settings_source == "typed"
 
 
 # --- plan-owned names, roles and data guards (#389 criteria 10-11) -------------
@@ -357,7 +508,13 @@ def test_plan_offfloor_diag_vars_drop_kappa_and_pooled_group_unflagged():
     assert pooled.coefficient_names()[0] == "beta_grp"
 
 
-def _toy_prepared(*, drop_arm_at_t2: bool = False, nan_ability: bool = False):
+def _toy_prepared(
+    *,
+    drop_arm_at_t2: bool = False,
+    nan_ability: bool = False,
+    drop_arm_at_wave: int | None = None,
+    empty_wave: int | None = None,
+):
     """Minimal stand-in exposing the attributes validate_prepared reads."""
     import numpy as np
     from types import SimpleNamespace
@@ -369,12 +526,20 @@ def _toy_prepared(*, drop_arm_at_t2: bool = False, nan_ability: bool = False):
     post = np.full(child.shape, 5.0)
     if drop_arm_at_t2:
         post[(phase == 1) & (G == 1.0)] = np.nan  # no immediate-arm outcomes at t2
+    if drop_arm_at_wave is not None:
+        post[(phase == drop_arm_at_wave) & (G == 1.0)] = np.nan
+    if empty_wave is not None:
+        post[phase == empty_wave] = np.nan
     blocks = np.linspace(-1.0, 1.0, child.size)
     if nan_ability:
         blocks = blocks.copy()
         blocks[3] = np.nan
     return SimpleNamespace(
-        post_counts={"W": post}, phase=phase, G=G, covariates={"blocks": blocks},
+        post_counts={"W": post},
+        phase=phase,
+        G=G,
+        n_phases=n_phases,
+        covariates={"blocks": blocks},
     )
 
 
@@ -395,3 +560,28 @@ def test_validate_prepared_rejects_non_finite_ability():
     plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
     with pytest.raises(ValueError, match="non-finite 'blocks'"):
         plan.validate_prepared(_toy_prepared(nan_ability=True))
+
+
+def test_validate_prepared_rejects_t1_missing_an_arm():
+    """#584 finding 8: the t1 balance term the changes are measured from needs
+    both arms at t1 too — a one-arm baseline leaves it prior- and later-wave
+    driven while the report still calls the t2 change a t1-to-t2 randomised
+    difference-in-differences."""
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    with pytest.raises(ValueError, match="t1 rows.*both randomised arms"):
+        plan.validate_prepared(_toy_prepared(drop_arm_at_wave=0))
+
+
+def test_validate_prepared_rejects_a_post_crossover_wave_missing_an_arm():
+    """Every wave carries a published arm coefficient, so t3 needs both arms."""
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    with pytest.raises(ValueError, match="t3 rows.*both randomised arms"):
+        plan.validate_prepared(_toy_prepared(drop_arm_at_wave=2))
+
+
+def test_validate_prepared_rejects_an_unsupported_wave():
+    """An interior wave with no fitted rows leaves a prior-only published
+    coefficient (#584 finding 8)."""
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    with pytest.raises(ValueError, match=r"t4 rows.*both randomised arms.*\[\]"):
+        plan.validate_prepared(_toy_prepared(empty_wave=3))

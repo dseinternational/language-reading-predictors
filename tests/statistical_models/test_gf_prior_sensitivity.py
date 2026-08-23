@@ -241,10 +241,14 @@ def test_grid_for_follows_the_outcome_tau_tier():
 # --- attach: model-keyed bundles and the same-outcome sibling refusal -----------
 
 
+# Attach re-runs the convergence gate on each cell trace (#584 finding 3), so a
+# fixture cell must carry enough independent draws — and the ``energy`` BFMI
+# needs — to pass it, rather than declaring ``converged=True`` over five draws
+# from one chain.
 _CELL_SAMPLING = {
-    "draws": 5,
-    "tune": 3,
-    "chains": 1,
+    "draws": 400,
+    "tune": 100,
+    "chains": 4,
     "cores": 1,
     "target_accept": 0.95,
     "random_seed": 1,
@@ -294,7 +298,10 @@ def _rows_for(reference, sweep_dir: Path) -> pd.DataFrame:
             provenance, sort_keys=True, separators=(",", ":")
         )
         sample_stats = xr.Dataset(
-            {"diverging": (("chain", "draw"), np.zeros(shape, dtype=bool))},
+            {
+                "diverging": (("chain", "draw"), np.zeros(shape, dtype=bool)),
+                "energy": (("chain", "draw"), rng.normal(size=shape) * 5.0 + 100.0),
+            },
             coords={"chain": np.arange(shape[0]), "draw": np.arange(shape[1])},
         )
         token_id = reference.model_id.removeprefix("lrp-rli-")

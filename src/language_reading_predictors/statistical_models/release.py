@@ -769,13 +769,23 @@ def _model_tier(config: Mapping[str, Any]) -> str:
     44-cell sweep does not cover; everything else is ``primary``. Recorded on the
     decision even though the policy is currently uniform, so a graded policy needs no
     new plumbing and so the audit trail says which tier a fit was judged in.
+
+    The ``adjusted_robustness`` test is deliberately ITT-only. Other families put
+    confounders in ``adjust_for`` as part of their *primary* specification — the DAG
+    adjustment set of a level- or gain-factor primary, not a robustness comparator —
+    so keying the tier on the presence of an adjustment set alone labelled eight of
+    the eleven level primaries as robustness comparators (#584 lower-severity 7).
+    The withhold policy is uniform across tiers, so this corrects the audit label
+    rather than any release decision.
     """
     from language_reading_predictors.statistical_models.sensitivity import (
         STANDARD_SENSITIVITY_OUTCOMES,
     )
 
     plan = config.get("resolved_run_plan") or {}
-    if plan.get("adjust_for") or plan.get("adjustment"):
+    if config.get("kind") == "itt" and (
+        plan.get("adjust_for") or plan.get("adjustment")
+    ):
         return "adjusted_robustness"
     if str(config.get("outcome_symbol") or "") not in STANDARD_SENSITIVITY_OUTCOMES:
         return "off_grid"

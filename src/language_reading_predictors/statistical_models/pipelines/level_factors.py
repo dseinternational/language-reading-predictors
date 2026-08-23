@@ -19,7 +19,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-from rich import print as rprint
 
 from language_reading_predictors.models._reporting import (
     metrics_table,
@@ -35,7 +34,10 @@ from language_reading_predictors.statistical_models import (
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
-from language_reading_predictors.statistical_models.artifacts import save_table
+from language_reading_predictors.statistical_models.artifacts import (
+    guard_optional,
+    save_table,
+)
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
     StatisticalFitContext,
@@ -136,7 +138,13 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # power scaling. The plan opts out of the standard pre-PPC sensitivity slot.
     _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag)
     save_forest_plot(ctx, _forest_vars)
-    _diag.run_psense(ctx, var_names=_forest_vars)
+    # Power scaling covers the focal arm terms **and** the free nuisance scales
+    # (#584 finding 6): the stored suite flags ``sigma_child`` in every fit and
+    # ``kappa`` in most graded ones, and an audit that scans only the arm terms
+    # establishes focal-term behaviour rather than prior/likelihood robustness. The
+    # gate and the key-findings box still read the focal row only, so a nuisance
+    # conflict is disclosed in the psense table without silently blocking release.
+    _diag.run_psense(ctx, var_names=[*_forest_vars, *plan.nuisance_terms])
 
     section_header("Factor summary")
     # Only the t2 group contrast (plan.causal_terms) is the clean randomised effect;
@@ -251,8 +259,13 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         # grafted on by the (itself guarded) ``_attach_prior_groups``, and reading it
         # off a trace that has none raises AttributeError. This runs after sampling,
         # so an unguarded failure would lose a completed reporting-tier fit over a
-        # prior check. Degrade to a warning and no CSV instead.
-        try:
+        # prior check. Degrade to a warning and no CSV instead -- through
+        # ``guard_optional``, so the skip and its cause land in
+        # ``artifact_manifest.json`` rather than scrolling away in a warning the
+        # manifest never records (#584 lower-severity 1).
+        with guard_optional(
+            ctx, "prior_pushforward", filename="prior_pushforward.csv", kind="table"
+        ):
             pf = _report.level_prior_pushforward(
                 ctx.trace,
                 phase=built.prepared.phase,
@@ -263,10 +276,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 contrast_term=plan.focal_vector,
                 contrast_index=plan.focal_index,
             )
-        except Exception as exc:
-            rprint(f"[yellow]prior_pushforward skipped: {exc}[/yellow]")
-        else:
-            save_table(ctx, "prior_pushforward", pd.DataFrame([pf]))
+            save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
             meta_extra["prior_pushforward"] = pf
         # The external rope_card still emits the retired 90% band; strip it so the
         # level family's rope_summary.csv matches the median + 50% + 89% convention

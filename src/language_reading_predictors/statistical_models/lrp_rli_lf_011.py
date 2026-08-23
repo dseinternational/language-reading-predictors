@@ -39,6 +39,9 @@ comparator.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.level_factors import (
+    LevelFactorsModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.level_factors import fit_level_factors
 
 SPEC = ModelSpec(
@@ -46,15 +49,15 @@ SPEC = ModelSpec(
     kind="level_factors",
     title="Factors associated with the level of nonword reading (N), off-floor",
     outcome_symbol="N",
-    extra={
-        "ability_covariate": V.BLOCKS,
-        "adjust_for": ("deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
-        "group_by_time": True,
-        "ability_by_time": True,
-        "group_ability": True,
-        "arm_gap_reference": "t1",
-        "likelihood": "bernoulli_offfloor",
-    },
+    model_settings=LevelFactorsModelSettings(
+        ability_covariate=V.BLOCKS,
+        adjust_for=("deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
+        group_by_time=True,
+        ability_by_time=True,
+        group_ability=True,
+        arm_gap_reference="t1",
+        likelihood="bernoulli_offfloor",
+    ),
 )
 
 
