@@ -91,3 +91,29 @@ R behaves as predicted — kappa 78.5 to 88.7, no calibration change at all — 
 **What this does and does not license.** It is not evidence that any published effect is wrong; every tau is stable to three decimal places on the items scale. It is evidence that the expressive-vocabulary model's _predictive intervals_ are too wide under the registered prior, and that the suite-wide `HalfNormal(50)` is doing real work at n = 170 for at least one outcome rather than being the innocuous default it was documented as. Changing E's registered prior is a prior-specification decision for a model of record and needs explicit sign-off rather than being folded in here; the sweep is recorded so that decision can be made on measured evidence. If it is taken, `build_itt_model` already accepts `kappa_prior_family="halfnormal_inverse_sqrt"` and the change would be a one-line settings edit plus a refit of the E models (`lrp-rli-itt-006`, `-022`).
 
 The audit's own framing — "add a near-Binomial-capable dispersion-prior sensitivity for all high-denominator ITT outcomes" — was right to ask for the sweep and over-general in its scope: the answer is outcome-specific, and only E returns anything.
+
+## Fourth batch: adopting the dispersion-scale prior for E (finding 5 decision)
+
+Frank ruled on 2026-08-22 to apply the change for E and refit. `lrp-rli-itt-006` and `lrp-rli-itt-022` now declare `kappa_prior_family="halfnormal_inverse_sqrt"`; R and EI keep the suite default, since the sweep showed their priors do not bind. Both models were refitted at `reporting` and re-rendered.
+
+**Plumbing.** `IttModelSettings` gains `kappa_prior_family`, validated against `KAPPA_PRIOR_FAMILIES` and rejected outright for `floor_rule` fits, whose Bernoulli off-floor likelihood has no `kappa` to give a prior to. It threads through `IttRunPlan.as_dict` and `factory_kwargs` to `build_itt_model`, so `config.json` records it in `resolved_run_plan` and the reuse contract already covers it. Three reporting surfaces needed to follow: `itt_diagnostic_variables` adds `inv_sqrt_kappa` so the _sampled_ parameter reaches `diagnostics.csv` and the prior-vs-posterior overlay rather than only its reciprocal-square transform; `recipe_markdown` explains the reparameterisation in plain words; and the priors table needed nothing, because `priors._REPARAMETERISED_DETERMINISTICS` already maps `kappa` to `inv_sqrt_kappa` from the 2026-08-21 RLM review, so `priors_table.csv` correctly shows `inv_sqrt_kappa ~ HalfNormal(0.25)` and no longer claims a `HalfNormal(50)` the model does not use.
+
+**A defect in the first batch's own fix, found by reading production output.** The refit's `diagnostics_summary.json` came back without the `diagnostics_assessable` key. `_fail_on_unassessable` mutated the payload but only re-wrote the JSON _inside_ the `if unassessable:` branch, so a clean fit never recorded that the check had run — indistinguishable on disk from a fit predating the check — and the file disagreed with the `tables` entry built from the same payload. The gate itself was never wrong (an absent key adds no check; a failing one is written and caught), but the audit trail was. Now written unconditionally, with tests covering both the clean and the failing case.
+
+**Result: the null finding for E sharpens; it does not flip.**
+
+|                                 |   itt-006 before |    itt-006 after |   itt-022 before |    itt-022 after |
+| ------------------------------- | ---------------: | ---------------: | ---------------: | ---------------: |
+| AME (items)                     |           +0.184 |           +0.113 |           +0.217 |           +0.093 |
+| 50% interval (items)            | -1.180 to +1.552 | -0.962 to +1.181 | -1.190 to +1.583 | -0.965 to +1.181 |
+| P(negligible, in ROPE)          |            0.674 |        **0.786** |            0.663 |        **0.789** |
+| P(meaningful benefit)           |            0.185 |            0.120 |            0.193 |            0.118 |
+| P(meaningful harm)              |            0.141 |            0.093 |            0.145 |            0.093 |
+| PPC 50% coverage (nominal 0.50) |            0.722 |        **0.611** |            0.722 |        **0.630** |
+| PPC 90% coverage (nominal 0.90) |            0.963 |        **0.944** |            0.981 |        **0.944** |
+
+Both refits are clean — zero divergences, R-hat 1.0007 / 1.0010, minimum ESS 5739 / 6074 — and both release `ok`.
+
+The 50% effect interval narrows by about 22%, which on a causal estimand deserves stating rather than burying. It is justified by evidence independent of the effect itself: predictive calibration improves at both levels and in both models, in the direction of the nominal rate, so the previous intervals were wide because the model was over-dispersing the outcome, not because the data were less informative than the refit implies. The direction is unchanged (`favoured_direction_prob` 0.534 to 0.529), the estimate remains null on any reading, and the substantive conclusion strengthens: more posterior mass inside the ROPE and less in _both_ meaningful-benefit and meaningful-harm.
+
+**Known inconsistency, deliberately left.** `lrp-rli-itt-012`, the ten-outcome joint fit, includes E and keeps `kappa ~ HalfNormal(50)` for every outcome. `build_joint_model` gives the whole outcome vector one shared prior, so making E's differ there is a design change to the joint family rather than a settings edit, and the sweep tested single-outcome fits only. A reader comparing E's single-outcome and joint results should know the two now use different dispersion priors. Worth revisiting if the joint family is next touched.

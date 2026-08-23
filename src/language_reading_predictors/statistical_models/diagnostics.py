@@ -711,12 +711,17 @@ def _fail_on_unassessable(
             "[red]  Convergence gate: REVIEW — R-hat / ESS could not be assessed "
             f"for {shown}[/red]"
         )
-        with open(
-            os.path.join(context.output_dir, "diagnostics_summary.json"),
-            "w",
-            encoding="utf-8",
-        ) as handle:
-            json.dump(payload, handle, indent=2, default=str)
+    # Rewritten whether or not the scan found anything, so the artefact records
+    # that the check *ran*. Writing only on failure left every clean fit's
+    # ``diagnostics_summary.json`` without the key, which reads identically to a
+    # fit from before the check existed — and left the file disagreeing with the
+    # ``tables`` entry built from the same payload.
+    with open(
+        os.path.join(context.output_dir, "diagnostics_summary.json"),
+        "w",
+        encoding="utf-8",
+    ) as handle:
+        json.dump(payload, handle, indent=2, default=str)
     if context.tables is not None:
         context.tables["diagnostics_summary"] = payload
     return payload

@@ -56,6 +56,7 @@ _LEGACY_KEYS = frozenset(
         "floor_rule_provenance",
         "gamma_own_sigma",
         "kappa_sigma",
+        "kappa_prior_family",
         "missingness_sensitivity",
         "outcomes",
         "pre_required",
@@ -161,6 +162,7 @@ class IttModelSettings:
     alpha_sigma: float | None = None
     gamma_own_sigma: float | None = None
     kappa_sigma: float | None = None
+    kappa_prior_family: str = "halfnormal_concentration"
     score_mean_link: ScoreMeanLink = "logit"
     floor_rule: bool = False
     floor_rule_provenance: str | None = None
@@ -211,6 +213,19 @@ class IttModelSettings:
             value = getattr(self, name)
             if value is not None and (not isinstance(value, str) or not value):
                 raise TypeError(f"{name} must be a non-empty string or None")
+        if self.kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
+            raise ValueError(
+                "kappa_prior_family must be one of "
+                f"{sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
+            )
+        if self.floor_rule and self.kappa_prior_family != "halfnormal_concentration":
+            # The floor rule's Bernoulli off-floor likelihood has no ``kappa`` at
+            # all, so declaring a dispersion prior for it would name a parameter
+            # the posterior lacks.
+            raise ValueError(
+                f"{self.__class__.__name__}: floor_rule has no dispersion "
+                "parameter, so kappa_prior_family must stay at its default"
+            )
         if self.score_mean_link not in SCORE_MEAN_LINKS:
             raise ValueError(
                 f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
@@ -295,6 +310,9 @@ class IttModelSettings:
             alpha_sigma=_legacy_optional_float(extra, "alpha_sigma"),
             gamma_own_sigma=_legacy_optional_float(extra, "gamma_own_sigma"),
             kappa_sigma=_legacy_optional_float(extra, "kappa_sigma"),
+            kappa_prior_family=str(
+                extra.get("kappa_prior_family", "halfnormal_concentration")
+            ),
             score_mean_link=extra.get("score_mean_link", "logit"),
             floor_rule=_legacy_bool(extra, "floor_rule", False),
             floor_rule_provenance=extra.get("floor_rule_provenance"),
@@ -362,6 +380,7 @@ class IttRunPlan:
     alpha_sigma: float | None
     gamma_own_sigma: float | None
     kappa_sigma: float | None
+    kappa_prior_family: str
     score_mean_link: ScoreMeanLink
     required_link_companion_model_id: str | None
     link_sensitivity_required_for_release: bool
@@ -415,6 +434,7 @@ class IttRunPlan:
             "alpha_sigma": self.alpha_sigma,
             "gamma_own_sigma": self.gamma_own_sigma,
             "kappa_sigma": self.kappa_sigma,
+            "kappa_prior_family": self.kappa_prior_family,
             "score_mean_link": self.score_mean_link,
         }
 
@@ -451,6 +471,16 @@ class IttRunPlan:
                 "a Beta-Binomial likelihood, which allows more between-child "
                 "variation than a plain Binomial model."
             )
+            if self.kappa_prior_family == "halfnormal_inverse_sqrt":
+                likelihood += (
+                    " How much extra variation is estimated on the dispersion "
+                    "scale (1 / sqrt(kappa)) rather than directly on the "
+                    "concentration, so the model can also conclude there is "
+                    "*no* extra variation beyond a plain Binomial. A "
+                    "half-normal prior placed on the concentration itself "
+                    "cannot reach that conclusion at this test's length, so it "
+                    "would impose a floor on the estimated over-dispersion."
+                )
         baseline_terms = []
         if self.use_own_baseline:
             baseline_terms.append("the outcome's t1 score as a linear precision term")
@@ -579,6 +609,14 @@ def declared_settings_dict(spec: ModelSpec) -> dict[str, Any]:
             )
         return _tag_settings_source(spec, asdict(settings), source="typed")
     return dict(spec.extra)
+
+
+#: Dispersion prior families a graded ITT model may declare. The default is the
+#: registered suite prior ``kappa ~ HalfNormal(50)``;
+#: ``"halfnormal_inverse_sqrt"`` samples ``1 / sqrt(kappa) ~ HalfNormal(0.25)``
+#: instead, which unlike the default can reach the near-Binomial limit
+#: ``kappa >> n_trials`` (2026-08-22 ITT audit, finding 5).
+KAPPA_PRIOR_FAMILIES = ("halfnormal_concentration", "halfnormal_inverse_sqrt")
 
 
 def _reject_duplicates(model_id: str, name: str, values: tuple[str, ...]) -> None:
@@ -849,6 +887,7 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         alpha_sigma=settings.alpha_sigma,
         gamma_own_sigma=settings.gamma_own_sigma,
         kappa_sigma=settings.kappa_sigma,
+        kappa_prior_family=settings.kappa_prior_family,
         score_mean_link=settings.score_mean_link,
         required_link_companion_model_id=(
             "lrp-rli-itt-008"
@@ -933,6 +972,12 @@ def itt_diagnostic_variables(
         variables.append("gamma_A")
     if effective_likelihood == "beta_binomial":
         variables.append("kappa")
+        if plan.kappa_prior_family == "halfnormal_inverse_sqrt":
+            # ``kappa`` is a Deterministic under this family, so name the sampled
+            # parameter too: the human-readable diagnostics table and the
+            # prior-vs-posterior overlay should show what NUTS actually explored,
+            # not only its reciprocal-square transform.
+            variables.append("inv_sqrt_kappa")
     variables.extend(f"gamma_{name}" for name in effective_adjustment)
     if plan.tau_moderator_symbol is not None:
         variables.append("gamma_tau_mod")
