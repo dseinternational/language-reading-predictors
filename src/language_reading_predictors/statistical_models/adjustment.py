@@ -29,6 +29,9 @@ def effective_adjustment(
     baseline_symbol: str | None = None,
     baseline_symbols: tuple[str, ...] = (),
     skill_baselines: tuple[str, ...] = (),
+    moderator_symbol: str | None = None,
+    moderator_is_covariate: bool = False,
+    moderator_interaction: bool = False,
 ) -> dict:
     """Describe the adjustment set the model **actually fitted**.
 
@@ -58,6 +61,18 @@ def effective_adjustment(
     ``requested_adjust_for`` is the plan declaration before the loader removes a
     constant covariate. It defaults to ``adjust_for`` for callers whose fitted and
     requested sets are identical.
+
+    ``moderator_symbol`` records the mechanism family's linear moderation terms. The
+    factory always fits a moderator main effect (``gamma_mod``) and, when
+    ``moderator_interaction``, an exposure-by-moderator product (``gamma_int``);
+    neither reached the record, so a fit could name a term in ``requested`` and omit
+    it from ``fitted`` while estimating a coefficient for it (#586 finding 9). The
+    clearest case is age moderation (mech-073), where the factory deliberately drops
+    the separate linear ``gamma_A`` because ``gamma_mod`` *is* the age adjustment —
+    so age was listed as requested, absent from the fitted terms, and adjusted for
+    all along. They are recorded under their own ``moderator*`` kinds, never
+    relabelled as confounders: a moderator that descends from the exposure is not a
+    backdoor adjuster, and the record must not imply that it is.
     """
     requested_adjust_for = (
         adjust_for if requested_adjust_for is None else requested_adjust_for
@@ -158,6 +173,39 @@ def effective_adjustment(
                 "missing_indicator": False,
             }
         )
+    if moderator_symbol:
+        if moderator_symbol == "A":
+            _source, _wave, _scale = "age", "pre", "standardised age"
+        elif moderator_is_covariate:
+            _source = moderator_symbol
+            _wave = prepared.covariate_time.get(moderator_symbol, "unknown")
+            _scale = "standardised raw covariate"
+        else:
+            _source = prepared.column_map.get(moderator_symbol, moderator_symbol)
+            _wave, _scale = "post", "standardised logit of the post count"
+        terms.append(
+            {
+                "term": "gamma_mod",
+                "kind": "moderator_main_effect",
+                "moderator": moderator_symbol,
+                "source_column": _source,
+                "wave": _wave,
+                "scale": _scale,
+                "missing_indicator": False,
+            }
+        )
+        if moderator_interaction:
+            terms.append(
+                {
+                    "term": "gamma_int",
+                    "kind": "moderator_interaction",
+                    "moderator": moderator_symbol,
+                    "source_column": _source,
+                    "wave": _wave,
+                    "scale": f"standardised exposure x {_scale}",
+                    "missing_indicator": False,
+                }
+            )
     return {
         "requested": list(spec.adjustment)
         + list(skill_baselines)

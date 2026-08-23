@@ -144,6 +144,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # computed numbers.
     _items_worked = _write_mechanism_items(ctx)
     _write_readiness_threshold(ctx)
+    _write_exposure_support(ctx)
 
     # Record the adjustment set that was actually FITTED — with each term's source
     # column, measurement wave and missing-indicator status — not just the requested
@@ -166,6 +167,16 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             requested_adjust_for=run_plan.adjust_for
             + ((run_plan.ability_covariate,) if run_plan.ability_covariate else ()),
             baseline_symbol=run_plan.adjust_baseline_symbol,
+            # The fitted moderation terms. ``gamma_mod`` carries a coefficient on
+            # every moderated fit, and for age moderation it *is* the age adjustment
+            # (the factory drops the separate linear ``gamma_A`` as collinear), so
+            # omitting it left a coefficient-bearing conditioning term unnamed
+            # (#586 finding 9).
+            moderator_symbol=run_plan.moderator_symbol,
+            moderator_is_covariate=run_plan.moderator_is_covariate,
+            moderator_interaction=(
+                run_plan.moderator_symbol is not None and run_plan.include_interaction
+            ),
         ),
     }
     # Items-scale worked-example reference points (#319): recorded so the caption
@@ -231,6 +242,56 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     write_run_metadata(ctx, extra=meta_extra)
 
     return finalize_report(ctx)
+
+
+def _write_exposure_support(ctx: StatisticalFitContext) -> None:
+    """Fitted exposure support by period and randomised arm (#586 finding 2).
+
+    A pooled exposure range hides whether the range is populated the same way in
+    every period and both arms. mech-191's did not: its lowest sessions values were
+    the entire period-1 waitlist arm, so the bottom of a "0 to 94 sessions" curve was
+    an arm-and-period contrast, not a dose one — and no published artefact showed it.
+    One row per (phase, arm) cell with the count and the exposure quantiles, so
+    structural non-overlap is visible rather than inferred.
+    """
+    run_plan = _mechanism_run_plan(ctx)
+    sym = run_plan.mechanism_symbol
+    prepared = ctx.prepared
+    if run_plan.mechanism_is_covariate:
+        scaler = prepared.covariate_scalers.get(sym)
+        z = np.asarray(prepared.covariates[sym], dtype=float)
+        values = scaler.inverse(z) if scaler is not None else z
+        unit = f"{sym} raw score"
+    elif sym in prepared.post_counts:
+        values = np.asarray(prepared.post_counts[sym], dtype=float)
+        unit = f"{sym} items"
+    else:  # pragma: no cover - the factory keep-mask guarantees one of the above
+        return
+
+    arm_label = {0: "wait-list", 1: "immediate"}
+    rows = []
+    for phase in sorted(set(int(p) for p in prepared.phase)):
+        for arm in sorted(set(int(g) for g in prepared.G)):
+            cell = values[(prepared.phase == phase) & (prepared.G == arm)]
+            if not cell.size:
+                continue
+            rows.append(
+                {
+                    "phase": phase,
+                    "period": f"t{phase + 1}->t{phase + 2}",
+                    "arm": arm_label.get(arm, str(arm)),
+                    "exposure_unit": unit,
+                    "n_rows": int(cell.size),
+                    "n_at_zero": int((cell <= 0).sum()),
+                    "min": float(np.min(cell)),
+                    "q25": float(np.quantile(cell, 0.25)),
+                    "median": float(np.median(cell)),
+                    "q75": float(np.quantile(cell, 0.75)),
+                    "max": float(np.max(cell)),
+                }
+            )
+    if rows:
+        save_table(ctx, "exposure_support", pd.DataFrame(rows), register=False)
 
 
 def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:

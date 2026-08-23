@@ -16,8 +16,9 @@ the HSGP mechanism of LRP63 and ``moderator_symbol="N"`` in both to remove any p
 leak into the ELPD difference (issue #270 item 3).
 
 As in LRP63, N is a DAG-descendant of the exposure L (``LS -> ... -> NW``), so conditioning
-on N makes ``beta_mech`` a controlled-direct (not total) L -> W effect; this baseline
-shares that estimand, so the nested LOO comparison is like-for-like. N is ~57% floored,
+on N gives ``beta_mech`` the shape of a controlled-direct (not total) L -> W effect,
+though it remains an adjusted association rather than an identified controlled direct
+effect (#586 finding 10); this baseline shares that estimand, so the nested LOO comparison is like-for-like. N is ~57% floored,
 so the interaction it tests is weakly powered - the LOO contrast is suggestive at best.
 See ``notes/202607172000-adjustment-set-review-full-suite.md``.
 """

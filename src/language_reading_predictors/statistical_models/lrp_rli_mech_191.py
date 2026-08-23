@@ -20,13 +20,28 @@ if *conditioned on*, reopens the latent-GA backdoor (see LRP77/#269); here sessi
 the exposure, not an adjuster, so that caveat is about a different quantity, but
 per-period sessions keeps this model consistent with the established dose model and the
 DAG's IS node. ``mechanism_is_covariate`` enters it as a standardised continuous
-covariate. ``attend`` is not in the mean-fill covariate set, so its 55 missing values
-(the pre-/no-intervention rows, where a per-period session count is undefined) survive
-as NaN and are dropped by the factory's exposure keep-mask - the on-intervention rows
-that actually carry a dose are exactly the ones a dose-response should use. (No
-``require_observed`` flag: that path needs an ``attend_missing`` indicator the loader
-does not build for ``attend``, and adding one would silently change the fitted sample
-of every model that already adjusts for ``attend``, e.g. LRP58.)
+covariate.
+
+**Population: on-intervention periods only** (``exposure_positive_only``, #586
+finding 2, decided 2026-08-23). ``attend`` is an *interval* covariate read from a
+transition's **pre** row, and the loader records an absent session count as a zero
+rather than as missing. An earlier version of this model claimed its 55 missing
+``attend`` values left "exactly the on-intervention rows". They did not: 54 of those 55
+are t4 cells, which are never a transition's pre row and so could not have entered the
+three-transition frame at all, and only one was a relevant t2 cell. The frame that
+actually fitted held **156 rows from 53 children, 28 of them at zero sessions** - and
+those zeros were structured, not scattered. In period 1 *all 25* fitted waitlist rows
+sat at zero and *no* immediate-arm row did, with only seven fitted rows anywhere in
+1-30 sessions. The bottom of the "0 to 94 sessions" range was therefore an arm and
+period contrast wearing a dose label, and an arm covariate cannot manufacture overlap
+where the exposure support is structurally disjoint.
+
+The zero-session rows are now excluded. What remains is an association **among treated
+periods** - the intensive margin only. It does not use the randomised zero-dose anchor
+and says nothing about intervention versus none; that contrast belongs to the ITT
+suite. (No ``require_observed`` flag: that path needs an ``attend_missing`` indicator
+the loader does not build for ``attend``, and adding one would silently change the
+fitted sample of every model that already adjusts for ``attend``, e.g. LRP58.)
 
 **Adjustment set (revised DAG, 2026-07-10).** Re-derived by a backdoor d-separation
 search with the latent GA held (the criterion that reproduces LRP58 and dose-077
@@ -41,8 +56,15 @@ reflects ability, attendance and availability) and IS is a partial collider, so 
 curve is an ADJUSTED ASSOCIATION / sensitivity view, never a treatment effect. Residual
 confounding by latent general ability (GA) remains. The corresponding randomised-arm
 result is an available-case modified ITT estimate in the ITT suite; read this as
-"children who attended more scored higher, and here is
-whether that relationship bends", not "more sessions cause faster progress".
+"among children receiving the intervention, those who attended more scored higher, and
+here is whether that relationship bends", not "more sessions cause faster progress" and
+not "this many sessions is the threshold". Any located steepest interval is a feature
+of the fitted curve over the observed range, and the report only calls it a knee when
+the curve genuinely bends and the location is interior to the observed support.
+
+**Awaiting refit.** The stored ``reporting`` artefacts predate this population change
+and were fitted on the zero-anchored frame; they must not be read against the text
+above until the model is refitted.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -64,9 +86,13 @@ SPEC = ModelSpec(
         # so no hearing/speech/measure adjusters are required (they are not parents
         # of IS). Matches dose-077.
         "adjust_for": (),
-        # Continuous-covariate exposure with the HSGP curve ON (knee-test): the
-        # readiness knee is reported in raw sessions, not a bounded count.
+        # Continuous-covariate exposure with the HSGP curve ON: the steepest
+        # interval is reported in raw sessions, not a bounded count.
         "mechanism_is_covariate": True,
+        # On-intervention periods only (#586 finding 2). Without it the frame kept
+        # 28 zero-session rows, 25 of them the entire period-1 waitlist arm, so the
+        # low end of the curve was an arm/period contrast rather than a dose one.
+        "exposure_positive_only": True,
         "use_age_gp": False,
         "phase_specific_mechanism": False,
         "use_subject_random_intercept": True,

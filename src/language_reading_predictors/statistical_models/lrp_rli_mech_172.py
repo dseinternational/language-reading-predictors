@@ -20,8 +20,9 @@ item 3). Keeping `moderator_symbol="B"` in both removes that leak. See
 `lrp-rli-mech-072.py`.
 
 As in LRP72, B = PA is a DAG-descendant of the exposure L (``LS -> PA``), so
-conditioning on B makes ``beta_mech`` a controlled-direct (not total) L -> N effect;
-this baseline shares that estimand, so the nested LOO comparison is like-for-like.
+conditioning on B gives ``beta_mech`` the shape of a controlled-direct (not total)
+L -> N effect, though it remains an adjusted association rather than an identified
+controlled direct effect (#586 finding 10); this baseline shares that estimand, so the nested LOO comparison is like-for-like.
 See ``notes/202607172000-adjustment-set-review-full-suite.md``.
 """
 

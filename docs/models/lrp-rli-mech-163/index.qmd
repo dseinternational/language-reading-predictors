@@ -30,7 +30,7 @@ main effect — a clean **nested** comparison.
 The purpose is model comparison: LRP63 versus LRP63base asks whether adding the letter-sound
 $\times$ decoding interaction improves predictive fit for word reading (PSIS-LOO). Because nonword
 decoding $N = \mathrm{NW}$ is a DAG-descendant of the exposure $L$, both models estimate a
-**controlled-direct** $L \to W$ effect at fixed decoding, so the comparison is like-for-like.
+controlled-direct-**shaped** $L \to W$ association at fixed decoding — an adjusted association, not an identified controlled direct effect (#586 finding 10) — so the comparison is like-for-like.
 Decoding is $\approx 57\%$ floored, so the interaction the comparison tests is weakly powered and
 the LOO contrast is suggestive at best. All coefficients are latent-GA-confounded adjusted
 associations, not causal skill-to-skill effects.

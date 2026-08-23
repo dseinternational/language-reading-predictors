@@ -59,9 +59,7 @@ nonword decoding $N$ enters **additionally**, via its main effect and interactio
 
 _Decoding is a downstream skill, not a parallel prerequisite._ Nonword decoding
 $N = \mathrm{NW}$ is a **DAG-descendant of the exposure** $L$ ($\mathrm{LS} \to \dots \to \mathrm{NW}$).
-Conditioning on it makes $f^L$ a **controlled-direct** effect of letter sounds *at fixed decoding*,
-and $\gamma_{\text{int}}$ is **effect-modification by a downstream skill**, not a symmetric "need
-both" prerequisite test — the estimand caveat documented on [LRP72](../lrp-rli-mech-072).
+Conditioning on it makes $f^L$ a **controlled-direct-effect-shaped** quantity — the exposure association *at a fixed level of that descendant*. It is **not** a controlled direct effect: that reading requires the exposure to be randomised or its backdoors closed, and neither holds here, so it remains an adjusted association (#586 finding 10). By the same token $\gamma_{\text{int}}$ is **descriptive moderation by a downstream skill**, not causal effect modification, and not a symmetric "need both" prerequisite test — the estimand caveat documented on [LRP72](../lrp-rli-mech-072).
 
 _Weakly powered — suggestive at best._ Nonword decoding is $\approx 57\%$ floored (median 0), so
 $z(N)$ carries little variation and this interaction is **weakly powered**; read

@@ -8,6 +8,54 @@ Mechanism coefficients and curves are **adjusted associations**. They describe h
 two measured skills go together after the specified adjustment set; they do not
 identify a causal skill-to-skill effect under the revised DAG.
 
+Exposure and outcome are measured at the **same wave**. Conditioning the outcome on
+its own previous score does not make the exposure temporally prior to it, so nothing
+here rules out reverse or synchronised development. The child random intercept
+absorbs repeated-measures dependence; it is **not** a control for latent general
+ability, and because it is not allowed to correlate with the exposure, the fitted
+coefficient or curve mixes between-child and within-child information.
+
+```{python}
+# | echo: false
+# Functional form, lengthscale prior and exposure units come from the resolved run
+# plan, so the prose below cannot describe a model this fit is not (#586 finding 3:
+# the shared text called all 41 registered fits an HSGP curve with an
+# InverseGamma(5, 5) lengthscale, though 21 are linear and 16 fit InverseGamma(8, 8)).
+_plan = config.get("resolved_run_plan") or {}
+_extra_cfg = config.get("extra") or {}
+_mech_is_covariate = bool(
+    _plan.get("mechanism_is_covariate", _extra_cfg.get("mechanism_is_covariate", False))
+)
+_mech_is_linear = bool(_plan.get("linear_mechanism", False))
+_mech_form = "linear slope" if _mech_is_linear else "HSGP curve"
+_mech_ell = (
+    "InverseGamma(8, 8)"
+    if _plan.get("mech_lengthscale_tight")
+    else "InverseGamma(5, 5)"
+)
+_mech_sym = config.get("mechanism_symbol") or "the exposure"
+_exposure_units = (
+    f"{_mech_sym} raw-score units" if _mech_is_covariate else f"{_mech_sym} items"
+)
+
+# Focal GP prior sensitivity (#586 finding 12). Every stored HSGP mechanism fit has
+# both f_mech hyperparameters flagged by power scaling. Mechanism fits are exempt
+# from the treatment-effect robustness gate because they are observational, but
+# identification status and prior robustness are separate questions — an
+# observational curve can still be too regularisation-dependent to read as a shape.
+_psense = _csv("psense_summary.csv")
+_focal_prior_flags = []
+if _psense is not None and not _mech_is_linear and len(_psense.columns):
+    _pcol = _psense.columns[0]
+    _diag = "diagnosis" if "diagnosis" in _psense.columns else None
+    if _diag is not None:
+        for _, _r in _psense.iterrows():
+            _name = str(_r[_pcol])
+            # "✓" is this column's *clear* marker, not a verdict of concern.
+            if _name.startswith("f_mech__") and str(_r[_diag]).strip() not in ("✓", "", "nan"):
+                _focal_prior_flags.append((_name, str(_r[_diag]).strip()))
+```
+
 ```{python}
 # | echo: false
 interaction_summary = _csv("interaction_summary.csv")
@@ -129,17 +177,50 @@ if _mi is not None and "quantity" in _mi.columns:
 
 ### Mechanism curve (items scale)
 
-_The reader-facing view._ The same fitted dose–response as the analyst's logit
-curve below, but on the **items scale**: the earlier skill in its own test units
-along the horizontal axis, the predicted outcome in test units up the vertical
-axis, with the shaded 89% credible ribbon. The other covariates are held at their
-fitted-sample means and the curve is population-level over the child intercepts
-(a typical child, not any fitted one). Because the logit link is nonlinear, the
-items-scale "exchange rate" varies along the curve — the same step in the earlier
-skill buys more predicted items in the steep middle than in the flat tails — which
-is exactly what the logit view hides.
-
-_Comparing the GP curve with its linear anchor._ Where a companion model fits the same skill→outcome relation with a plain linear slope, the HSGP curve here is the more heavily regularised of the two — a deliberately tight amplitude (`eta ~ HalfNormal(0.3)`) and a moderate-to-long lengthscale (`ell ~ InverseGamma(5, 5)`), neither of which constrains the linear anchor. A GP-vs-linear difference therefore reflects prior/regularisation strength as well as functional form, so read the knee and saturation features below as _suggestive_ of nonlinearity over the observed range rather than as a clean functional-form contrast, and read the sign and existence of the association (robust) separately from its magnitude (regularisation-dependent).
+```{python}
+# | echo: false
+# | output: asis
+print(
+    "_The reader-facing view._ The same fitted relation as the analyst's logit "
+    "view below, but on the **items scale**: the exposure in its own test units "
+    "along the horizontal axis, the predicted outcome in test units up the vertical "
+    "axis, with the shaded 89% credible ribbon. The other covariates are held at "
+    "their fitted-sample means and the curve is population-level over the child "
+    "intercepts (a typical child, not any fitted one). Because the logit link is "
+    "nonlinear, the items-scale \"exchange rate\" varies along the curve — the same "
+    "step in the exposure buys more predicted items in the middle of the outcome "
+    "scale than in the flat tails — which is exactly what the logit view hides."
+)
+print(
+    "\n\n_Note the two exposure ranges._ This curve's worked example contrasts the "
+    "**interquartile** exposure values of the fitted rows for a typical child, while "
+    "the key-findings headline contrasts the **observed minimum and maximum** and "
+    "averages predicted probabilities across the fitted rows (keeping each row's own "
+    "phase, covariates, baseline and child intercept). Both are legitimate "
+    "descriptive quantities, but they are different estimands over different exposure "
+    "intervals, so the two numbers are not expected to match."
+)
+if not _mech_is_linear:
+    print(
+        "\n\n_Comparing the GP curve with a linear anchor._ Where a companion model "
+        "fits the same exposure→outcome relation with a plain linear slope, the HSGP "
+        "curve here is the more heavily regularised of the two — a deliberately tight "
+        "amplitude (`eta ~ HalfNormal(0.3)`) and a moderate-to-long lengthscale "
+        f"(`ell ~ {_mech_ell}`), neither of which constrains the linear anchor. A "
+        "GP-versus-linear difference therefore reflects prior and regularisation "
+        "strength as well as functional form, so read any shape feature below as "
+        "_suggestive_ of nonlinearity over the observed range rather than as a clean "
+        "functional-form contrast."
+    )
+else:
+    print(
+        "\n\n_Functional form._ This fit enters the exposure as a **single linear "
+        "slope** (`beta_mech`) on its standardised scale, not as a nonparametric "
+        "curve: any bend visible on the items scale is the logit link, not fitted "
+        "shape. There is therefore no GP lengthscale, no fitted curve table and no "
+        "steepest-interval summary for this model."
+    )
+```
 
 ```{python}
 # | echo: false
@@ -160,7 +241,7 @@ if _mech_items_figure:
         "computed from the posterior. As with every quantity in this family it is an "
         "**adjusted association under the DAG, not a causal effect** — the intervention "
         "is not being moved here, so this is not what would happen if a child were taught "
-        "more of the earlier skill."
+        "more of the exposure skill."
     )
 ```
 
@@ -170,24 +251,57 @@ mechanism_curve_items = _csv("mechanism_curve_items.csv")
 mechanism_curve_items.head(15) if mechanism_curve_items is not None else "No items-scale mechanism curve table."
 ```
 
+### Exposure support by period and arm
+
+```{python}
+# | echo: false
+exposure_support = _csv("exposure_support.csv")
+exposure_support if exposure_support is not None else "No exposure-support table (older fit; regenerate to add it)."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if exposure_support is not None and len(exposure_support):
+    print(
+        "_Why this table is here._ One common slope or curve is fitted across the "
+        "randomised period and the two post-crossover periods, and one common arm "
+        "coefficient across all three. That assumes the relationship is stable over "
+        "substantively different treatment histories. Where a period or arm occupies "
+        "a different part of the exposure range, group-by-period structure the model "
+        "does not carry can be absorbed by the exposure term instead — so read the "
+        "cells below before reading the curve, and treat a cell with little or no "
+        "overlap as a place the pooled fit is extrapolating rather than comparing."
+    )
+    _zero_cells = exposure_support[exposure_support["n_at_zero"] > 0]
+    if len(_zero_cells):
+        print(
+            "\n\nCells containing zero-exposure rows: "
+            + "; ".join(
+                f"{r.period} {r.arm} ({int(r.n_at_zero)} of {int(r.n_rows)})"
+                for r in _zero_cells.itertuples()
+            )
+            + ". Where a whole arm-period cell sits at zero, the low end of the "
+            "exposure range is an arm and period contrast rather than a dose one."
+        )
+```
+
 ### Mechanism curve (analyst's logit scale)
 
 ```{python}
 # | echo: false
 # | output: asis
-_mech_is_covariate = bool((config.get("extra") or {}).get("mechanism_is_covariate", False))
 print(_img("mechanism_curve.png", "Adjusted mechanism curve"))
 if _mech_is_covariate:
     _axis_read = (
-        "the horizontal axis is the mechanism variable's raw score (this exposure "
+        "the horizontal axis is the exposure's raw score (this exposure "
         "is a continuous covariate, not a bounded-count measure, so no logit "
         "transform applies)"
     )
 else:
     _axis_read = (
-        "the horizontal axis is the mechanism "
-        "variable (the earlier skill, on the logit scale — negative values are lower "
-        "scores)"
+        "the horizontal axis is the exposure measure, on the logit scale — negative "
+        "values are lower scores"
     )
 print(
     f"\n_How to read the mechanism curve:_ {_axis_read}; "
@@ -195,7 +309,7 @@ print(
     "in logit units. The solid line is the posterior-mean contribution and "
     "the shaded band its credible interval, so the band's width shows how uncertain "
     "the curve is at each point (it is typically wider where the data thin out). An "
-    "upward slope means higher earlier-skill scores are associated with a higher "
+    "upward slope means higher exposure scores are associated with a higher "
     "outcome after adjustment; a band that straddles the flat no-association level "
     "means the association is not resolved there. Read the shape and the band, not a "
     "single point — and, as above, this is an adjusted association, not a causal effect."
@@ -228,20 +342,51 @@ if mechanism_curve is not None and all(c in mechanism_curve.columns for c in ("f
     )
 ```
 
-### Readiness threshold
-
-_Where does the outcome rise fastest?_ This post-processes the mechanism curve above into the predictor count at which the outcome rises fastest per additional item — the curve's steepest rise, its "knee". For letter-sounds to word reading it reads as "reading rises fastest around about _k_ letter sounds". Note the knee is the middle of the rise, not its onset: the outcome is already moving before it, so whether it is near-flat below the knee is answered by the below-knee slope reported alongside, not by the knee itself. It is a feature of the fitted curve over the observed range, not a manipulation effect, so read it as an adjusted association like the curve itself.
+### Steepest interval of the fitted curve
 
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("readiness_threshold.png", "Readiness threshold (steepest rise) on the mechanism curve"))
+if _mech_is_linear:
+    print(
+        "This fit has no nonparametric curve to locate an interval in — the exposure "
+        "enters as a single linear slope — so this section is not applicable."
+    )
+else:
+    print(
+        "_Where does the fitted curve rise fastest?_ This post-processes the curve "
+        "above into the exposure value at which its contribution rises fastest. Two "
+        "things about the statistic decide how much it can carry.\n"
+    )
+    print(
+        "First, the **scale**: the curve is a contribution on the outcome's *logit* "
+        "scale, so this is the steepest latent-logit interval. The expected-items "
+        "derivative carries an extra `p * (1 - p)` factor from the inverse link and "
+        "can peak at a different exposure value, so this is not \"where outcome items "
+        "rise fastest\".\n"
+    )
+    print(
+        "Second, **a rise is not a threshold**. A straight increasing line rises in "
+        "every posterior draw and still yields an arbitrary maximum, and a curve that "
+        "is still steepening where the data stop pins that maximum on the last "
+        "interval, where it is bounded by the range of the data rather than located by "
+        "them. It is only reported as a *knee* when the curve rises, the winning "
+        "interval is interior, and the slope above it beats the slope below it with at "
+        "least moderate evidence — otherwise it is a descriptive location only."
+    )
 ```
 
 ```{python}
 # | echo: false
-readiness = _csv("readiness_threshold.csv")
-readiness if readiness is not None else "No readiness-threshold table (needs the nonparametric mechanism curve)."
+# | output: asis
+if not _mech_is_linear:
+    print(_img("readiness_threshold.png", "Steepest interval of the fitted mechanism curve"))
+```
+
+```{python}
+# | echo: false
+readiness = None if _mech_is_linear else _csv("readiness_threshold.csv")
+readiness if readiness is not None else "No steepest-interval table (needs the nonparametric mechanism curve)."
 ```
 
 ```{python}
@@ -249,46 +394,109 @@ readiness if readiness is not None else "No readiness-threshold table (needs the
 # | output: asis
 if readiness is not None and len(readiness):
     _k = readiness.iloc[0]
+    # Fits written before the qualification criterion (#586 finding 1) carry no
+    # verdict column. Fail closed: report the location descriptively rather than
+    # inheriting the old, incorrect "well defined" claim.
+    _has_verdict = "knee_well_defined" in readiness.columns
+    _well_defined = bool(_k.knee_well_defined) if _has_verdict else False
     if np.isfinite(_k.knee_count_median):
-        _defined = (
-            " — well defined."
-            if _k.increasing_frac > 0.9
-            else " — treat it cautiously: the curve is flat or falling in many draws, so the knee is ill-defined."
+        _label = "Knee" if _well_defined else "Steepest interval"
+        print(
+            f"**{_label} (latent-logit scale):** about "
+            f"**{_k.knee_count_median:.0f}** in {_exposure_units} "
+            f"(89% CrI {_k.knee_count_ci_low:.0f} to {_k.knee_count_ci_high:.0f}) — "
+            "the exposure value at which the fitted curve's logit contribution rises "
+            f"fastest. The curve rises overall in {_k.increasing_frac:.0%} of "
+            "posterior draws."
+        )
+        if not _has_verdict:
+            print(
+                "\n\n**Not qualified as a knee.** This fit predates the "
+                "curvature and boundary checks, so the location is reported "
+                "descriptively only; it is not evidence of a threshold."
+            )
+        elif _well_defined:
+            print(
+                "\n\n**Qualified as a knee:** the curve rises, the winning interval is "
+                "interior to the observed range rather than pinned at its edge, and "
+                "the slope above it exceeds the slope below it with probability "
+                f"{_k.prob_slope_above_gt_below:.2f}."
+            )
+        else:
+            _why = []
+            if _k.increasing_frac <= 0.9:
+                _why.append(
+                    "the curve is flat or falling in too many draws "
+                    f"({_k.increasing_frac:.0%} rise)"
+                )
+            if bool(_k.boundary_pinned):
+                _edge = "lowest" if int(_k.steepest_interval_index) == 0 else "highest"
+                _why.append(
+                    f"the steepest interval is the {_edge} one, so its location is "
+                    "bounded by the end of the observed range rather than identified "
+                    "within it — the curve may go on steepening where there are no data"
+                )
+            if np.isfinite(_k.prob_slope_above_gt_below) and _k.prob_slope_above_gt_below < 0.91:
+                _why.append(
+                    "the slope above it does not clearly exceed the slope below it "
+                    f"(probability {_k.prob_slope_above_gt_below:.2f}), which is what a "
+                    "steady rise rather than a bend looks like"
+                )
+            print(
+                "\n\n**Not qualified as a knee** — read the number as a description of "
+                "where this fitted curve is steepest, not as a threshold, because "
+                + ("; and ".join(_why) if _why else "the qualification checks did not pass")
+                + "."
+            )
+        _below = (
+            "not defined (the steepest interval is the lowest one, so there is "
+            "nothing below it to average)"
+            if not np.isfinite(_k.slope_below_knee_median)
+            else f"about {_k.slope_below_knee_median:.3f} logit units per unit of exposure"
         )
         print(
-            f"**Knee (steepest rise):** about **{_k.knee_count_median:.0f}** in raw units "
-            f"(89% CrI {_k.knee_count_ci_low:.0f} to {_k.knee_count_ci_high:.0f}) — the "
-            f"count at which the outcome rises fastest with the predictor. The curve "
-            f"rises overall in {_k.increasing_frac:.0%} of posterior draws" + _defined
-        )
-        print(
-            f"\n\n**Slope below vs above the knee:** median marginal slope about "
-            f"{_k.slope_below_knee_median:.3f} logit units per item below the knee and "
-            f"{_k.slope_above_knee_median:.3f} above it. A below-knee slope near zero "
-            "supports a 'near-flat below, rising above' read; a clearly positive one "
-            "means the outcome is already moving well before the knee."
+            f"\n\n**Slope below vs above:** below, {_below}; above, about "
+            f"{_k.slope_above_knee_median:.3f}. A below slope near zero supports a "
+            "'near-flat below, rising above' read; a clearly positive one means the "
+            "outcome is already moving well before this point."
         )
         print(
             f"\n\n**Half-rise (robustness check):** about {_k.half_rise_count_median:.0f} "
             f"(89% CrI {_k.half_rise_count_ci_low:.0f} to {_k.half_rise_count_ci_high:.0f}) "
-            "— the count where the curve first reaches the midpoint of its rise. For an "
-            "S-shaped curve this lands near the knee; a large gap between the two flags "
-            "an asymmetric rise."
+            "— where the curve first reaches the midpoint of its rise. For a symmetric "
+            "S-shape this lands near the steepest interval; a large gap between the two "
+            "flags an asymmetric rise."
         )
+        if "steepest_interval_share" in readiness.columns and np.isfinite(
+            _k.steepest_interval_share
+        ):
+            print(
+                f"\n\n**Selection stability:** {_k.steepest_interval_share:.0%} of rising "
+                f"draws pick the same interval out of {int(_k.n_bins) - 1}. A low share "
+                "means the intervals are effectively tied and the location is arbitrary."
+            )
+        if _focal_prior_flags:
+            print(
+                "\n\n**Prior sensitivity (qualifies this result).** Power scaling flags "
+                + ", ".join(f"`{_n}` ({_d})" for _n, _d in _focal_prior_flags)
+                + ". The curve's shape is therefore more dependent on the GP "
+                "regularisation than on the likelihood alone. Mechanism fits are exempt "
+                "from the treatment-effect robustness gate because they are "
+                "observational, but that is about identification, not robustness: treat "
+                "any shape or threshold reading here as provisional until the "
+                "sensitivity is resolved."
+            )
         print(
-            "\n\n_How to read this:_ the figures are the predictor's raw count (for "
-            "letter-sounds, out of its maximum), and the steepest rise is defined on that "
-            "count scale — change in outcome logit per additional item. It is located per "
-            "posterior draw (on quantile-binned curve means, so its resolution is a bin "
-            "width) and summarised over the rising draws only, so the interval is a "
-            "genuine posterior. Read it over the observed range "
+            "\n\n_How to read this:_ the location is quantised to a quantile bin width "
+            "and summarised over the rising draws only, so its interval is a genuine "
+            "posterior but no finer than a bin. Read it over the observed range "
             f"({_k.obs_count_min:.0f}–{_k.obs_count_max:.0f}) only, and as an adjusted "
-            "association — not a threshold the intervention flips."
+            "association — never as a threshold the intervention flips."
         )
     else:
         print(
             f"The fitted curve rises overall in only {_k.increasing_frac:.0%} of "
-            "posterior draws, so a readiness threshold is not defined for this fit."
+            "posterior draws, so no steepest interval is defined for this fit."
         )
 ```
 
@@ -329,6 +537,8 @@ _comp
 # | echo: false
 # | output: asis
 if _comp is not None and len(_comp):
+    if "comparison_note" in _comp.columns and str(_comp["comparison_note"].iloc[0]).strip():
+        print(f"**What this pair differs by.** {_comp['comparison_note'].iloc[0]}\n")
     print(
         "_How to read the comparison table:_ it ranks competing model variants by "
         "how well each predicts held-out data (leave-one-out cross-validation). "

@@ -71,9 +71,7 @@ Phoneme blending $B$ enters **additionally**, via its main effect and interactio
 
 _Blending is a downstream skill, not a parallel prerequisite._ Unlike the vocabulary moderators,
 blending $B = \mathrm{PA}$ is a **DAG-descendant of the exposure** $L$ ($\mathrm{LS} \to \mathrm{PA}$).
-Conditioning on it therefore makes $f^L$ a **controlled-direct** effect of letter sounds *at fixed
-blending*, and $\gamma_{\text{int}}$ is **effect-modification by a downstream skill**, not a
-symmetric "need both" prerequisite test — the same estimand caveat documented on
+Conditioning on it therefore makes $f^L$ a **controlled-direct-effect-shaped** quantity — the exposure association *at a fixed level of that descendant*. It is **not** a controlled direct effect: that reading requires the exposure to be randomised or its backdoors closed, and neither holds here, so it remains an adjusted association (#586 finding 10). By the same token $\gamma_{\text{int}}$ is **descriptive moderation by a downstream skill**, not causal effect modification, and not a symmetric "need both" prerequisite test — the same estimand caveat documented on
 [LRP72](../lrp-rli-mech-072). Blending has a 10-item ceiling.
 
 _Adjusted association, not causal._ Latent general ability ($GA$) is not adjusted for, so

@@ -24,9 +24,11 @@ of blending. ``gamma_int > 0`` = **synergy** (word reading highest when both are
 ``gamma_int ~ 0`` = additive (either helps on its own); ``gamma_int < 0`` = substitutive.
 
 **Estimand caveat (as on LRP72).** Blending B = PA is a DAG-DESCENDANT of the exposure L
-(``LS -> PA``), so conditioning on it makes ``beta_mech`` a **controlled-direct** effect
-of letter sounds at fixed blending, and ``gamma_int`` is **effect-modification by a
-downstream skill**, not a symmetric "need both" prerequisite test. Everything is a
+(``LS -> PA``), so conditioning on it gives ``beta_mech`` the SHAPE of a
+controlled-direct effect - letter sounds at fixed blending - without its identification:
+that would need the exposure randomised or its backdoors closed (#586 finding 10).
+``gamma_int`` is DESCRIPTIVE moderation by a downstream skill, not causal effect
+modification and not a symmetric "need both" prerequisite test. Everything is a
 latent-GA-confounded ADJUSTED ASSOCIATION, never causal. B has a 10-item ceiling.
 
 Adjustment set = the LRP58 L -> W set {G, A, W_pre, HS, IS, SP}; B enters additionally via
