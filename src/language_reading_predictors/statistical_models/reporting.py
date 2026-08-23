@@ -2993,6 +2993,20 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
         effective_adjustment = [
             name for name in plan.adjust_for if name in covariates
         ]
+    elif spec.kind == "dose_response":
+        # The loaded covariate of a dose fit is its **exposure**, not an adjuster, so
+        # the generic "everything in prepared.covariates" fallback recorded the
+        # adjustment set as ``["attend"]`` — naming the exposure while omitting arm,
+        # age and the baselines the model actually conditions on (#587 finding 10).
+        # The family writes the real record under ``extra.effective_adjustment``; the
+        # exposure is named here as an exposure.
+        exposure = {
+            settings.get("dose_covariate"),
+            settings.get("dose_stage_covariate"),
+        }
+        effective_adjustment = [
+            name for name in covariates if name not in exposure
+        ]
     settings.update(
         {
             "prepared_outcomes": list(post_counts),
@@ -7064,13 +7078,36 @@ def _kf_build_dose_response(output_dir, config: Mapping) -> list[dict[str, str]]
     outcome_label = _kf_outcome_label(config)
     sentences: list[dict[str, str]] = []
     if marginal is not None:
+        # Say how big the step actually was and who it was averaged over (#587
+        # finding 3). "A 1-SD increase in sessions" hid a 30.7-session step applied to
+        # every row, including children with no intervention at all; the repaired
+        # contrast is a within-period interquartile move over on-intervention rows,
+        # and the sentence names the sessions rather than a standardised unit.
+        # A fit written before the support-respecting contrast existed has neither
+        # column; fall back to the old wording rather than refusing to render.
+        raw_step = marginal.get("contrast_sessions_median")
+        step = (
+            float(raw_step)
+            if raw_step is not None and np.isfinite(pd.to_numeric(raw_step, errors="coerce"))
+            else float("nan")
+        )
+        rows = marginal.get("n_rows")
+        if np.isfinite(step):
+            opening = (
+                f"Among children on the intervention, attending about "
+                f"{step:.0f} more sessions in a period — an interquartile step "
+                f"within that period's observed attendance — was associated with"
+            )
+        else:
+            opening = "A 1-SD increase in sessions was associated with"
         sentences.append(
             _kf_sentence(
-                f"A 1-SD increase in sessions was associated with "
+                f"{opening} "
                 f"**{_kf_float(marginal['items_median']):+.1f} items** on "
                 f"{outcome_label} "
                 f"(89% credible range {_kf_float(marginal['items_lo']):+.1f} "
-                f"to {_kf_float(marginal['items_hi']):+.1f}).",
+                f"to {_kf_float(marginal['items_hi']):+.1f}"
+                + (f"; averaged over {int(rows)} rows)." if rows is not None else ")."),
                 "headline",
             )
         )
@@ -7078,8 +7115,14 @@ def _kf_build_dose_response(output_dir, config: Mapping) -> list[dict[str, str]]
             _kf_sentence(
                 _kf_association_direction(
                     marginal["prob_pos"],
-                    positive_claim="higher session dose accompanies a higher outcome",
-                    negative_claim="higher session dose accompanies a lower outcome",
+                    positive_claim=(
+                        "attending more sessions accompanies a higher outcome among "
+                        "children already on the intervention"
+                    ),
+                    negative_claim=(
+                        "attending more sessions accompanies a lower outcome among "
+                        "children already on the intervention"
+                    ),
                 ),
                 "confidence",
             )
@@ -7110,13 +7153,51 @@ def _kf_build_dose_response(output_dir, config: Mapping) -> list[dict[str, str]]
                 "confidence",
             )
         )
+    slope_table = _kf_csv(output_dir, "dose_slope_summary.csv")
+    if slope_table is not None and "on_intervention" in set(slope_table["term"]):
+        presence = slope_table[slope_table["term"] == "on_intervention"].iloc[0]
+        sentences.append(
+            _kf_sentence(
+                "Being on the intervention at all is reported separately from how "
+                "much was attended: "
+                f"**{_kf_float(presence['median']):+.2f} logit units** "
+                f"(89% credible range {_kf_float(presence['lo']):+.2f} to "
+                f"{_kf_float(presence['hi']):+.2f}). In period 1 that contrast is "
+                "randomised — every immediate-arm child attended and every waitlist "
+                "child attended none — so it, not the dose slope, is where this "
+                "model's randomised evidence sits.",
+                "robustness",
+            )
+        )
     sentences.append(
         _kf_sentence(
-            "Session dose was not randomised and may reflect ability, attendance "
-            "or availability, so the slope is an observational association.",
+            "How many sessions a child attended was not randomised and may reflect "
+            "ability, attendance or availability — the study DAG has age, latent "
+            "general ability and assigned group all pointing into attendance — so "
+            "every dose slope here is an observational association, not evidence "
+            "that more sessions cause more progress.",
             "causal",
         )
     )
+    if config.get("outcome_symbol") == "B":
+        # Phoneme blending has ten three-alternative items, so the ordinary logit mean
+        # admits fitted means below the one-third guessing level. `METHODS.md` requires
+        # any headline B interpretation to be paired with the guessing-floor link
+        # sensitivity, and that pairing is currently built only for the ITT fits
+        # (#587 finding 6). Say so on the fit rather than publishing an unqualified
+        # blending number; the repo-wide gap is tracked separately.
+        sentences.append(
+            _kf_sentence(
+                "**Qualified result.** Phoneme blending is measured with ten "
+                "three-choice items, so a child guessing at random still scores about "
+                "a third. This model uses the ordinary link, which allows fitted "
+                "means below that guessing level, and the project's required "
+                "guessing-floor companion has not been built for this family — only "
+                "for the randomised-arm blending fits. Read the blending association "
+                "as provisional until that pair exists.",
+                "caveat",
+            )
+        )
     return sentences
 
 

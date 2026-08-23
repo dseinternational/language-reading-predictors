@@ -16,13 +16,29 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.measures import MEASURES
 
 __all__ = [
+    "ABILITY_BASELINE_WAVES",
     "DoseResponseModelSettings",
     "DoseResponseRunPlan",
     "declared_dose_response_settings",
     "resolve_dose_response_run_plan",
 ]
+
+
+#: Which wave an ``ability_adjust_symbols`` covariate is read from.
+#:
+#: ``"t1"`` broadcasts each child's verified pre-randomisation value across all three
+#: transitions — the only reading under which the fit is the *baseline*-ability
+#: sensitivity it is published as. ``"transition_start"`` is the pre-#587 behaviour,
+#: which silently used t2 skills in period 2 and t3 skills in period 3: values that are
+#: themselves downstream of earlier intervention and dose, so conditioning on them
+#: adjusts a treatment-affected time-varying covariate (Robins, Hernán & Brumback 2000)
+#: rather than blocking the latent-ability back door. It is retained only as an
+#: explicitly labelled comparator and must never be presented as a baseline sensitivity
+#: (#587 finding 1).
+ABILITY_BASELINE_WAVES = ("t1", "transition_start")
 
 
 _FAMILY_KEYS = frozenset(
@@ -33,6 +49,8 @@ _FAMILY_KEYS = frozenset(
         "period_varying_dose",
         "use_subject_random_intercept",
         "ability_adjust_symbols",
+        "ability_baseline_wave",
+        "decompose_between_within",
         "outcomes",
         "adjust_group",
         "adjust_age",
@@ -81,6 +99,8 @@ class DoseResponseModelSettings:
     period_varying_dose: bool = True
     use_subject_random_intercept: bool = True
     ability_adjust_symbols: tuple[str, ...] = ()
+    ability_baseline_wave: str = "t1"
+    decompose_between_within: bool = True
     outcomes: tuple[str, ...] = ()
     adjust_group: bool = True
     adjust_age: bool = True
@@ -117,9 +137,17 @@ class DoseResponseModelSettings:
             "outcomes",
             _tuple_of_strings(self.outcomes, name="outcomes"),
         )
+        wave = _string(self.ability_baseline_wave, name="ability_baseline_wave")
+        if wave not in ABILITY_BASELINE_WAVES:
+            raise ValueError(
+                "ability_baseline_wave must be one of "
+                f"{ABILITY_BASELINE_WAVES!r}, got {wave!r}"
+            )
+        object.__setattr__(self, "ability_baseline_wave", wave)
         for name in (
             "period_varying_dose",
             "use_subject_random_intercept",
+            "decompose_between_within",
             "adjust_group",
             "adjust_age",
         ):
@@ -150,6 +178,8 @@ class DoseResponseModelSettings:
                 True,
             ),
             ability_adjust_symbols=extra.get("ability_adjust_symbols", ()),
+            ability_baseline_wave=extra.get("ability_baseline_wave", "t1"),
+            decompose_between_within=extra.get("decompose_between_within", True),
             outcomes=extra.get("outcomes", ()),
             adjust_group=extra.get("adjust_group", True),
             adjust_age=extra.get("adjust_age", True),
@@ -170,6 +200,8 @@ class DoseResponseRunPlan:
     period_varying_dose: bool
     use_subject_random_intercept: bool
     ability_adjust_symbols: tuple[str, ...]
+    ability_baseline_wave: str
+    decompose_between_within: bool
     outcomes: tuple[str, ...]
     adjust_group: bool
     adjust_age: bool
@@ -178,7 +210,11 @@ class DoseResponseRunPlan:
     observation_node: str
     compute_loo: bool
     loo_unit: str
+    loo_note: str
     focal_term: str
+    exposure: str
+    dose_margin: str
+    dose_contrast: str
     design: str
     estimand: str
     causal_status: str
@@ -209,17 +245,112 @@ class DoseResponseRunPlan:
             "adjust_group": self.adjust_group,
             "adjust_age": self.adjust_age,
             "ability_adjust_symbols": self.ability_adjust_symbols,
+            "ability_baseline_wave": self.ability_baseline_wave,
+            "decompose_between_within": self.decompose_between_within,
         }
+
+    def coefficient_meanings(self) -> dict[str, str]:
+        """One unambiguous sentence per fitted coefficient (#587 finding 2).
+
+        The audit's acceptance criterion is that treatment presence, intensity,
+        assigned arm/history and the between/within dose split each have a meaning a
+        reader cannot confuse with another. They are recorded here, resolved from the
+        declared settings, so ``config.json`` and the report carry the same statement
+        and neither can drift from the fitted equation.
+        """
+        meanings: dict[str, str] = {
+            "alpha": "Reference-phase intercept (period 1, untreated, at every covariate mean).",
+            "alpha_phase": (
+                "Period intercept deviations from period 1, reference-coded so period "
+                "1 is exactly zero and the four-column intercept design has full rank."
+            ),
+            "theta_treated": (
+                "Extensive margin: being on the intervention during a period versus "
+                "not, at the treated-mean session count. In period 1 this contrast is "
+                "randomised (every immediate-arm child attended, every waitlist child "
+                "attended zero sessions), so it is the only term here identified by "
+                "randomisation; it is otherwise informed only by the few later "
+                "zero-session rows."
+            ),
+            "gamma_own": "Autoregression / regression-to-the-mean control on the period's own baseline logit.",
+        }
+        if self.adjust_group:
+            meanings["beta_arm_late"] = (
+                "Assigned-arm contrast in the post-crossover periods only (periods 2 "
+                "and 3, where both arms are on the intervention), so it reads as "
+                "intervention order and treatment history, never as a treatment "
+                "effect. Period 1's arm difference is carried by `theta_treated`, "
+                "with which it would otherwise be exactly collinear."
+            )
+        if self.adjust_age:
+            meanings["gamma_A"] = "Linear age at the period start — a precision / maturation covariate."
+        if self.use_subject_random_intercept:
+            meanings["sigma_child"] = (
+                "Between-child SD of the random intercept. It partially pools stable "
+                "child differences; it does not make the dose slope a within-child "
+                "quantity, which is why the exposure is split explicitly."
+            )
+        intensity = (
+            "Intensive margin among on-intervention rows only, per 1 SD of "
+            "treated-row sessions; untreated rows contribute exactly zero to every "
+            "dose term, so no dose coefficient absorbs the extensive margin."
+        )
+        if self.decompose_between_within:
+            meanings["beta_dose_between"] = (
+                "Between-child intensity: a child whose study-average attendance is 1 "
+                "SD higher than another child's. " + intensity
+            )
+            slope_role = (
+                "the **within-child** component — the same child in a period when "
+                "they attended more than their own study average"
+            )
+        else:
+            slope_role = (
+                "a precision-weighted **blend** of the between-child and within-child "
+                "associations, because the exposure is not split"
+            )
+        if self.period_varying_dose:
+            meanings["mu_dose"] = (
+                f"Overall (partially pooled) dose slope across the three periods; "
+                f"{slope_role}. " + intensity
+            )
+            meanings["sigma_dose"] = (
+                "Between-period SD of the period-specific dose slopes. Its prior "
+                "partially pools only three slopes, so read it beside the pooled "
+                "comparator rather than as evidence about period variation on its own."
+            )
+            meanings["beta_dose_phase"] = (
+                f"Period-specific dose slopes; each is {slope_role}. " + intensity
+            )
+        else:
+            meanings["beta_dose"] = (
+                f"Pooled dose slope; {slope_role}. " + intensity
+            )
+        for symbol in self.ability_adjust_symbols:
+            wave = "verified pre-randomisation t1" if self.ability_baseline_wave == "t1" else "transition-start"
+            meanings[f"gamma_{symbol}_pre"] = (
+                f"Adjusted association with the {wave} logit of {symbol} — a baseline "
+                "ability proxy, never an effect."
+            )
+        if self.dose_stage_covariate is not None:
+            meanings["gamma_dose_stage"] = (
+                "Flagged collider sensitivity on cumulative prior dose; reopens the "
+                "latent-ability back door by construction (#269)."
+            )
+        meanings["kappa"] = "Beta-Binomial concentration (overdispersion) of the post-count."
+        return meanings
 
     def diagnostic_vars(self) -> list[str]:
         """Variables scanned by summaries and the convergence gate."""
-        names = ["alpha", "gamma_own", "kappa"]
+        names = ["alpha", "gamma_own", "kappa", "theta_treated"]
         if self.use_subject_random_intercept:
             names.append("sigma_child")
         if self.adjust_group:
-            names.append("beta_G")
+            names.append("beta_arm_late")
         if self.adjust_age:
             names.append("gamma_A")
+        if self.decompose_between_within:
+            names.append("beta_dose_between")
         if self.period_varying_dose:
             names.extend(["mu_dose", "sigma_dose", "beta_dose_phase"])
         else:
@@ -249,19 +380,32 @@ class DoseResponseRunPlan:
             f"## Missing data\n\n{self.missing_data_assumption}\n\n"
             "## Terms\n\n"
             f"Outcome: `{self.outcome_symbol}`. Loaded outcomes: {outcomes}. "
-            f"Own baseline: `{self.adjust_baseline_symbol}`. Dose: "
+            f"Own baseline: `{self.adjust_baseline_symbol}`. Exposure: "
             f"`{self.dose_covariate}` (period-varying: "
-            f"{self.period_varying_dose}). Stage-dose covariate: "
+            f"{self.period_varying_dose}; between/within split: "
+            f"{self.decompose_between_within}). Stage-dose covariate: "
             f"{self.dose_stage_covariate or 'none'}. Ability adjustments: "
-            f"{ability}. Group adjustment: {self.adjust_group}. Age adjustment: "
-            f"{self.adjust_age}. Child random intercept: "
-            f"{self.use_subject_random_intercept}.\n\n"
-            "## Uncertainty and checks\n\n"
+            f"{ability} (read at `{self.ability_baseline_wave}`). Group adjustment: "
+            f"{self.adjust_group}. Age adjustment: {self.adjust_age}. Child random "
+            f"intercept: {self.use_subject_random_intercept}.\n\n"
+            "Every fitted coefficient and its meaning:\n\n"
+            + "".join(
+                f"- `{name}` — {meaning}\n"
+                for name, meaning in self.coefficient_meanings().items()
+            )
+            + "\n## Uncertainty and checks\n\n"
             f"The observation node is `{self.observation_node}` and PSIS-LOO uses "
-            f"the `{self.loo_unit}` unit. Interpret the posterior only after the "
-            "zero-divergence convergence gate, posterior-predictive checks and "
-            "power-scaling sensitivity diagnostics pass. The saved `config.json` "
-            "contains the same resolved run plan in machine-readable form.\n"
+            f"the `{self.loo_unit}` unit. {self.loo_note}\n\n"
+            "Interpret the posterior only after the zero-divergence convergence gate "
+            "and the posterior-predictive checks pass; both are enforced "
+            "automatically, and a failed gate suppresses the scientific tables. "
+            "Power-scaling prior sensitivity is **reported, not enforced**: this is an "
+            "observational family, so `release.py` does not gate publication on it. "
+            "Read `psense_summary.csv` directly — the between-period slope scale is "
+            "prior-informed by construction, and a flagged focal slope means the "
+            "reported association is substantially prior-driven. The saved "
+            "`config.json` contains the same resolved run plan in machine-readable "
+            "form.\n"
         )
 
 
@@ -311,6 +455,39 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
     settings, source = declared_dose_response_settings(spec)
     outcome = spec.outcome_symbol
     outcomes = settings.outcomes or (outcome,)
+    # Reject symbols no measure defines *before* any I/O (#587 finding 12). The
+    # previous resolver accepted an arbitrary string and only failed inside the
+    # loader, after the output directory had been reset and the data read — exactly
+    # the ordering the family contract says it prevents.
+    unknown = sorted(
+        {
+            symbol
+            for symbol in (
+                outcome,
+                settings.adjust_baseline_symbol,
+                *settings.ability_adjust_symbols,
+                *outcomes,
+            )
+            if symbol not in MEASURES
+        }
+    )
+    if unknown:
+        raise ValueError(
+            f"{spec.model_id}: unknown measure symbol(s) {unknown!r}; valid symbols "
+            f"are {sorted(MEASURES)!r}"
+        )
+    # An ability adjuster that repeats the own baseline would put two coefficients on
+    # one identical column — an exact collinearity the proper priors would hide rather
+    # than surface (#587 finding 12).
+    duplicated = sorted(
+        set(settings.ability_adjust_symbols) & {settings.adjust_baseline_symbol}
+    )
+    if duplicated:
+        raise ValueError(
+            f"{spec.model_id}: ability_adjust_symbols {duplicated!r} duplicate "
+            f"adjust_baseline_symbol {settings.adjust_baseline_symbol!r}; the factory "
+            "would fit gamma_own and gamma_<symbol>_pre on the identical predictor"
+        )
     required = {
         outcome,
         settings.adjust_baseline_symbol,
@@ -325,6 +502,12 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
     if settings.dose_stage_covariate == settings.dose_covariate:
         raise ValueError(
             f"{spec.model_id}: dose_stage_covariate must differ from dose_covariate"
+        )
+    if settings.ability_baseline_wave == "transition_start" and not settings.ability_adjust_symbols:
+        raise ValueError(
+            f"{spec.model_id}: ability_baseline_wave='transition_start' is a labelled "
+            "comparator for a fit that has ability adjusters; it means nothing without "
+            "ability_adjust_symbols"
         )
     loader_covariates = tuple(
         value
@@ -344,6 +527,8 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
         period_varying_dose=settings.period_varying_dose,
         use_subject_random_intercept=settings.use_subject_random_intercept,
         ability_adjust_symbols=settings.ability_adjust_symbols,
+        ability_baseline_wave=settings.ability_baseline_wave,
+        decompose_between_within=settings.decompose_between_within,
         outcomes=outcomes,
         adjust_group=settings.adjust_group,
         adjust_age=settings.adjust_age,
@@ -351,26 +536,58 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
         loader_covariates=loader_covariates,
         observation_node="y_post",
         compute_loo=True,
-        loo_unit="observation_row",
+        # Whole-child, not row-level (#587 finding 4). A transition row's own baseline
+        # IS the previous transition's fitted outcome — every period-2 row and all but
+        # one period-3 row — so dropping a single row's likelihood factor leaves that
+        # held-out score in the next row's design matrix. Holding out the whole child
+        # removes it, and the family's small child random-intercept SD keeps the PSIS
+        # approximation reliable.
+        loo_unit="child",
+        loo_note=(
+            "Leave-one-child-out PSIS over the child-summed pointwise log likelihood. "
+            "The unit is a new child, not a future row: the score answers 'how well "
+            "does this model predict a child it has not seen', and it is not a "
+            "forecast of a later wave for a known child. Row-level LOO is not used "
+            "here because a held-out t2/t3 score is retained as the next transition's "
+            "own baseline, so it is not out-of-sample."
+        ),
         focal_term=focal,
+        exposure=settings.dose_covariate,
+        dose_margin="intensive_treated_rows",
+        dose_contrast="treated_row_interquartile_within_phase",
         design=(
-            "Period-resolved conditional-change model over all RLI transitions, "
-            "with intervention-session dose standardised over the fitted rows and "
-            "entered as partially pooled period slopes or one pooled slope."
+            "Period-resolved conditional-change model over all RLI transitions. "
+            "Intervention presence and intervention intensity are separated: an "
+            "on-intervention indicator carries the extensive margin, and session dose "
+            "is centred and standardised over the fitted on-intervention rows only, "
+            "entered as partially pooled period slopes or one pooled slope, with the "
+            "child's study-average attendance split from their within-child deviation "
+            "where declared. Assigned arm enters only in the post-crossover periods, "
+            "where it is not collinear with intervention presence."
         ),
         estimand=(
-            "The adjusted association between a one-standard-deviation increase in "
-            "session dose and the post-score, conditional on the selected own "
-            "baseline, group, age and declared ability terms."
+            "The adjusted association between higher session attendance and the "
+            "post-score among on-intervention rows (the intensive margin), reported "
+            "on the items scale as a within-period interquartile contrast of observed "
+            "treated attendance. The separate on-intervention indicator carries the "
+            "extensive margin; in period 1 that contrast is randomised."
         ),
         causal_status=(
             "Observational association, not a randomised treatment effect. Session "
-            "dose is post-randomisation and may be confounded by attendance and "
-            "engagement processes."
+            "attendance is post-randomisation and may be confounded by attendance and "
+            "engagement processes, and the authoritative DAG carries edges into "
+            "intervention sessions from age, latent general ability and assigned "
+            "group, so conditioning on measured baselines does not close that door. "
+            "The one exception is the period-1 on-intervention indicator, which is a "
+            "randomised contrast; it is reported as such and is not the family's "
+            "headline."
         ),
         analysis_population=(
             f"Available RLI transition rows with observed {outcome}, "
-            f"{settings.adjust_baseline_symbol} baseline and dose covariates."
+            f"{settings.adjust_baseline_symbol} baseline and dose covariates. The "
+            "items-scale dose contrast is averaged over the on-intervention rows "
+            "only, since a session step on a row with no intervention is not a "
+            "supported counterfactual of this design."
         ),
         missing_data_assumption=(
             "Available-case analysis under ignorable missingness conditional on the "

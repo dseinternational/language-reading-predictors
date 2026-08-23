@@ -116,27 +116,51 @@ def _prior_table_overrides(
                 "beta_dose_phase": "association",
                 "mu_dose": "association",
                 "sigma_dose": "nuisance",
-                "beta_G": "association",
+                "beta_arm_late": "association",
+                "beta_dose_between": "association",
+                "alpha_phase_free": "nuisance",
             }
         )
+        ctor["beta_dose_between"] = "beta_mech"
         # role is demoted above, but without a rationale override each RV would
         # inherit its reused constructor's docstring ("Treatment effect tau…" for
-        # beta_G, "Linear-mechanism slope beta_mech…" for the dose slopes).
+        # the arm term, "Linear-mechanism slope beta_mech…" for the dose slopes).
         rationale.update(
             {
-                "beta_G": (
-                    "Intervention-arm (G) backdoor adjustment: the confounder of the "
-                    "dose->outcome edge; an adjusted association, not the randomised "
-                    "treatment effect."
+                "beta_arm_late": (
+                    "Assigned-arm (G) backdoor adjustment in the post-crossover "
+                    "periods only, where both arms are on the intervention and arm "
+                    "reads as intervention order; an adjusted association, not the "
+                    "randomised treatment effect. Period 1's arm difference is "
+                    "carried by theta_treated, with which it would be exactly "
+                    "collinear there (#587)."
+                ),
+                "theta_treated": (
+                    "On-intervention presence — the extensive margin. Read in period "
+                    "1 this is the randomised contrast (every immediate-arm child "
+                    "attended, every waitlist child attended none); it is the only "
+                    "randomisation-identified term in this family."
+                ),
+                "alpha_phase_free": (
+                    "Reference-coded period intercept deviations from period 1 "
+                    "(alpha_phase[1] = 0), so the intercept design has full rank "
+                    "(#587 finding 11)."
+                ),
+                "beta_dose_between": (
+                    "Between-child intensive-margin session association: a child "
+                    "whose study-average attendance is 1 SD higher than another's. "
+                    "Split from the within-child slope Mundlak-style so neither is "
+                    "a blend of the two (#587)."
                 ),
                 "mu_dose": (
                     "Average (pooled) per-period dose-response slope; outcome-logit "
-                    "change per 1 SD of per-period dose — the model's focal "
-                    "adjusted-association estimand."
+                    "change per 1 SD of treated-row sessions — the model's focal "
+                    "adjusted-association estimand, on the intensive margin only."
                 ),
                 "beta_dose_phase": (
                     "Partial-pooled per-period dose-response slopes; each period's "
-                    "outcome-logit change per 1 SD of dose, an adjusted association."
+                    "outcome-logit change per 1 SD of treated-row sessions, an "
+                    "adjusted association on the intensive margin."
                 ),
                 "beta_dose": (
                     "Single pooled dose-response slope (no period variation); the "

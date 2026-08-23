@@ -123,6 +123,10 @@ def test_loo_excludes_gate_failures(cmp_mod, out_root, monkeypatch):
         return pd.DataFrame({"elpd_loo": [-1.0, -2.0]}, index=list(eligible))
 
     monkeypatch.setattr(cmp_mod.az, "compare", _compare)
+    # Each model is scored on its own declared predictive unit before comparison,
+    # so the fake traces need a stand-in for that step too; this test is about
+    # which models are *eligible*, not about the scoring itself.
+    monkeypatch.setattr(cmp_mod, "_loo_for", lambda trace, **kwargs: trace)
     out = out_root / "comparison.csv"
     assert cmp_mod._loo_compare(ids, "dev", str(out))
     assert compared["ids"] == {"pass-a", "pass-b"}

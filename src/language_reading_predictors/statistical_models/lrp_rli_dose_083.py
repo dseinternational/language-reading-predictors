@@ -9,22 +9,28 @@ W-only family lacked (#228 item 2). Same observational estimand and causal struc
 as dose-077 -- see that module's docstring for the full treatment; only the outcome
 changes.
 
-Estimand: how letter-sound **conditional change** relates to the per-period
-intervention **dose** (``attend``), with partial pooling across the three periods and
-a test of whether the dose-gain slope varies by period. The outcome is the
+Estimand: among rows **on the intervention**, how letter-sound **conditional change**
+relates to how many sessions were attended, with partial pooling across the three periods
+and a test of whether that slope varies by period. The outcome is the
 Beta-Binomial post-count of L conditional on its own baseline logit
 (``adjust_baseline_symbol = "L"``, ``n_trials = 32``) -- conditional change, never raw
 change (Lord's paradox / regression to the mean).
 
-Causal structure (revised DAG): the focal edge is ``sessions (dose) -> outcome``; the
-back-door adjustment set is {G (arm, the sole confounder), L_pre (autoregression
-control), A (maturation precision)}, with no ``ability -> dose`` edge assumed. The
-cumulative prior dose (``attend_cumul``) is a descendant of the ``IS`` collider and is
-**not** conditioned on (#269). This is an **adjusted association, not "dose drives
-gains"**: dose is not randomised (only ``intervention`` is), and Frank's 2012 caveat
-(poorest attenders were the least able to learn) is exactly the omitted
-ability->dose edge -- read the slope with that in mind. G is coded ``G = 2 - group``
-(G=1 = immediate-intervention, G=0 = waitlist; positive = benefit).
+Causal structure (revised DAG): the focal edge is ``sessions -> outcome``. There is **no
+clean back-door set** -- ``IS`` has parents ``A -> IS``, ``GA -> IS`` and ``IG -> IS``, all
+of which also point into the outcomes. Age and assigned group are measured and adjusted;
+**latent general ability GA is not**, and Frank's 2012 caveat (poorest attenders were the
+least able to learn) is exactly that edge. L_pre is the autoregression / RTM control
+(parameterisation, not back-door blocking). The cumulative prior dose (``attend_cumul``) is
+a descendant of the ``IS`` collider and is **not** conditioned on (#269).
+
+As in LRP77, presence and intensity are separated (#587): sessions are centred and
+standardised over the on-intervention rows only, ``theta_treated`` carries the extensive
+margin (randomised when read in period 1, where arm and session count correlate at 0.970),
+arm enters only from period 2 as intervention order, and the exposure is split into
+between-child and within-child components. Every dose slope is an **adjusted association,
+not "dose drives gains"**. G is coded ``G = 2 - group`` (G=1 = immediate-intervention,
+G=0 = waitlist; positive = benefit).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

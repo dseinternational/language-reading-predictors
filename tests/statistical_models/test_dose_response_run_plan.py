@@ -154,21 +154,27 @@ def test_default_legacy_plan_preserves_execution_contract():
         "adjust_group": True,
         "adjust_age": True,
         "ability_adjust_symbols": (),
+        "ability_baseline_wave": "t1",
+        "decompose_between_within": True,
     }
     assert plan.diagnostic_vars() == [
         "alpha",
         "gamma_own",
         "kappa",
+        "theta_treated",
         "sigma_child",
-        "beta_G",
+        "beta_arm_late",
         "gamma_A",
+        "beta_dose_between",
         "mu_dose",
         "sigma_dose",
         "beta_dose_phase",
     ]
     assert plan.observation_node == "y_post"
     assert plan.compute_loo is True
-    assert plan.loo_unit == "observation_row"
+    # Whole-child, not row-level: a row's own baseline is the previous row's
+    # fitted outcome, so a row-level score is not out-of-sample (#587 finding 4).
+    assert plan.loo_unit == "child"
     assert plan.focal_term == "mu_dose"
 
 
@@ -193,6 +199,8 @@ def test_plan_owns_pooled_and_ability_adjusted_branches():
         "alpha",
         "gamma_own",
         "kappa",
+        "theta_treated",
+        "beta_dose_between",
         "beta_dose",
         "gamma_dose_stage",
         "gamma_L_pre",

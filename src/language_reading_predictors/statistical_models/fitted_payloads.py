@@ -106,6 +106,35 @@ class MechanismPayload(FittedPayload):
 
 
 @dataclass(frozen=True)
+class DoseResponsePayload(FittedPayload):
+    """Realised dose design of a ``dose_response`` fit (#587 findings 2, 3, 13).
+
+    The family reports an **intensive-margin** dose association among on-intervention
+    rows, so every consumer has to reuse the same treated-row standardisation, the
+    same treated mask and the same per-phase support bounds the factory fitted. The
+    audit found three ways that went wrong when they were recomputed downstream: the
+    reported ``+1 SD`` contrast was averaged over rows with no treated support, the
+    loader's pre-mask scaler disagreed with the fitted rows, and the prior pushforward
+    used a scalar slope where the posterior used a phase-indexed one.
+
+    ``dose_scaler`` standardises sessions **over the fitted treated rows only**, so a
+    unit of the fitted dose is one treated-row SD of sessions rather than one SD of a
+    distribution dominated by structural zeros. ``treated`` and ``raw_attend`` are
+    row-aligned to the fitted rows; ``phase_support`` carries the per-phase observed
+    session quartiles and bounds behind the reported contrast.
+    """
+
+    design: Literal["dose_intensive_margin"]
+    dose_scaler: Standardiser
+    treated: np.ndarray
+    raw_attend: np.ndarray
+    dose_between: np.ndarray
+    dose_within: np.ndarray
+    phase_support: tuple[tuple[float, float, float, float], ...]
+    decompose_between_within: bool
+
+
+@dataclass(frozen=True)
 class DidDosePayload(FittedPayload):
     """Exact fitted rows and treatment-dose design for a dose DiD fit."""
 
