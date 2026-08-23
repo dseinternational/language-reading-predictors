@@ -418,6 +418,18 @@ _REGISTERED_CONTRACT: dict[str, dict[str, object]] = {
 }
 
 
+# The randomised-window comparators (#584 decision 3) are their primaries in every
+# respect except the analysis window, so the table is derived rather than restated:
+# a change to a primary's adjustment set must move its comparator too.
+_REGISTERED_CONTRACT.update(
+    {
+        f"lrp-rli-lf-2{int(model_id[-3:]):02d}": {**expected, "waves": ("t1", "t2")}
+        for model_id, expected in list(_REGISTERED_CONTRACT.items())
+        if model_id != "lrp-rli-lf-106"
+    }
+)
+
+
 def test_registered_suite_matches_the_declared_contract():
     """Pin the exact registered ID / outcome / likelihood / adjustment map."""
     specs = {spec.model_id: spec for spec in _level_factor_specs()}
@@ -430,6 +442,11 @@ def test_registered_suite_matches_the_declared_contract():
         # The score-mean link is part of the published contract: a silent flip
         # between the two blending links would change the reported effect size.
         assert plan.score_mean_link == expected.get("score_mean_link", "logit"), model_id
+        # The analysis window is part of the contract: silently widening a
+        # comparator would make it a duplicate of the model of record.
+        assert plan.waves == expected.get(
+            "waves", ("t1", "t2", "t3", "t4")
+        ), model_id
         # Every registered model is a per-wave t1-centred fit on baseline block
         # design, with the group x ability term and the randomised t2 focal change.
         assert plan.ability_covariate == "blocks", model_id
@@ -678,4 +695,124 @@ def test_only_graded_blending_fits_require_the_link_pair():
         assert plan.outcome_symbol == "W"
         assert not plan.link_sensitivity_required_for_release
         assert plan.required_link_companion_model_id is None
+
+
+# --- the randomised-window comparator (#584 decision 3) -----------------------
+
+
+def test_settings_reject_a_non_prefix_analysis_window():
+    """The t1-centred parameterisation measures every change from t1, so a window
+    without t1 — or with a hole in it — would leave a d_grp_time coordinate with no
+    data behind it."""
+    for bad in (("t1",), ("t2", "t3"), ("t1", "t3"), ("t1", "t2", "t4")):
+        with pytest.raises(ValueError, match="contiguous prefix"):
+            LevelFactorsModelSettings(ability_covariate="blocks", waves=bad)
+
+
+def test_two_wave_plan_carries_one_post_phase_coordinate():
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), waves=("t1", "t2"))
+    )
+    assert plan.two_wave_window
+    assert plan.post_phase_labels == ("t2",)
+    assert plan.focal_term == "d_grp_time[t2]"
+    assert plan.factory_kwargs()["post_phase_labels"] == ("t2",)
+    # The model of record is unchanged.
+    full = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    assert not full.two_wave_window
+    assert full.post_phase_labels == ("t2", "t3", "t4")
+
+
+def test_two_wave_plan_prose_says_it_is_a_comparator():
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), waves=("t1", "t2"))
+    )
+    assert "the four-wave fit is the model of record" in plan.design
+    assert "no post-crossover observation informs the contrast" in plan.causal_status
+
+
+def _real_toy_prepared():
+    """A minimal real ``PreparedData`` — ``restrict_to_declared_waves`` goes through
+    the shared row subsetter, which rebuilds every row-indexed field."""
+    import numpy as np
+    from language_reading_predictors.statistical_models.preprocessing import PreparedData
+
+    n_children, n_phases = 6, 4
+    child = np.repeat(np.arange(n_children), n_phases)
+    phase = np.tile(np.arange(n_phases), n_children)
+    return PreparedData(
+        subject_ids=np.array([f"c{i}" for i in child]),
+        child_idx=child.astype(np.int64),
+        phase=phase.astype(np.int64),
+        G=(child < 3).astype(float),
+        A_months=np.linspace(60.0, 90.0, child.size),
+        A_std=np.linspace(-1.0, 1.0, child.size),
+        age_scaler=(75.0, 10.0),
+        pre_logit={},
+        post_counts={"W": np.full(child.shape, 5.0)},
+        n_trials={"W": 79},
+        n_obs=int(child.size),
+        n_children=n_children,
+        n_phases=n_phases,
+        dropped_rows=0,
+        phase_mode="levels",
+        covariates={"blocks": np.linspace(-1.0, 1.0, child.size)},
+    )
+
+
+def test_restricting_to_the_window_drops_the_later_waves_attributably():
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), waves=("t1", "t2"))
+    )
+    restricted = plan.restrict_to_declared_waves(_real_toy_prepared())
+    assert restricted.n_phases == 2
+    assert set(restricted.phase.tolist()) == {0, 1}
+    assert restricted.n_obs == 12  # 6 children x 2 waves
+    # Excluded by design, so counted under its own reason rather than as missing data.
+    assert restricted.dropped_by_reason["outside_declared_analysis_window"] == 12
+    plan.validate_prepared(restricted)  # must not raise
+
+
+def test_the_model_of_record_window_is_left_untouched():
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    prepared = _real_toy_prepared()
+    assert plan.restrict_to_declared_waves(prepared) is prepared
+
+
+def test_a_window_comparator_is_exempt_from_the_blending_link_pairing():
+    """#584 decisions 2 + 3 interact: the link pairing governs the fit whose B card
+    is the headline — the four-wave model of record — so requiring it of a two-wave
+    comparator would demand a two-wave floor-link twin that does not exist."""
+    comparator = ModelSpec(
+        model_id="lrp-rli-lf-206",
+        kind="level_factors",
+        title="t",
+        outcome_symbol="B",
+        model_settings=LevelFactorsModelSettings(
+            ability_covariate="blocks", waves=("t1", "t2")
+        ),
+    )
+    plan = resolve_level_factors_run_plan(comparator)
+    assert not plan.link_sensitivity_required_for_release
+    assert plan.required_link_companion_model_id is None
+    # ... and it says where the headline lives instead of going silent.
+    assert "lrp-rli-lf-006 + lrp-rli-lf-106" in plan.design
+
+
+def test_every_primary_has_a_registered_window_comparator():
+    specs = {spec.model_id: spec for spec in _level_factor_specs()}
+    for n in range(1, 12):
+        primary, comparator = f"lrp-rli-lf-{n:03d}", f"lrp-rli-lf-2{n:02d}"
+        assert comparator in specs, comparator
+        parent = resolve_level_factors_run_plan(specs[primary])
+        window = resolve_level_factors_run_plan(specs[comparator])
+        assert window.waves == ("t1", "t2")
+        assert parent.waves == ("t1", "t2", "t3", "t4")
+        # A comparator that differed in anything else would not be comparable.
+        for field in (
+            "outcome_symbol", "adjust_for", "ability_covariate", "group_by_time",
+            "ability_by_time", "group_ability", "likelihood", "arm_gap_reference",
+            "score_mean_link", "focal_term",
+        ):
+            assert getattr(parent, field) == getattr(window, field), (comparator, field)
 

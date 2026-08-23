@@ -4798,6 +4798,11 @@ def build_level_factors_model(
     # items, whose expected score cannot fall below chance. B only, graded only,
     # and released only beside its paired ordinary-link fit.
     score_mean_link: ScoreMeanLink = "logit",
+    # #584 decision 3: the post-t1 waves this fit carries, i.e. the coordinates of
+    # ``d_grp_time``. The four-wave model of record passes the family default; the
+    # randomised-window comparator passes ``("t2",)`` and its panel holds t1/t2 rows
+    # only, so no post-crossover observation can inform the reported t2 change.
+    post_phase_labels: tuple[str, ...] = POST_PHASE_LABELS,
     # #552: how the per-timepoint arm coefficients are parameterised. ``"t1"``
     # (default) centres them on the pre-randomisation t1 gap -- ``arm_gap_t1``
     # (a balance nuisance term on the cross-coupling prior, the DiD idiom) plus
@@ -4998,12 +5003,12 @@ def build_level_factors_model(
         "child": np.arange(prepared.n_children),
     }
     if t1_referenced:
-        if prepared.n_phases != len(POST_PHASE_LABELS) + 1:
+        if prepared.n_phases != len(post_phase_labels) + 1:
             raise ValueError(
-                "arm_gap_reference='t1' expects the four-wave levels panel "
-                f"(t1 + {POST_PHASE_LABELS}), got {prepared.n_phases} phases"
+                "arm_gap_reference='t1' expects a levels panel of "
+                f"t1 + {tuple(post_phase_labels)}, got {prepared.n_phases} phases"
             )
-        coords["post_phase"] = list(POST_PHASE_LABELS)
+        coords["post_phase"] = list(post_phase_labels)
     with pm.Model(coords=coords) as model:
         phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
         child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")

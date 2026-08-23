@@ -132,6 +132,22 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     # The level family's phoneme-blending response-link companion (#584 decision 2),
     # the same ``b`` role as the ITT pair below and in the same 1xx block.
     "lrplf06b": ("lf", 106),
+    # The randomised-window comparators (#584 decision 3) take the uniform 2xx
+    # block under the ``a`` (alternate) suffix, for the same reason the gf ``m``
+    # variants do: one suffix, one block. They cannot take 1xx here — ``lf-106``
+    # is the blending link companion, and scattering one family role across two
+    # blocks is exactly what the gf note above rejects.
+    "lrplf01a": ("lf", 201),
+    "lrplf02a": ("lf", 202),
+    "lrplf03a": ("lf", 203),
+    "lrplf04a": ("lf", 204),
+    "lrplf05a": ("lf", 205),
+    "lrplf06a": ("lf", 206),
+    "lrplf07a": ("lf", 207),
+    "lrplf08a": ("lf", 208),
+    "lrplf09a": ("lf", 209),
+    "lrplf10a": ("lf", 210),
+    "lrplf11a": ("lf", 211),
     "lrpitt08b": ("itt", 108),
     "lrpitt13b": ("itt", 113),
     "lrpitt14b": ("itt", 114),

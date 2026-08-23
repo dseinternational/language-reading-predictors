@@ -4451,6 +4451,77 @@ def level_t2_marginal_effect(
     return contrast_draws, ame_prob
 
 
+
+def level_window_comparator_cards(
+    output_dir, config: Mapping
+) -> list[dict[str, Any]] | None:
+    """The four-wave and t1/t2 cards side by side, when both fits are present.
+
+    #584 decision 3 keeps the four-wave levels fit as the model of record and adds a
+    randomised-window comparator, "reporting its difference". This finds the
+    counterpart fit beside this one — ``lrp-rli-lf-0NN`` <-> ``lrp-rli-lf-2NN``,
+    resolved through the id renumber table rather than by string arithmetic — and
+    returns both cards, most-restricted last, or ``None`` when the counterpart has
+    not been fitted.
+
+    Deliberately **not** a gate. The comparator answers "how much did the
+    longitudinal working model move the answer?", and a missing comparator leaves
+    that question open rather than making the model of record unpublishable; the
+    blending link pair is the case where absence *is* disqualifying, and it has its
+    own check. Reads stored cards only.
+    """
+    from language_reading_predictors import model_ids
+
+    plan = config.get("resolved_run_plan") or {}
+    if str(config.get("kind")) != "level_factors" or not plan.get("waves"):
+        return None
+    model_id = str(config.get("model_id") or "")
+    config_name = str(config.get("config_name") or "")
+    if not model_id or not config_name:
+        return None
+    try:
+        legacy = model_ids.to_legacy(model_id)
+        counterpart_legacy = (
+            legacy[:-1] if legacy.endswith("a") else f"{legacy}a"
+        )
+        counterpart = model_ids.to_canonical(counterpart_legacy, kind="level_factors")
+    except Exception:  # noqa: BLE001 - an unmapped id simply has no counterpart
+        return None
+
+    def _card(directory, expected_id: str) -> dict[str, Any] | None:
+        rope_path = os.path.join(str(directory), "rope_summary.csv")
+        config_path = os.path.join(str(directory), "config.json")
+        if not (os.path.exists(rope_path) and os.path.exists(config_path)):
+            return None
+        try:
+            with open(config_path, encoding="utf-8") as handle:
+                stored = json.load(handle)
+            row = pd.read_csv(rope_path).iloc[0]
+        except (OSError, ValueError, KeyError, IndexError):
+            return None
+        if str(stored.get("model_id")) != expected_id:
+            return None
+        waves = tuple((stored.get("resolved_run_plan") or {}).get("waves") or ())
+        return {
+            "model_id": expected_id,
+            "waves": waves,
+            "window": "t1-t2 only" if len(waves) == 2 else "all four waves",
+            "items_median": float(row["items_median"]),
+            "items_lo": float(row["items_lo"]),
+            "items_hi": float(row["items_hi"]),
+            "pd": float(row["pd"]),
+        }
+
+    here = Path(str(output_dir)).resolve()
+    cards = [
+        _card(here, model_id),
+        _card(here.parent / f"{counterpart}-{config_name}", counterpart),
+    ]
+    if any(card is None for card in cards):
+        return None
+    return sorted(cards, key=lambda card: -len(card["waves"]))
+
+
 def level_prior_pushforward(
     trace: xr.DataTree,
     *,

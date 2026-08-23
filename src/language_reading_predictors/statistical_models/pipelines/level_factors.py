@@ -91,6 +91,11 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.prepare_kwargs())
+    # Restrict to the declared analysis window before anything is validated or
+    # counted (#584 decision 3): the randomised-window comparator analyses the t1
+    # and t2 rows only, so every downstream count, guard and report describes the
+    # panel actually fitted rather than the four-wave one that was loaded.
+    prepared = plan.restrict_to_declared_waves(prepared)
     # Fail before model construction if the loaded panel cannot identify the
     # declared quantities — t2 missing a randomised arm, or a non-finite ability
     # value on a fitted row (#389 acceptance criterion; plan-owned so the guard
