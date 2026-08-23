@@ -1348,6 +1348,62 @@ def ppc_interval_coverage(
     return pd.DataFrame(rows)
 
 
+def ppc_interval_coverage_by_group(
+    trace: xr.DataTree,
+    *,
+    node: str,
+    group_labels: Sequence[str],
+    group_name: str = "outcome",
+    ci_levels: Sequence[float] = (0.5, 0.9),
+) -> pd.DataFrame:
+    """:func:`ppc_interval_coverage`, split by a label per flattened observation.
+
+    A multi-outcome family flattens its cells into one likelihood node, so the
+    pooled coverage statistic mixes tests with different denominators, floors and
+    ceilings and weights them by their observed cell counts. That aggregate is
+    well-defined but it can conceal outcome-specific miscalibration -- a badly
+    fitted 6-item floored outcome is invisible beside a well-fitted 79-item one
+    (2026-08-23 joint audit, lower-priority reporting correction).
+
+    Returns the same schema as the pooled frame with an extra label column, so the
+    per-group rows concatenate with it and ``ppc_coverage_markdown`` continues to
+    read the pooled row it always did.
+    """
+    y_rep, y_obs = _ppc_node_arrays(trace, node)
+    labels = np.asarray(group_labels).astype(str)
+    if labels.shape[0] != y_obs.shape[0]:
+        raise ValueError(
+            f"group_labels has {labels.shape[0]} entries but {node!r} has "
+            f"{y_obs.shape[0]} observations"
+        )
+    finite = np.isfinite(y_obs)
+    y_rep, y_obs, labels = y_rep[finite], y_obs[finite], labels[finite]
+    rows: list[dict[str, object]] = []
+    for label in dict.fromkeys(labels):
+        keep = labels == label
+        subset_rep, subset_obs = y_rep[keep], y_obs[keep]
+        n = int(subset_obs.shape[0])
+        for p in ci_levels:
+            lo = np.quantile(subset_rep, (1.0 - p) / 2.0, axis=1)
+            hi = np.quantile(subset_rep, (1.0 + p) / 2.0, axis=1)
+            n_in = int(np.count_nonzero((subset_obs >= lo) & (subset_obs <= hi)))
+            rows.append(
+                {
+                    "mode": "count_interval",
+                    "node": node,
+                    "unit": "observations",
+                    "quantity": "observed score",
+                    group_name: str(label),
+                    "level": float(p),
+                    "level_pct": int(round(p * 100)),
+                    "n_total": n,
+                    "n_inside": n_in,
+                    "coverage": float(n_in / n) if n else float("nan"),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def ppc_calibration_table(
     trace: xr.DataTree,
     *,
@@ -1498,6 +1554,17 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
     usable = cov[
         (cov["n_total"].astype(float) > 0) & np.isfinite(cov["coverage"].astype(float))
     ]
+    if usable.empty:
+        return ""
+    # Per-group breakdown rows (``ppc_interval_coverage_by_group``) are a *split* of
+    # the pooled rows, not extra observations, so summing them in as well would
+    # double every total. They carry a group label the pooled rows leave null; drop
+    # them here and let the family's own results partial render them
+    # (2026-08-23 joint audit, lower-priority reporting correction). Frames without
+    # the column are untouched, so stored fits render identically.
+    for group_column in ("outcome", "measure"):
+        if group_column in usable.columns:
+            usable = usable[usable[group_column].isna()]
     if usable.empty:
         return ""
     # Pool across likelihood nodes by summing counts, never by averaging rates:
@@ -2786,6 +2853,7 @@ def tau_difference_summary(
     ci_prob: float,
     G: np.ndarray | None = None,
     metadata: dict[str, str] | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> dict[str, float | str]:
     """Summarise an outcome-effect difference on probability and logit scales.
 
@@ -2799,9 +2867,17 @@ def tau_difference_summary(
     Human-readable semantics come from ``metadata`` rather than being inferred
     from symbols. This keeps LRPITT16's expressive-versus-receptive contrast
     distinct from LRPITT15/115's taught-versus-untaught contrasts.
+
+    ``row_mask`` restricts the standardisation population exactly as it does in
+    :func:`tau_summary_joint`, and is intersected with each outcome's observed
+    rows. The influence audit needs it: per-outcome movement is not sufficient to
+    determine contrast movement, because both magnitude *and* posterior covariance
+    matter, so the declared contrast has to be recomputed over the retained
+    children rather than reconstructed from its marginal components (2026-08-23
+    joint audit, finding 9).
     """
     a, b = pair
-    draws, ame = _joint_ame_draws(trace, outcomes, G=G)
+    draws, ame = _joint_ame_draws(trace, outcomes, G=G, row_mask=row_mask)
     ia, ib = outcomes.index(a), outcomes.index(b)
     diff = draws[ia] - draws[ib]
     diff_prob = ame[ia] - ame[ib]
@@ -7645,12 +7721,14 @@ def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, st
                 "causal",
             )
         )
+        sentences.append(_kf_sentence(_kf_pair_selection_note(len(within)), "note"))
         return sentences
 
     df = _kf_csv(output_dir, "measure_correlation_summary.csv")
     if df is None:
         raise _KeyFindingsUnavailable("measure_correlation_summary.csv is not present")
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
+    pair_note = _kf_pair_selection_note(len(df))
     pair = (
         f"{_kf_plain_label(row.get('label_i', row['measure_i']))} and "
         f"{_kf_plain_label(row.get('label_j', row['measure_j']))}"
@@ -7682,7 +7760,28 @@ def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, st
             "changing one skill changes another.",
             "causal",
         ),
+        _kf_sentence(pair_note, "note"),
     ]
+
+
+def _kf_pair_selection_note(n_pairs: int) -> str:
+    """Label the leading measure pair as an exploratory, uncertainty-based choice.
+
+    2026-08-23 joint audit, lower-priority reporting correction. The lead pair is
+    the one whose ``P(rho > 0)`` sits furthest from 0.5 among those examined -- in
+    ``jc-002``, among those first passing the residual-scale resolvability rule. It
+    is therefore neither pre-specified nor the largest effect, and calling it "the
+    clearest" without saying so invites a reader to treat it as a finding about
+    that pair specifically. Naming the selection is the fix; no multiplicity
+    adjustment is claimed or implied, and none is applied.
+    """
+    return (
+        f"**Exploratory pair selection.** The leading pair is the one whose "
+        f"direction is clearest of the {n_pairs} examined -- chosen after seeing "
+        "all of them and on uncertainty, not on effect size, and not "
+        "pre-specified. Read the full table rather than this pair alone. No "
+        "multiplicity adjustment is applied and none is implied."
+    )
 
 
 def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
@@ -8016,9 +8115,19 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
 
     # Headline: the identified contrast. With several waves, lead with the clearest
     # one (distance of P(>0) from 0.5) and give the range, rather than implying a
-    # single number applies throughout.
+    # single number applies throughout. That selection is made *after* seeing all
+    # four waves, and only the diagnostic-anchor wave receives the full primary-fit
+    # lifecycle — every other wave is a ``run_subfit`` with divergence, BFMI and
+    # free-variable R-hat/ESS checks but no prior-predictive check, posterior
+    # predictive check, power-scaling analysis or persisted trace. So the choice is
+    # labelled exploratory below rather than presented as a pre-specified primary
+    # result (2026-08-23 joint audit, finding 3).
     lead = _kf_most_resolved_row(delta, prob_col="prob_pos")
     where = f" at {lead['wave']}" if per_wave else ""
+    anchor_wave = str(
+        (config.get("extra") or {}).get("diagnostic_anchor_timepoint") or ""
+    )
+    anchor_label = f"t{anchor_wave}" if anchor_wave else ""
     # The direction is read from the fit, never asserted. It is genuinely
     # design-dependent: the ANCOVA parameterisation puts letter sounds well ahead on
     # nonword decoding, while the levels parameterisation can favour word reading —
@@ -8027,9 +8136,9 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
         (hi_sym, lo_sym) if _kf_float(lead["median"]) > 0 else (lo_sym, hi_sym)
     )
     headline = (
-        f"On this model's scale letter-sound knowledge tracks "
+        f"On this model's test-score scale letter-sound knowledge tracks "
         f"{_kf_measure_label(stronger)} more closely than "
-        f"{_kf_measure_label(weaker)}: the identified contrast "
+        f"{_kf_measure_label(weaker)}: the within-model score-slope contrast "
         f"Δ = β(LS→{hi_sym}) − β(LS→{lo_sym}) is {_kf_jm_interval(lead)} logit per "
         f"SD{where}."
     )
@@ -8043,6 +8152,21 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
         " Both slopes come from one posterior with an explicit cross-outcome "
         "dependence block, so this is a within-model contrast — not the "
         "product-of-marginals sensitivity that separate fits can only bound."
+    )
+    # 2026-08-23 joint audit, finding 4: the numbers are right; the construct-level
+    # reading is not licensed. The two tests differ in item count, score
+    # distribution, discrimination, reliability and floor/ceiling behaviour, and the
+    # model puts them on no common latent outcome scale — so one shared ability
+    # loading differently on the two tests produces a non-zero slope contrast by
+    # itself. This is an operational property of the two scores, not a measure of
+    # decoding specificity.
+    headline += (
+        " Read it as an **operational contrast between two adjusted test-score "
+        "associations**, not as construct-level decoding specificity: the two tests "
+        "differ in item count, score distribution, discrimination, reliability and "
+        "floor/ceiling behaviour, and this model calibrates them to no common latent "
+        "outcome scale, so a single shared ability that loads differently on them "
+        "would produce a non-zero contrast on its own."
     )
     if design == "levels":
         headline += (
@@ -8073,36 +8197,77 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
 
     share = df[df["term"] == "share_retained"]
     if not share.empty:
-        shares = [_kf_float(v) for v in share["median"]]
-        by_wave = ", ".join(
-            f"{str(r['wave'])} {_kf_float(r['median']):.2f}"
-            for _, r in share.iterrows()
+        # 2026-08-23 joint audit, findings 4 and 10. Two changes: the quantity is a
+        # ratio of adjusted associations, never a mediation proportion or a causal
+        # path fraction, so no "runs through the decoding channel" language; and it
+        # is reported only where the pre-specified stability rule holds. A ratio
+        # whose denominator or whose held-fixed residual scale can be near zero is
+        # heavy-tailed, and a finite Monte Carlo summary is then a property of the
+        # draws rather than of the quantity.
+        stable_flags = (
+            share["share_retained_stable"].astype(str).str.lower().isin({"true", "1"})
+            if "share_retained_stable" in share.columns
+            else pd.Series(True, index=share.index)
         )
+        stable = share[stable_flags]
+        unstable_waves = [str(w) for w in share.loc[~stable_flags, "wave"]]
         conditional = df[df["term"] == "beta_mech_focal_given_held"]
         lead_cond = conditional[conditional["wave"] == lead_wave]
         tail = ""
         if not lead_cond.empty:
             tail = (
                 f" At {lead_wave} the letter-sound slope on "
-                f"{_kf_measure_label(lo_sym)} holding {_kf_measure_label(hi_sym)} "
-                f"fixed is {_kf_jm_interval(lead_cond.iloc[0])} logit per SD."
+                f"{_kf_measure_label(lo_sym)} holding latent "
+                f"{_kf_measure_label(hi_sym)} fixed is "
+                f"{_kf_jm_interval(lead_cond.iloc[0])} logit per SD."
             )
-        # Stated as a measured fraction, not as "it survives": the direction is the
-        # fit's to report, and a share near zero would make the claim false.
-        sentences.append(
-            _kf_sentence(
-                f"Holding {_kf_measure_label(hi_sym)} fixed, the identified share "
-                f"of the letter-sound → {_kf_measure_label(lo_sym)} association "
-                f"retained is {by_wave} (median {min(shares):.2f}–{max(shares):.2f} "
-                f"across waves).{tail} "
-                "This replaces the paired-draws ratio of two separate fits; it "
-                "partials the *latent* held-fixed skill, so it retains less than a "
-                "version conditioning on the observed count. Read it as a ratio — "
-                "informative only while the unconditional slope stays clear of "
-                "zero.",
-                "detail",
+        if not stable.empty:
+            shares = [_kf_float(v) for v in stable["median"]]
+            by_wave = ", ".join(
+                f"{str(r['wave'])} {_kf_float(r['median']):.2f}"
+                for _, r in stable.iterrows()
             )
-        )
+            sentences.append(
+                _kf_sentence(
+                    f"Holding latent {_kf_measure_label(hi_sym)} fixed, the ratio of "
+                    f"the adjusted letter-sound → {_kf_measure_label(lo_sym)} "
+                    f"association to its unconditional value is {by_wave} (median "
+                    f"{min(shares):.2f}–{max(shares):.2f} across waves).{tail} "
+                    "It replaces the paired-draws ratio of two separate fits and "
+                    "partials the *latent* held-fixed skill, so it is smaller than a "
+                    "version conditioning on the observed count. It is a **ratio of "
+                    "two adjusted associations** — not a mediation proportion, not a "
+                    "causal path fraction, and not evidence that the association "
+                    "runs through a decoding channel.",
+                    "detail",
+                )
+            )
+        reduction = df[df["term"] == "abs_slope_reduction"]
+        lead_reduction = reduction[reduction["wave"] == lead_wave]
+        if not lead_reduction.empty:
+            sentences.append(
+                _kf_sentence(
+                    f"On the denominator-free scale{where}, holding latent "
+                    f"{_kf_measure_label(hi_sym)} fixed reduces the absolute "
+                    f"letter-sound → {_kf_measure_label(lo_sym)} slope by "
+                    f"{_kf_jm_interval(lead_reduction.iloc[0])} logit per SD. This "
+                    "companion is reported whether or not the ratio is stable, "
+                    "because a difference has no denominator to blow up.",
+                    "detail",
+                )
+            )
+        if unstable_waves:
+            sentences.append(
+                _kf_sentence(
+                    f"The ratio is withheld as unstable at {', '.join(unstable_waves)}: "
+                    "the posterior does not put at least 95% of its mass on the "
+                    "unconditional slope, or on the held-fixed outcome's residual "
+                    "scale, being away from zero, so the ratio is heavy-tailed and "
+                    "its summary would describe the draws rather than the quantity. "
+                    "Read the two slopes and their absolute difference instead.",
+                    "note",
+                )
+            )
 
     rho = df[df["term"] == "rho_outcome"]
     if not rho.empty:
@@ -8141,15 +8306,42 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
             _kf_association_direction(
                 lead["prob_pos"],
                 positive_claim=(
-                    "letter sounds track the pure-decoding channel more closely than "
-                    "the mixed word-reading channel — the decoding-use signature (an "
-                    "adjusted association, not a causal effect)"
+                    "letter sounds track the nonword score more closely than the "
+                    "word-reading score — an operational property of these two "
+                    "tests' adjusted associations, which a difference in what they "
+                    "measure and a difference in how they measure it can both "
+                    "produce (an adjusted association, not a causal effect)"
                 ),
                 negative_claim=negative_claim,
             ),
             "confidence",
         )
     )
+    if per_wave:
+        # 2026-08-23 joint audit, finding 3: the lead wave is chosen after seeing
+        # every wave's posterior, and only the anchor wave carries the full
+        # primary-fit lifecycle. Both facts belong beside the headline.
+        anchor_clause = (
+            f"Only the diagnostic-anchor wave ({anchor_label}) carries the full "
+            "primary-fit lifecycle — prior-predictive and posterior-predictive "
+            "checks, power-scaling sensitivity, a persisted trace and the release "
+            "gate. Every other wave is a sub-fit checked for divergences, BFMI and "
+            "free-variable R-hat/ESS only."
+            if anchor_label
+            else "Only the diagnostic-anchor wave carries the full primary-fit "
+            "lifecycle; every other wave is a sub-fit checked for divergences, "
+            "BFMI and free-variable R-hat/ESS only."
+        )
+        sentences.append(
+            _kf_sentence(
+                f"**Exploratory wave selection.** {lead_wave} leads because its "
+                "direction is the clearest of the fitted waves — a choice made "
+                "after seeing all of them, not pre-specified — so treat the "
+                "across-wave comparison as exploratory and read the range, not the "
+                f"lead value, as the result. {anchor_clause}",
+                "note",
+            )
+        )
     if excluded_waves:
         sentences.append(
             _kf_sentence(

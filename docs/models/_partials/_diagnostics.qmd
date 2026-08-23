@@ -324,8 +324,17 @@ _ppc_is_offfloor = (
     and str(_ppc_cov["mode"].iloc[0]) == "offfloor_rate"
 )
 _ppc_is_joint = config.get("kind") == "joint"
-print(_img("posterior_predictive_check.png", "Posterior-predictive check"))
-if _has("posterior_predictive_check.png"):
+# One overlay per measure for a family carrying one likelihood node per measure:
+# the first keeps the unsuffixed name and the rest are measure-suffixed, so a
+# lookup for the unsuffixed file alone dropped every measure after the first
+# (2026-08-23 joint audit, lower-priority reporting correction). Sorted so page
+# order is stable across renders.
+_ppc_panels = ["posterior_predictive_check.png"] + sorted(
+    _p.name for _p in _here.glob("posterior_predictive_check_*.png")
+)
+for _ppc_panel in _ppc_panels:
+    print(_img(_ppc_panel, "Posterior-predictive check"))
+if any(_has(_ppc_panel) for _ppc_panel in _ppc_panels):
     if _ppc_is_offfloor:
         print(
             "\n_How to read it:_ each point is one arm × wave cell; the red cross is the "

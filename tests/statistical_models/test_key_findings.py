@@ -1758,7 +1758,10 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
                 _jm("t4", "share_retained", 0.66, 0.38, 0.92, 1.0),
             ],
         )
-        return d, "decoding-use signature"
+        # 2026-08-23 joint audit, finding 4: the direction sentence describes an
+        # operational property of the two adjusted test-score associations, not a
+        # construct-level "decoding-use signature" the design cannot identify.
+        return d, "an operational property of these two"
     if kind == "pooled_levels":
         # ``d`` already exists from the shared setup above; the family reads its
         # symbols from the resolved plan, so only config.json needs replacing.

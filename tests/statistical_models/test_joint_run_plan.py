@@ -288,6 +288,76 @@ def test_dependence_companions_match_their_parents_except_the_block():
         assert plan.psense_vars == ["tau", "sigma_outcome", "u_corr_pair"]
 
 
+def test_the_release_pairing_constant_matches_the_registered_declarations():
+    """2026-08-23 joint audit, finding 2. ``release`` derives the pairing from
+    ``JOINT_DEPENDENCE_COMPANIONS`` because every stored parent artefact predates
+    the plan field, so the constant is a second source of truth and must not drift
+    from the modules that own the declaration."""
+    declared = {}
+    for companion_name, parent_name in _DEPENDENCE_COMPANIONS.items():
+        parent = importlib.import_module(
+            f"language_reading_predictors.statistical_models.{parent_name}"
+        ).SPEC
+        companion = importlib.import_module(
+            f"language_reading_predictors.statistical_models.{companion_name}"
+        ).SPEC
+        declared[parent.model_id] = companion.model_id
+    assert J.JOINT_DEPENDENCE_COMPANIONS == declared
+
+
+def test_residual_correlation_needs_at_least_two_outcomes():
+    """A one-dimensional LKJ block has no free correlation and cannot be built;
+    the resolver rejects it before any output directory is reset or data loaded
+    (2026-08-23 joint audit, lower-priority API correction)."""
+    settings = J.JointModelSettings(
+        outcomes=("TE",),
+        use_residual_correlation=True,
+        joint_structure="residual_correlated",
+    )
+    with pytest.raises(ValueError, match="at least two outcomes"):
+        J.resolve_joint_run_plan(_spec(settings=settings))
+
+
+def test_the_correlated_estimand_is_recorded_as_latent_conditional():
+    """Finding 1: the companion's average marginal effect is standardised over the
+    fitted children conditional on draws of their own residuals — a different
+    estimand from the parent's, not the parent's with its covariance corrected.
+    The plan must say so, and must not promise point-estimate invariance."""
+    correlated = J.resolve_joint_run_plan(
+        _spec(
+            settings=J.JointModelSettings(
+                outcomes=("TE", "UE"),
+                use_residual_correlation=True,
+                joint_structure="residual_correlated",
+            )
+        )
+    )
+    factorised = J.resolve_joint_run_plan(
+        _spec(settings=J.JointModelSettings(outcomes=("TE", "UE")))
+    )
+    assert "conditional on posterior draws of their own residuals" in correlated.estimand
+    assert "NOT invariant by construction" in correlated.estimand
+    assert "latent-conditional" not in factorised.estimand
+    assert "conditional on posterior draws" not in factorised.estimand
+
+
+def test_the_blending_link_policy_scope_is_recorded_for_a_joint_b_fit():
+    """Finding 12: the 008/108 pairing governs the B model of record; a joint B row
+    is a secondary structural cross-check. The plan records that scope so the
+    release decision can verify it instead of relying on the findings-box prose."""
+    with_b = J.resolve_joint_run_plan(
+        _spec(settings=J.JointModelSettings(outcomes=("W", "B")))
+    )
+    without_b = J.resolve_joint_run_plan(
+        _spec(settings=J.JointModelSettings(outcomes=("W", "R")))
+    )
+    assert without_b.link_sensitivity_scope is None
+    assert with_b.link_sensitivity_scope is not None
+    assert "lrp-rli-itt-008" in with_b.link_sensitivity_scope
+    assert "not independently release-qualified" in with_b.link_sensitivity_scope
+    assert with_b.as_dict()["link_sensitivity_scope"] == with_b.link_sensitivity_scope
+
+
 def test_a_residual_correlated_fit_must_not_declare_a_dependence_companion():
     """A correlated fit IS the dependence model (2026-08-21 review, finding 3);
     naming a further companion would send the release gate chasing a chain."""

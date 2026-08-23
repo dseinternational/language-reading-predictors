@@ -86,6 +86,7 @@ import os
 from contextlib import suppress
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any, Literal, Mapping
 
 import numpy as np
@@ -122,6 +123,16 @@ __all__ = [
 #: ArviZ's default power-scaling flag threshold. A parameter is "sensitive" when
 #: either its prior or its likelihood power-scaling statistic reaches this.
 PSENSE_THRESHOLD = 0.05
+
+#: How far the declared joint contrast's direction probability may move between a
+#: factorised parent and its LKJ residual-correlation companion before the pairing
+#: is reported as materially changing the conclusion (2026-08-23 joint audit,
+#: finding 2). 0.05 on P(> 0) is a conclusion-level rule: on the three registered
+#: pairs the observed shifts are 0.006, 0.006 and 0.006, so it flags a change of
+#: reading rather than the Monte Carlo noise between two independently sampled
+#: fits. The contrast *interval* is deliberately not thresholded — moving it is
+#: exactly what the companion exists to do.
+_CONTRAST_DIRECTION_SHIFT = 0.05
 
 #: Trace backing the natural-effect temporal-ordering sensitivity.  The fixed
 #: basename is part of the release contract: a table is not independently
@@ -870,6 +881,11 @@ class ReleaseEvaluation:
     #: Explanation for ``development_only``; kept separate from ``reason`` because a
     #: clean local diagnostic fit still has ``status='ok'``.
     publication_qualification: str = ""
+    #: For a bound factorised joint contrast pair, the measured consequence of the
+    #: dependence model for the **declared** average-marginal-effect difference
+    #: (2026-08-23 joint audit, finding 2). ``None`` when the fit is not a bound
+    #: parent; the ``material`` flag says whether it changed the conclusion.
+    dependence_contrast: Mapping[str, Any] | None = None
 
     @property
     def publishable(self) -> bool:
@@ -910,6 +926,8 @@ class ReleaseEvaluation:
             record["missing_artifacts"] = list(self.missing_artifacts)
         if self.robustness is not None:
             record["robustness"] = self.robustness.as_dict()
+        if self.dependence_contrast:
+            record["dependence_contrast"] = dict(self.dependence_contrast)
         if self.config:
             record["model_id"] = self.config.get("model_id")
             record["kind"] = self.config.get("kind")
@@ -2196,6 +2214,74 @@ def _level_blending_pair_release_failures(
     return ()
 
 
+def _joint_blending_scope_note(output_dir: Path, config: Mapping[str, Any]) -> str:
+    """Qualifier when a joint fit carrying ``B`` has no release-ready 008/108 bundle
+    beside it (2026-08-23 joint audit, finding 12).
+
+    **The recorded policy scope.** The mandatory phoneme-blending response-link
+    pairing (``lrp-rli-itt-008`` + ``lrp-rli-itt-108``) governs the *model of
+    record* for ``B``: neither of those fits may release without the validated
+    trace-backed bundle. ``lrp-rli-itt-012`` also fits ``B``, on the ordinary logit
+    mean, and can publish a row for it — but the gate is keyed to ``kind == "itt"``,
+    so nothing verified the condition its own findings box asserts in prose. That
+    left an unguarded alternate route to a blending treatment claim.
+
+    The resolution is *scope plus verification*, not extension of the withhold. A
+    joint ``B`` row is a **secondary structural cross-check**: it is not
+    independently release-qualified and cannot supersede or weaken the paired
+    008/108 conclusion. Withholding nine valid outcomes because one row's companion
+    is stale would destroy sound information to protect a row that is not the model
+    of record — the same reasoning the dependence pairing already uses. So the
+    check verifies the sibling bundle and, when it is not ready, attaches a note
+    saying the joint ``B`` row must not be read as a blending treatment claim at
+    all. Fail-closed: anything unverifiable attaches the note with its reason.
+    """
+    if str(config.get("kind") or "") != "joint":
+        return ""
+    if "B" not in [str(o) for o in (_plan(config).get("outcomes") or [])]:
+        return ""
+
+    def _note(reason: str) -> str:
+        return (
+            "This joint fit reports an ordinary-logit phoneme-blending (B) effect, "
+            "which is a secondary structural cross-check and is not independently "
+            "release-qualified. The mandatory response-link bundle "
+            "(lrp-rli-itt-008 + lrp-rli-itt-108) that governs the B model of record "
+            f"is not release-ready beside it ({reason}), so the B row here must not "
+            "be read as a phoneme-blending treatment claim, and it cannot supersede "
+            "or weaken the paired 008/108 conclusion."
+        )
+
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        BLENDING_PRIMARY_MODEL_ID,
+        evaluate_local_blending_link_sensitivity,
+    )
+
+    try:
+        directory = Path(output_dir).resolve()
+        config_name = str(config.get("config_name") or "") or _config_name(
+            directory, str(config.get("model_id") or "")
+        )
+        if not config_name:
+            return _note("this fit's configuration name could not be resolved")
+        primary_dir = directory.parent / f"{BLENDING_PRIMARY_MODEL_ID}-{config_name}"
+        primary_config = _load_config(primary_dir)
+        if not primary_config:
+            return _note(f"{BLENDING_PRIMARY_MODEL_ID} has no readable config.json")
+        theirs = str(primary_config.get("data_sha256") or "")
+        ours = str(config.get("data_sha256") or "")
+        if not theirs or not ours or theirs != ours:
+            return _note("the bundle was not fitted on the same input data")
+        status = evaluate_local_blending_link_sensitivity(
+            primary_dir, config=primary_config
+        )
+        if status.get("required") and not status.get("ready"):
+            return _note(str(status.get("reason") or "the paired evidence is stale"))
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return _note(f"the bundle could not be verified: {exc}")
+    return ""
+
+
 def _dependence_identification_note(output_dir: Path) -> str:
     """Qualifier when a fitted dependence block never moved off its prior.
 
@@ -2235,45 +2321,206 @@ def _dependence_identification_note(output_dir: Path) -> str:
     )
 
 
+#: Binding fields a factorised joint contrast parent and its LKJ residual-correlation
+#: companion must agree on before the pair counts as evidence about the *same*
+#: estimand on the *same* rows (2026-08-23 joint audit, finding 2). Each entry is
+#: ``(reader, human-readable description)``; the reader pulls the value out of a
+#: stored ``config.json``. Comparing the resolved *plan* rather than the declared
+#: settings is deliberate: the plan is what the fit actually ran.
+_JOINT_PAIR_BINDING: tuple[tuple[str, Callable[[Mapping[str, Any]], Any]], ...] = (
+    ("the ordered outcome list", lambda c: list(_plan(c).get("outcomes") or [])),
+    (
+        "the contrast direction",
+        lambda c: [
+            str((_plan(c).get("contrast") or {}).get("left") or ""),
+            str((_plan(c).get("contrast") or {}).get("right") or ""),
+        ],
+    ),
+    (
+        "the fitted equation's precision terms",
+        lambda c: [
+            bool(_plan(c).get("use_cross_baselines")),
+            bool(_plan(c).get("use_age_linear")),
+            bool(_plan(c).get("use_age_gp")),
+        ],
+    ),
+    ("the PSIS-LOO unit", lambda c: str(_plan(c).get("loo_unit") or "")),
+    ("the input data checksum", lambda c: str(c.get("data_sha256") or "") or None),
+    (
+        "the fitted-row identity",
+        lambda c: str((c.get("fitted_subject_identity") or {}).get("sha256") or "")
+        or None,
+    ),
+    (
+        "the fitted-data digest and observed denominators",
+        lambda c: (
+            [digest, (c.get("fitted_data_identity") or {}).get("observed")]
+            if (digest := str((c.get("fitted_data_identity") or {}).get("digest") or ""))
+            else None
+        ),
+    ),
+    ("the sampling configuration", lambda c: c.get("sampling") or None),
+    (
+        "the source commit",
+        lambda c: str(
+            ((c.get("provenance") or {}).get("source") or {}).get("commit") or ""
+        )
+        or None,
+    ),
+)
+
+
+def _plan(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """The stored resolved run plan, or an empty mapping."""
+    plan = config.get("resolved_run_plan")
+    return plan if isinstance(plan, Mapping) else {}
+
+
+def _required_dependence_companion(config: Mapping[str, Any]) -> str:
+    """The companion this fit must be read beside, or ``""``.
+
+    Derived from the **registered** pairing constant first and the stored plan
+    second. Deriving it from the stored plan alone left the qualifier dormant on
+    every artefact written before ``dependence_companion`` existed — which is all
+    three current parent fits (2026-08-23 joint audit, finding 2) — so a stale
+    stored plan could bypass a policy the registered module declares. This mirrors
+    how the phoneme-blending gate derives its requirement from
+    ``BLENDING_LINK_MODELS`` rather than from what a fit happened to record.
+    """
+    from language_reading_predictors.statistical_models.joint import (
+        JOINT_DEPENDENCE_COMPANIONS,
+    )
+
+    model_id = str(config.get("model_id") or "")
+    registered = JOINT_DEPENDENCE_COMPANIONS.get(model_id, "")
+    if registered:
+        return registered
+    contrast = _plan(config).get("contrast")
+    if not isinstance(contrast, Mapping):
+        return ""
+    return str(contrast.get("dependence_companion") or "")
+
+
+def _joint_contrast_consequence(
+    parent_dir: Path, companion_dir: Path
+) -> tuple[dict[str, Any], str]:
+    """Measure what the dependence model does to the **declared contrast**.
+
+    Finding 2's second half. The robustness gate classifies power-scaling rows for
+    the conditional-logit ``tau`` vector; clean marginal ``tau`` diagnoses say
+    nothing about a nonlinear difference of standardised average marginal effects,
+    which is the quantity the findings box actually reports. And requiring every
+    nuisance correlation in the LKJ block to be sharply identified is the wrong
+    test — at n = 53 it never will be, and it need not be for the contrast to be
+    stable. So assess the block *through its consequence for the contrast*: read
+    both fits' ``tau_difference.csv`` and compare the declared quantity directly.
+
+    Returns the machine-readable record and a qualifier sentence, empty when the
+    dependence model leaves the contrast's conclusion where it was. "Material" is
+    a direction flip in the median, or a shift in P(> 0) of at least
+    :data:`_CONTRAST_DIRECTION_SHIFT` — deliberately a conclusion-level rule, not
+    a threshold on the interval, whose movement *is* the companion's purpose.
+    """
+    record: dict[str, Any] = {}
+    parent = _read_csv(parent_dir, "tau_difference.csv")
+    companion = _read_csv(companion_dir, "tau_difference.csv")
+    if parent is None or companion is None or parent.empty or companion.empty:
+        record["status"] = "unavailable"
+        record["reason"] = "one or both fits have no tau_difference.csv"
+        return record, ""
+    p, c = parent.iloc[0], companion.iloc[0]
+    if str(p.get("contrast")) != str(c.get("contrast")):
+        record["status"] = "mismatched"
+        record["reason"] = (
+            f"parent reports {p.get('contrast')!r} and companion "
+            f"{c.get('contrast')!r}"
+        )
+        return record, ""
+    needed = ("diff_prob_median", "diff_prob_lo", "diff_prob_hi", "prob_diff_pos")
+    if any(col not in parent.columns or col not in companion.columns for col in needed):
+        record["status"] = "unavailable"
+        record["reason"] = "tau_difference.csv is missing the contrast columns"
+        return record, ""
+    values = {name: (_finite(p[name]), _finite(c[name])) for name in needed}
+    if any(v[0] is None or v[1] is None for v in values.values()):
+        record["status"] = "unavailable"
+        record["reason"] = "tau_difference.csv holds non-finite contrast values"
+        return record, ""
+    p_med, c_med = values["diff_prob_median"]
+    p_pos, c_pos = values["prob_diff_pos"]
+    p_width = values["diff_prob_hi"][0] - values["diff_prob_lo"][0]
+    c_width = values["diff_prob_hi"][1] - values["diff_prob_lo"][1]
+    direction_shift = abs(c_pos - p_pos)
+    flipped = (p_med > 0) != (c_med > 0)
+    record.update(
+        {
+            "status": "compared",
+            "contrast": str(p.get("contrast")),
+            "scale": str(p.get("headline_scale") or ""),
+            "parent_median": p_med,
+            "companion_median": c_med,
+            "median_shift": c_med - p_med,
+            "parent_prob_positive": p_pos,
+            "companion_prob_positive": c_pos,
+            "direction_probability_shift": direction_shift,
+            "parent_interval_width": p_width,
+            "companion_interval_width": c_width,
+            "interval_width_ratio": (c_width / p_width) if p_width else None,
+            "direction_flipped": bool(flipped),
+            "material": bool(flipped or direction_shift >= _CONTRAST_DIRECTION_SHIFT),
+        }
+    )
+    if not record["material"]:
+        return record, ""
+    cause = (
+        "reverses the sign of the contrast median"
+        if flipped
+        else f"moves P(> 0) by {direction_shift:.2f}"
+    )
+    return record, (
+        "The dependence model materially changes the declared contrast: the LKJ "
+        f"companion {cause} (parent P(> 0) = {p_pos:.2f}, companion "
+        f"{c_pos:.2f}). Read the paired conclusion from the companion, not from "
+        "this fit's factorised interval alone."
+    )
+
+
 def _joint_dependence_companion_note(
     output_dir: Path, config: Mapping[str, Any]
-) -> str:
+) -> tuple[str, dict[str, Any] | None]:
     """Qualifying note when a factorised joint contrast's dependence companion is
-    not release-ready beside it (2026-08-21 joint review, finding 3).
+    not release-ready **and bound** beside it (2026-08-21 joint review, finding 3;
+    binding and contrast consequence added by the 2026-08-23 joint audit, finding 2).
 
     The three contrast parents' ``dependence_note`` prose has always said the
     contrast is dependence-checked only once the registered LKJ companion
-    (lrp-rli-itt-215/315/216, #551) has passed the house gate — but nothing
-    enforced it, unlike the mandatory phoneme-blending 008/108 pair. This check
-    reads the machine-readable ``dependence_companion`` from the fit's resolved
-    plan and verifies the sibling companion fit of the same configuration is
-    publishable and was fitted on the same input data.
+    (lrp-rli-itt-215/315/216, #551) has passed the house gate. Verifying that the
+    companion is publishable is necessary but not sufficient: a *different*
+    companion fit — other outcomes, the reversed contrast, other rows, other
+    sampling settings, another commit — would satisfy it just as well. So the pair
+    is now bound field by field through :data:`_JOINT_PAIR_BINDING`, and the
+    dependence block is assessed through its consequence for the declared contrast
+    rather than through whether every nuisance correlation is sharply identified.
 
     Deliberately a **qualify-note**, not a withhold: the parent's per-outcome
     marginal effects are fully valid without the companion — only the paired
     contrast's interval is dependence-unchecked — so the failure attaches the
     caveat sentence to the findings box rather than withholding valid marginals.
-    A stored fit whose plan predates the field carries no companion id and is
-    unaffected, so old decisions re-decide identically. During a fresh sweep a
-    parent can finalise before its companion has been fitted; the note then
-    attaches and is cleared by regenerating the decision
+    During a fresh sweep a parent can finalise before its companion has been
+    fitted; the note then attaches and is cleared by regenerating the decision
     (``scripts/regenerate_key_findings.py``) once the companion completes.
-    Fail-closed: any error verifying the companion attaches the note with the
-    reason rather than silently releasing an unchecked pairing.
+    Fail-closed: any error verifying the companion, and any binding field that
+    cannot be read on both sides, attaches the note with the reason rather than
+    silently releasing an unchecked pairing.
+
+    Returns ``(note, contrast_record)``; the record is the machine-readable
+    contrast comparison persisted in ``release_decision.json``.
     """
     if str(config.get("kind") or "") != "joint":
-        return ""
-    plan = config.get("resolved_run_plan") or {}
-    if not isinstance(plan, Mapping):
-        return ""
-    contrast = plan.get("contrast") or {}
-    companion = (
-        str(contrast.get("dependence_companion") or "")
-        if isinstance(contrast, Mapping)
-        else ""
-    )
-    if not companion or bool(plan.get("use_residual_correlation")):
-        return ""
+        return "", None
+    companion = _required_dependence_companion(config)
+    if not companion or bool(_plan(config).get("use_residual_correlation")):
+        return "", None
 
     def _note(reason: str) -> str:
         return (
@@ -2291,27 +2538,42 @@ def _joint_dependence_companion_note(
             directory, model_id
         )
         if not config_name:
-            return _note("this fit's configuration name could not be resolved")
+            return _note("this fit's configuration name could not be resolved"), None
         companion_dir = directory.parent / f"{companion}-{config_name}"
         decision, decision_error = _read_json(
             companion_dir / RELEASE_DECISION_FILENAME
         )
         if decision_error is not None or not isinstance(decision, Mapping):
-            return _note("its release decision is missing or unreadable")
+            return _note("its release decision is missing or unreadable"), None
         if not bool(decision.get("publishable")):
-            return _note("its own release decision withholds publication")
+            return _note("its own release decision withholds publication"), None
         companion_config = _load_config(companion_dir)
         if not companion_config:
-            return _note("its config.json is missing or unreadable")
+            return _note("its config.json is missing or unreadable"), None
         if str(companion_config.get("model_id") or "") != companion:
-            return _note("the sibling directory does not identify itself as the companion")
-        theirs = str(companion_config.get("data_sha256") or "")
-        ours = str(config.get("data_sha256") or "")
-        if not theirs or not ours or theirs != ours:
-            return _note("it was not fitted on the same input data as this fit")
+            return (
+                _note("the sibling directory does not identify itself as the companion"),
+                None,
+            )
+        if not bool(_plan(companion_config).get("use_residual_correlation")):
+            return (
+                _note("it is not a residual-correlated fit, so it is not a dependence model"),
+                None,
+            )
+        for description, reader in _JOINT_PAIR_BINDING:
+            ours, theirs = reader(config), reader(companion_config)
+            if ours is None or theirs is None:
+                return _note(f"{description} is not recorded on both fits"), None
+            if ours != theirs:
+                return _note(f"{description} differs between the two fits"), None
     except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
-        return _note(f"the companion could not be verified: {exc}")
-    return ""
+        return _note(f"the companion could not be verified: {exc}"), None
+
+    contrast_record, contrast_note = _joint_contrast_consequence(
+        directory, companion_dir
+    )
+    contrast_record["companion"] = companion
+    return contrast_note, contrast_record
 
 
 def evaluate_publication(
@@ -2526,16 +2788,31 @@ def evaluate_publication(
             config=config,
             **qualification,
         )
-    # Joint dependence pairing (2026-08-21 review, finding 3): a factorised
-    # contrast whose registered LKJ companion is not release-ready beside it
-    # releases with the dependence-unchecked qualifier attached, so the findings
-    # box carries the caveat the prose ``dependence_note`` has always demanded.
-    companion_note = _joint_dependence_companion_note(output_dir, config)
+    # Joint dependence pairing (2026-08-21 review, finding 3; bound field by field
+    # and assessed through the declared contrast by the 2026-08-23 audit, finding
+    # 2): a factorised contrast whose registered LKJ companion is not release-ready
+    # *and bound* beside it releases with the dependence-unchecked qualifier
+    # attached, so the findings box carries the caveat the prose ``dependence_note``
+    # has always demanded. When the pair does bind, the measured consequence for the
+    # declared contrast is recorded and only qualifies the release if it changes the
+    # conclusion.
+    companion_note, dependence_contrast = _joint_dependence_companion_note(
+        output_dir, config
+    )
     # The companion note is for a *parent* whose companion is missing; this one is
     # for the companion itself, whose block may have learned nothing (2026-08-22
     # ITT audit, finding 3). A fit can in principle attract both.
     identification_note = _dependence_identification_note(output_dir)
-    attached = " ".join(n for n in (companion_note, identification_note) if n)
+    # Scope of the phoneme-blending response-link policy in a joint fit (2026-08-23
+    # audit, finding 12): the joint B row is a secondary structural cross-check, and
+    # the note says so — verified against the sibling bundle — whenever the pairing
+    # that governs the B model of record is not release-ready beside it.
+    blending_scope_note = _joint_blending_scope_note(output_dir, config)
+    attached = " ".join(
+        n
+        for n in (companion_note, identification_note, blending_scope_note)
+        if n
+    )
     if attached and robustness is not None:
         robustness = replace(
             robustness, note=(robustness.note + " " + attached).strip()
@@ -2545,6 +2822,7 @@ def evaluate_publication(
         stage="robustness",
         robustness=robustness,
         config=config,
+        dependence_contrast=dependence_contrast,
         **qualification,
     )
 

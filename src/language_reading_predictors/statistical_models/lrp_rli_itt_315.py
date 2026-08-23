@@ -18,8 +18,8 @@ that covariance — a per-child bivariate-normal offset ``u_i`` with
 ``Sigma = diag(sigma) Corr diag(sigma)``, ``Corr ~ LKJ(eta = 4)``,
 ``sigma_k ~ HalfNormal(0.5)``, non-centred through ``pm.LKJCholeskyCov`` — and
 publishes the contrast as a posterior difference under it. It is **not** a
-replacement for the parent: the parent's point estimate stands, and this fit
-answers only whether the parent's interval was too wide or too narrow.
+replacement for the parent: the parent remains the model of record, and this fit
+answers whether the parent's interval was too wide or too narrow.
 
 Read it beside the parent, and read ``dependence_identification.csv`` first.
 **This fit's correlation posterior is its correlation prior**: posterior SD
@@ -94,8 +94,13 @@ SPEC = ModelSpec(
                 "per-child LKJ residual-correlation block is on, so this contrast "
                 "is a posterior difference that carries the estimated within-child "
                 "covariance between the two outcomes. Read it beside the parent's "
-                "factorised interval — the point estimate should agree; the "
-                "interval and P(> 0) may move — and check u_corr / sigma_outcome "
+                "factorised interval — this fit's per-child "
+                "logistic-normal offset makes its average marginal effect a "
+                "latent-conditional estimand rather than the parent's, so "
+                "agreement of the point estimates is an empirical finding "
+                "(medians move by 0.0001-0.0011 on the proportion-correct "
+                "scale), not a mathematical invariant; the interval and "
+                "P(> 0) may move — and check u_corr / sigma_outcome "
                 "for how far the block is informed by the data rather than its "
                 "prior."
             ),

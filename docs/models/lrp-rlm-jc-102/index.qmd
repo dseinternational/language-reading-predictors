@@ -1,0 +1,59 @@
+---
+title: "RLMJC102: within-scale prior sensitivity for RLMJC02 — HalfNormal(1.0)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+RLMJC102 is [`lrp-rlm-jc-002`](../lrp-rlm-jc-002/) with **one** setting changed: the wave-specific latent deviation's scale prior widens from $\omega_m \sim \mathrm{HalfNormal}(0.5)$ to $\mathrm{HalfNormal}(1.0)$. Same three measures, same balanced waves 1–3 core, same 71 children, same Binomial likelihood, same double-centring, same LKJ(2) correlation priors, same everything else.
+
+_Why this fit exists._ The parent's report promised a `HalfNormal(1.0)` sensitivity that "checks whether the correlation conclusions depend on that regularisation", but no registered companion, pipeline branch or sub-fit ever set that scale, and no trace or provenance artefact recorded such a fit anywhere in the repository. The reproducible pipeline therefore did not perform a robustness check the report described as completed (2026-08-23 joint audit, finding 5). This module makes the promise runnable.
+
+_Why the prior is a conclusion-level assumption here._ $\omega_m$ decides whether each measure's wave-specific residual standard deviation clears the deliberately small 0.05-logit identifiability threshold, and the resolvability rule then decides whether each correlation **pair** is interpretable at all. A prior that regularises $\omega_m$ toward zero can withhold a pair; a wider one can admit it. That is not nuisance sensitivity — it can change which rows the report is allowed to read.
+
+_Descriptive natural-history, not an intervention effect._ `readgrp` is a cohort factor, not a randomised condition, and every quantity is descriptive (`causal_status="none"`). Within-child co-movement removes stable between-child differences but does not establish direction: a positive correlation does not show that changing one skill changes another, and common time-varying causes remain possible.
+
+## Model
+
+Identical to [`lrp-rlm-jc-002`](../lrp-rlm-jc-002/) — see that report for the full specification — with
+
+$$
+\omega_m \sim \mathrm{HalfNormal}(1.0)
+$$
+
+in place of $\mathrm{HalfNormal}(0.5)$. Confirmed ceilings are `basread` 90, `bpvs` 32 and `basdig` 34.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+## How to read this beside the parent
+
+Compare the two fits' **posterior medians, inner 50% and outer 89% intervals, sign probabilities and resolvability classifications** for each measure pair and each residual scale. Do **not** pair draws by draw number: the two fits are independently sampled and their chains are unrelated, so a draw-wise difference is noise, not a paired contrast.
+
+Power scaling (`psense_summary.csv`) is a useful local prior-and-likelihood perturbation diagnostic around a single posterior. It is **not** this check. An independently sampled fit under a genuinely different prior can move the resolvability classification in a way a local perturbation cannot show.
+
+A conclusion is prior-robust here when the same pairs resolve under both scales and their correlations agree within their intervals. If the pairs that resolve differ between the two fits, the parent's within-child conclusions are prior-dependent and must be reported as such.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_historical_joint.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

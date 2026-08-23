@@ -569,6 +569,90 @@ def _trace_itt_moderators(
     return moderators
 
 
+def _joint_contrast_influence(
+    *,
+    primary_trace,
+    refit_trace,
+    outcomes: list[str],
+    pair: tuple[str, str],
+    ci_prob: float,
+    primary_G: np.ndarray,
+    refit_G: np.ndarray,
+    retained_mask: np.ndarray,
+) -> dict[str, Any]:
+    """The declared joint contrast on all three influence populations.
+
+    2026-08-23 joint audit, finding 9. The exact influence path recomputed each
+    outcome's marginal effect for the full, retained and refitted samples but never
+    reconstructed the contrast those marginals are reported *as*. A difference of
+    two average marginal effects does not move with its components alone: the
+    posterior covariance between them moves too, and that is precisely the quantity
+    a factorised fit does not model. So any claim that an influence analysis
+    preserved the scientific finding has to be about this quantity.
+
+    The decomposition matches the marginals': ``composition`` is the primary
+    posterior restandardised over the retained children, ``refit`` is the exact
+    leave-out refit against that same population, and ``total`` is the full-sample
+    to leave-out-sample movement. The columns are constant across the per-outcome
+    rows, which is what they describe -- one declared contrast per fit.
+    """
+    full = _report.tau_difference_summary(
+        primary_trace, outcomes, pair, ci_prob=ci_prob, G=primary_G
+    )
+    retained = _report.tau_difference_summary(
+        primary_trace,
+        outcomes,
+        pair,
+        ci_prob=ci_prob,
+        G=primary_G,
+        row_mask=retained_mask,
+    )
+    refit = _report.tau_difference_summary(
+        refit_trace, outcomes, pair, ci_prob=ci_prob, G=refit_G
+    )
+    for label, frame in (("retained", retained), ("refit", refit)):
+        if str(frame["contrast"]) != str(full["contrast"]):
+            raise ValueError(
+                f"the {label} contrast is {frame['contrast']!r}, not "
+                f"{full['contrast']!r}"
+            )
+    columns: dict[str, Any] = {
+        "contrast": str(full["contrast"]),
+        "contrast_scale": str(full["headline_scale"]),
+    }
+    for label, frame in (
+        ("full", full),
+        ("full_retained", retained),
+        ("without_flagged", refit),
+    ):
+        for metric in (
+            "diff_prob_median",
+            "diff_prob_lo50",
+            "diff_prob_hi50",
+            "diff_prob_lo",
+            "diff_prob_hi",
+            "prob_diff_pos",
+        ):
+            columns[f"contrast_{metric}_{label}"] = float(frame[metric])
+    columns["contrast_composition_shift_median"] = (
+        columns["contrast_diff_prob_median_full_retained"]
+        - columns["contrast_diff_prob_median_full"]
+    )
+    columns["contrast_refit_shift_median"] = (
+        columns["contrast_diff_prob_median_without_flagged"]
+        - columns["contrast_diff_prob_median_full_retained"]
+    )
+    columns["contrast_total_shift_median"] = (
+        columns["contrast_diff_prob_median_without_flagged"]
+        - columns["contrast_diff_prob_median_full"]
+    )
+    columns["contrast_direction_flipped"] = bool(
+        (columns["contrast_diff_prob_median_full"] > 0)
+        != (columns["contrast_diff_prob_median_without_flagged"] > 0)
+    )
+    return columns
+
+
 def summarise_influence_refit(
     spec: ModelSpec,
     reference: InfluenceReference,
@@ -578,17 +662,25 @@ def summarise_influence_refit(
     config: str,
     sampling: dict[str, Any],
 ) -> pd.DataFrame:
-    """Decompose full-versus-leave-out AMEs and attach convergence/provenance."""
+    """Decompose full-versus-leave-out AMEs and attach convergence/provenance.
+
+    For a joint fit with a declared contrast the same three-population
+    decomposition is also computed for that contrast (:func:`_joint_contrast_influence`),
+    because per-outcome movement does not determine contrast movement (2026-08-23
+    joint audit, finding 9).
+    """
     built = influence_build.built
     ci_prob = float(reference.metadata.get("ci_prob", 0.95))
     score_mean_link = (
         resolve_itt_run_plan(spec).score_mean_link if spec.kind == "itt" else "logit"
     )
+    contrast_pair: tuple[str, str] | None = None
     if spec.kind == "joint":
         outcomes = list(trace.posterior["outcome"].values.astype(str))
         refit = _report.tau_summary_joint(
             trace, outcomes, ci_prob=ci_prob, G=built.prepared.G
         )
+        contrast_pair = resolve_joint_run_plan(spec).difference
     else:
         payload = built.require_payload(IttPayload, family="itt influence")
         moderators = payload.tau_interaction_moderators
@@ -611,6 +703,7 @@ def summarise_influence_refit(
     if int(retained_mask.sum()) != int(built.prepared.n_obs):
         raise ValueError("retained primary rows do not match the leave-out sample size")
 
+    contrast_columns: dict[str, Any] = {}
     primary_trace = _open_readable_trace(
         reference.model_dir / "trace.nc", label="primary"
     )
@@ -628,6 +721,22 @@ def summarise_influence_refit(
                 G=primary_G,
                 row_mask=retained_mask,
             )
+            # The declared contrast, recomputed on each of the three populations
+            # (2026-08-23 joint audit, finding 9). Per-outcome movement cannot
+            # settle contrast movement — magnitude and posterior covariance both
+            # matter — so an influence audit that reports only the marginals can
+            # look reassuring while the headline quantity is more sensitive.
+            if contrast_pair is not None:
+                contrast_columns = _joint_contrast_influence(
+                    primary_trace=primary_trace,
+                    refit_trace=trace,
+                    outcomes=outcomes,
+                    pair=contrast_pair,
+                    ci_prob=ci_prob,
+                    primary_G=primary_G,
+                    refit_G=built.prepared.G,
+                    retained_mask=retained_mask,
+                )
         else:
             primary_moderators = _trace_itt_moderators(
                 primary_trace,
@@ -711,6 +820,7 @@ def summarise_influence_refit(
         "loo_unit": "child",
         "ame_comparison_population": "common_retained_children",
         "shift_decomposition": "total_shift=composition_shift+refit_shift",
+        "contrast_recomputed": "declared_contrast_per_draw_on_all_three_populations",
         "delta_ame_prob_median_alias": "total_shift_ame_prob_median",
         "excluded_subject_id": ";".join(influence_build.excluded_subject_ids),
         "excluded_subject_ids": ";".join(influence_build.excluded_subject_ids),
@@ -754,6 +864,7 @@ def summarise_influence_refit(
         "sampling_json": sampling_json,
         "convergence_scope": "all_free_variables",
         "ci_prob": ci_prob,
+        **contrast_columns,
         "created_utc": datetime.now(UTC).isoformat(),
         **{f"sampling_{key}": value for key, value in sampling.items()},
         **reference.primary_hashes,

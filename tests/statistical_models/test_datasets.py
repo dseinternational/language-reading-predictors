@@ -202,10 +202,96 @@ def test_extension_wave_overlapping_core_raises(tmp_path):
 
 def test_ceiling_guard_raises(tmp_path):
     path = _write_synthetic(tmp_path, ceiling_violation=True)
-    with pytest.raises(ValueError, match="exceeds measure ceiling"):
+    with pytest.raises(ValueError, match="outside its count support"):
         load_longitudinal_panel(
             _dataset(path), [RLM_MEASURES["basread"]], waves=(1, 2, 3)
         )
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-23 joint audit, finding 11: every requested count and index code is
+# validated as a finite integer in range BEFORE the loader or the factory casts
+# it. ``astype(int)`` / ``to_numpy(dtype=int)`` truncate silently, so 3.5 used to
+# enter the likelihood as 3 and a negative score produced an invalid Binomial.
+# The current source data pass all of these probes.
+# ---------------------------------------------------------------------------
+
+
+def _corrupt(tmp_path, column: str, value):
+    path = _write_synthetic(tmp_path)
+    df = pd.read_csv(path)
+    df[column] = df[column].astype(float)
+    df.loc[df.index[0], column] = value
+    df.to_csv(path, index=False)
+    return path
+
+
+@pytest.mark.parametrize(
+    "value, message",
+    [
+        (3.5, "non-integer"),
+        (-1, "outside its count support"),
+        (float("inf"), "non-finite"),
+        (float("-inf"), "non-finite"),
+    ],
+)
+def test_invalid_scores_fail_before_model_construction(tmp_path, value, message):
+    path = _corrupt(tmp_path, "basread", value)
+    with pytest.raises(ValueError, match=message):
+        load_longitudinal_panel(
+            _dataset(path), [RLM_MEASURES["basread"]], waves=(1, 2, 3)
+        )
+
+
+@pytest.mark.parametrize("column", ["time", "readgrp"])
+def test_fractional_index_codes_fail_before_the_integer_cast(tmp_path, column):
+    path = _corrupt(tmp_path, column, 2.7)
+    with pytest.raises(ValueError, match="non-integer"):
+        load_longitudinal_panel(
+            _dataset(path), [RLM_MEASURES["basread"]], waves=(1, 2, 3)
+        )
+
+
+def test_a_child_changing_group_across_waves_is_rejected(tmp_path):
+    """``readgrp`` is a fixed cohort factor, and the factory indexes each child's
+    subject intercept and overdispersion by it; a child in two groups would split
+    their own history between two population grids."""
+    path = _write_synthetic(tmp_path)
+    df = pd.read_csv(path)
+    df.loc[(df.subject_id == "S10") & (df.time == 3), "readgrp"] = 2
+    df.to_csv(path, index=False)
+    with pytest.raises(ValueError, match="change group across waves"):
+        load_longitudinal_panel(
+            _dataset(path), [RLM_MEASURES["basread"]], waves=(1, 2, 3)
+        )
+
+
+def test_missing_scores_remain_the_documented_selection_route(tmp_path):
+    """NaN is a permitted state -- the complete-case rule is what removes those
+    subjects -- so the new count guard must not turn missingness into an error."""
+    path = _write_synthetic(tmp_path, drop_one_wave=True)
+    panel = load_longitudinal_panel(
+        _dataset(path), [RLM_MEASURES["basread"]], waves=(1, 2, 3)
+    )
+    assert panel.dropped_subjects == 1
+    assert "S10" not in panel.subject_ids
+
+
+def test_permitted_extension_missingness_still_loads(tmp_path):
+    """Extension-wave rows are available-case: a child missing the measure there
+    contributes no extension row and is not an error."""
+    path = _write_synthetic(tmp_path, extension=True)
+    df = pd.read_csv(path)
+    df.loc[(df.subject_id == "S10") & (df.time == 4), "basread"] = np.nan
+    df.to_csv(path, index=False)
+    panel = load_longitudinal_panel(
+        _dataset(path),
+        [RLM_MEASURES["basread"]],
+        waves=(1, 2, 3),
+        extension_waves=(4, 5),
+    )
+    assert panel.n_subjects == 9
+    assert 4 in panel.all_waves
 
 
 def test_missing_column_raises(tmp_path):

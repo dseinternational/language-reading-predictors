@@ -494,6 +494,89 @@ def test_joint_difference_uses_metadata_and_retains_logit_secondary():
     assert out["transfer_interpretation"] == "Read the marginal B effect."
 
 
+def test_joint_difference_row_mask_restandardises_the_declared_contrast():
+    """2026-08-23 joint audit, finding 9: the influence audit needs the declared
+    contrast on the retained children, not a reconstruction from its marginals.
+    The mask restricts the standardisation population exactly as it does for
+    ``tau_summary_joint``, and the contrast is still differenced per draw."""
+    rng = np.random.default_rng(2309)
+    tau = np.stack(
+        [rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1
+    )[None, ...]
+    G = np.array([1.0, 0.0, 1.0, 0.0])
+    eta0 = np.array([[-3.0, -1.0], [0.0, 1.0], [2.0, 3.0], [-2.0, 0.0]])
+    retained = np.array([False, True, True, True])
+    trace = _joint_trace(tau, eta0, G)
+
+    masked = tau_difference_summary(
+        trace, ["A", "B"], ("A", "B"), ci_prob=0.95, row_mask=retained
+    )
+    full = tau_difference_summary(trace, ["A", "B"], ("A", "B"), ci_prob=0.95)
+
+    per_outcome = []
+    for outcome_index in range(2):
+        draws = tau[0, :, outcome_index]
+        contribution = expit(
+            eta0[retained, outcome_index, None] + draws[None, :]
+        ) - expit(eta0[retained, outcome_index, None])
+        per_outcome.append(contribution.mean(axis=0))
+    expected = np.median(per_outcome[0] - per_outcome[1])
+    assert masked["diff_prob_median"] == pytest.approx(float(expected))
+    # The mask genuinely changes the standardisation population; a contrast built
+    # from full-sample marginals would not have moved.
+    assert masked["diff_prob_median"] != pytest.approx(full["diff_prob_median"])
+    # The difference is still taken per draw, never between summary statistics.
+    assert masked["prob_diff_pos"] == pytest.approx(
+        float(np.mean((per_outcome[0] - per_outcome[1]) > 0))
+    )
+
+
+def test_joint_contrast_influence_decomposes_the_declared_contrast():
+    """The three-population decomposition the influence audit publishes: primary
+    over all children, primary restandardised over the retained children, and the
+    exact leave-out refit. ``total = composition + refit`` must hold exactly."""
+    from language_reading_predictors.statistical_models.influence import (
+        _joint_contrast_influence,
+    )
+
+    rng = np.random.default_rng(9099)
+    tau = np.stack(
+        [rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1
+    )[None, ...]
+    G = np.array([1.0, 0.0, 1.0, 0.0])
+    eta0 = np.array([[-3.0, -1.0], [0.0, 1.0], [2.0, 3.0], [-2.0, 0.0]])
+    retained = np.array([False, True, True, True])
+    primary = _joint_trace(tau, eta0, G)
+    refit_tau = np.stack(
+        [rng.normal(0.42, 0.05, 300), rng.normal(0.12, 0.05, 300)], axis=-1
+    )[None, ...]
+    refit = _joint_trace(refit_tau, eta0[retained], G[retained])
+
+    columns = _joint_contrast_influence(
+        primary_trace=primary,
+        refit_trace=refit,
+        outcomes=["A", "B"],
+        pair=("A", "B"),
+        ci_prob=0.89,
+        primary_G=G,
+        refit_G=G[retained],
+        retained_mask=retained,
+    )
+
+    assert columns["contrast"] == "A_minus_B"
+    assert columns["contrast_scale"] == "proportion_correct_risk_difference"
+    assert columns["contrast_total_shift_median"] == pytest.approx(
+        columns["contrast_composition_shift_median"]
+        + columns["contrast_refit_shift_median"]
+    )
+    assert columns["contrast_diff_prob_median_full_retained"] == pytest.approx(
+        tau_difference_summary(
+            primary, ["A", "B"], ("A", "B"), ci_prob=0.89, row_mask=retained
+        )["diff_prob_median"]
+    )
+    assert columns["contrast_direction_flipped"] is False
+
+
 def test_taught_contrast_metadata_requires_the_untaught_marginal_for_transfer_claims():
     from language_reading_predictors.statistical_models.lrp_rli_itt_015 import (
         SPEC as EXPRESSIVE_SPEC,

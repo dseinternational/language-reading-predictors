@@ -26,12 +26,29 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES, MEASURES
 
 __all__ = [
+    "JOINT_DEPENDENCE_COMPANIONS",
     "JointContrastSettings",
     "JointModelSettings",
     "JointRunPlan",
     "declared_joint_settings",
     "resolve_joint_run_plan",
 ]
+
+
+#: Registered factorised contrast parent -> its LKJ residual-correlation companion
+#: (#551). The *authority* is each parent module's ``dependence_companion``
+#: declaration; this constant restates the pairing so the release decision can
+#: reach it without importing every model module, exactly as the phoneme-blending
+#: gate uses ``BLENDING_LINK_MODELS``. It exists because deriving the requirement
+#: from the stored plan alone let a fit written before the field bypass the check
+#: (2026-08-23 joint audit, finding 2): every stored parent artefact carries no
+#: ``dependence_companion`` key at all, so the qualifier was dormant on precisely
+#: the fits it was written for. ``test_joint_run_plan`` fails if the two drift.
+JOINT_DEPENDENCE_COMPANIONS: dict[str, str] = {
+    "lrp-rli-itt-015": "lrp-rli-itt-215",
+    "lrp-rli-itt-016": "lrp-rli-itt-216",
+    "lrp-rli-itt-115": "lrp-rli-itt-315",
+}
 
 
 _LEGACY_KEYS = frozenset(
@@ -255,6 +272,11 @@ class JointRunPlan:
     causal_status: str
     analysis_population: str
     missing_data_assumption: str
+    #: How the mandatory phoneme-blending response-link policy applies to this fit
+    #: (2026-08-23 joint audit, finding 12). ``None`` when the fit does not carry
+    #: ``B``; otherwise the recorded scope, so the policy is machine-readable rather
+    #: than asserted only in the findings box's prose.
+    link_sensitivity_scope: str | None = None
 
     @property
     def difference(self) -> tuple[str, str] | None:
@@ -385,6 +407,17 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
             f"{spec.model_id}: joint_structure={settings.joint_structure!r} "
             f"contradicts use_residual_correlation={settings.use_residual_correlation}"
         )
+    # A one-dimensional LKJ block has no free correlation to estimate and
+    # ``pm.LKJCholeskyCov`` fails to construct it, so the declaration is incoherent
+    # rather than merely useless. No registered model triggers it; rejecting it here
+    # keeps the failure at settings-resolution time, before an output directory is
+    # reset or data are loaded (#455), instead of inside the factory (2026-08-23
+    # joint audit, lower-priority API correction).
+    if settings.use_residual_correlation and len(outcomes) < 2:
+        raise ValueError(
+            f"{spec.model_id}: use_residual_correlation needs at least two outcomes "
+            f"to have a within-child correlation to estimate, got {list(outcomes)}"
+        )
     if settings.contrast is not None:
         missing = sorted(set(settings.contrast.pair) - set(outcomes))
         if missing:
@@ -417,6 +450,23 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
         "contrast for one outcome, reported as an average marginal effect on the "
         "proportion-correct scale. Any declared difference compares two of those "
         "outcome-specific average marginal effects."
+        + (
+            " This fit carries a per-child logistic-normal residual offset, so its "
+            "average marginal effects are standardised over the fitted children "
+            "*conditional on posterior draws of their own residuals* — a "
+            "finite-sample latent-conditional standardisation, not a new-child "
+            "population marginal that integrates fresh residuals over their fitted "
+            "bivariate-normal distribution. The target is chosen to stay as close as "
+            "possible to the factorised parent's, which has no random effect at all. "
+            "Because the offset enters through the nonlinear inverse-logit link and "
+            "is estimated jointly with alpha, tau, the baseline slopes and kappa, the "
+            "parent's and this fit's point estimates are NOT invariant by "
+            "construction; they are separate estimands under different hierarchical "
+            "models that happen to agree closely here (2026-08-23 joint audit, "
+            "finding 1)."
+            if settings.use_residual_correlation
+            else ""
+        )
     )
     causal_status = (
         "The assigned-arm effects use randomisation and are causal for the observed "
@@ -459,6 +509,22 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
         "Randomisation does not by itself repair selection into observed cases."
     )
 
+    # Scope of the mandatory phoneme-blending response-link pairing when a joint fit
+    # carries B (2026-08-23 joint audit, finding 12). The 008/108 bundle governs the
+    # B *model of record*; a joint B row is a secondary structural cross-check that
+    # is not independently release-qualified. Recording it here makes the policy
+    # machine-readable and gives ``release._joint_blending_scope_note`` something to
+    # verify rather than an unguarded prose caveat.
+    link_sensitivity_scope = (
+        "Phoneme blending (B) is fitted here on the ordinary logit mean. The "
+        "mandatory response-link pairing lrp-rli-itt-008 + lrp-rli-itt-108 governs "
+        "the B model of record; this joint B row is a secondary structural "
+        "cross-check, is not independently release-qualified, and cannot supersede "
+        "or weaken that paired conclusion."
+        if "B" in outcomes
+        else None
+    )
+
     return JointRunPlan(
         model_id=spec.model_id,
         settings_source=source,
@@ -479,4 +545,5 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
         causal_status=causal_status,
         analysis_population=analysis_population,
         missing_data_assumption=missing_data_assumption,
+        link_sensitivity_scope=link_sensitivity_scope,
     )

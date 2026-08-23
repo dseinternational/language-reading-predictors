@@ -120,9 +120,18 @@ def _cell_values(
     """Posterior draws of the fitted mean count for one (group, wave) cell.
 
     ``subjects`` restricts the cell to a subject subset - used to compute
-    interval growth on the children observed at **both** endpoint waves, so the
-    per-child offsets cancel exactly and attrition at an extension wave (#338)
-    cannot masquerade as growth.
+    interval growth on the children observed at **both** endpoint waves, so
+    composition is held fixed and attrition at an extension wave (#338) cannot
+    masquerade as growth.
+
+    Matching the children is **not** the same as cancelling their offsets
+    (2026-08-23 joint audit, lower-priority reporting correction). A child's stable
+    logit offset ``u_im`` cancels from a difference of their own *latent* levels,
+    but this function averages ``fitted_mean_items_obs`` - an items-scale quantity
+    taken through the inverse logit - so the growth it reports still depends on
+    where each child sits on that nonlinear curve. In ``jc-002`` the wave-specific
+    departure ``d_imt`` does not cancel across waves even on the latent scale.
+    Holding composition fixed is what this buys; offset-free growth is not.
     """
     fitted = posterior[fitted_var].stack(sample=("chain", "draw"))
     obs_idx = _cell_obs_index(panel, label, wave, subjects)

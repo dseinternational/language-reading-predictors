@@ -1829,6 +1829,19 @@ def _joint_outcome_predictive_tree(
     likelihood means PSIS weights are recomputed for that outcome rather than
     borrowed from pooled tests with different denominators.
 
+    **The holdout unit is a cell, not a child** (2026-08-23 joint audit, finding
+    6). The tree carries the focal outcome's raw cells and their raw pointwise log
+    likelihood, so ArviZ recomputes leave-one-**cell**-out weights — a *different*
+    prediction target from the stored child-level PSIS-LOO these families declare.
+    The same child's sibling outcome stays in the posterior, and in a correlated
+    joint fit it informs the shared latent offset; in a repeated-transition family
+    the child's other transition rows stay in too. So these plots assess
+    **conditional** prediction of a held-out cell for an otherwise observed child,
+    not calibration for a wholly left-out child. That is a legitimate diagnostic
+    and is what the figure title now says; a child-level calibration diagnostic
+    would need exact leave-child-out predictive draws or an explicitly grouped
+    construction, which this family does not yet have.
+
     ``posterior_var`` names the posterior variable carried into the tree for the
     relative-ESS calculation; ``None`` resolves the first of
     :data:`_JOINT_LOO_PIT_POSTERIOR_VARS` present, then any posterior variable.
@@ -1895,7 +1908,11 @@ def save_joint_loo_pit_plot(
     filename_stem: str = "loo_pit",
     posterior_var: str | None = None,
 ) -> None:
-    """Save an outcome-specific LOO-PIT calibration plot for a joint fit.
+    """Save an outcome-specific **conditional leave-one-cell-out** PIT plot.
+
+    The holdout unit is one child-outcome cell, not the child-level unit behind the
+    stored PSIS-LOO — see :func:`_joint_outcome_predictive_tree` for why, and the
+    figure title states it (2026-08-23 joint audit, finding 6).
 
     ``posterior_var`` is forwarded to :func:`_joint_outcome_predictive_tree`; leave
     it ``None`` unless a family needs a specific relative-ESS variable.
@@ -1915,7 +1932,12 @@ def save_joint_loo_pit_plot(
         context.output_dir,
         lambda: azp.plot_loo_pit(outcome_tree, var_names=["y_post"]),
         f"{filename_stem}.png",
-        title=f"LOO-PIT calibration ({outcome_symbol})",
+        # Name the holdout unit in the title: this is leave-one-cell-out, not the
+        # child-level unit the stored LOO uses (2026-08-23 joint audit, finding 6).
+        title=(
+            f"Conditional leave-one-cell-out PIT calibration ({outcome_symbol}) — "
+            "the child's other cells remain observed"
+        ),
     )
 
 

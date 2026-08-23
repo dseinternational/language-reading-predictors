@@ -115,10 +115,12 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     # symbol-suffixed checks).
     diag_vars = plan.diagnostic_vars()
     # Power-scaling prior sensitivity on the reported parameters (#381). This family
-    # is ``compute_loo=False`` (one likelihood node per measure, so a single pointwise
-    # PSIS-LOO is undefined — not a likelihood PyMC cannot evaluate), so the groups
-    # psense needs are not attached by the sampling stage and have to be requested
-    # here. ``strict=False`` because psense is a secondary diagnostic and must not
+    # is ``compute_loo=False`` — not because several likelihood nodes make a
+    # pointwise unit undefined (they share an observation coordinate and could be
+    # summed per row) but because no prediction target has been defined and
+    # implemented; see ``plan.loo_reason`` (2026-08-23 joint audit, finding 8). The
+    # groups psense needs are therefore not attached by the sampling stage and have
+    # to be requested here. ``strict=False`` because psense is a secondary diagnostic and must not
     # crash a fit. An earlier comment here recorded both groups as refused by the
     # ``measure_corr_chol_cholesky`` naming seam in ``get_untransformed_name``
     # (notes/202607261700-psense-coverage-backfill.md); that is stale —
@@ -145,8 +147,8 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 c, strict=False
             ),
             compute_loo=plan.compute_loo,
-            # LOO-PIT is a pointwise PSIS-LOO quantity, and this family declares
-            # that unit undefined. The log-likelihood group exists only as a side
+            # LOO-PIT is a pointwise PSIS-LOO quantity, and this family has no
+            # defined and implemented prediction target for it. The log-likelihood group exists only as a side
             # effect of preparing power scaling, so without this the report used
             # to publish a LOO-PIT calibration figure — with its reading guidance
             # — for a model whose own results section says there is no PSIS-LOO,
