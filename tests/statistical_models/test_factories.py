@@ -3263,3 +3263,87 @@ def test_mechanism_writers_use_pre_exposure_when_lagged(tmp_path):
         np.unique(items["exposure"].to_numpy()),
         np.unique(np.asarray(built.prepared.pre_counts["R"], dtype=float)),
     )
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 5)
+# ---------------------------------------------------------------------------
+
+
+def _itt_kappa_draws(family: str, sigma: float | None, *, draws: int = 200_000):
+    """Prior draws of ``kappa`` under one dispersion prior family."""
+    import numpy as np
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models import priors as P
+
+    with pm.Model():
+        if family == "halfnormal_inverse_sqrt":
+            inv = P.inv_sqrt_kappa_prior(
+                sigma=0.25 if sigma is None else sigma
+            ).to_pymc("inv")
+            return 1.0 / (np.asarray(pm.draw(inv, draws=draws, random_seed=3)) ** 2 + 1e-6)
+        spec = P.kappa_prior() if sigma is None else P.kappa_prior(sigma=sigma)
+        return np.asarray(pm.draw(spec.to_pymc("k"), draws=draws, random_seed=3))
+
+
+@pytest.mark.parametrize(
+    ("family", "sigma", "reaches_near_binomial"),
+    [
+        ("halfnormal_concentration", 50.0, False),
+        # The widest cell the registered kappa_sigma sweep reaches.
+        ("halfnormal_concentration", 200.0, False),
+        ("halfnormal_inverse_sqrt", 0.25, True),
+    ],
+)
+def test_only_the_dispersion_scale_prior_reaches_the_near_binomial_limit(
+    family, sigma, reaches_near_binomial
+):
+    """The registered prior enforces a floor on over-dispersion.
+
+    Beta-Binomial variance is ``(n + kappa) / (1 + kappa)`` times Binomial, so at
+    ``n_trials = 170`` coming within 10% of Binomial needs ``kappa > 1689``. A
+    HalfNormal on the concentration gives that effectively no mass — and neither
+    does the widest cell of the registered ``kappa_sigma`` sweep, which is why
+    that sweep cannot test the hypothesis (2026-08-22 ITT audit, finding 5).
+    """
+    import numpy as np
+
+    kappa = _itt_kappa_draws(family, sigma)
+    inflation = (170 + kappa) / (1.0 + kappa)
+    share = float(np.mean(inflation <= 1.1))
+    if reaches_near_binomial:
+        assert share > 0.02
+    else:
+        assert share < 0.001
+
+
+def test_the_itt_factory_builds_both_dispersion_prior_families(tmp_path):
+    """Both families build, and only the default names ``kappa`` as a free RV."""
+    itt_prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt")
+    registered = build_itt_model(
+        itt_prepared, outcome_symbol="W", cross_symbols=(),
+        use_age_linear=True, use_own_baseline=True,
+    )
+    assert "kappa" in {rv.name for rv in registered.model.free_RVs}
+
+    alternative = build_itt_model(
+        itt_prepared, outcome_symbol="W", cross_symbols=(),
+        use_age_linear=True, use_own_baseline=True,
+        kappa_prior_family="halfnormal_inverse_sqrt",
+    )
+    free = {rv.name for rv in alternative.model.free_RVs}
+    # Sampled on the dispersion scale; ``kappa`` survives as a Deterministic so
+    # every downstream reader keeps working unchanged.
+    assert "inv_sqrt_kappa" in free and "kappa" not in free
+    assert "kappa" in {d.name for d in alternative.model.deterministics}
+
+
+def test_an_unknown_dispersion_prior_family_is_rejected(tmp_path):
+    itt_prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt")
+    with pytest.raises(ValueError, match="kappa_prior_family"):
+        build_itt_model(
+            itt_prepared, outcome_symbol="W", cross_symbols=(),
+            use_age_linear=True, use_own_baseline=True,
+            kappa_prior_family="lognormal",
+        )

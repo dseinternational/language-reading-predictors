@@ -64,3 +64,30 @@ Backfilled with `scripts/regenerate_dependence_identification.py` (new, followin
 **Verification.** Full suite exit 0; `ruff`, `format:check` and `spellcheck` clean. Re-evaluating all 242 live stored bundles reproduces their stored decisions exactly (236 `ok`, 6 `inputs_unresolved`), and the three companions now carry the prior-dominated qualifier in their stored `release_decision.json` and rendered reports.
 
 **Still deferred: finding 5 only.** Its graded high-denominator scope is R and E (`n_trials` 170) and EI (80). W (79) already has a `kappa_sigma` sweep and P (92) takes the floor rule, whose off-floor headline has no `kappa`. Worth recording that the near-Binomial alternative is weak for R and E specifically: both have a 170-item ceiling against observed maxima of 82 and 77, so substantial genuine overdispersion is expected and the sweep is best read as recorded evidence rather than a live suspicion.
+
+## Third batch: the dispersion prior-family sweep (finding 5)
+
+The one deferred item that needed sampling. Nine cells at the `reporting` preset — R, E and EI crossed with the registered `kappa ~ HalfNormal(50)` and the dispersion-scale alternative `1 / sqrt(kappa) ~ HalfNormal(sigma)` at sigma 0.25 and 0.5 — written to `output/statistical_models/dispersion_prior_sensitivity/` by the new `scripts/dispersion_prior_sensitivity.py`. All nine converged with zero divergences. Kept out of the 44-cell `tau_prior_sensitivity.csv` grid deliberately, as the P/N floor grid is: that grid is bound to registered primaries by hash and checked against `sensitivity._standard_expected_cells`, so adding cells would invalidate stored sweeps. Nothing here feeds a release gate.
+
+**The prior families differ exactly where the audit said.** Measured over 400k draws, the posterior-relevant question is what prior mass sits within 10% of Binomial variance. `HalfNormal(50)` on the concentration gives 0.000 at n = 79, 80 and 170 — and so does `HalfNormal(200)`, the widest cell the registered `kappa_sigma` sweep reaches, which is why that sweep could never test the hypothesis however far it was extended. `HalfNormal(0.25)` on `1 / sqrt(kappa)` gives 0.114 / 0.113 / 0.078.
+
+**No treatment effect moves.** The largest AME shift against the registered prior is 0.056 items for E, 0.036 for EI and 0.015 for R, against 89% intervals spanning roughly ±3 items. `P(AME > 0)` moves by at most 0.007. The headline results are untouched, which is the reassuring half of the answer.
+
+**But for E the registered prior was genuinely binding, and my earlier prediction was half wrong.** The second batch's note argued the near-Binomial alternative was "close to a straw man" for R and E because both have a 170-item ceiling against observed maxima of 82 and 77, so real overdispersion is expected. That holds for R and it does not hold for E:
+
+| outcome | prior                | kappa median | kappa 89% hi | variance inflation | P(within 10% of Binomial) |   PPC 50% |   PPC 90% |
+| ------- | -------------------- | -----------: | -----------: | -----------------: | ------------------------: | --------: | --------: |
+| R (170) | `HN(50)` on kappa    |         78.5 |          115 |              3.13x |                     0.000 |     0.574 |     0.944 |
+| R       | `HN(0.25)` on 1/sqrt |         88.7 |          147 |              2.88x |                     0.000 |     0.574 |     0.944 |
+| E (170) | `HN(50)` on kappa    |        126.5 |          176 |              2.33x |                     0.000 |     0.722 |     0.963 |
+| E       | `HN(0.25)` on 1/sqrt |    **475.0** |     **6535** |          **1.36x** |                 **0.148** | **0.611** | **0.944** |
+| EI (80) | `HN(50)` on kappa    |         28.4 |           43 |              3.69x |                     0.000 |     0.463 |     0.926 |
+| EI      | `HN(0.25)` on 1/sqrt |         26.8 |           41 |              3.84x |                     0.000 |     0.463 |     0.926 |
+
+Freed of the ceiling the registered prior imposes, E's concentration posterior moves from 126 to 475 — nearly fourfold — its variance inflation falls from 2.33x to 1.36x, and it puts **15% posterior probability** on the near-Binomial region that `HalfNormal(50)` made impossible a priori. The predictive calibration improves in the same direction and at both levels: 72.2% of observations sat inside a nominal **50%** interval under the registered prior, against 61.1% under the alternative, and 96.3% inside a nominal 90% interval against 94.4%. Intervals that wide are the signature of a dispersion parameter held below where the data want it.
+
+R behaves as predicted — kappa 78.5 to 88.7, no calibration change at all — and EI's data actually want _more_ dispersion than the prior median, so the prior binds in neither.
+
+**What this does and does not license.** It is not evidence that any published effect is wrong; every tau is stable to three decimal places on the items scale. It is evidence that the expressive-vocabulary model's _predictive intervals_ are too wide under the registered prior, and that the suite-wide `HalfNormal(50)` is doing real work at n = 170 for at least one outcome rather than being the innocuous default it was documented as. Changing E's registered prior is a prior-specification decision for a model of record and needs explicit sign-off rather than being folded in here; the sweep is recorded so that decision can be made on measured evidence. If it is taken, `build_itt_model` already accepts `kappa_prior_family="halfnormal_inverse_sqrt"` and the change would be a one-line settings edit plus a refit of the E models (`lrp-rli-itt-006`, `-022`).
+
+The audit's own framing — "add a near-Binomial-capable dispersion-prior sensitivity for all high-denominator ITT outcomes" — was right to ask for the sweep and over-general in its scope: the answer is outcome-specific, and only E returns anything.
