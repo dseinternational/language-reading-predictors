@@ -413,6 +413,7 @@ noconstruct
 nogp
 nohup
 noncentred
+nonfinite
 nonlinear
 nonparametric
 Nonverbal
@@ -468,6 +469,7 @@ Piironen
 pipefail
 Pittau
 PLOS
+PNDE
 plotcollection
 Polišenská
 Polson
@@ -603,6 +605,7 @@ tertile
 tiering
 timepoint
 timepoints
+TNIE
 Toffalini
 tolist
 toplevel
