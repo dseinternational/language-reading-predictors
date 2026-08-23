@@ -1276,3 +1276,116 @@ def test_an_unassessable_parameter_is_recorded_and_fails_the_stored_gate(tmp_pat
     # And the release gate reads it back as a failure without needing to know the
     # check's name: it fails closed on any unrecognised non-True check.
     assert convergence_gate_failures(stored)
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 6)
+# ---------------------------------------------------------------------------
+
+
+def _two_itt_models(**overrides):
+    """The registered W model, plus a variant built from the same rows."""
+    from language_reading_predictors.statistical_models.factories import build_itt_model
+    from language_reading_predictors.statistical_models.itt import (
+        prepare_itt_data,
+        resolve_itt_run_plan,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_010 import SPEC
+    from language_reading_predictors.statistical_models.pipelines.itt import (
+        load_and_prepare,
+    )
+
+    plan = resolve_itt_run_plan(SPEC)
+    prepared, _ = prepare_itt_data(plan, loader=load_and_prepare)
+    kwargs = plan.factory_kwargs()
+    return (
+        prepared,
+        build_itt_model(prepared, **kwargs),
+        build_itt_model(prepared, **{**kwargs, **overrides}),
+    )
+
+
+def test_the_structure_signature_moves_when_a_prior_default_moves():
+    """A code change the declared plan cannot see must refuse trace reuse.
+
+    The contract checked the plan, the data hash, the row keys and the observed
+    arrays — none of which move when a prior default, a term or a denominator is
+    edited in the factory.
+    """
+    from language_reading_predictors.statistical_models import reporting as R
+
+    _prepared, registered, retuned = _two_itt_models(tau_sigma=0.9)
+    a = R._model_design_identity(SimpleNamespace(model=registered.model))
+    b = R._model_design_identity(SimpleNamespace(model=retuned.model))
+    assert a["structure_sha256"] and a["design_sha256"]
+    assert a["structure_sha256"] != b["structure_sha256"]
+    # The rows and predictors are untouched, so the design digest must not move.
+    assert a["design_sha256"] == b["design_sha256"]
+
+
+def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
+    """``describe_fitted_data`` digests outcomes and row keys, not predictors.
+
+    A silently rebuilt covariate — same children, same scores, different
+    standardisation — passed every check the contract had.
+    """
+    from dataclasses import replace as _replace
+
+    from language_reading_predictors.statistical_models import reporting as R
+    from language_reading_predictors.statistical_models.factories import build_itt_model
+    from language_reading_predictors.statistical_models.itt import (
+        prepare_itt_data,
+        resolve_itt_run_plan,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_010 import SPEC
+    from language_reading_predictors.statistical_models.pipelines.itt import (
+        load_and_prepare,
+    )
+    from language_reading_predictors.statistical_models.subfits import (
+        describe_fitted_data,
+    )
+
+    plan = resolve_itt_run_plan(SPEC)
+    prepared, _ = prepare_itt_data(plan, loader=load_and_prepare)
+    rebuilt = _replace(prepared, A_std=np.asarray(prepared.A_std, dtype=float) * 1.01)
+    built = build_itt_model(prepared, **plan.factory_kwargs())
+    built_rebuilt = build_itt_model(rebuilt, **plan.factory_kwargs())
+
+    a = R._model_design_identity(SimpleNamespace(model=built.model))
+    b = R._model_design_identity(SimpleNamespace(model=built_rebuilt.model))
+    assert a["design_sha256"] != b["design_sha256"]
+    # Structure is unchanged — only the numbers inside the Data nodes moved.
+    assert a["structure_sha256"] == b["structure_sha256"]
+    # And this is precisely what the pre-existing identity could not see.
+    assert describe_fitted_data(
+        SimpleNamespace(model=built.model, prepared=prepared)
+    ).digest == describe_fitted_data(
+        SimpleNamespace(model=built_rebuilt.model, prepared=rebuilt)
+    ).digest
+
+
+def test_the_reuse_contract_carries_the_new_bindings():
+    from language_reading_predictors.statistical_models.reporting import (
+        _REUSE_CONFIG_FIELDS,
+    )
+
+    assert "model_design_identity" in _REUSE_CONFIG_FIELDS
+    assert "environment_lock_sha256" in _REUSE_CONFIG_FIELDS
+
+
+def test_reuse_is_refused_against_a_fit_predating_the_bindings(tmp_path, monkeypatch):
+    """Fail closed: those posteriors were never checked this way."""
+    context, source = _primary_reuse_context(tmp_path)
+    config_path = source / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config.pop("model_design_identity", None)
+    config.pop("environment_lock_sha256", None)
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="model_design_identity"):
+        _reuse_compatibility_contract  # imported at module scope
+        from language_reading_predictors.statistical_models.reporting import (
+            require_reuse_compatibility,
+        )
+
+        require_reuse_compatibility(context, source)

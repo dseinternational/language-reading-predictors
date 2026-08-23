@@ -469,6 +469,7 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
         kind="itt",
         title="t",
         outcome_symbol="W",
+        adjustment=["age"],  # must equal adjust_for (2026-08-22 ITT audit, finding 9)
         model_settings=IttModelSettings(adjust_for=("age",)),
     )
     ctx = SimpleNamespace(

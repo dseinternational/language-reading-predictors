@@ -30,9 +30,17 @@ prior                                    n=79    n=80    n=170
 ``HalfNormal(0.50)`` on 1/sqrt(kappa)     0.058   0.057   0.039
 ======================================  ======  ======  =======
 
-Scope is the graded high-denominator outcomes: **R** and **E** (``n_trials`` 170)
-and **EI** (80). W (79) already has a ``kappa_sigma`` sweep, and P (92) takes the
-floor rule, whose off-floor Bernoulli headline has no ``kappa`` at all.
+Scope is every graded high-denominator ITT outcome: **R** and **E**
+(``n_trials`` 170), **EI** (80) and **W** (79). W is here despite already having a
+``kappa_sigma`` sweep, because that sweep varies the prior's *scale* and this
+finding is about its *family* — the table above shows ``HalfNormal(200)``, the
+widest cell that sweep reaches, giving the near-Binomial region 0.000 mass at
+n = 79 just as ``HalfNormal(50)`` does. W had therefore never been tested against
+this hypothesis, which matters because it is the suite's model of record
+(``lrp-rli-itt-010``, five registered fits). P (92) is excluded: its floor-rule
+headline is a Bernoulli off-floor indicator with no ``kappa`` at all. Its flagged
+graded secondary does carry one, and is noted as out of scope here rather than
+silently omitted — it is an explicitly exploratory sub-fit, not a headline.
 
 Deliberately a **separate artefact**, written to
 ``output/statistical_models/dispersion_prior_sensitivity/``, exactly as the P/N
@@ -49,10 +57,11 @@ Usage::
     python scripts/dispersion_prior_sensitivity.py --outcomes R --config test
 
 Read the output as: does the treatment effect move when the model is *allowed*
-to conclude there is no extra-Binomial dispersion? Note in advance that R and E
-have a 170-item ceiling against observed maxima of 82 and 77, so substantial
-genuine overdispersion is expected for them and a stable AME is the predicted
-result rather than a surprising one.
+to conclude there is no extra-Binomial dispersion? The first run (R, E, EI) found
+the answer is outcome-specific — no AME moved materially anywhere, but for E the
+registered prior was genuinely binding, its concentration posterior moving from
+126 to 475 with predictive calibration improving at both levels, while R and EI
+were unaffected. E's registered models now declare the dispersion-scale prior.
 """
 
 from __future__ import annotations
@@ -88,6 +97,7 @@ FILENAME = "dispersion_prior_sensitivity.csv"
 #: Graded outcomes whose denominator makes the enforced-overdispersion floor
 #: material, with the registered primary each cell is matched to.
 DISPERSION_SENSITIVITY_MODEL_IDS = {
+    "W": "lrp-rli-itt-010",
     "R": "lrp-rli-itt-005",
     "E": "lrp-rli-itt-006",
     "EI": "lrp-rli-itt-029",

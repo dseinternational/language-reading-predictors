@@ -64,6 +64,17 @@ class ModelSpec:
     """For mechanism models, the mechanism variable symbol."""
     adjustment: list[str] = field(default_factory=list)
     """For mechanism models, the list of adjustment-set symbols."""
+    target_accept: float | None = None
+    """Model-specific NUTS ``target_accept`` default, or ``None`` for the preset.
+
+    A first-class field because it is a *sampler* knob, not part of any scientific
+    recipe, and because the legacy ``extra["target_accept"]`` route is unreachable
+    from a typed module: families that have migrated reject any non-empty ``extra``
+    beside ``model_settings``, so the documented "model-specific default" tier of
+    the precedence could only ever be used by an unmigrated spec (2026-08-20 ITT
+    code review finding 5; 2026-08-22 ITT audit, finding 9). Read through
+    :func:`spec_target_accept`, which still honours the legacy key.
+    """
     model_settings: object | None = None
     """Typed, immutable settings for a family that has completed this migration."""
     extra: dict[str, Any] = field(default_factory=dict)
@@ -241,17 +252,32 @@ def spec_target_accept(spec: ModelSpec) -> float | None:
     """Return the validated model-specific sampler default, if declared.
 
     ``target_accept`` is a cross-family sampling option rather than part of any
-    scientific model recipe. Keeping its sole ``spec.extra`` read here makes that
-    distinction explicit for fit pipelines and standalone audit runners alike.
+    scientific model recipe. Keeping its sole read here makes that distinction
+    explicit for fit pipelines and standalone audit runners alike.
+
+    Prefers the first-class :attr:`ModelSpec.target_accept` and falls back to the
+    legacy ``extra["target_accept"]``, so unmigrated specs keep working while a
+    typed module can finally declare it — until this field existed the documented
+    "model-specific default" tier was reachable only from a legacy spec, because
+    a migrated family rejects any non-empty ``extra`` beside ``model_settings``.
+    Declaring both and disagreeing is a contradiction rather than a precedence
+    question, so it is rejected.
     """
-    target_accept = spec.extra.get("target_accept")
+    typed = getattr(spec, "target_accept", None)
+    legacy = spec.extra.get("target_accept")
+    if typed is not None and legacy is not None and float(typed) != float(legacy):
+        raise ValueError(
+            f"{spec.model_id}: spec.target_accept ({typed!r}) and "
+            f"spec.extra['target_accept'] ({legacy!r}) disagree; declare one"
+        )
+    target_accept = typed if typed is not None else legacy
     if target_accept is None:
         return None
+    source = "spec.target_accept" if typed is not None else "spec.extra['target_accept']"
     target_accept = float(target_accept)
     if not 0.0 < target_accept < 1.0:
         raise ValueError(
-            "spec.extra['target_accept'] must be in the open interval (0, 1); "
-            f"got {target_accept!r}"
+            f"{source} must be in the open interval (0, 1); got {target_accept!r}"
         )
     return target_accept
 

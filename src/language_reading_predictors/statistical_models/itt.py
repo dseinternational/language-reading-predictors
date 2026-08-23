@@ -694,6 +694,19 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
             f"{spec.model_id}: cross-baselines are not loaded as outcomes: "
             f"{', '.join(missing_cross)}"
         )
+    # ``ModelSpec.adjustment`` and the typed ``adjust_for`` hold the same
+    # scientific fact — which covariates this model adjusts for — in two places,
+    # with nothing keeping them equal (2026-08-22 ITT audit, finding 9). All 31
+    # registered declarations currently agree, and ``adjustment`` is what the
+    # published ``config.json`` and the report prose read, so a future edit to one
+    # alone would silently describe a model the posterior does not match.
+    declared_adjustment = tuple(spec.adjustment or ())
+    if declared_adjustment != tuple(settings.adjust_for):
+        raise ValueError(
+            f"{spec.model_id}: spec.adjustment {declared_adjustment!r} and "
+            f"model_settings.adjust_for {tuple(settings.adjust_for)!r} must "
+            "declare the same covariates"
+        )
     overlap = sorted(set(settings.adjust_for) & set(settings.restrict_complete))
     if overlap:
         raise ValueError(

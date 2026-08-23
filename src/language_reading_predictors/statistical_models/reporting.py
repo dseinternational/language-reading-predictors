@@ -120,6 +120,9 @@ from language_reading_predictors.statistical_models.mediation_settings import (
     resolve_mediation_run_plan,
 )
 from language_reading_predictors.statistical_models.provenance import (
+    environment_lock_sha256 as _environment_lock_sha256,
+)
+from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
     write_environment_lock,
 )
@@ -3249,6 +3252,12 @@ _REUSE_CONFIG_FIELDS = (
     "dropped_by_reason",
     "fitted_subject_identity",
     "fitted_data_identity",
+    # 2026-08-22 ITT audit, finding 6. A stored fit written before these existed
+    # carries neither, so reuse against it is now refused by name rather than
+    # silently authorised — the fail-closed reading, since those posteriors were
+    # never checked this way.
+    "model_design_identity",
+    "environment_lock_sha256",
     "model_recipe_file",
 )
 
@@ -3269,6 +3278,76 @@ def _fitted_data_identity(context: StatisticalFitContext) -> dict[str, Any]:
     )
 
     return _json_safe(asdict(describe_fitted_data(context)))
+
+
+def _model_design_identity(context: StatisticalFitContext) -> dict[str, Any]:
+    """Signature of the *executable* model and its constant design arrays.
+
+    The reuse contract checked the declared plan, the data hash, the fitted row
+    keys and the observed arrays — but nothing that changes when the **code**
+    building the model changes (2026-08-22 ITT audit, finding 6). A prior default
+    edited, a term added, a denominator corrected or a new ``pm.Data`` node wired
+    in all left the contract satisfied, so an old posterior could be combined with
+    current likelihood, PPC and reporting code.
+
+    Two signatures close that:
+
+    ``structure_sha256`` hashes PyMC's own ``Model.str_repr()``, which prints every
+    ``Data`` node, every free RV with its *numeric* prior parameters, the
+    deterministics with their dependency structure, and the likelihood with its
+    denominator. It therefore moves when the executable model moves and stays put
+    when only comments or docstrings do — which is the distinction wanted here,
+    and one a source-file hash cannot make. (The stored ITT bundles' divergent
+    commit changed `build_joint_model`'s docstring and nothing else; a source hash
+    would have refused reuse for a model that had not changed.)
+
+    ``design_sha256`` hashes the *contents* of those ``Data`` nodes, which
+    ``str_repr`` shows only as ``<shared>`` and which
+    ``subfits.describe_fitted_data`` does not cover — it digests the observed
+    arrays and row keys, not the predictors. A silently rebuilt covariate would
+    otherwise pass every existing check.
+
+    Kept separate from ``describe_fitted_data`` deliberately: that digest is
+    published in ``subfit_provenance.csv``, and widening it would change every
+    recorded sub-fit digest for a reason unrelated to sub-fits.
+    """
+    model = getattr(context, "model", None)
+    if model is None:
+        return {"structure_sha256": None, "design_sha256": None, "error": "no model"}
+    try:
+        structure = hashlib.sha256(
+            model.str_repr().encode("utf-8")
+        ).hexdigest()
+    except Exception as exc:  # noqa: BLE001 - provenance must not fail a fit
+        return {
+            "structure_sha256": None,
+            "design_sha256": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    hasher = hashlib.sha256()
+    names: list[str] = []
+    try:
+        for name in sorted(model.named_vars):
+            variable = model.named_vars[name]
+            getter = getattr(variable, "get_value", None)
+            if getter is None:
+                continue
+            array = np.asarray(getter(borrow=True))
+            names.append(name)
+            hasher.update(name.encode("ascii"))
+            hasher.update(str(array.shape).encode("ascii"))
+            hasher.update(np.ascontiguousarray(array, dtype=float).tobytes())
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "structure_sha256": structure,
+            "design_sha256": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+    return {
+        "structure_sha256": structure,
+        "design_sha256": hasher.hexdigest(),
+        "design_arrays": tuple(names),
+    }
 
 
 def _reuse_compatibility_contract(
@@ -3317,6 +3396,11 @@ def _reuse_compatibility_contract(
         ),
         "fitted_subject_identity": fitted_subject_identity(context.prepared),
         "fitted_data_identity": _fitted_data_identity(context),
+        "model_design_identity": _model_design_identity(context),
+        # Already computed and written beside every fit; it simply was never
+        # compared, so a posterior sampled under a different dependency set could
+        # be reused unchallenged.
+        "environment_lock_sha256": _environment_lock_sha256(),
         "model_recipe_file": recipe_path.name if recipe_path.is_file() else None,
     }
 
