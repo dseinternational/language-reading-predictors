@@ -77,6 +77,22 @@ _CALIBRATION = (
     "mass on implausibly large effects."
 )
 
+# Families whose intercept prior is anchored on a statistic of the observed
+# outcomes (the same set disclosed in the prior-predictive section). Their
+# pushforward is an **empirical-Bayes**, data-conditioned prior check, so the
+# "before seeing data" wording above needs qualifying rather than dropping: the
+# treatment/contrast prior itself is data-free, but the level it is pushed
+# through is not (#584 lower-severity 2).
+_EB_ANCHORED_KINDS = ("did", "lcsm", "growth", "level_factors")
+_EB_NOTE = (
+    "\n\n_Caveat — this pushforward is partly data-conditioned:_ the model's "
+    "intercept is anchored on a statistic of the observed outcomes, which also "
+    "enter the likelihood, so the operating point the prior is pushed through "
+    "comes from the data even though the prior on the contrast itself does not. "
+    "Read it as a check on the **size** the prior allows, not as a fully "
+    "pre-data prediction."
+)
+
 if _pf is None:
     print("_No prior pushforward available for this model._")
 else:
@@ -119,6 +135,8 @@ else:
             f"\n_The estimand-scale prior check for {_r.estimand_label} could not "
             f"be computed: {_r.reason}._"
         )
+    if _usable and config.get("kind") in _EB_ANCHORED_KINDS:
+        print(_EB_NOTE)
 ```
 
 ```{python}

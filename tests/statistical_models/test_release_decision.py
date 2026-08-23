@@ -1811,3 +1811,51 @@ def test_a_fit_without_the_dependence_table_is_unaffected(tmp_path):
     """Stored fits written before the table existed must re-decide identically."""
     d = _fit_dir(tmp_path, kind="joint")
     assert release_module._dependence_identification_note(d) == ""
+
+
+# --- model tier metadata (#584 lower-severity 7) ------------------------------
+
+
+def test_adjusted_robustness_tier_is_itt_only():
+    """A DAG adjustment set in a level- or gain-factor *primary* is not the ITT
+    robustness comparator the tier names; eight of the eleven level primaries
+    used to be labelled ``adjusted_robustness`` on that test alone."""
+    tier = release_module._model_tier
+    assert (
+        tier(
+            {
+                "kind": "itt",
+                "outcome_symbol": "W",
+                "resolved_run_plan": {"adjust_for": ["ses"]},
+            }
+        )
+        == "adjusted_robustness"
+    )
+    assert (
+        tier(
+            {
+                "kind": "level_factors",
+                "outcome_symbol": "W",
+                "resolved_run_plan": {"adjust_for": ["hs", "hs_missing"]},
+            }
+        )
+        == "primary"
+    )
+    assert (
+        tier(
+            {
+                "kind": "gain_factors",
+                "outcome_symbol": "TR",
+                "resolved_run_plan": {"adjust_for": ["hs"]},
+            }
+        )
+        == "off_grid"
+    )
+
+
+def test_the_withhold_policy_is_unchanged_by_the_tier_correction():
+    """The correction is metadata only: every tier the gate can assign is still
+    in the withhold set, so no stored decision changes status."""
+    assert {"primary", "adjusted_robustness", "off_grid"} == set(
+        release_module._WITHHOLD_TIERS
+    )

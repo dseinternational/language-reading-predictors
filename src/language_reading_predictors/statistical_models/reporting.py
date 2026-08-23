@@ -4438,9 +4438,12 @@ def level_prior_pushforward(
     """Push the **prior** on the t2 group contrast through the items-scale AME (#389 finding 3).
 
     The estimand-scale prior-predictive check for the level family, the counterpart
-    of :func:`prior_pushforward` for the ITT/gain families: before seeing data, what
-    does the prior on the t2 group term imply for the items-scale average marginal
-    effect? It runs :func:`level_t2_marginal_effect` on the persisted ``prior`` group,
+    of :func:`prior_pushforward` for the ITT/gain families: what does the prior on
+    the t2 group term imply for the items-scale average marginal effect? The prior
+    on the contrast is data-free, but the level it is pushed through is not — the
+    family anchors ``alpha`` on the pooled observed t1 logit — so this is an
+    **empirical-Bayes, data-conditioned** prior check rather than a wholly pre-data
+    one, and the report discloses that beside the number (#584 lower-severity 2). It runs :func:`level_t2_marginal_effect` on the persisted ``prior`` group,
     so the prior is pushed through the *same* t2 net-out transform as the posterior
     estimate (the level model's per-timepoint group vector + group x ability term
     means the plain ``eta - term*G`` ITT pushforward does not apply). Returns the same
@@ -5767,15 +5770,21 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
     )
     # The headline nets out the focal t2 contrast and the interaction and adds back
     # only the focal contrast (d_grp_time[t2], or b_grp_time[1] under the free
-    # comparator), so it is the effect at mean ability, not a population average
-    # that lets the benefit vary with ability (#271 item 5; design note Decision 4).
+    # comparator), so the ability-dependent part of the benefit is held at mean
+    # ability — but every other feature of each fitted t2 row (its own age, ability
+    # main effect, adjusters and fitted child intercept) is retained and averaged
+    # over (#271 item 5; design note Decision 4). It is therefore an average across
+    # the fitted children at average ability-moderation, NOT a prediction for one
+    # typical child, which is what this sentence used to say (#584 finding 5).
     # Appended to the causal sentence rather than added as a sixth: the box truncates
     # at KEY_FINDINGS_MAX_SENTENCES, and on a psense-flagged fit a sixth sentence
     # would silently drop this causal one — the least droppable of the set.
     if _kf_has_factor_term(output_dir, "gamma_grp_ability"):
         causal += (
-            " That headline is the effect **for a child of typical cognitive "
-            "ability**: the model does let the benefit differ by ability, but that "
+            " That headline is an **average across the children in this "
+            "comparison** — each kept at their own age, ability and background — "
+            "with the part of the benefit that depends on ability held at the "
+            "average: the model does let the benefit differ by ability, but that "
             "part is estimated partly from the timepoints that are not randomised, "
             "so it is reported on its own below rather than folded into the "
             "cause-and-effect figure."

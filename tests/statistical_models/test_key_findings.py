@@ -1112,8 +1112,10 @@ def test_level_factors_caveats_the_headline_as_at_mean_ability(tmp_path):
     # #389 finding 1 / #271 item 5: the t2 items-scale headline nets out the *full*
     # group contribution and adds back only b_grp_time[1], excluding the
     # time-invariant gamma_grp_ability term (identified mostly from the three
-    # non-randomised timepoints). The estimand is therefore the effect *at mean
-    # ability*, and the box has to say so rather than implying a population average.
+    # non-randomised timepoints). The ability-dependent part of the benefit is
+    # therefore held at *mean ability* while every other feature of each fitted t2
+    # row is averaged over, and the box has to describe that average rather than
+    # claiming a prediction for one typical child (#584 finding 5).
     d = _setup_dir(tmp_path, "level_factors")
     _write_csv(d, "rope_summary.csv", _rope_row())
     _write_rows(
@@ -1127,7 +1129,7 @@ def test_level_factors_caveats_the_headline_as_at_mean_ability(tmp_path):
     payload = generate_key_findings(d)
     assert payload["status"] == "ok"
     causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
-    assert "for a child of typical cognitive ability" in causal["text"]
+    assert "average across the children in this comparison" in causal["text"]
     assert "not randomised" in causal["text"]
     # Carried on the causal sentence, not as a sixth: the box truncates at five.
     assert [s["kind"] for s in payload["sentences"]] == [
@@ -1166,7 +1168,7 @@ def test_level_factors_t1_referenced_plan_names_the_change_in_the_causal_sentenc
     causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
     assert "difference-in-differences" in causal["text"]
     assert "chance difference between the arms at t1" in causal["text"]
-    assert "for a child of typical cognitive ability" in causal["text"]
+    assert "average across the children in this comparison" in causal["text"]
     assert [s["kind"] for s in payload["sentences"]] == [
         "headline", "confidence", "rope", "causal"
     ]
@@ -1206,7 +1208,7 @@ def test_level_factors_omits_the_ability_caveat_without_the_term(tmp_path):
     )
     payload = generate_key_findings(d)
     causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
-    assert "typical cognitive ability" not in causal["text"]
+    assert "average across the children in this comparison" not in causal["text"]
 
 
 def test_level_factors_keeps_the_causal_sentence_when_psense_also_flags(tmp_path):
@@ -1231,7 +1233,10 @@ def test_level_factors_keeps_the_causal_sentence_when_psense_also_flags(tmp_path
     kinds = [s["kind"] for s in payload["sentences"]]
     assert kinds == ["headline", "confidence", "rope", "robustness", "causal"]
     assert len(kinds) <= KEY_FINDINGS_MAX_SENTENCES
-    assert "typical cognitive ability" in payload["sentences"][-1]["text"]
+    assert (
+        "average across the children in this comparison"
+        in payload["sentences"][-1]["text"]
+    )
 
 
 def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
@@ -3534,3 +3539,16 @@ def test_a_stored_bundle_keeping_the_alias_is_still_cross_checked(tmp_path):
     payload = generate_key_findings(d)
     assert payload["status"] == "not_available"
     assert "arithmetic" in payload["reason"]
+
+
+def test_results_factors_partial_branches_on_a_plan_with_no_focal_term():
+    """#584 lower-severity 6: a supported pooled level plan has no randomised
+    element, so the partial must not open by promising one causal coefficient."""
+    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text(encoding="utf-8")
+    assert '_no_focal = "focal_term" in _plan_intro and not _plan_intro.get("focal_term")' in text
+    assert "This model reports **no causal coefficient**" in text
+    # The promise of one causal coefficient is now reachable only when a focal
+    # term is resolved.
+    intro = text.split("if _no_focal and not _mv:", 1)[1]
+    assert intro.index("The factor model reports **one** causal coefficient") > intro.index("elif _mv:")
+

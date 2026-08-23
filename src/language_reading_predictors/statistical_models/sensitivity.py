@@ -18,7 +18,7 @@ import json
 import os
 import shutil
 import tempfile
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -1072,6 +1072,137 @@ def assert_primary_sampling_contract(
         )
 
 
+def _optional_floats(row: Mapping[str, Any], *columns: str) -> tuple[float, ...] | None:
+    """The named columns as floats, or ``None`` when any is absent or blank.
+
+    A sweep runner writes every numeric column, but the schema check only proves
+    the columns *exist*; a blank is "not recorded", which is a gap in the
+    evidence rather than a contradiction of it, so the caller skips that check
+    instead of failing the bundle on a formatting difference.
+    """
+    values: list[float] = []
+    for column in columns:
+        value = row.get(column)
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        try:
+            values.append(float(value))
+        except (TypeError, ValueError):
+            return None
+    return tuple(values)
+
+
+def _primary_plan_focal_term(reference: PrimaryStandardReference) -> str | None:
+    """The focal term the primary's own stored run plan names, if it records one.
+
+    Read from the primary directory rather than the manifest so a sweep cannot
+    certify itself against a parameterisation the fit no longer uses (#584
+    finding 3). Families whose plan has no ``focal_term`` (the ITT plans name
+    ``tau`` through other fields) return ``None`` and are unaffected.
+    """
+    path = reference.model_dir / "config.json"
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    plan = config.get("resolved_run_plan")
+    if not isinstance(plan, Mapping):
+        return None
+    focal = plan.get("focal_term")
+    return str(focal) if isinstance(focal, str) and focal else None
+
+
+def _focal_term_draws(posterior, focal: str, *, outcome: str) -> np.ndarray:
+    """Flattened draws of ``focal``, which may name one element of a vector.
+
+    ``d_grp_time[t2]`` is resolved against the variable's own coordinate labels
+    when it has them (so a wave label cannot silently drift to another wave) and
+    otherwise as a positional index, mirroring how the summaries label it.
+    """
+    base, _, indexed = focal.partition("[")
+    values = posterior[base]
+    extra = [d for d in values.dims if d not in ("chain", "draw")]
+    if not indexed:
+        if extra:
+            raise RuntimeError(
+                f"{outcome}: focal term {focal!r} names a vector without an "
+                "element; the row's summary is not a single coefficient"
+            )
+        return np.asarray(values.values, dtype=float).reshape(-1)
+    if not extra:
+        raise RuntimeError(
+            f"{outcome}: focal term {focal!r} is indexed but {base!r} is a scalar"
+        )
+    label = indexed.rstrip("]")
+    dim = extra[0]
+    coords = (
+        [str(c) for c in np.asarray(values.coords[dim].values).reshape(-1)]
+        if dim in values.coords
+        else []
+    )
+    if label in coords:
+        position = coords.index(label)
+    elif label.lstrip("-").isdigit():
+        position = int(label)
+    else:
+        raise RuntimeError(
+            f"{outcome}: focal element {label!r} is not a coordinate of "
+            f"{base!r}'s {dim!r} dimension (labels: {coords})"
+        )
+    if not 0 <= position < int(values.sizes[dim]):
+        raise RuntimeError(
+            f"{outcome}: focal element {label!r} is outside {base!r}'s {dim!r} "
+            f"dimension of size {int(values.sizes[dim])}"
+        )
+    return np.asarray(values.isel({dim: position}).values, dtype=float).reshape(-1)
+
+
+def _verify_cell_convergence(
+    trace, row: Mapping[str, Any], *, outcome: str, free_variables: Sequence[str]
+) -> None:
+    """Re-run the sub-fit convergence gate on the cell's own trace.
+
+    ``attach_outcome_bundle`` refuses a bundle whose cells did not converge, but
+    it used to read that verdict from the CSV the same sweep wrote — so an
+    unconverged (or simply mislabelled) cell attached as evidence of prior
+    stability (#584 finding 3). The recomputation is the same
+    ``subfit_convergence`` the runner used, over the free variables the trace
+    itself records, and it fails closed: an uncheckable trace is not a pass.
+    """
+    from language_reading_predictors.statistical_models.diagnostics import (
+        subfit_convergence,
+    )
+
+    recomputed = subfit_convergence(
+        trace, label=f"{outcome} sweep cell", var_names=list(free_variables) or None
+    )
+    if recomputed["converged"] is not True:
+        raise RuntimeError(
+            f"{outcome}: cell trace does not pass the convergence gate when it is "
+            f"re-run (converged={recomputed['converged']!r}, "
+            f"max_rhat={recomputed['max_rhat']!r}, min_ess={recomputed['min_ess']!r}, "
+            f"min_bfmi={recomputed['min_bfmi']!r}), whatever its row claims"
+        )
+    # The recorded numbers must be the recomputed ones. The tolerance is loose
+    # enough to absorb an ArviZ point-release difference in the ESS estimator and
+    # far tighter than any edit worth making to a published diagnostic.
+    for key, column in (
+        ("max_rhat", "max_rhat"),
+        ("min_ess", "min_ess"),
+        ("min_bfmi", "min_bfmi"),
+    ):
+        claimed = row.get(column)
+        if claimed in (None, "") or recomputed[key] is None:
+            continue
+        if not np.isclose(
+            float(claimed), float(recomputed[key]), rtol=1e-3, atol=1e-6
+        ):
+            raise RuntimeError(
+                f"{outcome}: cell row's {column} ({claimed}) is not what its trace "
+                f"gives ({recomputed[key]})"
+            )
+
+
 def _validate_cell_trace(
     source: Path, row: Mapping[str, Any], *, reference: PrimaryStandardReference
 ) -> None:
@@ -1083,12 +1214,23 @@ def _validate_cell_trace(
     row and the freshly loaded primary reference: identity (outcome, primary
     model id and artefact hashes, prior scale), the sampling contract
     (draws/tune/chains/target-accept and the posterior's actual dimensions),
-    the recorded free variables, the focal term's presence, the divergence
-    count recomputed from ``sample_stats``, and — for a bare-name focal term —
-    the row's ``tau_logit_mean`` recomputed from the draws. (An indexed or
-    derived focal term such as the level family's ``d_grp_time[t2]`` reports a
-    marginal-contrast summary that is not a raw coefficient mean, so only the
-    base variable's presence is checked there.)
+    the recorded free variables, the focal term, the row's focal summary and its
+    convergence claim.
+
+    **Indexed focal terms are recomputed too** (#584 finding 3). The level
+    family's focal term is an element of a vector (``d_grp_time[t2]``), and this
+    validator used to check only that the *base* variable existed there — so a
+    row whose ``tau_logit_mean`` had been edited, whose coordinate named a
+    different wave, or whose ``converged`` flag was simply untrue, attached
+    successfully on hashes alone. ``tau_logit_mean`` is the mean of the focal
+    coordinate's draws in every family that writes this schema (the items-scale
+    marginal lives in the ``items_*`` columns), so it is recomputed from the
+    element the provenance names, the interval is required to bracket it, and
+    the convergence gate is re-run over the cell's own recorded free variables
+    rather than believed. The cell's focal term is additionally bound to the
+    primary's stored ``resolved_run_plan``, so a semantically stale grid — a
+    pre-#552 ``b_grp_time[1]`` sweep against a t1-centred primary — is refused
+    even when every hash matches.
     """
     import arviz as az
 
@@ -1183,14 +1325,45 @@ def _validate_cell_trace(
             raise RuntimeError(
                 f"{outcome}: cell trace posterior lacks the focal term {focal!r}"
             )
-        if "[" not in focal:
-            recomputed = float(np.asarray(posterior[base].values, dtype=float).mean())
-            if not np.isclose(
-                recomputed, float(row["tau_logit_mean"]), rtol=0.0, atol=1e-8
-            ):
+        planned = _primary_plan_focal_term(reference)
+        if planned is not None and focal != planned:
+            raise RuntimeError(
+                f"{outcome}: cell trace is a sweep of {focal!r}, but the current "
+                f"primary's resolved run plan reports {planned!r} as its focal "
+                "term; re-run the sweep against the current parameterisation"
+            )
+        draws = _focal_term_draws(posterior, focal, outcome=outcome)
+        recomputed = float(draws.mean())
+        if not np.isclose(
+            recomputed, float(row["tau_logit_mean"]), rtol=0.0, atol=1e-8
+        ):
+            raise RuntimeError(
+                f"{outcome}: cell trace does not reproduce its row's focal "
+                f"summary ({recomputed:.6f} != {float(row['tau_logit_mean']):.6f})"
+            )
+        bounds = _optional_floats(row, "tau_logit_lo", "tau_logit_hi")
+        if bounds is not None:
+            lo, hi = bounds
+            if not lo <= recomputed <= hi:
                 raise RuntimeError(
-                    f"{outcome}: cell trace does not reproduce its row's focal "
-                    f"summary ({recomputed:.6f} != {float(row['tau_logit_mean']):.6f})"
+                    f"{outcome}: cell row's interval [{lo:.6f}, {hi:.6f}] does not "
+                    "bracket the focal mean recomputed from its trace "
+                    f"({recomputed:.6f})"
+                )
+        if str(provenance.get("model_kind", "")) == "level_factors" and _optional_floats(
+            row, "pd"
+        ):
+            # The level family's items-scale marginal adds the same focal draw to
+            # every fitted row, so ``expit(eta0 + d) - expit(eta0)`` carries the
+            # sign of ``d`` in every row and the published direction probability is
+            # exactly the focal coordinate's. Recomputing it here is therefore an
+            # identity for that family — and the one number a reader takes the
+            # direction claim from.
+            direction = float(np.mean(draws > 0.0))
+            if not np.isclose(direction, float(row["pd"]), rtol=0.0, atol=1e-9):
+                raise RuntimeError(
+                    f"{outcome}: cell trace does not reproduce its row's direction "
+                    f"probability ({direction:.6f} != {float(row['pd']):.6f})"
                 )
         sample_stats = getattr(trace, "sample_stats", None)
         if sample_stats is None or "diverging" not in sample_stats:
@@ -1204,6 +1377,7 @@ def _validate_cell_trace(
                 f"{outcome}: cell trace divergence count does not match its row "
                 f"({divergences} != {row['n_divergences']})"
             )
+        _verify_cell_convergence(trace, row, outcome=outcome, free_variables=free)
     finally:
         close = getattr(trace, "close", None)
         if callable(close):

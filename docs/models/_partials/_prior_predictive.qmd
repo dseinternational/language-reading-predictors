@@ -43,6 +43,14 @@ _eb_anchor = {
         "across every wave**",
         "the whole outcome series",
     ),
+    # The level family anchors ``alpha`` on the Haldane-smoothed pooled t1 logit,
+    # arm-blind and pre-randomisation but still computed from observed outcomes
+    # that also enter the likelihood (#584 lower-severity 2).
+    "level_factors": (
+        "the intercept prior `alpha` is centred on the **pooled observed "
+        "pre-randomisation t1 logit** (arm-blind, Haldane-smoothed)",
+        "t1 rows",
+    ),
 }.get(config.get("kind"))
 if _eb_anchor:
     _where, _rows = _eb_anchor

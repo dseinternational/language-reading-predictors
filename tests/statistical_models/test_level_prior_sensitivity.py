@@ -55,6 +55,7 @@ def _fake_primary(
     kind: str = "level_factors",
     posterior_vars: tuple[str, ...] = ("alpha", "b_grp_time"),
     sampling: dict | None = None,
+    focal_term: str | None = "b_grp_time[1]",
 ) -> Path:
     """A minimal on-disk primary fit satisfying load_primary_level_reference."""
     sampling = dict(_SAMPLING if sampling is None else sampling)
@@ -92,6 +93,9 @@ def _fake_primary(
         "data_sha256": "a" * 64,
         "n_obs": _N_OBS,
         "sampling": sampling,
+        # Every stored level fit records its resolved plan; the attach step binds
+        # each cell's focal term to it (#584 finding 3).
+        "resolved_run_plan": {"focal_term": focal_term} if focal_term else {},
     }
     (directory / "config.json").write_text(json.dumps(config), encoding="utf-8")
     return directory
@@ -169,10 +173,14 @@ def test_sampling_contract_rejects_config_mismatch(tmp_path):
 # --- attach_outcome_bundle ----------------------------------------------------
 
 
+# A cell trace must now survive the convergence gate being re-run on it (#584
+# finding 3), so the fixture samples enough independent draws to clear the ESS
+# threshold instead of declaring ``converged=True`` over five draws from one
+# chain — which is exactly the fail-open the finding describes.
 _CELL_SAMPLING = {
-    "draws": 5,
-    "tune": 3,
-    "chains": 1,
+    "draws": 400,
+    "tune": 100,
+    "chains": 4,
     "cores": 1,
     "target_accept": 0.95,
     "random_seed": 1,
@@ -180,10 +188,23 @@ _CELL_SAMPLING = {
 }
 
 
-def _cell_trace(sweep_dir: Path, token: str, *, provenance: dict) -> tuple[str, str]:
+def _cell_trace(
+    sweep_dir: Path,
+    token: str,
+    *,
+    provenance: dict,
+    focal_offset: float = 0.0,
+    omit_energy: bool = False,
+) -> tuple[str, str, dict]:
     """One digest-suffixed, provenance-stamped cell trace (#489 review): the
     attach step now opens each trace and verifies it identifies itself as this
-    cell of this primary's sweep, so an arbitrary NetCDF no longer attaches."""
+    cell of this primary's sweep, so an arbitrary NetCDF no longer attaches.
+
+    Returns the summary the manifest row must carry as well, so the fixture's
+    row is *derived from* its trace rather than asserted beside it."""
+    from language_reading_predictors.statistical_models.diagnostics import (
+        subfit_convergence,
+    )
     from language_reading_predictors.statistical_models.sensitivity import (
         STANDARD_SENSITIVITY_PROVENANCE_ATTR,
     )
@@ -193,34 +214,61 @@ def _cell_trace(sweep_dir: Path, token: str, *, provenance: dict) -> tuple[str, 
     tmp = traces / f".tmp-{token}.nc"
     rng = np.random.default_rng(3)
     shape = (_CELL_SAMPLING["chains"], _CELL_SAMPLING["draws"])
+    b_grp = rng.normal(size=(*shape, 4)) * 0.1
+    # A same-sign focal element across the grid: the bundle is evidence of prior
+    # stability, and attach refuses a sign flip.
+    b_grp[..., 1] += 0.4 + focal_offset
     posterior = xr.Dataset(
         {
             "alpha_offset": (("chain", "draw"), rng.normal(size=shape)),
-            "b_grp_time": (("chain", "draw", "phase"), rng.normal(size=(*shape, 4))),
+            "b_grp_time": (("chain", "draw", "phase"), b_grp),
         },
         coords={
             "chain": np.arange(shape[0]),
             "draw": np.arange(shape[1]),
-            "phase": np.arange(4),
+            "phase": ["t1", "t2", "t3", "t4"],
         },
     )
     posterior.attrs[STANDARD_SENSITIVITY_PROVENANCE_ATTR] = json.dumps(
         provenance, sort_keys=True, separators=(",", ":")
     )
+    stats: dict = {"diverging": (("chain", "draw"), np.zeros(shape, dtype=bool))}
+    if not omit_energy:
+        stats["energy"] = (("chain", "draw"), rng.normal(size=shape) * 5.0 + 100.0)
     sample_stats = xr.Dataset(
-        {"diverging": (("chain", "draw"), np.zeros(shape, dtype=bool))},
-        coords={"chain": np.arange(shape[0]), "draw": np.arange(shape[1])},
+        stats, coords={"chain": np.arange(shape[0]), "draw": np.arange(shape[1])}
     )
-    xr.DataTree.from_dict(
-        {"posterior": posterior, "sample_stats": sample_stats}
-    ).to_netcdf(tmp)
+    tree = xr.DataTree.from_dict({"posterior": posterior, "sample_stats": sample_stats})
+    tree.to_netcdf(tmp)
     digest = sha256_file(tmp)
     final = traces / f"trace_W_tau-{token}-{digest[:12]}.nc"
     tmp.rename(final)
-    return final.relative_to(sweep_dir).as_posix(), digest
+    focal = b_grp[..., 1].reshape(-1)
+    convergence = subfit_convergence(
+        tree, label=token, var_names=["alpha_offset", "b_grp_time"]
+    )
+    summary = {
+        "tau_logit_mean": float(focal.mean()),
+        "tau_logit_lo": float(np.quantile(focal, 0.055)),
+        "tau_logit_hi": float(np.quantile(focal, 0.945)),
+        "pd": float(np.mean(focal > 0.0)),
+        "converged": convergence["converged"],
+        "max_rhat": convergence["max_rhat"],
+        "min_ess": convergence["min_ess"],
+        "min_bfmi": convergence["min_bfmi"],
+        "n_divergences": convergence["n_divergences"],
+    }
+    return final.relative_to(sweep_dir).as_posix(), digest, summary
 
 
-def _rows(primary: Path, sweep_dir: Path, **overrides) -> pd.DataFrame:
+def _rows(
+    primary: Path,
+    sweep_dir: Path,
+    *,
+    focal_term: str = "b_grp_time[1]",
+    omit_energy: bool = False,
+    **overrides,
+) -> pd.DataFrame:
     ref = load_primary_level_reference(primary, "W", config_name="reporting")
     rows = []
     for token, sigma in (("0p25", 0.25), ("0p5", 0.5), ("0p75", 0.75)):
@@ -229,7 +277,7 @@ def _rows(primary: Path, sweep_dir: Path, **overrides) -> pd.DataFrame:
             "model_kind": "level_factors",
             "config": "reporting",
             "outcome": "W",
-            "focal_term": "b_grp_time[1]",
+            "focal_term": focal_term,
             "sensitivity_axis": "tau",
             "tau_sigma": sigma,
             "primary_model_id": ref.model_id,
@@ -238,7 +286,13 @@ def _rows(primary: Path, sweep_dir: Path, **overrides) -> pd.DataFrame:
             "free_variables": ["alpha_offset", "b_grp_time"],
             "sampling": dict(_CELL_SAMPLING),
         }
-        trace_file, digest = _cell_trace(sweep_dir, token, provenance=provenance)
+        trace_file, digest, summary = _cell_trace(
+            sweep_dir,
+            token,
+            provenance=provenance,
+            focal_offset=sigma / 10.0,
+            omit_energy=omit_energy,
+        )
         row = dict.fromkeys(_STANDARD_REQUIRED_COLUMNS, "")
         row.update(
             config="reporting",
@@ -246,9 +300,7 @@ def _rows(primary: Path, sweep_dir: Path, **overrides) -> pd.DataFrame:
             n_trials=79,
             sensitivity_axis="tau",
             tau_sigma=sigma,
-            converged=True,
-            tau_logit_mean=0.2 + sigma / 10,
-            n_divergences=0,
+            **summary,
             sampling_draws=_CELL_SAMPLING["draws"],
             sampling_tune=_CELL_SAMPLING["tune"],
             sampling_chains=_CELL_SAMPLING["chains"],
@@ -328,3 +380,79 @@ def test_attach_refuses_and_rolls_back(tmp_path, corruption, match):
     assert not (primary / STANDARD_SENSITIVITY_FILENAME).exists()
     assert not list(primary.glob("*.staging"))
     assert not list(primary.glob("trace_W_tau-*.nc"))
+
+
+# --- trace-derived evidence (#584 finding 3) ----------------------------------
+
+
+def test_attach_rejects_a_tampered_focal_summary(tmp_path):
+    """The reproduction in the review: editing only the CSV's focal mean used to
+    attach, because an *indexed* focal term was never recomputed from its trace."""
+    primary = _fake_primary(tmp_path)
+    sweep = tmp_path / "sweep"
+    rows = _rows(primary, sweep)
+    # Same sign as the honest value, so the sign-stability check cannot catch it.
+    rows["tau_logit_mean"] = 999.0
+    rows["tau_logit_hi"] = 1000.0
+    with pytest.raises(RuntimeError, match="does not reproduce its row's focal"):
+        _attach(primary, sweep, rows)
+    assert not (primary / STANDARD_SENSITIVITY_FILENAME).exists()
+
+
+def test_attach_rejects_an_interval_that_does_not_bracket_its_mean(tmp_path):
+    primary = _fake_primary(tmp_path)
+    sweep = tmp_path / "sweep"
+    rows = _rows(primary, sweep)
+    rows["tau_logit_hi"] = rows["tau_logit_mean"].astype(float) - 0.01
+    with pytest.raises(RuntimeError, match="does not bracket the focal mean"):
+        _attach(primary, sweep, rows)
+
+
+def test_attach_rejects_a_tampered_direction_probability(tmp_path):
+    primary = _fake_primary(tmp_path)
+    sweep = tmp_path / "sweep"
+    rows = _rows(primary, sweep)
+    rows["pd"] = 0.999
+    with pytest.raises(RuntimeError, match="direction probability"):
+        _attach(primary, sweep, rows)
+
+
+def test_attach_rejects_a_false_convergence_claim(tmp_path):
+    """A cell whose trace cannot pass the gate is not evidence, whatever its row
+    claims. The traces here carry no ``energy``, so BFMI is uncheckable — the
+    row's ``converged=True`` is then a claim about a trace that never supported
+    it, which is the fail-open the review reproduced."""
+    primary = _fake_primary(tmp_path)
+    sweep = tmp_path / "sweep"
+    rows = _rows(primary, sweep, omit_energy=True, converged=True)
+    with pytest.raises(RuntimeError, match="convergence gate"):
+        _attach(primary, sweep, rows)
+
+
+def test_attach_rejects_a_mistyped_convergence_number(tmp_path):
+    primary = _fake_primary(tmp_path)
+    sweep = tmp_path / "sweep"
+    rows = _rows(primary, sweep)
+    rows["min_ess"] = 40_000.0
+    with pytest.raises(RuntimeError, match="min_ess"):
+        _attach(primary, sweep, rows)
+
+
+def test_attach_rejects_a_focal_element_the_vector_does_not_carry(tmp_path):
+    """A coordinate that names no wave is a mislabelled sweep, not evidence."""
+    primary = _fake_primary(tmp_path, focal_term="b_grp_time[t9]")
+    sweep = tmp_path / "sweep"
+    rows = _rows(primary, sweep, focal_term="b_grp_time[t9]")
+    with pytest.raises(RuntimeError, match="not a coordinate"):
+        _attach(primary, sweep, rows)
+
+
+def test_attach_rejects_a_sweep_of_a_superseded_parameterisation(tmp_path):
+    """#552 renamed the focal term; a pre-#552 grid must not certify a
+    t1-centred primary just because the hashes still line up."""
+    primary = _fake_primary(tmp_path, focal_term="d_grp_time[t2]")
+    sweep = tmp_path / "sweep"
+    rows = _rows(primary, sweep)  # cells stamped with the old b_grp_time[1]
+    with pytest.raises(RuntimeError, match="resolved run plan"):
+        _attach(primary, sweep, rows)
+
