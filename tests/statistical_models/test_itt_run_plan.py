@@ -26,12 +26,23 @@ def _spec(
     *,
     outcome: str = "W",
     extra: dict | None = None,
+    adjustment: list[str] | None = None,
 ) -> ModelSpec:
+    """A teaching ITT spec.
+
+    ``adjustment`` mirrors the settings' ``adjust_for`` by default, because
+    resolution requires the two to agree (2026-08-22 ITT audit, finding 9) — they
+    hold the same scientific fact, and every registered declaration keeps them
+    equal. Pass it explicitly to exercise the divergence itself.
+    """
+    if adjustment is None:
+        adjustment = list(getattr(settings, "adjust_for", ()) or ())
     return ModelSpec(
         model_id="lrp-rli-itt-999",
         kind="itt",
         title="Teaching example",
         outcome_symbol=outcome,
+        adjustment=adjustment,
         model_settings=settings,
         extra=extra or {},
     )
@@ -481,3 +492,67 @@ def test_the_floor_rule_cannot_declare_a_dispersion_prior():
 def test_an_unknown_dispersion_prior_family_is_rejected_in_settings():
     with pytest.raises(ValueError, match="kappa_prior_family"):
         IttModelSettings(kappa_prior_family="lognormal")
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-22 ITT audit regressions (issue #577, finding 9 remainder)
+# ---------------------------------------------------------------------------
+
+
+def test_spec_adjustment_must_agree_with_the_typed_adjust_for():
+    """The same scientific fact was held in two places with no invariant.
+
+    ``config.json`` and the report prose read ``spec.adjustment``; the model is
+    built from ``adjust_for``. All 31 registered declarations agree, so an edit to
+    one alone would silently describe a model the posterior does not match.
+    """
+    from language_reading_predictors.statistical_models.lrp_rli_itt_022 import (
+        SPEC as ABILITY,
+    )
+
+    assert tuple(ABILITY.adjustment) == tuple(ABILITY.model_settings.adjust_for)
+    assert resolve_itt_run_plan(ABILITY) is not None
+
+    diverged = replace(ABILITY, adjustment=["mumedupost16"])
+    with pytest.raises(ValueError, match="must declare the same covariates"):
+        resolve_itt_run_plan(diverged)
+
+
+def test_a_typed_spec_can_declare_a_model_specific_target_accept():
+    """The documented precedence tier was unreachable from a migrated family.
+
+    ``declared_itt_settings`` rejects any non-empty ``extra`` beside
+    ``model_settings``, so ``extra["target_accept"]`` — the only route there was —
+    could only ever be used by an unmigrated spec.
+    """
+    from language_reading_predictors.statistical_models.context import (
+        spec_target_accept,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_010 import SPEC
+
+    assert spec_target_accept(SPEC) is None
+    assert spec_target_accept(replace(SPEC, target_accept=0.995)) == 0.995
+    # And it still resolves as an ITT plan, which the legacy route could not do.
+    assert resolve_itt_run_plan(replace(SPEC, target_accept=0.995)) is not None
+
+    with pytest.raises(ValueError, match="open interval"):
+        spec_target_accept(replace(SPEC, target_accept=1.5))
+
+
+def test_declaring_target_accept_twice_and_disagreeing_is_rejected():
+    from language_reading_predictors.statistical_models.context import (
+        ModelSpec as _ModelSpec,
+    )
+    from language_reading_predictors.statistical_models.context import (
+        spec_target_accept,
+    )
+
+    spec = _ModelSpec(
+        model_id="lrp-test-ta",
+        kind="itt",
+        title="target accept",
+        target_accept=0.99,
+        extra={"target_accept": 0.8},
+    )
+    with pytest.raises(ValueError, match="disagree"):
+        spec_target_accept(spec)

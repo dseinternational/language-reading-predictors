@@ -642,6 +642,9 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-901",
+        # Mirrors ``adjust_for``: resolution requires the two to agree
+        # (2026-08-22 ITT audit, finding 9).
+        adjustment=["kept_adjuster", "dropped_adjuster"],
         kind="itt",
         title="ordinary pipeline regression",
         outcome_symbol="W",

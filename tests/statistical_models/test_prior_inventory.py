@@ -507,11 +507,14 @@ def _labelled(model, *, kind, extra=None, outcome_symbol="W"):
             resolve_itt_run_plan,
         )
 
+        # ``adjustment`` mirrors the legacy ``extra["adjust_for"]``: resolution
+        # requires the two to agree (2026-08-22 ITT audit, finding 9).
         spec = ModelSpec(
             model_id="lrp-test-itt-prior",
             kind="itt",
             title="t",
             outcome_symbol=outcome_symbol,
+            adjustment=list((extra or {}).get("adjust_for", ()) or ()),
             extra=extra or {},
         )
         ctx = SimpleNamespace(
@@ -656,6 +659,9 @@ def test_itt_adjust_covariate_and_ses_are_precision(built_models):
         model_id="lrp-test-itt-ses-prior",
         kind="itt",
         title="t",
+        # Mirrors ``adjust_for``, which resolution requires (2026-08-22 ITT
+        # audit, finding 9).
+        adjustment=["mumedupost16"],
         extra={"adjust_for": ("mumedupost16",)},
         outcome_symbol="R",
     )
