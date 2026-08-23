@@ -3,6 +3,78 @@
 ```{python}
 # | echo: false
 # | output: asis
+# Level family, phoneme blending: the two response links are one piece of evidence
+# (#584 decision 2). Each item is a three-alternative forced choice, so the ordinary
+# inverse-logit mean can predict below-chance scores and the guessing-floor companion
+# cannot. Neither fit publishes alone: an unready pair withholds the scientific
+# results here exactly as the ITT partial does for lrp-rli-itt-008/108.
+_level_link_cards = None
+if (
+    str(config.get("kind")) == "level_factors"
+    and str(config.get("outcome_symbol")) == "B"
+    and _scientific_results_released
+):
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_level_blending_link_pair,
+    )
+
+    _level_link_status = evaluate_level_blending_link_pair(_here, config=config)
+    if _level_link_status.get("required") and not _level_link_status.get("ready"):
+        _scientific_results_released = False
+        print(
+            "## Response-link release check\n\n"
+            '::: {.callout-important title="Phoneme-blending findings withheld"}\n\n'
+            "This forced-choice outcome is reported only as a pair: the ordinary "
+            "inverse-logit score mean beside the one-in-three guessing-floor mean. "
+            f"The pair is not ready ({_level_link_status.get('reason', 'unknown reason')}), "
+            "so the scientific result tables and figures below are withheld even "
+            "though the sampler gate passed. Fit both `lrp-rli-lf-006` and "
+            "`lrp-rli-lf-106` under the same configuration and regenerate the key "
+            "findings.\n\n:::"
+        )
+    elif _level_link_status.get("ready"):
+        _level_link_cards = _level_link_status["cards"]
+        print(
+            "## Response-link sensitivity\n\n"
+            '::: {.callout-caution title="This conclusion is link-sensitive"}\n\n'
+            "Phoneme blending is scored from ten three-alternative forced-choice "
+            "items, so a child answering at random scores about 3.3. The ordinary "
+            "model does not know that and can predict below-chance expected scores; "
+            "the companion constrains the mean to at least one third. Both fits use "
+            "the same children, the same adjustment set and the same randomised "
+            "contrast, and differ only in that link. Read the two together — neither "
+            "row is the answer on its own.\n\n:::"
+        )
+```
+
+```{python}
+# | echo: false
+if _level_link_cards is not None:
+    import pandas as _pd
+
+    _pd.DataFrame(
+        [
+            {
+                "model": card["model_id"],
+                "score mean": (
+                    "ordinary logit"
+                    if card["score_mean_link"] == "logit"
+                    else "one-in-three guessing floor"
+                ),
+                "t2 effect (items)": round(card["items_median"], 2),
+                "89% lo": round(card["items_lo"], 2),
+                "89% hi": round(card["items_hi"], 2),
+                "P(> 0)": round(card["pd"], 3),
+            }
+            for card in _level_link_cards.values()
+        ]
+    ).sort_values("score mean")
+```
+
+
+```{python}
+# | echo: false
+# | output: asis
 # A gain-factor moderation variant (#391 finding 3) presents NO causal
 # coefficient: its treatment term and interactions are explicitly associational,
 # and the randomised headline lives in the interaction-free primary. Every

@@ -51,6 +51,10 @@ from typing import Any
 import numpy as np
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
     PreparedData,
@@ -69,6 +73,7 @@ _LEGACY_KEYS = frozenset(
         "group_ability",
         "likelihood",
         "arm_gap_reference",
+        "score_mean_link",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -83,6 +88,13 @@ _LIKELIHOODS = frozenset({"beta_binomial", "bernoulli_offfloor"})
 # them on the pre-randomisation t1 gap (balance term + changes, the default);
 # ``"free"`` keeps one free coefficient per timepoint (the pre-#552 comparator).
 ARM_GAP_REFERENCES = frozenset({"t1", "free"})
+
+#: The registered phoneme-blending link pair (#584 decision 2): the ordinary-logit
+#: primary and its one-in-three guessing-floor companion. Neither releases without
+#: the other, so the ids are resolved here — the one place that already knows which
+#: outcome a plan fits — rather than being restated by each consumer.
+LEVEL_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-lf-006"
+LEVEL_BLENDING_COMPANION_MODEL_ID = "lrp-rli-lf-106"
 
 #: Labels of the post-t1 waves whose arm-gap *changes* ``d_grp_time`` carries
 #: (the ``post_phase`` coordinate): t2 is the randomised contrast, t3 / t4 are
@@ -122,6 +134,11 @@ class LevelFactorsModelSettings:
     group_ability: bool = True
     likelihood: str = "beta_binomial"
     arm_gap_reference: str = "t1"
+    #: Phoneme-blending response link (#584 decision 2). ``"logit"`` is the ordinary
+    #: Beta-Binomial inverse-logit mean; ``"three_choice_guessing_floor"`` maps it
+    #: onto [1/3, 1] for the ten three-alternative forced-choice blending items.
+    #: B only, graded only, and released only beside its paired opposite-link fit.
+    score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -142,6 +159,19 @@ class LevelFactorsModelSettings:
             raise ValueError(
                 "arm_gap_reference must be one of "
                 f"{sorted(ARM_GAP_REFERENCES)}, got {self.arm_gap_reference!r}"
+            )
+        if self.score_mean_link not in SCORE_MEAN_LINKS:
+            raise ValueError(
+                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+                f"got {self.score_mean_link!r}"
+            )
+        if (
+            self.score_mean_link != "logit"
+            and self.likelihood != "beta_binomial"
+        ):
+            raise ValueError(
+                "score_mean_link applies to the graded Beta-Binomial mean; the "
+                f"{self.likelihood!r} branch has no score mean to map"
             )
         # Adjustment-set hygiene (#584 lower-severity 4). A repeated adjuster used
         # to survive resolution and fail only later inside PyMC, when the factory
@@ -194,6 +224,7 @@ class LevelFactorsModelSettings:
             group_ability=extra.get("group_ability", True),
             likelihood=extra.get("likelihood", "beta_binomial"),
             arm_gap_reference=extra.get("arm_gap_reference", "t1"),
+            score_mean_link=extra.get("score_mean_link", "logit"),
         )
 
 
@@ -211,6 +242,14 @@ class LevelFactorsRunPlan:
     group_ability: bool
     likelihood: str
     off_floor: bool
+    # Phoneme-blending response link and its release pairing (#584 decision 2).
+    # ``required_link_companion_model_id`` names the opposite-link fit that must be
+    # released beside this one; ``link_sensitivity_required_for_release`` is the
+    # policy flag the release gate reads, so a future B level fit outside the
+    # registered pair fails closed rather than publishing unpaired.
+    score_mean_link: str
+    required_link_companion_model_id: str | None
+    link_sensitivity_required_for_release: bool
     # Arm-by-time parameterisation (#552): ``"t1"`` (balance term + changes) or
     # ``"free"`` (one free coefficient per timepoint).
     arm_gap_reference: str
@@ -281,6 +320,7 @@ class LevelFactorsRunPlan:
             "group_ability": self.group_ability,
             "likelihood": self.likelihood,
             "arm_gap_reference": self.arm_gap_reference,
+            "score_mean_link": self.score_mean_link,
         }
 
     # -- Single source of truth for names, roles and diagnostics (#389 finding 6:
@@ -513,6 +553,26 @@ class LevelFactorsRunPlan:
             "present at t1"
         )
 
+    def _required_robustness_markdown(self) -> str:
+        """The release pairing this fit cannot publish without (#584 decision 2).
+
+        Mirrors the ITT plan's own required-robustness section: phoneme blending is
+        response-link sensitive, so the ordinary-logit and guessing-floor estimates
+        are a pair, and the recipe says so rather than leaving the requirement to
+        the release gate alone."""
+        if not self.link_sensitivity_required_for_release:
+            return ""
+        return (
+            "## Required robustness\n\n"
+            "Phoneme blending is response-link sensitive: each item has three "
+            "response alternatives, so the ordinary inverse-logit mean permits "
+            "expected scores below chance while the guessing-floor link does not. "
+            "Release requires this fit to be reported beside the current "
+            f"`{self.required_link_companion_model_id}` fit; neither the "
+            "ordinary-logit nor the guessing-floor estimate is sufficient evidence "
+            "on its own.\n\n"
+        )
+
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
         adjust = ", ".join(self.adjust_for) if self.adjust_for else "none"
@@ -533,7 +593,8 @@ class LevelFactorsRunPlan:
             f"{self.ability_by_time}. Group x ability effect modification: "
             f"{self.group_ability}. Arm-by-time parameterisation: "
             f"{self._arm_gap_reference_prose()}. Requested adjustment terms: "
-            f"{adjust}.\n\n"
+            f"{adjust}. Score-mean link: {self.score_mean_link}.\n\n"
+            f"{self._required_robustness_markdown()}"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate and posterior-predictive checks pass. The saved "
@@ -606,6 +667,20 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
             "arm_gap_reference='free' for a pooled group term"
         )
     off_floor = settings.likelihood == "bernoulli_offfloor"
+    # Phoneme blending is response-link sensitive, so a graded B level fit is
+    # released only beside its opposite-link twin (#584 decision 2, mirroring the
+    # registered ITT-008 / ITT-108 pair). The off-floor branch is exempt: it models
+    # a binary indicator, which has no chance floor to respect.
+    link_pair_required = own == "B" and not off_floor
+    link_companion = (
+        (
+            LEVEL_BLENDING_PRIMARY_MODEL_ID
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else LEVEL_BLENDING_COMPANION_MODEL_ID
+        )
+        if link_pair_required
+        else None
+    )
     if not settings.group_by_time:
         focal_vector: str | None = None
         focal_index: int | None = None
@@ -674,11 +749,19 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
             "child random intercept."
         )
     else:
+        link_clause = (
+            " The score mean is mapped onto [1/3, 1] by the three-choice guessing "
+            "floor, because each phoneme-blending item has three response "
+            "alternatives and an expected score cannot fall below chance (#584 "
+            "decision 2)."
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else ""
+        )
         design = (
             "Per-wave levels model: each wave's score is regressed (a Beta-Binomial "
             f"working likelihood) on {group_clause}, the ability covariate, an "
             "optional group x ability term, and a non-centred child random intercept "
-            "for the repeated observations."
+            f"for the repeated observations.{link_clause}"
         )
     # The natural-scale target was open through #389 finding 1 and #584 finding 1;
     # it was settled on 2026-08-23 (notes/202608231800-level-factors-584-decisions.md)
@@ -744,6 +827,9 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         group_ability=settings.group_ability,
         likelihood=settings.likelihood,
         off_floor=off_floor,
+        score_mean_link=settings.score_mean_link,
+        required_link_companion_model_id=link_companion,
+        link_sensitivity_required_for_release=link_pair_required,
         arm_gap_reference=settings.arm_gap_reference,
         focal_vector=focal_vector,
         focal_index=focal_index,

@@ -47,6 +47,42 @@ def apply_score_mean_link(
     )
 
 
+def invert_score_mean_link(
+    score_mean: Any,
+    score_mean_link: ScoreMeanLink,
+) -> Any:
+    """Map a score mean back onto the inverse-logit (unit) scale.
+
+    The inverse of :func:`apply_score_mean_link`, needed wherever a location is
+    computed *from observed scores* and then used as a logit-scale quantity — the
+    level family's empirical-Bayes intercept anchor being the case in point (#584
+    decision 2). Anchoring a guessing-floor fit on the raw observed logit would put
+    the intercept prior in the wrong place: with a pooled t1 blending proportion of
+    0.49 the ordinary anchor is logit(0.49) = -0.03, while the value the floor link
+    actually needs is logit((0.49 - 1/3) / (2/3)) = -1.15.
+
+    A score mean at or below the floor has no representation on the unit scale — the
+    link cannot produce it — so this raises rather than returning an infinite or
+    undefined anchor.
+    """
+
+    if score_mean_link == "logit":
+        return score_mean
+    if score_mean_link == "three_choice_guessing_floor":
+        unit = (np.asarray(score_mean, dtype=float) - (1.0 / 3.0)) / (2.0 / 3.0)
+        if np.any(unit <= 0.0) or np.any(unit >= 1.0):
+            raise ValueError(
+                "score mean is outside the three-choice guessing floor's range "
+                "(1/3, 1), so it has no inverse-logit representation: "
+                f"{np.asarray(score_mean, dtype=float)}"
+            )
+        return unit if np.ndim(score_mean) else float(unit)
+    raise ValueError(
+        f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+        f"got {score_mean_link!r}"
+    )
+
+
 def beta_binomial_from_score_mean_link(
     name: str,
     eta: pt.TensorVariable,

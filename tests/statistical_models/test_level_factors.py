@@ -405,6 +405,16 @@ _REGISTERED_CONTRACT: dict[str, dict[str, object]] = {
         "likelihood": "bernoulli_offfloor",
         "adjust_for": ("deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
     },
+    # The registered phoneme-blending response-link companion (#584 decision 2):
+    # identical to lf-006 in every respect except the score mean.
+    "lrp-rli-lf-106": {
+        "outcome": "B",
+        "likelihood": "beta_binomial",
+        "adjust_for": (
+            "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+        ),
+        "score_mean_link": "three_choice_guessing_floor",
+    },
 }
 
 
@@ -417,6 +427,9 @@ def test_registered_suite_matches_the_declared_contract():
         assert plan.outcome_symbol == expected["outcome"], model_id
         assert plan.likelihood == expected["likelihood"], model_id
         assert plan.adjust_for == expected["adjust_for"], model_id
+        # The score-mean link is part of the published contract: a silent flip
+        # between the two blending links would change the reported effect size.
+        assert plan.score_mean_link == expected.get("score_mean_link", "logit"), model_id
         # Every registered model is a per-wave t1-centred fit on baseline block
         # design, with the group x ability term and the randomised t2 focal change.
         assert plan.ability_covariate == "blocks", model_id
@@ -630,4 +643,39 @@ def test_pooled_plan_publishes_no_natural_scale_target():
         _primary_spec(adjust_for=(), group_by_time=False, arm_gap_reference="free")
     )
     assert plan.natural_scale_estimand.startswith("none:")
+
+
+def test_the_registered_blending_link_pair_is_paired_both_ways():
+    """#584 decision 2: lf-006 and lf-106 fit the same data under the two response
+    links, each naming the other, and neither may release alone."""
+    specs = {spec.model_id: spec for spec in _level_factor_specs()}
+    primary = resolve_level_factors_run_plan(specs["lrp-rli-lf-006"])
+    companion = resolve_level_factors_run_plan(specs["lrp-rli-lf-106"])
+    assert primary.score_mean_link == "logit"
+    assert companion.score_mean_link == "three_choice_guessing_floor"
+    assert primary.required_link_companion_model_id == "lrp-rli-lf-106"
+    assert companion.required_link_companion_model_id == "lrp-rli-lf-006"
+    assert primary.link_sensitivity_required_for_release
+    assert companion.link_sensitivity_required_for_release
+    # Same analysis, one difference: the pair is only comparable if everything
+    # else about the two fits agrees.
+    for field in (
+        "outcome_symbol", "adjust_for", "ability_covariate", "group_by_time",
+        "ability_by_time", "group_ability", "likelihood", "arm_gap_reference",
+        "focal_term", "baseline_covariates", "pre_covariates", "post_covariates",
+    ):
+        assert getattr(primary, field) == getattr(companion, field), field
+
+
+def test_only_graded_blending_fits_require_the_link_pair():
+    """A non-B outcome has no chance floor to respect, and the off-floor branch
+    models a binary indicator rather than a score mean."""
+    for kwargs in (
+        {},
+        {"likelihood": "bernoulli_offfloor"},
+    ):
+        plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=(), **kwargs))
+        assert plan.outcome_symbol == "W"
+        assert not plan.link_sensitivity_required_for_release
+        assert plan.required_link_companion_model_id is None
 

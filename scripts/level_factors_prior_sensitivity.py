@@ -201,6 +201,7 @@ def _fit_cell(
         # The sweep's items columns must be the same functional the primary
         # publishes (#584 decision 1), so it standardises the same way.
         balance_term=plan.standardisation_balance_term,
+        score_mean_link=plan.score_mean_link,
     )
     lo_q = (1.0 - REPORTING_CI_PROB) / 2.0
     n_trials = 1 if plan.off_floor else int(MEASURES[outcome].n_trials)

@@ -138,12 +138,18 @@ class GainFactorsPayload(FittedPayload):
 
 @dataclass(frozen=True)
 class LevelFactorsPayload(FittedPayload):
-    """Outcome-informed intercept anchor and arm-gap parameterisation of a
-    level-factor fit (``"t1"`` balance term + changes, or the ``"free"``
-    per-timepoint comparator, #552)."""
+    """Outcome-informed intercept anchor, arm-gap parameterisation (``"t1"``
+    balance term + changes, or the ``"free"`` per-timepoint comparator, #552) and
+    score-mean link (#584 decision 2) of a level-factor fit.
+
+    ``alpha_anchor`` is on the linear-predictor scale, so it is already mapped
+    through ``score_mean_link``: the two fields belong together and reading either
+    without the other misplaces the anchor by about 1.1 logits on the blending pair.
+    """
 
     alpha_anchor: float
     arm_gap_reference: str = "t1"
+    score_mean_link: str = "logit"
 
 
 @dataclass(frozen=True)

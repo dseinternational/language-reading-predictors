@@ -2131,7 +2131,10 @@ def _blending_pair_release_failures(
     ``link_sensitivity_required_for_release`` (so a future B-outcome ITT fit
     outside the registered pair fails closed rather than releasing unpaired).
     """
-    if str(config.get("kind") or "") != "itt":
+    kind = str(config.get("kind") or "")
+    if kind == "level_factors":
+        return _level_blending_pair_release_failures(output_dir, config)
+    if kind != "itt":
         return ()
     from language_reading_predictors.statistical_models.blending_sensitivity import (
         BLENDING_LINK_MODELS,
@@ -2159,6 +2162,36 @@ def _blending_pair_release_failures(
         return (
             "the mandatory trace-backed phoneme-blending link pair "
             "(lrp-rli-itt-008 + lrp-rli-itt-108) is not release-ready: " + reason,
+        )
+    return ()
+
+
+
+def _level_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The level family's phoneme-blending pairing (#584 decision 2).
+
+    Same policy as the ITT pair, one rung down in evidence strength: the level
+    check reads both fits' stored artefacts rather than recomputing their estimands
+    from trace, because the level family has no content-addressed archive yet. It
+    is still binding — a level B fit whose twin is absent, stale, ungated or fitted
+    on different rows does not publish — and it fails closed on anything it cannot
+    verify, so the weaker apparatus cannot become a weaker *policy*.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_level_blending_link_pair,
+    )
+
+    try:
+        status = evaluate_level_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the level B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            "(lrp-rli-lf-006 + lrp-rli-lf-106) is not release-ready: " + reason,
         )
     return ()
 

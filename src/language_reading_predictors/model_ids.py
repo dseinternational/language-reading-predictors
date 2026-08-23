@@ -129,6 +129,9 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     "lrpgf09m": ("gf", 209),
     "lrpgf10m": ("gf", 210),
     "lrpgf11m": ("gf", 211),
+    # The level family's phoneme-blending response-link companion (#584 decision 2),
+    # the same ``b`` role as the ITT pair below and in the same 1xx block.
+    "lrplf06b": ("lf", 106),
     "lrpitt08b": ("itt", 108),
     "lrpitt13b": ("itt", 113),
     "lrpitt14b": ("itt", 114),
