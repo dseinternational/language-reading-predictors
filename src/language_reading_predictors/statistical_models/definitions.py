@@ -414,6 +414,11 @@ _LEVEL += [
        "levels view; only the t2 group contrast is randomised"),
     _d("lrplf10", "level_factors", "Level factors", Status.ASSOCIATION, "TE",
        "levels view; only the t2 group contrast is randomised"),
+    # Phoneme blending is response-link sensitive: each item has three alternatives,
+    # so the ordinary inverse-logit mean permits below-chance expected scores. The
+    # pair releases together or not at all (#584 decision 2), mirroring lrpitt08/08b.
+    _d("lrplf06b", "level_factors", "Level factors link sensitivity", Status.ROBUSTNESS, "B",
+       "levels view under the three-choice guessing-floor score-mean link", base="lrplf06"),
 ]
 
 # Nonword-reading factor models (#225, carried forward on the revised DAG in #247).

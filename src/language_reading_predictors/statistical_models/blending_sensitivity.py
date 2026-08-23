@@ -1329,6 +1329,152 @@ def evaluate_local_blending_link_sensitivity(
     }
 
 
+
+# --- The level family's registered link pair (#584 decision 2) ----------------
+#
+# The ITT machinery above is a *public-release* apparatus: it recomputes both
+# estimands from their traces, content-addresses a two-trace bundle and byte-binds
+# every consumer to a central archive manifest. The level family's pair is held to
+# the same **policy** -- neither link releases without the other -- through a
+# deliberately smaller, local check: both fits present under the same config, both
+# the registered pair under opposite links, both clean on their own stored gates,
+# and fitted on identical rows. It reads stored artefacts rather than reopening
+# traces, so it is a pair-readiness check, not the archive-grade validation, and it
+# says so in what it returns. Promoting the level pair to the archive path is
+# tracked separately; until then a level B fit publishes only beside its twin.
+
+def _level_pair_card(directory: Path, model_id: str) -> dict[str, Any]:
+    """One side of the pair: its link, its card and its gate verdict."""
+    config = _read_json(directory / "config.json", label=f"{model_id} config")
+    if str(config.get("model_id")) != model_id:
+        raise ValueError(
+            f"{directory.name} holds {config.get('model_id')!r}, not {model_id}"
+        )
+    if str(config.get("kind")) != "level_factors":
+        raise ValueError(f"{model_id} is not a level-factor fit")
+    if str(config.get("outcome_symbol")) != "B":
+        raise ValueError(f"{model_id} is not a phoneme-blending fit")
+    gate = _read_json(
+        directory / "diagnostics_summary.json", label=f"{model_id} diagnostics"
+    )
+    if not _report.convergence_gate_clean_passed(gate):
+        raise ValueError(f"{model_id} did not pass its saved clean convergence gate")
+    rope = _one_csv_row(directory / "rope_summary.csv", label=f"{model_id} ROPE summary")
+    plan = config.get("resolved_run_plan") or {}
+    identity = config.get("fitted_data_identity") or {}
+    return {
+        "model_id": model_id,
+        "score_mean_link": str(plan.get("score_mean_link", "logit")),
+        "config_name": str(config.get("config_name", "")),
+        "data_sha256": str(config.get("data_sha256", "")),
+        "fitted_rows_digest": str(identity.get("digest", "")),
+        "n_obs": config.get("n_obs"),
+        "items_median": _finite_float(
+            rope.get("items_median"), label=f"{model_id} items_median"
+        ),
+        "items_lo": _finite_float(rope.get("items_lo"), label=f"{model_id} items_lo"),
+        "items_hi": _finite_float(rope.get("items_hi"), label=f"{model_id} items_hi"),
+        "pd": _finite_float(rope.get("pd"), label=f"{model_id} pd"),
+    }
+
+
+def evaluate_level_blending_link_pair(
+    output_dir: str | Path,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Is this level-factor B fit releasable beside its opposite-link twin?
+
+    Returns ``{"required", "ready", "reason", "cards"}``. ``required`` is read from
+    the fit's own resolved plan **and** from the registered pair, so a B level fit
+    outside the pair fails closed rather than publishing unpaired, exactly as the
+    ITT gate treats an unregistered B ITT fit.
+
+    The two cards must come from the same data (``data_sha256``), the same fitted
+    rows (``fitted_data_identity.digest``) and the same sampling configuration; both
+    must have passed their own stored convergence gate; and the two must genuinely
+    differ in link. Anything else is not a pair, and a reader shown one card without
+    the other would take a below-chance-permitting estimate for the whole answer.
+    """
+
+    from language_reading_predictors.statistical_models.level_factors import (
+        LEVEL_BLENDING_COMPANION_MODEL_ID,
+        LEVEL_BLENDING_PRIMARY_MODEL_ID,
+    )
+
+    registered = (LEVEL_BLENDING_PRIMARY_MODEL_ID, LEVEL_BLENDING_COMPANION_MODEL_ID)
+    directory = Path(output_dir).resolve()
+    try:
+        current = (
+            dict(config)
+            if config is not None
+            else _read_json(directory / "config.json", label="fit config")
+        )
+        if str(current.get("kind") or "") != "level_factors":
+            return {"required": False, "ready": True, "reason": "not a level fit"}
+        plan = current.get("resolved_run_plan") or {}
+        model_id = str(current.get("model_id") or "")
+        required = bool(plan.get("link_sensitivity_required_for_release")) or (
+            model_id in registered
+        )
+        if not required:
+            return {"required": False, "ready": True, "reason": "no link pairing"}
+        if model_id not in registered:
+            return {
+                "required": True,
+                "ready": False,
+                "reason": (
+                    f"{model_id} declares a mandatory response-link pairing but is "
+                    "not one of the registered level blending fits "
+                    f"({registered[0]} + {registered[1]}); register the pair before "
+                    "releasing"
+                ),
+            }
+        companion_id = next(m for m in registered if m != model_id)
+        config_name = str(current.get("config_name") or "")
+        if not config_name:
+            raise ValueError("fit config lacks config_name")
+        companion_dir = directory.parent / f"{companion_id}-{config_name}"
+        if not (companion_dir / "config.json").is_file():
+            raise ValueError(
+                f"the paired {companion_id} fit is not present beside this one "
+                f"({companion_dir}); fit the pair before releasing either side"
+            )
+        cards = {
+            model_id: _level_pair_card(directory, model_id),
+            companion_id: _level_pair_card(companion_dir, companion_id),
+        }
+        links = {card["score_mean_link"] for card in cards.values()}
+        if links != {"logit", "three_choice_guessing_floor"}:
+            raise ValueError(
+                "the two fits do not carry opposite score-mean links "
+                f"({sorted(links)}), so they are not a link-sensitivity pair"
+            )
+        for field, label in (
+            ("data_sha256", "dataset"),
+            ("fitted_rows_digest", "fitted rows"),
+            ("config_name", "sampling configuration"),
+            ("n_obs", "row count"),
+        ):
+            values = {card[field] for card in cards.values()}
+            if len(values) != 1:
+                raise ValueError(
+                    f"the paired fits do not share a {label} "
+                    f"({sorted(map(str, values))})"
+                )
+            recorded = next(iter(values))
+            if recorded is None or not str(recorded).strip():
+                # Agreeing on "unrecorded" is not agreement: an unstamped digest
+                # would let two different row sets pass as one pair.
+                raise ValueError(
+                    f"the paired fits do not record a {label}, so the pairing "
+                    "cannot be verified"
+                )
+    except (OSError, KeyError, TypeError, ValueError, pd.errors.ParserError) as exc:
+        return {"required": True, "ready": False, "reason": str(exc)}
+    return {"required": True, "ready": True, "reason": "", "cards": cards}
+
+
 __all__ = [
     "BLENDING_COMPANION_MODEL_ID",
     "BLENDING_LINK_MODELS",
@@ -1337,5 +1483,6 @@ __all__ = [
     "BLENDING_SENSITIVITY_FILENAME",
     "build_blending_link_sensitivity",
     "evaluate_blending_link_sensitivity",
+    "evaluate_level_blending_link_pair",
     "evaluate_local_blending_link_sensitivity",
 ]

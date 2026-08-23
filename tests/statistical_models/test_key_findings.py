@@ -3558,3 +3558,12 @@ def test_results_factors_partial_branches_on_a_plan_with_no_focal_term():
     intro = text.split("if _no_focal and not _mv:", 1)[1]
     assert intro.index("The factor model reports **one** causal coefficient") > intro.index("elif _mv:")
 
+
+def test_results_factors_partial_gates_the_blending_link_pair():
+    """#584 decision 2: a level B report withholds its scientific results when the
+    response-link pair is not ready, and shows both cards when it is."""
+    text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text(encoding="utf-8")
+    assert "evaluate_level_blending_link_pair" in text
+    assert "_scientific_results_released = False" in text
+    assert "one-in-three guessing floor" in text
+

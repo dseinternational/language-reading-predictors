@@ -71,6 +71,7 @@ from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
     beta_binomial_from_logit,
     beta_binomial_from_score_mean_link,
+    invert_score_mean_link,
 )
 from language_reading_predictors.statistical_models.mediation_parameter_names import (
     outcome_confounder_coefficient,
@@ -4791,6 +4792,12 @@ def build_level_factors_model(
     ability_by_time: bool = True,
     group_ability: bool = True,
     likelihood: str = "beta_binomial",
+    # #584 decision 2: the phoneme-blending response link. ``"logit"`` is the
+    # ordinary Beta-Binomial inverse-logit mean; ``"three_choice_guessing_floor"``
+    # maps it onto [1/3, 1] for the ten three-alternative forced-choice blending
+    # items, whose expected score cannot fall below chance. B only, graded only,
+    # and released only beside its paired ordinary-link fit.
+    score_mean_link: ScoreMeanLink = "logit",
     # #552: how the per-timepoint arm coefficients are parameterised. ``"t1"``
     # (default) centres them on the pre-randomisation t1 gap -- ``arm_gap_t1``
     # (a balance nuisance term on the cross-coupling prior, the DiD idiom) plus
@@ -4928,6 +4935,25 @@ def build_level_factors_model(
         raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
     if group_ability and ability_covariate is None:
         raise ValueError("group_ability interaction requires an ability_covariate")
+    # Mirrors build_itt_model's contract: the guessing floor is a property of the
+    # blending instrument, not a switch, and it is only meaningful for a graded
+    # score mean (the off-floor branch models a binary indicator, which has no
+    # chance floor to respect).
+    if score_mean_link not in SCORE_MEAN_LINKS:
+        raise ValueError(
+            f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+            f"got {score_mean_link!r}"
+        )
+    if score_mean_link == "three_choice_guessing_floor" and outcome_symbol != "B":
+        raise ValueError(
+            "three_choice_guessing_floor is only valid for phoneme blending (B), "
+            f"got {outcome_symbol!r}"
+        )
+    if likelihood != "beta_binomial" and score_mean_link != "logit":
+        raise ValueError(
+            "score_mean_link applies to the graded Beta-Binomial mean; the "
+            f"{likelihood!r} branch has no score mean to map"
+        )
     adjust_for = tuple(adjust_for)
     for c in adjust_for:
         if c not in prepared.covariates:
@@ -4954,7 +4980,16 @@ def build_level_factors_model(
     else:
         successes = float(np.sum(t1))
         failures = float(t1.size * prepared.n_trials[own] - successes)
-        alpha_anchor = float(np.log((successes + 0.5) / (failures + 0.5)))
+        # The anchor locates the intercept prior on the LINEAR PREDICTOR, so under a
+        # non-identity score-mean link the observed proportion must be mapped back
+        # through the link first (#584 decision 2). Anchoring a guessing-floor fit on
+        # the raw observed logit would defeat the point of the empirical-Bayes anchor
+        # (#389 finding 2): for blending, logit(0.49) = -0.03 against the -1.16 the
+        # floor link needs. ``invert_score_mean_link`` raises if the pooled t1 score
+        # sits at or below chance, where no linear predictor could produce it.
+        proportion = (successes + 0.5) / (successes + failures + 1.0)
+        unit = float(invert_score_mean_link(proportion, score_mean_link))
+        alpha_anchor = float(np.log(unit / (1.0 - unit)))
 
     t1_referenced = group_by_time and arm_gap_reference == "t1"
     coords = {
@@ -5063,8 +5098,9 @@ def build_level_factors_model(
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
             kappa = _scalar_prior("kappa", _priors.kappa_prior)
-            beta_binomial_from_logit(
+            beta_binomial_from_score_mean_link(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                score_mean_link=score_mean_link,
                 observed=post, dims="obs_id",
             )
         else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
@@ -5077,7 +5113,9 @@ def build_level_factors_model(
         model=model,
         prepared=prepared,
         payload=LevelFactorsPayload(
-            alpha_anchor=alpha_anchor, arm_gap_reference=arm_gap_reference
+            alpha_anchor=alpha_anchor,
+            arm_gap_reference=arm_gap_reference,
+            score_mean_link=score_mean_link
         ),
     )
 

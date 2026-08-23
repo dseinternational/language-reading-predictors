@@ -543,3 +543,175 @@ def test_builder_writes_content_addressed_archive_and_report_copies(
     assert (
         companion.model_dir / bs.BLENDING_SENSITIVITY_FILENAME
     ).is_file()
+
+
+# --- the level family's registered pair (#584 decision 2) ---------------------
+
+
+def _level_fit_dir(
+    root: Path,
+    model_id: str,
+    *,
+    link: str,
+    config_name: str = "reporting",
+    gate_passed: bool = True,
+    digest: str = "d1g3st",
+    data_sha256: str = "a" * 64,
+    n_obs: int = 215,
+    items_median: float = 0.64,
+) -> Path:
+    """A minimal stored level-factor B fit: config, gate verdict and ROPE card."""
+    directory = root / f"{model_id}-{config_name}"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "level_factors",
+                "outcome_symbol": "B",
+                "config_name": config_name,
+                "data_sha256": data_sha256,
+                "n_obs": n_obs,
+                "fitted_data_identity": {"digest": digest},
+                "resolved_run_plan": {
+                    "score_mean_link": link,
+                    "link_sensitivity_required_for_release": True,
+                    "required_link_companion_model_id": (
+                        "lrp-rli-lf-106"
+                        if model_id == "lrp-rli-lf-006"
+                        else "lrp-rli-lf-006"
+                    ),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (directory / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "divergences": 0 if gate_passed else 47,
+                "max_rhat": 1.0 if gate_passed else 1.9,
+                "min_ess": 4000.0 if gate_passed else 12.0,
+                "bfmi_per_chain": [0.9, 0.9] if gate_passed else [0.05, 0.9],
+                "checks": {
+                    "rhat": gate_passed,
+                    "ess": gate_passed,
+                    "divergences": gate_passed,
+                    "bfmi": gate_passed,
+                },
+                "passed": gate_passed,
+            }
+        ),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [{"items_median": items_median, "items_lo": -0.2, "items_hi": 1.4, "pd": 0.9}]
+    ).to_csv(directory / "rope_summary.csv", index=False)
+    return directory
+
+
+def test_level_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
+    _level_fit_dir(
+        models, "lrp-rli-lf-106", link="three_choice_guessing_floor", items_median=0.43
+    )
+    status = bs.evaluate_level_blending_link_pair(primary)
+    assert status["required"] and status["ready"], status
+    cards = status["cards"]
+    assert cards["lrp-rli-lf-006"]["score_mean_link"] == "logit"
+    assert cards["lrp-rli-lf-106"]["items_median"] == 0.43
+    # Either side of the pair sees the same verdict.
+    companion_status = bs.evaluate_level_blending_link_pair(
+        models / "lrp-rli-lf-106-reporting"
+    )
+    assert companion_status["ready"]
+
+
+def test_level_pair_is_not_ready_without_its_twin(tmp_path):
+    models = tmp_path / "models"
+    primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
+    status = bs.evaluate_level_blending_link_pair(primary)
+    assert status["required"] and not status["ready"]
+    assert "not present beside this one" in status["reason"]
+
+
+def test_level_pair_requires_the_registered_pairing_even_on_a_stale_plan(tmp_path):
+    """The requirement is derived from the registered ids as well as the stored
+    plan, so a fit whose plan predates the pairing cannot bypass the gate."""
+    models = tmp_path / "models"
+    primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    config["resolved_run_plan"].pop("link_sensitivity_required_for_release")
+    status = bs.evaluate_level_blending_link_pair(primary, config=config)
+    assert status["required"] and not status["ready"]
+
+
+def test_level_pair_rejects_an_unconverged_side(tmp_path):
+    models = tmp_path / "models"
+    primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
+    _level_fit_dir(
+        models,
+        "lrp-rli-lf-106",
+        link="three_choice_guessing_floor",
+        gate_passed=False,
+    )
+    status = bs.evaluate_level_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "convergence gate" in status["reason"]
+
+
+def test_level_pair_rejects_different_fitted_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
+    _level_fit_dir(
+        models,
+        "lrp-rli-lf-106",
+        link="three_choice_guessing_floor",
+        digest="0th3r",
+    )
+    status = bs.evaluate_level_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "fitted rows" in status["reason"]
+
+
+def test_level_pair_rejects_two_fits_under_the_same_link(tmp_path):
+    models = tmp_path / "models"
+    primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
+    _level_fit_dir(models, "lrp-rli-lf-106", link="logit")
+    status = bs.evaluate_level_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "opposite score-mean links" in status["reason"]
+
+
+def test_level_pair_ignores_a_non_blending_level_fit(tmp_path):
+    models = tmp_path / "models"
+    directory = models / "lrp-rli-lf-001-reporting"
+    directory.mkdir(parents=True)
+    (directory / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": "lrp-rli-lf-001",
+                "kind": "level_factors",
+                "outcome_symbol": "W",
+                "config_name": "reporting",
+                "resolved_run_plan": {"score_mean_link": "logit"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    status = bs.evaluate_level_blending_link_pair(directory)
+    assert not status["required"] and status["ready"]
+
+
+def test_release_gate_withholds_an_unpaired_level_blending_fit(tmp_path):
+    from language_reading_predictors.statistical_models import release
+
+    models = tmp_path / "models"
+    primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    failures = release._blending_pair_release_failures(primary, config)
+    assert failures and "lrp-rli-lf-006 + lrp-rli-lf-106" in failures[0]
+    _level_fit_dir(models, "lrp-rli-lf-106", link="three_choice_guessing_floor")
+    assert release._blending_pair_release_failures(primary, config) == ()
+

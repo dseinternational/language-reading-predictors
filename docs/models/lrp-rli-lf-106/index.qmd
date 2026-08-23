@@ -1,0 +1,56 @@
+---
+title: "LRPLF06: Factors associated with the level of phoneme blending (blending) (PA)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPLF106 is the registered **response-link companion** to [LRPLF06](../lrp-rli-lf-006/index.qmd) (#584 decision 2). Same children, same adjustment set, same arm-gap parameterisation and the same randomised contrast `d_grp_time[t2]`; the single difference is the score mean.
+
+Phoneme blending has ten **three-alternative forced-choice** items, so a child answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial inverse-logit mean does not know that, and the LRPLF06 posterior uses the room it leaves: 24 of 215 fitted rows have posterior-mean expected proportions below one third, and at timepoint 2 it is 8 of 54 rows and 16% of the posterior mass. This companion constrains the mean to $\tfrac{1}{3} + \tfrac{2}{3}\,\operatorname{expit}(\\eta_t)$, so the model cannot predict below-chance performance.
+
+**The two fits are one piece of evidence.** Because the links can disagree about the size of the effect, neither is sufficient on its own: both plans are marked link-sensitivity-required and the release gate refuses to publish either without the other.
+
+_Causal labelling + level-model crossover caveat._ Every non-randomised coefficient is an **adjusted association** under the revised DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10). Measured skill parents are **deliberately excluded** as post-treatment mediators of the group×time effect; only the revised-DAG confounders hearing (HS = `hs`), speech (SP = `deapp_c`) and phonological memory (RW = `erbto`) — each with a missing-indicator — enter as adjusters. The group effect is `group x time`, parameterised as the covariate-adjusted arm gap at t1 (`arm_gap_t1`, a pre-randomisation *balance* quantity, never an effect) plus the change in that gap at each later wave (`d_grp_time[t]`; #552): after t2 the waitlist crosses over, so the **clean randomised contrast lives only at t2** — the t2 change `d_grp_time[t2]`, a difference-in-differences of adjusted levels, labelled *causal*; the t3/t4 changes are post-crossover cohort/timing terms, and the per-wave gaps `b_grp_time[t] = arm_gap_t1 + d_grp_time[t]` are kept as a derived levels view. SES excluded (non-DAG / redundant).
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the level count, $N = 10$, with the **guessing-floor score mean** $\mu_t = \tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta_t)$ and
+$\eta_{t} = \alpha + \alpha_{\text{time}[t]} + b_{\text{grp}[t]}\text{group} + \gamma_A A_{\text{std},t} + g_{\text{ability}[t]}z(\text{blocks}) + \gamma_{\text{grp\_ability}}\,\text{group}\,z(\text{blocks}) + \sum_{c}\gamma_c\,z(c) + u_{\text{child}}$, where the $z(c)$ are the standardised revised-DAG confounders hearing (HS = `hs`), speech (SP = `deapp_c`) and phonological memory (RW = `erbto`), each with a missing-indicator; measured skill parents are excluded as post-treatment mediators.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+**Intercept anchor under the floor link.** The empirical-Bayes anchor is mapped back through the link before it is used as a linear-predictor location: the pooled pre-randomisation t1 proportion is 0.49, whose ordinary logit is −0.03 but whose guessing-floor value is −1.16. Anchoring on the raw logit would put the intercept prior about 1.1 logits from where this model needs it.
+
+**Arm-gap parameterisation (#552).** The per-timepoint group coefficient is centred on the timepoint-1 arm gap: $b_{\text{grp}[t1]} = a_{t1}$ and $b_{\text{grp}[t]} = a_{t1} + d_{\text{grp}[t]}$ for $t \in \{t2, t3, t4\}$, where $a_{t1}$ (`arm_gap_t1`) is the covariate-adjusted immediate-minus-waitlist gap at t1 — before anyone was treated, so a **chance balance quantity** on the cross-coupling prior, reported and never read as an effect — and $d_{\text{grp}[t]}$ (`d_grp_time[t]`) is the change in that gap from t1, on the outcome-tier treatment prior. A levels model conditions on nothing at baseline while adjusting for age and ability at every wave, so a free per-timepoint vector (the pre-#552 parameterisation, retained as the `arm_gap_reference="free"` comparator) carries the covariate-adjusted chance t1 imbalance straight into the t2 contrast; centring on the t1 gap removes it and puts the prior on the randomised difference directly. The randomised contrast is therefore the **t2 change `d_grp_time[t2]`**, a difference-in-differences of adjusted levels; `d_grp_time[t3]` / `[t4]` are post-crossover associations, and the per-wave arm gaps `b_grp_time[t]` are kept as a derived levels view.
+
+**Intercepts (#389 finding 2).** $\alpha$ is **anchored**: a pooled, arm-blind
+empirical-Bayes anchor at the observed **pre-randomisation t1** logit plus a free
+zero-centred offset, and $\alpha_{\text{time}}$ is an exact **zero-sum**
+wave-deviation vector. The previous parameterisation — a free global intercept and
+four free per-timepoint offsets, all centred at logit zero — was identified only
+through its sums (posterior correlations to $-0.96$) and implied prior-predictive
+scores near half the instrument maximum for a population observed far below it.
+The anchor uses only pre-randomisation data, so no treatment-affected quantity
+enters the prior; the priors table labels the offset as empirical Bayes.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_factors.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

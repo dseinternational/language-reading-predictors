@@ -233,6 +233,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             contrast_term=plan.focal_vector,
             contrast_index=plan.focal_index,
             balance_term=plan.standardisation_balance_term,
+            score_mean_link=plan.score_mean_link,
         )
         if _graded_card:
             n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
@@ -277,6 +278,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 contrast_term=plan.focal_vector,
                 contrast_index=plan.focal_index,
                 balance_term=plan.standardisation_balance_term,
+                score_mean_link=plan.score_mean_link,
             )
             save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
             meta_extra["prior_pushforward"] = pf

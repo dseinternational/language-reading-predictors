@@ -4314,6 +4314,7 @@ def level_t2_marginal_effect(
     contrast_index: int | None = None,
     interaction_term: str = "gamma_grp_ability",
     balance_term: str | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
     ability: np.ndarray | None = None,
     eta_name: str = "eta",
     group: str = "posterior",
@@ -4439,7 +4440,14 @@ def level_t2_marginal_effect(
     # interaction is reported separately, never folded into the causal card
     # (issue #271 item 5).
     eta0 = eta_t2 - delta_rows * G_t2[:, None]
-    ame_prob = (expit(eta0 + contrast_draws[None, :]) - expit(eta0)).mean(axis=0)  # (S,)
+    # The marginal is a difference of SCORE MEANS, so it goes through the fit's own
+    # score-mean link (#584 decision 2). Under the blending guessing floor the mean
+    # is 1/3 + 2/3 * expit(eta), which compresses the same logit contrast into a
+    # smaller items difference — reading a floor-link fit through the ordinary expit
+    # would publish an effect the model does not imply.
+    treated = apply_score_mean_link(expit(eta0 + contrast_draws[None, :]), score_mean_link)
+    untreated = apply_score_mean_link(expit(eta0), score_mean_link)
+    ame_prob = (treated - untreated).mean(axis=0)  # (S,)
     return contrast_draws, ame_prob
 
 
@@ -4454,6 +4462,7 @@ def level_prior_pushforward(
     contrast_term: str = "b_grp_time",
     contrast_index: int | None = None,
     balance_term: str | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float]:
     """Push the **prior** on the t2 group contrast through the items-scale AME (#389 finding 3).
 
@@ -4479,6 +4488,7 @@ def level_prior_pushforward(
         contrast_term=contrast_term,
         contrast_index=contrast_index,
         balance_term=balance_term,
+        score_mean_link=score_mean_link,
     )
     return pushforward_values(
         contrast_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
@@ -5730,6 +5740,57 @@ def _kf_build_gain_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
     return sentences
 
 
+
+def _kf_level_blending_link_sentence(output_dir, config: Mapping) -> str | None:
+    """The level family's paired-link sentence, or ``None`` when not a B fit.
+
+    Mirrors :func:`_kf_blending_link_evidence` for ``level_factors`` (#584
+    decision 2). Phoneme blending's ten items are three-alternative forced choice,
+    so the ordinary inverse-logit mean can predict below-chance scores and the
+    guessing-floor companion cannot; the two estimates are one piece of evidence,
+    and a key-findings box that showed either alone would overstate what the fit
+    establishes. Fails closed: an unready pair raises, which withholds the box
+    rather than publishing a single-link headline.
+    """
+    if str(config.get("kind")) != "level_factors" or str(
+        config.get("outcome_symbol")
+    ) != "B":
+        return None
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_level_blending_link_pair,
+    )
+
+    status = evaluate_level_blending_link_pair(output_dir, config=config)
+    if not status.get("required"):
+        return None
+    if not status.get("ready"):
+        raise _KeyFindingsUnavailable(
+            str(status.get("reason") or "the B link pair is not ready")
+        )
+    cards = status["cards"]
+    this_id = str(config.get("model_id"))
+    other_id = next(k for k in cards if k != this_id)
+    ordinary, floored = (
+        (cards[k] for k in (this_id, other_id))
+        if cards[this_id]["score_mean_link"] == "logit"
+        else (cards[other_id], cards[this_id])
+    )
+    return (
+        "Phoneme blending is scored from ten three-choice items, so a child "
+        "answering at random scores about 3 out of 10. Two models are reported "
+        "together because that floor matters: the ordinary model, which does not "
+        f"know about it, puts the timepoint-2 effect at "
+        f"**{_kf_float(ordinary['items_median']):+.1f} items** (89% credible range "
+        f"{_kf_float(ordinary['items_lo']):+.1f} to "
+        f"{_kf_float(ordinary['items_hi']):+.1f}), and the model that holds the "
+        f"score at or above chance puts it at "
+        f"**{_kf_float(floored['items_median']):+.1f} items** "
+        f"({_kf_float(floored['items_lo']):+.1f} to "
+        f"{_kf_float(floored['items_hi']):+.1f}). Neither number is the answer on "
+        "its own."
+    )
+
+
 def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
     """Level family: only the t2 group contrast is randomised; later timepoints
     are post-crossover associations."""
@@ -5744,6 +5805,11 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         rope, outcome_label, "at the end of the randomised period (t2)"
     )
     sentences.append(_kf_sentence(headline, "headline"))
+    # Phoneme blending: the paired-link sentence rides immediately behind the
+    # headline, because the headline alone is a single-link number (#584 decision 2).
+    link_sentence = _kf_level_blending_link_sentence(output_dir, config)
+    if link_sentence is not None:
+        sentences.append(_kf_sentence(link_sentence, "sensitivity"))
     # #389 finding 3 — surfacing the t2 power-scaling verdict beside the headline —
     # is now the release gate's job rather than this builder's. The gate covers the
     # plan's focal t2 term (``d_grp_time[t2]``, or ``b_grp_time[1]`` under the free
