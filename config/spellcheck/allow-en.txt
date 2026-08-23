@@ -59,6 +59,7 @@ Boudreau
 BPVS
 Brigstocke
 brms
+Brumback
 Buckley
 Burack
 Burgoyne
@@ -148,6 +149,7 @@ dtypes
 duckdb
 earinf
 econlet
+Econometrica
 ecresq
 elementwise
 elif
@@ -222,6 +224,7 @@ hashlib
 Hayiou
 hclust
 Hejazi
+Hernán
 Hewes
 hexdigest
 hmac
@@ -444,6 +447,7 @@ Ostad
 Otaiba
 othertimeread
 Ouellette
+overadjust
 overcover
 overcoverage
 overdispersion
@@ -503,6 +507,7 @@ recomputation
 redescribing
 reframing
 regenerable
+reindexing
 Reichow
 reloo
 removesuffix
