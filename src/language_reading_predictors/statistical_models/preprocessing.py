@@ -900,6 +900,7 @@ def load_and_prepare_lagged_outcome(
     path: str | Path | None = None,
     outcomes: tuple[str, ...] = ITT_OUTCOMES,
     covariates: tuple[str, ...] = (),
+    pre_required: tuple[str, ...] | None = None,
 ) -> PreparedData:
     """ITT prep, but with ``outcome_symbol``'s post-counts taken from a later wave.
 
@@ -930,7 +931,11 @@ def load_and_prepare_lagged_outcome(
             f"outcome_symbol {outcome_symbol!r} must be included in outcomes={outcomes!r}"
         )
     base = load_and_prepare(
-        path=path, phase_mode="itt", outcomes=outcomes, covariates=covariates
+        path=path,
+        phase_mode="itt",
+        outcomes=outcomes,
+        covariates=covariates,
+        pre_required=pre_required,
     )
     csv_path = Path(path) if path is not None else _default_data_path()
     df = pd.read_csv(csv_path)

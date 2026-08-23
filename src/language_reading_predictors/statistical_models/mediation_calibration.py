@@ -10,16 +10,35 @@ include zero.  This module anchors that abstract shift to intervention sessions
 name but that a natural-effect adjustment set cannot validly condition on.
 
 The calibration is deliberately a *scenario*, not a repaired causal estimate.  It
-uses the familiar single-omitted-variable approximation
+uses the single-omitted-variable approximation
 
 ``delta_IS ~= |beta(IS -> M_std) * beta(IS -> Y_logit)|``
 
 after converting the dose-response slopes to the mediation fit's one-standard-
-deviation session scale and standardised mediator scale.  Treating the whole fitted
-``IS -> Y`` association as confounding is conservative in one specific sense: that
-association may itself include a genuine ``IS -> M -> Y`` path.  The 89% range is
-an endpoint envelope from separate marginal slope intervals, not a joint posterior
-or credible interval.  The report says both things explicitly.
+deviation session scale and standardised mediator scale.
+
+**Why the bare product is the right form here** (#585 finding 6).  In general the
+omitted-variable bias in the coefficient on ``M`` is ``beta(U -> Y) * Cov(U, M) /
+Var(M)``, which is *not* a bare product and is *not* scale-invariant.  Both slopes
+are supplied on one-standard-deviation scales — ``IS`` per SD of phase-1 sessions,
+``M`` per SD of the fitted mediator logit — so ``Var(M) = 1`` and ``Cov(U, M) =
+beta(IS -> M_std)``, and the product form is exactly the linear bias.  The
+approximation that remains is transporting a linear-model bias onto a logit
+coefficient, where non-collapsibility means the recovered shift is close to, not
+equal to, the induced bias; :mod:`tests` carries a linear-Gaussian recovery check
+of the formula itself.  Because the shift is approximate, the reported sentences
+are framed as scenario comparisons ("reaches the tipping point under this
+scenario"), never as a demonstration that ``IS`` accounts for the effect.
+
+Treating the whole fitted ``IS -> Y`` association as confounding is conservative in
+one specific sense: that association may itself include a genuine ``IS -> M -> Y``
+path.  The 89% range is an endpoint envelope from separate marginal slope
+intervals, not a joint posterior or credible interval.  The report says both
+things explicitly.
+
+The two-mediator calibration is a **different, explicitly descriptive**
+construction (a treated-arm coefficient change), not this omitted-variable
+product, and the two must not be given a common interpretation.
 
 For an off-floor outcome, ``delta`` is still a shift on the Bernoulli outcome's
 log-odds coefficient.  There is no constant conversion from log odds to a risk
@@ -419,8 +438,9 @@ def calibrate_is_scenario(
             sentence = (
                 f"At n = {n_obs}, the IS point calibration delta about "
                 f"{delta_point:.2f} reaches the NIE tipping point delta* about "
-                f"{tipping:.2f} (89% endpoint scenario {band}){mapped}, so "
-                "IS-strength confounding could account for the estimated NIE."
+                f"{tipping:.2f} (89% endpoint scenario {band}){mapped}, so under "
+                "this approximate scenario an IS-strength slope bias would be "
+                "large enough to bring the NIE interval to zero."
             )
         elif scenario_hi >= tipping:
             verdict = "could_account_band"
@@ -428,8 +448,8 @@ def calibrate_is_scenario(
                 f"At n = {n_obs}, the IS point calibration delta about "
                 f"{delta_point:.2f} is below the NIE tipping point delta* about "
                 f"{tipping:.2f}, but its wide 89% endpoint scenario ({band}) reaches "
-                f"that point{mapped}, so IS-strength confounding could plausibly "
-                "account for the estimated NIE."
+                f"that point{mapped}, so only the upper end of this approximate "
+                "scenario reaches the magnitude that would null the NIE."
             )
         else:
             verdict = "survives_band"

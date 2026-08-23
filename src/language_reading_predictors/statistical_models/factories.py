@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import inspect
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar
 
 import numpy as np
@@ -2576,6 +2576,13 @@ class MediationData:
     #: risk-difference (probability) scale (``n_trials_W`` is set to 1, collapsing the
     #: ``words_*`` columns onto the risk difference). Default False = graded outcome.
     off_floor: bool = False
+    #: Cross-leg baseline regressors restored by #585, keyed by coefficient name.
+    #: ``decompose`` reads these so the counterfactual simulation conditions on
+    #: exactly the common vector each fitted leg saw.
+    mediator_cross_values: dict[str, np.ndarray] = field(default_factory=dict)
+    outcome_cross_values: dict[str, np.ndarray] = field(default_factory=dict)
+    #: Binary off-floor-at-baseline indicator for an off-floor outcome leg.
+    own_offfloor: np.ndarray | None = None
 
 
 def _baseline_confounder_value(prepared: PreparedData, symbol: str) -> np.ndarray:
@@ -2592,6 +2599,49 @@ def _baseline_confounder_value(prepared: PreparedData, symbol: str) -> np.ndarra
     return prepared.covariates[symbol]
 
 
+def _cross_baseline_arrays(prepared: PreparedData, terms) -> dict[str, np.ndarray]:
+    """Row-aligned t1 values for a mediation leg's cross-baseline terms (#585).
+
+    ``terms`` are :class:`mediation_settings.BaselineTerm` records. A measure the
+    fit declares off-floor enters as the **binary off-floor-at-baseline
+    indicator** (``pre > 0``) rather than its near-degenerate floored logit,
+    mirroring the project's ``gamma_own_offfloor`` convention. Call after any
+    row subsetting so the arrays stay aligned with the fitted rows.
+    """
+    values: dict[str, np.ndarray] = {}
+    for term in terms:
+        if term.form == "offfloor":
+            if term.symbol not in prepared.pre_counts:
+                raise KeyError(
+                    f"Off-floor baseline {term.symbol!r} has no pre-count column"
+                )
+            values[term.coefficient] = (
+                np.asarray(prepared.pre_counts[term.symbol]) > 0
+            ).astype(float)
+        else:
+            values[term.coefficient] = _baseline_confounder_value(prepared, term.symbol)
+    return values
+
+
+def _add_cross_baselines(eta, terms, values: dict[str, np.ndarray]):
+    """Add a leg's cross-baseline regressors to ``eta`` inside a model context.
+
+    Restores the common pre-exposure vector the g-formula integrates over: before
+    #585 the mediator leg never saw the outcome baseline and the outcome leg never
+    saw the mediator baseline, so the two design matrices implemented neither the
+    declared adjustment set nor a documented reduction of it.
+    """
+    for term in terms:
+        data = pm.Data(f"{term.coefficient}_x", values[term.coefficient], dims="obs_id")
+        prior = (
+            _priors.gamma_own_offfloor_prior()
+            if term.form == "offfloor"
+            else _priors.gamma_cross_prior()
+        )
+        eta = eta + prior.to_pymc(term.coefficient) * data
+    return eta
+
+
 def _build_outcome_leg(
     *,
     mediator_node,
@@ -2603,6 +2653,9 @@ def _build_outcome_leg(
     N_out,
     W2_count,
     outcome_kind: str = "beta_binomial",
+    cross_baselines=(),
+    cross_values: dict | None = None,
+    own_offfloor=None,
 ):
     """Shared outcome leg for the single-mediator-design factories.
 
@@ -2623,6 +2676,7 @@ def _build_outcome_leg(
     that case ``W1_d`` is unused (may be ``None``).
     """
     off_floor = outcome_kind == "bernoulli_offfloor"
+    cross_values = dict(cross_values or {})
     b0 = _priors.alpha_prior().to_pymc("b0")
     b_G = _priors.tau_prior().to_pymc("b_G")
     b_M = _priors.b_path_prior().to_pymc("b_M")
@@ -2633,11 +2687,20 @@ def _build_outcome_leg(
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
     b_A = _priors.gamma_cross_prior().to_pymc("b_A")
     if off_floor:
+        # #585 finding 4: the off-floor outcome leg no longer drops its own
+        # baseline outright. The graded Normal(1, 0.25) autoregressive prior still
+        # does not transfer to a binary indicator, so the baseline enters as the
+        # binary off-floor-at-baseline contrast (gamma_own_offfloor ~ Normal(0, 1))
+        # — the same convention the off-floor ITT / DiD / gain-factor models use.
+        # The sample rule and the likelihood now require the same measurement.
+        b_own_ff = _priors.gamma_own_offfloor_prior().to_pymc("b_own_offfloor")
+        own_off_d = pm.Data("own_pre_offfloor", own_offfloor, dims="obs_id")
         eta_Y = (
             b0
             + b_G * G_d
             + b_M * mediator_node
             + b_GM * (G_d * mediator_node)
+            + b_own_ff * own_off_d
             + b_A * A_d
         )
     else:
@@ -2654,6 +2717,7 @@ def _build_outcome_leg(
             outcome_confounder_coefficient(s)
         )
         eta_Y = eta_Y + b_c * conf_d[s]
+    eta_Y = _add_cross_baselines(eta_Y, cross_baselines, cross_values)
     eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
     if off_floor:
         off = (np.asarray(W2_count) > 0).astype(np.int64)
@@ -2674,6 +2738,8 @@ def build_mediation_model(
     mediator_kind: str = "beta_binomial",
     route_symbols: Iterable[str] = (),
     outcome_kind: str = "beta_binomial",
+    mediator_cross_baselines=(),
+    outcome_cross_baselines=(),
 ) -> tuple[BuiltModel[EmptyPayload], MediationData]:
     """Joint mediator + outcome model for the ITT-phase (phase 0) decomposition.
 
@@ -2729,17 +2795,20 @@ def build_mediation_model(
             outcome_symbol=outcome_symbol,
             confounder_symbols=confounder_symbols,
             route_symbols=tuple(route_symbols),
+            mediator_cross_baselines=tuple(mediator_cross_baselines),
+            outcome_cross_baselines=tuple(outcome_cross_baselines),
         )
     if mediator_kind != "beta_binomial":
         raise ValueError(f"Unknown mediator_kind {mediator_kind!r}")
     if outcome_kind not in ("beta_binomial", "bernoulli_offfloor"):
         raise ValueError(f"Unknown outcome_kind {outcome_kind!r}")
     off_floor = outcome_kind == "bernoulli_offfloor"
-    # The mediator always needs its baseline (own-baseline coupling a_M). The outcome
-    # needs its baseline only for the graded own-baseline term b_W — an off-floor
-    # (Bernoulli) outcome drops it (see _build_outcome_leg), so its pre-score is not
-    # required and a degenerate/floored baseline logit never enters.
-    required_pre = (mediator_symbol,) if off_floor else (mediator_symbol, outcome_symbol)
+    # Both legs need both baselines (#585 finding 1): the mediator law conditions on
+    # the outcome baseline and the outcome law on the mediator baseline, so the
+    # g-formula integrates over one common pre-exposure vector. An off-floor outcome
+    # still needs its pre-score — as the binary off-floor-at-baseline indicator
+    # (#585 finding 4), not as a degenerate floored logit.
+    required_pre = (mediator_symbol, outcome_symbol)
     for s in required_pre:
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
@@ -2771,13 +2840,22 @@ def build_mediation_model(
     z_med, med_scaler = standardise(med_logit)
 
     L1 = prepared.pre_logit[mediator_symbol]
-    # Off-floor outcome: no own-baseline term, so its pre-score is neither required
-    # nor used (a floored baseline logit would be degenerate). Zeros are a safe,
-    # never-referenced placeholder for the row-aligned MediationData field.
+    # Off-floor outcome: the graded logit is still unusable, so ``W1`` stays a
+    # never-referenced placeholder there and the baseline enters through
+    # ``own_offfloor`` instead (#585 finding 4).
     W1 = np.zeros(prepared.n_obs) if off_floor else prepared.pre_logit[outcome_symbol]
+    own_offfloor = (
+        (np.asarray(prepared.pre_counts[outcome_symbol]) > 0).astype(float)
+        if off_floor
+        else None
+    )
     conf_logit = {
         s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
     }
+    mediator_cross_baselines = tuple(mediator_cross_baselines)
+    outcome_cross_baselines = tuple(outcome_cross_baselines)
+    med_cross_values = _cross_baseline_arrays(prepared, mediator_cross_baselines)
+    out_cross_values = _cross_baseline_arrays(prepared, outcome_cross_baselines)
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
@@ -2812,6 +2890,7 @@ def build_mediation_model(
         for s in confounder_symbols:
             a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
             mu_M = mu_M + a_c * conf_d[s]
+        mu_M = _add_cross_baselines(mu_M, mediator_cross_baselines, med_cross_values)
         mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
         kappa_M = _priors.kappa_prior().to_pymc("kappa_M")
         beta_binomial_from_logit(
@@ -2830,6 +2909,9 @@ def build_mediation_model(
             N_out=N_out,
             W2_count=W2_count,
             outcome_kind=outcome_kind,
+            cross_baselines=outcome_cross_baselines,
+            cross_values=out_cross_values,
+            own_offfloor=own_offfloor,
         )
 
     med_data = MediationData(
@@ -2850,6 +2932,9 @@ def build_mediation_model(
         med_sd=float(med_scaler.sd),
         mediator_symbol=mediator_symbol,
         off_floor=off_floor,
+        mediator_cross_values=med_cross_values,
+        outcome_cross_values=out_cross_values,
+        own_offfloor=own_offfloor,
     )
     built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
     return built, med_data
@@ -2896,6 +2981,8 @@ def _build_route_composite_model(
     outcome_symbol: str,
     confounder_symbols: tuple[str, ...],
     route_symbols: tuple[str, ...],
+    mediator_cross_baselines=(),
+    outcome_cross_baselines=(),
 ) -> tuple[BuiltModel[EmptyPayload], MediationData]:
     """LRP62 reading-route mediation: a continuous code-based-route composite mediator.
 
@@ -2931,6 +3018,20 @@ def _build_route_composite_model(
     conf_logit = {
         s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
     }
+    mediator_cross_baselines = tuple(mediator_cross_baselines)
+    outcome_cross_baselines = tuple(outcome_cross_baselines)
+    med_cross_values = _cross_baseline_arrays(prepared, mediator_cross_baselines)
+    # The outcome leg conditions on the COMPOSITE baseline (#585 finding 1): one
+    # term matching the mediator leg's ``a_comp``, rather than the route symbols
+    # entered separately. The resolver emits a single synthetic ``b_base_M`` term.
+    out_cross_values = {
+        term.coefficient: (
+            c_pre_std
+            if term.symbol == "M"
+            else _cross_baseline_arrays(prepared, (term,))[term.coefficient]
+        )
+        for term in outcome_cross_baselines
+    }
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
@@ -2955,6 +3056,7 @@ def _build_route_composite_model(
         for s in confounder_symbols:
             a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
             mu_M = mu_M + a_c * conf_d[s]
+        mu_M = _add_cross_baselines(mu_M, mediator_cross_baselines, med_cross_values)
         mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
         sigma_M = _priors.sigma_mediator_prior().to_pymc("sigma_M")
         pm.Normal("M_post", mu=mu_M, sigma=sigma_M, observed=Mpost_d, dims="obs_id")
@@ -2969,6 +3071,8 @@ def _build_route_composite_model(
             confounder_symbols=confounder_symbols,
             N_out=N_out,
             W2_count=W2_count,
+            cross_baselines=outcome_cross_baselines,
+            cross_values=out_cross_values,
         )
 
     med_data = MediationData(
@@ -2982,6 +3086,8 @@ def _build_route_composite_model(
         W2_count=W2_count,
         M_pre_std=c_pre_std,
         route_symbols=route_symbols,
+        mediator_cross_values=med_cross_values,
+        outcome_cross_values=out_cross_values,
     )
     built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
     return built, med_data
@@ -3023,6 +3129,14 @@ class TwoMediatorData:
     #: its leg models P(mediator > 0) with no dispersion / denominator / own-baseline,
     #: and the g-formula draws it as a Bernoulli indicator, not a Beta-Binomial count.
     second_mediator_offfloor: bool = False
+    #: Per-leg cross baseline regressors restored by #585, keyed by mediator
+    #: symbol then coefficient name (the outcome leg's are flat).
+    mediator_cross_values: dict[str, dict[str, np.ndarray]] = field(
+        default_factory=dict
+    )
+    outcome_cross_values: dict[str, np.ndarray] = field(default_factory=dict)
+    #: Binary off-floor-at-baseline indicator for an off-floor second mediator.
+    second_mediator_offfloor_pre: np.ndarray | None = None
 
 
 def build_two_mediator_model(
@@ -3033,6 +3147,8 @@ def build_two_mediator_model(
     confounder_symbols: Iterable[str] = ("R",),
     chain: bool = False,
     second_mediator_offfloor: bool = False,
+    mediator_cross_baselines: dict | None = None,
+    outcome_cross_baselines=(),
 ) -> tuple[BuiltModel[EmptyPayload], TwoMediatorData]:
     """Joint two-mediator + outcome model for the ITT-phase decomposition (LRP64).
 
@@ -3074,9 +3190,11 @@ def build_two_mediator_model(
             "build_two_mediator_model hard-codes the first leg to L; "
             f"mediator_symbols[0] must be 'L', got {mediator_symbols!r}"
         )
-    # An off-floor second mediator (e.g. floored nonword decoding N) has no usable
-    # autoregressive baseline, so its pre-score is not required — only its post count.
-    _need_pre = (outcome_symbol, mL) if second_mediator_offfloor else (outcome_symbol, mL, mE)
+    # Every leg conditions on the common baseline vector (#585 finding 1), and an
+    # off-floor second mediator now carries its baseline as the binary
+    # off-floor-at-baseline indicator rather than dropping it (#585 finding 4), so
+    # all three pre-scores are required.
+    _need_pre = (outcome_symbol, mL, mE)
     for s in _need_pre:
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
@@ -3126,6 +3244,20 @@ def build_two_mediator_model(
     conf_logit = {
         s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
     }
+    mediator_cross_baselines = dict(mediator_cross_baselines or {})
+    outcome_cross_baselines = tuple(outcome_cross_baselines)
+    med_cross_values = {
+        symbol: _cross_baseline_arrays(prepared, terms)
+        for symbol, terms in mediator_cross_baselines.items()
+    }
+    out_cross_values = _cross_baseline_arrays(prepared, outcome_cross_baselines)
+    # Binary off-floor-at-baseline indicator restoring the second mediator's own
+    # baseline term (#585 finding 4).
+    E1_off = (
+        (np.asarray(prepared.pre_counts[mE]) > 0).astype(float)
+        if second_mediator_offfloor
+        else None
+    )
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
@@ -3153,6 +3285,11 @@ def build_two_mediator_model(
         for s in confounder_symbols:
             aL_c = _priors.gamma_cross_prior().to_pymc(f"aL_{s}")
             mu_L = mu_L + aL_c * conf_d[s]
+        mu_L = _add_cross_baselines(
+            mu_L,
+            mediator_cross_baselines.get(mL, ()),
+            med_cross_values.get(mL, {}),
+        )
         mu_L = pm.Deterministic("mu_L", mu_L, dims="obs_id")
         kappa_L = _priors.kappa_prior().to_pymc("kappa_L")
         beta_binomial_from_logit(
@@ -3164,10 +3301,14 @@ def build_two_mediator_model(
         aE0 = _priors.alpha_prior().to_pymc(f"a{mE}0")
         aE_G = _priors.tau_prior().to_pymc(f"a{mE}_G")
         if second_mediator_offfloor:
-            # Off-floor mediator: no autoregressive own-baseline (no usable pre-score),
-            # so no a{mE}_{mE} term and no {mE}_pre_logit Data node.
+            # Off-floor mediator: the graded Normal(1, 0.25) autoregressive prior does
+            # not transfer to a binary leg, but the baseline is not dropped either
+            # (#585 finding 4) — it enters as the binary off-floor-at-baseline
+            # contrast, so the complete-case rule and the likelihood agree.
+            aE_off = _priors.gamma_own_offfloor_prior().to_pymc(f"a{mE}_own_offfloor")
+            aE_off_d = pm.Data(f"{mE}_pre_offfloor", E1_off, dims="obs_id")
             aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
-            mu_E = aE0 + aE_G * G_d + aE_A * A_d
+            mu_E = aE0 + aE_G * G_d + aE_off * aE_off_d + aE_A * A_d
         else:
             aE_E = _priors.gamma_own_prior().to_pymc(f"a{mE}_{mE}")
             aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
@@ -3182,6 +3323,11 @@ def build_two_mediator_model(
             # second mediator conditional on the *simulated* L.
             aE_L = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{mL}")
             mu_E = mu_E + aE_L * zL_d
+        mu_E = _add_cross_baselines(
+            mu_E,
+            mediator_cross_baselines.get(mE, ()),
+            med_cross_values.get(mE, {}),
+        )
         mu_E = pm.Deterministic(f"mu_{mE}", mu_E, dims="obs_id")
         if second_mediator_offfloor:
             # Bernoulli off-floor leg: models P(mediator > 0); no dispersion, no
@@ -3220,6 +3366,7 @@ def build_two_mediator_model(
         for s in confounder_symbols:
             b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
             eta_Y = eta_Y + b_c * conf_d[s]
+        eta_Y = _add_cross_baselines(eta_Y, outcome_cross_baselines, out_cross_values)
         eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
         kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
         beta_binomial_from_logit(
@@ -3244,6 +3391,9 @@ def build_two_mediator_model(
         confounder_symbols=confounder_symbols,
         chain=chain,
         second_mediator_offfloor=second_mediator_offfloor,
+        mediator_cross_values=med_cross_values,
+        outcome_cross_values=out_cross_values,
+        second_mediator_offfloor_pre=E1_off,
     )
     built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
     return built, med_data
@@ -3286,6 +3436,9 @@ class PeriodStackedMediationData:
     med_mean: float
     med_sd: float
     mediator_symbol: str = "L"
+    #: Cross-leg baseline regressors restored by #585, keyed by coefficient name.
+    mediator_cross_values: dict[str, np.ndarray] = field(default_factory=dict)
+    outcome_cross_values: dict[str, np.ndarray] = field(default_factory=dict)
 
 
 def build_period_stacked_mediation_model(
@@ -3295,6 +3448,8 @@ def build_period_stacked_mediation_model(
     outcome_symbol: str = "W",
     confounder_symbols: Iterable[str] = (),
     sigma_child_prior_sigma: float = 0.5,
+    mediator_cross_baselines=(),
+    outcome_cross_baselines=(),
 ) -> tuple[BuiltModel[EmptyPayload], PeriodStackedMediationData]:
     """Joint mediator + outcome model over all stacked periods (MED-092, #229).
 
@@ -3394,6 +3549,11 @@ def build_period_stacked_mediation_model(
         s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
     }
 
+    mediator_cross_baselines = tuple(mediator_cross_baselines)
+    outcome_cross_baselines = tuple(outcome_cross_baselines)
+    med_cross_values = _cross_baseline_arrays(prepared, mediator_cross_baselines)
+    out_cross_values = _cross_baseline_arrays(prepared, outcome_cross_baselines)
+
     coords = {
         "obs_id": np.arange(prepared.n_obs),
         "phase": np.arange(prepared.n_phases),
@@ -3422,6 +3582,7 @@ def build_period_stacked_mediation_model(
         for s in confounder_symbols:
             a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
             mu_M = mu_M + a_c * conf_d[s]
+        mu_M = _add_cross_baselines(mu_M, mediator_cross_baselines, med_cross_values)
         sigma_child_M = pm.HalfNormal("sigma_child_M", sigma=sigma_child_prior_sigma)
         u_child_M_raw = pm.Normal("u_child_M_raw", mu=0.0, sigma=1.0, dims="child")
         u_child_M = pm.Deterministic(
@@ -3454,6 +3615,7 @@ def build_period_stacked_mediation_model(
         for s in confounder_symbols:
             b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
             eta_Y = eta_Y + b_c * conf_d[s]
+        eta_Y = _add_cross_baselines(eta_Y, outcome_cross_baselines, out_cross_values)
         sigma_child_Y = pm.HalfNormal("sigma_child_Y", sigma=sigma_child_prior_sigma)
         u_child_Y_raw = pm.Normal("u_child_Y_raw", mu=0.0, sigma=1.0, dims="child")
         u_child_Y = pm.Deterministic(
@@ -3479,6 +3641,8 @@ def build_period_stacked_mediation_model(
         confounder_symbols=confounder_symbols,
         L2_count=L2_count,
         W2_count=W2_count,
+        mediator_cross_values=med_cross_values,
+        outcome_cross_values=out_cross_values,
         n_trials_L=int(N_med),
         n_trials_W=int(N_out),
         med_mean=float(med_scaler.mean),

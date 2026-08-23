@@ -36,7 +36,7 @@ import json
 import os
 import re
 import tempfile
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import Any
 
 import arviz as az
@@ -721,6 +721,105 @@ def _fail_on_unassessable(
         "w",
         encoding="utf-8",
     ) as handle:
+        json.dump(payload, handle, indent=2, default=str)
+    if context.tables is not None:
+        context.tables["diagnostics_summary"] = payload
+    return payload
+
+
+#: Monte-Carlo tolerance for a derived (post-processed) headline estimand: the
+#: MCSE of the reported median must be at most this share of the reported
+#: credible interval's half-width. Pre-specified, not tuned to a result.
+DERIVED_MCSE_TOLERANCE = 0.05
+#: Bulk/tail ESS floor for a derived headline estimand — the project's standard.
+DERIVED_ESS_FLOOR = 400.0
+
+
+def gate_derived_estimands(
+    context: StatisticalFitContext,
+    summary,
+    *,
+    quantities: Iterable[str],
+    label: str = "derived_estimands",
+) -> dict:
+    """Extend the convergence gate to POST-PROCESSED headline quantities (#585).
+
+    ``az.summary`` and the all-free-RV gate only ever see sampled variables. The
+    g-formula NDE / NIE / total are computed from posterior draws afterwards and
+    carry mediator re-simulation noise on top of posterior autocorrelation, so
+    their Monte-Carlo precision can be materially worse than their parents'. They
+    were reported per row but never gated: a fit could pass with unusable derived
+    draws.
+
+    A quantity fails when its bulk or tail ESS is below
+    :data:`DERIVED_ESS_FLOOR`, when its MCSE exceeds
+    :data:`DERIVED_MCSE_TOLERANCE` of the reported interval half-width, or when
+    either diagnostic is missing or non-finite. ``proportion_mediated`` is
+    deliberately NOT gated — it is a ratio that is unstable by construction
+    whenever the total effect can cross zero, and the reports already say so.
+
+    Failures are written into ``diagnostics_summary.json`` under ``checks`` and
+    flip ``passed``; ``reporting.convergence_gate_failures`` fails closed on any
+    non-``True`` check, so the release gate picks this up without further wiring.
+    """
+    path = os.path.join(context.output_dir, "diagnostics_summary.json")
+    if not os.path.exists(path):
+        rprint("[yellow]derived-estimand gate skipped: no diagnostics summary[/yellow]")
+        return {}
+    with open(path, encoding="utf-8") as handle:
+        payload = json.load(handle)
+
+    wanted = set(quantities)
+    failures: list[str] = []
+    records: list[dict] = []
+    for row in summary.to_dict("records"):
+        name = row.get("quantity")
+        if name not in wanted:
+            continue
+        ess_bulk = float(row.get("ess_bulk", float("nan")) or float("nan"))
+        ess_tail = float(row.get("ess_tail", float("nan")) or float("nan"))
+        mcse = float(row.get("mcse_median", float("nan")) or float("nan"))
+        half = abs(float(row.get("prob_hi", np.nan)) - float(row.get("prob_lo", np.nan))) / 2.0
+        ratio = mcse / half if np.isfinite(half) and half > 0 else float("nan")
+        ok = (
+            np.isfinite(ess_bulk)
+            and np.isfinite(ess_tail)
+            and np.isfinite(ratio)
+            and ess_bulk >= DERIVED_ESS_FLOOR
+            and ess_tail >= DERIVED_ESS_FLOOR
+            and ratio <= DERIVED_MCSE_TOLERANCE
+        )
+        records.append(
+            {
+                "quantity": name,
+                "ess_bulk": ess_bulk,
+                "ess_tail": ess_tail,
+                "mcse_median": mcse,
+                "mcse_over_half_interval": ratio,
+                "passed": bool(ok),
+            }
+        )
+        if not ok:
+            failures.append(name)
+
+    payload.setdefault("checks", {})[label] = not failures
+    payload[f"{label}_detail"] = records
+    payload[f"{label}_failing"] = failures
+    payload[f"{label}_thresholds"] = {
+        "ess_floor": DERIVED_ESS_FLOOR,
+        "mcse_over_half_interval": DERIVED_MCSE_TOLERANCE,
+    }
+    if failures:
+        payload["passed"] = False
+        rprint(
+            "[red]  Convergence gate: REVIEW — derived estimand(s) "
+            f"{', '.join(failures)} missed the Monte-Carlo tolerance[/red]"
+        )
+    else:
+        rprint(
+            f"  Derived estimands within Monte-Carlo tolerance ({len(records)} checked)."
+        )
+    with open(path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, default=str)
     if context.tables is not None:
         context.tables["diagnostics_summary"] = payload

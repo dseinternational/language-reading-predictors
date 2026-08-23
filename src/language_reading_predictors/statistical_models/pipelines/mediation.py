@@ -78,6 +78,38 @@ def _raw_covariate_confounders(confounders: Iterable[str]) -> tuple[str, ...]:
 _T3_SENSITIVITY_TIME = 3  # post-RCT wave used for the temporal-ordering check
 
 
+def _leg_contract(plan, built) -> dict:
+    """Declared-versus-fitted leg contract for ``config.json`` (#585 finding 1).
+
+    Records the common pre-exposure vector, the per-leg baseline terms the plan
+    resolved, the complete-case rule those terms imply, and the coefficient names
+    the built graph actually carries — so a term can no longer be declared
+    without being fitted, or fitted without being declared, unnoticed.
+    """
+
+    def terms(items):
+        return [
+            {"symbol": t.symbol, "coefficient": t.coefficient, "form": t.form}
+            for t in items
+        ]
+
+    cross = plan.mediator_cross_baselines
+    mediator_terms = (
+        {symbol: terms(items) for symbol, items in cross.items()}
+        if isinstance(cross, dict)
+        else terms(cross)
+    )
+    return {
+        "common_baselines": list(plan.common_baselines),
+        "pre_required": list(plan.pre_required),
+        "mediator_cross_baselines": mediator_terms,
+        "outcome_cross_baselines": terms(plan.outcome_cross_baselines),
+        "fitted_coefficients": sorted(
+            rv.name for rv in built.model.free_RVs if rv.ndim == 0
+        ),
+    }
+
+
 def _fit_t3_sensitivity(
     ctx: StatisticalFitContext,
     spec: ModelSpec,
@@ -103,6 +135,9 @@ def _fit_t3_sensitivity(
         outcome_symbol,
         outcome_time=_T3_SENSITIVITY_TIME,
         covariates=_raw_covariate_confounders(plan.effective_confounders),
+        # Same complete-case rule as the primary fit, so the sensitivity is the
+        # identical design on a later outcome rather than a different sample.
+        pre_required=plan.pre_required,
         **lag_kwargs,
     )
     built_t3, med_t3 = _factories.build_mediation_model(
@@ -113,6 +148,10 @@ def _fit_t3_sensitivity(
         mediator_kind=plan.mediator_kind,
         outcome_kind=plan.outcome_kind,
         route_symbols=plan.route_symbols,
+        # The sensitivity must rebuild the SAME legs (#585): dropping the common
+        # baseline terms here would silently make it a different specification.
+        mediator_cross_baselines=plan.mediator_cross_baselines,
+        outcome_cross_baselines=plan.outcome_cross_baselines,
     )
     # Gate this temporal-ordering sensitivity sub-fit (bypasses the primary gate).
     # ``convergence_scope="all"`` keeps the scan this fit has always used: every
@@ -241,6 +280,13 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         interventional=_interventional,
     )
     save_table(ctx, "mediation_summary", med_df)
+    # Extend the convergence gate to the POST-PROCESSED headline effects (#585
+    # finding 8): the all-free-RV gate never sees the g-formula draws.
+    _diag.gate_derived_estimands(
+        ctx,
+        med_df,
+        quantities=("total", "NDE", "NIE", "IDE", "IIE"),
+    )
     # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
     # sweep, so the main NDE/NIE result shows under its own section header rather than
     # under the sensitivity header and only after the sweep finishes (#289 review).
@@ -258,11 +304,13 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         )
     )
 
-    # Unmeasured mediator-outcome confounding sensitivity for the NIE (#230): sweep a
-    # bias off b_M and report the tipping point at which the indirect effect's CI
-    # includes 0 (a Bayesian E-value analogue). Quantifies the no-unmeasured-
-    # confounding assumption the decomposition otherwise only states.
-    section_header("Mediation NIE sensitivity (unmeasured confounding)")
+    # Mediator-coefficient TIPPING analysis (#230, renamed #585 finding 6): sweep a
+    # one-directional bias off b_M and report the delta at which the indirect
+    # effect's interval first includes 0. It is a coefficient-scale bias model for
+    # the mediator->outcome slope, NOT an E-value: an E-value is a specific
+    # risk-ratio sensitivity measure (VanderWeele & Ding 2017), and this sweep
+    # neither introduces an unmeasured variable nor works on that scale.
+    section_header("Mediator-coefficient tipping analysis")
     sens_sweep, sens_summary = _med.sensitivity_sweep(
         ctx.trace,
         med_data,
@@ -289,8 +337,8 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     else:
         rprint(
             f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
-            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_GM) — an "
-            "unmeasured mediator-outcome confounder that strong would null the NIE."
+            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_GM) — a "
+            "mediator->outcome slope bias that large would null the NIE."
         )
 
     # Named-confounder anchor (#324): place the fitted/observed intervention-session
@@ -324,8 +372,11 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # randomised (both arms treated after t2), so read this as triangulation only.
     # Skipped when the primary fit is ALREADY longitudinal (outcome_time set, LRP76)
     # — the sensitivity would double-lag and duplicate the primary estimand.
+    # The interventional companions are NO LONGER exempt (#585 finding 2): they are
+    # the same fitted model under a different label, so exempting them left them
+    # with strictly less evidence than the parent whose numbers they reproduce.
     med_df_t3 = None
-    if plan.outcome_time is None and not _interventional:
+    if plan.outcome_time is None:
         section_header("Temporal-ordering sensitivity (outcome at t3)")
         med_df_t3 = _fit_t3_sensitivity(
             ctx,
@@ -351,15 +402,25 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # separately (#246 review, P2). A raw covariate can be dropped by the loader
     # when its missing-indicator is constant on the ITT rows; recording only
     # ``spec.adjustment`` would then imply a coefficient that was never estimated.
-    _requested_raw = plan.raw_covariates
+    # ``dropped_confounders`` compares the FULL declared set, not only the raw
+    # covariates (#585 finding 3): a declared bounded-measure confounder that
+    # never reached the graph used to be invisible here. The resolver now refuses
+    # to leave one unloaded, so this should only ever list constant indicators.
     _extra_meta = {
         "adjustment": spec.adjustment,
         "effective_confounders": list(confounders),
-        "dropped_confounders": [c for c in _requested_raw if c not in confounders],
+        "dropped_confounders": [
+            c for c in plan.declared_confounders if c not in confounders
+        ],
         "estimand": "interventional" if _interventional else "natural",
         "outcome_kind": outcome_kind,
         "companion_of": plan.companion_of,
-        "n_obs": prepared.n_obs,
+        # The FITTED row count: the factory drops rows with a missing mediator or
+        # outcome post-score after preparation, so the pre-factory count
+        # overstated n for every lagged fit (#585).
+        "n_obs": built.prepared.n_obs,
+        "n_obs_prepared": prepared.n_obs,
+        "leg_contract": _leg_contract(plan, built),
         "mediation": _summary,
     }
     if med_df_t3 is not None:
@@ -383,9 +444,15 @@ def fit_mediation_period_stacked(
     The LRP59 mediator + outcome design refit over **all stacked period
     transitions** (``phase_mode="all"``), with the per-period on-intervention
     indicator as the exposure and the gain-factor machinery (phase intercepts,
-    per-leg child random intercepts). Writes the all-period decomposition to
-    ``mediation_summary.csv`` and the period-1 (ITT-anchored, LRP59-comparable)
-    row restriction to ``mediation_summary_p1.csv``. No t3 temporal-ordering
+    per-leg child random intercepts).
+
+    The exposure is ``T = (G == 1) | (phase >= 1)``, so only period 1 holds
+    untreated rows. Since #585 (finding 5) the **period-1** restriction is the
+    primary readout in ``mediation_summary.csv``; the all-period average, whose
+    untreated counterfactual is extrapolation in every post-crossover period,
+    goes to ``mediation_summary_all_periods.csv`` under an explicit label, and
+    ``period_treatment_support.csv`` records the per-period arm counts behind the
+    distinction. No t3 temporal-ordering
     sensitivity is fitted — the stacked design already spans every window, and
     its mediator/outcome remain contemporaneous within each period by design.
     The #324 named-IS calibration deliberately excludes this model: its exposure is
@@ -458,16 +525,65 @@ def fit_mediation_period_stacked(
     )
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
-    section_header("Mediation decomposition (period-stacked g-formula)")
+    # Empirical treatment support by period (#585 finding 5). ``T`` is
+    # ``(G == 1) | (phase >= 1)``, so only period 1 has untreated rows: after the
+    # wait-list crossover every child is on the programme. Persisted so a reader
+    # can see which standardisation cells the counterfactual actually rests on.
+    section_header("Treatment support by period")
+    support_df = pd.DataFrame(
+        [
+            {
+                "period": int(ph) + 1,
+                "n_rows": int((med_data.phase_idx == ph).sum()),
+                "n_treated": int(med_data.trt[med_data.phase_idx == ph].sum()),
+                "n_untreated": int(
+                    (1.0 - med_data.trt)[med_data.phase_idx == ph].sum()
+                ),
+            }
+            for ph in sorted(set(med_data.phase_idx.tolist()))
+        ]
+    )
+    support_df["both_arms_supported"] = (support_df["n_treated"] > 0) & (
+        support_df["n_untreated"] > 0
+    )
+    save_table(ctx, "period_treatment_support", support_df)
+    print_table(
+        ranked_dataframe_table(
+            support_df,
+            title="Empirical treatment support by period",
+            columns=["period", "n_rows", "n_treated", "n_untreated",
+                     "both_arms_supported"],
+            rank_column=False,
+            precision=0,
+        )
+    )
+    _supported = support_df.loc[support_df["both_arms_supported"], "period"].tolist()
+    _unsupported = support_df.loc[~support_df["both_arms_supported"], "period"].tolist()
+    if _unsupported:
+        rprint(
+            f"  Period(s) {_unsupported} have no untreated rows — their untreated "
+            "counterfactual is model extrapolation, not standardisation."
+        )
+
+    # PRIMARY (#585 finding 5): the period-1 restriction. It is the only window in
+    # which both arms are observed, so it is the only decomposition whose untreated
+    # counterfactual is supported by data. The all-period average used to be the
+    # headline; it toggles T = 0 on periods where every child is treated, so
+    # adjustment cannot recover positivity there.
+    section_header("Mediation decomposition (period 1; randomised window)")
     med_df = _med.decompose_period_stacked(
-        ctx.trace, med_data, ci_prob=ctx.reporting.ci_prob
+        ctx.trace,
+        med_data,
+        ci_prob=ctx.reporting.ci_prob,
+        row_mask=med_data.phase_idx == 0,
     )
     save_table(ctx, "mediation_summary", med_df)
+    _diag.gate_derived_estimands(ctx, med_df, quantities=("total", "NDE", "NIE"))
     print_table(
         ranked_dataframe_table(
             med_df,
             title=(
-                "Per-period mediation, all stacked periods "
+                "Period-1 mediation, randomised window "
                 f"(on-intervention; words out of {med_data.n_trials_W})"
             ),
             columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
@@ -476,33 +592,35 @@ def fit_mediation_period_stacked(
         )
     )
 
-    # Period-1 restriction: the same posterior averaged over the randomised,
-    # all-untreated-baseline transition only — the LRP59-comparable readout
-    # (mirrors the gain-factor family's period-1 treatment marginal, #247 P2).
-    med_df_p1 = _med.decompose_period_stacked(
-        ctx.trace,
-        med_data,
-        ci_prob=ctx.reporting.ci_prob,
-        row_mask=med_data.phase_idx == 0,
+    # Secondary, explicitly labelled: the all-period standardised contrast. Kept
+    # for continuity and as a shape check, never as the headline.
+    section_header("All-period contrast (model extrapolation)")
+    med_df_all = _med.decompose_period_stacked(
+        ctx.trace, med_data, ci_prob=ctx.reporting.ci_prob
     )
-    save_table(ctx, "mediation_summary_p1", med_df_p1)
+    save_table(ctx, "mediation_summary_all_periods", med_df_all)
     print_table(
         ranked_dataframe_table(
-            med_df_p1,
-            title="Period-1 restriction (randomised window; LRP59-comparable)",
+            med_df_all,
+            title=(
+                "All-period contrast — MODEL EXTRAPOLATION "
+                f"(no untreated rows in period(s) {_unsupported or 'none'})"
+            ),
             columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
             rank_column=False,
             precision=3,
         )
     )
 
-    section_header("Mediation NIE sensitivity (unmeasured confounding)")
+    section_header("Mediator-coefficient tipping analysis")
     sens_sweep, sens_summary = _med.sensitivity_sweep(
         ctx.trace,
         med_data,
         ci_prob=ctx.reporting.ci_prob,
         decompose_fn=_med.decompose_period_stacked,
         interaction_name="b_trtM",
+        # Sweep the PRIMARY (period-1) estimand, not the extrapolated average.
+        row_mask=med_data.phase_idx == 0,
     )
     save_table(ctx, "mediation_sensitivity", sens_sweep)
     save_table(
@@ -524,21 +642,31 @@ def fit_mediation_period_stacked(
     else:
         rprint(
             f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
-            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_trtM) — an "
-            "unmeasured mediator-outcome confounder that strong would null the NIE."
+            f"({sens_summary['tipping_frac_of_bM']:.0%} of the fitted b_M+b_trtM) — a "
+            "mediator->outcome slope bias that large would null the NIE."
         )
 
-    _requested_raw = plan.raw_covariates
     write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
             "effective_confounders": list(confounders),
-            "dropped_confounders": [c for c in _requested_raw if c not in confounders],
-            "n_obs": prepared.n_obs,
+            "dropped_confounders": [
+                c for c in plan.declared_confounders if c not in confounders
+            ],
+            "n_obs": built.prepared.n_obs,
+            "n_obs_prepared": prepared.n_obs,
+            "leg_contract": _leg_contract(plan, built),
             "exposure": "on_intervention (per-period; gain-factor ignorability)",
+            "period_treatment_support": support_df.to_dict("records"),
+            "supported_periods": _supported,
+            "unsupported_periods": _unsupported,
+            # ``mediation`` is now the PERIOD-1 headline (#585 finding 5); the
+            # all-period average is recorded beside it as an extrapolation.
             "mediation": {r["quantity"]: r for r in med_df.to_dict("records")},
-            "mediation_p1": {r["quantity"]: r for r in med_df_p1.to_dict("records")},
+            "mediation_all_periods": {
+                r["quantity"]: r for r in med_df_all.to_dict("records")
+            },
         },
     )
 
@@ -629,6 +757,17 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         order=plan.order,
     )
     save_table(ctx, "mediation_summary", med_df)
+    _diag.gate_derived_estimands(
+        ctx,
+        med_df,
+        quantities=(
+            "total",
+            "NDE",
+            "NIE_joint",
+            f"NIE_{mediators[0]}",
+            f"NIE_{mediators[1]}",
+        ),
+    )
     print_table(
         ranked_dataframe_table(
             med_df,
@@ -642,7 +781,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         )
     )
 
-    section_header("Per-leg NIE sensitivity (unmeasured confounding)")
+    section_header("Per-leg mediator-coefficient tipping analysis")
     sens_sweep, sens_summary = _med.sensitivity_sweep_two_mediator(
         ctx.trace,
         med_data,
@@ -699,14 +838,18 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
 
     _summary = {r["quantity"]: r for r in med_df.to_dict("records")}
     # Requested vs actually-fitted confounders, recorded separately (#246 review, P2).
-    _requested_raw = plan.raw_covariates
     write_run_metadata(
         ctx,
         extra={
             "adjustment": spec.adjustment,
             "effective_confounders": list(confounders),
-            "dropped_confounders": [c for c in _requested_raw if c not in confounders],
+            # Full declared set, not just the raw covariates (#585 finding 3).
+            "dropped_confounders": [
+                c for c in plan.declared_confounders if c not in confounders
+            ],
             "n_obs": built.prepared.n_obs,
+            "n_obs_prepared": prepared.n_obs,
+            "leg_contract": _leg_contract(plan, built),
             "mediators": list(mediators),
             "n_trials_W": med_data.n_trials_W,
             "mediation": _summary,

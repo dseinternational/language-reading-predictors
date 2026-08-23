@@ -36,6 +36,8 @@ _Off-floor outcome — effects are risk differences._ IDE, IIE and Total are cha
 
 Sessions attended ($IS$) are affected by randomised group and are a common cause of the mediator and outcome through $IS\to L$ and $IS\to PA\to N$. This recanting-witness structure makes the cross-world natural effects formally unidentified. The interventional analogue instead draws the mediator from its arm-specific covariate-conditional distribution, so it remains well-defined without asking for the same child's mediator under incompatible treatment worlds.
 
+**What the label does and does not buy** (#585 finding 2). A well-defined estimand is not an identified one. An interventional effect is identified in the presence of an exposure-induced mediator–outcome confounder only when that confounder is *measured* and integrated over — within its treated distribution in the outcome leg and its control distribution in the mediator leg. Sessions attended enter neither leg of this fit, so the functional computed here identifies the interventional target only under the same no-exposure-induced-confounding condition the natural version requires, and it reproduces the parent model's numbers exactly by construction. Treat the relabelling as a change of target, not as a robustness gain; latent general ability leaves both versions unidentified regardless.
+
 That change does **not** make MED-186 a fully identified causal mediation analysis. Latent general ability still confounds the $L\to N$ relationship, mediator and outcome are measured in the same wave, and $IS$ is not represented in the fitted joint model. IDE/IIE are therefore weaker-assumption, model-based decompositions under the stated assumptions, not identified causal routes.
 
 ## Comparison with MED-086

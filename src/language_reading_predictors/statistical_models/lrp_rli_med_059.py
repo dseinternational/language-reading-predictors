@@ -35,6 +35,17 @@ open no backdoor — admissible precision terms here. All
 confounders enter at **baseline (t1)**, not post (t2). The report states the
 assumptions prominently and names residual confounding as the limit.
 
+**One common baseline vector, both legs (#585 finding 1).** The declared set is
+conditioned on by the mediator law *and* the outcome law. Until #585 each leg saw
+only its own measure's baseline: the mediator law had no ``W_pre`` term even
+though the lagged DAG carries ``WR_t -> LS_t1``, and the outcome law had no
+``L_t1`` term, while the DAG test certified only their union. The g-formula
+integrates ``E[Y | g, m, C]`` over ``P(m | g', C)`` for one ``C``, so drawing the
+counterfactual mediator from a law that omits a covariate the outcome model
+conditions on is not a reduced-but-valid design -- it is a different functional.
+The cross terms are named ``a_base_*`` / ``b_base_*`` and are recorded per leg in
+``config.json``.
+
 **Not an identified natural effect.** Beyond the unmeasured L->W confounding, a
 second, structural obstacle survives even randomisation: dose IS (sessions) is a
 treatment-induced (exposure-induced) mediator-outcome confounder (IG -> IS; IS ->

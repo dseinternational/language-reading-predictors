@@ -70,12 +70,9 @@ exposure — admissible for the **per-period** estimand reported here, and
 exactly why no cumulative (multi-period) effect is decomposed.
 
 NDE / NIE / Total are computed by counterfactual simulation from the posterior
-(the g-formula), averaged over the stacked rows' observed states. Two readouts
-are written: `mediation_summary.csv` averages over **all** periods (the
-headline per-period decomposition), and `mediation_summary_p1.csv` restricts
-the averaging to the **period-1** (randomised, all-untreated-baseline) rows —
-the LRP59-comparable readout, mirroring the gain-factor family's period-1
-treatment marginal.
+(the g-formula), averaged over the stacked rows' observed states.
+
+**Which window the headline uses.** The exposure is $T = (G = 1) \lor (\text{phase} \ge 1)$, so only period 1 contains untreated rows: after the waitlist crossover every child is on the programme. Averaging an untreated counterfactual over the later periods therefore has no empirical support in those cells, and adjustment cannot create it. `mediation_summary.csv` is consequently the **period-1** decomposition — the randomised, all-untreated-baseline window, directly comparable with LRP59. The all-period average is still written, as `mediation_summary_all_periods.csv`, but it is explicitly a model extrapolation and is not the headline. `period_treatment_support.csv` records the treated and untreated counts by period so the distinction is checkable rather than asserted.
 
 **Reading rule:** all of LRP59's non-identification caveats carry over
 unchanged — latent general ability confounds the mediator → outcome path,
@@ -88,19 +85,24 @@ decompositions under stated assumptions, not identified natural effects.
 {{< include _partials/_prior_predictive.qmd >}}
 {{< include _partials/_results_mediation.qmd >}}
 
-## Period-1 restriction (LRP59-comparable readout)
+## Treatment support by period
 
-_How to read this table:_ the same posterior and the same g-formula, but the
-row averaging is restricted to the period-1 transition — the genuinely
-randomised, all-untreated-baseline window — so the decomposition is directly
-comparable with LRP59's. Agreement in direction and rough share between this
-table, the all-period table above, and LRP59 itself is the triangulation
-deliverable.
+_How to read this table:_ one row per stacked period with the number of treated and untreated analysis rows it contains. `both_arms_supported` is the test that matters: a counterfactual contrast in a period with no untreated rows is produced by the model's functional form, not by standardising over observed data.
 
 ```{python}
 # | echo: false
-mediation_summary_p1 = _csv("mediation_summary_p1.csv")
-mediation_summary_p1 if mediation_summary_p1 is not None else "No period-1 summary."
+period_treatment_support = _csv("period_treatment_support.csv")
+period_treatment_support if period_treatment_support is not None else "No support table."
+```
+
+## All-period contrast (model extrapolation)
+
+_How to read this table:_ the same posterior and the same g-formula, but averaged over **every** stacked period rather than the randomised window. Periods after the crossover contain no untreated children, so their untreated counterfactual is extrapolated from the fitted model. Read it as a shape check against the headline above — whether the direction and rough share agree once the later, un-randomised periods are folded in — and never as a causal estimate in its own right.
+
+```{python}
+# | echo: false
+mediation_summary_all_periods = _csv("mediation_summary_all_periods.csv")
+mediation_summary_all_periods if mediation_summary_all_periods is not None else "No all-period summary."
 ```
 
 

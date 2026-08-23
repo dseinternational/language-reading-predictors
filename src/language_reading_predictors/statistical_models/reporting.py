@@ -6837,6 +6837,20 @@ def _kf_build_mediation(output_dir, config: Mapping) -> list[dict[str, str]]:
                 "highlight",
             )
         )
+    # Period-stacked fits standardise over ONE window: the only one holding both
+    # arms. Say so, so the headline is not read as an all-period average (#585).
+    unsupported = (config.get("extra") or {}).get("unsupported_periods") or []
+    if unsupported:
+        listed = ", ".join(str(period) for period in unsupported)
+        sentences.append(
+            _kf_sentence(
+                "This contrast is averaged over the randomised first period only. "
+                f"Period(s) {listed} contain no untreated children after the "
+                "wait-list crossover, so an all-period average would extrapolate "
+                "an untreated counterfactual the data cannot support.",
+                "scale",
+            )
+        )
     sentences.append(
         _kf_sentence(
             "The direct/indirect split is a model-based g-formula decomposition, "

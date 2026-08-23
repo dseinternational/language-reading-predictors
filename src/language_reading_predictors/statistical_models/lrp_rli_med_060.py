@@ -60,7 +60,10 @@ SPEC = ModelSpec(
         order=("L", "N"),
         chain=True,  # add the L -> N edge; draw N conditional on simulated L
         second_mediator_offfloor=True,  # N is post-only / ~72% floored -> Bernoulli leg
-        outcomes=("W", "L", "N"),  # load N (floored, outside the default ITT set)
+        # Load N (floored, outside the default ITT set) AND the declared bounded
+        # confounders E/R, which used to be filtered out after preparation and
+        # never reached either leg (#585 finding 3).
+        outcomes=("W", "L", "N", "E", "R"),
     ),
 )
 
