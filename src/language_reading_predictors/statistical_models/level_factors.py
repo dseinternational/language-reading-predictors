@@ -51,6 +51,7 @@ from typing import Any
 import numpy as np
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import KAPPA_PRIOR_FAMILIES
 from language_reading_predictors.statistical_models.likelihood import (
     SCORE_MEAN_LINKS,
     ScoreMeanLink,
@@ -75,6 +76,9 @@ _LEGACY_KEYS = frozenset(
         "arm_gap_reference",
         "score_mean_link",
         "waves",
+        "kappa_prior_family",
+        "kappa_prior_sigma",
+        "sigma_child_prior_sigma",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -148,6 +152,23 @@ class LevelFactorsModelSettings:
     #: onto [1/3, 1] for the ten three-alternative forced-choice blending items.
     #: B only, graded only, and released only beside its paired opposite-link fit.
     score_mean_link: ScoreMeanLink = "logit"
+    #: Dispersion parameterisation (#584 decision 4). The default puts the prior on
+    #: the **dispersion scale** ``1/sqrt(kappa)``, where "no extra-Binomial
+    #: dispersion beyond the child random intercept" is simply zero and therefore
+    #: reachable; ``"halfnormal_concentration"`` is the pre-decision prior, retained
+    #: as the comparator and for the sensitivity sweep. Inert on an off-floor fit,
+    #: which has no score mean and so no concentration -- the resolved plan records
+    #: ``None`` there rather than a setting that does nothing.
+    kappa_prior_family: str = "halfnormal_inverse_sqrt"
+    #: Scale override for whichever dispersion prior is in force (the sweep axis).
+    #: ``None`` keeps the registered default for the declared family.
+    kappa_prior_sigma: float | None = None
+    #: Child random-intercept SD prior (#584 decision 4). A levels model has **no
+    #: own-baseline term**, so this intercept carries the entire between-child
+    #: spread in level, where a gain model conditions that spread away -- and the
+    #: gain-model scale of 0.5 asserts a middle-95% child range of 0.18 to 0.45 on a
+    #: mid-difficulty measure, narrower than the tests were built to resolve.
+    sigma_child_prior_sigma: float = 1.0
     #: The waves this fit analyses (#584 decision 3). The default is the whole
     #: four-wave panel, the model of record. ``("t1", "t2")`` is the **randomised
     #: window comparator**: the same model restricted to the pre-randomisation
@@ -183,6 +204,19 @@ class LevelFactorsModelSettings:
                 f"{WAVE_LABELS} with at least two entries (the t1 reference and "
                 f"one later wave), got {self.waves}"
             )
+        if self.kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
+            raise ValueError(
+                "kappa_prior_family must be one of "
+                f"{sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
+            )
+        for name in ("kappa_prior_sigma", "sigma_child_prior_sigma"):
+            value = getattr(self, name)
+            if value is None and name == "kappa_prior_sigma":
+                continue
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                raise TypeError(f"{name} must be a number, got {value!r}")
+            if float(value) <= 0.0:
+                raise ValueError(f"{name} must be positive, got {value!r}")
         if self.score_mean_link not in SCORE_MEAN_LINKS:
             raise ValueError(
                 f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
@@ -249,6 +283,11 @@ class LevelFactorsModelSettings:
             arm_gap_reference=extra.get("arm_gap_reference", "t1"),
             score_mean_link=extra.get("score_mean_link", "logit"),
             waves=extra.get("waves", WAVE_LABELS),
+            kappa_prior_family=extra.get(
+                "kappa_prior_family", "halfnormal_inverse_sqrt"
+            ),
+            kappa_prior_sigma=extra.get("kappa_prior_sigma"),
+            sigma_child_prior_sigma=extra.get("sigma_child_prior_sigma", 1.0),
         )
 
 
@@ -277,6 +316,12 @@ class LevelFactorsRunPlan:
     # The declared analysis window (#584 decision 3): the four-wave panel (the
     # model of record) or the two-wave randomised-window comparator.
     waves: tuple[str, ...]
+    # Dispersion and child-heterogeneity priors (#584 decision 4).
+    # ``kappa_prior_family`` is ``None`` on an off-floor fit, which has no
+    # concentration at all -- recorded as absent rather than as an inert setting.
+    kappa_prior_family: str | None
+    kappa_prior_sigma: float | None
+    sigma_child_prior_sigma: float
     # Arm-by-time parameterisation (#552): ``"t1"`` (balance term + changes) or
     # ``"free"`` (one free coefficient per timepoint).
     arm_gap_reference: str
@@ -349,6 +394,15 @@ class LevelFactorsRunPlan:
             "arm_gap_reference": self.arm_gap_reference,
             "score_mean_link": self.score_mean_link,
             "post_phase_labels": self.post_phase_labels,
+            "sigma_child_prior_sigma": self.sigma_child_prior_sigma,
+            **(
+                {}
+                if self.kappa_prior_family is None
+                else {
+                    "kappa_prior_family": self.kappa_prior_family,
+                    "kappa_prior_sigma": self.kappa_prior_sigma,
+                }
+            ),
         }
 
     # -- Single source of truth for names, roles and diagnostics (#389 finding 6:
@@ -390,7 +444,17 @@ class LevelFactorsRunPlan:
 
         ``alpha`` is a Deterministic (the t1-anchored level) and ``alpha_offset``
         its free empirical-Bayes offset (#389 finding 2); both are reported."""
-        tail = ["sigma_child"] if self.off_floor else ["kappa", "sigma_child"]
+        # The gate scans free RVs; the reports read ``kappa``. Under the dispersion
+        # parameterisation those are different variables, so both are named (#584
+        # decision 4).
+        tail = (
+            ["sigma_child"]
+            if self.off_floor
+            else [
+                *dict.fromkeys([self.dispersion_free_term, "kappa"]),
+                "sigma_child",
+            ]
+        )
         return [
             "alpha",
             "alpha_offset",
@@ -460,15 +524,34 @@ class LevelFactorsRunPlan:
         )
 
     @property
+    def dispersion_free_term(self) -> str | None:
+        """The **free** dispersion parameter, or ``None`` on an off-floor fit.
+
+        Under the dispersion parameterisation (#584 decision 4) ``kappa`` is a
+        Deterministic and ``inv_sqrt_kappa`` is the sampled quantity, so anything
+        that must name a free random variable — power scaling, the all-free-RV
+        convergence gate — has to ask for this rather than for ``kappa``. The
+        reports keep speaking in ``kappa``, which is the unit the family
+        documents."""
+        if self.off_floor:
+            return None
+        return (
+            "inv_sqrt_kappa"
+            if self.kappa_prior_family == "halfnormal_inverse_sqrt"
+            else "kappa"
+        )
+
+    @property
     def nuisance_terms(self) -> tuple[str, ...]:
         """Free nuisance parameters that carry their own prior-data conflict risk.
 
-        The child random-intercept SD and (on a graded outcome) the Beta-Binomial
-        concentration. Both are scale parameters on half-normal priors that the
-        high-denominator level outcomes push well past the prior's bulk, so the
-        family power-scaling audit reports them beside the arm terms rather than
-        establishing focal-term behaviour alone (#584 finding 6)."""
-        return ("sigma_child",) if self.off_floor else ("kappa", "sigma_child")
+        The child random-intercept SD and (on a graded outcome) the free dispersion
+        parameter. Both are scale parameters on half-normal priors, and the stored
+        suite flagged both for prior-data conflict in the #584 finding-6 audit, so
+        the family power-scaling audit reports them beside the arm terms rather than
+        establishing focal-term behaviour alone."""
+        dispersion = self.dispersion_free_term
+        return ("sigma_child",) if dispersion is None else (dispersion, "sigma_child")
 
     @property
     def t1_referenced(self) -> bool:
@@ -616,6 +699,41 @@ class LevelFactorsRunPlan:
             "present at t1"
         )
 
+    def _prior_choices_markdown(self) -> str:
+        """The two nuisance priors this family sets for itself (#584 decision 4)."""
+        child = (
+            f"Child heterogeneity: `sigma_child ~ HalfNormal("
+            f"{self.sigma_child_prior_sigma:g})`"
+            + (
+                " -- wider than the shared 0.5 because a levels model has no "
+                "own-baseline term, so this intercept carries the whole "
+                "between-child spread in level rather than the residual a gain "
+                "model leaves."
+                if self.sigma_child_prior_sigma > 0.5
+                else "."
+            )
+        )
+        if self.kappa_prior_family is None:
+            dispersion = (
+                "Dispersion: none -- the off-floor branch models a binary "
+                "indicator, which has no score mean and so no concentration."
+            )
+        elif self.kappa_prior_family == "halfnormal_inverse_sqrt":
+            dispersion = (
+                "Dispersion: the prior sits on `1/sqrt(kappa)`, where "
+                "\"no extra-Binomial dispersion beyond the child random "
+                "intercept\" is zero and therefore reachable; `kappa` is reported "
+                "as a derived quantity. The scale is calibration-preserving -- it "
+                "reproduces the previous prior's median variance inflation at every "
+                "level denominator to within 3%."
+            )
+        else:
+            dispersion = (
+                "Dispersion: `kappa ~ HalfNormal` on the concentration scale (the "
+                "pre-#584 comparator, which cannot reach the near-Binomial limit)."
+            )
+        return f"## Nuisance priors\n\n{child} {dispersion}\n\n"
+
     def _required_robustness_markdown(self) -> str:
         """The release pairing this fit cannot publish without (#584 decision 2).
 
@@ -657,6 +775,7 @@ class LevelFactorsRunPlan:
             f"{self.group_ability}. Arm-by-time parameterisation: "
             f"{self._arm_gap_reference_prose()}. Requested adjustment terms: "
             f"{adjust}. Score-mean link: {self.score_mean_link}.\n\n"
+            f"{self._prior_choices_markdown()}"
             f"{self._required_robustness_markdown()}"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
@@ -929,6 +1048,9 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         required_link_companion_model_id=link_companion,
         link_sensitivity_required_for_release=link_pair_required,
         waves=settings.waves,
+        kappa_prior_family=None if off_floor else settings.kappa_prior_family,
+        kappa_prior_sigma=None if off_floor else settings.kappa_prior_sigma,
+        sigma_child_prior_sigma=settings.sigma_child_prior_sigma,
         arm_gap_reference=settings.arm_gap_reference,
         focal_vector=focal_vector,
         focal_index=focal_index,

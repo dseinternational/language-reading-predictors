@@ -448,6 +448,35 @@ def _prior_table_overrides(
         plan = getattr(context, "resolved_plan", None)
         if not isinstance(plan, LevelFactorsRunPlan):
             plan = resolve_level_factors_run_plan(spec)
+        # #584 decision 4: both nuisance scales differ from the shared registry
+        # defaults here, and the ``distribution`` column is read from the built RV
+        # so it is already right — but the *rationale* is the registry's, and it
+        # would quote the scale this family does not use. Say why instead.
+        rationale["sigma_child"] = (
+            "Child random-intercept SD on the level logit ~ HalfNormal("
+            f"{plan.sigma_child_prior_sigma:g}), wider than the shared "
+            "HalfNormal(0.5) because a levels model has no own-baseline term: this "
+            "intercept carries the entire between-child spread in level, where a "
+            "gain model conditions that spread away. At the shared scale's median "
+            "the middle 95% of children span 0.18 to 0.45 of a mid-difficulty "
+            "measure, narrower than the tests resolve, and two of the eleven fitted "
+            "posteriors sat past its 99th percentile (#584 decision 4)."
+        )
+        if plan.kappa_prior_family == "halfnormal_inverse_sqrt":
+            rationale["inv_sqrt_kappa"] = (
+                "Beta-Binomial dispersion 1/sqrt(kappa) ~ HalfNormal("
+                f"{plan.kappa_prior_sigma or 0.25:g}); kappa is the reported "
+                "Deterministic. The prior sits on the dispersion scale so the "
+                "near-Binomial limit -- no extra-Binomial dispersion beyond the "
+                "child random intercept -- is simply zero and therefore reachable. "
+                "A HalfNormal on the concentration cannot get there: at this "
+                "family's denominators it gave the within-10%-of-Binomial region "
+                "essentially no mass, while the fitted vocabulary posteriors (kappa "
+                "medians 170 and 198) sat past its 99th percentile. The scale is "
+                "calibration-preserving: it reproduces the old prior's median "
+                "variance inflation at every level denominator to within 3% "
+                "(#584 decision 4)."
+            )
         if plan.t1_referenced:
             # #552: the arm-by-time vector is a pre-randomisation balance term plus
             # per-wave changes. The prior table is one row per free RV: the balance
