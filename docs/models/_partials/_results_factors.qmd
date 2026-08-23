@@ -247,13 +247,15 @@ if (
 # | echo: false
 # | output: asis
 # Level family only: the group contribution at t2 is
-# (focal t2 term + gamma_grp_ability*ability)*G, but the causal card deliberately adds
-# back only the focal term — gamma_grp_ability is a single *time-invariant* coefficient,
-# identified from all four timepoints, three of which are not randomised, so folding it
-# in would import a non-randomised component into a causal claim (#271 item 5; design
-# note Decision 4). That makes the estimand "at mean ability", which the reader has to
-# be told (#389 finding 1). Gated on the term's presence, so a level model fitted
-# without group x ability prints nothing.
+# (balance term + focal t2 term + gamma_grp_ability*ability)*G. The card nets ALL of it
+# out of every fitted row and adds back only the focal term (#584 decision 1: the
+# arm-free standardisation), so both arms are read at the same operating point and the
+# pre-randomisation chance imbalance is no part of the effect. gamma_grp_ability is a
+# single *time-invariant* coefficient, identified from all four timepoints, three of
+# which are not randomised, so folding it in would import a non-randomised component
+# into a causal claim (#271 item 5; design note Decision 4) — the increment stays at
+# mean ability. Gated on the term's presence, so a level model fitted without
+# group x ability prints nothing.
 if (
     factor_summary is not None
     and "term" in factor_summary.columns
@@ -262,18 +264,22 @@ if (
     print(
         "_What the causal effect holds fixed:_ this model also carries a "
         "**group × ability** term, so the full group contribution at t2 is "
-        f"`{_focal} + gamma_grp_ability × ability`"
-        + (" (plus the t1 balance term `arm_gap_t1`, which is kept in the prediction both with and without the t2 change — never added or removed — so it is not part of the effect)" if _lf_t1 else "")
-        + ". The effect reported above and "
-        f"in the items-scale card below adds back **only `{_focal}`**: every child "
-        "keeps their own baseline, but each receives the *same* group increment. The "
-        "headline is therefore the average effect **at mean ability** — neither a "
-        "population-average effect that lets the benefit vary with ability, nor a "
-        "prediction for a single average-ability child. `gamma_grp_ability` is one "
-        "*time-invariant* coefficient identified from all four timepoints, three of "
-        "them not randomised, so folding it into the causal card would import a "
-        "non-randomised component; it is reported on its own row above, as an adjusted "
-        "association. See `notes/202606261230-gain-level-factors-design.md` Decision 4."
+        + (f"`arm_gap_t1 + {_focal} + gamma_grp_ability × ability`" if _lf_t1 else f"`{_focal} + gamma_grp_ability × ability`")
+        + ". The items-scale card below is the **arm-free standardised** marginal "
+        "effect (#584 decision 1): all of that contribution is removed from every "
+        f"fitted t2 row, and **only `{_focal}`** is added back."
+        + (" Removing the balance term as well is what makes the two arms comparable — a waiting-arm child and an immediate-arm child with the same age, ability and background are evaluated at the same starting point, and the chance arm difference present before randomisation is no part of the effect." if _lf_t1 else "")
+        + " Each row keeps its own age, ability, adjusters and fitted child "
+        "intercept, so the number is an average over the children in this "
+        "comparison — not a prediction for a single average-ability child — with "
+        "the ability-dependent part of the benefit held at centred ability. "
+        "`gamma_grp_ability` is one *time-invariant* coefficient identified from "
+        "all four timepoints, three of them not randomised, so folding it into the "
+        "causal card would import a non-randomised component; it is reported on its "
+        "own row above, as an adjusted association. Because the same focal draw is "
+        "added to every row, the card cannot disagree in sign with the coefficient "
+        "above. See `notes/202606261230-gain-level-factors-design.md` Decision 4 and "
+        "`notes/202608231800-level-factors-584-decisions.md`."
     )
 ```
 

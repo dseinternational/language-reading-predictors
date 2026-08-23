@@ -1424,14 +1424,13 @@ def test_level_t2_marginal_effect_nets_group_ability_interaction():
 
 
 def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
-    """#552: under the t1-referenced parameterisation the caller names the change
-    vector (``d_grp_time``, element 0 = t2). The balance term ``arm_gap_t1`` is
-    *not* netted out or added back — it enters the fitted predictor only on the
-    immediate arm's rows (it multiplies ``G``), so leaving it untouched keeps it
-    in both counterfactual predictions of each treated row, where it cancels;
-    only ``d_grp_time[t2]`` (plus the interaction, netted) is — so the AME is the
-    difference-in-differences contrast, and the logit contrast draws are the t2
-    change, not the raw t2 gap ``b_grp_time[1] = arm_gap_t1 + d_grp_time[t2]``."""
+    """#552 + #584 decision 1: under the t1-referenced parameterisation the caller
+    names the change vector (``d_grp_time``, element 0 = t2) and the balance term
+    (``arm_gap_t1``). The **whole** group contribution — balance term, focal change
+    and interaction — is netted out of every fitted t2 row, so both arms are read at
+    the same arm-free operating point, and only ``d_grp_time[t2]`` is added back. The
+    logit contrast draws are the t2 change, not the raw t2 gap
+    ``b_grp_time[1] = arm_gap_t1 + d_grp_time[t2]``."""
     n_chain, n_draw, n_obs = 1, 5, 6
     rng = np.random.default_rng(7)
     arm_gap = rng.normal(-0.3, 0.1, (n_chain, n_draw))
@@ -1465,8 +1464,10 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
         ability=ability,
         contrast_term="d_grp_time",
         contrast_index=0,
+        balance_term="arm_gap_t1",
     )
     d_t2 = d_grp.reshape(-1, 3)[:, 0]
+    c_flat = arm_gap.reshape(-1)
     g_flat = g_ab.reshape(-1)
     e_flat = eta.reshape(-1, n_obs)
     rows = np.where(phase == 1)[0]
@@ -1474,12 +1475,39 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
     for s_ in range(n_draw):
         diffs = []
         for i in rows:
-            # net out the t2 change and the interaction; arm_gap_t1 stays in eta0
-            e0 = e_flat[s_, i] - (d_t2[s_] + g_flat[s_] * ability[i]) * G[i]
+            # arm-free baseline: the complete group contribution comes out
+            e0 = e_flat[s_, i] - (
+                c_flat[s_] + d_t2[s_] + g_flat[s_] * ability[i]
+            ) * G[i]
             diffs.append(expit(e0 + d_t2[s_]) - expit(e0))
         ref.append(np.mean(diffs))
     assert contrast == pytest.approx(d_t2)
     assert ame == pytest.approx(np.array(ref))
+    # Without a balance term (the free comparator) the pre-#584 baseline is kept:
+    # nothing is removed that the focal element does not itself carry.
+    _, ame_no_balance = level_t2_marginal_effect(
+        SimpleNamespace(posterior=ds),
+        phase=phase,
+        G=G,
+        ability=ability,
+        contrast_term="d_grp_time",
+        contrast_index=0,
+    )
+    hybrid = []
+    for s_ in range(n_draw):
+        diffs = []
+        for i in rows:
+            e0 = e_flat[s_, i] - (d_t2[s_] + g_flat[s_] * ability[i]) * G[i]
+            diffs.append(expit(e0 + d_t2[s_]) - expit(e0))
+        hybrid.append(np.mean(diffs))
+    assert ame_no_balance == pytest.approx(np.array(hybrid))
+    assert not np.allclose(ame, ame_no_balance)
+    # A balance term the group does not carry is a caller error, not a silent skip.
+    with pytest.raises(ValueError, match="balance_term"):
+        level_t2_marginal_effect(
+            SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability,
+            contrast_term="d_grp_time", contrast_index=0, balance_term="nope",
+        )
     # The raw t2 gap (the free comparator's focal element) differs by the balance
     # term, so the two parameterisations do not report the same logit contrast.
     raw, _ = level_t2_marginal_effect(
@@ -1492,6 +1520,94 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
             SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability,
             contrast_term="d_grp_time", contrast_index=3,
         )
+
+
+def test_level_t2_marginal_effect_is_the_arm_free_standardised_functional():
+    """#584 decision 1 acceptance test: a panel built so the three candidate
+    natural-scale targets are deliberately far apart, pinning which one the card is.
+
+    The three candidates for translating the conditional logit difference-in-
+    differences ``d_grp_time[t2]`` onto the response scale are
+
+    1. the **arm-free standardised** AME — every fitted t2 row read at its own
+       arm-free profile, plus the focal contrast (what this function returns);
+    2. the marginal **response-scale DiD**,
+       ``[p(I,t2) - p(W,t2)] - [p(I,t1) - p(W,t1)]``; and
+    3. the **full t2 arm contrast**, which keeps the pre-randomisation gap
+       ``arm_gap_t1`` inside the comparison.
+
+    A large balance term and operating points out on the flat part of the expit
+    curve force them apart, so a regression that silently swapped one for another
+    could not pass by numerical coincidence."""
+    n_chain, n_draw, n_obs = 1, 4, 8
+    # Deliberately large chance imbalance and a modest treatment change, with the
+    # rows sitting well away from p = 0.5 where expit is most nonlinear.
+    arm_gap = np.full((n_chain, n_draw), 2.0)
+    d_grp = np.tile(np.array([0.5, 0.2, 0.1]), (n_chain, n_draw, 1))
+    b_grp = np.concatenate([arm_gap[..., None], arm_gap[..., None] + d_grp], axis=-1)
+    # t1 rows sit at the steepest part of the expit curve and t2 rows far out on the
+    # flat part, so the two waves' response-scale arm gaps are nothing alike.
+    eta_base = np.tile(np.array([0.0, 0.0, -3.0, -3.0, -3.0, -3.0, 0.0, 0.0]), (n_chain, n_draw, 1))
+    phase = np.array([0, 0, 1, 1, 1, 1, 0, 0])
+    G = np.array([1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0])
+    # The fitted predictor carries the group contribution on the immediate arm.
+    eta = eta_base + (b_grp[..., phase] * G) * 1.0
+    ds = xr.Dataset(
+        {
+            "eta": (("chain", "draw", "obs_id"), eta),
+            "arm_gap_t1": (("chain", "draw"), arm_gap),
+            "d_grp_time": (("chain", "draw", "post_phase"), d_grp),
+            "b_grp_time": (("chain", "draw", "phase"), b_grp),
+        },
+        coords={
+            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs), "phase": np.arange(4),
+            "post_phase": ["t2", "t3", "t4"],
+        },
+    )
+    trace = SimpleNamespace(posterior=ds)
+    contrast, ame = level_t2_marginal_effect(
+        trace, phase=phase, G=G, contrast_term="d_grp_time", contrast_index=0,
+        balance_term="arm_gap_t1",
+    )
+    c, d = arm_gap.reshape(-1), d_grp.reshape(-1, 3)[:, 0]
+    e_flat = eta.reshape(-1, n_obs)
+    t1_rows, t2_rows = np.where(phase == 0)[0], np.where(phase == 1)[0]
+
+    def arm_free(s_, i):
+        return e_flat[s_, i] - (c[s_] + (d[s_] if phase[i] == 1 else 0.0)) * G[i]
+
+    # 1. what the function returns
+    expected = np.array([
+        np.mean([expit(arm_free(s_, i) + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
+        for s_ in range(n_draw)
+    ])
+    # 2. the response-scale DiD on the same arm-free profiles
+    response_did = np.array([
+        np.mean([expit(arm_free(s_, i) + c[s_] + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
+        - np.mean([expit(arm_free(s_, i) + c[s_]) - expit(arm_free(s_, i)) for i in t1_rows])
+        for s_ in range(n_draw)
+    ])
+    # 3. the full t2 arm contrast, which keeps the chance imbalance in
+    full_t2 = np.array([
+        np.mean([expit(arm_free(s_, i) + c[s_] + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
+        for s_ in range(n_draw)
+    ])
+
+    assert contrast == pytest.approx(d)
+    assert ame == pytest.approx(expected)
+    # The three targets are far apart here, so this is a real pin, not a tautology.
+    assert not np.allclose(ame, response_did, atol=0.01)
+    assert not np.allclose(ame, full_t2, atol=0.01)
+    assert abs(float(np.mean(full_t2 - ame))) > 0.1
+    # Here the response-scale DiD is even of the opposite sign to the coefficient
+    # the report flags causal — the concrete form of the coherence argument behind
+    # the decision.
+    assert float(np.mean(response_did)) < 0.0 < float(np.mean(ame))
+    # The card stays a per-draw monotone transform of the focal contrast: its sign
+    # is the coefficient's, draw by draw, which is what keeps the items median, the
+    # direction probability and the ROPE from contradicting the flagged coefficient.
+    assert np.all(np.sign(ame) == np.sign(contrast))
 
 
 def test_drop_retired_90_band_strips_dict_and_frame():
