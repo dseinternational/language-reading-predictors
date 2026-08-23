@@ -34,10 +34,13 @@ Design choices:
 - **The moderator B is a DAG-descendant of the exposure L.** Under the committed DAG
   ``LS -> PA``, so B = PA is a descendant of L and a mediator of the L -> N effect
   (``LS -> PA -> NW``). Conditioning on B (the ``gamma_mod . z(B)`` main effect)
-  therefore makes ``beta_mech`` a **controlled-direct** effect of letter sounds at
-  fixed blending, not the total L -> N effect, and ``gamma_int`` is effect-modification
-  by a downstream skill — not a symmetric "you need both, and each is worth more with
-  the other" total-effect test. Read the estimand that way. The dual-route / parallel-
+  therefore gives ``beta_mech`` the SHAPE of a controlled-direct effect - the L -> N
+  association at fixed blending rather than the total one - but not its identification:
+  a controlled direct effect needs the exposure randomised or its backdoors closed, and
+  neither holds, so this stays an adjusted association (#586 finding 10). ``gamma_int``
+  is likewise DESCRIPTIVE moderation by a downstream skill, not causal effect
+  modification and not a symmetric "you need both, and each is worth more with the
+  other" total-effect test. Read the estimand that way. The dual-route / parallel-
   prerequisites language above is the substantive motivation, not a claim that L and B
   are causally unordered — the DAG orders them ``LS -> PA``. Flagged in the full-suite
   adjustment-set review (``notes/202607172000-adjustment-set-review-full-suite.md``).

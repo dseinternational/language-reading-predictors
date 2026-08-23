@@ -37,6 +37,7 @@ from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
     PreparedData,
+    _subset_prepared,
     load_and_prepare,
     split_covariates_by_wave,
 )
@@ -74,12 +75,20 @@ _LEGACY_KEYS = frozenset(
         "linear_mechanism",
         "mechanism_is_covariate",
         "mechanism_at_pre",
+        "exposure_positive_only",
         "mech_hsgp_m",
         "mech_lengthscale_tight",
         "items_ref_quantiles",
         "target_accept",
     }
 )
+
+
+#: Time-invariant t1 baseline columns a mechanism model may declare as its
+#: ``ability_covariate``. The loader broadcasts them from t1 via
+#: ``baseline_covariates``; anything else is a KeyError deep inside pandas, long
+#: after an output directory has been reset and the data loaded (#586).
+SUPPORTED_ABILITY_COVARIATES: frozenset[str] = frozenset({"blocks", "behav"})
 
 
 def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
@@ -198,6 +207,7 @@ class MechanismModelSettings:
     linear_mechanism: bool = False
     mechanism_is_covariate: bool = False
     mechanism_at_pre: bool = False
+    exposure_positive_only: bool = False
     mech_hsgp_m: int | None = None
     mech_lengthscale_tight: bool = False
     items_ref_quantiles: tuple[float, float] = (0.25, 0.75)
@@ -290,6 +300,7 @@ class MechanismModelSettings:
             linear_mechanism=extra.get("linear_mechanism", False),
             mechanism_is_covariate=extra.get("mechanism_is_covariate", False),
             mechanism_at_pre=extra.get("mechanism_at_pre", False),
+            exposure_positive_only=extra.get("exposure_positive_only", False),
             mech_hsgp_m=extra.get("mech_hsgp_m"),
             mech_lengthscale_tight=extra.get("mech_lengthscale_tight", False),
             items_ref_quantiles=extra.get("items_ref_quantiles", (0.25, 0.75)),
@@ -319,6 +330,7 @@ class MechanismRunPlan:
     linear_mechanism: bool
     mechanism_is_covariate: bool
     mechanism_at_pre: bool
+    exposure_positive_only: bool
     mech_hsgp_m: int | None
     mech_lengthscale_tight: bool
     items_ref_quantiles: tuple[float, float]
@@ -502,6 +514,96 @@ def declared_mechanism_settings(
     )
 
 
+def _reject_unsupported_mechanism_design(
+    spec: ModelSpec, settings: MechanismModelSettings
+) -> None:
+    """Fail closed on configurations the family cannot honestly report (#586).
+
+    None of these is reachable from a registered model today, which is exactly why
+    they went unnoticed: each resolved cleanly, and would have failed — if at all —
+    only after an output directory had been reset and the data loaded, or not at all,
+    silently fitting something other than the declared design. They are rejected here,
+    in the pure run-plan stage, before any I/O.
+    """
+    model_id = spec.model_id
+    exposure, outcome = spec.mechanism_symbol, spec.outcome_symbol
+    moderator = settings.moderator_symbol
+
+    # 1. Overlapping focal roles. Resolution accepted outcome == exposure (feeding
+    #    the outcome back as its own predictor) and exposure == moderator (whose
+    #    interaction column is then the exposure squared).
+    if exposure == outcome:
+        raise ValueError(
+            f"{model_id}: the exposure and the outcome are both {outcome!r}; a "
+            "mechanism model cannot regress a measure on itself"
+        )
+    if moderator is not None and moderator == exposure:
+        raise ValueError(
+            f"{model_id}: the moderator and the exposure are both {exposure!r}; the "
+            "interaction column would be the exposure squared, not a moderation"
+        )
+    if moderator is not None and moderator == outcome:
+        raise ValueError(
+            f"{model_id}: the moderator and the outcome are both {outcome!r}; the "
+            "outcome cannot moderate its own predictor"
+        )
+    # 2. A bounded exposure declared in the adjustment set too: the factory would
+    #    fit it once as the curve and again as a confounder coefficient.
+    if not settings.mechanism_is_covariate and exposure in spec.adjustment:
+        raise ValueError(
+            f"{model_id}: exposure {exposure!r} is also declared in "
+            "ModelSpec.adjustment; it would be fitted twice, as the mechanism term "
+            "and as a confounder"
+        )
+
+    # 3. Phase-specific curves. The factory builds per-phase ``f_mech``, but the
+    #    pipeline mixes them into one endpoint curve, one items curve and one
+    #    steepest-interval summary, and power scaling asks for global hyperparameter
+    #    names that a per-phase build never registers.
+    if settings.phase_specific_mechanism:
+        raise ValueError(
+            f"{model_id}: phase_specific_mechanism is not supported. The factory can "
+            "build per-phase curves, but the pipeline's curve, items and "
+            "steepest-interval artefacts and its power-scaling variables are all "
+            "single-curve; enable it only once those emit per-phase output."
+        )
+
+    # 4. An age GP alongside age moderation fits a nonparametric age effect and a
+    #    separate linear age main effect on the same covariate, and the age-GP exact
+    #    LOO refit does not freeze its boundary, so a refit reinterprets its basis.
+    if settings.use_age_gp and moderator == "A":
+        raise ValueError(
+            f"{model_id}: use_age_gp cannot be combined with age moderation "
+            "(moderator_symbol='A'). The GP already models age nonparametrically "
+            "while gamma_mod adds a linear age main effect on the same covariate, "
+            "and the age-GP leave-one-out refit does not freeze its boundary."
+        )
+
+    # 6. Positive-exposure restriction. It is a covariate-exposure design choice:
+    #    a bounded measure's exposure is a count whose zero is a real score, not an
+    #    "unexposed" state, and the fitted regressor is its logit.
+    if settings.exposure_positive_only and not settings.mechanism_is_covariate:
+        raise ValueError(
+            f"{model_id}: exposure_positive_only applies to a continuous covariate "
+            "exposure only; for a bounded measure a zero count is an observed score, "
+            "not an unexposed row"
+        )
+
+    # 5. The ability covariate reached pandas before its type or name was checked.
+    ability = settings.ability_covariate
+    if ability is not None:
+        if not isinstance(ability, str) or not ability:
+            raise TypeError(
+                f"{model_id}: ability_covariate must be a non-empty column name, "
+                f"got {ability!r}"
+            )
+        if ability not in SUPPORTED_ABILITY_COVARIATES:
+            raise ValueError(
+                f"{model_id}: unsupported ability_covariate {ability!r}; expected one "
+                f"of {', '.join(sorted(SUPPORTED_ABILITY_COVARIATES))}"
+            )
+
+
 def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
     """Resolve and validate a mechanism spec before data or output are touched."""
     if spec.kind != "mechanism":
@@ -518,6 +620,7 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         )
 
     settings, source = declared_mechanism_settings(spec)
+    _reject_unsupported_mechanism_design(spec, settings)
     bounded_symbols = {
         spec.outcome_symbol,
         settings.adjust_baseline_symbol,
@@ -623,22 +726,28 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
             f"{', '.join(unknown_confounders)}"
         )
 
-    if settings.outcomes is not None:
-        required_measures = {
-            spec.outcome_symbol,
-            settings.adjust_baseline_symbol,
-            *(s for s in confounders if s in MEASURES),
-        }
-        if not settings.mechanism_is_covariate:
-            required_measures.add(spec.mechanism_symbol)
-        if moderator is not None and not settings.moderator_is_covariate:
-            required_measures.add(moderator)
-        missing_measures = sorted(required_measures - set(settings.outcomes))
-        if missing_measures:
-            raise ValueError(
-                f"{spec.model_id}: outcomes omits required mechanism measure(s): "
-                f"{', '.join(missing_measures)}"
-            )
+    # Required-measure coverage is checked against the **effective** outcome set,
+    # whether declared or defaulted (#586). Guarding this on ``outcomes is not None``
+    # meant a model leaving the default in place could name a bounded exposure,
+    # baseline or moderator outside ``ITT_OUTCOMES`` (N, TR, TE, ...) and resolve
+    # cleanly, only to fail in the factory after the output directory had been reset
+    # and the data loaded.
+    effective_outcomes = settings.outcomes or ITT_OUTCOMES
+    required_measures = {
+        spec.outcome_symbol,
+        settings.adjust_baseline_symbol,
+        *(s for s in confounders if s in MEASURES),
+    }
+    if not settings.mechanism_is_covariate:
+        required_measures.add(spec.mechanism_symbol)
+    if moderator is not None and not settings.moderator_is_covariate:
+        required_measures.add(moderator)
+    missing_measures = sorted(required_measures - set(effective_outcomes))
+    if missing_measures:
+        raise ValueError(
+            f"{spec.model_id}: the loaded outcomes {effective_outcomes!r} omit "
+            f"required mechanism measure(s): {', '.join(missing_measures)}"
+        )
 
     alignment = (
         "standardised raw covariate exposure"
@@ -666,14 +775,21 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         "mechanism term must not be described as causing the outcome."
     )
     analysis_population = (
-        "Available-case period transitions that first have group, age, every loaded "
-        "outcome's period-start score and at least one loaded post score observed, "
-        "with raw covariates available after their declared filling or complete-case "
-        "policy. The factory then requires the focal outcome, exposure, "
-        "autoregressive baseline, bounded confounders and moderator. Children may "
-        "contribute multiple transitions; fitted counts are recorded after the "
-        "factory keep-mask."
+        "Available-case period transitions that first have group, age, the "
+        "autoregressive baseline's period-start score and at least one loaded post "
+        "score observed, with raw covariates available after their declared filling "
+        "or complete-case policy. The factory then requires the focal outcome, "
+        "exposure, autoregressive baseline, bounded confounders and moderator. "
+        "Children may contribute multiple transitions; fitted counts are recorded "
+        "after the factory keep-mask."
     )
+    if settings.exposure_positive_only:
+        analysis_population += (
+            " Rows whose exposure is zero are then excluded, so the population is "
+            "the periods that actually carried a positive exposure. This is an "
+            "estimand restriction: the result is an association among exposed "
+            "periods and does not rest on an unexposed comparison group."
+        )
     missing_data_assumption = (
         "The loader drops rows lacking its required period-start scores or raw "
         "covariates; the factory then drops rows lacking the focal model terms. Raw "
@@ -682,7 +798,21 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         "missingness ignorable."
     )
 
-    pre_required = settings.outcomes or ITT_OUTCOMES
+    # Complete-case only on the pre-scores the fitted model actually consumes
+    # (#586 finding 4). This used to be *every* loaded outcome, but the factory's
+    # linear predictor reads exactly one period-start score — the autoregressive
+    # baseline — while the exposure, measure confounders and moderator are all
+    # contemporaneous post measurements. Requiring their baselines dropped rows for
+    # a measurement absent from the model: mech-063/163 lost four otherwise
+    # eligible transitions apiece to a missing ``N_pre`` whose ``N_post`` and every
+    # fitted term were observed. The exposure's own pre-score joins the requirement
+    # only under ``mechanism_at_pre``, where it *is* the regressor.
+    pre_required: tuple[str, ...] = (settings.adjust_baseline_symbol,)
+    if settings.mechanism_at_pre:
+        pre_required = tuple(dict.fromkeys(pre_required + (spec.mechanism_symbol,)))
+    # Both symbols are already covered by the required-measure check above, which
+    # runs first, so ``load_and_prepare``'s "pre_required must be a subset of
+    # outcomes" contract cannot be violated from here.
 
     return MechanismRunPlan(
         model_id=spec.model_id,
@@ -704,6 +834,7 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         linear_mechanism=settings.linear_mechanism,
         mechanism_is_covariate=settings.mechanism_is_covariate,
         mechanism_at_pre=settings.mechanism_at_pre,
+        exposure_positive_only=settings.exposure_positive_only,
         mech_hsgp_m=settings.mech_hsgp_m,
         mech_lengthscale_tight=settings.mech_lengthscale_tight,
         items_ref_quantiles=settings.items_ref_quantiles,
@@ -766,6 +897,30 @@ def resolve_mechanism_plan(
         else validate_mechanism_run_plan(spec, run_plan)
     )
     prepared = load_and_prepare(**resolved.prepare_kwargs())
+
+    if resolved.exposure_positive_only:
+        # Restrict to rows that actually carry a positive exposure (#586 finding 2,
+        # decided 2026-08-23). ``attend`` is an interval covariate read from the
+        # transition's pre row, and the loader treats an absent session count as a
+        # recorded zero — so mech-191's frame kept 28 zero-session rows while its
+        # module and report both stated it held exactly the on-intervention rows.
+        # Those zeros were not spread across the design: in period 1 *all* 25 fitted
+        # waitlist rows sat at zero and no immediate-arm row did, so the bottom of
+        # the exposure range was an arm-and-period contrast rather than a dose one.
+        # This is an estimand restriction, not a data-quality drop: what remains is
+        # an association among treated periods, and it no longer borrows the
+        # randomised zero-dose anchor.
+        symbol = resolved.mechanism_symbol
+        scaler = prepared.covariate_scalers.get(symbol)
+        z = np.asarray(prepared.covariates[symbol], dtype=float)
+        raw = scaler.inverse(z) if scaler is not None else z
+        keep = raw > 0.0
+        if not keep.any():
+            raise ValueError(
+                f"{spec.model_id}: exposure_positive_only leaves no rows with a "
+                f"positive {symbol!r}."
+            )
+        prepared = _subset_prepared(prepared, keep)
 
     # A constant covariate (e.g. an all-zero ``_missing`` indicator on the fitted
     # rows) is dropped by the loader and receives no coefficient, so it must not be

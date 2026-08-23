@@ -49,6 +49,10 @@ from language_reading_predictors.statistical_models.level_factors import (
     resolve_level_factors_run_plan,
 )
 from language_reading_predictors.statistical_models.measures import is_distal
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismRunPlan,
+    resolve_mechanism_run_plan,
+)
 
 
 def emit_priors(context: StatisticalFitContext) -> None:
@@ -348,20 +352,41 @@ def _prior_table_overrides(
         # it is the group main effect entered as a DAG backdoor adjustment, not the
         # available-case modified ITT estimate — an adjusted association, not a causal term. The
         # role is demoted but the rationale still inherits the tau docstring, so set
-        # it explicitly. ``f_mech__ell`` is built with ell_prior_mech() = IG(5, 5)
-        # (#265) but the ``__ell`` suffix routes it to the default ell constructor
-        # whose docstring says IG(3, 1); the distribution column (read off the RV)
-        # correctly shows IG(5, 5), so the rationale contradicts its own row.
+        # it explicitly.
         role["beta_G"] = "association"
         rationale["beta_G"] = (
             "Group main effect entered as a DAG backdoor adjustment (reuses the tau "
             "Normal(0, 0.5) scale); an adjusted association, not the randomised "
             "treatment effect."
         )
-        rationale["f_mech__ell"] = (
-            "Mechanism-curve GP lengthscale ell ~ InverseGamma(5, 5) on standardised "
-            "inputs (issue #265)."
-        )
+        # The mechanism curve's lengthscale constructor comes from the resolved run
+        # plan, never from the RV-name suffix (#586 finding 3). ``f_mech__ell`` is
+        # built with ``ell_prior_mech()`` = IG(5, 5) or, under
+        # ``mech_lengthscale_tight``, ``ell_prior_mech_tight()`` = IG(8, 8); the
+        # ``__ell`` suffix used to route both to the shared ``ell`` constructor, so
+        # every HSGP mechanism report panelled an IG(3, 1) density the model never
+        # fitted and printed a hard-coded IG(5, 5) rationale beside a distribution
+        # column that (read off the RV) said IG(8, 8). A linear-mechanism fit
+        # registers no ``f_mech__ell`` at all, so the override is simply unused.
+        plan = getattr(context, "resolved_plan", None)
+        if not isinstance(plan, MechanismRunPlan):
+            plan = resolve_mechanism_run_plan(spec)
+        if not plan.linear_mechanism:
+            tight = plan.mech_lengthscale_tight
+            ctor["f_mech__ell"] = "ell_mech_tight" if tight else "ell_mech"
+            rationale["f_mech__ell"] = (
+                "Mechanism-curve GP lengthscale on standardised inputs: "
+                + (
+                    "ell ~ InverseGamma(8, 8), the thin-support tightening adopted "
+                    "for this fit (issue #430) — it thins the short-lengthscale tail "
+                    "that drives the boundary-geometry funnel while leaving the mode "
+                    "essentially unchanged."
+                    if tight
+                    else "ell ~ InverseGamma(5, 5), the mechanism-family default "
+                    "(issue #265) — moderate-to-long lengthscales, so the curve is "
+                    "smoother than the shared InverseGamma(3, 1) GP prior allows."
+                )
+            )
     elif spec.kind == "joint_mechanism":
         # Nothing in this family is causal (the run plan says so in terms). The
         # transition design's ``beta_G`` reuses the tau constructor exactly as the

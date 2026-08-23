@@ -76,7 +76,7 @@ describes covariation within a treated system.
 
 - *No unmeasured confounder assumption* for $(TR_{\text{post}}, W_{\text{post}})$: strong and not testable; latent general ability $GA$ is the named violation direction (the $IS$ backdoor is closed by adjustment).
 - $TR_{\text{post}}$ is measured with error; non-negligible error attenuates the slope toward zero.
-- Across-phase pooling assumes the structural relationship is stable over time; a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag.
+- Across-phase pooling assumes the structural relationship is stable over time, and one common arm coefficient assumes the residual group contrast is too. No phase-specific fit is available: `phase_specific_mechanism` is rejected during run-plan resolution, because the pipeline's curve, items and steepest-interval artefacts and its power-scaling variables are all single-curve. Read the exposure-support table by period and arm instead, and treat a period whose exposure range differs markedly from the others as a place the pooled fit is extrapolating.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

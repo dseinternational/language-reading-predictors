@@ -518,6 +518,16 @@ _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "hs_tau": horseshoe_tau_prior,
     "hs_lambda": horseshoe_local_prior,
     "hs_c2": horseshoe_slab_prior,
+    # Mechanism-curve GP lengthscales. Without their own keys the ``__ell`` suffix
+    # in :func:`_ctor_key_for_rv` routed every mechanism lengthscale to the generic
+    # ``ell`` constructor, so all 20 HSGP mechanism reports panelled an
+    # ``InverseGamma(3, 1)`` density the model never fitted and printed a hard-coded
+    # ``InverseGamma(5, 5)`` rationale beside a distribution column that (correctly,
+    # read off the RV) said ``InverseGamma(8, 8)`` (#586 finding 3). The two
+    # mechanism constructors are now selectable by key, and the mechanism branch of
+    # ``prior_artifacts`` picks the one the resolved run plan actually declares.
+    "ell_mech": ell_prior_mech,
+    "ell_mech_tight": ell_prior_mech_tight,
 }
 
 ALL_PRIORS: dict[str, "callable[[], Continuous]"] = {**SHARED_PRIORS, **_EXTRA_PRIORS}
@@ -549,6 +559,8 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "eta_main": "gp",
     "eta_tau": "gp",
     "ell": "gp",
+    "ell_mech": "gp",
+    "ell_mech_tight": "gp",
     "eta_partial_pool": "gp",
     "hs_tau": "nuisance",
     "hs_lambda": "nuisance",

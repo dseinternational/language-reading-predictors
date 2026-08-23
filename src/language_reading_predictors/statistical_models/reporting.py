@@ -9,6 +9,7 @@ import hashlib
 import json
 import os
 import re
+import warnings
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
 from pathlib import Path
@@ -1566,6 +1567,16 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
     )
 
 
+#: Qualification thresholds for calling a steepest latent-logit interval a "knee"
+#: (#586 finding 1). ``_KNEE_MIN_INCREASING`` is the pre-existing net-rise share;
+#: ``_KNEE_MIN_CURVATURE`` is the shared evidence ladder's "moderate" rung (10:1
+#: odds, ``dse_research_utils.statistics.evidence``), applied to the local slope
+#: contrast so a straight line — which sits near 0.5 whatever its net rise — can
+#: never qualify.
+_KNEE_MIN_INCREASING: float = 0.9
+_KNEE_MIN_CURVATURE: float = 0.91
+
+
 def _readiness_knee(
     f: np.ndarray,
     ell: np.ndarray | None,
@@ -1577,21 +1588,44 @@ def _readiness_knee(
     n_chains: int | None = None,
     n_draws: int | None = None,
 ) -> dict[str, float]:
-    """Locate the readiness knee from a per-observation ``f_mech`` posterior + logit input.
+    """Locate the steepest latent-logit interval of a per-observation ``f_mech`` posterior.
 
-    Pure-numpy core of :func:`readiness_threshold` (split out so the knee logic is
+    Pure-numpy core of :func:`readiness_threshold` (split out so the logic is
     unit-testable without a trace, #293 review). ``f`` is ``(n_obs, n_draws)`` HSGP
     curve draws; ``ell`` is the ``(n_obs,)`` Haldane-corrected mechanism logit.
 
-    The knee is the *steepest rise* of the binned curve — the predictor level at
-    which the outcome rises fastest per additional item — not the onset of the
-    rise; ``slope_below/above_knee_median`` support the "flat below, rising above"
-    read. ``half_rise_count_*`` is a complementary mid-rise summary (where the
-    curve first reaches the midpoint of its binned range). Both are summarised
-    over the *increasing* draws only (net end-to-end rise on the binned curve;
-    the share is ``increasing_frac``) — on a flat or falling draw the estimands
-    are undefined, and a low ``increasing_frac`` flags an ill-defined knee
-    (#297 review).
+    **What the statistic is.** The located quantity is the between-bin interval with
+    the largest derivative of ``f_mech`` — the *steepest latent-logit interval*. The
+    derivative is taken on the outcome-**logit** scale, because ``f_mech`` is a logit
+    contribution; the expected-items derivative carries an extra ``p * (1 - p)``
+    inverse-link factor and can peak at a different exposure value (#586 finding 1).
+    ``scale`` records this so no downstream renderer can silently call it an items
+    result. ``half_rise_count_*`` is a complementary mid-rise summary (where the
+    curve first reaches the midpoint of its binned range). Both are summarised over
+    the *increasing* draws only (net end-to-end rise on the binned curve; the share
+    is ``increasing_frac``) — on a flat or falling draw the estimands are undefined.
+
+    **When it may be called a knee.** A net rise is not a threshold: a perfectly
+    linear increasing curve has ``increasing_frac == 1`` and still yields an
+    ``argmax``, and a curve that accelerates all the way to the edge of its support
+    pins that ``argmax`` on the last interval, where it is censored by the data
+    rather than located by them. Both failure modes were live — the letter-sound
+    fits put 73% of draws in the top interval with the knee median equal to its own
+    upper credible limit (#586 finding 1). ``knee_well_defined`` is therefore a
+    conjunction of three checks, each also reported on its own so a reader can see
+    which one failed:
+
+    - ``increasing_frac`` > ``_KNEE_MIN_INCREASING`` — the curve rises at all;
+    - ``not boundary_pinned`` — the modal steepest interval is interior, so the
+      location is identified rather than censored by the end of the observed range;
+    - ``prob_slope_above_gt_below`` >= ``_KNEE_MIN_CURVATURE`` — the mean slope above
+      the located interval genuinely exceeds the mean slope below it. For a straight
+      line this probability sits near 0.5 whatever ``increasing_frac`` says, which is
+      what separates a bend from a constant rise.
+
+    ``steepest_interval_share`` is the share of increasing draws whose ``argmax``
+    falls in the modal interval — selection stability, low when the intervals are
+    effectively tied.
     """
     if count_values is not None:
         # Continuous-covariate exposure (e.g. intervention sessions, LRP92): the knee
@@ -1662,14 +1696,50 @@ def _readiness_knee(
     if np.isfinite(kmed):
         interval_mid = 0.5 * (centers[:-1] + centers[1:])
         below = interval_mid < kmed
-        slope_below = np.nanmean(np.where(below[:, None], slope, np.nan), axis=0)
-        slope_above = np.nanmean(np.where(~below[:, None], slope, np.nan), axis=0)
+        # An all-NaN "below" set is a real outcome, not an error: it means the
+        # steepest interval is the lowest one, so there is nothing below it to
+        # average. It stays NaN and the renderer must say so rather than print it.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            slope_below = np.nanmean(np.where(below[:, None], slope, np.nan), axis=0)
+            slope_above = np.nanmean(np.where(~below[:, None], slope, np.nan), axis=0)
     else:  # no increasing draws — the below/above split is undefined
         slope_below = slope_above = np.full(f.shape[1], np.nan)
 
     def _med(a: np.ndarray) -> float:
         a = a[np.isfinite(a) & increasing]
         return float(np.median(a)) if a.size else float("nan")
+
+    # --- qualification diagnostics (#586 finding 1) -------------------------
+    # Selection stability and boundary censoring are properties of the *argmax*
+    # over intervals, so they are computed on the increasing draws' winning bins.
+    n_intervals = nb - 1
+    kb_increasing = knee_bin[increasing]
+    if kb_increasing.size:
+        counts = np.bincount(kb_increasing, minlength=n_intervals)
+        modal_interval = int(np.argmax(counts))
+        interval_share = float(counts[modal_interval] / kb_increasing.size)
+        # An argmax on the first or last interval is censored by the end of the
+        # observed range: the curve may go on steepening where there are no data,
+        # so the location is a bound, not an estimate.
+        boundary_pinned = modal_interval in (0, n_intervals - 1)
+    else:
+        modal_interval, interval_share, boundary_pinned = -1, float("nan"), True
+
+    # Local slope contrast: does the curve genuinely bend? For a straight line the
+    # above/below means coincide and this sits near 0.5 however strongly the curve
+    # rises, which is precisely the case ``increasing_frac`` cannot detect.
+    contrast = slope_above - slope_below
+    contrast = contrast[np.isfinite(contrast) & increasing]
+    prob_curvature = float(np.mean(contrast > 0)) if contrast.size else float("nan")
+
+    increasing_frac = float(np.mean(increasing))
+    well_defined = bool(
+        increasing_frac > _KNEE_MIN_INCREASING
+        and not boundary_pinned
+        and np.isfinite(prob_curvature)
+        and prob_curvature >= _KNEE_MIN_CURVATURE
+    )
 
     result = {
         "knee_count_median": kmed,
@@ -1680,7 +1750,15 @@ def _readiness_knee(
         "half_rise_count_ci_high": h_hi,
         "slope_below_knee_median": _med(slope_below),
         "slope_above_knee_median": _med(slope_above),
-        "increasing_frac": float(np.mean(increasing)),
+        "increasing_frac": increasing_frac,
+        # The derivative is a logit-scale contribution, never expected items: the
+        # items-scale maximum carries an extra p*(1-p) factor and can sit elsewhere.
+        "scale": "latent_logit",
+        "steepest_interval_index": modal_interval,
+        "steepest_interval_share": interval_share,
+        "boundary_pinned": boundary_pinned,
+        "prob_slope_above_gt_below": prob_curvature,
+        "knee_well_defined": well_defined,
         "obs_count_min": float(L.min()),
         "obs_count_max": float(L.max()),
         "ci_prob": float(ci_prob),
@@ -1709,19 +1787,28 @@ def readiness_threshold(
     ci_prob: float = 0.89,
     n_bins: int = 6,
 ) -> dict[str, float]:
-    """Readiness-threshold estimand: the steepest rise of a mechanism curve (#230 §2/§5).
+    """Steepest latent-logit interval of a mechanism curve (#230 §2/§5, #586 finding 1).
 
-    Post-processes an HSGP mechanism model's adjusted curve ``f_mech`` to locate its
-    steepest rise — the "knee", in the predictor's raw count units. For each posterior
-    draw the per-observation ``f_mech`` is binned over the observed predictor range
-    (quantile bins) and the steepest between-bin rise is found; the knee is that
-    interval's midpoint, giving a posterior over the knee location. Reports its median
-    + equal-tailed CI, a complementary half-rise summary, and the mean marginal slope
-    below vs above the knee (a "flat below, rising above" read). Note the knee is where
-    the outcome rises *fastest* — the middle of the rise, not its onset; for the
-    letter-sound -> word-reading mechanism (``lrp-rli-mech-058``) read it as "reading
-    rises fastest around ~k letter sounds", and let the below-knee slope say whether it
-    is near-flat before that.
+    Post-processes an HSGP mechanism model's adjusted curve ``f_mech`` to locate the
+    interval over which it rises fastest, in the predictor's raw count units. For each
+    posterior draw the per-observation ``f_mech`` is binned over the observed predictor
+    range (quantile bins) and the steepest between-bin rise is found; the reported
+    location is that interval's midpoint, giving a posterior over it. Reports its
+    median + equal-tailed CI, a complementary half-rise summary, and the mean marginal
+    slope below vs above it.
+
+    The derivative is on the outcome-**logit** scale (``f_mech`` is a logit
+    contribution), not the items scale: the expected-items derivative carries an extra
+    ``p * (1 - p)`` factor and its maximum can fall at a different exposure value. The
+    returned ``scale`` field records this.
+
+    A located interval is **not** by itself a threshold. ``knee_well_defined``
+    combines the net-rise share with a boundary check (an ``argmax`` on the first or
+    last interval is censored by the end of the observed range) and a local
+    slope-contrast probability (near 0.5 for a straight line). Read
+    ``increasing_frac``, ``boundary_pinned``, ``steepest_interval_share`` and
+    ``prob_slope_above_gt_below`` alongside the location; only call it a knee when
+    ``knee_well_defined`` is true.
 
     Pure post-processing (no re-fit): needs the ``f_mech`` posterior and the
     ``mech_post_logit`` constant-data node of a standard HSGP mechanism fit (e.g.
@@ -6331,6 +6418,68 @@ def _kf_build_joint(output_dir, config: Mapping) -> list[dict[str, str]]:
     return sentences
 
 
+def _kf_mechanism_shape_caveat(output_dir, config: Mapping) -> dict[str, str] | None:
+    """Qualify a nonlinear-shape or threshold claim the fit cannot support (#586).
+
+    Two separate reasons a shape reading may not survive, both of which the key
+    findings previously passed over in silence:
+
+    * the located steepest interval fails its qualification checks, so it is a
+      description of the fitted curve rather than a threshold (finding 1);
+    * power scaling flags a focal GP hyperparameter, so the shape is leaning on the
+      regularisation rather than the likelihood (finding 12). Mechanism fits are
+      exempt from the treatment-effect robustness gate because they are
+      observational — but that is about identification, not robustness.
+
+    Returns ``None`` for a linear fit (no shape is claimed) and for an HSGP fit that
+    is both qualified and unflagged.
+    """
+    plan = config.get("resolved_run_plan") or {}
+    if plan.get("linear_mechanism"):
+        return None
+    reasons: list[str] = []
+    readiness = _kf_csv_row(output_dir, "readiness_threshold.csv")
+    if readiness is not None:
+        if "knee_well_defined" not in readiness:
+            reasons.append(
+                "the steepest-interval summary predates the curvature and boundary "
+                "checks, so it is not evidence of a threshold"
+            )
+        elif not bool(readiness["knee_well_defined"]):
+            if bool(readiness.get("boundary_pinned")):
+                reasons.append(
+                    "the curve is steepest at the edge of the observed exposure "
+                    "range, so no threshold is located within the data"
+                )
+            else:
+                reasons.append(
+                    "the fitted curve does not bend clearly enough to locate a "
+                    "threshold"
+                )
+    psense = _kf_csv(output_dir, "psense_summary.csv")
+    if psense is not None and "diagnosis" in psense.columns and len(psense.columns):
+        names = psense[psense.columns[0]].astype(str)
+        # "✓" is this column's *clear* marker, so anything else is the flag.
+        flagged = psense[
+            names.str.startswith("f_mech__")
+            & ~psense["diagnosis"].astype(str).str.strip().isin(["✓", "", "nan"])
+        ]
+        if len(flagged):
+            reasons.append(
+                "power scaling flags the curve's own prior "
+                f"({', '.join(sorted(set(flagged[psense.columns[0]].astype(str))))}), "
+                "so its shape depends on the regularisation as well as the data"
+            )
+    if not reasons:
+        return None
+    return _kf_sentence(
+        "Read the strength and direction of this association, not its shape: "
+        + "; ".join(reasons)
+        + ".",
+        "note",
+    )
+
+
 def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
     """Adjusted mechanism curve, preferably using its items-scale end contrast."""
     outcome_label = _kf_outcome_label(config)
@@ -6397,11 +6546,16 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
         )
     sentences.append(
         _kf_sentence(
-            "The curve is an adjusted association between measured skills, not "
-            "evidence that changing one skill would cause the other to change.",
+            "The curve is an adjusted association between measured skills measured at "
+            "the same wave, not evidence that changing one skill would cause the other "
+            "to change; the child random intercept is not a control for general "
+            "ability.",
             "causal",
         )
     )
+    shape_caveat = _kf_mechanism_shape_caveat(output_dir, config)
+    if shape_caveat is not None:
+        sentences.append(shape_caveat)
     # Moderated (joint-readiness) mechanism models ask about gamma_int, not the
     # unmoderated curve, so headline it when present (#404 review): its median,
     # 50%/89% intervals and tail probability, on the logit scale. The unmoderated
@@ -6457,6 +6611,15 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
             # the causal sentence falling off the end (#464).
             causal = [s_ for s_ in sentences if s_.get("kind") == "causal"]
             context = _kf_mechanism_curve_context(summary, outcome_label)
+            # The shape caveat qualifies exactly the curve this context sentence
+            # reports, so it is folded into it rather than added as a sixth sentence
+            # that truncation would silently drop (#464 / #586).
+            if context is not None and shape_caveat is not None:
+                context = _kf_sentence(
+                    context["text"].rstrip(".") + ". " + shape_caveat["text"], "note"
+                )
+            elif context is None and shape_caveat is not None:
+                context = shape_caveat
             sentences = [
                 focal,
                 direction,
@@ -6577,8 +6740,22 @@ def _kf_moderation_items_sentence(
     items_dir = fav_items["favoured_direction"]
     label = fav_items["favoured_direction_label"]
     settled = label in ("moderate", "strong", "very strong")
+    # The items-scale result can only *corroborate or overturn the interpretation of*
+    # a fitted logit interaction — it cannot supply one. Checking the items evidence
+    # first let a settled items direction confirm a logit interaction whose own sign
+    # was undecided ("strong evidence that the synergy holds ... not an artefact" off
+    # P(gamma_int > 0) = 0.55), so the fitted coefficient is now the gate (#586
+    # finding 7). Latent when found — no stored fit paired an inconclusive gamma_int
+    # with settled items evidence — but the ordering was wrong either way.
+    logit_settled = fav_logit["favoured_direction_label"] != "inconclusive"
     pattern = "synergy" if fav_logit["favoured_direction"] == "positive" else "substitution"
-    if settled and items_dir == fav_logit["favoured_direction"]:
+    if not logit_settled:
+        verdict = (
+            "the fitted logit-scale interaction is itself directionally inconclusive, "
+            f"so neither scale supports a {pattern} reading — the items figures "
+            "describe the fitted surface, they do not settle the interaction"
+        )
+    elif settled and items_dir == fav_logit["favoured_direction"]:
         verdict = (
             f"{label} evidence that the {pattern} holds in items too, so it is not "
             "an artefact of the bounded scale"
@@ -6588,8 +6765,6 @@ def _kf_moderation_items_sentence(
             f"{label} evidence that the pattern reverses in items, so the "
             f"logit-scale {pattern} is the bounded scale at work"
         )
-    elif fav_logit["favoured_direction_label"] == "inconclusive":
-        verdict = "the direction is inconclusive on both scales"
     else:
         verdict = (
             f"on the items scale the direction is {label}, so the logit-scale "

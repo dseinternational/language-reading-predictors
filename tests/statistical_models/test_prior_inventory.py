@@ -132,6 +132,22 @@ def _representative_models(tmp_path) -> dict[str, object]:
         allp, mechanism_symbol="L", outcome_symbol="B",
         confounder_symbols=("G", "A"), linear_mechanism=True,
     ).model
+    # The tight-lengthscale (InverseGamma(8, 8)) opt-in taken by 16 of the 20
+    # registered HSGP mechanism fits, and the continuous-covariate exposure form.
+    # Neither was in the fixture, so nothing caught the lengthscale panel/rationale
+    # drift (#586 finding 3).
+    models["mechanism_tight"] = build_mechanism_model(
+        allp, mechanism_symbol="L", outcome_symbol="W",
+        confounder_symbols=("G", "A"), mech_hsgp_m=6,
+        mech_lengthscale_prior=priors.ell_prior_mech_tight(),
+    ).model
+    models["mechanism_covariate"] = build_mechanism_model(
+        load_and_prepare(
+            path=p, phase_mode="all", outcomes=("W",), covariates=("attend",)
+        ),
+        mechanism_symbol="attend", outcome_symbol="W",
+        confounder_symbols=("G", "A"), mechanism_is_covariate=True,
+    ).model
 
     dosep = load_and_prepare(
         path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul")
@@ -522,6 +538,31 @@ def _labelled(model, *, kind, extra=None, outcome_symbol="W"):
             resolved_plan=resolve_itt_run_plan(spec),
             model=model,
         )
+    elif kind == "mechanism":
+        # The mechanism branch reads its lengthscale constructor off the resolved
+        # run plan rather than the RV-name suffix (#586 finding 3), so the fixture
+        # must hand it a real spec + plan the way the pipeline does.
+        from language_reading_predictors.statistical_models.context import ModelSpec
+        from language_reading_predictors.statistical_models.mechanism import (
+            resolve_mechanism_run_plan,
+        )
+
+        _extra = dict(extra or {})
+        baseline = _extra.get("adjust_baseline_symbol", "W")
+        spec = ModelSpec(
+            model_id="lrp-test-mech-prior",
+            kind="mechanism",
+            title="t",
+            outcome_symbol=outcome_symbol,
+            mechanism_symbol=_extra.pop("_mechanism_symbol", "L"),
+            adjustment=["G", "A", f"{baseline}_pre"],
+            extra=_extra,
+        )
+        ctx = SimpleNamespace(
+            spec=spec,
+            resolved_plan=resolve_mechanism_run_plan(spec),
+            model=model,
+        )
     else:
         spec = SimpleNamespace(kind=kind, extra=extra or {}, outcome_symbol=outcome_symbol)
         ctx = SimpleNamespace(spec=spec, model=model)
@@ -589,6 +630,66 @@ def test_mechanism_beta_G_and_ell_rationales(built_models):
     for r in ell:
         assert r["distribution"] == "InverseGamma(5, 5)"
         assert "InverseGamma(5, 5)" in r["rationale"]  # not the IG(3, 1) default doc
+
+
+@pytest.mark.parametrize(
+    ("fixture", "extra", "outcome", "expected"),
+    [
+        ("mechanism", {}, "W", "InverseGamma(5, 5)"),
+        (
+            "mechanism_tight",
+            {"mech_hsgp_m": 6, "mech_lengthscale_tight": True},
+            "W",
+            "InverseGamma(8, 8)",
+        ),
+        (
+            "mechanism_covariate",
+            {"outcomes": ("W",), "mechanism_is_covariate": True,
+             "_mechanism_symbol": "attend"},
+            "W",
+            "InverseGamma(5, 5)",
+        ),
+    ],
+)
+def test_mechanism_lengthscale_panel_matches_the_fitted_rv(
+    built_models, fixture, extra, outcome, expected
+):
+    """The PyMC RV, distribution column, rationale and density panel must agree.
+
+    Before #586 finding 3 the ``__ell`` name suffix routed every mechanism
+    lengthscale to the shared ``ell`` constructor: the panel plotted
+    ``InverseGamma(3, 1)``, the rationale hard-coded ``InverseGamma(5, 5)`` and only
+    the distribution column (read off the RV) was right — so all 20 HSGP mechanism
+    reports displayed a density their model never fitted, and the 16 tight fits
+    contradicted their own row.
+    """
+    by = _labelled(built_models[fixture], kind="mechanism", extra=extra,
+                   outcome_symbol=outcome)
+    rows = [r for n, r in by.items() if n.endswith("__ell")]
+    assert rows, f"{fixture}: mechanism HSGP lengthscale row missing"
+    for row in rows:
+        assert row["distribution"] == expected
+        assert expected in row["rationale"]
+        # ``panel`` is the constructor key ``save_shared_prior_panel`` plots, so
+        # reconciling it with the RV closes the last leg of the loop.
+        panel_ctor = priors.ALL_PRIORS[row["panel"]]
+        assert priors._dist_from_doc(panel_ctor) == expected
+
+
+def test_linear_mechanism_registers_no_lengthscale(built_models):
+    """A linear-mechanism fit builds no GP, so it must panel no lengthscale at all.
+
+    21 of the 41 registered mechanism specifications are linear; the shared report
+    nonetheless described every one of them as an HSGP curve (#586 finding 3).
+    """
+    by = _labelled(
+        built_models["mechanism_linear"],
+        kind="mechanism",
+        extra={"linear_mechanism": True, "outcomes": ("W", "L", "B")},
+        outcome_symbol="B",
+    )
+    assert not [n for n in by if n.endswith("__ell") or n.endswith("__eta")]
+    assert "beta_mech" in by
 
 
 def test_aligned_beta_cohort_is_not_a_treatment_effect(built_models):

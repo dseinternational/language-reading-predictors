@@ -30,7 +30,7 @@ main effect — a clean **nested** comparison.
 The purpose is model comparison: LRP61 versus LRP61base asks whether adding the letter-sound
 $\times$ blending interaction improves predictive fit for word reading (PSIS-LOO). Because
 blending $B = \mathrm{PA}$ is a DAG-descendant of the exposure $L$, both models estimate a
-**controlled-direct** $L \to W$ effect at fixed blending, so the comparison is like-for-like. All
+controlled-direct-**shaped** $L \to W$ association at fixed blending — an adjusted association, not an identified controlled direct effect (#586 finding 10) — so the comparison is like-for-like. All
 coefficients are latent-GA-confounded adjusted associations, not causal skill-to-skill effects.
 
 ## Model

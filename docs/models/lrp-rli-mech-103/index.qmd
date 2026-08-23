@@ -66,10 +66,10 @@ session-dose backdoor.
 
 ### Interpretation caveats
 
-- *No unmeasured confounder assumption* for $(SP_{\text{post}}, N_{\text{post}})$: strong and not testable — latent general ability is only partially proxied by the child intercept.
+- *No unmeasured confounder assumption* for $(SP_{\text{post}}, N_{\text{post}})$: strong and not testable — latent general ability is not adjusted for. The child random intercept does not proxy it: it models repeated-measures dependence under an independence assumption, is not permitted to correlate with the exposure, and does not separate a child's mean exposure from their within-child deviation.
 - Speech production is measured with error; non-negligible error attenuates the slope toward zero.
 - Dropping unmeasured-exposure rows assumes the missingness is unrelated to the association being estimated (missing-at-random given the adjusters); the fitted row count is reported in `config.json`.
-- The heavy nonword-reading floor limits outcome variance in the early waves; across-phase pooling assumes a stable structural relationship (a phase-specific sensitivity fit is available via the `phase_specific_mechanism` flag).
+- The heavy nonword-reading floor limits outcome variance in the early waves; across-phase pooling assumes a stable structural relationship, and one common arm coefficient assumes a stable residual group contrast. No phase-specific fit is available: `phase_specific_mechanism` is rejected during run-plan resolution until the pipeline's artefacts are phase-aware. Read the exposure-support table by period and arm instead.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 

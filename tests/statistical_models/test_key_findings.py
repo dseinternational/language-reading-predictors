@@ -2541,7 +2541,31 @@ def test_mechanism_moderation_items_verdicts_follow_the_evidence_ladder(tmp_path
         ),
     )
     text2 = generate_key_findings(d2)["sentences"][2]["text"]
-    assert "the direction is inconclusive on both scales" in text2
+    assert "directionally inconclusive" in text2
+    assert "neither scale supports" in text2
+
+
+def test_settled_items_cannot_confirm_an_inconclusive_logit_interaction(tmp_path):
+    """The fitted coefficient gates the interpretation, not the items re-expression.
+
+    Before #586 finding 7 the ``settled`` items branches were checked *first*, so
+    ``P(gamma_int > 0) = 0.55`` paired with an items-scale probability of 0.97
+    produced "strong evidence that the synergy holds ... not an artefact of the
+    bounded scale" — a confirmation of an interaction whose own sign was undecided.
+    """
+    d = _moderated_mechanism_dir(tmp_path, prob_gamma_int_pos=0.55)
+    _write_rows(
+        d,
+        "moderation_items.csv",
+        _moderation_items_rows(
+            interaction={"median": 1.4, "lo": 0.2, "hi": 2.7, "prob_pos": 0.97}
+        ),
+    )
+    text = generate_key_findings(d)["sentences"][2]["text"]
+    assert "holds in items too" not in text
+    assert "not an artefact" not in text
+    assert "directionally inconclusive" in text
+    assert "they do not settle the interaction" in text
 
 
 def test_mechanism_findings_without_interaction_are_unchanged(tmp_path):

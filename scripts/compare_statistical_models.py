@@ -125,8 +125,11 @@ PHONICS_LOO_IDS: list[str] = ["lrp-rli-mech-072", "lrp-rli-mech-172"]
 
 # Joint-readiness on WORD READING (#404): each L x code-route interaction model vs its
 # no-interaction baseline, same W outcome -- clean nested PSIS-LOO tests of the L x B and
-# L x N interactions. Both moderators are DAG-descendants of L (controlled-direct estimand),
-# so each interaction/baseline pair is like-for-like. Distinct from PHONICS_LOO_IDS (decoding).
+# L x N interactions. Each interaction/baseline pair is like-for-like (the same rows and
+# likelihood, differing by gamma_int alone). Both moderators are DAG-descendants of L, so
+# conditioning on them does NOT yield a controlled direct effect: that reading needs causal
+# assumptions this family disclaims, and the quantity is an adjusted association like every
+# other coefficient here (#586 finding 10). Distinct from PHONICS_LOO_IDS (decoding).
 JOINT_READINESS_LXB_W_LOO_IDS: list[str] = ["lrp-rli-mech-061", "lrp-rli-mech-161"]
 JOINT_READINESS_LXN_W_LOO_IDS: list[str] = ["lrp-rli-mech-063", "lrp-rli-mech-163"]
 
@@ -730,11 +733,24 @@ def tau_forest(config: str, out_path: str) -> bool:
 def _mechanism_slope_distribution(
     trace: xr.DataTree, mech_logit: np.ndarray
 ) -> np.ndarray:
-    """Posterior draws of the average slope of ``f_mech`` over ``mech_logit``.
+    """Posterior draws of a curve model's average slope, comparable to ``beta_mech``.
 
-    Uses ``np.gradient`` per draw along the sorted grid and averages across
-    the grid, returning a 1-D array of per-draw mean slopes. Input arrays
-    must be aligned (one row of ``f_mech`` per ``mech_logit`` entry).
+    **Estimand.** The *fitted-row average derivative*: the secant slope of ``f_mech``
+    at each fitted observation's exposure, averaged over the fitted rows. This is the
+    curve analogue of the linear models' ``beta_mech``, which is likewise a
+    per-fitted-row quantity, so the two are commensurable on one axis.
+
+    The previous implementation dropped rows at duplicate exposures and then took an
+    unweighted ``np.gradient`` mean over the surviving *unique* grid (#586 finding 6).
+    That is neither a fitted-row average nor an interval-weighted one: on a bounded
+    count measure many children share an exposure value, so deduplication silently
+    reweighted the average toward sparsely-populated regions of the range — exactly
+    the regions where an HSGP curve is least constrained. Derivatives are still
+    computed on the unique sorted grid (``np.gradient`` needs strictly increasing
+    ``x``), but they are then mapped back to every fitted row before averaging, so
+    each observation counts once.
+
+    Input arrays must be aligned (one row of ``f_mech`` per ``mech_logit`` entry).
     """
     if "f_mech" not in trace.posterior:
         raise ValueError("Trace has no f_mech variable.")
@@ -742,18 +758,22 @@ def _mechanism_slope_distribution(
     f = trace.posterior["f_mech"].stack(sample=("chain", "draw")).values  # (n, S)
 
     order = np.argsort(mech_logit)
-    x = mech_logit[order]
+    x_sorted = mech_logit[order]
     f_ord = f[order]
 
-    # Drop rows with duplicate x (np.gradient requires monotone x).
-    keep = np.concatenate([[True], np.diff(x) > 0])
-    x = x[keep]
-    f_ord = f_ord[keep]
+    # Derivatives on the unique grid (np.gradient requires strictly increasing x).
+    keep = np.concatenate([[True], np.diff(x_sorted) > 0])
+    x_unique = x_sorted[keep]
+    if x_unique.size < 2:
+        raise ValueError("Fewer than two distinct exposure values; no slope defined.")
+    f_unique = f_ord[keep]
+    grad = np.gradient(f_unique, x_unique, axis=0)  # (n_unique, S)
 
-    # per-draw gradient over the unique grid, then mean.
-    grad = np.gradient(f_ord, x, axis=0)  # (n, S)
-    slopes = grad.mean(axis=0)  # (S,)
-    return slopes
+    # Map each fitted row onto its grid point, so ties count once per observation
+    # rather than once per distinct value.
+    row_index = np.searchsorted(x_unique, mech_logit)
+    row_index = np.clip(row_index, 0, x_unique.size - 1)
+    return grad[row_index].mean(axis=0)  # (S,)
 
 
 def mechanism_forest(config: str, out_path: str) -> bool:
@@ -780,11 +800,27 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     """
     labels: list[str] = []
     shapes: list[str] = []
-    means: list[float] = []
+    medians: list[float] = []
     los: list[float] = []
     his: list[float] = []
+    gates: list[str] = []
+    model_ids: list[str] = []
 
     for model_id, sym in MECH_IDS:
+        # Fail closed on the convergence gate, like every other comparison in this
+        # script. This forest loaded whatever trace it found and wrote no gate
+        # column, so a REVIEW fit would have entered it unmarked — against the rule
+        # ``_gate_status`` states in terms (#586 finding 6). The stored mech-056/057/
+        # 058 traces all pass, so no published forest was wrong; the implementation
+        # was simply fail-open.
+        gate = _gate_status(model_id, config)
+        if gate != "PASS":
+            print(
+                f"[warn] {model_id}: convergence gate {gate}; the mechanism forest "
+                "is abandoned rather than published with an unmarked or missing "
+                "model."
+            )
+            return False
         nc = os.path.join(_run_dir(model_id, config), "trace.nc")
         if not os.path.exists(nc):
             return False
@@ -830,12 +866,16 @@ def mechanism_forest(config: str, out_path: str) -> bool:
             )
             continue
 
-        means.append(float(np.mean(slopes)))
+        # Median first, the house convention (METHODS.md); this forest reported the
+        # posterior mean (#586 finding 6).
+        medians.append(float(np.median(slopes)))
         # 89% equal-tailed band (house standard).
         los.append(float(np.quantile(slopes, 0.055)))
         his.append(float(np.quantile(slopes, 0.945)))
         labels.append(f"{model_id} ({sym}->W, {shape})")
         shapes.append(shape)
+        gates.append(gate)
+        model_ids.append(model_id)
 
     if not labels:
         return False
@@ -843,9 +883,9 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     y = np.arange(len(labels))
     plt.figure(figsize=(7, 3.5))
     plt.errorbar(
-        means,
+        medians,
         y,
-        xerr=[np.array(means) - np.array(los), np.array(his) - np.array(means)],
+        xerr=[np.array(medians) - np.array(los), np.array(his) - np.array(medians)],
         fmt="o",
         color="#1f77b4",
         capsize=3,
@@ -854,20 +894,31 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     plt.gca().invert_yaxis()
     plt.axvline(0.0, color="k", lw=0.75, ls="--")
     plt.xlabel("Mechanism slope (outcome logit per SD of the mechanism logit)")
-    plt.title("Mechanism-model slopes — curve models as the average gradient")
+    plt.title("Mechanism-model slopes — curve models as the fitted-row average slope")
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
 
     # Also write the underlying numbers. Record the config so a dev-config rerun
-    # does not silently masquerade as the reporting-config artefact, and the shape
-    # so a reader knows which rows are an average gradient and which a coefficient.
+    # does not silently masquerade as the reporting-config artefact, the shape so a
+    # reader knows which rows are an average slope and which a coefficient, the gate
+    # verdict behind every included row, and the estimand each row reports.
     pd.DataFrame(
         {
             "config": config,
+            "model_id": model_ids,
             "model": labels,
             "mechanism_shape": shapes,
-            "slope_mean": means,
+            "converged": [g == "PASS" for g in gates],
+            "gate_status": gates,
+            "estimand": [
+                "beta_mech coefficient (outcome logit per SD of the exposure logit)"
+                if s == "linear"
+                else "fitted-row average slope of f_mech, rescaled to per SD of the "
+                "exposure logit"
+                for s in shapes
+            ],
+            "slope_median": medians,
             "slope_lo": los,
             "slope_hi": his,
         }
@@ -1574,13 +1625,46 @@ def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
 
 
 def mechanism_loo_compare(config: str, out_path: str) -> bool:
-    """LOO comparison of the LRP58 baseline against its interaction extensions."""
-    return _loo_compare(LOO_COMPARE_IDS, config, out_path)
+    """LOO comparison of the LRP58 baseline against the LRP71 moderator extension.
+
+    **Joint, not interaction-isolating.** LRP71 adds *both* the moderator main effect
+    ``gamma_mod`` and the exposure-by-moderator product ``gamma_int`` over LRP58, so
+    this pair tests their joint addition; it is not a nested test of the interaction
+    alone. The pairs that do isolate an interaction each have a matched
+    main-effect-only baseline (mech-072/172, mech-061/161, mech-063/163, mech-104/204).
+    For the interaction on its own here, read ``gamma_int``'s posterior instead
+    (#586 finding 13).
+    """
+    if not _loo_compare(LOO_COMPARE_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(
+        out_path,
+        LOO_COMPARE_IDS,
+        config,
+        note=(
+            "Joint comparison: lrp-rli-mech-071 adds both the moderator main effect "
+            "(gamma_mod) and the exposure-by-moderator interaction (gamma_int) over "
+            "lrp-rli-mech-058, so this tests their joint addition and does not "
+            "isolate the interaction. Read gamma_int's posterior for that."
+        ),
+    )
+    return True
 
 
 def phonics_route_loo_compare(config: str, out_path: str) -> bool:
     """LOO comparison of LRP72 against its no-interaction baseline (isolates L x B)."""
-    return _loo_compare(PHONICS_LOO_IDS, config, out_path)
+    if not _loo_compare(PHONICS_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(
+        out_path,
+        PHONICS_LOO_IDS,
+        config,
+        note=(
+            "Nested comparison: lrp-rli-mech-172 is lrp-rli-mech-072 with "
+            "include_interaction=False, so the pair differs by gamma_int alone."
+        ),
+    )
+    return True
 
 
 def lcsm_reverse_coupling_loo_compare(config: str, out_path: str) -> bool:
@@ -1627,6 +1711,7 @@ def _copy_compare_beside_runs(
     ids: list[str],
     config: str,
     filename: str = "mechanism_loo_compare.csv",
+    note: str | None = None,
 ) -> None:
     """Copy a written comparison CSV beside each paired run.
 
@@ -1636,13 +1721,23 @@ def _copy_compare_beside_runs(
     but writes the generic ``mechanism_loo_compare.csv`` name that
     ``_results_mechanism.qmd`` already looks up first — so no per-family lookup is
     needed in the partial. Each of the two paired reports (interaction + baseline)
-    therefore shows their shared nested comparison."""
+    therefore shows their shared nested comparison.
+
+    ``note`` records what the pair actually differs by, as a ``comparison_note``
+    column the report renders verbatim. Not every registered pair isolates one
+    coefficient — mech-058/071 differ by a moderator main effect *and* its
+    interaction — so the reader has to be told which comparison they are reading
+    (#586 finding 13)."""
     for model_id in ids:
         run_dir = _run_dir(model_id, config)
         if os.path.isdir(run_dir):
             destination = os.path.join(run_dir, filename)
             if os.path.abspath(out_path) != os.path.abspath(destination):
                 shutil.copyfile(out_path, destination)
+            if note:
+                table = pd.read_csv(destination)
+                table["comparison_note"] = note
+                table.to_csv(destination, index=False)
 
 
 def joint_readiness_lxb_w_loo_compare(config: str, out_path: str) -> bool:
