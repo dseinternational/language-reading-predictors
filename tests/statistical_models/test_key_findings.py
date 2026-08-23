@@ -1244,8 +1244,14 @@ def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
     # partial must print it only for a fit that actually has the term (#389 finding 1).
     text = (REPO / "docs/models/_partials/_results_factors.qmd").read_text(encoding="utf-8")
     assert 'factor_summary.term == "gamma_grp_ability"' in text
-    assert "at mean ability" in text
+    # The moderation convention is stated to the reader ("centred ability" is the
+    # standardised scale's "mean ability", the wording the docstring uses too).
+    assert "held at centred ability" in text
     assert "notes/202606261230-gain-level-factors-design.md" in text
+    # #584 decision 1: the partial states the arm-free standardisation, and says why
+    # removing the balance term is what makes the two arms comparable.
+    assert "arm-free standardised" in text
+    assert "notes/202608231800-level-factors-584-decisions.md" in text
     # #552: the partial reads the focal term from the persisted plan rather than
     # hard-coding b_grp_time[1], and fences the balance / levels-view roles off
     # from the adjusted-associations table.

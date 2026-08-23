@@ -585,3 +585,49 @@ def test_validate_prepared_rejects_an_unsupported_wave():
     plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
     with pytest.raises(ValueError, match=r"t4 rows.*both randomised arms.*\[\]"):
         plan.validate_prepared(_toy_prepared(empty_wave=3))
+
+
+# --- the published natural-scale target (#584 decision 1) ---------------------
+
+
+def test_plan_records_the_arm_free_standardised_estimand():
+    """The stored plan must state which natural-scale quantity the card is, with
+    its population, random-effect and moderation conventions, rather than leaving
+    a reader to infer them from whichever reporting code is current."""
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    assert plan.standardisation_balance_term == "arm_gap_t1"
+    recorded = plan.as_dict()["natural_scale_estimand"]
+    assert recorded.startswith("Arm-free standardised items-scale average marginal")
+    assert "d_grp_time[t2]" in recorded
+    assert "fitted t2 children" in recorded
+    assert "each child's own posterior intercept" in recorded
+    assert "centred ability" in recorded
+    assert plan.as_dict()["standardisation_balance_term"] == "arm_gap_t1"
+
+
+def test_free_comparator_has_no_separate_balance_term_to_standardise():
+    """Under the free parameterisation the focal `b_grp_time[1]` IS the whole t2
+    arm gap, so there is nothing else to net out and the decision does not move
+    that comparator's card."""
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), arm_gap_reference="free")
+    )
+    assert plan.standardisation_balance_term is None
+    assert plan.as_dict()["standardisation_balance_term"] is None
+
+
+def test_offfloor_plan_states_the_risk_difference_target():
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), likelihood="bernoulli_offfloor")
+    )
+    assert plan.natural_scale_estimand.startswith(
+        "Arm-free standardised off-floor risk difference"
+    )
+
+
+def test_pooled_plan_publishes_no_natural_scale_target():
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), group_by_time=False, arm_gap_reference="free")
+    )
+    assert plan.natural_scale_estimand.startswith("none:")
+

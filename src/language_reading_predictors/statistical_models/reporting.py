@@ -4313,50 +4313,60 @@ def level_t2_marginal_effect(
     contrast_term: str = "b_grp_time",
     contrast_index: int | None = None,
     interaction_term: str = "gamma_grp_ability",
+    balance_term: str | None = None,
     ability: np.ndarray | None = None,
     eta_name: str = "eta",
     group: str = "posterior",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Per-draw t2 randomised contrast and its items-scale AME (LRPLF, #127).
+    """The t2 randomised contrast and its **arm-free standardised** AME (LRPLF, #127).
 
     The level model enters group as a per-timepoint vector because the trial is a
     waitlist crossover; **only the t2 element is a clean randomised contrast**
     (later timepoints are post-crossover associations). This isolates that one
     causal effect on the items scale.
 
+    **The estimand** (#584 finding 1, decided 2026-08-23 —
+    ``notes/202608231800-level-factors-584-decisions.md``): the average, over the
+    fitted t2 rows **each evaluated at its own arm-free profile**, of the effect of
+    the randomised t2 change in the adjusted arm gap. Per draw, the *whole* group
+    contribution is netted out of every t2 row to recover an arm-free baseline
+
+    ``eta0 = eta - (balance + contrast + gamma_grp_ability*ability) * G``
+
+    and only the focal contrast is added back:
+    ``mean_i [ expit(eta0_i + contrast) - expit(eta0_i) ]``. Each row keeps its own
+    age, ability main effect, adjusters and fitted child intercept, so the
+    standardisation population is the fitted t2 children and the random-effect
+    convention is each child's own posterior intercept — not an average child.
+
+    Until #584 the balance term was neither netted out nor added back, so the
+    immediate arm's rows were evaluated around ``z + arm_gap_t1`` while the waiting
+    arm's were evaluated around ``z``. That is a hybrid over *observed-arm*
+    operating points rather than a named estimand. Netting it out costs nothing
+    numerically (no stored fit moved by more than 0.04 items, and no direction
+    probability moved at all, because ``expit`` is near-linear over a shift that
+    small) and it makes the population one the report can state.
+
     ``contrast_term`` names the posterior vector carrying the randomised t2 element
     and ``contrast_index`` that element's position in it (default: ``t2_phase``,
     the position in a ``phase``-indexed vector). Under the t1-referenced arm-gap
-    parameterisation (#552) the caller passes ``contrast_term="d_grp_time"`` and
+    parameterisation (#552) the caller passes ``contrast_term="d_grp_time"``,
     ``contrast_index=0`` (the ``t2`` entry of the ``post_phase``-indexed change
-    vector): the balance term ``arm_gap_t1`` is neither netted out nor added
-    back — it enters the fitted predictor multiplied by ``G``, so it appears
-    only in the immediate arm's rows, and leaving it untouched keeps it in both
-    the with- and without-treatment predictions of each treated row, where it
-    cancels from the logit contrast — and only the t2 *change* is added back,
-    so the AME is the difference-in-differences contrast. Under the free
-    comparator the default ``b_grp_time`` / ``t2_phase`` reproduces the raw t2
-    gap.
+    vector) and ``balance_term="arm_gap_t1"``. Under the free comparator the focal
+    ``b_grp_time[1]`` *is* the whole t2 arm gap, so there is no separate balance
+    term to remove: the caller passes ``balance_term=None`` and the default
+    ``b_grp_time`` / ``t2_phase`` reproduces the raw t2 gap, unchanged by this
+    decision.
 
-    Unlike the gain family's single ``beta_trt * trt`` term, the level model's group
-    contribution at t2 is ``(contrast + gamma_grp_ability * ability) * G`` (plus,
-    under the t1 reference, the untouched balance term) — it also carries the
-    group×ability interaction — so the plain ``eta - term*G`` removal of
-    :func:`_itt_ame_draws` does not apply. Restricting to the t2 rows, per draw we
-    net out the focal contrast and the interaction to recover the untreated baseline
-    ``eta0 = eta - (contrast + gamma_grp_ability*ability)*G``, then add back
-    **only** the focal contrast at ``G=1`` and average ``expit(eta1) - expit(eta0)``
-    over the t2 rows. ``gamma_grp_ability`` is a single *time-invariant* coefficient
-    (identified mostly from the non-randomised t1/t3/t4 rows), so it is deliberately
-    excluded from this causal AME — the card is the clean randomised t2 effect **at
-    mean ability**; the group×ability moderation is reported separately, not folded
-    into the causal claim (issue #271 item 5). Under the t1 reference the same
-    time-invariance makes the interaction partly a baseline-composition quantity
-    (it exists at pre-randomisation t1, like the balance term that IS kept in
-    ``eta0``); netting it out of ``eta0`` anyway leaves the logit contrast
-    unchanged and only shifts the expit operating points of treated rows — a
-    second-order effect — and the wave-varying alternative belongs to the open
-    #389 finding 1 estimand review (2026-08-20 level-factors review, finding 2).
+    ``gamma_grp_ability`` is a single *time-invariant* coefficient (identified mostly
+    from the non-randomised t1/t3/t4 rows), so the moderation increment is held at
+    centred ability rather than folded into the causal card — the group×ability
+    moderation is reported separately (issue #271 item 5). Because the same focal
+    draw is added to every row, the card is a per-draw monotone transform of the
+    contrast: ``P(card > 0)`` equals ``P(contrast > 0)``, so the items median, the
+    direction probability and the ROPE cannot disagree with the coefficient the
+    report flags causal. A marginal response-scale difference-in-differences would
+    not have that property (#584 decision 1).
 
     Returns ``(contrast_draws, ame_prob)`` — the logit-scale focal-contrast draws
     ``(S,)`` (the term flagged causal in the report) and the probability-scale average
@@ -4398,28 +4408,37 @@ def level_t2_marginal_effect(
         )
     contrast_draws = bgt.isel({extra[0]: idx}).stack(sample=("chain", "draw")).values  # (S,)
 
-    # δ_i per t2 row and draw: the constant t2 contrast, plus the group×ability slope
-    # times each row's ability if the interaction is in the model.
+    # δ_i per t2 row and draw: the WHOLE group contribution — the balance term (when
+    # the parameterisation carries one), the focal t2 contrast, and the group×ability
+    # slope times each row's ability if the interaction is in the model.
     delta_rows = contrast_draws[None, :]  # (1, S)
+    if balance_term is not None:
+        if balance_term not in posterior:
+            raise ValueError(
+                f"balance_term {balance_term!r} is not in the {group} group; pass "
+                "the term the plan records (None under the free comparator)."
+            )
+        balance_draws = (
+            posterior[balance_term].stack(sample=("chain", "draw")).values.ravel()
+        )  # (S,)
+        delta_rows = delta_rows + balance_draws[None, :]
     if interaction_term in posterior and ability is not None:
         g_ab = posterior[interaction_term].stack(sample=("chain", "draw")).values.ravel()  # (S,)
         ab_t2 = np.asarray(ability, dtype=float)[mask]  # (m,)
-        delta_rows = contrast_draws[None, :] + np.outer(ab_t2, g_ab)  # (m, S)
+        delta_rows = delta_rows + np.outer(ab_t2, g_ab)  # (m, S)
 
     eta_t2 = eta[mask]  # (m, S)
     G_t2 = G[mask]  # (m,)
-    eta0 = eta_t2 - delta_rows * G_t2[:, None]  # untreated baseline at the t2 profile
-    # Restrict the causal card to the clean randomised main contrast at MEAN
-    # ability: ``gamma_grp_ability`` is a single time-invariant coefficient
-    # (identified mostly from the non-randomised t1/t3/t4 rows), so folding it into
-    # the t2 AME would borrow a non-randomised component and ~4×-attenuate any real
-    # t2 moderation. Net the focal contrast and the interaction out to recover the
-    # untreated baseline (under the t1 reference the balance term ``arm_gap_t1``
-    # is neither netted out nor added back, so it stays in both counterfactual
-    # predictions of each treated row — it is not part of the effect), but add
-    # back only the focal contrast (ability is standardised, so "mean ability"
-    # simply drops the interaction). The interaction is reported separately, not
-    # in the causal card (issue #271 item 5).
+    # Arm-free baseline for every t2 row (#584 decision 1): remove the complete group
+    # contribution, so a waiting-arm row and an immediate-arm row with the same
+    # covariates are evaluated at the same operating point. Then add back ONLY the
+    # focal contrast — the pre-randomisation balance term is a chance imbalance, not
+    # part of the effect, and ``gamma_grp_ability`` is one time-invariant coefficient
+    # identified mostly from the non-randomised waves, so the moderation increment is
+    # held at centred ability (ability is standardised, so that simply drops it). The
+    # interaction is reported separately, never folded into the causal card
+    # (issue #271 item 5).
+    eta0 = eta_t2 - delta_rows * G_t2[:, None]
     ame_prob = (expit(eta0 + contrast_draws[None, :]) - expit(eta0)).mean(axis=0)  # (S,)
     return contrast_draws, ame_prob
 
@@ -4434,6 +4453,7 @@ def level_prior_pushforward(
     ci_prob: float = 0.95,
     contrast_term: str = "b_grp_time",
     contrast_index: int | None = None,
+    balance_term: str | None = None,
 ) -> dict[str, float]:
     """Push the **prior** on the t2 group contrast through the items-scale AME (#389 finding 3).
 
@@ -4458,6 +4478,7 @@ def level_prior_pushforward(
         group="prior",
         contrast_term=contrast_term,
         contrast_index=contrast_index,
+        balance_term=balance_term,
     )
     return pushforward_values(
         contrast_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
@@ -5768,26 +5789,28 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         "waiting-list children had crossed over to the intervention — are "
         "associations."
     )
-    # The headline nets out the focal t2 contrast and the interaction and adds back
-    # only the focal contrast (d_grp_time[t2], or b_grp_time[1] under the free
-    # comparator), so the ability-dependent part of the benefit is held at mean
-    # ability — but every other feature of each fitted t2 row (its own age, ability
-    # main effect, adjusters and fitted child intercept) is retained and averaged
-    # over (#271 item 5; design note Decision 4). It is therefore an average across
-    # the fitted children at average ability-moderation, NOT a prediction for one
-    # typical child, which is what this sentence used to say (#584 finding 5).
+    # The headline nets out the WHOLE group contribution — balance term, focal
+    # contrast and moderation increment — and adds back only the focal contrast
+    # (#584 decision 1, the arm-free standardisation), so the ability-dependent part
+    # of the benefit is held at mean ability and both arms are read from the same
+    # starting point, while every other feature of each fitted t2 row (its own age,
+    # ability main effect, adjusters and fitted child intercept) is retained and
+    # averaged over (#271 item 5; design note Decision 4). It is therefore an average
+    # across the fitted children, NOT a prediction for one typical child, which is
+    # what this sentence used to say (#584 finding 5).
     # Appended to the causal sentence rather than added as a sixth: the box truncates
     # at KEY_FINDINGS_MAX_SENTENCES, and on a psense-flagged fit a sixth sentence
     # would silently drop this causal one — the least droppable of the set.
     if _kf_has_factor_term(output_dir, "gamma_grp_ability"):
         causal += (
             " That headline is an **average across the children in this "
-            "comparison** — each kept at their own age, ability and background — "
-            "with the part of the benefit that depends on ability held at the "
-            "average: the model does let the benefit differ by ability, but that "
-            "part is estimated partly from the timepoints that are not randomised, "
-            "so it is reported on its own below rather than folded into the "
-            "cause-and-effect figure."
+            "comparison** — each kept at their own age, ability and background, and "
+            "each read from the same starting point once the chance difference "
+            "between the arms is taken out — with the part of the benefit that "
+            "depends on ability held at the average: the model does let the benefit "
+            "differ by ability, but that part is estimated partly from the "
+            "timepoints that are not randomised, so it is reported on its own below "
+            "rather than folded into the cause-and-effect figure."
         )
     sentences.append(_kf_sentence(causal, "causal"))
     return sentences

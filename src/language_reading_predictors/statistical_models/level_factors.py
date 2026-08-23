@@ -29,11 +29,17 @@ risk-difference average marginal effect at the t2 rows. ``arm_gap_reference="fre
 keeps the former parameterisation (a free per-timepoint vector whose t2 element
 ``b_grp_time[1]`` is the focal raw gap) as an explicit comparator. Either way the
 other waves are post-crossover and every ability / interaction term is a
-latent-ability-confounded **adjusted association**, never a causal effect. The
-precise t2 estimand -- population-standardised average vs conditional-at-a-profile,
-and the treatment of the currently time-invariant ``group x ability`` term -- is the
-open methodological decision recorded in #389 finding 1; the prose below states the
-quantity as it is presently implemented and flags that review.
+latent-ability-confounded **adjusted association**, never a causal effect.
+
+The natural-scale target -- open through #389 finding 1 and #584 finding 1 -- was
+settled on 2026-08-23 (``notes/202608231800-level-factors-584-decisions.md``): the
+card is the **arm-free standardised** marginal effect, the average over the fitted
+t2 rows, each evaluated at its own arm-free profile, of adding the focal contrast
+alone. The standardisation population is the fitted t2 children, the random-effect
+convention is each child's own posterior intercept, and the time-invariant
+``group x ability`` increment is held at centred ability and reported separately.
+:meth:`LevelFactorsRunPlan.natural_scale_estimand` states it in the stored
+``config.json`` so no reader has to infer it from the reporting code.
 """
 
 from __future__ import annotations
@@ -234,8 +240,16 @@ class LevelFactorsRunPlan:
         return "y_offfloor" if self.off_floor else "y_post"
 
     def as_dict(self) -> dict[str, Any]:
-        """Return the JSON-ready run-plan contract for ``config.json``."""
-        return asdict(self)
+        """Return the JSON-ready run-plan contract for ``config.json``.
+
+        The derived natural-scale target rides along (#584 decision 1): it is a
+        property rather than a field because it is a statement *about* the settings,
+        but a stored fit must record which quantity its card is, not leave a reader
+        to infer it from whichever reporting code happens to be current."""
+        recorded = asdict(self)
+        recorded["natural_scale_estimand"] = self.natural_scale_estimand
+        recorded["standardisation_balance_term"] = self.standardisation_balance_term
+        return recorded
 
     def prepare_kwargs(self) -> dict[str, Any]:
         """Arguments for ``load_and_prepare`` from the resolved plan.
@@ -316,6 +330,48 @@ class LevelFactorsRunPlan:
             *self.coefficient_names(effective_adjustment=effective_adjustment),
             *tail,
         ]
+
+    @property
+    def standardisation_balance_term(self) -> str | None:
+        """The group term the natural-scale standardisation nets out beside the focal
+        contrast (#584 decision 1).
+
+        Under the t1-centred parameterisation the fitted group contribution at t2 is
+        ``(arm_gap_t1 + d_grp_time[t2] + gamma_grp_ability x ability) * G``, and the
+        card removes all of it before adding the focal contrast back, so both arms
+        are evaluated at the same arm-free operating point. Under the free
+        comparator the focal ``b_grp_time[1]`` *is* the whole t2 gap, so there is no
+        separate balance term to remove and this is ``None``."""
+        return "arm_gap_t1" if self.t1_referenced else None
+
+    @property
+    def natural_scale_estimand(self) -> str:
+        """The published natural-scale target, in words (#584 decision 1).
+
+        Recorded in ``config.json`` through :meth:`as_dict` so a stored fit states
+        the standardisation population, the random-effect convention and the
+        treatment of effect modification rather than leaving them to be inferred
+        from the reporting code."""
+        if self.focal_term is None:
+            return (
+                "none: a pooled group coefficient is not a randomised contrast, so "
+                "no natural-scale treatment effect is published for this plan"
+            )
+        scale = (
+            "off-floor risk difference"
+            if self.off_floor
+            else "items-scale average marginal effect"
+        )
+        return (
+            f"Arm-free standardised {scale} of {self.focal_term}: the average, over "
+            "the fitted timepoint-2 rows each evaluated at its own arm-free profile "
+            "(the complete group contribution netted out, each row keeping its own "
+            "age, ability, adjusters and fitted child intercept), of adding the "
+            "focal contrast alone. Standardisation population: the fitted t2 "
+            "children. Random-effect convention: each child's own posterior "
+            "intercept. Effect modification: the group x ability increment held at "
+            "centred ability and reported separately, never folded into the card."
+        )
 
     @property
     def nuisance_terms(self) -> tuple[str, ...]:
@@ -624,15 +680,16 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
             "optional group x ability term, and a non-centred child random intercept "
             "for the repeated observations."
         )
+    # The natural-scale target was open through #389 finding 1 and #584 finding 1;
+    # it was settled on 2026-08-23 (notes/202608231800-level-factors-584-decisions.md)
+    # and the plan now states it rather than flagging a review.
     review_clause = (
-        ""
-        if off_floor
-        else (
-            " The precise t2 estimand -- population-standardised average vs "
-            "conditional-at-a-profile, and the treatment of the currently "
-            "time-invariant group x ability term -- is under methodological review "
-            "(#389 finding 1; #584 finding 1)."
-        )
+        " The card is the arm-free standardised marginal effect: every fitted t2 "
+        "row is evaluated at its own arm-free profile -- the complete group "
+        "contribution netted out, each row keeping its own age, ability, adjusters "
+        "and fitted child intercept -- and only the focal contrast is added back, "
+        "with the group x ability increment held at centred ability and reported "
+        "separately (#584 decision 1)."
     )
     if focal_term is None:
         estimand = (

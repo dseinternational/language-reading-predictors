@@ -198,6 +198,9 @@ def _fit_cell(
         ability=ability,
         contrast_term=plan.focal_vector,
         contrast_index=plan.focal_index,
+        # The sweep's items columns must be the same functional the primary
+        # publishes (#584 decision 1), so it standardises the same way.
+        balance_term=plan.standardisation_balance_term,
     )
     lo_q = (1.0 - REPORTING_CI_PROB) / 2.0
     n_trials = 1 if plan.off_floor else int(MEASURES[outcome].n_trials)
