@@ -10,9 +10,15 @@ decomposition as the interventional direct and indirect effects (IDE/IIE).
 
 The interventional estimand avoids the cross-world counterfactual required by
 natural direct and indirect effects, so the treatment-induced common cause
-``IS`` (sessions) is not itself a recanting-witness obstruction. It does not make
-the result identified in this study: latent general ability still confounds the
-mediator-outcome relationship, and ``IS`` is not in the fitted model. Read the
+``IS`` (sessions) is not a recanting-witness obstruction to *defining* the
+target. It does not make the target identifiable here (#585 finding 2):
+identifying an interventional effect under an exposure-induced mediator-outcome
+confounder requires that confounder to be measured and integrated over -- within
+its treated distribution in the outcome leg and its control distribution in the
+mediator leg. ``IS`` is in neither leg, so this functional identifies the
+interventional estimand only under the same no-exposure-induced-confounding
+condition the natural version needs, and latent general ability still confounds
+the mediator-outcome relationship either way. Read the
 IDE/IIE as a weaker-assumption, model-based decomposition, not a causal route.
 
 In this fully parametric implementation the mediator is drawn from the same

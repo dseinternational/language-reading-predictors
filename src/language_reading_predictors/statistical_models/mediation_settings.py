@@ -17,6 +17,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 )
 
 __all__ = [
+    "BaselineTerm",
     "MediationModelSettings",
     "MediationMultiModelSettings",
     "MediationMultiRunPlan",
@@ -236,6 +237,95 @@ def _raw_covariates(confounders: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(symbol for symbol in confounders if symbol not in MEASURES)
 
 
+def _measure_confounders(confounders: tuple[str, ...]) -> tuple[str, ...]:
+    from language_reading_predictors.statistical_models.measures import MEASURES
+
+    return tuple(symbol for symbol in confounders if symbol in MEASURES)
+
+
+@dataclass(frozen=True, slots=True)
+class BaselineTerm:
+    """One t1 baseline regressor in a mediation leg's design matrix (#585).
+
+    The mediation g-formula integrates the outcome law over the mediator law
+    within levels of a **common** pre-exposure covariate vector ``C``. Before
+    #585 each leg received only its own measure's baseline: the mediator law
+    never saw the outcome baseline (which the lagged DAG makes a mediator-outcome
+    confounder via ``WR_t -> LS_t1``), and the outcome law never saw the mediator
+    baseline, even though ``tests/test_lagged_dag_adjustment_sets.py`` certifies
+    the *union*. ``BaselineTerm`` names the terms that restore the common vector
+    on each leg so the resolved plan, the factory and the counterfactual
+    simulator consume one list instead of reconstructing three.
+
+    ``form`` is a property of the measure in this fit, not of the leg: a measure
+    whose likelihood this model declares off-floor enters **every** leg as the
+    binary off-floor-at-baseline indicator, because a floored measure's baseline
+    logit is a near-degenerate spike wherever it appears (the project's
+    ``gamma_own_offfloor`` convention).
+    """
+
+    symbol: str
+    coefficient: str
+    form: Literal["logit", "offfloor"]
+    role: Literal["own", "cross"] = "cross"
+
+
+def _baseline_terms(
+    *,
+    prefix: str,
+    common: tuple[str, ...],
+    own_symbols: tuple[str, ...],
+    named: tuple[str, ...],
+    floored: frozenset[str],
+) -> tuple[BaselineTerm, ...]:
+    """Cross-leg baseline terms this leg is missing from the common vector.
+
+    ``own_symbols`` already carry a leg-specific own-baseline coefficient and
+    ``named`` the legacy ``a_<symbol>`` / ``b_<symbol>`` confounder coefficients,
+    so both are skipped: only genuinely absent members of ``common`` produce a
+    term. New coefficients are prefixed ``<leg>_base_`` so they cannot collide
+    with the legacy names (notably the hard-coded outcome own-baseline ``b_W``,
+    which the reverse-direction models MED-176/276 would otherwise clash with).
+    """
+    skip = set(own_symbols) | set(named)
+    return tuple(
+        BaselineTerm(
+            symbol=symbol,
+            coefficient=(
+                f"{prefix}_base_{symbol}_offfloor"
+                if symbol in floored
+                else f"{prefix}_base_{symbol}"
+            ),
+            form="offfloor" if symbol in floored else "logit",
+        )
+        for symbol in common
+        if symbol not in skip
+    )
+
+
+def _validate_load_set(
+    *,
+    model_id: str,
+    required: tuple[str, ...],
+    outcomes: tuple[str, ...] | None,
+) -> tuple[str, ...]:
+    """Fail before any I/O when a modelled measure would not be loaded (#585).
+
+    Returns the resolved load set. A declared bounded-measure confounder that is
+    absent from ``outcomes`` used to be filtered out silently after preparation
+    (MED-060 lost ``E`` and ``R`` this way, and ``dropped_confounders`` compared
+    only raw covariates, so nothing recorded the loss).
+    """
+    load = tuple(outcomes) if outcomes is not None else ITT_OUTCOMES
+    missing = [symbol for symbol in required if symbol not in load]
+    if missing:
+        raise ValueError(
+            f"{model_id}: modelled measure(s) {', '.join(missing)} are declared "
+            f"but not loaded; add them to outcomes={load!r}"
+        )
+    return load
+
+
 @dataclass(frozen=True, slots=True)
 class MediationRunPlan:
     """Concrete instructions for one single-mediator pipeline entry point."""
@@ -256,6 +346,21 @@ class MediationRunPlan:
     declared_confounders: tuple[str, ...]
     effective_confounders: tuple[str, ...]
     raw_covariates: tuple[str, ...]
+    #: Measures whose t1 value must enter BOTH legs (the g-formula's ``C``; #585).
+    common_baselines: tuple[str, ...]
+    #: Common-vector terms the mediator leg was missing before #585.
+    mediator_cross_baselines: tuple[BaselineTerm, ...]
+    #: Common-vector terms the outcome leg was missing before #585.
+    outcome_cross_baselines: tuple[BaselineTerm, ...]
+    #: Functional form of the outcome leg's OWN baseline. ``"offfloor"`` restores
+    #: the binary off-floor-at-baseline indicator the off-floor outcome leg used
+    #: to drop entirely (#585 finding 4), so the sample rule and the likelihood
+    #: finally require the same measurements.
+    outcome_own_baseline_form: Literal["logit", "offfloor"]
+    #: Measures whose baseline the fitted legs actually use — the resolved
+    #: complete-case rule, so an unused loaded measure cannot silently exclude a
+    #: child (#585 finding 4).
+    pre_required: tuple[str, ...]
     observation_nodes: tuple[str, ...]
     compute_loo: bool
     design: str
@@ -283,16 +388,19 @@ class MediationRunPlan:
                 "outcome_time": self.outcome_time,
                 "outcomes": self.outcomes or ITT_OUTCOMES,
                 "covariates": self.raw_covariates,
+                "pre_required": self.pre_required,
             }
+        # ``pre_required`` is always passed now (#585 finding 4): the loader's
+        # default requires every LOADED outcome's baseline, so a measure the legs
+        # never model used to shrink the fitted sample.
         kwargs: dict[str, Any] = {
             "phase_mode": "itt",
             "covariates": self.raw_covariates,
+            "pre_required": self.pre_required,
+            "drop_missing_pre": self.drop_missing_pre,
         }
         if self.outcomes is not None:
-            kwargs.update(
-                outcomes=self.outcomes,
-                drop_missing_pre=self.drop_missing_pre,
-            )
+            kwargs.update(outcomes=self.outcomes)
         return kwargs
 
     def period_prepare_kwargs(self) -> dict[str, Any]:
@@ -307,12 +415,16 @@ class MediationRunPlan:
             for symbol in self.declared_confounders
             if symbol not in self.raw_covariates
         )
+        outcomes = tuple(
+            dict.fromkeys((self.outcome_symbol, self.mediator_symbol, *measures))
+        )
         return {
             "phase_mode": "all",
-            "outcomes": (self.outcome_symbol, self.mediator_symbol, *measures),
+            "outcomes": outcomes,
             "covariates": pre_covariates,
             "post_covariates": post_covariates,
             "baseline_covariates": baseline_covariates,
+            "pre_required": self.pre_required,
         }
 
     def factory_kwargs(self) -> dict[str, Any]:
@@ -323,6 +435,8 @@ class MediationRunPlan:
             "mediator_kind": self.mediator_kind,
             "route_symbols": self.route_symbols,
             "outcome_kind": self.outcome_kind,
+            "mediator_cross_baselines": self.mediator_cross_baselines,
+            "outcome_cross_baselines": self.outcome_cross_baselines,
         }
 
     def period_factory_kwargs(self) -> dict[str, Any]:
@@ -330,6 +444,8 @@ class MediationRunPlan:
             "mediator_symbol": self.mediator_symbol,
             "outcome_symbol": self.outcome_symbol,
             "confounder_symbols": self.effective_confounders,
+            "mediator_cross_baselines": self.mediator_cross_baselines,
+            "outcome_cross_baselines": self.outcome_cross_baselines,
         }
 
     def recipe_markdown(self, *, title: str) -> str:
@@ -345,6 +461,13 @@ class MediationRunPlan:
             population=self.analysis_population,
             missing=self.missing_data_assumption,
             terms=(
+                f"Common baseline vector C (both legs): "
+                f"{', '.join(self.common_baselines) or 'none'}. Mediator-leg "
+                f"cross baselines: "
+                f"{', '.join(t.coefficient for t in self.mediator_cross_baselines) or 'none'}. "
+                f"Outcome-leg cross baselines: "
+                f"{', '.join(t.coefficient for t in self.outcome_cross_baselines) or 'none'}. "
+                f"Baselines required complete-case: {', '.join(self.pre_required)}. "
                 f"Declared confounders: {', '.join(self.declared_confounders) or 'none'}. "
                 f"Active confounders: {', '.join(self.effective_confounders) or 'none'}. "
                 f"Mediator likelihood: {self.mediator_kind}; outcome likelihood: "
@@ -370,6 +493,17 @@ class MediationMultiRunPlan:
     effective_confounders: tuple[str, ...]
     raw_covariates: tuple[str, ...]
     loaded_covariates: tuple[str, ...]
+    #: Measures whose t1 value must enter EVERY leg (the g-formula's ``C``; #585).
+    common_baselines: tuple[str, ...]
+    #: Per-mediator-leg common-vector terms missing before #585, keyed by mediator.
+    mediator_cross_baselines: dict[str, tuple[BaselineTerm, ...]]
+    #: Common-vector terms the outcome leg was missing before #585.
+    outcome_cross_baselines: tuple[BaselineTerm, ...]
+    #: Functional form of the second mediator's OWN baseline (``"offfloor"``
+    #: restores the indicator the off-floor mediator leg used to drop; #585).
+    second_mediator_own_baseline_form: Literal["logit", "offfloor"]
+    #: Resolved complete-case rule — the measures whose baseline the legs use.
+    pre_required: tuple[str, ...]
     observation_nodes: tuple[str, ...]
     compute_loo: bool
     design: str
@@ -389,9 +523,13 @@ class MediationMultiRunPlan:
         return replace(self, effective_confounders=tuple(confounders))
 
     def prepare_kwargs(self) -> dict[str, Any]:
+        # ``pre_required`` is the resolved complete-case rule (#585 finding 4):
+        # without it the loader requires every LOADED outcome's baseline, so a
+        # measure no leg models could shrink the fitted sample.
         kwargs: dict[str, Any] = {
             "phase_mode": "itt",
             "covariates": self.loaded_covariates,
+            "pre_required": self.pre_required,
         }
         if self.outcomes is not None:
             kwargs["outcomes"] = self.outcomes
@@ -404,6 +542,8 @@ class MediationMultiRunPlan:
             "confounder_symbols": self.effective_confounders,
             "chain": self.chain,
             "second_mediator_offfloor": self.second_mediator_offfloor,
+            "mediator_cross_baselines": self.mediator_cross_baselines,
+            "outcome_cross_baselines": self.outcome_cross_baselines,
         }
 
     def recipe_markdown(self, *, title: str) -> str:
@@ -419,6 +559,9 @@ class MediationMultiRunPlan:
             population=self.analysis_population,
             missing=self.missing_data_assumption,
             terms=(
+                f"Common baseline vector C (every leg): "
+                f"{', '.join(self.common_baselines) or 'none'}. Baselines required "
+                f"complete-case: {', '.join(self.pre_required)}. "
                 f"Mediator order: {', '.join(self.order)}. Sequential chain: "
                 f"{self.chain}. Declared confounders: "
                 f"{', '.join(self.declared_confounders) or 'none'}. Active "
@@ -516,11 +659,16 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
         raise ValueError("route_symbols apply only to gaussian_composite mediation")
     if settings.companion_of and settings.estimand != "interventional":
         raise ValueError("companion_of requires estimand='interventional'")
-    if settings.outcomes is not None:
-        required = {spec.outcome_symbol, mediator_symbol, *settings.route_symbols}
-        missing = sorted(required - set(settings.outcomes))
-        if missing:
-            raise ValueError(f"outcomes omits required measure(s): {', '.join(missing)}")
+    if settings.mediator_kind == "gaussian_composite" and (
+        settings.outcome_kind != "beta_binomial"
+    ):
+        # The composite factory branches before ``outcome_kind`` is consulted, so
+        # the combination used to resolve, silently fit a graded outcome and then
+        # ask the PPC writer for a ``y_offfloor`` node that was never built (#585).
+        raise ValueError(
+            "gaussian_composite mediation supports only outcome_kind="
+            "'beta_binomial'; the composite factory has no off-floor outcome leg"
+        )
     if settings.period_stacked and any(
         (
             settings.outcome_time is not None,
@@ -538,6 +686,51 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
     )
     confounders = tuple(symbol for symbol in spec.adjustment if symbol not in markers)
     raw = _raw_covariates(confounders)
+    measure_confounders = _measure_confounders(confounders)
+    # The g-formula's common pre-exposure vector C: the outcome baseline, the
+    # mediator baseline(s) and every bounded-measure confounder, conditioned on by
+    # BOTH legs (#585 finding 1). ``dict.fromkeys`` keeps declaration order and
+    # de-duplicates a measure that is both a baseline and a declared confounder.
+    mediator_own = (
+        settings.route_symbols
+        if settings.mediator_kind == "gaussian_composite"
+        else (mediator_symbol,)
+    )
+    common = tuple(
+        dict.fromkeys((spec.outcome_symbol, *mediator_own, *measure_confounders))
+    )
+    floored = (
+        frozenset({spec.outcome_symbol})
+        if settings.outcome_kind == "bernoulli_offfloor"
+        else frozenset()
+    )
+    # A composite mediator conditions the outcome leg on the composite baseline
+    # (one term matching the mediator leg's ``a_comp``), not on its route symbols
+    # one by one.
+    outcome_cross = (
+        (BaselineTerm(symbol="M", coefficient="b_base_M", form="logit"),)
+        if settings.mediator_kind == "gaussian_composite"
+        else _baseline_terms(
+            prefix="b",
+            common=common,
+            own_symbols=(spec.outcome_symbol,),
+            named=measure_confounders,
+            floored=floored,
+        )
+    )
+    mediator_cross = _baseline_terms(
+        prefix="a",
+        common=common,
+        own_symbols=mediator_own,
+        named=measure_confounders,
+        floored=floored,
+    )
+    pre_required = common
+    _validate_load_set(
+        model_id=spec.model_id,
+        required=pre_required,
+        outcomes=settings.outcomes if not settings.period_stacked else None,
+    )
     mediator_node = (
         "M_post"
         if settings.mediator_kind == "gaussian_composite"
@@ -573,6 +766,13 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
         declared_confounders=confounders,
         effective_confounders=confounders,
         raw_covariates=raw,
+        common_baselines=common,
+        mediator_cross_baselines=mediator_cross,
+        outcome_cross_baselines=outcome_cross,
+        outcome_own_baseline_form=(
+            "offfloor" if settings.outcome_kind == "bernoulli_offfloor" else "logit"
+        ),
+        pre_required=pre_required,
         observation_nodes=(mediator_node, outcome_node),
         compute_loo=False,
         design=design,
@@ -606,11 +806,6 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
         raise ValueError("the first multi-mediation mediator must be 'L'")
     if set(settings.order) != set(settings.mediators) or len(settings.order) != 2:
         raise ValueError("order must be a permutation of mediators")
-    if settings.outcomes is not None:
-        required = {spec.outcome_symbol, *settings.mediators}
-        missing = sorted(required - set(settings.outcomes))
-        if missing:
-            raise ValueError(f"outcomes omits required measure(s): {', '.join(missing)}")
     baselines = tuple(f"{symbol}_t1" for symbol in settings.mediators)
     confounders = tuple(
         symbol
@@ -618,9 +813,40 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
         if symbol not in ("G", "A", "W_pre", *baselines)
     )
     raw = _raw_covariates(confounders)
+    measure_confounders = _measure_confounders(confounders)
     calibration = settings.named_confounder_calibration
     loaded = tuple(dict.fromkeys((*raw, *((calibration.symbol,) if calibration else ()))))
     mediators = (settings.mediators[0], settings.mediators[1])
+    # Common pre-exposure vector, conditioned on by every leg (#585 finding 1):
+    # before this each mediator law saw only its own baseline and the outcome law
+    # saw neither mediator's.
+    common = tuple(
+        dict.fromkeys((spec.outcome_symbol, *mediators, *measure_confounders))
+    )
+    floored = (
+        frozenset({mediators[1]}) if settings.second_mediator_offfloor else frozenset()
+    )
+    mediator_cross = {
+        symbol: _baseline_terms(
+            prefix=f"a{symbol}",
+            common=common,
+            own_symbols=(symbol,),
+            named=measure_confounders,
+            floored=floored,
+        )
+        for symbol in mediators
+    }
+    outcome_cross = _baseline_terms(
+        prefix="b",
+        common=common,
+        own_symbols=(spec.outcome_symbol,),
+        named=measure_confounders,
+        floored=floored,
+    )
+    pre_required = common
+    _validate_load_set(
+        model_id=spec.model_id, required=pre_required, outcomes=settings.outcomes
+    )
     order = (settings.order[0], settings.order[1])
     second_node = (
         f"{mediators[1]}_offfloor"
@@ -641,6 +867,13 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
         effective_confounders=confounders,
         raw_covariates=raw,
         loaded_covariates=loaded,
+        common_baselines=common,
+        mediator_cross_baselines=mediator_cross,
+        outcome_cross_baselines=outcome_cross,
+        second_mediator_own_baseline_form=(
+            "offfloor" if settings.second_mediator_offfloor else "logit"
+        ),
+        pre_required=pre_required,
         observation_nodes=(f"{mediators[0]}_post", second_node, "y_post"),
         compute_loo=False,
         design="Available-case phase-1 two-mediator counterfactual simulation.",

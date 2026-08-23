@@ -28,10 +28,17 @@ Design (see :func:`factories.build_period_stacked_mediation_model` and
   **period start**, hearing and speech production as raw covariates on the
   gain-factor timing split (hearing contemporaneous; speech at the t1
   baseline, the A1 timing decision 2026-07-13).
-- ``mediation_summary.csv`` is the all-period decomposition;
-  ``mediation_summary_p1.csv`` restricts the averaging to the period-1
-  (randomised, all-untreated-baseline) rows — the LRP59-comparable readout,
-  mirroring the gain-factor family's period-1 treatment marginal (#247 P2).
+- ``mediation_summary.csv`` is the **period-1** decomposition — the randomised,
+  all-untreated-baseline window and the LRP59-comparable readout, mirroring the
+  gain-factor family's period-1 treatment marginal (#247 P2). It became the
+  headline in #585 (finding 5): the exposure is
+  ``T = (G == 1) | (phase >= 1)``, so after the waitlist crossover **no child is
+  untreated** and the all-period average toggled ``T = 0`` on rows with no
+  empirical support for that cell. Adjustment cannot create positivity, so that
+  average is now written separately as
+  ``mediation_summary_all_periods.csv`` and labelled model extrapolation;
+  ``period_treatment_support.csv`` records the treated / untreated counts per
+  period that make the distinction checkable.
 
 **The stated, reviewable trade (#229):** every quantity here leans on the
 gain-factor family's ignorability assumption — on-intervention exchangeable

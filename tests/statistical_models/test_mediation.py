@@ -99,8 +99,10 @@ def test_proportion_row_handles_all_nonfinite_ratios():
     assert row["quantity"] == "proportion_mediated"
     for col in ("prob_median", "prob_lo", "prob_hi", "prob_lo50", "prob_hi50"):
         assert np.isnan(row[col])
-    # P(Total > 0) is still well-defined on the full array (0 here).
-    assert row["prob_pos"] == 0.0
+    # ``prob_pos`` is not applicable to a ratio row (#585); the context
+    # probability keeps its own explicit name.
+    assert np.isnan(row["prob_pos"])
+    assert row["total_prob_pos"] == 0.0
 
 
 def test_decompose_beta_binomial(tmp_path):
@@ -167,11 +169,14 @@ def test_word_reading_confounder_is_distinct_from_blending_baseline(tmp_path):
 
 
 def test_decompose_offfloor_outcome(tmp_path):
-    """#228 item 12 (LRP86, nonword N): an off-floor (Bernoulli) OUTCOME. The outcome
-    leg drops the outcome own-baseline coefficient, so decompose must not read it,
-    and it reports
-    NIE/NDE on the off-floor risk-difference scale (n_trials_W = 1, so words_* ==
-    prob_*)."""
+    """#228 item 12 (LRP86, nonword N): an off-floor (Bernoulli) OUTCOME.
+
+    The graded own-baseline coefficient ``b_W`` stays absent — a floored baseline
+    logit is degenerate — but since #585 the leg carries the binary
+    off-floor-at-baseline contrast ``b_own_offfloor`` instead of dropping the
+    baseline outright, so the complete-case rule and the likelihood require the
+    same measurement. Effects are still reported on the off-floor risk-difference
+    scale (``n_trials_W = 1``, so ``words_* == prob_*``)."""
     path = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(
         path=path, phase_mode="itt", outcomes=("N", "L", "W")
@@ -186,10 +191,13 @@ def test_decompose_offfloor_outcome(tmp_path):
     assert med.n_trials_W == 1
     assert "b_conf_W" in built.model.named_vars
     assert "b_W" not in built.model.named_vars
-    # Fake trace without an outcome-own-baseline coefficient and without kappa_Y
+    # The binary off-floor-at-baseline contrast replaces it (#585 finding 4).
+    assert "b_own_offfloor" in built.model.named_vars
+    assert med.own_offfloor is not None
+    # Fake trace without the GRADED own-baseline coefficient and without kappa_Y
     # (the Bernoulli has no dispersion), so an accidental read would raise KeyError.
     names = (
-        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_conf_W"]
+        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_conf_W", "b_own_offfloor"]
         + _BB_MEDIATOR_DRAWS
         + ["a_W", "kappa_M"]
     )
@@ -283,13 +291,14 @@ def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch):
 def test_decompose_interventional_offfloor_outcome(tmp_path):
     """#323 (MED-186): the interventional flag and Bernoulli off-floor outcome
     compose cleanly. The rows use IDE/IIE labels, stay on the risk-difference
-    scale and do not require the graded outcome's absent ``b_W`` coefficient."""
+    scale and do not require the graded outcome's absent ``b_W`` coefficient (the
+    binary ``b_own_offfloor`` contrast takes its place since #585)."""
     prep = _prepare(tmp_path)
     _, med = build_mediation_model(
         prep, confounder_symbols=("E", "R"), outcome_kind="bernoulli_offfloor"
     )
     names = (
-        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_E", "b_R"]
+        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_E", "b_R", "b_own_offfloor"]
         + _BB_MEDIATOR_DRAWS
         + ["a_E", "a_R", "kappa_M"]
     )
@@ -468,7 +477,7 @@ def test_is_calibration_maps_offfloor_delta_back_to_risk_difference():
     assert row["nie_response_at_is"] == 0.08
     assert row["response_scale"] == "off-floor risk difference"
     assert row["verdict"] == "could_account_band"
-    assert "could plausibly account" in row["sentence"]
+    assert "only the upper end of this approximate scenario" in row["sentence"]
     assert "off-floor risk difference" in row["sentence"]
 
 

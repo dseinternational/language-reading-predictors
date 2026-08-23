@@ -110,7 +110,9 @@ def test_multi_typed_and_legacy_declarations_resolve_identically():
         order=("L", "N"),
         chain=True,
         second_mediator_offfloor=True,
-        outcomes=("W", "L", "N"),
+        # ``E`` is a declared bounded-measure confounder, so it must be loaded:
+        # the resolver refuses a load set that omits one (#585 finding 3).
+        outcomes=("W", "L", "N", "E"),
         named_confounder_calibration=calibration,
     )
     adjustment = ["G", "A", "W_pre", "L_t1", "E", "hs"]
@@ -123,7 +125,7 @@ def test_multi_typed_and_legacy_declarations_resolve_identically():
             "order": ("L", "N"),
             "chain": True,
             "second_mediator_offfloor": True,
-            "outcomes": ("W", "L", "N"),
+            "outcomes": ("W", "L", "N", "E"),
             "named_confounder_calibration": {
                 "symbol": "attend",
                 "label": "IS",
@@ -220,11 +222,15 @@ def test_plan_maps_loader_factory_and_observation_contracts():
             ),
         )
     )
+    # ``pre_required`` is the resolved complete-case rule — the measures whose
+    # baseline a leg actually uses — so a loaded-but-unmodelled measure cannot
+    # drop a child (#585 finding 4).
     assert single.prepare_kwargs() == {
         "phase_mode": "itt",
         "covariates": ("hs",),
         "outcomes": ("N", "L", "W"),
         "drop_missing_pre": True,
+        "pre_required": ("N", "L", "W"),
     }
     assert single.factory_kwargs()["confounder_symbols"] == ("W", "hs")
     assert single.observation_nodes == ("L_post", "y_offfloor")
@@ -241,6 +247,7 @@ def test_plan_maps_loader_factory_and_observation_contracts():
     assert multi.prepare_kwargs() == {
         "phase_mode": "itt",
         "covariates": ("hs", "attend"),
+        "pre_required": ("W", "L", "E", "R"),
     }
     assert multi.factory_kwargs()["confounder_symbols"] == ("R", "hs")
     assert multi.observation_nodes == ("L_post", "E_post", "y_post")
@@ -263,7 +270,9 @@ def test_period_stacked_plan_owns_entrypoint_and_loader_contract():
         "covariates",
         "post_covariates",
         "baseline_covariates",
+        "pre_required",
     }
+    assert kwargs["pre_required"] == ("W", "L", "E")
 
 
 def test_effective_confounders_are_a_validated_subset():

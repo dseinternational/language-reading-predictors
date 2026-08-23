@@ -65,6 +65,12 @@ _PPC_COUNT_NODES = {"y_post", "y_obs", "score"}
 # denominators of 90/32/34 on one axis (2026-08-21 historical-families review,
 # finding 4). They take the count treatment once per node instead.
 _PPC_PER_NODE_KINDS = {"historical_joint"}
+# Mediation families carry one likelihood per LEG (mediator(s) + outcome). Only the
+# outcome leg used to reach the PPC writer, so the released coverage summary and
+# calibration panel said nothing about mediator fit — the leg the indirect effect
+# is built from (#585 finding 8). These get a per-leg writer that routes each node
+# by its own likelihood kind.
+_PPC_MEDIATION_KINDS = {"mediation", "mediation_multi"}
 
 
 def save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") -> None:
@@ -78,6 +84,9 @@ def save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") ->
     symbol = context.spec.outcome_symbol
     if context.spec.kind in _PPC_PER_NODE_KINDS:
         _save_per_node_count_ppc(context)
+        return
+    if context.spec.kind in _PPC_MEDIATION_KINDS:
+        _save_mediation_per_leg_ppc(context, symbol)
         return
     if node in _PPC_BINARY_NODES:
         _save_offfloor_ppc(context, node, symbol)
@@ -171,6 +180,108 @@ def _save_per_node_count_ppc(context: StatisticalFitContext) -> None:
                 else f"posterior_predictive_check_{symbol.lower()}"
             ),
         )
+
+
+def _mediation_leg_symbol(node: str, outcome_symbol: str | None) -> str:
+    """Measure label for one mediation likelihood node."""
+    if node in ("y_post", "y_offfloor"):
+        return outcome_symbol or "outcome"
+    if node == "M_post":
+        return "composite"
+    return node.rsplit("_", 1)[0]
+
+
+def _save_mediation_per_leg_ppc(
+    context: StatisticalFitContext, outcome_symbol: str | None
+) -> None:
+    """Coverage, calibration and overlay for EVERY mediation leg (#585 finding 8).
+
+    Nodes come from the resolved run plan (``observation_nodes``), so the order is
+    the one the factory built rather than a reconstruction. Each node is routed by
+    its own likelihood: a Bernoulli off-floor leg takes rate coverage, a bounded
+    count leg takes interval coverage, and the Gaussian route composite has no
+    count denominator so it keeps the distribution overlay and emits no coverage
+    row. The outcome leg is written last and keeps the unsuffixed filenames the
+    report partials include, so existing reports are unchanged apart from gaining
+    the mediator rows.
+
+    In-sample predictive fit is a specification check, not a causal-validity test;
+    it is reported, never used to certify the decomposition.
+    """
+    plan = getattr(context, "resolved_plan", None)
+    nodes = tuple(str(n) for n in (getattr(plan, "observation_nodes", ()) or ()))
+    if not nodes:
+        rprint(
+            "[yellow]PPC per-leg coverage unavailable (no observation nodes on the "
+            "resolved plan); falling back to the single-node route.[/yellow]"
+        )
+        _save_legacy_ppc_overlay(context)
+        return
+
+    # Outcome leg last: it owns the unsuffixed artefact names.
+    ordered = [n for n in nodes if n not in ("y_post", "y_offfloor")]
+    ordered += [n for n in nodes if n in ("y_post", "y_offfloor")]
+    group = _offfloor_group_labels(context)
+    frames: list[pd.DataFrame] = []
+
+    for position, node in enumerate(ordered):
+        symbol = _mediation_leg_symbol(node, outcome_symbol)
+        is_last = position == len(ordered) - 1
+        stem = (
+            "posterior_predictive_check"
+            if is_last
+            else f"posterior_predictive_check_{symbol.lower()}"
+        )
+        cal_stem = "ppc_calibration" if is_last else f"ppc_calibration_{symbol.lower()}"
+        if node.endswith("_offfloor"):
+            with guard_optional(
+                context, f"PPC off-floor coverage ({symbol})",
+                filename="ppc_summary.csv", kind="table",
+            ):
+                frames.append(
+                    _report.ppc_offfloor_rate_coverage(
+                        context.trace, node=node, group=group
+                    )
+                )
+            with guard_optional(
+                context, f"PPC off-floor figure ({symbol})",
+                filename=f"{stem}.png", kind="figure", verb="skipped",
+            ):
+                cells = _report.ppc_offfloor_cell_table(
+                    context.trace, node=node, group=group, ci_prob=0.9
+                )
+                _ppc_offfloor_figure(context, symbol, cells, filename_stem=stem)
+        elif node == "M_post":
+            # Gaussian route composite: no denominator, so no interval coverage.
+            _ppc_overlay_figure(context, node, symbol, filename_stem=stem)
+        else:
+            with guard_optional(
+                context, f"PPC coverage ({symbol})",
+                filename="ppc_summary.csv", kind="table",
+            ):
+                frames.append(
+                    _report.ppc_interval_coverage(context.trace, node=node)
+                )
+            with guard_optional(
+                context, f"PPC calibration ({symbol})",
+                filename=f"{cal_stem}.csv", kind="figure", verb="skipped",
+            ):
+                cal = _report.ppc_calibration_table(
+                    context.trace, node=node, ci_prob=0.9
+                )
+                _ppc_calibration_figure(context, symbol, cal, filename_stem=cal_stem)
+            _ppc_overlay_figure(context, node, symbol, filename_stem=stem)
+
+    if frames:
+        with guard_optional(
+            context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
+        ):
+            save_table(
+                context,
+                "ppc_summary",
+                pd.concat(frames, ignore_index=True),
+                required=False,
+            )
 
 
 def _save_multi_outcome_ppc_overlays(
@@ -405,7 +516,11 @@ def _ppc_calibration_figure(
 
 
 def _ppc_offfloor_figure(
-    context: StatisticalFitContext, symbol: str | None, cells: pd.DataFrame
+    context: StatisticalFitContext,
+    symbol: str | None,
+    cells: pd.DataFrame,
+    *,
+    filename_stem: str = "posterior_predictive_check",
 ) -> None:
     """Floor-rule PPC figure: observed off-floor rate vs its predictive rate by cell.
 
@@ -415,7 +530,7 @@ def _ppc_offfloor_figure(
     """
     with guard_optional(
         context, "PPC off-floor figure",
-        filename="posterior_predictive_check.png", kind="figure", verb="failed",
+        filename=f"{filename_stem}.png", kind="figure", verb="failed",
     ):
         label, _ = _ppc_measure_label(symbol)
         x = np.arange(len(cells))
@@ -435,7 +550,7 @@ def _ppc_offfloor_figure(
         plt.ylim(-0.02, 1.02)
         plt.title(f"Off-floor rate posterior-predictive check: {label}")
         plt.legend(fontsize=8)
-        save_styled_figure(context.output_dir, "posterior_predictive_check", data=cells)
+        save_styled_figure(context.output_dir, filename_stem, data=cells)
 
 
 def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:

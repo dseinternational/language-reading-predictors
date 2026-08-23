@@ -15,10 +15,16 @@ indicator** (post > 0), fitted as a Bernoulli. The decomposition (see
 `factories.build_mediation_model(outcome_kind="bernoulli_offfloor")` +
 `mediation.decompose`) therefore reports the natural direct/indirect effects on the
 **off-floor risk-difference** scale: the change in P(reads >= 1 nonword) attributable
-to the intervention directly (NDE) vs through the letter-sound gain (NIE). Off-floor
-outcomes drop the own-baseline term (the Normal(1,.) autoregressive prior does not
-transfer to a binary indicator, and a floored baseline logit is degenerate), matching
-the off-floor ITT/DiD/gain-factor convention.
+to the intervention directly (NDE) vs through the letter-sound gain (NIE). The
+graded own-baseline term stays out (the Normal(1,.) autoregressive prior does not
+transfer to a binary indicator, and a floored baseline logit is degenerate), but
+since #585 (finding 4) the baseline is **not dropped outright**: it enters as the
+**binary off-floor-at-baseline contrast** (``b_own_offfloor`` ~ Normal(0, 1)),
+matching the off-floor ITT/DiD/gain-factor convention exactly. That closes a
+model/sample mismatch -- the loader was already excluding three children for a
+nonword baseline the likelihood never used, so the complete-case rule was stricter
+than the fitted model. The rule is now derived from the terms the legs actually
+carry, and both agree.
 
 Design: phase 0 only (`phase_mode="itt"`, t1 -> t2, the randomised window); treatment
 G (randomised), mediator M = L_t2 (conditioned on L_t1), outcome Y = 1[N_t2 > 0].
