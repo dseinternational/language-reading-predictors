@@ -15,6 +15,7 @@ from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
     build_itt_from_plan,
     declared_settings_dict,
+    itt_diagnostic_variables,
     prepare_itt_data,
     resolve_itt_run_plan,
 )
@@ -418,3 +419,65 @@ def test_the_registered_floor_models_resolve_without_a_pre_restriction():
         assert spec.model_settings.floor_rule
         assert spec.model_settings.pre_required == ()
         assert resolve_itt_run_plan(spec) is not None
+
+
+# ---------------------------------------------------------------------------
+# Dispersion prior family (issue #577, finding 5)
+# ---------------------------------------------------------------------------
+
+
+def test_the_expressive_vocabulary_models_declare_the_dispersion_scale_prior():
+    """E is the one outcome whose registered prior was measurably binding.
+
+    At EOWPVT's 170-item ceiling ``kappa ~ HalfNormal(50)`` enforces a floor on
+    over-dispersion. Freeing it moves E's concentration posterior from 126 to
+    475 and improves predictive calibration at both levels (72.2% of
+    observations inside a nominal 50% interval, against 61.1%). R and EI were
+    swept too and their priors do not bind, so they keep the suite default.
+    """
+    from language_reading_predictors.statistical_models.lrp_rli_itt_005 import (
+        SPEC as R_SPEC,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_006 import (
+        SPEC as E_SPEC,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_022 import (
+        SPEC as E_ABILITY_SPEC,
+    )
+    from language_reading_predictors.statistical_models.lrp_rli_itt_029 import (
+        SPEC as EI_SPEC,
+    )
+
+    for spec in (E_SPEC, E_ABILITY_SPEC):
+        assert spec.outcome_symbol == "E"
+        assert spec.model_settings.kappa_prior_family == "halfnormal_inverse_sqrt"
+        # And it survives resolution into the plan the factory is called with.
+        plan = resolve_itt_run_plan(spec)
+        assert plan.as_dict()["kappa_prior_family"] == "halfnormal_inverse_sqrt"
+        assert (
+            plan.factory_kwargs()["kappa_prior_family"] == "halfnormal_inverse_sqrt"
+        )
+        # ``kappa`` becomes a Deterministic, so the sampled parameter must reach
+        # the human-readable diagnostics as well.
+        variables = itt_diagnostic_variables(plan, ())
+        assert "inv_sqrt_kappa" in variables and "kappa" in variables
+
+    for spec in (R_SPEC, EI_SPEC):
+        assert spec.model_settings.kappa_prior_family == "halfnormal_concentration"
+        assert "inv_sqrt_kappa" not in itt_diagnostic_variables(
+            resolve_itt_run_plan(spec), ()
+        )
+
+
+def test_the_floor_rule_cannot_declare_a_dispersion_prior():
+    """Its Bernoulli off-floor likelihood has no ``kappa`` to give a prior to."""
+    with pytest.raises(ValueError, match="no dispersion parameter"):
+        IttModelSettings(
+            floor_rule=True,
+            kappa_prior_family="halfnormal_inverse_sqrt",
+        )
+
+
+def test_an_unknown_dispersion_prior_family_is_rejected_in_settings():
+    with pytest.raises(ValueError, match="kappa_prior_family"):
+        IttModelSettings(kappa_prior_family="lognormal")

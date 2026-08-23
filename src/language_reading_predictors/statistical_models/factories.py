@@ -292,6 +292,7 @@ def build_itt_model(
     alpha_sigma: float | None = None,
     gamma_own_sigma: float | None = None,
     kappa_sigma: float | None = None,
+    kappa_prior_family: str = "halfnormal_concentration",
 ) -> BuiltModel[IttPayload]:
     """
     Build the single-outcome available-case modified ITT model used by the
@@ -405,6 +406,21 @@ def build_itt_model(
         centred at one, so this varies uncertainty rather than changing the
         baseline-coupling anchor.
     kappa_sigma
+        Scale of the dispersion prior. Under the default
+        ``kappa_prior_family="halfnormal_concentration"`` this is the HalfNormal SD
+        on ``kappa`` itself (default 50); under ``"halfnormal_inverse_sqrt"`` it is
+        the HalfNormal SD on ``1 / sqrt(kappa)`` (default 0.25).
+    kappa_prior_family
+        ``"halfnormal_concentration"`` (default, the registered suite prior) or
+        ``"halfnormal_inverse_sqrt"``. The latter exists because a HalfNormal on
+        the concentration cannot reach the near-Binomial limit ``kappa >> n``,
+        which for a bounded count is the ordinary hypothesis "no extra-Binomial
+        dispersion". At ``n_trials = 170`` that limit needs ``kappa > 1689`` for
+        variance within 10% of Binomial, and ``HalfNormal(50)`` gives it
+        effectively no mass — so the registered prior *enforces* a minimum
+        overdispersion (about 5.9x at its own median). Used by the dispersion
+        prior-family sweep (2026-08-22 ITT audit, finding 5); the registered fits
+        keep the default.
         Override the Beta-Binomial concentration prior scale. ``None`` preserves
         the shared ``HalfNormal(50)`` default; larger values expose more of the
         near-Binomial region for the required likelihood-prior sensitivity. This
@@ -590,12 +606,31 @@ def build_itt_model(
         eta = pm.Deterministic("eta", eta, dims="obs_id")
 
         if likelihood == "beta_binomial":
-            kappa_spec = (
-                _priors.kappa_prior()
-                if kappa_sigma is None
-                else _priors.kappa_prior(sigma=kappa_sigma)
-            )
-            kappa = kappa_spec.to_pymc("kappa")
+            if kappa_prior_family == "halfnormal_inverse_sqrt":
+                # Dispersion-scale parameterisation, so the near-Binomial limit is
+                # reachable (2026-08-22 ITT audit, finding 5). ``HalfNormal`` on
+                # the concentration cannot get there: at n = 170 coming within
+                # 10% of Binomial variance needs kappa > 1689, and HalfNormal(50)
+                # gives that effectively zero mass, so the prior *enforces* a
+                # minimum overdispersion of roughly 5.9x at its own median. Same
+                # constructor the RLM historical families use.
+                kappa = _rlm_dispersion_kappa(
+                    float(_priors.inv_sqrt_kappa_prior().sigma)
+                    if kappa_sigma is None
+                    else kappa_sigma
+                )
+            elif kappa_prior_family == "halfnormal_concentration":
+                kappa_spec = (
+                    _priors.kappa_prior()
+                    if kappa_sigma is None
+                    else _priors.kappa_prior(sigma=kappa_sigma)
+                )
+                kappa = kappa_spec.to_pymc("kappa")
+            else:
+                raise ValueError(
+                    "kappa_prior_family must be 'halfnormal_concentration' or "
+                    f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
+                )
             beta_binomial_from_score_mean_link(
                 "y_post",
                 eta,

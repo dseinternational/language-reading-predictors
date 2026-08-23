@@ -1229,3 +1229,50 @@ def test_subfit_gate_fails_when_a_parameter_cannot_be_assessed():
     assert clean["unassessable_parameters"] == ""
     assert clean["converged"] is True
 
+
+
+def test_a_clean_fit_records_that_the_assessable_check_ran(tmp_path):
+    """The key must be written whether or not the scan finds anything.
+
+    Writing only on failure left every clean fit's ``diagnostics_summary.json``
+    without ``diagnostics_assessable``, which reads identically to a fit from
+    before the check existed — and left the file disagreeing with the ``tables``
+    entry built from the same payload. Caught by inspecting a real refit.
+    """
+    context = SimpleNamespace(
+        trace=_degenerate_trace(include_constant=False),
+        output_dir=str(tmp_path),
+        tables={},
+        model=None,
+    )
+    payload = diag.write_diagnostics_summary(context, var_names=["good"])
+
+    stored = json.loads((tmp_path / "diagnostics_summary.json").read_text())
+    assert stored["checks"]["diagnostics_assessable"] is True
+    assert stored["unassessable_parameters"] == []
+    assert stored["passed"] is True
+    # The file and the in-memory table must agree.
+    assert stored["checks"] == payload["checks"]
+    assert context.tables["diagnostics_summary"]["checks"] == stored["checks"]
+
+
+def test_an_unassessable_parameter_is_recorded_and_fails_the_stored_gate(tmp_path):
+    from language_reading_predictors.statistical_models.reporting import (
+        convergence_gate_failures,
+    )
+
+    context = SimpleNamespace(
+        trace=_degenerate_trace(),
+        output_dir=str(tmp_path),
+        tables={},
+        model=None,
+    )
+    diag.write_diagnostics_summary(context, var_names=["good", "stuck"])
+
+    stored = json.loads((tmp_path / "diagnostics_summary.json").read_text())
+    assert stored["checks"]["diagnostics_assessable"] is False
+    assert stored["unassessable_parameters"] == ["stuck"]
+    assert stored["passed"] is False
+    # And the release gate reads it back as a failure without needing to know the
+    # check's name: it fails closed on any unrecognised non-True check.
+    assert convergence_gate_failures(stored)

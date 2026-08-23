@@ -1516,10 +1516,67 @@ def _missingness_diagnostics_match(
     )
 
 
+def _trailing_size(group: Any, name: str) -> int | None:
+    """Size of a variable's last (non chain/draw) dimension, or ``None``."""
+    try:
+        array = group[name]
+    except Exception:  # pragma: no cover - defensive
+        return None
+    dims = [d for d in getattr(array, "dims", ()) if d not in ("chain", "draw")]
+    if not dims:
+        return None
+    try:
+        return int(array.sizes[dims[-1]])
+    except Exception:  # pragma: no cover - defensive
+        return None
+
+
+def _missingness_design_dimension_error(
+    trace: Any,
+    *,
+    expected_targets: int | None,
+    expected_observations: int | None,
+) -> str | None:
+    """Check the persisted trace actually carries the registered design."""
+    if expected_targets is not None:
+        for name in ("p0_target", "p1_target"):
+            size = _trailing_size(trace["prior"], name)
+            if size is None:
+                return f"the /prior group's {name} has no target dimension"
+            if size != expected_targets:
+                return (
+                    f"the /prior group's {name} covers {size} target profiles, "
+                    f"not the registered {expected_targets}"
+                )
+    if expected_observations is not None:
+        size = _trailing_size(trace["prior_predictive"], "y_post")
+        if size is None:
+            return "the /prior_predictive group's y_post has no observation dimension"
+        if size != expected_observations:
+            return (
+                f"the /prior_predictive group's y_post covers {size} observations, "
+                f"not the registered {expected_observations}"
+            )
+    return None
+
+
 def _missingness_trace_diagnostics(
     trace_path: Path,
+    *,
+    expected_targets: int | None = None,
+    expected_observations: int | None = None,
 ) -> tuple[dict[str, float | int] | None, str | None]:
-    """Recompute the mandatory subfit gate from its persisted NetCDF trace."""
+    """Recompute the mandatory subfit gate from its persisted NetCDF trace.
+
+    ``expected_targets`` / ``expected_observations`` are the registered design
+    dimensions — 57 randomised target profiles and 53 observed word-reading rows.
+    Checking them closes the gap the 2026-08-22 ITT audit found (finding 8):
+    fresh generation verifies the target count, the likelihood rows and the
+    arm / missingness masks, but stored evaluation verified only that the trace
+    carried groups and variables *named* ``p0_target`` / ``p1_target`` /
+    ``y_post`` — so a trace holding a single target and a single observation
+    qualified. Names are not a design.
+    """
 
     if not trace_path.is_file():
         return None, "missing"
@@ -1551,6 +1608,13 @@ def _missingness_trace_diagnostics(
             return None, "the /prior group lacks the registered target probabilities"
         if "y_post" not in prior_predictive_vars:
             return None, "the /prior_predictive group lacks the registered outcome"
+        dimension_error = _missingness_design_dimension_error(
+            trace,
+            expected_targets=expected_targets,
+            expected_observations=expected_observations,
+        )
+        if dimension_error is not None:
+            return None, dimension_error
         verdict = subfit_convergence(
             trace,
             label="ITT screening-baseline missingness release check",
@@ -1779,6 +1843,41 @@ def _itt_missingness_release_failures(
             artifact_failures.append(
                 f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid analysis contract)"
             )
+        # The recorded design (2026-08-22 ITT audit, finding 8). Absent on fits
+        # written before the block existed, which therefore re-decide exactly as
+        # before; present, it must agree with the registered trial contract
+        # rather than merely be well-formed. Counts alone cannot establish that
+        # two runs completed the same profiles, so the digest must be there too.
+        recorded_design = analysis.get("design") if isinstance(analysis, Mapping) else None
+        if isinstance(recorded_design, Mapping):
+            expected_design = {
+                "target_profile_n": RANDOMISED_N,
+                "observed_outcome_n": OBSERVED_INTERVENTION_N + OBSERVED_CONTROL_N,
+                "target_by_arm": {
+                    "intervention": RANDOMISED_INTERVENTION_N,
+                    "control": RANDOMISED_CONTROL_N,
+                },
+                "target_observed_by_arm": {
+                    "intervention": OBSERVED_INTERVENTION_N,
+                    "control": OBSERVED_CONTROL_N,
+                },
+                "covariate_names": list(SCREENING_COVARIATES),
+            }
+            disagreeing = sorted(
+                key
+                for key, value in expected_design.items()
+                if recorded_design.get(key) != value
+            )
+            if disagreeing:
+                artifact_failures.append(
+                    f"{MISSINGNESS_PROVENANCE_FILENAME} (recorded design disagrees "
+                    f"with the registered trial contract: {', '.join(disagreeing)})"
+                )
+            if not str(recorded_design.get("target_design_sha256") or ""):
+                artifact_failures.append(
+                    f"{MISSINGNESS_PROVENANCE_FILENAME} "
+                    "(recorded design carries no digest)"
+                )
         actual_trace_sha256 = sha256_file(trace_path) if trace_path.is_file() else None
         if (
             not isinstance(trace, Mapping)
@@ -1937,7 +2036,9 @@ def _itt_missingness_release_failures(
     if not trace_path.is_file():
         artifact_failures.append(MISSINGNESS_TRACE_FILENAME)
     trace_diagnostics, trace_diagnostics_error = _missingness_trace_diagnostics(
-        trace_path
+        trace_path,
+        expected_targets=RANDOMISED_N,
+        expected_observations=OBSERVED_INTERVENTION_N + OBSERVED_CONTROL_N,
     )
     if trace_diagnostics_error is not None or trace_diagnostics is None:
         if trace_path.is_file():
@@ -2050,6 +2151,45 @@ def _blending_pair_release_failures(
             "(lrp-rli-itt-008 + lrp-rli-itt-108) is not release-ready: " + reason,
         )
     return ()
+
+
+def _dependence_identification_note(output_dir: Path) -> str:
+    """Qualifier when a fitted dependence block never moved off its prior.
+
+    A companion that switches the LKJ residual block on exists to answer one
+    question — was the parent's factorised interval too wide or too narrow? That
+    answer is the *data's* only if the correlation posterior is distinguishable
+    from the correlation prior. For the three registered two-outcome companions
+    at n = 53 it is not: posterior-to-prior SD ratios of 1.002, 1.008 and 1.001
+    (2026-08-22 ITT audit, finding 3). The interval such a fit publishes is the
+    LKJ prior's implied correction, and a reader is entitled to be told so beside
+    the number rather than having to reconstruct it.
+
+    A note, never a withhold. The fit is valid and its residual SDs *are*
+    informed; what is qualified is the interpretation of the correlation. Silent
+    when ``dependence_identification.csv`` is absent (every fit without the block,
+    and any stored fit written before the table existed), so old decisions
+    re-decide identically.
+    """
+    frame = _read_csv(output_dir, "dependence_identification.csv")
+    if frame is None or frame.empty or "verdict" not in frame.columns:
+        return ""
+    correlations = frame.loc[frame["role"].astype(str) == "residual correlation"]
+    if correlations.empty:
+        return ""
+    dominated = correlations.loc[
+        correlations["verdict"].astype(str) == "prior-dominated"
+    ]
+    if dominated.empty:
+        return ""
+    names = ", ".join(str(v) for v in dominated["parameter"])
+    return (
+        "The within-child residual correlation did not move off its prior "
+        f"({names}), so the dependence correction this fit applies to the "
+        "contrast's interval is the prior's rather than the data's; read the "
+        "interval as a prior-informed sensitivity, not as a measured "
+        "within-child covariance."
+    )
 
 
 def _joint_dependence_companion_note(
@@ -2348,9 +2488,14 @@ def evaluate_publication(
     # releases with the dependence-unchecked qualifier attached, so the findings
     # box carries the caveat the prose ``dependence_note`` has always demanded.
     companion_note = _joint_dependence_companion_note(output_dir, config)
-    if companion_note and robustness is not None:
+    # The companion note is for a *parent* whose companion is missing; this one is
+    # for the companion itself, whose block may have learned nothing (2026-08-22
+    # ITT audit, finding 3). A fit can in principle attract both.
+    identification_note = _dependence_identification_note(output_dir)
+    attached = " ".join(n for n in (companion_note, identification_note) if n)
+    if attached and robustness is not None:
         robustness = replace(
-            robustness, note=(robustness.note + " " + companion_note).strip()
+            robustness, note=(robustness.note + " " + attached).strip()
         )
     return ReleaseEvaluation(
         status="ok",

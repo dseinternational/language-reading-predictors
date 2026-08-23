@@ -213,6 +213,7 @@ gridspec
 Gunn
 Guttman
 Haldane
+halfnormal
 Hamaker
 Hancock
 handoff

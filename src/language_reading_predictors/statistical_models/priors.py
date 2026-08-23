@@ -12,6 +12,8 @@ for the Quarto report.
 
 from __future__ import annotations
 
+import math
+
 import os
 import re
 
@@ -166,6 +168,39 @@ def gamma_age_prior() -> Continuous:
     prior panel.
     """
     return pz.Normal(mu=0.0, sigma=0.3)
+
+
+#: Shape of the LKJ prior on the joint families' within-child residual
+#: correlation block. Named here rather than left inline in
+#: :func:`factories.build_joint_model` so the reporting code that measures how far
+#: the block is informed reads the *same* number the model was fitted under
+#: (2026-08-22 ITT audit, finding 3).
+JOINT_RESIDUAL_LKJ_ETA = 4.0
+
+
+def residual_correlation_prior_sd(
+    n_outcomes: int, eta: float = JOINT_RESIDUAL_LKJ_ETA
+) -> float:
+    """Marginal prior SD of any off-diagonal correlation under ``LKJ(eta)``.
+
+    For a ``d x d`` LKJ(``eta``) correlation matrix every off-diagonal element has
+    the same marginal distribution: ``(rho + 1) / 2 ~ Beta(a, a)`` with
+    ``a = eta + (d - 2) / 2``. Its standard deviation collapses to the closed form
+    ``1 / sqrt(2a + 1)`` — for the registered two-outcome companions at
+    ``eta = 4`` that is exactly ``1 / 3``.
+
+    This is the yardstick the fitted block is measured against. A posterior SD
+    equal to it means the data moved the correlation nowhere and the "dependence
+    correction" a companion publishes is the prior's, not the data's — which is
+    what the three registered companions show at n = 53
+    (:func:`reporting.dependence_identification_summary`).
+    """
+    if n_outcomes < 2:
+        raise ValueError(f"a correlation block needs at least two outcomes, got {n_outcomes}")
+    if eta <= 0:
+        raise ValueError(f"LKJ eta must be positive, got {eta}")
+    a = eta + (n_outcomes - 2) / 2.0
+    return float(1.0 / math.sqrt(2.0 * a + 1.0))
 
 
 def kappa_prior(sigma: float = 50.0) -> Continuous:

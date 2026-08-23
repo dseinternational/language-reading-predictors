@@ -201,6 +201,46 @@ if _joint_correlated:
                 "parameters. A positive correlation narrows the paired contrast "
                 "interval relative to the factorised parent; a negative one widens it."
             )
+
+    # The quantitative version of that eyeball test (2026-08-22 ITT audit,
+    # finding 3): each block parameter's posterior SD against the prior SD read
+    # from this fit's own persisted prior group. A ratio at 1 means the data moved
+    # the parameter nowhere.
+    _dep_id = _csv("dependence_identification.csv")
+    if _dep_id is not None and len(_dep_id):
+        print("\n#### How far the block is informed by the data\n")
+        _show = _dep_id.copy()
+        _show = _show[[
+            c for c in [
+                "parameter", "role", "posterior_median", "lo", "hi",
+                "posterior_sd", "prior_sd", "posterior_prior_sd_ratio", "verdict",
+            ] if c in _show.columns
+        ]]
+        print(_show.round(3).to_markdown(index=False))
+        _dominated = _dep_id[
+            (_dep_id["role"].astype(str) == "residual correlation")
+            & (_dep_id["verdict"].astype(str) == "prior-dominated")
+        ]
+        print(
+            "\n_How to read it:_ `posterior_prior_sd_ratio` is the posterior SD "
+            "divided by the prior SD for the same parameter, the prior SD being "
+            "measured from this fit's own persisted prior draws rather than assumed "
+            "from the LKJ formula. A ratio near **1** means the posterior is the "
+            "prior — the data did not move that parameter at all. A ratio well "
+            "below 1 means the data narrowed it."
+        )
+        if len(_dominated):
+            print(
+                "\n::: {.callout-warning title=\"The residual correlation is "
+                "prior-dominated\"}\n\n"
+                "This fit's within-child residual correlation did not move off its "
+                "prior, so the dependence correction applied to the contrast's "
+                "interval is the **prior's** implied correction, not a covariance "
+                "measured in these data. Read the interval as a prior-informed "
+                "sensitivity. Note that the per-outcome residual SDs *are* informed, "
+                "so this caveat is about the correlation specifically, not the whole "
+                "block.\n\n:::\n"
+            )
 ```
 
 ::: {.callout-note collapse="true" title="Additional outcome-specific predictive plots"}
