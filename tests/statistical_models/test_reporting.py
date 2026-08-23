@@ -2378,3 +2378,68 @@ def test_disattenuation_crosscheck_missing_comparator_is_na_not_a_reversal():
     assert bool(flags.iloc[0] is pd.NA or pd.isna(flags.iloc[0]))
     # No reversal anywhere: the NA row must not be counted by ~flag arithmetic.
     assert int((~flags.dropna()).sum()) == 0
+
+
+def test_level_window_comparator_cards_pairs_the_two_windows(tmp_path):
+    """#584 decision 3: the model of record and its randomised-window comparator are
+    read side by side from stored cards, most-restricted last."""
+    import json
+
+    from language_reading_predictors.statistical_models.reporting import (
+        level_window_comparator_cards,
+    )
+
+    def _fit(model_id: str, waves, median: float) -> None:
+        directory = tmp_path / f"{model_id}-reporting"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "config.json").write_text(
+            json.dumps(
+                {
+                    "model_id": model_id,
+                    "kind": "level_factors",
+                    "config_name": "reporting",
+                    "resolved_run_plan": {"waves": list(waves)},
+                }
+            ),
+            encoding="utf-8",
+        )
+        pd.DataFrame(
+            [{"items_median": median, "items_lo": -1.0, "items_hi": 4.0, "pd": 0.9}]
+        ).to_csv(directory / "rope_summary.csv", index=False)
+
+    _fit("lrp-rli-lf-001", ("t1", "t2", "t3", "t4"), 2.30)
+    config = json.loads(
+        (tmp_path / "lrp-rli-lf-001-reporting" / "config.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    # Without the comparator there is nothing to compare: the model of record is
+    # not withheld for it, so this returns None rather than raising.
+    assert (
+        level_window_comparator_cards(tmp_path / "lrp-rli-lf-001-reporting", config)
+        is None
+    )
+
+    _fit("lrp-rli-lf-201", ("t1", "t2"), 2.53)
+    cards = level_window_comparator_cards(
+        tmp_path / "lrp-rli-lf-001-reporting", config
+    )
+    assert [card["model_id"] for card in cards] == [
+        "lrp-rli-lf-001",
+        "lrp-rli-lf-201",
+    ]
+    assert cards[0]["window"] == "all four waves"
+    assert cards[-1]["window"] == "t1-t2 only"
+    # Read from either side of the pair.
+    comparator_config = json.loads(
+        (tmp_path / "lrp-rli-lf-201-reporting" / "config.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert [
+        card["model_id"]
+        for card in level_window_comparator_cards(
+            tmp_path / "lrp-rli-lf-201-reporting", comparator_config
+        )
+    ] == ["lrp-rli-lf-001", "lrp-rli-lf-201"]
+

@@ -49,6 +49,59 @@ if (
 
 ```{python}
 # | echo: false
+# | output: asis
+# Level family: the four-wave model of record beside its randomised-window
+# comparator (#584 decision 3). Printed whenever both fits exist; a missing
+# comparator leaves the question open rather than withholding anything, because
+# the comparator quantifies a dependence rather than licensing the estimate.
+_level_window_cards = None
+if str(config.get("kind")) == "level_factors":
+    from language_reading_predictors.statistical_models.reporting import (
+        level_window_comparator_cards,
+    )
+
+    _level_window_cards = level_window_comparator_cards(_here, config)
+    if _level_window_cards is not None:
+        _wide, _narrow = _level_window_cards[0], _level_window_cards[-1]
+        _shift = _narrow["items_median"] - _wide["items_median"]
+        print(
+            "### How much does the longitudinal model do?\n\n"
+            "The four-wave fit is the model of record, but its t2 change shares "
+            "parameters with the post-crossover waves — the t1 balance term, the "
+            "child intercept, the dispersion and the time-invariant group × ability "
+            "term — so the contrast is randomisation-anchored *and* "
+            "longitudinal-model-dependent. The comparator refits the same model on "
+            "the randomised t1–t2 window alone, where there is nothing to borrow. "
+            f"The estimate moves by **{_shift:+.2f}** on the reported scale "
+            f"({_wide['items_median']:+.2f} across four waves against "
+            f"{_narrow['items_median']:+.2f} in the randomised window); the "
+            "comparator's interval is normally the wider of the two, because it "
+            "uses less data.\n"
+        )
+```
+
+```{python}
+# | echo: false
+if _level_window_cards is not None:
+    import pandas as _pd
+
+    _pd.DataFrame(
+        [
+            {
+                "model": card["model_id"],
+                "window": card["window"],
+                "t2 effect": round(card["items_median"], 2),
+                "89% lo": round(card["items_lo"], 2),
+                "89% hi": round(card["items_hi"], 2),
+                "P(> 0)": round(card["pd"], 3),
+            }
+            for card in _level_window_cards
+        ]
+    )
+```
+
+```{python}
+# | echo: false
 if _level_link_cards is not None:
     import pandas as _pd
 

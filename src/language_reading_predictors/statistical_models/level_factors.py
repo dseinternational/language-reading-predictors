@@ -74,6 +74,7 @@ _LEGACY_KEYS = frozenset(
         "likelihood",
         "arm_gap_reference",
         "score_mean_link",
+        "waves",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -98,8 +99,16 @@ LEVEL_BLENDING_COMPANION_MODEL_ID = "lrp-rli-lf-106"
 
 #: Labels of the post-t1 waves whose arm-gap *changes* ``d_grp_time`` carries
 #: (the ``post_phase`` coordinate): t2 is the randomised contrast, t3 / t4 are
-#: post-crossover associations.
+#: post-crossover associations. A two-wave comparator (#584 decision 3) carries
+#: only ``("t2",)``; :meth:`LevelFactorsRunPlan.post_phase_labels` derives the
+#: right subset from the declared analysis window.
 POST_PHASE_LABELS: tuple[str, ...] = ("t2", "t3", "t4")
+
+#: Every wave of the levels panel, in order. The declared analysis window is a
+#: contiguous **prefix** of this: the t1-centred parameterisation measures every
+#: arm-gap change from t1, so t1 is always present and a gap in the middle would
+#: leave a ``d_grp_time`` coordinate with no data behind it.
+WAVE_LABELS: tuple[str, ...] = ("t1", *POST_PHASE_LABELS)
 
 
 def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
@@ -139,6 +148,13 @@ class LevelFactorsModelSettings:
     #: onto [1/3, 1] for the ten three-alternative forced-choice blending items.
     #: B only, graded only, and released only beside its paired opposite-link fit.
     score_mean_link: ScoreMeanLink = "logit"
+    #: The waves this fit analyses (#584 decision 3). The default is the whole
+    #: four-wave panel, the model of record. ``("t1", "t2")`` is the **randomised
+    #: window comparator**: the same model restricted to the pre-randomisation
+    #: baseline and the one wave at which the arms differ by randomisation alone,
+    #: so its t2 contrast borrows nothing from the post-crossover waves through
+    #: the shared balance term, child intercept, dispersion or group x ability.
+    waves: tuple[str, ...] = WAVE_LABELS
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -159,6 +175,13 @@ class LevelFactorsModelSettings:
             raise ValueError(
                 "arm_gap_reference must be one of "
                 f"{sorted(ARM_GAP_REFERENCES)}, got {self.arm_gap_reference!r}"
+            )
+        object.__setattr__(self, "waves", _tuple_of_strings(self.waves, name="waves"))
+        if self.waves != WAVE_LABELS[: len(self.waves)] or len(self.waves) < 2:
+            raise ValueError(
+                "waves must be a contiguous prefix of "
+                f"{WAVE_LABELS} with at least two entries (the t1 reference and "
+                f"one later wave), got {self.waves}"
             )
         if self.score_mean_link not in SCORE_MEAN_LINKS:
             raise ValueError(
@@ -225,6 +248,7 @@ class LevelFactorsModelSettings:
             likelihood=extra.get("likelihood", "beta_binomial"),
             arm_gap_reference=extra.get("arm_gap_reference", "t1"),
             score_mean_link=extra.get("score_mean_link", "logit"),
+            waves=extra.get("waves", WAVE_LABELS),
         )
 
 
@@ -250,6 +274,9 @@ class LevelFactorsRunPlan:
     score_mean_link: str
     required_link_companion_model_id: str | None
     link_sensitivity_required_for_release: bool
+    # The declared analysis window (#584 decision 3): the four-wave panel (the
+    # model of record) or the two-wave randomised-window comparator.
+    waves: tuple[str, ...]
     # Arm-by-time parameterisation (#552): ``"t1"`` (balance term + changes) or
     # ``"free"`` (one free coefficient per timepoint).
     arm_gap_reference: str
@@ -321,6 +348,7 @@ class LevelFactorsRunPlan:
             "likelihood": self.likelihood,
             "arm_gap_reference": self.arm_gap_reference,
             "score_mean_link": self.score_mean_link,
+            "post_phase_labels": self.post_phase_labels,
         }
 
     # -- Single source of truth for names, roles and diagnostics (#389 finding 6:
@@ -370,6 +398,24 @@ class LevelFactorsRunPlan:
             *self.coefficient_names(effective_adjustment=effective_adjustment),
             *tail,
         ]
+
+    @property
+    def post_phase_labels(self) -> tuple[str, ...]:
+        """The post-t1 waves this fit carries, i.e. ``d_grp_time``'s coordinates."""
+        return tuple(self.waves[1:])
+
+    @property
+    def two_wave_window(self) -> bool:
+        """True when the fit is restricted to the randomised t1 -> t2 window.
+
+        The distinguishing property of this comparator is not that it is smaller:
+        it is that **no post-crossover observation informs the reported contrast**.
+        In the four-wave model of record the t3/t4 likelihood reaches the t2 change
+        through the shared ``arm_gap_t1``, the child intercept, the dispersion and
+        the time-invariant group x ability term (posterior correlations between
+        ``arm_gap_t1`` and ``d_grp_time[t2]`` run from -0.07 to -0.44 across the
+        stored suite). Here there is nothing for it to reach through."""
+        return self.waves == ("t1", "t2")
 
     @property
     def standardisation_balance_term(self) -> str | None:
@@ -476,6 +522,23 @@ class LevelFactorsRunPlan:
             roles["b_grp_time[0]"] = "balance"
         return roles
 
+    def restrict_to_declared_waves(self, prepared: PreparedData) -> PreparedData:
+        """Drop rows outside the declared analysis window (#584 decision 3).
+
+        Returns ``prepared`` unchanged for the four-wave model of record. For the
+        two-wave comparator it keeps the t1 and t2 rows, which leaves ``phase``
+        already dense (0, 1) and ``n_phases`` recomputed by the shared subsetter —
+        the window is a *prefix*, so no renumbering is needed. The drop is
+        attributed to its own reason rather than folded into the missing-data
+        counts, because these rows are excluded by design, not by absence.
+        """
+        if len(self.waves) == len(WAVE_LABELS):
+            return prepared
+        from language_reading_predictors.statistical_models.factories import _subset
+
+        keep = np.asarray(prepared.phase) < len(self.waves)
+        return _subset(prepared, keep, reason="outside_declared_analysis_window")
+
     def validate_prepared(self, prepared: PreparedData) -> None:
         """Fail before model construction if the loaded panel cannot identify the
         declared quantities (#389 acceptance criterion: fail before fitting if t2
@@ -498,7 +561,7 @@ class LevelFactorsRunPlan:
             if c in prepared.covariates:
                 fitted = fitted & ~np.isnan(prepared.covariates[c])
         if self.group_by_time:
-            labels = ("t1",) + POST_PHASE_LABELS
+            labels = self.waves
             for wave in range(int(prepared.n_phases)):
                 label = labels[wave] if wave < len(labels) else f"phase {wave}"
                 rows = fitted & (prepared.phase == wave)
@@ -671,7 +734,16 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
     # released only beside its opposite-link twin (#584 decision 2, mirroring the
     # registered ITT-008 / ITT-108 pair). The off-floor branch is exempt: it models
     # a binary indicator, which has no chance floor to respect.
-    link_pair_required = own == "B" and not off_floor
+    #
+    # So is a **window comparator** (#584 decision 3), for the reason the gain
+    # family's moderation variants are outside the robustness gate: the pairing
+    # governs the fit whose B card is published as the headline, and that is the
+    # four-wave model of record. A two-wave comparator is a diagnostic reported
+    # beside that headline, and requiring it to be link-paired would demand a
+    # two-wave floor-link twin that does not exist -- fail-closed doing damage
+    # rather than work. Its prose says where the headline lives instead.
+    model_of_record_window = settings.waves == WAVE_LABELS
+    link_pair_required = own == "B" and not off_floor and model_of_record_window
     link_companion = (
         (
             LEVEL_BLENDING_PRIMARY_MODEL_ID
@@ -741,12 +813,30 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         if off_floor
         else "as an items-scale average marginal effect read at the t2 rows"
     )
+    blending_window_clause = (
+        " This outcome's published estimate is the link-paired four-wave headline "
+        f"({LEVEL_BLENDING_PRIMARY_MODEL_ID} + {LEVEL_BLENDING_COMPANION_MODEL_ID}): "
+        "phoneme blending is response-link sensitive, and this comparator carries "
+        "the ordinary inverse-logit score mean alone, so it answers the analysis-"
+        "window question and not the response-link one."
+        if own == "B" and not off_floor and not model_of_record_window
+        else ""
+    )
+    window_clause = (
+        " Analysis window: the randomised t1 -> t2 window only, so no "
+        "post-crossover observation enters the likelihood and the t2 change is "
+        "identified without the longitudinal working model the four-wave fit uses "
+        "(#584 decision 3). This is a comparator; the four-wave fit is the model of "
+        f"record.{blending_window_clause}"
+        if not model_of_record_window
+        else ""
+    )
     if off_floor:
         design = (
             "Per-wave off-floor levels model: a Bernoulli likelihood for whether the "
             f"child is above the outcome floor at each wave, with {group_clause}, the "
             "ability covariate, an optional group x ability term, and a non-centred "
-            "child random intercept."
+            f"child random intercept.{window_clause}"
         )
     else:
         link_clause = (
@@ -761,7 +851,7 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
             "Per-wave levels model: each wave's score is regressed (a Beta-Binomial "
             f"working likelihood) on {group_clause}, the ability covariate, an "
             "optional group x ability term, and a non-centred child random intercept "
-            f"for the repeated observations.{link_clause}"
+            f"for the repeated observations.{link_clause}{window_clause}"
         )
     # The natural-scale target was open through #389 finding 1 and #584 finding 1;
     # it was settled on 2026-08-23 (notes/202608231800-level-factors-584-decisions.md)
@@ -804,6 +894,14 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
                 if t1_referenced
                 else ""
             )
+            + (
+                " Because only the randomised window is fitted, no post-crossover "
+                "observation informs the contrast through the shared balance term, "
+                "child intercept, dispersion or group x ability term -- the "
+                "dependence this comparator exists to quantify."
+                if settings.waves != WAVE_LABELS
+                else ""
+            )
         )
     analysis_population = (
         "Available-case children observed across the level waves (about 53-54 "
@@ -830,6 +928,7 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         score_mean_link=settings.score_mean_link,
         required_link_companion_model_id=link_companion,
         link_sensitivity_required_for_release=link_pair_required,
+        waves=settings.waves,
         arm_gap_reference=settings.arm_gap_reference,
         focal_vector=focal_vector,
         focal_index=focal_index,

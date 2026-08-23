@@ -420,6 +420,26 @@ _LEVEL += [
     _d("lrplf06b", "level_factors", "Level factors link sensitivity", Status.ROBUSTNESS, "B",
        "levels view under the three-choice guessing-floor score-mean link", base="lrplf06"),
 ]
+# Randomised-window comparators (#584 decision 3): the same model restricted to the
+# t1/t2 window, so the reported t2 change borrows nothing from the post-crossover
+# waves through the shared balance term, child intercept, dispersion or group x
+# ability. The four-wave fit remains the model of record; these are reported beside
+# it to show how much the longitudinal working model moved the answer.
+_LEVEL += [
+    _d(f"lrplf{i:02d}a", "level_factors", "Level factors window comparator",
+       Status.ROBUSTNESS, o,
+       "t1/t2 randomised-window comparator; no post-crossover data",
+       base=f"lrplf{i:02d}")
+    for i, o in enumerate(_FACTOR_OUTCOMES, 1)
+]
+_LEVEL += [
+    _d("lrplf09a", "level_factors", "Level factors window comparator", Status.ROBUSTNESS, "TR",
+       "t1/t2 randomised-window comparator; no post-crossover data", base="lrplf09"),
+    _d("lrplf10a", "level_factors", "Level factors window comparator", Status.ROBUSTNESS, "TE",
+       "t1/t2 randomised-window comparator; no post-crossover data", base="lrplf10"),
+    _d("lrplf11a", "level_factors", "Level factors window comparator", Status.ROBUSTNESS, "N",
+       "t1/t2 randomised-window comparator; no post-crossover data", base="lrplf11"),
+]
 
 # Nonword-reading factor models (#225, carried forward on the revised DAG in #247).
 # Off-floor Bernoulli likelihood like gf-005/lf-005 (phonetic spelling); added
