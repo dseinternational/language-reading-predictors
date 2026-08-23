@@ -500,7 +500,9 @@ def test_plan_owns_coefficient_names_and_diag_vars():
         "alpha", "alpha_offset", "alpha_time",
         "arm_gap_t1", "d_grp_time", "b_grp_time",
         "gamma_A", "gamma_ability_time", "gamma_grp_ability",
-        "kappa", "sigma_child",
+        # Both the sampled dispersion parameter and the kappa Deterministic the
+        # reports quote (#584 decision 4).
+        "inv_sqrt_kappa", "kappa", "sigma_child",
     ]
     assert plan.causal_vector == "d_grp_time"
     assert plan.causal_terms == ("d_grp_time[t2]",)
@@ -815,4 +817,71 @@ def test_every_primary_has_a_registered_window_comparator():
             "score_mean_link", "focal_term",
         ):
             assert getattr(parent, field) == getattr(window, field), (comparator, field)
+
+
+# --- dispersion and child-heterogeneity priors (#584 decision 4) ---------------
+
+
+def test_the_family_defaults_to_the_dispersion_parameterisation():
+    plan = resolve_level_factors_run_plan(_primary_spec(adjust_for=()))
+    assert plan.kappa_prior_family == "halfnormal_inverse_sqrt"
+    assert plan.sigma_child_prior_sigma == 1.0
+    # ``kappa`` becomes a Deterministic, so anything naming a FREE random variable
+    # -- power scaling, the all-free-RV gate -- must ask for inv_sqrt_kappa.
+    assert plan.dispersion_free_term == "inv_sqrt_kappa"
+    assert plan.nuisance_terms == ("inv_sqrt_kappa", "sigma_child")
+    # ... while the reports keep speaking in kappa, which is the documented unit.
+    assert "kappa" in plan.diag_vars()
+    assert "inv_sqrt_kappa" in plan.diag_vars()
+
+
+def test_the_pre_decision_priors_remain_expressible_as_a_comparator():
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(
+            adjust_for=(),
+            kappa_prior_family="halfnormal_concentration",
+            sigma_child_prior_sigma=0.5,
+        )
+    )
+    assert plan.dispersion_free_term == "kappa"
+    assert plan.nuisance_terms == ("kappa", "sigma_child")
+    assert plan.factory_kwargs()["kappa_prior_family"] == "halfnormal_concentration"
+    assert plan.factory_kwargs()["sigma_child_prior_sigma"] == 0.5
+
+
+def test_an_off_floor_fit_records_no_dispersion_prior_at_all():
+    """A Bernoulli off-floor fit has no score mean, so it has no concentration —
+    recorded as absent rather than as a setting that does nothing."""
+    plan = resolve_level_factors_run_plan(
+        _primary_spec(adjust_for=(), likelihood="bernoulli_offfloor")
+    )
+    assert plan.kappa_prior_family is None
+    assert plan.kappa_prior_sigma is None
+    assert plan.dispersion_free_term is None
+    assert plan.nuisance_terms == ("sigma_child",)
+    kwargs = plan.factory_kwargs()
+    assert "kappa_prior_family" not in kwargs
+    assert "kappa_prior_sigma" not in kwargs
+
+
+def test_prior_scales_must_be_positive_numbers():
+    with pytest.raises(ValueError, match="sigma_child_prior_sigma must be positive"):
+        LevelFactorsModelSettings(ability_covariate="blocks", sigma_child_prior_sigma=0)
+    with pytest.raises(ValueError, match="kappa_prior_sigma must be positive"):
+        LevelFactorsModelSettings(ability_covariate="blocks", kappa_prior_sigma=-1.0)
+    with pytest.raises(ValueError, match="kappa_prior_family must be one of"):
+        LevelFactorsModelSettings(
+            ability_covariate="blocks", kappa_prior_family="halfcauchy"
+        )
+
+
+def test_every_registered_model_uses_the_decided_priors():
+    """The decision is family-wide, so no registered fit may quietly keep the
+    pre-decision scales."""
+    for spec in _level_factor_specs():
+        plan = resolve_level_factors_run_plan(spec)
+        assert plan.sigma_child_prior_sigma == 1.0, plan.model_id
+        assert plan.kappa_prior_sigma is None, plan.model_id
+        expected = None if plan.off_floor else "halfnormal_inverse_sqrt"
+        assert plan.kappa_prior_family == expected, plan.model_id
 

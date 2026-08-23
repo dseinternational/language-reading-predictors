@@ -4811,7 +4811,18 @@ def build_level_factors_model(
     # keeps one free tau-prior coefficient per timepoint (the pre-#552 comparator).
     arm_gap_reference: str = "t1",
     use_subject_random_intercept: bool = True,
-    sigma_child_prior_sigma: float = 0.5,
+    # #584 decision 4: a levels model has no own-baseline term, so this intercept
+    # carries the entire between-child spread in level rather than the residual a
+    # gain model leaves. The gain-model scale of 0.5 asserts a middle-95% child
+    # range of 0.18 to 0.45 on a mid-difficulty measure -- narrower than the tests
+    # resolve, and past its own 99th percentile for two of the eleven fits.
+    sigma_child_prior_sigma: float = 1.0,
+    # #584 decision 4: the dispersion prior. ``halfnormal_inverse_sqrt`` puts the
+    # half-normal on ``1/sqrt(kappa)``, where the near-Binomial limit is zero and
+    # therefore reachable; ``halfnormal_concentration`` is the pre-decision prior,
+    # kept for the comparator and the sweep axis.
+    kappa_prior_family: str = "halfnormal_inverse_sqrt",
+    kappa_prior_sigma: float | None = None,
     # #389 finding 2: the zero-sum wave-deviation scale. Sized so the largest
     # observed wave deviation from the across-wave mean level (about +/-0.85
     # logits, phoneme segmenting) sits within ~1.3 marginal prior SD
@@ -5102,7 +5113,27 @@ def build_level_factors_model(
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
-            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            if kappa_prior_family == "halfnormal_inverse_sqrt":
+                # Same constructor the ITT high-denominator fits and the RLM
+                # historical families use, so the three cannot drift (#584
+                # decision 4). ``kappa`` survives as the Deterministic the reports
+                # speak in; ``inv_sqrt_kappa`` is what is sampled.
+                kappa = _rlm_dispersion_kappa(
+                    float(_priors.inv_sqrt_kappa_prior().sigma)
+                    if kappa_prior_sigma is None
+                    else kappa_prior_sigma
+                )
+            elif kappa_prior_family == "halfnormal_concentration":
+                kappa = (
+                    _priors.kappa_prior()
+                    if kappa_prior_sigma is None
+                    else _priors.kappa_prior(sigma=kappa_prior_sigma)
+                ).to_pymc("kappa")
+            else:
+                raise ValueError(
+                    "kappa_prior_family must be 'halfnormal_concentration' or "
+                    f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
+                )
             beta_binomial_from_score_mean_link(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
                 score_mean_link=score_mean_link,

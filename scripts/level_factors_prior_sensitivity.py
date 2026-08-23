@@ -69,8 +69,10 @@ from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.measures import is_distal
 from language_reading_predictors.statistical_models.sensitivity import (
     LEVEL_SENSITIVITY_ARM_GAP_SIGMAS,
+    LEVEL_SENSITIVITY_DISPERSION_SIGMAS,
     LEVEL_SENSITIVITY_MODEL_IDS,
     LEVEL_SENSITIVITY_OUTCOMES,
+    LEVEL_SENSITIVITY_SIGMA_CHILD_SIGMAS,
     STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS,
     STANDARD_SENSITIVITY_FILENAME,
     STANDARD_SENSITIVITY_PROVENANCE_ATTR,
@@ -98,6 +100,13 @@ KAPPA_SIGMA = 50.0
 #: ``tau_prior_sensitivity.csv`` schema — and is never attached beside a primary.
 ARM_GAP_SENSITIVITY_FILENAME = "level_arm_gap_prior_sensitivity.csv"
 
+#: Nuisance-scale axes (#584 decision 4), each with its own CSV. Never gate
+#: evidence: the gate's contract is the treatment-prior (tau) sweep.
+NUISANCE_SENSITIVITY_FILENAMES = {
+    "kappa": "level_dispersion_prior_sensitivity.csv",
+    "sigma_child": "level_child_sd_prior_sensitivity.csv",
+}
+
 
 def _grid_for(outcome: str, axis: str) -> tuple[float, ...]:
     """The sweep grid for one outcome and axis.
@@ -109,6 +118,10 @@ def _grid_for(outcome: str, axis: str) -> tuple[float, ...]:
     """
     if axis == "arm_gap":
         return tuple(LEVEL_SENSITIVITY_ARM_GAP_SIGMAS)
+    if axis == "kappa":
+        return tuple(LEVEL_SENSITIVITY_DISPERSION_SIGMAS)
+    if axis == "sigma_child":
+        return tuple(LEVEL_SENSITIVITY_SIGMA_CHILD_SIGMAS)
     return tuple(
         STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS
         if is_distal(outcome)
@@ -161,13 +174,17 @@ def _fit_cell(
 
     plan = _resolve_plan(outcome)
     prepared = load_and_prepare(**plan.prepare_kwargs())
+    # The swept fit must be the panel the primary fits, not the panel the loader
+    # returns: a comparator plan declares a shorter analysis window (#584 decision 3).
+    prepared = plan.restrict_to_declared_waves(prepared)
     plan.validate_prepared(prepared)
     effective = tuple(c for c in plan.adjust_for if c in prepared.covariates)
-    prior_override = (
-        {"tau_prior_sigma": sigma}
-        if axis == "tau"
-        else {"arm_gap_prior_sigma": sigma}
-    )
+    prior_override = {
+        "tau": {"tau_prior_sigma": sigma},
+        "arm_gap": {"arm_gap_prior_sigma": sigma},
+        "kappa": {"kappa_prior_sigma": sigma},
+        "sigma_child": {"sigma_child_prior_sigma": sigma},
+    }[axis]
     built = build_level_factors_model(
         prepared,
         **plan.factory_kwargs(effective_adjustment=effective),
@@ -357,7 +374,9 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--axis", choices=("tau", "arm_gap"), default="tau",
+        "--axis",
+        choices=("tau", "arm_gap", "kappa", "sigma_child"),
+        default="tau",
         help=(
             "which prior to sweep: 'tau' (the focal d_grp_time treatment prior "
             "— the gate-evidence sweep, default) or 'arm_gap' (the arm_gap_t1 "

@@ -2704,7 +2704,12 @@ def test_level_factors_factory_builds(tmp_path):
     built = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks")
     names = {v.name for v in built.model.free_RVs}
     assert {"alpha_offset", "alpha_time", "arm_gap_t1", "d_grp_time", "gamma_A",
-            "gamma_ability_time", "gamma_grp_ability", "kappa", "sigma_child"}.issubset(names)
+            "gamma_ability_time", "gamma_grp_ability", "inv_sqrt_kappa",
+            "sigma_child"}.issubset(names)
+    # #584 decision 4: the dispersion prior sits on 1/sqrt(kappa), so ``kappa`` is a
+    # Deterministic — the unit the reports quote, not the sampled quantity.
+    assert "kappa" not in names
+    assert "kappa" in {d.name for d in built.model.deterministics}
     # The per-wave arm-gap vector is a Deterministic levels view, not a free RV.
     assert "b_grp_time" not in names
     assert "b_grp_time" in {v.name for v in built.model.deterministics}

@@ -621,6 +621,24 @@ LEVEL_SENSITIVITY_MODEL_IDS = {
 # the treatment-prior (tau) sweep only.
 LEVEL_SENSITIVITY_ARM_GAP_SIGMAS = (0.3, 0.5, 1.0)
 
+# Nuisance-scale axes (#584 decision 4). Power scaling flagged both parameters for
+# prior-data conflict across the stored suite -- ``sigma_child`` in all eleven fits
+# and the dispersion in eight of the nine graded ones -- so each gets a registered
+# axis rather than an exploratory one-off. Both grids **include the pre-decision
+# scale**, so the sweep answers "did changing this prior move the answer?" directly
+# rather than by comparison with a differently-run fit. Like the arm-gap axis they
+# write their own CSV and are never gate evidence.
+#
+# Dispersion is swept on whichever scale the fit declares: under the default
+# ``1/sqrt(kappa)`` parameterisation the grid is the registered 0.25, half it (less
+# dispersion admitted) and double it (more).
+LEVEL_SENSITIVITY_DISPERSION_SIGMAS = (0.125, 0.25, 0.5)
+
+# Child heterogeneity: the pre-decision gain-model scale, the registered level scale
+# and a wider one. 0.5 is the comparator -- it is the prior whose 99th percentile
+# two of the eleven fitted posteriors exceeded.
+LEVEL_SENSITIVITY_SIGMA_CHILD_SIGMAS = (0.5, 1.0, 1.5)
+
 # The gate likewise covers ``did`` on the plan's focal term (``tau_t2``, or a
 # dose model's own slope — ``release.causal_term_for`` mirrors
 # ``DiDRunPlan.effect_term``). Unlike the ITT/level sweeps the did set is keyed
