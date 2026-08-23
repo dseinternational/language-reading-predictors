@@ -641,6 +641,20 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "distribution": "Normal(0, 0.5)",
         "rationale": "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5).",
     },
+    "alpha_phase_free": {
+        # The dose family's reference coding (#587 finding 11). A grand intercept
+        # plus an unconstrained indicator for *every* phase is a rank-deficient
+        # design: proper priors keep the posterior proper, but the global/phase
+        # split is then prior-identified rather than likelihood-identified, which
+        # adds posterior correlation and sampling cost for no inferential gain.
+        # Only the later-period deviations are free; period 1 is pinned at zero.
+        "role": "nuisance",
+        "distribution": "Normal(0, 0.5)",
+        "rationale": (
+            "Reference-coded period intercept deviations from period 1 "
+            "(alpha_phase[1] = 0 exactly), so the intercept design has full rank."
+        ),
+    },
     "alpha_time": {
         # The distribution is preferred from the built RV (see prior_info_for_rv):
         # the level family fits an exact zero-sum wave-deviation vector

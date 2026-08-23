@@ -54,6 +54,9 @@ from language_reading_predictors.statistical_models.definitions import (
     MODEL_REGISTRY,
     Status,
 )
+from language_reading_predictors.statistical_models.diagnostics import (
+    LOO_CHILD_AGGREGATE_NODE,
+)
 from language_reading_predictors.statistical_models.measures import (
     MEASURES,
     ROPE_DELTA_PROB,
@@ -1241,6 +1244,41 @@ def _shared_row_identities(
     return None, None
 
 
+def _predictive_var_name(trace) -> str | None:
+    """The log-likelihood variable holding this fit's declared predictive unit.
+
+    A family that re-expresses its likelihood at the child unit (``loo_child_idx``,
+    added for the joint/dose designs) carries *two* variables in ``log_likelihood``:
+    the per-row ``y_post`` and the child-summed aggregate. ArviZ cannot choose
+    between them and raises, and choosing the row variable would silently score the
+    wrong unit — for the dose family a row's own baseline is the previous row's
+    outcome, so a row-level score is not out-of-sample at all (#587 finding 4).
+    Returns ``None`` for a single-variable trace, which keeps every other family on
+    ArviZ's own default.
+    """
+    log_likelihood = getattr(trace, "log_likelihood", None)
+    if log_likelihood is None:
+        return None
+    try:
+        names = set(log_likelihood.data_vars)
+    except (AttributeError, TypeError):  # pragma: no cover - defensive
+        return None
+    return LOO_CHILD_AGGREGATE_NODE if LOO_CHILD_AGGREGATE_NODE in names else None
+
+
+def _loo_for(trace, **kwargs):
+    """``az.loo`` on the fit's declared predictive unit.
+
+    ``var_name`` is passed only when the trace actually carries a child-aggregated
+    likelihood, so every single-variable family keeps ArviZ's own default and the
+    call is unchanged for them.
+    """
+    var_name = _predictive_var_name(trace)
+    if var_name is not None:
+        kwargs["var_name"] = var_name
+    return az.loo(trace, **kwargs)
+
+
 def _write_separate_loo(
     traces: dict[str, az.InferenceData],
     sizes: dict[str, int],
@@ -1252,7 +1290,7 @@ def _write_separate_loo(
     """Write per-model LOO estimates when a shared-row delta is not identified."""
     rows = []
     for mid, trace in traces.items():
-        loo = az.loo(trace)
+        loo = _loo_for(trace)
         rows.append(
             {
                 "config": config,
@@ -1439,7 +1477,14 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
         method = "psis+reloo"
         cmp = az.compare(repaired)
     else:
-        cmp = az.compare(traces)  # ic="loo" by default
+        # Score each model on its own declared predictive unit before comparing, so a
+        # family that re-expresses its likelihood at the child level is not compared
+        # on rows (or refused outright, which is what an ambiguous two-variable
+        # log_likelihood group does to ``az.compare``). Passing ELPD objects rather
+        # than traces also matches the ``repaired`` branch above.
+        cmp = az.compare(
+            {mid: _loo_for(t, pointwise=True) for mid, t in traces.items()}
+        )
 
     cmp = cmp.copy()
     cmp.insert(0, "config", config)  # record the tier that produced the row
@@ -1767,8 +1812,30 @@ def rw_moderation_loo_compare(config: str, out_path: str) -> bool:
 
 
 def dose_response_loo_compare(config: str, out_path: str) -> bool:
-    """LOO comparison of LRP77 against its pooled-dose comparator (does dose vary by period?)."""
-    return _loo_compare(DOSE_LOO_IDS, config, out_path)
+    """LOO comparison of LRP77 against its pooled-dose comparator (does dose vary by period?).
+
+    The comparison is copied beside **both** paired runs under the name the dose
+    report partial looks up. Before #587 it was written only to the shared comparison
+    directory, under a third filename (``dose_response_loo_compare.csv``) that the
+    partial never reads, so the formal answer to "does the dose slope vary by period?"
+    was absent from both rendered reports even on a fully successful run — the report
+    printed its "how to read the comparison table" paragraph above nothing at all.
+    """
+    if not _loo_compare(DOSE_LOO_IDS, config, out_path):
+        return False
+    _copy_compare_beside_runs(
+        out_path,
+        DOSE_LOO_IDS,
+        config,
+        filename="dose_loo_compare.csv",
+        note=(
+            "Period-varying dose slopes (lrp-rli-dose-077) against one pooled slope "
+            "(lrp-rli-dose-277). The two fits are otherwise identical, so the "
+            "comparison isolates period variation in the dose slope. The predictive "
+            "unit is a whole child, not a row."
+        ),
+    )
+    return True
 
 
 def did_dose_loo_compare(config: str, out_path: str) -> bool:

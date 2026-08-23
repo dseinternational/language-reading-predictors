@@ -28,78 +28,100 @@ intervention-status axis**, with a weak positive dose signal that concentrates i
 the on-treatment periods. This model quantifies that one signal with honest
 uncertainty.
 
-**Estimand.** How word-reading *conditional change* relates to the per-period
-intervention **dose** (`attend`, sessions attended that period), with partial
-pooling across the three periods, and whether that dose–gain slope **varies by
-period**. The outcome is the Beta-Binomial post-count of $W$ conditional on its
-own baseline logit ($N = 79$) — conditional change, **not** a raw change score
-(Lord's paradox / regression to the mean). All three phase transitions
-(t1$\to$t2, t2$\to$t3, t3$\to$t4) are stacked with phase-specific intercepts; the
-dose enters standardised, so the slope is the outcome-logit change per 1 SD of
-per-period dose:
+**Estimand.** Among children who were **receiving** the intervention, how does
+word-reading *conditional change* relate to how many sessions they attended? The
+outcome is the Beta-Binomial post-count of $W$ conditional on its own baseline
+logit ($N = 79$) — conditional change, **not** a raw change score (Lord's paradox
+/ regression to the mean). All three phase transitions (t1$\to$t2, t2$\to$t3,
+t3$\to$t4) are stacked, and the model asks in addition whether that
+attendance–gain slope **varies by period**.
 
 $$
-\eta = \alpha + \alpha_{\text{phase}[p]}
-     + \beta_G\,G
-     + \gamma_{\text{own}}\,\text{logit}(W_{\text{pre}})
+\begin{aligned}
+\eta = {} & \alpha + \alpha_{\text{phase}[p]}
+     + \theta_{\text{treated}}\,\mathbb{1}[\text{on intervention}]
+     + \beta_{\text{arm,late}}\,G\,\mathbb{1}[p \ge 2] \\
+    & + \gamma_{\text{own}}\,\text{logit}(W_{\text{pre}})
      + \gamma_A\,z(\text{age})
-     + u_{\text{child}}
-     + \beta_{\text{dose}[p]}\,z(\text{attend})
-     + \gamma_{\text{stage}}\,z(\text{attend\_cumul})
+     + u_{\text{child}} \\
+    & + \beta_{\text{between}}\,\bar{d}_{\text{child}}
+     + \beta_{\text{dose}[p]}\,(d - \bar{d}_{\text{child}})
+\end{aligned}
 $$
 
 with $\beta_{\text{dose}[p]} = \mu_{\text{dose}} + \sigma_{\text{dose}}\,z_p$
-(partial-pooled period slopes).
+(partial-pooled period slopes) and $\alpha_{\text{phase}[1]} = 0$ (period 1 is the
+reference, so the intercept design has full rank). Here $d$ is sessions attended,
+**centred and standardised over the on-intervention rows only**, and set to zero
+on rows with no intervention.
+
+## Separating "was taught" from "attended more"
+
+In period 1 every immediate-arm child attended 45–91 sessions and every
+waiting-control child attended none: assigned arm and session count correlate at
+**0.970**. A single dose coefficient spanning both groups is therefore not an
+attendance effect at all — it is the randomised treatment contrast divided by the
+mean session count. This model splits them:
+
+- $\theta_{\text{treated}}$ — the **extensive margin**: on the intervention this
+  period versus not. Read in period 1 this is a *randomised* contrast, and it is
+  where this model's randomised evidence sits.
+- $\beta_{\text{dose}[p]}$, $\beta_{\text{between}}$ — the **intensive margin**:
+  attending more, among children already being taught. Observational.
+- $\beta_{\text{arm,late}}$ — assigned arm from period 2 onward only, where both
+  arms are on the intervention and arm reads as intervention **order**. In period
+  1 it would be exactly collinear with $\theta_{\text{treated}}$.
+
+The between/within split matters for the same reason. A single dose coefficient
+sitting over a child random intercept returns a precision-weighted *blend* of
+"children who attended more" and "periods when this child attended more"; the
+random intercept does not make it a within-child quantity. $\beta_{\text{between}}$
+takes each child's study-average attendance and $\beta_{\text{dose}[p]}$ their
+deviation from it, so neither is folded into the other.
 
 ## Adjustment set (revised DAG)
 
-The focal edge is $\text{dose} \to \text{outcome}$. Sessions is the revised DAG's
-`IS` node; this is the ID-3 **observational** dose-response (adjust $\{G, A\}$).
-The per-period `attend` is the model's *exposure* — regressing the outcome on it is
-the estimand, not an ITT-rule "conditioning on `IS`" violation. Dose has one parent,
-`intervention`, so the back-door set is $\{G, W_{\text{pre}}, A\}$ — but for
-distinct reasons:
+The focal edge is $\text{sessions} \to \text{outcome}$. Sessions is the revised
+DAG's `IS` node, and the per-period `attend` is the model's *exposure* —
+regressing the outcome on it is the estimand, not an ITT-rule "conditioning on
+`IS`" violation.
 
-- **$G$ — the sole confounder.** Conditioning on the arm blocks the only back-door
-  $\text{dose} \leftarrow \text{intervention} \to \text{outcome}$. **Coding:
-  $G = 2 - \text{group}$, so $G = 1$ is the immediate-intervention arm and $G = 0$
-  the waitlist control; positive effects = intervention benefit** (the `#117` sign
-  convention).
-- **$W_{\text{pre}}$ — not a dose confounder.** The autoregression / RTM control
-  that makes this *conditional change*; parameterisation, not back-door blocking.
-- **age — not a dose confounder.** v5 has $\text{age} \to \text{outcome}$ but no
-  $\text{age} \to \text{dose}$, so age is a precision / maturation covariate only.
+**The DAG does not give a clean back-door set here.** `IS` has three parents in
+`dag/dag-language-reading.dagitty`: $A \to IS$, $GA \to IS$ and $IG \to IS$, and
+all three also point into the outcomes. Age and assigned group are measured and
+adjusted. **Latent general ability $GA$ is not**, and no measured baseline closes
+it — Frank's 2012 caveat, that the children least able to learn tended to show the
+poorest attendance, is exactly this path. Conditioning on baseline skills is a
+*sensitivity* (see LRP77a), never a proof that the path is blocked.
+
+- **$G$ — arm.** **Coding: $G = 2 - \text{group}$, so $G = 1$ is the
+  immediate-intervention arm and $G = 0$ the waitlist control; positive =
+  intervention benefit** (the `#117` sign convention). Enters from period 2 only,
+  for the collinearity reason above.
+- **$W_{\text{pre}}$ — not a confounder of attendance.** The autoregression / RTM
+  control that makes this *conditional change*; parameterisation, not back-door
+  blocking.
+- **age — a genuine parent of both.** Adjusted linearly.
 
 **Cumulative dose** (`attend_cumul`, the running sum of prior-period sessions) is
 **not** conditioned on: it is a deterministic aggregate of the `IS` collider, so
-adjusting it reopens the latent-general-ability back door
-$\text{dose} \leftarrow \text{GA} \to \text{outcome}$ and can bias the dose slope,
-$\beta_G$ and $\beta_{\text{period}}$ (issue #269). It is available only as a
-flagged **collider-sensitivity** option, never in the headline.
+adjusting it reopens the latent-general-ability back door and can bias the dose
+slope and the arm terms (issue #269). It is available only as a flagged
+**collider-sensitivity** option, never in the headline, and **is not fitted here**.
 
-**Sample.** All gain rows are kept, including the waitlist controls' period-1
-`attend == 0` rows — the **zero-dose anchor** that identifies the slope.
-
-### The load-bearing assumption: no `ability -> dose`
-
-v5 deliberately omits $g \to \text{dose}$. But Frank's 2012 caveat — "the children
-least able to learn tended to show the poorest attendance" — is exactly that
-edge. **Dose is not randomised** (only `intervention` is), so randomisation does
-not rescue this. If $g \to \text{dose}$ holds, $g$ is a common cause of dose and
-outcome and $\{G\}$ no longer identifies the dose effect. Two safeguards: the
-subject random intercept $u_{\text{child}}$ absorbs *stable* child differences,
-and the ability-adjusted sensitivity fit **LRP77a** conditions on the
-baseline-skill cluster (letter-sounds, expressive vocabulary, blending). If the
-dose slope survives there, the assumption is defensible; if it collapses, the
-dose signal is substantially ability-confounded.
+**Sample.** All gain rows with an observed outcome are kept. The waiting controls'
+period-1 zero-session rows identify $\theta_{\text{treated}}$; they contribute
+nothing to the dose terms, and the items-scale contrast is averaged over the
+on-intervention rows only.
 
 ### Causal warrant and expectations
 
-This is **adjusted association**, not "dose drives gains" — the corresponding randomised-arm
-result is the available-case modified ITT estimate in `lrp-rli-itt-010`, with its stated
-missing-data qualification. Phase-1 best strata reached only $R^2$ 0.1–0.3;
-the deliverable is a calibrated dose slope with credible intervals, not a strong
-predictor. Do not condition on anything downstream of dose.
+Every dose slope here is an **adjusted association**, not "dose drives gains" —
+the corresponding randomised-arm result is the available-case modified ITT
+estimate in `lrp-rli-itt-010`, with its stated missing-data qualification.
+Phase-1 best strata reached only $R^2$ 0.1–0.3; the deliverable is a calibrated
+attendance slope with credible intervals, not a strong predictor. Do not condition
+on anything downstream of attendance.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 

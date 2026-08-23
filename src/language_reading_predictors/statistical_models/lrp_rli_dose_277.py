@@ -3,13 +3,30 @@
 
 """LRP77base - Pooled-dose comparator for LRP77 (no period variation).
 
-The no-period-variation companion to :mod:`lrp-rli-dose-077`: a single pooled dose slope
-``beta_dose`` instead of partial-pooled per-period slopes. The two models are
-identical otherwise, so a PSIS-LOO comparison (``compare_statistical_models.py``)
-answers the headline question directly - **does letting the dose-gain slope vary
-by period improve predictive fit?** Given the weak Phase-1 dose structure, the
-period-varying model is expected to shrink toward this one; LOO is interpreted
-cautiously at this n because the dynamic companions were not estimable.
+The no-period-variation companion to :mod:`lrp-rli-dose-077`: a single pooled slope
+``beta_dose`` on the within-child attendance deviation instead of partial-pooled
+per-period slopes. The two models are identical otherwise — same on-intervention
+indicator, post-crossover arm term, own baseline, linear age, child random
+intercept and between-child attendance split, and neither fits a cumulative-dose
+control — so a **leave-one-child-out** PSIS comparison
+(``compare_statistical_models.py``) answers the headline question directly:
+**does letting the attendance slope vary by period improve prediction for a child
+the model has not seen?**
+
+The unit is a whole child, not a row (#587 finding 4). A transition row's own
+baseline IS the previous transition's fitted outcome — for every period-2 row and
+all but one period-3 row — so a row-level score would leave the held-out outcome
+in the next row's design matrix and would not be out-of-sample at all.
+
+Given the weak Phase-1 dose structure, the period-varying model is expected to
+shrink toward this one; the comparison is interpreted cautiously at this n because
+the dynamic companions were not estimable.
+
+The causal reading is LRP77's and is inherited whole: the revised DAG has
+``A -> IS``, ``GA -> IS`` and ``IG -> IS``, latent general ability ``GA`` is not
+closed by any measured baseline, and the pooled slope here is an adjusted
+association like every other slope in the family. Winning this comparison would say
+a pooled slope predicts a held-out child better — nothing about causation.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

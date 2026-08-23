@@ -391,13 +391,11 @@ the wave-unrolled DAG (#250; design `notes/202607141030-time-lagged-model-design
 | `lrp-rli-lcsm-181` | `lcsm`          | No-reverse-coupling LOO comparator for `lcsm-081` ("does the reverse edge earn its place predictively")                                                                                                                             |
 | `lrp-rli-lcsm-082` | `lcsm`          | Reciprocal dominance (exploratory): blending `B` ↔ word reading `W` lagged cross-couplings with an SD-standardised dominance contrast; broadly confounded in both directions                                                        |
 | `lrp-rli-lcsm-091` | `lcsm`          | Lagged change-on-change (#229 spec 2, exploratory): prior letter-sound / vocabulary _change_ (`h_L`/`h_E`) alongside prior _level_ (`g_L`/`g_E`) predicting reading change; two usable transitions, direction-agreement deliverable |
-| `lrp-rli-dose-077` | `dose_response` | Period-resolved observational dose-response of intervention sessions → word reading; `lrp-rli-dose-177` adds an ability-adjusted sensitivity, `lrp-rli-dose-277` is the pooled (no-period-variation) comparator                     |
+| `lrp-rli-dose-077` | `dose_response` | Period-resolved observational attendance-response of intervention sessions → word reading; `lrp-rli-dose-177` adds a baseline-ability sensitivity, `lrp-rli-dose-277` is the pooled (no-period-variation) comparator                |
+| `lrp-rli-dose-083` | `dose_response` | The same attendance-response on letter sounds (`L`)                                                                                                                                                                                 |
+| `lrp-rli-dose-084` | `dose_response` | The same attendance-response on phoneme blending (`B`); qualified — the required guessing-floor link companion is not yet built for this family                                                                                     |
 
-`lrp-rli-dose-077`'s dose terms are observational (sessions = a DAG collider as exposure): an adjusted
-within-child association, never "more sessions cause more gain". Only the available-case modified ITT
-estimate and the randomised-window DiD contrasts carry a causal interpretation under their stated
-selection and missing-data assumptions — in the lagged suite that is solely `lcsm-081/082`'s window-1
-arm contrast (`itt_window1_contrast.csv`), reported as an available-case modified ITT consistency check.
+The `dose_response` family reports the **intensive margin**: among children who were receiving the intervention, did attending more sessions go with more progress? Sessions enter centred and standardised over the on-intervention rows only, a separate `theta_treated` indicator carries the extensive margin (whether a child was being taught at all), and the exposure is split Mundlak-style into each child's study-average attendance and their within-child deviation from it — a single slope over a child random intercept returns a precision-weighted **blend** of the two, so calling it a within-child association, as this catalogue previously did, was wrong. Attendance is not randomised and the DAG has `A`, latent `GA` and `IG` all pointing into `IS`, so every dose slope is an adjusted association, never "more sessions cause more gain". The one randomised quantity in these fits is `theta_treated` read in period 1, where every immediate-arm child attended and every waiting control attended none. Otherwise only the available-case modified ITT estimates and the randomised-window DiD contrasts carry a causal interpretation under their stated selection and missing-data assumptions — in the lagged suite that is solely `lcsm-081/082`'s window-1 arm contrast (`itt_window1_contrast.csv`), reported as an available-case modified ITT consistency check.
 
 ### Joint growth curves — `lrp-rli-gc-069`, `lrp-rli-gc-070` (`kind="growth"`)
 
@@ -535,8 +533,10 @@ children observed at both endpoint waves.
 
 **Descriptive only — no causal quantity exists in this cohort.** `readgrp` is an
 observational cohort factor (`causal_status="none"` throughout); there is no intervention,
-so the four randomised RLI families (`itt`, `did`, `aligned`, `dose_response`) have no Byrne
-counterpart. Six Beta-Binomial ceilings are researched and confirmed (`basread` 90, `bpvs` 32,
+so the four intervention-dependent RLI families (`itt`, `did`, `aligned`, `dose_response`)
+have no Byrne counterpart. ("Intervention-dependent", not "randomised": only `itt` and the
+`did` t2 contrast rest on randomisation — `aligned`'s cohort contrast is explicitly not
+randomised, and `dose_response`'s attendance slopes are observational.) Six Beta-Binomial ceilings are researched and confirmed (`basread` 90, `bpvs` 32,
 `trog` 20, `basdig` 34, `bassim` 21, `basmat` 28 — #338 sign-off, 2026-07-16); `basspel`,
 `basnum` and `woco` keep **provisional observed-max ceilings** (`n_trials_confirmed=False`)
 pending their instrument manuals. The primary paper identifies `basspel` as 1983 BAS

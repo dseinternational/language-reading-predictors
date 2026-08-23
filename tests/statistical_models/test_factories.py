@@ -1793,9 +1793,14 @@ def test_dose_response_factory_builds_period_varying(tmp_path):
     built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=True)
     free = {v.name for v in built.model.free_RVs}
     dets = {v.name for v in built.model.deterministics}
-    # period-varying dose slope (partial pooled), arm, age, subject RI
-    assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw", "beta_G", "gamma_A",
+    # Period-varying dose slope (partial pooled), the extensive-margin indicator,
+    # the post-crossover arm term, age and the subject RI. ``beta_G`` was renamed
+    # ``beta_arm_late`` in #587: arm can only enter where it is not collinear with
+    # treatment presence, which in these data is period 2 onward.
+    assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw", "theta_treated",
+            "beta_arm_late", "beta_dose_between", "gamma_A",
             "sigma_child"}.issubset(free)
+    assert "beta_G" not in free
     assert "beta_dose_phase" in dets
     assert "beta_dose" not in free  # pooled slope only in the comparator
     # The cumulative-dose (attend_cumul) control is OFF by default (#269): it

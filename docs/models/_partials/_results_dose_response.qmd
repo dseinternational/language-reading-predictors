@@ -1,12 +1,8 @@
 ## Results
 
-This family estimates an observational session-dose association on the logit
-scale, per 1 SD of period session count. Positive slopes mean larger conditional
-gains are associated with higher dose in that period.
+This family asks a narrow question: **among children who were receiving the intervention, did attending more sessions go with more progress?** That is the _intensive margin_. It is deliberately separated from the _extensive margin_ — whether a child was receiving the intervention at all — because in period 1 the two are the same thing (every immediate-arm child attended, every waiting-control child attended none), and a single coefficient covering both would report the randomised treatment effect under a dose label.
 
-In plain terms: the slope is the change in outcome per additional session (per
-one extra dose unit) — how much more children tend to gain when they get more
-sessions in a period.
+Sessions therefore enter centred and standardised over the on-intervention rows only, so each slope is the change in the outcome logit per 1 SD of _attendance among children being taught_, and rows with no intervention contribute nothing to any dose term. Positive slopes mean larger conditional gains went with higher attendance.
 
 ```{python}
 # | echo: false
@@ -14,15 +10,12 @@ dose_slope_summary = _csv("dose_slope_summary.csv")
 dose_slope_summary if dose_slope_summary is not None else "No dose-slope summary."
 ```
 
-_How to read the dose-slope table:_ each row is one estimated quantity. `mean`
-is the posterior mean slope in logit units per 1 SD of sessions (bigger positive
-= more gain per extra dose); `lo` and `hi` are the ends of the 89% credible
-interval (the plausible range); `p_pos` is the probability the slope is above
-zero (near 1 favours benefit, near 0.5 is no clear direction). The
-`sigma_dose_between_period` row, when present, is how much the slope varies from
-period to period — small means periods share a common dose association.
+_How to read the dose-slope table:_ each row is one estimated quantity, in logit units per 1 SD of treated-row sessions (`dose_sd_sessions` records how many sessions that is). `median` is the posterior median — the house-standard summary — with `lo50`/`hi50` the inner 50% band and `lo`/`hi` the 89% credible interval; `p_pos` is the probability the quantity is above zero (near 1 favours a positive association, near 0.5 means no clear direction).
 
-_Read the period pattern against the pooled comparator._ The period-specific slopes carry a weakly-informative `HalfNormal(0.5)` between-period scale that partially pools them toward a common value, so any apparent fading of the dose association across periods is in part prior shrinkage rather than data. Read the period-resolved slopes alongside the well-identified pooled-dose comparator, which does not partition the dose signal by period.
+- `dose_overall`, `dose_period1..3` — the dose slopes, partially pooled across periods.
+- `dose_between_child` — **between children**: a child whose study-average attendance was 1 SD higher than another's. The period slopes are the complementary **within-child** quantity: the same child in a period when they attended more than their own average. These answer different questions and are reported separately because a single slope over a child random intercept silently returns a blend of the two.
+- `on_intervention` — the extensive margin. Read in period 1 this is a **randomised** contrast, and it is where this model's randomised evidence sits; the dose slopes are not randomised.
+- `sigma_dose_between_period` — how much the slope varies from period to period.
 
 ```{python}
 # | echo: false
@@ -30,38 +23,78 @@ _Read the period pattern against the pooled comparator._ The period-specific slo
 if dose_slope_summary is not None and len(dose_slope_summary):
     _main = dose_slope_summary.iloc[0]
     print(
-        f"**Headline dose association (`{_main.term}`):** posterior mean "
-        f"{_main['mean']:+.3f} logit units per 1 SD sessions "
+        f"**Headline dose association (`{_main.term}`):** posterior median "
+        f"{_main['median']:+.3f} logit units per 1 SD of treated-row sessions "
         f"(50% CrI {_main.lo50:+.3f} to {_main.hi50:+.3f}; "
         f"89% {_main.lo:+.3f} to {_main.hi:+.3f}); "
         f"P(> 0) = {_main.p_pos:.3f}."
     )
+    if "dose_sd_sessions" in dose_slope_summary.columns:
+        print(
+            f" One SD of treated-row attendance is "
+            f"{_main.dose_sd_sessions:.0f} sessions."
+        )
     if "sigma_dose_between_period" in set(dose_slope_summary.term):
         _s = dose_slope_summary[
             dose_slope_summary.term == "sigma_dose_between_period"
         ].iloc[0]
         print(
-            f"\n\nBetween-period slope SD: mean {_s['mean']:.3f} "
+            f"\n\nBetween-period slope SD: median {_s['median']:.3f} "
             f"(50% CrI {_s.lo50:.3f} to {_s.hi50:.3f}; "
             f"89% {_s.lo:.3f} to {_s.hi:.3f}). Small values mean the "
             "period slopes shrink toward a common dose association."
         )
 ```
 
-_Observational dose-response._ Dose is not randomised and may be confounded by latent general ability and
-availability. Compare the primary fit with its ability-adjusted or pooled-dose
-companion before treating the slope as robust.
+_Read the period pattern against the pooled comparator._ The period-specific slopes carry a weakly-informative `HalfNormal(0.5)` between-period scale that partially pools them toward a common value, so any apparent fading of the dose association across periods is in part prior shrinkage rather than data. Read the period-resolved slopes alongside the well-identified pooled-dose comparator, which does not partition the dose signal by period, and check `psense_summary.csv`: the between-period scale is prior-informed by construction.
+
+### On the items scale
 
 ```{python}
 # | echo: false
-# Optional comparison outputs, shown when copied beside this report.
+_marginal = _csv("dose_marginal_summary.csv")
+_marginal if _marginal is not None else "No dose marginal summary."
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _marginal is not None and len(_marginal):
+    _m = _marginal.iloc[0]
+    if "support_note" in _marginal.columns:
+        print(f"_How this contrast was chosen._ {_m.support_note}\n")
+    if "row_population" in _marginal.columns:
+        print(
+            f"\nAveraged over {int(_m.n_rows)} {_m.row_population} "
+            f"of {int(_m.n_rows_fitted)} fitted rows."
+        )
+```
+
+```{python}
+# | echo: false
+_support = _csv("dose_support.csv")
+_support if _support is not None else None
+```
+
+_How to read the support table:_ `sessions_q1` and `sessions_q3` are the observed lower and upper quartiles of attendance among on-intervention rows **in that period**, and `contrast_sessions` is the gap between them — the size of the step the items-scale figure describes. `contrast_within_support` confirms both endpoints are attendance levels actually observed in that period, so the reported item change is interpolation within the fitted data rather than extrapolation beyond it.
+
+### Calibration across arm, period and dose
+
+```{python}
+# | echo: false
+_bands = _csv("dose_band_calibration.csv")
+_bands if _bands is not None else None
+```
+
+_How to read the calibration table:_ the marginal posterior-predictive check can look healthy while the model still gets the _dose gradient_ wrong. This splits the fitted rows by assigned arm, period and thirds of observed attendance (with the no-intervention rows as their own band) and compares observed scores with predictions. `mean_residual` near zero and `coverage_89` near 0.89 in every cell means the model tracks the outcome across the dose range rather than only on average; a residual that grows steadily from the low to the high band would indicate a dose response the linear working model is not capturing.
+
+_Observational dose-response._ How much a child attended was not randomised. The authoritative DAG has age, latent general ability and assigned group all pointing into intervention sessions, so conditioning on measured baselines does not close that door — Frank's 2012 caveat, that the children least able to learn tended to attend least, is exactly the unblocked path. Compare the primary fit with its ability-adjusted and pooled-dose companions before treating any slope as robust, and note that an ability-adjusted sensitivity that leaves the slope intact is reassurance, not proof.
+
+```{python}
+# | echo: false
+# Nested predictive comparison, copied beside both paired runs at comparison time.
 _comp = _csv("dose_loo_compare.csv")
 _comp if _comp is not None else _csv("did_dose_loo_compare.csv")
 ```
 
-_How to read the comparison table:_ this ranks the dose model against its
-companion by out-of-sample fit (leave-one-out cross-validation). The top row is
-the best-predicting model; `elpd_diff` is how far each other model falls behind
-it (0 for the top row, more negative = worse), and `se_diff` is the uncertainty
-in that gap — a difference only counts as clear when it is several times its own
-`se_diff`.
+_How to read the comparison table:_ this ranks the dose model against its companion by leave-one-**child**-out cross-validation — how well each model predicts a child it has not seen. (The unit is a whole child, not a single row: a transition row's own baseline is the previous transition's outcome, so dropping one row would leave that held-out score in the next row's predictors and the score would not be out-of-sample at all.) The top row is the best-predicting model; `elpd_diff` is how far each other model falls behind it (0 for the top row, more negative = worse), and `dse` is the uncertainty in that gap — a difference only counts as clear when it is several times its own `dse`. Read a ranking only when `comparison_valid` is true.

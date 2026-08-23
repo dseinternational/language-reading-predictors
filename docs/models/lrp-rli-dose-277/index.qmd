@@ -21,19 +21,23 @@ format:
 ## Overview
 
 LRP77base is the **no-period-variation companion** to [LRP77](../lrp-rli-dose-077/). It is
-the identical period-resolved dose-response model — Beta-Binomial conditional
-change on word reading ($W$, $N = 79$), $\{G, W_{\text{pre}}, A\}$ adjustment,
-cumulative-dose control, subject random intercept — except the dose enters as a
-**single pooled slope** $\beta_{\text{dose}}\,z(\text{attend})$ instead of the
-partial-pooled per-period slopes $\beta_{\text{dose}[p]}$.
+the identical dose-response model — Beta-Binomial conditional change on word
+reading ($W$, $N = 79$), the same on-intervention indicator, post-crossover arm
+term, own baseline, linear age and subject random intercept — except the
+within-child attendance deviation enters as a **single pooled slope**
+$\beta_{\text{dose}}$ instead of the partial-pooled per-period slopes
+$\beta_{\text{dose}[p]}$. It fits **no** cumulative-dose control, exactly as LRP77
+does not.
 
-Its sole purpose is the nested **PSIS-LOO** comparison against LRP77
-(`scripts/compare_statistical_models.py`): *does letting the dose–gain slope vary
-by period improve predictive fit?* Given the weak Phase-1 dose structure, LRP77
-is expected to shrink toward this model and LOO to be near-indistinguishable; LOO
-is read cautiously at this $n$ because dynamic companions were not estimable. See
-the LRP77 report for the full estimand, the revised-DAG adjustment set, the no-`ability -> dose`
-assumption, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations caveat.
+Its sole purpose is the nested **leave-one-child-out PSIS** comparison against
+LRP77 (`scripts/compare_statistical_models.py`): *does letting the attendance
+slope vary by period improve prediction for a child the model has not seen?*
+Given the weak Phase-1 dose structure, LRP77 is expected to shrink toward this
+model and the comparison to be near-indistinguishable; it is read cautiously at
+this $n$ because the dynamic companions were not estimable. See the LRP77 report
+for the full estimand, the extensive/intensive split, the unblocked latent-ability
+path, the $G = 2 - \text{group}$ coding (G=1 = intervention), and the expectations
+caveat.
 
 ![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
 

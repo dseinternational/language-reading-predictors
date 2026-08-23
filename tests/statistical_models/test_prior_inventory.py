@@ -699,12 +699,24 @@ def test_aligned_beta_cohort_is_not_a_treatment_effect(built_models):
     assert "Treatment effect tau" not in by["beta_cohort"]["rationale"]
 
 
-def test_dose_beta_G_and_mu_dose_rationales(built_models):
+def test_dose_arm_presence_and_mu_dose_rationales(built_models):
+    """#587: arm is post-crossover only and presence is its own labelled term."""
     by = _labelled(built_models["dose_response"], kind="dose_response")
-    assert by["beta_G"]["role"] == "association"
-    assert "Treatment effect tau" not in by["beta_G"]["rationale"]
-    assert "backdoor" in by["beta_G"]["rationale"]
+    assert "beta_G" not in by, "the family-wide arm term was replaced by beta_arm_late"
+
+    assert by["beta_arm_late"]["role"] == "association"
+    assert "Treatment effect tau" not in by["beta_arm_late"]["rationale"]
+    assert "backdoor" in by["beta_arm_late"]["rationale"]
+
+    # The extensive margin must not be silently labelled a dose slope, and must be
+    # the term that carries the randomised reading.
+    assert "randomised contrast" in by["theta_treated"]["rationale"]
+
+    assert by["beta_dose_between"]["role"] == "association"
+    assert "Between-child" in by["beta_dose_between"]["rationale"]
+
     assert "dose-response slope" in by["mu_dose"]["rationale"]
+    assert "treated-row sessions" in by["mu_dose"]["rationale"]
 
 
 def test_growth_interaction_and_tempo_loading(built_models):
