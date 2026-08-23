@@ -263,3 +263,140 @@ def test_joint_readiness_comparison_copied_beside_both_reports(
     for model_id in ids:
         copied = Path(cmp_mod._run_dir(model_id, "dev")) / "mechanism_loo_compare.csv"
         assert copied.read_text() == out.read_text()
+
+
+# ---------------------------------------------------------------------------
+# Mechanism forest: fail-closed gating and a defined nonlinear slope estimand
+# (#586 finding 6). The forest loaded whatever trace it found, wrote no gate
+# column, reported posterior means, and averaged derivatives over a deduplicated
+# grid — so ties in the exposure silently reweighted the average.
+# ---------------------------------------------------------------------------
+
+
+def _mech_trace(mech_logit, *, curve=None, beta=None):
+    """A mechanism trace carrying ``mech_post_logit`` plus f_mech or beta_mech."""
+    n_obs = len(mech_logit)
+    constant_data = xr.Dataset(
+        {"mech_post_logit": ("obs_id", np.asarray(mech_logit, dtype=float))},
+        coords={"obs_id": range(n_obs)},
+    )
+    data = {}
+    if curve is not None:
+        # (chain, draw, obs_id) with two identical draws, so quantiles are exact.
+        data["f_mech"] = (
+            ("chain", "draw", "obs_id"),
+            np.asarray([[curve, curve]], dtype=float),
+        )
+    if beta is not None:
+        data["beta_mech"] = (("chain", "draw"), np.asarray([[beta, beta]], dtype=float))
+    posterior = xr.Dataset(
+        data, coords={"chain": [0], "draw": [0, 1], "obs_id": range(n_obs)}
+    )
+    return SimpleNamespace(
+        groups=("/posterior", "/constant_data"),
+        posterior=posterior,
+        constant_data=constant_data,
+    )
+
+
+@pytest.mark.parametrize("failing_gate", [False, None])
+def test_mechanism_forest_fails_closed_on_the_convergence_gate(
+    cmp_mod, out_root, monkeypatch, failing_gate
+):
+    """A REVIEW or missing gate must abandon the forest, not publish it unmarked.
+
+    ``_gate_status`` states the rule in terms — a REVIEW fit "is not interpretable
+    ... a tau/slope from such a run must never enter the comparison forests
+    unmarked" — and every other comparison in this script honours it. This one
+    loaded every available trace without consulting the gate (#586 finding 6).
+    """
+    mech_logit = np.linspace(-2.0, 2.0, 6)
+    for index, (model_id, _sym) in enumerate(cmp_mod.MECH_IDS):
+        if index == 1 and failing_gate is None:
+            continue  # no run directory at all -> gate MISSING
+        _install_run(
+            cmp_mod, model_id, passed=not (index == 1 and failing_gate is False)
+        )
+    monkeypatch.setattr(
+        cmp_mod.az,
+        "from_netcdf",
+        lambda path: _mech_trace(mech_logit, beta=0.3),
+    )
+    out = out_root / "mechanism_forest.png"
+    assert cmp_mod.mechanism_forest("dev", str(out)) is False
+    assert not out.exists()
+    assert not out.with_suffix(".csv").exists()
+
+
+def test_mechanism_forest_records_gate_estimand_and_uses_medians(
+    cmp_mod, out_root, monkeypatch
+):
+    mech_logit = np.linspace(-2.0, 2.0, 6)
+    for model_id, _sym in cmp_mod.MECH_IDS:
+        _install_run(cmp_mod, model_id, passed=True)
+    monkeypatch.setattr(
+        cmp_mod.az, "from_netcdf", lambda path: _mech_trace(mech_logit, beta=0.3)
+    )
+    out = out_root / "mechanism_forest.png"
+    assert cmp_mod.mechanism_forest("dev", str(out)) is True
+
+    written = pd.read_csv(out.with_suffix(".csv"))
+    assert len(written) == len(cmp_mod.MECH_IDS)
+    assert written["converged"].all()
+    assert (written["gate_status"] == "PASS").all()
+    assert written["estimand"].str.len().gt(0).all()
+    # Median-first, the house convention; the column name must say so.
+    assert "slope_median" in written.columns
+    assert "slope_mean" not in written.columns
+    assert np.allclose(written["slope_median"], 0.3)
+
+
+def test_curve_slope_is_a_fitted_row_average_over_an_irregular_grid(cmp_mod):
+    """Ties count once per fitted row, not once per distinct exposure value.
+
+    On a bounded count measure many children share an exposure, so deduplicating
+    before averaging reweights the mean toward the sparse tail of the range — where
+    an HSGP curve is least constrained. Pinned with a deliberately lopsided grid:
+    five rows at the shallow end, one at the steep end.
+    """
+    # Piecewise-linear curve: slope 1 below 0, slope 11 above it.
+    x = np.array([-2.0, -2.0, -2.0, -1.0, 0.0, 1.0])
+    curve = np.where(x <= 0.0, x, 11.0 * x)
+
+    slopes = cmp_mod._mechanism_slope_distribution(_mech_trace(x, curve=curve), x)
+
+    # Unique grid is [-2, -1, 0, 1]; np.gradient there gives [1, 1, 6, 11].
+    # Deduplicating and averaging equally would give (1 + 1 + 6 + 11) / 4 = 4.75.
+    # Weighting by fitted rows gives (1*3 + 1 + 6 + 11) / 6 = 3.5 — the three tied
+    # shallow rows now pull the average toward where the data actually are.
+    assert np.allclose(slopes, 3.5)
+    assert not np.allclose(slopes, 4.75)
+
+
+def test_mechanism_comparisons_are_copied_beside_both_paired_runs(
+    cmp_mod, out_root, monkeypatch
+):
+    """Model reports render from their own run directory, so a comparison that
+    lives only in the shared directory never reaches either report (#586 finding
+    13). mech-058/071 and mech-072/172 were the two pairs still missing the copy."""
+    for pair, wrapper, expected_note in (
+        (cmp_mod.LOO_COMPARE_IDS, cmp_mod.mechanism_loo_compare, "Joint comparison"),
+        (cmp_mod.PHONICS_LOO_IDS, cmp_mod.phonics_route_loo_compare, "Nested comparison"),
+    ):
+        for model_id in pair:
+            _install_run(cmp_mod, model_id, passed=True)
+        monkeypatch.setattr(
+            cmp_mod, "_loo_compare", lambda ids, config, path: (
+                pd.DataFrame({"model": list(ids), "elpd_loo": [-1.0, -2.0]}).to_csv(
+                    path, index=False
+                )
+                or True
+            )
+        )
+        out = out_root / "comparison.csv"
+        assert wrapper("dev", str(out)) is True
+        for model_id in pair:
+            beside = Path(cmp_mod._run_dir(model_id, "dev")) / "mechanism_loo_compare.csv"
+            assert beside.exists(), model_id
+            note = pd.read_csv(beside)["comparison_note"].iloc[0]
+            assert expected_note in note
