@@ -321,6 +321,8 @@ LRPBX
 LRPCA
 lrpca
 lrpdid
+LRPDOSE
+lrpdose
 lrpgbg
 LRPGBG
 lrpgbl
@@ -336,6 +338,8 @@ lrplcf
 LRPLCF
 LRPLF
 lrplf
+LRPMED
+lrpmed
 LRPMM
 lrpmm
 LRPPL
