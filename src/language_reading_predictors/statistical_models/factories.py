@@ -2370,6 +2370,21 @@ def build_did_model(
     # (mu_dose when period-varying, beta_dose otherwise). None keeps the
     # Normal(0, 1) default; the per-period deviation scale is not swept.
     dose_slope_prior_sigma: float | None = None,
+    # #576 finding 2: the phoneme-blending response link on the graded
+    # arm-by-wave score mean. ``"three_choice_guessing_floor"`` maps the mean
+    # onto [1/3, 1]; the empirical-Bayes intercept anchor is inverted through
+    # the same link so it still locates the *linear predictor*.
+    score_mean_link: ScoreMeanLink = "logit",
+    # #576 finding 4: the two widths that set how a realised t1 imbalance is
+    # allocated between the regularised baseline gap and the shared child
+    # intercepts. None keeps the shared defaults.
+    arm_gap_t1_prior_sigma: float | None = None,
+    sigma_child_prior_sigma: float | None = None,
+    # #576 material qualification 2: the dispersion prior's shape. The default
+    # concentration prior cannot reach the near-Binomial limit at a high
+    # denominator; ``"halfnormal_inverse_sqrt"`` can.
+    kappa_prior_family: str = "halfnormal_concentration",
+    kappa_prior_sigma: float | None = None,
 ) -> BuiltModel[DidDosePayload | DidArmWavePayload]:
     """Waitlist-crossover triangulation with explicit arm-by-wave contrasts.
 
@@ -2419,6 +2434,50 @@ def build_did_model(
         raise ValueError("use_varying_delta is unavailable for dose models")
     if use_varying_delta and not use_child_re:
         raise ValueError("use_varying_delta=True requires use_child_re=True")
+    # bool is an int subclass, so an unguarded numeric check turned a typo'd flag
+    # into a silent prior change (#576 lower-severity 5). Belt-and-braces for direct
+    # callers; ``DiDModelSettings`` rejects the same values before any I/O.
+    for _name, _width in (
+        ("tau_t2_prior_sigma", tau_t2_prior_sigma),
+        ("dose_slope_prior_sigma", dose_slope_prior_sigma),
+        ("arm_gap_t1_prior_sigma", arm_gap_t1_prior_sigma),
+        ("sigma_child_prior_sigma", sigma_child_prior_sigma),
+        ("kappa_prior_sigma", kappa_prior_sigma),
+    ):
+        if _width is None:
+            continue
+        if isinstance(_width, bool) or not isinstance(_width, (int, float)):
+            raise TypeError(
+                f"{_name} must be a number when set, got {_width!r}; bool is not a "
+                "prior width"
+            )
+        if not np.isfinite(float(_width)) or float(_width) <= 0.0:
+            raise ValueError(f"{_name} must be finite and positive when set")
+    if score_mean_link not in SCORE_MEAN_LINKS:
+        raise ValueError(
+            f"score_mean_link must be one of {list(SCORE_MEAN_LINKS)}, "
+            f"got {score_mean_link!r}"
+        )
+    if score_mean_link != "logit":
+        if outcome_symbol != "B":
+            raise ValueError(
+                "three_choice_guessing_floor is only valid for phoneme blending (B), "
+                f"got {outcome_symbol!r}"
+            )
+        if dose or likelihood != "beta_binomial":
+            raise ValueError(
+                "score_mean_link applies to the graded arm-by-wave Beta-Binomial "
+                "score mean; this branch has no score mean to map"
+            )
+    if kappa_prior_family not in ("halfnormal_concentration", "halfnormal_inverse_sqrt"):
+        raise ValueError(
+            "kappa_prior_family must be 'halfnormal_concentration' or "
+            f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
+        )
+    if arm_gap_t1_prior_sigma is not None and dose:
+        raise ValueError("arm_gap_t1_prior_sigma applies to the arm-by-wave baseline gap")
+    if sigma_child_prior_sigma is not None and not use_child_re:
+        raise ValueError("sigma_child_prior_sigma requires use_child_re=True")
 
     if dose:
         if prepared.phase_mode != "all":
@@ -2602,6 +2661,22 @@ def build_did_model(
     post = prepared.post_counts[own].astype(np.int64)
     n_trials = prepared.n_trials[own]
 
+    # Every arm-by-wave cell the model estimates a coefficient for must contain
+    # both arms, or that coefficient is prior-only — a parameter reported as an
+    # estimate with no data behind it. This used to surface, if at all, during
+    # reporting, long after the fit (#576 lower-severity 6). Current data fill
+    # every cell; the check is here so a future delivery that empties one fails
+    # loudly at build time instead.
+    for _wave_code, _wave_label in ((0, "t1"), (1, "t2"), (2, "t3")):
+        _rows = prepared.phase == _wave_code
+        _arms = set(np.unique(prepared.G[_rows]).astype(int).tolist())
+        if _arms != {0, 1}:
+            raise ValueError(
+                f"the arm-by-wave DiD requires both arms at every wave: {_wave_label} "
+                f"has {sorted(_arms) or 'no rows'} after the missing-outcome mask, so "
+                f"its arm-gap coefficient would be prior-only"
+            )
+
     alpha_anchor: float | None = None
     if use_intercept_anchor:
         t1 = post[prepared.phase == 0]
@@ -2615,9 +2690,15 @@ def build_did_model(
         else:
             successes = float(np.sum(t1))
             failures = float(t1.size * n_trials - successes)
-            alpha_anchor = float(
-                np.log((successes + 0.5) / (failures + 0.5))
-            )
+            # The anchor locates the intercept prior on the LINEAR PREDICTOR, so
+            # under a non-identity score-mean link the observed proportion must be
+            # mapped back through the link first — the same discipline the level
+            # family adopted in #584 decision 2. Anchoring a guessing-floor fit on
+            # the raw observed logit would put the prior roughly one logit unit
+            # away from the value the floor link needs.
+            proportion = (successes + 0.5) / (successes + failures + 1.0)
+            unit = float(invert_score_mean_link(proportion, score_mean_link))
+            alpha_anchor = float(np.log(unit / (1.0 - unit)))
 
     obs_ids = np.asarray(
         [
@@ -2668,7 +2749,11 @@ def build_did_model(
         wave_offset = pt.concatenate(
             [pt.zeros((1,), dtype=beta_period.dtype), beta_period]
         )
-        arm_gap_t1 = _priors.gamma_cross_prior().to_pymc("arm_gap_t1")
+        arm_gap_t1 = (
+            _priors.gamma_cross_prior()
+            if arm_gap_t1_prior_sigma is None
+            else _priors.gamma_cross_prior(sigma=float(arm_gap_t1_prior_sigma))
+        ).to_pymc("arm_gap_t1")
         tau_t2 = _priors.tau_prior(
             sigma=(
                 _tau_sigma_for(own)
@@ -2695,7 +2780,13 @@ def build_did_model(
             eta_base = eta_base + gamma_A * age_t1_d
         if use_child_re:
             eta_base = _add_child_random_intercept(
-                eta_base, child_idx_d, sigma_prior_sigma=0.5
+                eta_base,
+                child_idx_d,
+                sigma_prior_sigma=(
+                    0.5
+                    if sigma_child_prior_sigma is None
+                    else float(sigma_child_prior_sigma)
+                ),
             )
         eta_base = pm.Deterministic("eta_base", eta_base, dims="obs_id")
         eta_full = eta_base + arm_gap_wave[wave_d] * G_d
@@ -2731,12 +2822,29 @@ def build_did_model(
 
         eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
         if likelihood == "beta_binomial":
-            kappa = _scalar_prior("kappa", _priors.kappa_prior)
-            beta_binomial_from_logit(
+            if kappa_prior_family == "halfnormal_inverse_sqrt":
+                # The registered dispersion sensitivity (#576 material
+                # qualification 2): a HalfNormal on the concentration cannot
+                # reach the near-Binomial limit for a long test, so it imposes a
+                # floor on the estimated over-dispersion. The dispersion-scale
+                # parameterisation can conclude there is none.
+                kappa = _rlm_dispersion_kappa(
+                    float(_priors.inv_sqrt_kappa_prior().sigma)
+                    if kappa_prior_sigma is None
+                    else float(kappa_prior_sigma)
+                )
+            else:
+                kappa = (
+                    _priors.kappa_prior()
+                    if kappa_prior_sigma is None
+                    else _priors.kappa_prior(sigma=float(kappa_prior_sigma))
+                ).to_pymc("kappa")
+            beta_binomial_from_score_mean_link(
                 "y_post",
                 eta_full,
                 n_trials=n_trials,
                 kappa=kappa,
+                score_mean_link=score_mean_link,
                 observed=post,
                 dims="obs_id",
             )
@@ -2757,6 +2865,7 @@ def build_did_model(
             age_t1_scaler=age_scaler,
             analysis_row_ids=obs_ids,
             waves=waves,
+            score_mean_link=score_mean_link,
         ),
     )
 

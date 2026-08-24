@@ -1,0 +1,56 @@
+---
+title: "LRPDID103: Guessing-floor response-link sensitivity for phoneme blending (PA)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPDID103 is the **response-link companion** to [LRPDID03](../lrp-rli-did-003/). It is the same arm-by-wave model, the same children, the same rows and the same sampler settings, differing in exactly one thing: how the linear predictor becomes an expected score.
+
+| | LRPDID03 (reference) | LRPDID103 (this model) |
+| --- | --- | --- |
+| score mean | $\mu = \text{logit}^{-1}(\eta)$ | $\mu = \tfrac{1}{3} + \tfrac{2}{3}\,\text{logit}^{-1}(\eta)$ |
+| lowest attainable fitted mean | 0 of 10 | 3.33 of 10 (chance) |
+| intercept anchor | pooled observed t1 logit | the same proportion mapped back **through the link** |
+| everything else | — | identical |
+
+## Why this model exists
+
+Phoneme blending has ten items with **three response alternatives each**, so a child responding at random scores about 3.3 of 10. The ordinary inverse-logit mean places no floor on the fitted mean at all: it is free to put posterior mass on expected scores that no mechanism of the test can produce. The guessing-floor link encodes the floor the test actually has.
+
+This is material, not cosmetic. The equivalent ITT sensitivity roughly **halved** the item-scale estimate, because a model that can explain low scores by "below chance" attributes less of the arm difference to the intervention than one that cannot. The methodology has therefore required the pairing for any headline `B` interpretation; until #576 the difference-in-differences family had no version of it, which is what this fit closes.
+
+_Why the ITT companion does not cover this fit._ LRPITT108 pairs with a single-outcome cross-sectional model of t2. The arm-by-wave likelihood here is longitudinal with a child random intercept, so t1 and t3 data inform the t2 posterior. The two response-link sensitivities are not interchangeable, and neither substitutes for the other.
+
+## Neither fit is released alone
+
+`release.evaluate_publication` requires the current, converged, provenance-matched twin beside whichever side is being published: both fits must have passed their own clean convergence gate, be fitted on the same data and the same rows under the same sampling configuration, and carry genuinely opposite links. If either side is missing, stale or ungated, **both** are withheld.
+
+## How to read the comparison
+
+Read the two item-scale `tau_t2` cards side by side and quote the pair. If they agree, the phoneme-blending result does not depend on the response-link assumption. If the floor-link estimate is materially smaller — the expected direction, and what the ITT pair found — the ordinary-logit number is an upper bound and the floor-link one is the estimate to lead with.
+
+_Sign convention and reading rules as LRPDID03:_ positive favours the intervention; `tau_t2` is the randomised t2 assignment contrast, `arm_gap_t1` a pre-randomisation balance quantity, `arm_gap_t3` the randomised early-start-versus-delayed-start schedule contrast, and `delta_crossover` the change between the two.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_did.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

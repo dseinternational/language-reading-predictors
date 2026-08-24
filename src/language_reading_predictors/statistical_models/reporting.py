@@ -1926,15 +1926,28 @@ def did_summary(
     child_idx: np.ndarray | None = None,
     standardization_cells: Mapping[str, np.ndarray] | None = None,
     wave: np.ndarray | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
+    subject_ids: np.ndarray | None = None,
 ) -> dict[str, float | bool | str]:
     """Summarise a waitlist-crossover arm-by-wave model (kind="did").
 
     The current binary model exposes three immediate-minus-waitlist logit contrasts:
-    ``arm_gap_t1`` (pre-randomisation balance), ``tau_t2`` (the clean randomised t2
-    arm contrast) and ``arm_gap_t3`` (a post-crossover association). Its derived
-    ``delta_crossover = tau_t2 - arm_gap_t3`` is the reduction in the arm gap after
-    crossover: positive means that the waitlist arm caught up. It is descriptive,
-    not a second randomised treatment effect.
+    ``arm_gap_t1`` (pre-randomisation balance), ``tau_t2`` (the randomised
+    immediate-treatment-versus-no-treatment assignment contrast at t2) and
+    ``arm_gap_t3`` (a **different randomised contrast** — assignment to the
+    early-start rather than the delayed-start treatment schedule, both arms being
+    treated by t3). Its derived ``delta_crossover = tau_t2 - arm_gap_t3`` is the
+    change between those two randomised regime contrasts: positive means the gap
+    between the arms is smaller at t3 than at t2. It is **not** an identified
+    catch-up mechanism — duration, carryover, maturation, ceiling effects and
+    different taught blocks are inseparable in it (#576 finding 3) — and it is not a
+    second treated-versus-untreated effect.
+
+    ``score_mean_link`` is the inverse link of the fitted score model. The
+    phoneme-blending guessing-floor companion maps the mean onto ``[1/3, 1]``, so
+    every outcome-scale quantity here must go through the same link the likelihood
+    used; reading ``expit(eta)`` directly would understate the fitted score by up to
+    a third of the test (#576 finding 2).
 
     ``wave`` must contain the fitted row's zero-based t1/t2/t3 code (0/1/2). For
     each wave, the function standardises both arms over that wave's fitted rows
@@ -2096,8 +2109,12 @@ def did_summary(
                 .stack(sample=("chain", "draw"))
                 .values.ravel()
             )
-            waitlist = expit(eta_base[rows]).mean(axis=0)
-            immediate = expit(eta_base[rows] + gap[None, :]).mean(axis=0)
+            waitlist = apply_score_mean_link(
+                expit(eta_base[rows]), score_mean_link
+            ).mean(axis=0)
+            immediate = apply_score_mean_link(
+                expit(eta_base[rows] + gap[None, :]), score_mean_link
+            ).mean(axis=0)
             arm_gap = immediate - waitlist
             _effect_summary(waitlist, prefix=f"{wave_name}_waitlist_items")
             _effect_summary(immediate, prefix=f"{wave_name}_immediate_items")
@@ -2118,6 +2135,60 @@ def did_summary(
                 prefix="delta_crossover_items",
             )
             out["delta_crossover_items_available"] = True
+            out["delta_crossover_items_population"] = "wave_specific_fitted_rows"
+            # Common-child gap change (#576 material qualification 6). The two legs
+            # above are each standardised over their own wave's fitted rows. When a
+            # child is observed at t2 but not t3 those row sets differ, and the
+            # difference then mixes the change over time with a change in *who* is
+            # being averaged over. Recomputing both legs on the children present at
+            # both waves separates the two; the wave-specific quantity is retained
+            # beside it, and the recorded flag says whether they can differ at all.
+            if subject_ids is not None:
+                ids = np.asarray(subject_ids).astype(str)
+                if ids.shape[0] != eta_base.shape[0]:
+                    raise ValueError(
+                        f"subject_ids has {ids.shape[0]} rows but eta_base has "
+                        f"{eta_base.shape[0]} observations; pass the fitted-subset ids."
+                    )
+                common = np.intersect1d(ids[wave_arr == 1], ids[wave_arr == 2])
+                out["delta_crossover_items_common_n_children"] = int(common.size)
+                out["delta_crossover_items_common_population_identical"] = bool(
+                    common.size == np.unique(ids[wave_arr == 1]).size
+                    and common.size == np.unique(ids[wave_arr == 2]).size
+                )
+                if common.size:
+                    in_common = np.isin(ids, common)
+                    common_effects: dict[str, np.ndarray] = {}
+                    for wave_code, term_name in ((1, "tau_t2"), (2, "arm_gap_t3")):
+                        rows = (wave_arr == wave_code) & in_common
+                        gap = (
+                            posterior[term_name]
+                            .stack(sample=("chain", "draw"))
+                            .values.ravel()
+                        )
+                        base = eta_base[rows]
+                        common_effects[term_name] = (
+                            apply_score_mean_link(
+                                expit(base + gap[None, :]), score_mean_link
+                            ).mean(axis=0)
+                            - apply_score_mean_link(
+                                expit(base), score_mean_link
+                            ).mean(axis=0)
+                        )
+                    for term_name, prefix in (
+                        ("tau_t2", "tau_t2_items_common"),
+                        ("arm_gap_t3", "arm_gap_t3_items_common"),
+                    ):
+                        _effect_summary(common_effects[term_name], prefix=prefix)
+                    _effect_summary(
+                        common_effects["tau_t2"] - common_effects["arm_gap_t3"],
+                        prefix="delta_crossover_items_common",
+                    )
+                    out["delta_crossover_items_common_available"] = True
+                else:
+                    out["delta_crossover_items_common_available"] = False
+            else:
+                out["delta_crossover_items_common_available"] = False
         else:
             out["delta_crossover_items_available"] = False
             out["delta_crossover_items_omission_reason"] = (
@@ -2132,8 +2203,19 @@ def did_summary(
             if "delta_crossover_i" in posterior
             else "fixed arm gaps"
         )
+        out["score_mean_link"] = str(score_mean_link)
+        out["tau_t2_interpretation"] = (
+            "randomised assignment contrast: immediate treatment versus no treatment "
+            "yet, read at t2"
+        )
+        out["arm_gap_t3_interpretation"] = (
+            "randomised assignment contrast between treatment schedules: early-start "
+            "versus delayed-start treatment history at t3; not a treated-versus-"
+            "untreated effect"
+        )
         out["delta_crossover_interpretation"] = (
-            "t2 arm gap minus t3 arm gap; post-crossover association"
+            "change between two randomised regime contrasts (t2 gap minus t3 gap); "
+            "not an identified catch-up mechanism"
         )
         out["off_floor"] = bool(off_floor)
         return out
@@ -2357,6 +2439,141 @@ def did_cell_ppc(
                         zero_mid_p <= 0.025 or zero_mid_p >= 0.975
                     ),
                 }
+            )
+    return pd.DataFrame(rows)
+
+
+def did_within_child_ppc(
+    trace: xr.DataTree,
+    *,
+    phase: np.ndarray,
+    subject_ids: np.ndarray,
+    G: np.ndarray,
+    node: str = "y_post",
+    ci_prob: float = 0.89,
+) -> pd.DataFrame:
+    """Posterior-predictive checks of the model's **within-child** structure (#576 MQ3).
+
+    A single stable child random intercept plus conditionally independent
+    Beta-Binomial rows imposes a restrictive repeated-measures covariance: it says
+    every pair of a child's waves is equicorrelated, with the correlation set by one
+    variance ratio, and it fixes how much a child can move between consecutive waves.
+    The family's existing checks cannot see a failure of that assumption. The
+    arm-by-time cell PPC compares *marginal* cell means and zero rates, which a model
+    with badly wrong within-child dependence can still reproduce; the pooled score
+    density likewise.
+
+    This cross-checks the structure directly. For every child observed at both waves
+    of a pair, it compares the observed **within-child change** (its mean and SD, per
+    arm where the pair spans the randomised window) and the observed **across-child
+    correlation** of the paired scores with the same statistics recomputed on each
+    posterior-predictive replicate. A replicate distribution that systematically
+    understates the spread of within-child changes, or overstates the wave-to-wave
+    correlation, is the signature of an over-restrictive covariance — invisible in
+    the marginal checks.
+
+    Tail probabilities are the usual ``P(replicated >= observed)`` upper tails and the
+    flag uses the family's fixed 2.5 % / 97.5 % convention (matching
+    :func:`did_cell_ppc`), while the interval columns render at the house ``ci_prob``.
+    These are predictive diagnostics, not hypothesis tests.
+    """
+    posterior_predictive = getattr(trace, "posterior_predictive", None)
+    if posterior_predictive is None or node not in posterior_predictive:
+        raise KeyError(f"posterior predictive group has no node {node!r}")
+    replicated = (
+        posterior_predictive[node]
+        .stack(sample=("chain", "draw"))
+        .transpose("obs_id", "sample")
+        .values.astype(float)
+    )
+    observed = np.asarray(trace.observed_data[node].values, dtype=float)
+    phase_arr = np.asarray(phase, dtype=int)
+    ids = np.asarray(subject_ids).astype(str)
+    arm_arr = np.asarray(G, dtype=int)
+    n_obs = phase_arr.shape[0]
+    for name, array in (
+        ("subject_ids", ids), ("G", arm_arr), ("observed", observed),
+        ("replicated", replicated),
+    ):
+        if array.shape[0] != n_obs:
+            raise ValueError(
+                f"fitted arrays are misaligned: phase={n_obs}, {name}={array.shape[0]}"
+            )
+
+    lo_q = (1 - ci_prob) / 2
+    hi_q = 1 - lo_q
+    rows: list[dict[str, float | int | str | bool]] = []
+
+    def _record(
+        statistic: str, pair: str, arm: str, obs_value: float, rep_values: np.ndarray
+    ) -> None:
+        finite = np.isfinite(rep_values)
+        if not np.isfinite(obs_value) or not finite.any():
+            return
+        rep = rep_values[finite]
+        tail = float(np.mean(rep >= obs_value))
+        rows.append(
+            {
+                "statistic": statistic,
+                "wave_pair": pair,
+                "arm": arm,
+                # Filled in by the wave-pair loop below, which knows the pairing.
+                "n_children": 0,
+                "observed": float(obs_value),
+                "replicated_median": float(np.median(rep)),
+                "replicated_lo": float(np.quantile(rep, lo_q)),
+                "replicated_hi": float(np.quantile(rep, hi_q)),
+                "p_rep_ge_observed": tail,
+                "tail_flag": bool(tail <= 0.025 or tail >= 0.975),
+            }
+        )
+
+    def _corr(a: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """Across-child Pearson correlation of two row blocks, per draw/column."""
+        a = np.atleast_2d(a)
+        b = np.atleast_2d(b)
+        a_c = a - a.mean(axis=0, keepdims=True)
+        b_c = b - b.mean(axis=0, keepdims=True)
+        denominator = np.sqrt((a_c**2).sum(axis=0) * (b_c**2).sum(axis=0))
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(denominator > 0, (a_c * b_c).sum(axis=0) / denominator, np.nan)
+
+    wave_pairs = ((0, 1, "t1_t2"), (1, 2, "t2_t3"), (0, 2, "t1_t3"))
+    for first, second, pair in wave_pairs:
+        first_rows = {i: r for r, i in enumerate(ids) if phase_arr[r] == first}
+        second_rows = {i: r for r, i in enumerate(ids) if phase_arr[r] == second}
+        common = sorted(set(first_rows) & set(second_rows))
+        if len(common) < 3:
+            continue
+        idx_a = np.asarray([first_rows[i] for i in common])
+        idx_b = np.asarray([second_rows[i] for i in common])
+        change_obs = observed[idx_b] - observed[idx_a]
+        change_rep = replicated[idx_b] - replicated[idx_a]
+        arms_here = np.asarray([arm_arr[r] for r in idx_a])
+        started = len(rows)
+        _record(
+            "within_child_change_sd", pair, "both",
+            float(np.std(change_obs, ddof=1)), change_rep.std(axis=0, ddof=1),
+        )
+        _record(
+            "across_child_correlation", pair, "both",
+            float(_corr(observed[idx_a][:, None], observed[idx_b][:, None])[0]),
+            _corr(replicated[idx_a], replicated[idx_b]),
+        )
+        for arm_code, arm_name in ((0, "waitlist"), (1, "immediate")):
+            arm_mask = arms_here == arm_code
+            if arm_mask.sum() < 2:
+                continue
+            _record(
+                "within_child_change_mean", pair, arm_name,
+                float(np.mean(change_obs[arm_mask])),
+                change_rep[arm_mask].mean(axis=0),
+            )
+        for row in rows[started:]:
+            row["n_children"] = (
+                int(len(common))
+                if row["arm"] == "both"
+                else int((arms_here == (1 if row["arm"] == "immediate" else 0)).sum())
             )
     return pd.DataFrame(rows)
 
@@ -6138,9 +6355,11 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
 
 
 def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Waitlist-crossover arm-by-wave family: the t2 arm contrast is the clean
-    randomised quantity; the crossover catch-up is descriptive. Dose companions
-    (no ``tau_t2``) get the honest association wording."""
+    """Waitlist-crossover arm-by-wave family: the t2 arm contrast is the randomised
+    treated-versus-untreated quantity; the t3 gap is a randomised *treatment-schedule*
+    contrast and the gap change a description of how the two differ, never an
+    identified catch-up mechanism (#576 finding 3). Dose companions (no ``tau_t2``)
+    get the honest association wording."""
     outcome_label = _kf_outcome_label(config)
     did = _kf_csv_row(output_dir, "did_summary.csv")
     if did is None:
@@ -6165,8 +6384,13 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
                     "causal",
                 ),
                 _kf_sentence(
+                    # #576 finding 1: name the one quantity this fit publishes, so
+                    # a reader is not left to pick among the several the results
+                    # section shows.
                     "See the results section below for the dose estimates and "
-                    "their uncertainty.",
+                    "their uncertainty. The figure this model publishes is the "
+                    "change in the outcome across a step in sessions, averaged "
+                    "over the children who were on the intervention.",
                     "note",
                 ),
             ]
@@ -6220,17 +6444,32 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
     )
     sentences.append(
         _kf_sentence(
-            "The t2 contrast is randomised, but its cause-and-effect reading is "
+            # #576 finding 3: the t3 quantities are randomised too — of a different
+            # exposure. Calling them "descriptive associations" understated their
+            # identification while overstating what they can explain.
+            "The t2 comparison is randomised, but its cause-and-effect reading is "
             "limited to the fitted available-case t2 population and assumes "
             "outcome and required-covariate observation do not depend jointly on "
-            "arm and potential outcomes. The arm gaps at t1 and t3, and the "
-            "catch-up quantity below, are descriptive associations.",
+            "group and potential outcomes. The t1 gap is a starting-point balance "
+            "check. The t3 gap is still a comparison of randomly assigned groups, "
+            "but of a different thing — starting the intervention earlier rather "
+            "than later, since both groups have been taught by then — so it cannot "
+            "be read as the effect of being taught at all.",
             "causal",
         )
     )
-    if bool(did.get("delta_crossover_items_available", False)):
+    # Prefer the common-population gap change: the wave-specific one averages each
+    # leg over its own wave's fitted rows, so where those differ it mixes the change
+    # over time with a change in who is being averaged (#576 MQ6).
+    common_available = bool(did.get("delta_crossover_items_common_available", False))
+    key = (
+        "delta_crossover_items_common_median"
+        if common_available
+        else "delta_crossover_items_median"
+    )
+    if common_available or bool(did.get("delta_crossover_items_available", False)):
         try:
-            catch = _kf_float(did["delta_crossover_items_median"])
+            catch = _kf_float(did[key])
         except _KeyFindingsUnavailable:
             catch = None
         if catch is not None:
@@ -6240,9 +6479,13 @@ def _kf_build_did(output_dir, config: Mapping) -> list[dict[str, str]]:
             sentences.append(
                 _kf_sentence(
                     f"After the waiting-list children started the intervention, the "
-                    f"gap between the arms {moved} by about "
-                    f"{abs(catch) * scale:.1f} {unit} — a descriptive catch-up "
-                    f"quantity, not a second randomised effect.",
+                    f"gap between the groups {moved} by about "
+                    f"{abs(catch) * scale:.1f} {unit}. That describes how the "
+                    "difference between the two randomly assigned groups changed; "
+                    "it does not show why, because a shorter time in the "
+                    "intervention, ordinary development, the ceiling of the test "
+                    "and the different material each group was taught cannot be "
+                    "separated here.",
                     "highlight",
                 )
             )

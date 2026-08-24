@@ -22,9 +22,15 @@ format:
 
 LRPDID03 jointly models bounded phoneme-blending outcomes at t1, t2 and t3 with a separate immediate-minus-waitlist gap at each wave. It is a longitudinal sensitivity analysis alongside LRPITT08, not an independent replication.
 
-_What this estimand is, and is not._ `arm_gap_t1` checks pre-treatment balance; `tau_t2` is the randomised immediate-minus-waitlist t2 contrast; `arm_gap_t3` and `delta_crossover = tau_t2 - arm_gap_t3` are post-crossover associations because both arms are treated by t3 with different histories. No period-start outcome enters because t2 is treatment-affected in the immediate arm when used as the P2 baseline. The child random intercept partially pools stable differences rather than exactly differencing them out.
+_What this estimand is, and is not._ `arm_gap_t1` checks pre-treatment balance; `tau_t2` is the randomised t2 assignment contrast — immediate treatment versus no treatment yet; `arm_gap_t3` is a **different randomised contrast**, assignment to the early-start rather than the delayed-start treatment schedule, because both arms are treated by t3 with different histories; and `delta_crossover = tau_t2 - arm_gap_t3` is the change between those two randomised regime contrasts, not an identified catch-up mechanism. No period-start outcome enters because t2 is treatment-affected in the immediate arm when used as the P2 baseline. The child random intercept partially pools stable differences rather than exactly differencing them out.
 
-_Sign convention and the ceiling._ For the randomised t2 contrast, positive favours the intervention. The Beta-Binomial logit respects the bounded 0–10 score; it does not make the post-crossover contrasts causal.
+_Sign convention and the ceiling._ For the randomised t2 contrast, positive favours the intervention. The Beta-Binomial logit respects the bounded 0–10 score; it does not make `arm_gap_t3` a treated-versus-untreated effect.
+
+::: {.callout-important}
+## This estimate is not released on its own
+
+Phoneme blending has ten **three-alternative** forced-choice items, so a child answering at random scores about 3.3 of 10. The ordinary inverse-logit score mean used here places no floor on the fitted mean, so it can put posterior mass on expected scores below chance. The registered companion [LRPDID103](../lrp-rli-did-103/) refits the identical model with the mechanically motivated link $\mu = 1/3 + (2/3)\,\text{logit}^{-1}(\eta)$, and **neither fit may be released without the other** — the release gate checks for the current, converged, provenance-matched twin beside this fit. On the ITT side the same sensitivity roughly halved the item-scale estimate, so read the two together and treat the pair, not this card, as the family's phoneme-blending answer.
+:::
 
 ## Model
 

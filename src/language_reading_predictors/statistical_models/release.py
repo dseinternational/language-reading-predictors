@@ -249,10 +249,17 @@ def causal_term_for(config: Mapping[str, Any]) -> str:
     reaches this lookup — :func:`gate_applies` excludes it (2026-08-20 review,
     finding 4).
 
-    The ``did`` dose models have no ``tau_t2`` at all: their focal quantity is the
-    dose slope. The choice mirrors ``DiDRunPlan.effect_term`` and is read from the
+    The ``did`` dose models have no ``tau_t2`` at all: their focal *coefficient* is
+    the dose slope. The choice mirrors ``DiDRunPlan.effect_term`` and is read from the
     persisted plan rather than re-derived from ``spec.extra``, so a fit's release
     decision and its own psense emission cannot disagree about which term matters.
+
+    This returns the **coefficient** power-scaling measures, which for a ``did`` fit
+    is not the same object as the estimand it publishes (#576 finding 1) — LRPDID07
+    power-scales ``mu_dose`` and publishes a treated-row natural-scale marginal. The
+    two are used at different stages and must not be conflated: the psense diagnosis
+    reads this name, while the sweep's sign-stability clause reads the published
+    estimand's own column via :func:`sweep_sign_column`.
     """
     kind = config.get("kind")
     if kind == "gain_factors":
@@ -443,7 +450,38 @@ def _config_name(output_dir: str | Path, model_id: str) -> str:
     return name[len(prefix) :] if model_id and name.startswith(prefix) else ""
 
 
-def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool, str]:
+def sweep_sign_column(config: Mapping[str, Any] | None) -> tuple[str, str]:
+    """Which sweep column's sign must be stable, and what it is called (#576 finding 1).
+
+    The default is ``tau_logit_mean``, the swept coefficient — right for a family
+    whose published headline *is* that coefficient's marginal transform. It is wrong
+    for a fit whose published headline is a distinct natural-scale quantity. The
+    period-varying DiD dose model is the case that forced this: its slopes are
+    ``beta_dose_phase[p] = mu_dose + sigma_dose * z[p]``, the gate read ``mu_dose``
+    — a hierarchical centre, not the realised mean of two unconstrained slopes —
+    while the report published a treated-row marginal that applies each row's own
+    realised slope through a nonlinear items transform with unequal per-period row
+    counts. The two are not the same estimand, so a fit could clear the robustness
+    gate for one quantity and publish another.
+
+    A fit whose resolved plan declares ``focal_estimand_scale == "natural"``
+    therefore has its sign-stability clause read the published estimand's column,
+    ``items_mean``. A stored fit written before the field existed carries no
+    ``focal_estimand_scale`` and keeps the coefficient column, so old decisions stay
+    reproducible without a refit.
+    """
+    plan = (config or {}).get("resolved_run_plan") or {}
+    if isinstance(plan, Mapping) and str(plan.get("focal_estimand_scale") or "") == "natural":
+        return "items_mean", str(plan.get("focal_estimand") or "the published estimand")
+    return "tau_logit_mean", "the swept coefficient"
+
+
+def _standard_sweep_evidence(
+    output_dir: str | Path,
+    outcome: str,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> tuple[bool, str]:
     """Does an attached ``tau`` sweep actually qualify as evidence for this fit?
 
     Returns ``(ready, reason)``; ``reason`` names the first failure so a withhold can
@@ -467,7 +505,9 @@ def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool
       level/did installers' contract) still exists beside the fit and matches its
       recorded digest (#489 review); sweep-relative ITT paths are validated by the
       sweep-level evaluator instead;
-    - the sign of ``tau_logit_mean`` is the same in every cell.
+    - the sign of the **published estimand's** column is the same in every cell —
+      ``items_mean`` for a fit whose plan declares a natural-scale focal estimand,
+      ``tau_logit_mean`` otherwise (:func:`sweep_sign_column`).
 
     This deliberately does not call ``evaluate_standard_sensitivity``. That evaluator
     measures the sweep against ``_standard_expected_cells()`` — the complete 44-cell
@@ -560,13 +600,50 @@ def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool
                 "treatment-prior sweep's recorded digest"
             )
 
+    if config is None:
+        config, _config_error = _read_json(Path(output_dir) / "config.json")
+        if not isinstance(config, Mapping):
+            config = {}
+    # Run-plan binding (#576 finding 6). Checked here as well as at install time so a
+    # *stale* attached bundle stops lifting the gate the moment the fit's own plan
+    # changes, rather than only when someone re-runs the installer. Opt-in on the
+    # plan recording a digest, so a stored fit written before the field existed
+    # re-decides exactly as it did.
+    plan = config.get("resolved_run_plan") or {}
+    recorded_plan_digest = (
+        str(plan.get("run_plan_digest") or "").strip().lower()
+        if isinstance(plan, Mapping)
+        else ""
+    )
+    if recorded_plan_digest:
+        if "primary_run_plan_sha256" not in rows.columns:
+            return False, (
+                f"the attached {STANDARD_SENSITIVITY_FILENAME} predates run-plan "
+                "binding, so it cannot be shown to describe the model this fit "
+                "actually fitted"
+            )
+        recorded = {
+            str(value).strip().lower() for value in rows["primary_run_plan_sha256"]
+        }
+        if recorded != {recorded_plan_digest}:
+            return False, (
+                "the attached treatment-prior sweep was computed against a "
+                "different resolved run plan than this fit's, so it is not this "
+                "fit's evidence"
+            )
+    sign_column, estimand_label = sweep_sign_column(config)
+    if sign_column not in rows.columns:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} has no {sign_column!r} "
+            f"column, so the sign of {estimand_label} cannot be checked"
+        )
     signs = np.sign(
-        pd.to_numeric(rows["tau_logit_mean"], errors="coerce").to_numpy(dtype=float)
+        pd.to_numeric(rows[sign_column], errors="coerce").to_numpy(dtype=float)
     )
     if not np.isfinite(signs).all() or len(set(signs.tolist())) != 1:
         return False, (
-            "the effect changes sign across the attached treatment-prior sweep, so "
-            "its direction is not stable under the prior"
+            f"{estimand_label} changes sign across the attached treatment-prior "
+            "sweep, so its direction is not stable under the prior"
         )
     return True, ""
 
@@ -757,7 +834,7 @@ def evaluate_itt_release(
     if tier not in _WITHHOLD_TIERS:
         return ReleaseDecision(status="qualify", note=_QUALIFY_NOTE, **common)
     sweep_ready, sweep_reason = _standard_sweep_evidence(
-        output_dir, str(config.get("outcome_symbol") or "")
+        output_dir, str(config.get("outcome_symbol") or ""), config=config
     )
     if sweep_ready:
         return ReleaseDecision(
@@ -2313,6 +2390,10 @@ def _blending_pair_release_failures(
 ) -> tuple[str, ...]:
     """Robustness-stage failures for the mandatory phoneme-blending link pair.
 
+    Three families now carry a version of the policy, dispatched from here: the ITT
+    archive-grade pair, the level pair (#584 decision 2) and the DiD pair (#576
+    finding 2). They differ in evidence *strength*, never in bindingness.
+
     The registered policy is that neither ``lrp-rli-itt-008`` nor
     ``lrp-rli-itt-108`` may release without the validated trace-backed paired
     bundle, but until 2026-08-20 that was enforced only in the key-findings
@@ -2328,6 +2409,8 @@ def _blending_pair_release_failures(
     kind = str(config.get("kind") or "")
     if kind == "level_factors":
         return _level_blending_pair_release_failures(output_dir, config)
+    if kind == "did":
+        return _did_blending_pair_release_failures(output_dir, config)
     if kind != "itt":
         return ()
     from language_reading_predictors.statistical_models.blending_sensitivity import (
@@ -2359,6 +2442,40 @@ def _blending_pair_release_failures(
         )
     return ()
 
+
+
+def _did_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The DiD family's phoneme-blending pairing (#576 finding 2).
+
+    Same policy as the ITT and level pairs. It did not exist for ``did``, so
+    ``lrp-rli-did-003`` — the ordinary-logit fit of a ten-item, three-alternative
+    forced-choice test — could publish an unqualified ``B`` headline with no
+    guessing-floor companion anywhere. The ITT companion does not cover it: the
+    longitudinal random-intercept likelihood lets t1 and t3 data inform the t2
+    posterior, so the two fits' response-link sensitivities are not interchangeable.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_did_blending_link_pair,
+    )
+    from language_reading_predictors.statistical_models.did import (
+        DID_BLENDING_COMPANION_MODEL_ID,
+        DID_BLENDING_PRIMARY_MODEL_ID,
+    )
+
+    try:
+        status = evaluate_did_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the DiD B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            f"({DID_BLENDING_PRIMARY_MODEL_ID} + {DID_BLENDING_COMPANION_MODEL_ID}) "
+            "is not release-ready: " + reason,
+        )
+    return ()
 
 
 def _level_blending_pair_release_failures(

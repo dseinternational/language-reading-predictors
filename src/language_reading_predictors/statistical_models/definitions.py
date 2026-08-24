@@ -208,6 +208,18 @@ _DID = [
     # #382 rec 3: the single causal term's prior widened N(0, 0.5) -> N(0, 1); the
     # right-tail letter-sound tau_t2 is the attenuation test case.
     _d("lrpdid102", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "L", "wide-tau_t2 prior sensitivity for LRPDID02", base="lrpdid02"),
+    # #576 finding 2: the mandatory phoneme-blending response-link twin. Neither
+    # LRPDID03 nor this fit releases without the other.
+    _d("lrpdid103", "did", "DiD link sensitivity", Status.ROBUSTNESS, "B", "three-choice guessing-floor score-mean link sensitivity for LRPDID03", base="lrpdid03"),
+    # #576 finding 4: the estimand-matched sensitivity for the soft, prior-weighted
+    # baseline adjustment behind the t2 arm-gap *level* (arm_gap_t1 0.3 -> 1.0,
+    # sigma_child 0.5 -> 1.0); tau_t2 itself keeps its tier prior.
+    _d("lrpdid104", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "W", "baseline-allocation prior sensitivity for LRPDID01", base="lrpdid01"),
+    # #576 material qualification 2: the dispersion prior at a low (18-item) and a
+    # high (170-item) denominator, on the dispersion scale that can reach the
+    # near-Binomial limit the family default cannot.
+    _d("lrpdid105", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "F", "inverse-sqrt dispersion-prior sensitivity for LRPDID10 (low denominator)", base="lrpdid10"),
+    _d("lrpdid106", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "R", "inverse-sqrt dispersion-prior sensitivity for LRPDID05 (high denominator)", base="lrpdid05"),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------

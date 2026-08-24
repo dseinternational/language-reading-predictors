@@ -1,0 +1,54 @@
+---
+title: "LRPDID106: Dispersion-prior sensitivity for receptive vocabulary (RV)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPDID106 is the **dispersion-prior sensitivity companion** to [LRPDID05](../lrp-rli-did-005/), and the high-denominator half of a two-fit check whose other half is [LRPDID105](../lrp-rli-did-105/). Same model, same data, same sampler settings; only the shape of the dispersion prior differs.
+
+| | LRPDID05 (reference) | LRPDID106 (this model) |
+| --- | --- | --- |
+| dispersion prior | $\kappa \sim \text{HalfNormal}(50)$ | $1/\sqrt{\kappa} \sim \text{HalfNormal}(0.25)$ |
+| near-Binomial limit $\kappa \gg n$ | effectively unreachable | reachable |
+| test length $n$ | 170 | 170 |
+| everything else | — | identical |
+
+## Why this model exists
+
+A half-normal prior placed on the Beta-Binomial **concentration** cannot reach the near-Binomial limit $\kappa \gg n$, so for a long test it imposes a *floor* on the estimated over-dispersion rather than letting the data set it. At $n = 170$ the family default's prior median already implies roughly 5.9 times Binomial variance, and coming within 10 % of Binomial variance would need $\kappa$ beyond anything the prior gives real mass to. At 18 items the same prior is far more permissive, because a modest $\kappa$ is already large relative to $n$.
+
+Reparameterising onto the **dispersion scale** $u = 1/\sqrt{\kappa}$ — the form the ITT and level-factor families adopted for the same reason — puts real prior mass at $u \to 0$, so the model is free to conclude there is no extra variation beyond Binomial. $\kappa$ is retained as a deterministic transform, so every downstream table reads the same way.
+
+## How to read the pair
+
+Read LRPDID106 and LRPDID105 together; neither is informative alone.
+
+- **Both stable.** The concentration prior is a nuisance choice the arm gaps do not turn on, and the family default needs no change.
+- **The 170-item fit moves, the 18-item fit does not.** The prior's ceiling — not the data — was setting the dispersion at high denominators. That is a reason to revisit the family *default*, not to reinterpret one outcome.
+- **Both move.** The dispersion prior is doing more work than intended across the family.
+
+_Sign convention and reading rules as LRPDID05._ The dispersion prior changes no term's causal status: $\tau_{t2}$ remains the randomised t2 assignment contrast and the t3 quantities remain randomised treatment-schedule contrasts rather than treated-versus-untreated effects.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_did.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

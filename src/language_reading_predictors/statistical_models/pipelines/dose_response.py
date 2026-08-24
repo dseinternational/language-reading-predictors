@@ -533,6 +533,7 @@ def write_dose_slope_summary(
     n_trials = int(ctx.prepared.n_trials[outcome])
     phase_idx = np.asarray(ctx.prepared.phase, dtype=int)
     n_rows_total = int(phase_idx.shape[0])
+    focal_term_name = "mu_dose" if period_varying else "beta_dose"
     if contrast_std is None:
         contrast_std = np.ones(n_rows_total, dtype=float)
     contrast_std = np.asarray(contrast_std, dtype=float)
@@ -584,6 +585,13 @@ def write_dose_slope_summary(
                     else "on-intervention (treated) rows only"
                 ),
                 "support_note": support_note,
+                # The published estimand names itself where the family records one
+                # (#576 finding 1), so a reader of the CSV never has to infer which
+                # of the fit's several dose quantities is the headline.
+                "focal_estimand": str(
+                    getattr(getattr(ctx, "resolved_plan", None), "focal_estimand", "")
+                ),
+                "swept_coefficient": focal_term_name,
             }
         ]
     )
@@ -606,7 +614,7 @@ def write_dose_slope_summary(
     # marginal above. The previous path called the generic scalar-term writer, which
     # broadcast ``mu_dose`` to every row and silently omitted ``sigma_dose`` and the
     # phase deviations, so the "matching" prior check was of a different quantity.
-    focal = "mu_dose" if period_varying else "beta_dose"
+    focal = focal_term_name
     source = getattr(ctx, "prior_samples", None) or ctx.trace
     try:
         prior_group = source.prior

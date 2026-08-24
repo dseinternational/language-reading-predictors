@@ -287,6 +287,9 @@ def _rows_for(
             "primary_model_id": reference.model_id,
             "primary_config_sha256": reference.config_sha256,
             "primary_trace_sha256": reference.trace_sha256,
+            # #576 finding 6: cells are bound to the primary's fitted equation,
+            # not only to its identity and row counts.
+            "primary_run_plan_sha256": reference.run_plan_digest,
             "free_variables": ["alpha_offset", "tau_t2"],
             "sampling": dict(_CELL_SAMPLING),
         }
@@ -332,6 +335,7 @@ def _rows_for(
             primary_model_id=reference.model_id,
             primary_config_sha256=reference.config_sha256,
             primary_trace_sha256=reference.trace_sha256,
+            primary_run_plan_sha256=reference.run_plan_digest,
             trace_file=trace_file.as_posix(),
             trace_sha256=digest,
         )
