@@ -297,6 +297,15 @@ _MECH = [
     _d("lrp200", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "ability-adjusted negative control: letter sounds -> basic concepts (lrp100 + blocks)", "lrp100"),
     _d("lrp201", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted Tier-1 anchor: letter sounds -> word reading (lrp101 + blocks)", "lrp101"),
     _d("lrp258", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted counterpart of the lrp58 letter-sound -> word-reading HSGP curve (lrp58 + blocks)", "lrp58"),
+    # --- #586 Batch C estimand and prior sensitivities (#603, #604, #605) -------
+    # Each is matched term-for-term to its pooled comparator and differs in exactly
+    # one declared setting, so a difference is attributable to that setting alone.
+    # None is causal; every coefficient in the family is an adjusted association.
+    _d("lrp301", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "between/within (Mundlak) split of the lrp101 letter-sound -> word-reading slope (#603)", "lrp101"),
+    _d("lrp302", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phase-stability sensitivity: partially-pooled per-period letter-sound -> word-reading slopes (#604)", "lrp101"),
+    _d("lrp303", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "phase-stability sensitivity: partially-pooled per-period letter-sound -> receptive-vocabulary slopes (#604)", "lrp97"),
+    _d("lrp304", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp101 fit (n = 79) (#605)", "lrp101"),
+    _d("lrp305", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp97 fit (n = 170) (#605)", "lrp97"),
     _d("lrppl01", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: letter sounds -> word reading (per-wave intercepts, child RE)"),
     _d("lrppl02", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "N", "wave-pooled between-child level association: letter sounds -> nonword decoding"),
     _d("lrppl101", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "no-wave-intercept comparator for lrppl01 (slope also carries secular co-movement)", "lrppl01"),

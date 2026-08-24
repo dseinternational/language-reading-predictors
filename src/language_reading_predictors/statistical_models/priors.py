@@ -297,6 +297,24 @@ def sigma_dose_phase_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.5)
 
 
+def sigma_mech_phase_prior() -> Continuous:
+    """Between-period SD of the mechanism slope sigma_mech_phase ~ HalfNormal(0.5).
+
+    Used by ``build_mechanism_model(phase_varying_slope=True)`` for the
+    partially-pooled per-period exposure slopes
+    ``beta_mech_phase = mu_mech + sigma_mech_phase * z_phase`` (#604). The
+    mechanism family stacks three period transitions with one common exposure
+    slope; this sensitivity lets that slope vary by period so the pooling can be
+    checked rather than assumed. At roughly 52 rows per period, three independent
+    slopes would be noisy, so the deviations are shrunk toward the shared mean
+    ``mu_mech`` (the unit-scale :func:`beta_mech_prior`) unless the data show real
+    period variation. The scale matches the dose family's
+    :func:`sigma_dose_phase_prior`, which solves the same problem for its
+    period-varying dose slope.
+    """
+    return pz.HalfNormal(sigma=0.5)
+
+
 def sigma_delta_prior() -> Continuous:
     """Between-waitlist-child catch-up SD sigma_delta ~ HalfNormal(0.5).
 
@@ -511,6 +529,7 @@ _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
     "beta_mech": beta_mech_prior,
     "inv_sqrt_kappa": inv_sqrt_kappa_prior,
     "sigma_dose": sigma_dose_phase_prior,
+    "sigma_mech_phase": sigma_mech_phase_prior,
     "sigma_delta": sigma_delta_prior,
     "b_path": b_path_prior,
     "sigma_mediator": sigma_mediator_prior,
@@ -553,6 +572,7 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "predictor_slope": "association",
     "beta_mech": "association",
     "sigma_dose": "nuisance",
+    "sigma_mech_phase": "nuisance",
     "sigma_delta": "nuisance",
     "b_path": "association",
     "sigma_mediator": "nuisance",
@@ -611,7 +631,15 @@ _RV_TO_CTOR: dict[str, str] = {
     "inv_sqrt_kappa": "inv_sqrt_kappa",
     "beta_mech": "beta_mech",
     "mu_dose": "beta_mech",
+    # #603/#604 mechanism sensitivities. The Mundlak split and the shared mean of
+    # the partially-pooled per-period slopes all reuse ``beta_mech_prior``
+    # (Normal(0, 1)); without these entries the ``beta_`` prefix would route them
+    # to ``predictor_slope`` and the table would misreport their scale.
+    "beta_between": "beta_mech",
+    "beta_within": "beta_mech",
+    "mu_mech": "beta_mech",
     "sigma_dose": "sigma_dose",
+    "sigma_mech_phase": "sigma_mech_phase",
     "sigma_delta": "sigma_delta",
     "b_M": "b_path",
     # Two-mediator (mediation_multi / LRP64) mediator -> outcome b-paths. Without
@@ -695,6 +723,14 @@ _INLINE_PRIORS: dict[str, dict[str, str]] = {
         "distribution": "Normal(0, 1)",
         "rationale": (
             "Standard-normal non-centred period-dose offset; scaled by sigma_dose."
+        ),
+    },
+    "beta_mech_phase_raw": {
+        "role": "nuisance",
+        "distribution": "Normal(0, 1)",
+        "rationale": (
+            "Standard-normal non-centred per-period mechanism-slope offset; scaled "
+            "by sigma_mech_phase and centred on mu_mech (#604)."
         ),
     },
     "beta_group_nuisance": {

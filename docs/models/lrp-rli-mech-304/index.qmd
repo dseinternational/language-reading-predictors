@@ -1,0 +1,47 @@
+---
+title: "LRP304: Dispersion prior sensitivity — letter sounds (LS) → word reading (WR)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+This is [LRP101](../lrp-rli-mech-101) with **one** thing changed: the Beta-Binomial concentration is put on the dispersion scale, $1/\sqrt{\kappa} \sim \text{HalfNormal}(0.25)$, instead of the family's shared $\kappa \sim \text{HalfNormal}(50)$. Rows, outcome, baseline, adjustment set and coefficient priors are identical.
+
+**Why the shared prior is not weak here.** With $\alpha + \beta = \kappa$, the Beta-Binomial variance inflation over Binomial is
+
+$$\text{VIF} = \frac{\kappa + n}{\kappa + 1} = 1 + \frac{n - 1}{\kappa + 1},$$
+
+so being within 10 % of Binomial variance needs $\kappa \ge 10(n-1) - 1$. At the prior's own median ($\kappa \approx 33.7$) that is a **3.25×** inflation for word reading ($n = 79$), and avoiding it would need $\kappa > 779$ — a region $\text{HalfNormal}(50)$ gives vanishing mass. The prior therefore **enforces a floor on overdispersion**, and the near-Binomial limit — for a bounded count the perfectly ordinary hypothesis "this measure shows no extra-Binomial variation beyond the child random intercept" — is excluded *a priori*. That is a substantive modelling assumption presented as a nuisance prior.
+
+The dispersion-scale parameterisation fixes the prior's *shape*, not its scale: on $u = 1/\sqrt{\kappa}$ the no-extra-dispersion limit is simply $u = 0$, so the tail reaches it. It is the constructor the ITT family already offers as a sensitivity ([LRP ITT-006](../lrp-rli-itt-006), [ITT-022](../lrp-rli-itt-022)) and that `level_factors` adopted as its default under #584 decision 4.
+
+## How to read it
+
+Compare this fit's $\beta_\text{mech}$ and the family's declared items-scale headline contrast against LRP101's — same rows, same estimand — and read $\kappa$'s posterior against its prior together with the implied variance-inflation factor in the dispersion table below. If the estimand does not move, the registered prior is not binding here and the family default stands; if it does, the default is carrying part of the answer and the family should adopt the dispersion scale, as `level_factors` did.
+
+Nothing here is a release gate: it is recorded evidence about a prior choice.
+
+## Adjustment set
+
+$\{G, A, HS, IS, SP\}$ plus baseline $W_\text{pre}$ — identical to LRP101. GA is unblockable; $\beta_\text{mech}$ is an **adjusted association**.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

@@ -12,8 +12,11 @@ Exposure and outcome are measured at the **same wave**. Conditioning the outcome
 its own previous score does not make the exposure temporally prior to it, so nothing
 here rules out reverse or synchronised development. The child random intercept
 absorbs repeated-measures dependence; it is **not** a control for latent general
-ability, and because it is not allowed to correlate with the exposure, the fitted
-coefficient or curve mixes between-child and within-child information.
+ability, and because it is not allowed to correlate with the exposure, a single
+fitted coefficient or curve mixes between-child and within-child information. Where a
+fit declares the between/within split (`decompose_between_within`, #603) that mixing
+is undone and the two are reported separately — the "exposure slopes by question"
+table below says which is which.
 
 ```{python}
 # | echo: false
@@ -192,13 +195,17 @@ print(
     "scale than in the flat tails — which is exactly what the logit view hides."
 )
 print(
-    "\n\n_Note the two exposure ranges._ This curve's worked example contrasts the "
-    "**interquartile** exposure values of the fitted rows for a typical child, while "
-    "the key-findings headline contrasts the **observed minimum and maximum** and "
-    "averages predicted probabilities across the fitted rows (keeping each row's own "
-    "phase, covariates, baseline and child intercept). Both are legitimate "
-    "descriptive quantities, but they are different estimands over different exposure "
-    "intervals, so the two numbers are not expected to match."
+    "\n\n_One declared estimand._ The family reports **one** natural-scale headline: "
+    "the predicted outcome difference between the **25th and 75th percentile** of the "
+    "fitted exposure, standardised over the fitted rows — each row keeping its own "
+    "period, covariates, baseline and its child's own fitted intercept, with only the "
+    "exposure moved. The curve above is that same quantity evaluated across the "
+    "observed exposure range, so the worked-example points sit exactly on it and the "
+    "key-findings headline is the gap between them. The full observed range is "
+    "reported below as an explicitly labelled **secondary** contrast; before #602 that "
+    "was the headline and the worked example was a differently-standardised "
+    "\"typical child\" quantity over a different interval, so the two published "
+    "numbers could not be reconciled."
 )
 if not _mech_is_linear:
     print(
@@ -251,6 +258,170 @@ mechanism_curve_items = _csv("mechanism_curve_items.csv")
 mechanism_curve_items.head(15) if mechanism_curve_items is not None else "No items-scale mechanism curve table."
 ```
 
+### The declared contrasts
+
+```{python}
+# | echo: false
+# #602: one row per declared contrast, the headline (interquartile, standardised
+# over the fitted rows) first and the observed-range secondary second, each carrying
+# its own machine-readable `estimand`. Older fits carry the single pre-#602 row.
+mechanism_summary = _csv("mechanism_summary.csv")
+mechanism_summary
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if mechanism_summary is not None and len(mechanism_summary):
+    _rows = {
+        str(r.get("contrast", "headline_interquartile")): r
+        for _, r in mechanism_summary.iterrows()
+    }
+    _head = _rows.get("headline_interquartile", mechanism_summary.iloc[0])
+    _sec = _rows.get("secondary_observed_range")
+    _unit = str(_head.get("exposure_unit", "exposure units"))
+    _lines = []
+    if "exposure_quantile_low" in mechanism_summary.columns and np.isfinite(
+        _head.get("exposure_quantile_low", float("nan"))
+    ):
+        _lines.append(
+            f"**Headline ({int(round(100 * float(_head['exposure_quantile_high'])))}th "
+            f"vs {int(round(100 * float(_head['exposure_quantile_low'])))}th percentile "
+            f"— {_head['exposure_high']:g} against {_head['exposure_low']:g} {_unit}):** "
+            f"{_head['items_median']:+.2f} items "
+            f"[{_head['items_lo']:+.2f}, {_head['items_hi']:+.2f}]; "
+            f"P(> 0) = {_head['prob_pos']:.3f}."
+        )
+    else:
+        _lines.append(
+            "**This fit predates the single declared estimand (#602).** Its one summary "
+            f"row is the observed-range contrast ({_head['exposure_low']:g} to "
+            f"{_head['exposure_high']:g} {_unit}): {_head['items_median']:+.2f} items "
+            f"[{_head['items_lo']:+.2f}, {_head['items_hi']:+.2f}]. Regenerate the fit's "
+            "artefacts to publish the interquartile headline beside it."
+        )
+    if _sec is not None:
+        _lines.append(
+            f"**Secondary (full observed range, {_sec['exposure_low']:g} to "
+            f"{_sec['exposure_high']:g} {_unit}):** {_sec['items_median']:+.2f} items "
+            f"[{_sec['items_lo']:+.2f}, {_sec['items_hi']:+.2f}]. The observed extremes "
+            "are order statistics of this sample — they move with a single child "
+            "entering or leaving, and on a curve fit they sit where the fitted shape is "
+            "least constrained — which is why they are the secondary and not the "
+            "headline."
+        )
+    print("\n\n".join(_lines))
+    print(
+        "\n\n_How to read it:_ both rows answer the same question over different "
+        "exposure intervals, and both are standardised the same way — averaged over "
+        "the children actually analysed, with every other term (period, covariates, "
+        "baseline, each child's own fitted intercept) held at its fitted value and any "
+        "moderator at its mean. The `estimand` column names each one so a number can "
+        "never be quoted without its interval. Neither is causal."
+    )
+```
+
+### Exposure slopes by question
+
+```{python}
+# | echo: false
+# Written only by the #603 / #604 sensitivities, which fit several exposure
+# coefficients answering different questions; a pooled fit has one and reports it in
+# the diagnostics table instead.
+mechanism_slopes = _csv("mechanism_slope_summary.csv")
+(
+    mechanism_slopes[
+        [c for c in ("coefficient", "question", "median", "lo", "hi", "prob_pos", "unit")
+         if c in mechanism_slopes.columns]
+    ]
+    if mechanism_slopes is not None
+    else None
+)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if mechanism_slopes is not None and "component" in mechanism_slopes.columns:
+    _by = {str(r["component"]): r for _, r in mechanism_slopes.iterrows()}
+    _b, _w = _by.get("between"), _by.get("within")
+    if _b is not None and _w is not None:
+        print(
+            "_The between/within split._ A single exposure coefficient fitted over a "
+            "child random intercept is a precision-weighted **blend** of two "
+            "associations that answer different questions, and the random intercept "
+            "does not separate them: it models repeated-measures dependence under an "
+            "independence assumption and is not permitted to correlate with the "
+            "exposure, so the weights come from the variance ratio rather than from "
+            "the question. Splitting the exposure into each child's own average and "
+            "their deviation from it estimates each cleanly.\n"
+        )
+        print(
+            f"**Between children:** {_b['median']:+.3f} "
+            f"[{_b['lo']:+.3f}, {_b['hi']:+.3f}], P(> 0) = {_b['prob_pos']:.3f} — do "
+            "children whose study-average exposure is higher also tend to score higher "
+            "on the outcome? This is a cross-sectional comparison, confounded by every "
+            "stable child characteristic including latent general ability.\n"
+        )
+        print(
+            f"**Within a child:** {_w['median']:+.3f} "
+            f"[{_w['lo']:+.3f}, {_w['hi']:+.3f}], P(> 0) = {_w['prob_pos']:.3f} — when "
+            "a child's own exposure moves away from their average, does their outcome "
+            "move with it? This removes *stable* between-child confounding, the stable "
+            "part of latent general ability included. It does **not** make the exposure "
+            "temporally prior to the outcome (both are still same-wave), and it does "
+            "not remove time-varying confounding or reverse causation.\n"
+        )
+        print(
+            "**Neither is causal.** The split buys a better-posed association, not an "
+            "identified effect. Where the two differ substantially, a pooled "
+            "coefficient from a comparator fit is answering neither question cleanly.\n"
+        )
+    _phase = mechanism_slopes[mechanism_slopes["component"] == "phase_slope"]
+    if len(_phase):
+        _scale = _by.get("phase_scale")
+        _mean = _by.get("phase_mean")
+        print(
+            "_Letting the slope vary by period._ The family stacks the randomised "
+            "t1→t2 transition with two post-crossover ones and normally fits **one** "
+            "common exposure slope across all three. Here the slope varies by period, "
+            "partially pooled toward a shared mean so three ~52-row periods are not "
+            "each estimated in isolation.\n"
+        )
+        print(
+            "| period | slope | 89% CrI | P(> 0) |\n|---|---|---|---|\n"
+            + "\n".join(
+                f"| {r['period']} | {r['median']:+.3f} | "
+                f"[{r['lo']:+.3f}, {r['hi']:+.3f}] | {r['prob_pos']:.3f} |"
+                for _, r in _phase.iterrows()
+            )
+            + "\n"
+        )
+        if _mean is not None:
+            print(
+                f"\nShared mean `mu_mech` {_mean['median']:+.3f} "
+                f"[{_mean['lo']:+.3f}, {_mean['hi']:+.3f}]"
+                + (
+                    f"; between-period spread `sigma_mech_phase` {_scale['median']:.3f} "
+                    f"[{_scale['lo']:.3f}, {_scale['hi']:.3f}]."
+                    if _scale is not None
+                    else "."
+                )
+            )
+        print(
+            "\n\n**A period difference is evidence against pooling, not evidence "
+            "about mechanism change over time.** A child's third transition differs "
+            "from their first in age, treatment history and measurement position at "
+            "once. Only the t1→t2 transition is randomised-arm-clean, and even there "
+            "the *exposure* is not randomised — so every per-period slope is an "
+            "adjusted association. Read the exposure-support table below before "
+            "reading the slopes: the comparison only means something where the periods "
+            "occupy comparable parts of the exposure range. Where the nested "
+            "leave-one-out comparison favours the varying-slope model, the pooled "
+            "comparator's headline should be read as qualified.\n"
+        )
+```
+
 ### Exposure support by period and arm
 
 ```{python}
@@ -284,6 +455,58 @@ if exposure_support is not None and len(exposure_support):
             + ". Where a whole arm-period cell sits at zero, the low end of the "
             "exposure range is an arm and period contrast rather than a dose one."
         )
+```
+
+### Extra-Binomial dispersion
+
+```{python}
+# | echo: false
+dispersion = _csv("dispersion_summary.csv")
+dispersion
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if dispersion is not None and len(dispersion):
+    _d = dispersion.iloc[0]
+    print(
+        "_Why a nuisance parameter gets its own table (#605)._ The Beta-Binomial "
+        "concentration `kappa` is only a nuisance if its prior leaves the ordinary "
+        "hypothesis \"this measure shows no extra-Binomial variation beyond the child "
+        "random intercept\" available. With `alpha + beta = kappa`, the variance "
+        "inflation over a Binomial is `(kappa + n) / (kappa + 1)`, so on a "
+        f"{int(_d['n_trials'])}-item outcome being within 10% of Binomial variance "
+        f"needs `kappa` above about {_d['kappa_for_10pct_of_binomial']:.0f}.\n"
+    )
+    print(
+        f"**Prior:** `{_d['kappa_prior_label']}` — "
+        + (
+            "a dispersion-scale parameterisation whose tail *does* reach the "
+            "near-Binomial limit."
+            if bool(_d["reaches_near_binomial"])
+            else "a HalfNormal on the concentration itself, which gives that region "
+            "effectively no mass; the prior therefore **enforces a floor on "
+            "overdispersion** rather than leaving the question open."
+        )
+    )
+    print(
+        f"\n\n**Posterior:** `kappa` median {_d['kappa_median']:.1f} "
+        f"[{_d['kappa_lo']:.1f}, {_d['kappa_hi']:.1f}], implying a variance inflation "
+        f"of {_d['variance_inflation_median']:.2f}x "
+        f"[{_d['variance_inflation_lo']:.2f}, {_d['variance_inflation_hi']:.2f}] over a "
+        f"Binomial with the same mean; P(within 10% of Binomial) = "
+        f"{_d['prob_within_10pct_of_binomial']:.3f}."
+    )
+    print(
+        "\n\n_How to read it:_ compare the posterior with the prior. If the posterior "
+        "sits where the prior put its mass, the prior is doing the work and the "
+        "companion fit with the dispersion-scale prior is the one to read for whether "
+        "that matters to the exposure coefficient. The prior-versus-posterior overlay "
+        "in the technical section shows the same comparison as a density. Dispersion "
+        "affects the width of the intervals reported above, not the direction of the "
+        "association."
+    )
 ```
 
 ### Mechanism curve (analyst's logit scale)
@@ -363,7 +586,10 @@ else:
         "scale, so this is the steepest latent-logit interval. The expected-items "
         "derivative carries an extra `p * (1 - p)` factor from the inverse link and "
         "can peak at a different exposure value, so this is not \"where outcome items "
-        "rise fastest\".\n"
+        "rise fastest\" — that question has its own answer, published as the "
+        "`items_*` columns below and computed under the same declared reference "
+        "population as the headline contrast (#602), not as a relabelling of the "
+        "logit statistic.\n"
     )
     print(
         "Second, **a rise is not a threshold**. A straight increasing line rises in "
@@ -486,6 +712,31 @@ if readiness is not None and len(readiness):
                 "any shape or threshold reading here as provisional until the "
                 "sensitivity is resolved."
             )
+        if "items_knee_count_median" in readiness.columns and np.isfinite(
+            _k.get("items_knee_count_median", float("nan"))
+        ):
+            _items_label = (
+                "Knee" if bool(_k.get("items_knee_well_defined")) else "Steepest interval"
+            )
+            print(
+                f"\n\n**{_items_label} on the expected-items scale:** about "
+                f"**{_k.items_knee_count_median:.0f}** in {_exposure_units} "
+                f"(89% CrI {_k.items_knee_count_ci_low:.0f} to "
+                f"{_k.items_knee_count_ci_high:.0f}) — where predicted outcome *items* "
+                "rise fastest, under the same reference population as the headline "
+                "contrast. This is a different question from the latent-logit interval "
+                "above and can land at a different exposure value; where the two "
+                "disagree, the gap is the inverse link's `p * (1 - p)` factor, which is "
+                "largest in the middle of the outcome scale. It carries the same "
+                "qualification rules — "
+                + (
+                    "and passes them here."
+                    if bool(_k.get("items_knee_well_defined"))
+                    else "and does **not** qualify as a knee here, so read it as a "
+                    "description of where this fitted curve is steepest in items, not "
+                    "as a threshold."
+                )
+            )
         print(
             "\n\n_How to read this:_ the location is quantised to a quantile bin width "
             "and summarised over the rising draws only, so its interval is a genuine "
@@ -539,6 +790,44 @@ _comp
 if _comp is not None and len(_comp):
     if "comparison_note" in _comp.columns and str(_comp["comparison_note"].iloc[0]).strip():
         print(f"**What this pair differs by.** {_comp['comparison_note'].iloc[0]}\n")
+    # #604: where the comparison favours the phase-varying model, the *pooled*
+    # fit's headline is the one that needs qualifying — and this partial renders
+    # inside both runs, because the comparison CSV is copied beside each. The model
+    # ids are ``az.compare``'s index, written as the CSV's first unnamed column;
+    # ``elpd_verdict`` already applies the suite's |elpd_diff| < 4 rule.
+    _note = (
+        str(_comp["comparison_note"].iloc[0])
+        if "comparison_note" in _comp.columns
+        else ""
+    )
+    # ``az.compare`` sorts best-first and pins the winner's ``elpd_diff`` at 0; the
+    # per-model fallback table (written when row identity or Pareto-k fails) has no
+    # ``elpd_diff`` at all, and must not be read as a verdict either way.
+    if "phase_varying_slope" in _note and {"elpd_diff", "elpd_verdict"} <= set(_comp.columns):
+        _best = str(_comp[_comp.columns[0]].astype(str).iloc[0])
+        _discriminating = (
+            _comp["elpd_verdict"].astype(str).str.startswith("discriminating").any()
+        )
+        if _discriminating and "-mech-30" in _best:
+            print(
+                "\n**This qualifies the pooled headline.** Letting the exposure slope "
+                "vary by period predicts held-out rows better than pooling it, past "
+                "the |elpd_diff| < 4 threshold at which this suite declines to "
+                "separate models. Read the pooled fit's single exposure coefficient — "
+                "and the natural-scale contrast built on it — as an average over three "
+                "periods whose slopes the data say differ, not as one stable "
+                "relationship.\n"
+            )
+        elif not _discriminating:
+            print(
+                "\n**The pooled headline stands on this evidence.** Letting the "
+                "exposure slope vary by period does not clearly predict held-out rows "
+                "better (inside the |elpd_diff| < 4 band where this suite declines to "
+                "separate models at n ≈ 54). That is the expected outcome for a pair "
+                "differing by two shrunk deviations and is a pass, not a failed "
+                "comparison; read `sigma_mech_phase`'s own posterior for the size of "
+                "the between-period spread.\n"
+            )
     print(
         "_How to read the comparison table:_ it ranks competing model variants by "
         "how well each predicts held-out data (leave-one-out cross-validation). "

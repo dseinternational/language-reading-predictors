@@ -1,20 +1,23 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Unit tests for :mod:`statistical_models.mechanism_items` (#319).
+"""Unit tests for :mod:`statistical_models.mechanism_items` (#319, #602).
 
 The items-scale mechanism curve rescales the fitted logit-contribution curve to
-predicted outcome items, holding the rest of the linear predictor at reference
-values (covariate sample means; population-level over the child intercepts;
-moderator at its mean). The crux is the per-draw reference constant
+predicted outcome items under the family's **declared reference population** (#602):
+standardised over the fitted rows, each keeping its own phase, covariates, baseline
+and *fitted child random intercept*, with only the exposure moved and any moderator
+held at its standardised mean. The crux is therefore
 
-    C[s] = mean_i( eta[i,s] - f_curve[i,s] - u_child[i,s] - moderator[i,s] )
+    y(x, s) = N * mean_i expit( eta[i,s] - f_i[i,s] - moderator[i,s] + f_i(x, s) )
 
-so these build synthetic traces with a *known* baseline and assert the recovered
-items curve equals ``N * expit(C + f_curve)`` exactly — across the HSGP (``f_mech``)
-and linear (``beta_mech``) branches, with and without a child intercept and a
-moderator — then check the worked-example contrast, the off-floor branch and the
-input guards.
+which is **not** ``N * expit(mean_i(...) + f(x))`` — averaging probabilities is not
+applying the link to an average, and the pre-#602 "typical child" constant also
+dropped the child intercept. These tests build synthetic traces with a *known*
+baseline and assert the recovered curve equals the row-standardised quantity
+exactly, across the HSGP (``f_mech``), pooled linear (``beta_mech``), Mundlak
+(``beta_between``/``beta_within``, #603) and per-period (``beta_mech_phase``, #604)
+branches, then check both declared contrasts, the off-floor branch and the guards.
 """
 
 from __future__ import annotations
@@ -64,8 +67,8 @@ def _bcast(scalar_draws: np.ndarray, n_obs: int) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def test_gp_branch_recovers_reference_curve():
-    """With f_mech present and no child/moderator, y == N*expit(mean_i(baseline) + f_mech)."""
+def test_gp_branch_standardises_over_the_fitted_rows():
+    """With f_mech present, y(x) == N * mean_i expit(baseline_i + f_mech(x))."""
     rng = np.random.default_rng(0)
     n_chain, n_draw = 2, 30
     x = np.array([2.0, 2.0, 5.0, 9.0, 9.0, 14.0, 20.0], dtype=float)  # counts, with ties
@@ -89,24 +92,38 @@ def test_gp_branch_recovers_reference_curve():
         trace, x_exposure=x, n_trials_outcome=79
     )
 
-    # Expected: dedup to unique x, C = mean_i(baseline) per draw.
-    C = baseline.reshape(n_chain, n_draw, n_obs).mean(axis=2).reshape(-1)  # (S,)
+    # Expected: dedup to unique x, then average expit over the fitted rows' own
+    # baselines with the exposure set to that x for every row.
+    base = baseline.reshape(S, n_obs)
     xs = np.unique(x)
     f_flat = f.reshape(S, n_obs)
     for _, row in curve_df.iterrows():
         xi = row["exposure"]
         obs_j = int(np.where(x == xi)[0][0])
-        y_true = 79.0 * expit(C + f_flat[:, obs_j])
+        y_true = 79.0 * expit(base + f_flat[:, obs_j][:, None]).mean(axis=1)
         assert row["exposure"] in xs
         np.testing.assert_allclose(row["outcome_mean"], y_true.mean(), rtol=0, atol=1e-9)
     assert worked["curve_kind"] == "GP"
     assert worked["n_trials_outcome"] == 79
+    assert worked["estimand"] == mi.HEADLINE_ESTIMAND
+    assert worked["reference_population"] == "fitted_rows"
+    assert worked["child_intercept"] == "retained_at_fitted_value"
     # Increasing curve -> higher exposure predicts more items.
     assert worked["outcome_difference_median"] > 0
+    # The secondary contrast is the observed range, explicitly labelled.
+    assert worked["secondary"]["estimand"] == mi.SECONDARY_ESTIMAND
+    assert worked["secondary"]["exposure_ref_low"] == float(xs[0])
+    assert worked["secondary"]["exposure_ref_high"] == float(xs[-1])
 
 
-def test_linear_branch_with_child_and_moderator_recovers_constant():
-    """beta_mech branch: child intercept and moderator terms drop out of C exactly."""
+def test_linear_branch_retains_child_intercepts_and_drops_the_moderator():
+    """beta_mech branch: the moderator is netted out, the child intercept is kept.
+
+    Keeping each child's fitted intercept is what makes the answer "averaged over
+    the children actually analysed" rather than "for a constructed typical child"
+    (#602); the moderator is held at its standardised mean, so its main effect and
+    interaction both vanish.
+    """
     rng = np.random.default_rng(1)
     n_chain, n_draw = 2, 40
     n_children = 5
@@ -154,17 +171,17 @@ def test_linear_branch_with_child_and_moderator_recovers_constant():
     )
     assert worked["curve_kind"] == "linear"
 
-    # C = mean_i(baseline): child + moderator terms must cancel out exactly.
-    C = baseline.reshape(S, n_obs).mean(axis=1)
+    # eta_base keeps baseline + u_child and drops the moderator terms exactly.
+    eta_base = (baseline + u_child[:, :, child_idx]).reshape(S, n_obs)
     f_flat = f_curve.reshape(S, n_obs)
     for _, row in curve_df.iterrows():
         obs_j = int(np.where(x == row["exposure"])[0][0])
-        y_true = 79.0 * expit(C + f_flat[:, obs_j])
+        y_true = 79.0 * expit(eta_base + f_flat[:, obs_j][:, None]).mean(axis=1)
         np.testing.assert_allclose(row["outcome_mean"], y_true.mean(), rtol=0, atol=1e-9)
 
 
-def test_reference_constant_ignores_moderator_when_absent():
-    """No gamma_mod -> moderator contribution is zero and C = mean_i(eta - f)."""
+def test_reference_population_ignores_the_moderator_when_absent():
+    """No gamma_mod -> the moderator contribution is zero and eta_base = eta - f."""
     rng = np.random.default_rng(2)
     n_chain, n_draw, n_obs = 2, 20, 6
     x = np.arange(n_obs, dtype=float) * 4.0
@@ -179,11 +196,13 @@ def test_reference_constant_ignores_moderator_when_absent():
         }
     )
     _, worked = mi.mechanism_items_curve(trace, x_exposure=x, n_trials_outcome=32)
-    C = baseline.reshape(-1, n_obs).mean(axis=1)
-    # The reference constant is private; check it via the predicted median at the
-    # smallest exposure, whose f is deterministic.
-    y0 = 32.0 * expit(C + f.reshape(-1, n_obs)[:, 0])
-    assert abs(worked["predicted_low_median"] - np.median(y0)) < 5.0  # ballpark sanity
+    base = baseline.reshape(-1, n_obs)
+    # The secondary contrast's low reference point is the observed minimum, whose
+    # standardised prediction is exactly reconstructible here.
+    y0 = 32.0 * expit(base + f.reshape(-1, n_obs)[:, 0][:, None]).mean(axis=1)
+    np.testing.assert_allclose(
+        worked["secondary"]["predicted_low_median"], np.median(y0), atol=1e-9
+    )
 
 
 # ---------------------------------------------------------------------------

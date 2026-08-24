@@ -613,8 +613,10 @@ def test_pipeline_has_no_direct_mechanism_setting_reads():
 def test_every_registered_mechanism_model_resolves_with_audit_metadata():
     specs = _mechanism_specs()
     # 34 original + the six-model ability-adjusted Tier-1 panel (196-201)
-    # + mech-258, the ability-adjusted counterpart of the mech-058 curve.
-    assert len(specs) == 41
+    # + mech-258, the ability-adjusted counterpart of the mech-058 curve
+    # + the five #586 Batch C sensitivities (301-305: the between/within split,
+    #   the two phase-varying slopes and the two dispersion-prior companions).
+    assert len(specs) == 46
     for spec in specs:
         plan = M.resolve_mechanism_run_plan(spec)
         assert isinstance(plan, M.MechanismRunPlan)

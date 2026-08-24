@@ -1853,6 +1853,8 @@ def readiness_threshold(
     exposure_values: np.ndarray | None = None,
     ci_prob: float = 0.89,
     n_bins: int = 6,
+    curve: np.ndarray | None = None,
+    scale: str = "latent_logit",
 ) -> dict[str, float]:
     """Steepest latent-logit interval of a mechanism curve (#230 §2/§5, #586 finding 1).
 
@@ -1889,31 +1891,47 @@ def readiness_threshold(
     exposure's own raw units (e.g. sessions) rather than a bounded count.
     """
     post = trace.posterior
-    if "f_mech" not in post:
-        raise KeyError(
-            "trace has no 'f_mech' posterior — the readiness threshold needs an HSGP "
-            "mechanism fit (not the linear-mechanism or phase-specific variant)."
-        )
-    # The HSGP ``f_mech`` carries an auto-named obs dimension (e.g. ``f_mech_dim_0``),
-    # not ``obs_id``; take whichever non-sample dim it has. Its rows are in the model's
-    # observation order, aligned to the ``mech_post_logit`` constant-data node below.
-    f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
-    obs_dim = next(d for d in f_stacked.dims if d != "sample")
-    f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
+    if curve is None:
+        if "f_mech" not in post:
+            raise KeyError(
+                "trace has no 'f_mech' posterior — the readiness threshold needs an "
+                "HSGP mechanism fit (not the linear-mechanism or phase-specific "
+                "variant)."
+            )
+        # The HSGP ``f_mech`` carries an auto-named obs dimension (e.g.
+        # ``f_mech_dim_0``), not ``obs_id``; take whichever non-sample dim it has. Its
+        # rows are in the model's observation order, aligned to the
+        # ``mech_post_logit`` constant-data node below.
+        f_stacked = post["f_mech"].stack(sample=("chain", "draw"))
+        obs_dim = next(d for d in f_stacked.dims if d != "sample")
+        f = f_stacked.transpose(obs_dim, "sample").values  # (n_obs, S)
+    else:
+        # Caller-supplied curve on another scale — the expected-items curve
+        # standardised over the fitted rows (#602). The binning, argmax, boundary and
+        # curvature logic is scale-free, so it is reused verbatim; only ``scale``
+        # changes, and it is recorded so no renderer can confuse the two.
+        f = np.asarray(curve, dtype=float)
+        if f.ndim != 2:
+            raise ValueError("curve must be a (n_obs, n_draws) array")
     n_chains, n_draws = int(post.sizes["chain"]), int(post.sizes["draw"])
     if exposure_values is not None:
         # Continuous-covariate exposure: the knee lives in the exposure's own units.
-        # ``exposure_values`` must be in the same observation order as ``f_mech``'s rows.
-        return _readiness_knee(
+        # ``exposure_values`` must be in the same observation order as the curve rows.
+        result = _readiness_knee(
             f, None,
             count_values=np.asarray(exposure_values, dtype=float).reshape(-1),
             ci_prob=ci_prob, n_bins=n_bins, n_chains=n_chains, n_draws=n_draws,
         )
-    ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
-    return _readiness_knee(
-        f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins,
-        n_chains=n_chains, n_draws=n_draws,
-    )
+    else:
+        ell = np.asarray(
+            trace.constant_data["mech_post_logit"].values
+        ).reshape(-1)  # (n_obs,)
+        result = _readiness_knee(
+            f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins,
+            n_chains=n_chains, n_draws=n_draws,
+        )
+    result["scale"] = scale
+    return result
 
 
 def did_summary(
@@ -6820,8 +6838,110 @@ def _kf_mechanism_shape_caveat(output_dir, config: Mapping) -> dict[str, str] | 
     )
 
 
+def mechanism_headline_estimand(output_dir) -> dict | None:
+    """The declared headline contrast of a stored mechanism fit, machine-readably.
+
+    Reads the first row of ``mechanism_summary.csv``, which is the headline by
+    construction (:func:`mechanism_items.mechanism_summary_table` writes it first).
+    Recorded in ``key_findings.json`` so the published headline number carries its
+    estimand id, reference population and exposure interval rather than leaving a
+    reader to infer which of the family's two contrasts a number came from (#602).
+    """
+    row = _kf_csv_row(output_dir, "mechanism_summary.csv")
+    if row is None or "estimand" not in row:
+        return None
+    keys = (
+        "estimand",
+        "contrast",
+        "reference_population",
+        "child_intercept",
+        "exposure_unit",
+        "exposure_quantile_low",
+        "exposure_quantile_high",
+        "exposure_low",
+        "exposure_high",
+        "items_median",
+        "items_lo",
+        "items_hi",
+        "prob_pos",
+    )
+    record: dict = {"source": "mechanism_summary.csv"}
+    for key in keys:
+        if key in row and not (
+            isinstance(row[key], float) and not np.isfinite(row[key])
+        ):
+            value = row[key]
+            record[key] = (
+                float(value) if isinstance(value, (int, float, np.floating)) else str(value)
+            )
+    return record
+
+
+def _kf_mechanism_slope_sentences(output_dir) -> list[dict[str, str]]:
+    """One sentence per exposure-slope question, for the #603 / #604 sensitivities.
+
+    Reads ``mechanism_slope_summary.csv``, which a pooled fit never writes, so this
+    is empty for every registered primary. At most two sentences (one per
+    sensitivity), because the key-findings box caps at
+    :data:`KEY_FINDINGS_MAX_SENTENCES` and the causal sentence must survive.
+    """
+    table = _kf_csv(output_dir, "mechanism_slope_summary.csv")
+    if table is None or "component" not in table.columns:
+        return []
+    by = {str(r["component"]): r for _, r in table.iterrows()}
+    out: list[dict[str, str]] = []
+
+    if "between" in by and "within" in by:
+        b, w = by["between"], by["within"]
+        out.append(
+            _kf_sentence(
+                "Splitting the exposure into its between-child and within-child "
+                f"parts: **between** children, {_kf_float(b['median']):+.2f} "
+                f"(89% {_kf_float(b['lo']):+.2f} to {_kf_float(b['hi']):+.2f}) — do "
+                "children with a generally higher exposure score generally higher? "
+                f"**Within** a child, {_kf_float(w['median']):+.2f} "
+                f"(89% {_kf_float(w['lo']):+.2f} to {_kf_float(w['hi']):+.2f}) — "
+                "when a child's own exposure moves, does their outcome move with "
+                "it? Both are per 1 SD of the exposure on the model's scale, both "
+                "are adjusted associations, and a single pooled coefficient would "
+                "have been a precision-weighted blend of the two.",
+                "detail",
+            )
+        )
+
+    # ``by`` collapses repeated components, so the per-period rows are taken from
+    # the table itself; only the singleton components are looked up by key.
+    slopes = [
+        r for _, r in table.iterrows() if str(r.get("component")) == "phase_slope"
+    ]
+    scale = by.get("phase_scale")
+    if slopes:
+        listed = "; ".join(
+            f"{str(r['period'])} {_kf_float(r['median']):+.2f} "
+            f"({_kf_float(r['lo']):+.2f} to {_kf_float(r['hi']):+.2f})"
+            for r in slopes
+        )
+        spread = (
+            f" The between-period spread is {_kf_float(scale['median']):.2f} "
+            f"(89% {_kf_float(scale['lo']):.2f} to {_kf_float(scale['hi']):.2f})."
+            if scale is not None
+            else ""
+        )
+        out.append(
+            _kf_sentence(
+                f"Letting the slope vary by period: {listed}.{spread} A difference "
+                "between periods is evidence against pooling, not evidence that the "
+                "relationship changed over time — only the first transition is "
+                "randomised-arm-clean, and the periods also differ in age, "
+                "treatment history and measurement position.",
+                "detail",
+            )
+        )
+    return out
+
+
 def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Adjusted mechanism curve, preferably using its items-scale end contrast."""
+    """Adjusted mechanism association, on the family's declared headline estimand."""
     outcome_label = _kf_outcome_label(config)
     summary = _kf_csv_row(output_dir, "mechanism_summary.csv")
     sentences: list[dict[str, str]] = []
@@ -6832,11 +6952,35 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
         low = _kf_float(summary["exposure_low"])
         high = _kf_float(summary["exposure_high"])
         unit = _kf_dag_unit(summary.get("exposure_unit", "predictor units"))
+        # The declared headline is the interquartile contrast standardised over the
+        # fitted rows (#602). Older fits carry the pre-#602 single-row summary, whose
+        # interval was the observed minimum and maximum; they have no quantile
+        # columns, so say "fitted exposure range" rather than claim percentiles the
+        # number was not computed at.
+        q_lo = summary.get("exposure_quantile_low")
+        q_hi = summary.get("exposure_quantile_high")
+        has_quantiles = (
+            q_lo is not None
+            and q_hi is not None
+            and isinstance(q_lo, (int, float))
+            and isinstance(q_hi, (int, float))
+            and np.isfinite(q_lo)
+            and np.isfinite(q_hi)
+        )
+        interval = (
+            f"between the {int(round(100 * float(q_hi)))}th and "
+            f"{int(round(100 * float(q_lo)))}th percentile of the fitted exposure "
+            f"({high:g} against {low:g} {unit})"
+            if has_quantiles
+            else f"across the fitted exposure range ({low:g} to {high:g} {unit})"
+        )
         sentences.append(
             _kf_sentence(
-                f"Across the fitted exposure range ({low:g} to {high:g} {unit}), "
-                f"{outcome_label} differed by **{med:+.1f} items** on average "
-                f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
+                f"Comparing children {interval}, {outcome_label} differed by "
+                f"**{med:+.1f} items** (89% credible range {lo:+.1f} to {hi:+.1f}), "
+                "averaged over the children analysed with every other term — "
+                "period, covariates, baseline and each child's own fitted "
+                "intercept — held at its fitted value.",
                 "headline",
             )
         )
@@ -6850,6 +6994,7 @@ def _kf_build_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
                 "confidence",
             )
         )
+        sentences.extend(_kf_mechanism_slope_sentences(output_dir))
     else:
         curve = _kf_csv(output_dir, "mechanism_curve.csv")
         if curve is None:
@@ -9018,6 +9163,14 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
         payload["status"] = "not_available"
         payload["reason"] = f"key-findings builder failed: {exc}"
         return _write_key_findings(out, payload)
+
+    if config.get("kind") == "mechanism":
+        # #602: the published headline number carries its estimand id, reference
+        # population and exposure interval, so a reader never has to infer which of
+        # the family's two natural-scale contrasts a number came from.
+        estimand = mechanism_headline_estimand(out)
+        if estimand is not None:
+            payload["headline_estimand"] = estimand
 
     if release is not None:
         payload["release"] = release.as_dict()

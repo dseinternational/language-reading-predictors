@@ -1,0 +1,39 @@
+---
+title: "LRP305: Dispersion prior sensitivity — letter sounds (LS) → receptive vocabulary (RV)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+The high-denominator half of the dispersion pair (#605). This is [LRP97](../lrp-rli-mech-097) with **one** thing changed: the Beta-Binomial concentration is put on the dispersion scale, $1/\sqrt{\kappa} \sim \text{HalfNormal}(0.25)$, instead of the family's shared $\kappa \sim \text{HalfNormal}(50)$. [LRP304](../lrp-rli-mech-304) is the word-reading channel and carries the fuller account of why the shared prior is not weak.
+
+**Why this outcome.** Receptive vocabulary has the family's largest denominator (170 items), where the registered prior bites hardest. At its own median ($\kappa \approx 33.7$) it implies a **5.87×** variance inflation over Binomial, and coming within 10 % of Binomial would need $\kappa > 1689$ — a region $\text{HalfNormal}(50)$ gives effectively zero mass. Four registered mechanism fits sit at this denominator; if the prior is binding anywhere in the family, it is here.
+
+## How to read it
+
+Exactly as LRP304: does the family's declared items-scale headline contrast move when the model is *allowed* to conclude there is no extra-Binomial dispersion, and did the data move $\kappa$ at all? The dispersion table below publishes the posterior concentration against its prior and the implied variance-inflation factor.
+
+## Adjustment set
+
+$\{G, A, HS, IS, SP\}$ plus baseline $R_\text{pre}$ — identical to LRP97, the matched Tier-1 conditioning set. GA is unblockable; $\beta_\text{mech}$ is an **adjusted association**.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

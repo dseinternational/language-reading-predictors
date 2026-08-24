@@ -32,6 +32,7 @@ def effective_adjustment(
     moderator_symbol: str | None = None,
     moderator_is_covariate: bool = False,
     moderator_interaction: bool = False,
+    exposure_terms: tuple[dict, ...] = (),
 ) -> dict:
     """Describe the adjustment set the model **actually fitted**.
 
@@ -173,6 +174,7 @@ def effective_adjustment(
                 "missing_indicator": False,
             }
         )
+    terms.extend(dict(term) for term in exposure_terms)
     if moderator_symbol:
         if moderator_symbol == "A":
             _source, _wave, _scale = "age", "pre", "standardised age"

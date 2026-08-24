@@ -41,14 +41,28 @@ def _posterior(**variables) -> xr.Dataset:
     return xr.Dataset(data, coords=coords)
 
 
-def test_mechanism_curve_writes_posterior_items_range_summary(tmp_path, monkeypatch):
+def test_mechanism_summary_writes_both_declared_contrasts(tmp_path, monkeypatch):
+    """``mechanism_summary.csv`` carries the headline first, the secondary second.
+
+    #602: the family declares one natural-scale estimand — the interquartile
+    exposure contrast standardised over the fitted rows — and the observed-range
+    contrast is retained beside it under an explicit label. Both rows must name
+    their estimand machine-readably, and the headline must be the first row so
+    ``_kf_csv_row`` picks it up.
+    """
+    from language_reading_predictors.statistical_models import mechanism_items as mi
+
     counts = np.array([0.0, 16.0, 32.0])
-    z_mech, _ = standardise(logit_safe(counts, 32))
+    z_mech, scaler = standardise(logit_safe(counts, 32))
     beta = np.array([[0.2, 0.4, 0.6]])
     eta = beta[:, :, None] * z_mech[None, None, :]
     posterior = _posterior(
         beta_mech=(("chain", "draw"), beta),
         eta=(("chain", "draw", "obs_id"), eta),
+    )
+    constant = xr.Dataset(
+        {"z_mech_logit": (("obs_id",), z_mech)},
+        coords={"obs_id": np.arange(counts.size)},
     )
     spec = ModelSpec(
         model_id="test-mechanism-summary",
@@ -62,36 +76,55 @@ def test_mechanism_curve_writes_posterior_items_range_summary(tmp_path, monkeypa
         ),
     )
     ctx = SimpleNamespace(
-        trace=SimpleNamespace(posterior=posterior, constant_data=xr.Dataset()),
+        trace=SimpleNamespace(posterior=posterior, constant_data=constant),
         spec=spec,
         resolved_plan=resolve_mechanism_run_plan(spec),
         prepared=SimpleNamespace(
             post_counts={"L": counts},
-            n_trials={"L": 32, "W": 100},
+            n_trials={"L": 32, "W": 79},
             covariates={},
             covariate_scalers={},
+            n_obs=counts.size,
         ),
         reporting=SimpleNamespace(ci_prob=0.95),
         output_dir=str(tmp_path),
         tables={},
     )
     monkeypatch.setattr(
-        mech_pipeline,
-        "save_styled_figure",
-        lambda *_args, **_kwargs: plt.close("all"),
+        mech_pipeline, "save_styled_figure", lambda *_a, **_k: plt.close("all")
     )
+    monkeypatch.setattr(mi, "save_styled_figure", lambda *_a, **_k: plt.close("all"))
 
-    mech_pipeline._write_mechanism_curve(ctx)
+    mech_pipeline._write_mechanism_items(ctx)
 
-    summary = pd.read_csv(tmp_path / "mechanism_summary.csv").iloc[0]
-    expected = (
-        expit(beta.reshape(-1) * z_mech[-1])
-        - expit(beta.reshape(-1) * z_mech[0])
-    ) * 100
-    assert summary.items_median == pytest.approx(float(np.median(expected)))
-    assert summary.prob_pos == pytest.approx(1.0)
-    assert summary.exposure_low == pytest.approx(0.0)
-    assert summary.exposure_high == pytest.approx(32.0)
+    table = pd.read_csv(tmp_path / "mechanism_summary.csv")
+    assert list(table["contrast"]) == [
+        "headline_interquartile",
+        "secondary_observed_range",
+    ]
+    assert list(table["estimand"]) == [mi.HEADLINE_ESTIMAND, mi.SECONDARY_ESTIMAND]
+    assert (table["reference_population"] == "fitted_rows").all()
+    assert (table["child_intercept"] == "retained_at_fitted_value").all()
+
+    def _z(count: float) -> float:
+        return float((logit_safe(np.array([count]), 32)[0] - scaler.mean) / scaler.sd)
+
+    headline, secondary = table.iloc[0], table.iloc[1]
+    # Quartiles of [0, 16, 32] are 8 and 24, rounded to whole items.
+    assert headline.exposure_low == pytest.approx(8.0)
+    assert headline.exposure_high == pytest.approx(24.0)
+    expected_headline = (
+        expit(beta.reshape(-1) * _z(24.0)) - expit(beta.reshape(-1) * _z(8.0))
+    ) * 79
+    assert headline.items_median == pytest.approx(float(np.median(expected_headline)))
+    assert headline.prob_pos == pytest.approx(1.0)
+
+    assert secondary.exposure_low == pytest.approx(0.0)
+    assert secondary.exposure_high == pytest.approx(32.0)
+    expected_secondary = (
+        expit(beta.reshape(-1) * z_mech[-1]) - expit(beta.reshape(-1) * z_mech[0])
+    ) * 79
+    assert secondary.items_median == pytest.approx(float(np.median(expected_secondary)))
     assert "mechanism_summary" in ctx.tables
 
 

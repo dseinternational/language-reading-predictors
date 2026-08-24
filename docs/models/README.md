@@ -343,28 +343,33 @@ cumulative-session dose sensitivity term (a collider — sensitivity only).
 phases, with subject random intercepts and optional linear moderation. Every slope is an
 **adjusted association** (latent-ability confounded), not a causal effect.
 
-| Model                         | Path              | Purpose                                                                                                                                                 |
-| ----------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-mech-056`            | `R → W`           | Receptive vocabulary → word reading                                                                                                                     |
-| `lrp-rli-mech-057`            | `E → W`           | Expressive vocabulary → word reading                                                                                                                    |
-| `lrp-rli-mech-058`            | `L → W`           | Letter-sound knowledge → word reading                                                                                                                   |
-| `lrp-rli-mech-071`            | `L → W`           | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                                                            |
-| `lrp-rli-mech-072` / `72base` | `L → N`           | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                                                   |
-| `lrp-rli-mech-073` / `73base` | `L → W`           | Letter sounds → word reading, moderated by age (with / without the interaction)                                                                         |
-| `lrp-rli-mech-061` / `161`    | `L → W`           | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)                                  |
-| `lrp-rli-mech-063` / `163`    | `L → W`           | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)                                  |
-| `lrp-rli-mech-088`            | `TR → W`          | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                                                             |
-| `lrp-rli-mech-089`            | `TE → W`          | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                                                           |
-| `lrp-rli-mech-090`            | `RW → W`          | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor)                               |
-| `lrp-rli-mech-102`            | `RW → N`          | Phonological memory → nonword decoding (#421; alphabetic-route counterpart of mech-090; covariate exposure, adjust `HS`, linear/floored outcome)        |
-| `lrp-rli-mech-103`            | `SP → N`          | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome)                       |
-| `lrp-rli-mech-104` / `204`    | `L → W`           | Letter sounds → word reading, moderated by phonological memory `RW` (with / without the interaction; #421 Tier 2)                                       |
-| `lrp-rli-mech-096` / `101`    | `L → N` / `L → W` | Tier-1 decoding-specificity positive controls (linear); their difference is the pre-specified nonword-minus-word contrast                               |
-| `lrp-rli-mech-097–100`        | `L → R/E/T/F`     | Tier-1 negative controls: letter sounds → receptive / expressive vocabulary, grammar, basic concepts (linear)                                           |
-| `lrp-rli-mech-196–201`        | as `096–101`      | Ability-adjusted mirror of the Tier-1 panel: identical rows and terms plus the t1 block-design proxy via the typed `ability_covariate` setting          |
-| `lrp-rli-mech-258`            | `L → W`           | Ability-adjusted counterpart of the `058` HSGP curve, so shape can be compared curve against curve (`compare_statistical_models.py` writes the overlay) |
+| Model                         | Path              | Purpose                                                                                                                                                  |
+| ----------------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-mech-056`            | `R → W`           | Receptive vocabulary → word reading                                                                                                                      |
+| `lrp-rli-mech-057`            | `E → W`           | Expressive vocabulary → word reading                                                                                                                     |
+| `lrp-rli-mech-058`            | `L → W`           | Letter-sound knowledge → word reading                                                                                                                    |
+| `lrp-rli-mech-071`            | `L → W`           | Letter sounds → word reading, linear moderation by expressive vocabulary `E`                                                                             |
+| `lrp-rli-mech-072` / `72base` | `L → N`           | Code-based route: letter sounds moderated by blending `B` → decoding (with / without the interaction)                                                    |
+| `lrp-rli-mech-073` / `73base` | `L → W`           | Letter sounds → word reading, moderated by age (with / without the interaction)                                                                          |
+| `lrp-rli-mech-061` / `161`    | `L → W`           | Joint readiness: letter sounds moderated by phoneme blending `B` → word reading (with / without the interaction; #404)                                   |
+| `lrp-rli-mech-063` / `163`    | `L → W`           | Joint readiness: letter sounds moderated by nonword decoding `N` → word reading (with / without the interaction; #404)                                   |
+| `lrp-rli-mech-088`            | `TR → W`          | Taught receptive vocabulary → word reading (#311; linear, IS backdoor flagged not adjusted)                                                              |
+| `lrp-rli-mech-089`            | `TE → W`          | Taught expressive vocabulary → word reading (#311; linear, TR measure confounder, IS flagged)                                                            |
+| `lrp-rli-mech-090`            | `RW → W`          | Phonological memory (word/nonword repetition) → word reading (#311; covariate exposure, adjust `HS` only, no IS backdoor)                                |
+| `lrp-rli-mech-102`            | `RW → N`          | Phonological memory → nonword decoding (#421; alphabetic-route counterpart of mech-090; covariate exposure, adjust `HS`, linear/floored outcome)         |
+| `lrp-rli-mech-103`            | `SP → N`          | Speech production → nonword decoding (#421; first SP-exposure mechanism; covariate exposure, adjust `HS`, linear/floored outcome)                        |
+| `lrp-rli-mech-104` / `204`    | `L → W`           | Letter sounds → word reading, moderated by phonological memory `RW` (with / without the interaction; #421 Tier 2)                                        |
+| `lrp-rli-mech-096` / `101`    | `L → N` / `L → W` | Tier-1 decoding-specificity positive controls (linear); their difference is the pre-specified nonword-minus-word contrast                                |
+| `lrp-rli-mech-097–100`        | `L → R/E/T/F`     | Tier-1 negative controls: letter sounds → receptive / expressive vocabulary, grammar, basic concepts (linear)                                            |
+| `lrp-rli-mech-196–201`        | as `096–101`      | Ability-adjusted mirror of the Tier-1 panel: identical rows and terms plus the t1 block-design proxy via the typed `ability_covariate` setting           |
+| `lrp-rli-mech-258`            | `L → W`           | Ability-adjusted counterpart of the `058` HSGP curve, so shape can be compared curve against curve (`compare_statistical_models.py` writes the overlay)  |
+| `lrp-rli-mech-301`            | `L → W`           | Between/within (Mundlak) split of the `101` slope, so the between-child and within-child associations are reported separately rather than blended (#603) |
+| `lrp-rli-mech-302` / `303`    | `L → W` / `L → R` | Phase-stability sensitivity: partially-pooled per-period slopes against the pooled `101` / `097` comparators, with a nested PSIS-LOO test (#604)         |
+| `lrp-rli-mech-304` / `305`    | `L → W` / `L → R` | Dispersion prior sensitivity: `1/sqrt(kappa) ~ HalfNormal(0.25)` in place of the shared `kappa ~ HalfNormal(50)`, at n = 79 and n = 170 (#605)           |
 
-The table above is a selection; the family currently has 41 registered models (the curve tests `156–158` / `188–191`, the joint-readiness comparators `093–095` and the remaining companions are catalogued in `definitions.MODEL_REGISTRY` and the family findings note).
+The table above is a selection; the family currently has 46 registered models (the curve tests `156–158` / `188–191`, the joint-readiness comparators `093–095` and the remaining companions are catalogued in `definitions.MODEL_REGISTRY` and the family findings note).
+
+**One declared natural-scale estimand (#602).** Every mechanism fit reports the same headline: the predicted outcome difference between the **25th and 75th percentile of the fitted exposure**, standardised over the fitted rows — each row keeping its own period, covariates, baseline and its child's own fitted random intercept, with only the exposure moved. `mechanism_summary.csv` carries that row first and the full-observed-range contrast second as an explicitly labelled secondary, each with a machine-readable `estimand`; the items-scale curve plots the same standardised quantity, so the worked-example points lie on it. The steepest-interval table publishes both the latent-logit interval and, under the same reference population, the expected-items one.
 
 ### Mediation — `lrp-rli-med` (`kind="mediation"` / `"mediation_multi"`)
 

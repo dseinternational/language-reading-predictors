@@ -421,6 +421,43 @@ def _prior_table_overrides(
         plan = getattr(context, "resolved_plan", None)
         if not isinstance(plan, MechanismRunPlan):
             plan = resolve_mechanism_run_plan(spec)
+        # The #603 / #604 exposure terms all reuse ``beta_mech_prior`` (Normal(0, 1))
+        # or the partial-pooling scale, under names whose default rationale would be
+        # the pooled-slope docstring. Each answers a different question, so each gets
+        # its own row rather than three copies of "linear-mechanism slope".
+        _unit = (
+            "1 SD of the standardised exposure"
+            if plan.mechanism_is_covariate
+            else "1 SD of the exposure logit"
+        )
+        if plan.decompose_between_within:
+            rationale["beta_between"] = (
+                "Between-child association (Normal(0, 1), the beta_mech scale): the "
+                f"outcome logit per {_unit} of a child's fitted-row average exposure. "
+                "A cross-sectional comparison, confounded by every stable child "
+                "characteristic including latent general ability."
+            )
+            rationale["beta_within"] = (
+                "Within-child association (Normal(0, 1), the beta_mech scale): the "
+                f"outcome logit per {_unit} of a wave's deviation from that child's "
+                "own average exposure. Removes stable between-child confounding, but "
+                "exposure and outcome are still same-wave, so it is neither "
+                "temporally ordered nor free of time-varying confounding."
+            )
+        if plan.phase_varying_slope:
+            rationale["mu_mech"] = (
+                "Shared mean of the partially-pooled per-period exposure slopes "
+                "(Normal(0, 1), the beta_mech scale); the pooled association the "
+                "per-period slopes are shrunk toward, and an adjusted association "
+                "like every one of them."
+            )
+            rationale["sigma_mech_phase"] = (
+                "Between-period SD of the exposure slope (HalfNormal(0.5), matching "
+                "the dose family's period-varying scale). It shrinks three ~52-row "
+                "period slopes toward their shared mean; a large posterior is "
+                "evidence against pooling, not evidence of mechanism change over "
+                "time."
+            )
         if not plan.linear_mechanism:
             tight = plan.mech_lengthscale_tight
             ctor["f_mech__ell"] = "ell_mech_tight" if tight else "ell_mech"

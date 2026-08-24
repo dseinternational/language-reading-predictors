@@ -3320,17 +3320,19 @@ def test_mechanism_writers_use_pre_exposure_when_lagged(tmp_path):
     # Logit-scale curve: the x column is the pre logit, not the post logit.
     pl._write_mechanism_curve(ctx)
     curve = pd.read_csv(out / "mechanism_curve.csv")
+    # One row per *distinct* exposure value since #602 (the plotted curve is the
+    # standardised contribution, which is single-valued in the exposure).
     got = np.sort(curve["mech_logit"].to_numpy())
-    pre = np.sort(np.asarray(built.prepared.pre_logit["R"], dtype=float))
-    post = np.sort(
+    pre = np.unique(np.asarray(built.prepared.pre_logit["R"], dtype=float))
+    post = np.unique(
         logit_safe(built.prepared.post_counts["R"], MEASURES["R"].n_trials)
     )
     assert np.allclose(got, pre)
-    assert not np.allclose(got, post)
+    assert got.shape != post.shape or not np.allclose(got, post)
 
     # Items-scale companion: the exposure axis is the pre counts.
     worked = pl._write_mechanism_items(ctx)
-    assert worked  # ran without falling into the defensive except
+    assert worked
     items = pd.read_csv(out / "mechanism_curve_items.csv")
     assert np.allclose(
         np.unique(items["exposure"].to_numpy()),
