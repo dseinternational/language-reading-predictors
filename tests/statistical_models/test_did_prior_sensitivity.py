@@ -425,6 +425,81 @@ def test_did_attach_refuses_foreign_provenance_trace(tmp_path):
     assert not list(primary.glob("trace_did-001_tau-*.nc"))
 
 
+@pytest.mark.parametrize(
+    "changed_plan,label",
+    [
+        ({"dose": False, "period_varying": False, "use_age": False}, "age adjustment"),
+        (
+            {"dose": False, "period_varying": False, "use_intercept_anchor": False},
+            "intercept anchor",
+        ),
+        (
+            {"dose": False, "period_varying": False, "likelihood": "bernoulli_offfloor"},
+            "likelihood",
+        ),
+        (
+            {"dose": False, "period_varying": False, "tau_t2_prior_sigma": 1.0},
+            "focal prior width",
+        ),
+    ],
+    ids=["use_age", "intercept-anchor", "likelihood", "tau-prior-width"],
+)
+def test_did_attach_refuses_a_sweep_of_a_different_run_plan(
+    tmp_path, changed_plan, label
+):
+    """#576 finding 6: a non-swept plan field must invalidate the bundle.
+
+    The sweep is generated against one registered declaration and the primary was
+    fitted under another. Every pre-#576 binding still matches — same model id, same
+    outcome, same data digest, same row count, same arm totals, same config/trace
+    hashes — because none of them can see the fitted *equation*. Only the run-plan
+    digest can, and without it a primary fitted under an older likelihood, intercept
+    anchor, age adjustment or prior width would be released by evidence for a model
+    it is not.
+    """
+    primary = _fake_primary(tmp_path)
+    reference = load_primary_did_reference(
+        primary, "lrp-rli-did-001", config_name="reporting"
+    )
+    sweep = tmp_path / "sweep"
+    rows = _rows_for(reference, sweep)
+    # The cells were swept under a plan that differs only in this one field.
+    from language_reading_predictors.statistical_models.sensitivity import (
+        did_run_plan_digest,
+    )
+
+    other = did_run_plan_digest(changed_plan)
+    assert other != reference.run_plan_digest, label
+    rows["primary_run_plan_sha256"] = other
+    with pytest.raises(RuntimeError, match="primary_run_plan_sha256"):
+        attach_outcome_bundle(
+            rows,
+            outcome="W",
+            primary_dir=primary,
+            sensitivity_dir=sweep,
+            reference=reference,
+        )
+    assert not (primary / STANDARD_SENSITIVITY_FILENAME).exists()
+
+
+def test_did_attach_refuses_a_sweep_with_no_run_plan_binding(tmp_path):
+    """A bundle produced before run-plan binding cannot certify a bound primary."""
+    primary = _fake_primary(tmp_path)
+    reference = load_primary_did_reference(
+        primary, "lrp-rli-did-001", config_name="reporting"
+    )
+    sweep = tmp_path / "sweep"
+    rows = _rows_for(reference, sweep).drop(columns=["primary_run_plan_sha256"])
+    with pytest.raises(RuntimeError, match="carry no primary_run_plan_sha256"):
+        attach_outcome_bundle(
+            rows,
+            outcome="W",
+            primary_dir=primary,
+            sensitivity_dir=sweep,
+            reference=reference,
+        )
+
+
 def test_did_attach_refuses_divergence_mismatch(tmp_path):
     """The trace's own sample_stats must reproduce the row's divergence count:
     a row claiming zero divergences over a diverging trace is not evidence."""
