@@ -131,13 +131,10 @@ def render_model_graph(context: StatisticalFitContext) -> None:
 
 
 def _graphviz(model):
-    import pymc as pm
-
-    g = pm.model_to_graphviz(model)
-    g.graph_attr["fontname"] = "Helvetica"
     # Raster PNG output (not SVG): the DAG's many nodes/edges make a large SVG
     # slow to browse, so render to PNG and bump DPI to keep the lightbox legible.
-    g.graph_attr["dpi"] = "150"
-    g.node_attr["fontname"] = "Helvetica"
-    g.edge_attr["fontname"] = "Helvetica"
-    return g
+    # The Helvetica styling is the shared helper's; only the DPI is ours. Imported
+    # locally because the shared module imports PyMC at module scope.
+    from dse_research_utils.statistics.models.pymc_utils import model_to_graphviz
+
+    return model_to_graphviz(model, dpi=150)

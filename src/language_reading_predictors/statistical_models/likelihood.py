@@ -17,8 +17,10 @@ import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-from dse_research_utils.statistics.models.likelihood import beta_binomial_from_logit
-from dse_research_utils.math.constants import EPSILON
+from dse_research_utils.statistics.models.likelihood import (
+    beta_binomial_from_logit,
+    beta_binomial_from_p,
+)
 
 ScoreMeanLink = Literal["logit", "three_choice_guessing_floor"]
 SCORE_MEAN_LINKS: tuple[ScoreMeanLink, ...] = (
@@ -105,13 +107,13 @@ def beta_binomial_from_score_mean_link(
             dims=dims,
         )
 
-    mu = apply_score_mean_link(pm.math.sigmoid(eta), score_mean_link)
-    mu_clip = pm.math.clip(mu, EPSILON, 1.0 - EPSILON)
-    return pm.BetaBinomial(
+    # The clip -> (alpha, beta) -> BetaBinomial construction is the shared
+    # beta_binomial_from_p; only the link applied to the mean is ours.
+    return beta_binomial_from_p(
         name,
-        n=n_trials,
-        alpha=mu_clip * kappa,
-        beta=(1.0 - mu_clip) * kappa,
+        apply_score_mean_link(pm.math.sigmoid(eta), score_mean_link),
+        n_trials,
+        kappa,
         observed=observed,
         dims=dims,
     )

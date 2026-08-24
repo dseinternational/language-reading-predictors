@@ -43,6 +43,7 @@ import os
 import shutil
 
 import arviz as az
+import dse_research_utils.statistics.loo as shared_loo
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -1554,7 +1555,10 @@ def _unreliable_pareto_k(model_ids, config: str) -> dict[str, float]:
 # family's HSGP pairs carry one or two influential observations out of ~150; a model
 # needing more than a handful of refits is telling us something about its structure,
 # not about importance sampling, so it declines to the per-model table instead.
-_RELOO_K_THRESHOLD = 0.7
+#
+# There is deliberately no fixed k threshold here: ``_reloo_repair`` reads each
+# fit's own persisted ``good_k`` (see the comment at its call site), because a
+# hard-coded 0.7 would count a k the fit's own threshold rejects as fine.
 _RELOO_MAX_REFITS = 5
 
 
@@ -1581,11 +1585,9 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
         if not os.path.exists(nc):
             continue
         t = az.from_netcdf(nc)
-        # arviz 1.x returns a DataTree whose ``.groups`` is a tuple of paths
-        # like "/log_likelihood" (0.x exposed a ``.groups()`` method of bare
-        # names) — normalise to leaf names for the membership test.
-        group_names = {g.rstrip("/").split("/")[-1] for g in t.groups}
-        if "log_likelihood" not in group_names:
+        # ``has_group`` normalises the arviz 1.x DataTree paths ("/log_likelihood")
+        # to leaf names for the membership test (0.x exposed bare names).
+        if not shared_loo.has_group(t, "log_likelihood"):
             print(f"[warn] {mid}: trace has no log_likelihood group; skipping.")
             continue
         traces[mid] = t
@@ -1716,13 +1718,12 @@ def _elpd_verdict(elpd_diff: float) -> str:
 
     Follows the suite's existing ``|elpd_diff| < 4`` rule: below that the models are
     not distinguished by LOO, and the standard error is itself unreliable in that
-    regime, so the magnitude governs rather than the ratio.
+    regime, so the magnitude governs rather than the ratio. The rule and its
+    threshold now live in the shared library as
+    :data:`dse_research_utils.statistics.loo.ELPD_DIFF_INCONCLUSIVE`; the labels
+    are unchanged.
     """
-    if elpd_diff is None or not np.isfinite(elpd_diff):
-        return "unavailable"
-    if abs(float(elpd_diff)) < 4:
-        return "inconclusive (|elpd_diff| < 4)"
-    return "discriminating (|elpd_diff| >= 4)"
+    return shared_loo.elpd_verdict(elpd_diff)
 
 
 def _reloo_repair(
@@ -1754,7 +1755,7 @@ def _reloo_repair(
         # point as fine, return the model unrepaired, and let the comparison be marked
         # valid on exactly the weights the outer check had just rejected.
         _, threshold = _max_pareto_k(mid, config)
-        n_bad = int((np.asarray(lo.pareto_k) > threshold).sum())
+        n_bad = int((shared_loo.pareto_k_values(lo) > threshold).sum())
         if n_bad == 0:
             # Store the pointwise LOO object, not the raw trace, so every entry handed
             # to az.compare is the same type and the comparison reuses these scores
@@ -1948,7 +1949,7 @@ def lcsm_reverse_coupling_loo_compare(config: str, out_path: str) -> bool:
     comp = az.compare(loo)
     comp = comp.reset_index().rename(columns={"index": "model_id"})
     for model_id in ids:
-        k = np.asarray(loo[model_id].pareto_k, dtype=float)
+        k = shared_loo.pareto_k_values(loo[model_id])
         comp.loc[comp["model_id"] == model_id, "pareto_k_max"] = float(k.max())
     comp.to_csv(out_path, index=False)
     return True
