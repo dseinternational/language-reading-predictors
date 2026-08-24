@@ -41,4 +41,20 @@ if isinstance(_release_decision, dict) and _release_decision.get(
         f"{_qualification}. Refit with `rep-lite` or `reporting` before citing "
         "the numerical results.\n\n:::"
     )
+elif isinstance(_release_decision, dict) and _release_decision.get(
+    "publication_qualification"
+):
+    # A qualification on a *publishable* fit had nowhere to go: the field was
+    # rendered only inside the development-only banner above, so every
+    # qualification the release decision attaches to a reporting-tier fit — the
+    # joint-mechanism new-child coverage floors, the historical-joint prior
+    # sensitivity — was written to release_decision.json and shown to nobody
+    # (2026-08-24 historical-joint review). The fit still publishes; the reader is
+    # simply told what it publishes *under*.
+    print(
+        '::: {.callout-warning title="Published with a qualification"}\n\n'
+        "This fit is release-eligible, and the following applies to how its "
+        f"results should be read: {_release_decision['publication_qualification']}."
+        "\n\n:::"
+    )
 ```

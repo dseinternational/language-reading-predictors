@@ -359,3 +359,36 @@ def test_registered_joint_models_declare_windows_their_measures_support():
         )
         plan = HJ.resolve_historical_joint_run_plan(module.SPEC)
         assert plan.model_id == model_id
+
+
+def test_the_registered_prior_companion_constant_matches_the_modules():
+    """``HISTORICAL_JOINT_PRIOR_COMPANIONS`` is a second source of truth for a
+    release control, so it must not drift from the modules that own the pairing
+    (2026-08-23 joint audit, finding 5). The companion is built from its parent's
+    frozen settings with ``dataclasses.replace``, and the *only* thing it may
+    change is the within-scale prior — otherwise it varies more than the
+    sensitivity it claims to be."""
+    for parent_id, companion_id in HJ.HISTORICAL_JOINT_PRIOR_COMPANIONS.items():
+        parent = importlib.import_module(
+            "language_reading_predictors.statistical_models."
+            + parent_id.replace("-", "_")
+        ).SPEC
+        companion = importlib.import_module(
+            "language_reading_predictors.statistical_models."
+            + companion_id.replace("-", "_")
+        ).SPEC
+        assert companion.model_id == companion_id
+        assert companion.kind == parent.kind == "historical_joint"
+        parent_plan = HJ.resolve_historical_joint_run_plan(parent).as_dict()
+        companion_plan = HJ.resolve_historical_joint_run_plan(companion).as_dict()
+        differing = {
+            key
+            for key in parent_plan
+            if parent_plan[key] != companion_plan[key]
+        }
+        assert differing == {"model_id", "sigma_within_prior_sigma"}
+        assert parent_plan["within_correlation"] is True
+        assert (
+            companion_plan["sigma_within_prior_sigma"]
+            > parent_plan["sigma_within_prior_sigma"]
+        )

@@ -11,11 +11,12 @@ sub-fit ever set ``sigma_within_prior_sigma`` to 1.0, and no trace or provenance
 artefact recorded such a fit (2026-08-23 joint audit, finding 5). This module
 makes the promise reproducible: it is ``jc-002`` with that one setting changed.
 
-**Why the prior matters here rather than being routine.** ``omega_m`` - the
-wave-specific latent deviation's scale - decides whether each measure passes the
+**Why the prior matters here rather than being routine.** ``sigma_within`` - the
+wave-specific latent deviation's scale, and the name it carries in the fitted
+model and in every artefact - decides whether each measure passes the
 resolvability rule (posterior support above the 0.05-logit identifiability
 threshold), and therefore whether each correlation pair is interpretable at all.
-A prior that regularises ``omega_m`` toward zero can withhold a pair; one that
+A prior that regularises ``sigma_within`` toward zero can withhold a pair; one that
 does not can admit it. That is a conclusion-level dependence, not a nuisance.
 
 **Power scaling is not a substitute.** ``psense`` perturbs the prior locally

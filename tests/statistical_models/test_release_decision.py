@@ -1960,6 +1960,197 @@ def test_a_mismatched_contrast_label_attaches_the_qualifier(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# 2026-08-23 joint audit, finding 5, completed: a within-child historical-joint
+# fit's resolvability classification is decided by the within-scale prior, and the
+# registered wider-prior companion has to be release-ready beside it before that
+# classification is read as a result. The family is descriptive, so the robustness
+# gate never runs for it -- the qualification attaches to publication_qualification.
+# ---------------------------------------------------------------------------
+
+_HJ_PLAN: dict = {
+    "measures": ["basread", "bpvs", "basdig"],
+    "waves": [1, 2, 3],
+    "extension_waves": [],
+    "likelihood": "logistic_normal_binomial",
+    "eta_prior_sigma": 1.5,
+    "sigma_subject_prior_sigma": 1.0,
+    "lkj_eta": 2.0,
+    "within_lkj_eta": 2.0,
+    "within_correlation": True,
+    "sigma_within_prior_sigma": 0.5,
+}
+
+
+def _within_scale_summary(directory: Path, resolvable: dict[str, bool]) -> None:
+    pd.DataFrame(
+        [
+            {"measure": name, "resolvable": flag, "prob_above_minimum": 0.9}
+            for name, flag in resolvable.items()
+        ]
+    ).to_csv(directory / "within_scale_summary.csv", index=False)
+
+
+_HJ_DEFAULT_RESOLVABLE = {"basread": True, "bpvs": False, "basdig": False}
+
+
+def _historical_joint_fit_dir(
+    tmp_path: Path,
+    *,
+    model_id: str = "lrp-rlm-jc-002",
+    plan_overrides: dict | None = None,
+    identity_overrides: dict | None = None,
+    resolvable: dict[str, bool] | None = None,
+    prior_sensitivity: float | None = 0.65,
+) -> Path:
+    d = tmp_path / f"{model_id}-reporting"
+    d.mkdir(parents=True)
+    (d / "diagnostics_summary.json").write_text(json.dumps(_gate(True)))
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "historical_joint",
+                "config_name": "reporting",
+                "data_sha256": "rlm-abc",
+                "fitted_subject_identity": {"sha256": "rows-digest"},
+                **(identity_overrides or {}),
+                "resolved_run_plan": {**_HJ_PLAN, **(plan_overrides or {})},
+            }
+        )
+    )
+    if prior_sensitivity is not None:
+        pd.DataFrame(
+            [{"prior": prior_sensitivity, "likelihood": 0.5, "diagnosis": "x"}],
+            index=["sigma_within[basread]"],
+        ).to_csv(d / "psense_summary.csv")
+    _within_scale_summary(d, resolvable or _HJ_DEFAULT_RESOLVABLE)
+    _write_core_artifacts(d, "historical_joint")
+    return d
+
+
+def _historical_joint_companion_dir(
+    tmp_path: Path,
+    *,
+    model_id: str = "lrp-rlm-jc-102",
+    publishable: bool = True,
+    plan_overrides: dict | None = None,
+    identity_overrides: dict | None = None,
+    resolvable: dict[str, bool] | None = None,
+) -> Path:
+    d = tmp_path / f"{model_id}-reporting"
+    d.mkdir(parents=True)
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "historical_joint",
+                "config_name": "reporting",
+                "data_sha256": "rlm-abc",
+                "fitted_subject_identity": {"sha256": "rows-digest"},
+                **(identity_overrides or {}),
+                "resolved_run_plan": {
+                    **_HJ_PLAN,
+                    "sigma_within_prior_sigma": 1.0,
+                    **(plan_overrides or {}),
+                },
+            }
+        )
+    )
+    (d / RELEASE_DECISION_FILENAME).write_text(
+        json.dumps(
+            {
+                "status": "ok" if publishable else "robustness_unresolved",
+                "publishable": publishable,
+            }
+        )
+    )
+    _within_scale_summary(d, resolvable or _HJ_DEFAULT_RESOLVABLE)
+    return d
+
+
+def test_a_within_child_fit_without_its_prior_sensitivity_is_qualified(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is True
+    qualification = evaluation.publication_qualification
+    assert "lrp-rlm-jc-102" in qualification
+    assert "has not been fitted" in qualification
+    # The qualification quotes the fit's own measurement rather than asserting
+    # that the prior matters.
+    assert "0.65" in qualification
+
+
+def test_the_qualification_reaches_the_persisted_decision(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    record = evaluate_publication(d).as_dict()
+    assert "lrp-rlm-jc-102" in record["publication_qualification"]
+
+
+def test_a_bound_prior_sensitivity_that_agrees_attaches_nothing(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(tmp_path)
+    assert evaluate_publication(d).publication_qualification == ""
+
+
+def test_a_prior_sensitivity_that_reclassifies_a_measure_is_qualified(tmp_path):
+    """The classification *is* the conclusion for this family."""
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(
+        tmp_path, resolvable={"basread": True, "bpvs": True, "basdig": False}
+    )
+    qualification = evaluate_publication(d).publication_qualification
+    assert "changes the resolvability classification" in qualification
+    assert "bpvs: unresolvable here, resolvable under the wider prior" in qualification
+
+
+def test_a_companion_under_the_same_prior_varies_nothing(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(
+        tmp_path, plan_overrides={"sigma_within_prior_sigma": 0.5}
+    )
+    assert "varies nothing" in evaluate_publication(d).publication_qualification
+
+
+def test_a_withheld_prior_sensitivity_does_not_count(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(tmp_path, publishable=False)
+    assert "withholds publication" in evaluate_publication(d).publication_qualification
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected",
+    [
+        ({"plan_overrides": {"measures": ["basread", "bpvs"]}}, "measure list"),
+        ({"plan_overrides": {"waves": [1, 2]}}, "analysis window"),
+        ({"plan_overrides": {"likelihood": "beta_binomial"}}, "likelihood"),
+        ({"plan_overrides": {"lkj_eta": 4.0}}, "priors not under test"),
+        (
+            {"identity_overrides": {"data_sha256": "other"}},
+            "input data checksum",
+        ),
+        (
+            {"identity_overrides": {"fitted_subject_identity": {"sha256": "other"}}},
+            "fitted-row identity",
+        ),
+    ],
+)
+def test_a_tampered_prior_pair_binding_field_fails_closed(tmp_path, kwargs, expected):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(tmp_path, **kwargs)
+    assert expected in evaluate_publication(d).publication_qualification
+
+
+def test_the_between_child_fit_is_out_of_scope(tmp_path):
+    """``jc-001`` has no within-child block, so its stored decision is untouched."""
+    d = _historical_joint_fit_dir(
+        tmp_path,
+        model_id="lrp-rlm-jc-001",
+        plan_overrides={"within_correlation": False},
+    )
+    assert evaluate_publication(d).publication_qualification == ""
+
+
+# ---------------------------------------------------------------------------
 # 2026-08-23 joint audit, finding 12: the phoneme-blending response-link policy's
 # scope in a joint fit.
 # ---------------------------------------------------------------------------

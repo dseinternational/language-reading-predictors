@@ -8,9 +8,11 @@ between-child cross-measure correlation matrix of the stable child levels. The
 within-child companion also reports the correlation matrix of wave-specific
 departures from those levels and their matched contrast. Per-measure fitted
 cells and common-window growth use the shared historical summaries. LOO is not
-computed: the model carries one likelihood node per measure, so a single
-pointwise PSIS-LOO is not defined for it. Descriptive throughout; the cohort is
-observational.
+computed because no out-of-sample prediction target has been defined and
+implemented for this family - not because several likelihood nodes preclude one;
+they share an observation coordinate and could be summed per child-wave row
+(2026-08-23 joint audit, finding 8). ``plan.loo_reason`` is the statement of
+record. Descriptive throughout; the cohort is observational.
 """
 
 from __future__ import annotations
@@ -75,9 +77,9 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     Fits :func:`factories.build_rlm_joint_growth_model` over a small measure set
     and reports the between-child cross-measure correlation matrix of the
     stable child levels (the headline), plus per-measure fitted cells and
-    common-window growth via the shared historical summaries. LOO is not
-    computed: the model has one likelihood node per measure, so a single
-    pointwise PSIS-LOO is not defined for it (documented in the report).
+    common-window growth via the shared historical summaries. LOO is not computed
+    because this family has no defined and implemented prediction target; see
+    ``plan.loo_reason``, which the report renders verbatim.
     """
     require_spec(spec, "historical_joint")
 
@@ -204,7 +206,12 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         ranked_dataframe_table(
             corr_summary_df,
             title=f"Between-child cross-measure correlations - {int(hdi * 100)}% CI",
-            columns=["label_i", "label_j", "mean", "lo", "hi", "prob_pos"],
+            # Median, matching the house convention and the within-child table
+            # printed beside it. ``mean`` is kept in the CSV only for the printed
+            # correlation *matrix*, where entrywise averaging preserves positive
+            # semidefiniteness and entrywise medians would not (2026-08-24
+            # historical-joint review).
+            columns=["label_i", "label_j", "median", "lo", "hi", "prob_pos"],
             rank_column=False,
             precision=3,
         )
@@ -260,6 +267,16 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 observed = np.asarray(
                     realised_sd.isel(measure=i).values
                 ).reshape(-1)
+                # The rule is applied to ``sigma_within``, but its justification is
+                # about the departures the linear predictor actually carries, which
+                # the double sum-to-zero sweep makes smaller. Publish the same
+                # probability on that scale so the rule's leniency is measured
+                # rather than left for a reader to infer (2026-08-24
+                # historical-joint review). The classification itself is unchanged:
+                # it stays on the latent scale the correlation belongs to.
+                row["realised_prob_above_minimum"] = float(
+                    np.mean(observed > _MIN_RESOLVABLE_WITHIN_SD)
+                )
                 row["realised_departure_sd_median"] = float(np.median(observed))
                 row["realised_departure_sd_lo"] = float(
                     np.quantile(observed, lo_q)

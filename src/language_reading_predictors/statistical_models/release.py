@@ -2930,6 +2930,198 @@ def _joint_contrast_consequence(
     )
 
 
+#: Binding fields a within-child historical-joint fit and its wider-prior
+#: sensitivity companion must agree on before the pair counts as evidence about the
+#: *same* model under a *different* prior (#588 finding 5). Everything the fitted
+#: equation and the analysis rows depend on, and every prior scale except the one
+#: under test.
+_HISTORICAL_JOINT_PRIOR_BINDING: tuple[
+    tuple[str, Callable[[Mapping[str, Any]], Any]], ...
+] = (
+    ("the measure list", lambda c: list(_plan(c).get("measures") or [])),
+    (
+        "the analysis window",
+        lambda c: [
+            list(_plan(c).get("waves") or []),
+            list(_plan(c).get("extension_waves") or []),
+        ],
+    ),
+    ("the likelihood", lambda c: str(_plan(c).get("likelihood") or "")),
+    (
+        "the priors not under test",
+        lambda c: [
+            _plan(c).get("eta_prior_sigma"),
+            _plan(c).get("sigma_subject_prior_sigma"),
+            _plan(c).get("lkj_eta"),
+            _plan(c).get("within_lkj_eta"),
+        ],
+    ),
+    ("the input data checksum", lambda c: str(c.get("data_sha256") or "") or None),
+    (
+        "the fitted-row identity",
+        lambda c: str((c.get("fitted_subject_identity") or {}).get("sha256") or "")
+        or None,
+    ),
+)
+
+#: How far a measure's power-scaling prior sensitivity may sit before the fit's own
+#: diagnostics say the within-scale prior is doing the deciding. ArviZ's own flag
+#: threshold; quoted rather than re-derived so the qualification and the psense
+#: table cannot disagree.
+_HISTORICAL_JOINT_PRIOR_SENSITIVE = PSENSE_THRESHOLD
+
+
+def _historical_joint_prior_sensitivity(output_dir: Path) -> str:
+    """The measured prior sensitivity of ``sigma_within``, as a phrase or ``""``.
+
+    The qualification below is about a prior whose influence the fit has already
+    measured, so quote the measurement rather than asserting that the prior matters.
+    """
+    frame = _read_csv(output_dir, "psense_summary.csv", index_col=0)
+    if frame is None or frame.empty or "prior" not in frame.columns:
+        return ""
+    rows = frame.loc[frame.index.astype(str).str.startswith("sigma_within")]
+    values = pd.to_numeric(rows["prior"], errors="coerce").dropna()
+    if values.empty:
+        return ""
+    top = float(values.max())
+    if top < _HISTORICAL_JOINT_PRIOR_SENSITIVE:
+        return (
+            f" This fit's own power scaling puts the largest sigma_within prior "
+            f"sensitivity at {top:.2f}, below ArviZ's "
+            f"{_HISTORICAL_JOINT_PRIOR_SENSITIVE:.2f} flag."
+        )
+    return (
+        f" This fit's own power scaling already flags that prior: the largest "
+        f"sigma_within prior sensitivity is {top:.2f}, against ArviZ's "
+        f"{_HISTORICAL_JOINT_PRIOR_SENSITIVE:.2f} flag threshold."
+    )
+
+
+def _historical_joint_prior_companion_qualifications(
+    output_dir: Path, config: Mapping[str, Any]
+) -> list[str]:
+    """Qualify a within-child historical-joint fit whose prior sensitivity is absent.
+
+    2026-08-23 joint audit, finding 5, completing what #609 registered. The family
+    is descriptive, so :func:`gate_applies` excludes it and no robustness verdict is
+    produced for it at all — which left the parent publishing a **prior-dependent
+    classification** with nothing machine-readable saying so. Which measures clear
+    the 0.05-logit resolvability threshold, and therefore which correlations may be
+    interpreted, is decided by ``sigma_within``, whose prior the registered
+    companion varies; on the stored fit that parameter is also the most
+    power-scaling-sensitive quantity in the model.
+
+    A **qualification, never a withhold**: the fit is valid, its convergence gate
+    passes and its tables are correct under the declared prior. What is qualified is
+    the robustness of the classification those tables carry. Fail-closed on every
+    unreadable or unbound path, and silent for a fit the constant does not pair or
+    that has no within-child block (so a stored ``jc-001`` decision is untouched).
+    """
+    from language_reading_predictors.statistical_models.historical_joint import (
+        HISTORICAL_JOINT_PRIOR_COMPANIONS,
+    )
+
+    if str(config.get("kind") or "") != "historical_joint":
+        return []
+    model_id = str(config.get("model_id") or "")
+    companion = HISTORICAL_JOINT_PRIOR_COMPANIONS.get(model_id, "")
+    if not companion or not bool(_plan(config).get("within_correlation")):
+        return []
+    measured = _historical_joint_prior_sensitivity(output_dir)
+
+    def _note(reason: str) -> list[str]:
+        return [
+            f"the registered within-scale prior sensitivity ({companion}) is not "
+            f"release-ready beside this fit ({reason}), so which measures clear the "
+            "resolvability threshold — and therefore which correlations may be read "
+            f"at all — is a conclusion under this fit's prior alone.{measured}"
+        ]
+
+    try:
+        directory = Path(output_dir).resolve()
+        config_name = str(config.get("config_name") or "") or _config_name(
+            directory, model_id
+        )
+        if not config_name:
+            return _note("this fit's configuration name could not be resolved")
+        companion_dir = directory.parent / f"{companion}-{config_name}"
+        decision, decision_error = _read_json(
+            companion_dir / RELEASE_DECISION_FILENAME
+        )
+        if decision_error is not None or not isinstance(decision, Mapping):
+            return _note("it has not been fitted, or its release decision is unreadable")
+        if not bool(decision.get("publishable")):
+            return _note("its own release decision withholds publication")
+        companion_config = _load_config(companion_dir)
+        if not companion_config:
+            return _note("its config.json is missing or unreadable")
+        if str(companion_config.get("model_id") or "") != companion:
+            return _note("the sibling directory does not identify itself as the companion")
+        ours = _plan(config).get("sigma_within_prior_sigma")
+        theirs = _plan(companion_config).get("sigma_within_prior_sigma")
+        if ours is None or theirs is None:
+            return _note("the within-scale prior is not recorded on both fits")
+        if ours == theirs:
+            return _note(
+                "it was fitted under the same within-scale prior, so it varies "
+                "nothing"
+            )
+        for description, reader in _HISTORICAL_JOINT_PRIOR_BINDING:
+            mine, yours = reader(config), reader(companion_config)
+            if mine is None or yours is None:
+                return _note(f"{description} is not recorded on both fits")
+            if mine != yours:
+                return _note(f"{description} differs between the two fits")
+        changed = _historical_joint_resolvability_change(directory, companion_dir)
+    except Exception as exc:  # noqa: BLE001 - a check that cannot run must fail closed
+        return _note(f"it could not be verified: {exc}")
+    if changed:
+        return [
+            f"the within-scale prior sensitivity ({companion}) changes the "
+            f"resolvability classification ({changed}), so the interpretable set of "
+            "correlations here depends on that prior rather than on the data."
+        ]
+    return []
+
+
+def _historical_joint_resolvability_change(
+    parent_dir: Path, companion_dir: Path
+) -> str:
+    """Which measures the wider prior reclassifies, as a phrase or ``""``.
+
+    The classification *is* the conclusion for this family, so comparing it across
+    the two independently sampled fits is the comparison that matters — not pairing
+    draws, which are unrelated between chains fitted under different priors.
+    """
+    parent = _read_csv(parent_dir, "within_scale_summary.csv")
+    companion = _read_csv(companion_dir, "within_scale_summary.csv")
+    if parent is None or companion is None:
+        return "one of the two fits has no within_scale_summary.csv"
+    needed = {"measure", "resolvable"}
+    if not needed <= set(parent.columns) or not needed <= set(companion.columns):
+        return "within_scale_summary.csv does not record the classification"
+
+    def _flags(frame: pd.DataFrame) -> dict[str, bool]:
+        return {
+            str(row["measure"]): str(row["resolvable"]).strip().lower()
+            in {"true", "1"}
+            for _, row in frame.iterrows()
+        }
+
+    mine, theirs = _flags(parent), _flags(companion)
+    if set(mine) != set(theirs):
+        return "the two fits classify different measure sets"
+    moved = sorted(name for name in mine if mine[name] != theirs[name])
+    if not moved:
+        return ""
+    return ", ".join(
+        f"{name}: {'resolvable' if mine[name] else 'unresolvable'} here, "
+        f"{'resolvable' if theirs[name] else 'unresolvable'} under the wider prior"
+        for name in moved
+    )
+
+
 def _joint_dependence_companion_note(
     output_dir: Path, config: Mapping[str, Any]
 ) -> tuple[str, dict[str, Any] | None]:
@@ -3182,12 +3374,20 @@ def evaluate_publication(
         jm_wave_artifact_failures,
         jm_wave_qualifications,
     ) = _joint_mechanism_wave_release_failures(output_dir, config)
-    if jm_wave_qualifications:
+    # The within-child historical-joint fits are descriptive, so the robustness
+    # gate never runs for them and any note computed below would be discarded with
+    # it. Their prior-sensitivity qualification therefore attaches here, where a
+    # non-gated family's qualifications live (#588 finding 5).
+    hj_prior_qualifications = _historical_joint_prior_companion_qualifications(
+        output_dir, config
+    )
+    if jm_wave_qualifications or hj_prior_qualifications:
         qualification["publication_qualification"] = "; ".join(
             part
             for part in (
                 qualification["publication_qualification"],
                 *jm_wave_qualifications,
+                *hj_prior_qualifications,
             )
             if part
         )

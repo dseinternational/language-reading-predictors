@@ -7899,6 +7899,14 @@ def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, st
                         "confidence",
                     ),
                     _kf_sentence(
+                        "Non-resolution is itself a conclusion under this fit's "
+                        "within-scale prior: that prior decides which measures "
+                        "clear the threshold, and the registered wider-prior "
+                        "sensitivity must be read beside this result before it is "
+                        "treated as settled.",
+                        "robustness",
+                    ),
+                    _kf_sentence(
                         "When a residual scale is not distinguishable from "
                         "measurement noise, its correlation is not substantively "
                         "identified. This is a descriptive information limit, not "
