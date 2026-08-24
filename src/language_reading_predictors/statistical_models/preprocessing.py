@@ -4,8 +4,10 @@
 """
 Preprocessing helpers shared across the statistical models.
 
-- ``logit_safe`` applies a Haldane-Anscombe corrected logit to a count/total pair.
-- ``standardise`` z-scores a vector and returns the scaler for inverse transforms.
+- ``logit_safe`` applies a Haldane-Anscombe corrected logit to a count/total pair
+  (an alias of the shared ``haldane_logit``).
+- ``standardise`` z-scores a vector and returns the ``Standardiser`` for inverse
+  transforms; both come from ``dse_research_utils.statistics.transforms``.
 - ``load_and_prepare`` reads ``rli_data_long.csv`` and returns a
   :class:`PreparedData` container of numpy arrays ready for PyMC.
 
@@ -29,6 +31,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from dse_research_utils.statistics.transforms import (
+    Standardiser,
+    haldane_logit,
+    standardise,
+)
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.datasets import (
@@ -46,31 +53,13 @@ from language_reading_predictors.statistical_models.measures import (
 # ---------------------------------------------------------------------------
 
 
-def logit_safe(y: np.ndarray | pd.Series, n: int) -> np.ndarray:
-    """Haldane-Anscombe corrected logit: ``log((y + 0.5) / (n - y + 0.5))``."""
-    y = np.asarray(y, dtype=float)
-    return np.log((y + 0.5) / (n - y + 0.5))
-
-
-@dataclass
-class Standardiser:
-    mean: float
-    sd: float
-
-    def __call__(self, x: np.ndarray) -> np.ndarray:
-        return (np.asarray(x, dtype=float) - self.mean) / self.sd
-
-    def inverse(self, z: np.ndarray) -> np.ndarray:
-        return np.asarray(z, dtype=float) * self.sd + self.mean
-
-
-def standardise(x: np.ndarray | pd.Series) -> tuple[np.ndarray, Standardiser]:
-    arr = np.asarray(x, dtype=float)
-    mu = float(np.nanmean(arr))
-    sd = float(np.nanstd(arr, ddof=1))
-    if not np.isfinite(sd) or sd <= 0:
-        raise ValueError("Standard deviation of x must be positive.")
-    return (arr - mu) / sd, Standardiser(mean=mu, sd=sd)
+# The scalar transforms moved to ``dse_research_utils.statistics.transforms`` in
+# v0.12.0 (``logit_safe`` is the shared ``haldane_logit``; the other repositories
+# had derived the same correction independently). Re-exported here under this
+# module's established names, which ~200 call sites and the methods chapter use.
+# Note the shared module also has a ddof=0, NaN-unaware, non-raising
+# ``standardize`` — a different function; these models want ``standardise``.
+logit_safe = haldane_logit
 
 
 # ---------------------------------------------------------------------------

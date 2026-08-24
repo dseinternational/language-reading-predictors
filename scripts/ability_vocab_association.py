@@ -37,6 +37,7 @@ import os
 import arviz as az
 import numpy as np
 import pandas as pd
+from dse_research_utils.statistics.intervals import eti_1d, eti_bands
 from scipy.special import expit
 
 from language_reading_predictors import paths
@@ -67,9 +68,11 @@ def _spec(model_id: str):
     return mod.SPEC
 
 
-def _eti(draws: np.ndarray, prob: float) -> tuple[float, float]:
-    lo = (1.0 - prob) / 2.0
-    return float(np.quantile(draws, lo)), float(np.quantile(draws, 1.0 - lo))
+# Equal-tailed intervals come from the shared primitives (this file already uses
+# the shared evidence ladder). Unlike the local re-implementation they drop
+# non-finite draws before taking the quantiles rather than propagating NaN; a
+# posterior with non-finite draws for these parameters is a fit the convergence
+# gate now fails closed on, so nothing is masked here.
 
 
 def summarise_gamma(
@@ -98,14 +101,13 @@ def summarise_gamma(
         "favoured_direction": fav["favoured_direction"],
         "favoured_label": fav["favoured_direction_label"],
     }
-    out["gamma_logit_lo50"], out["gamma_logit_hi50"] = _eti(g, 0.50)
-    out["gamma_logit_lo90"], out["gamma_logit_hi90"] = _eti(g, 0.90)
-    out["gamma_logit_lo95"], out["gamma_logit_hi95"] = _eti(g, 0.95)
+    # The three coverages are eti_bands' default probs, keyed lo50/hi50/...
+    out.update({f"gamma_logit_{k}": v for k, v in eti_bands(g).items()})
     if eta is not None:
         eta = np.asarray(eta, dtype=float)
         ame = (expit(eta + g[None, :]) - expit(eta)).mean(axis=0) * int(n_trials)  # (S,)
         out["items_ame_median"] = float(np.median(ame))
-        out["items_ame_lo90"], out["items_ame_hi90"] = _eti(ame, 0.90)
+        out["items_ame_lo90"], out["items_ame_hi90"] = eti_1d(ame, eti_prob=0.90)
     return out
 
 

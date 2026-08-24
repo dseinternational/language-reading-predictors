@@ -664,6 +664,16 @@ def write_diagnostics_summary(
     for every family (incl. mediation, which has no LOO) so the report's banner
     always renders.
 
+    Since v0.12.0 the shared writer also fails closed on a gated parameter whose
+    R-hat / ESS could not be assessed, recording a ``diagnostics_assessable``
+    check and the offending names in ``unassessable_parameters``. That pass used
+    to live here (``_fail_on_unassessable``, added after the 2026-08-22 ITT audit)
+    because the shared writer's NaN-skipping reductions left a constant or
+    unsampled parameter out of both the extrema and the failing lists; it is now
+    upstream, so every consuming project gets it. The release gate still picks it
+    up unchanged, because :func:`reporting.convergence_gate_failures` fails closed
+    on any non-``True`` check it does not recognise.
+
     The R-hat / ESS scan runs over :func:`_gate_var_names` (the model's free RVs +
     the curated headline terms), **not** the ``var_names`` alone, so the per-child
     random-intercept vector and the GP / LKJ hyperparameters are gated (issue
@@ -671,71 +681,12 @@ def write_diagnostics_summary(
     ``diagnostics.csv`` (via :func:`summary_diagnostics`) and the prior-overlay.
     """
     gate_names = _gate_var_names(context, var_names)
-    payload = _shared_write_diagnostics_summary(
+    return _shared_write_diagnostics_summary(
         context.trace,
         context.output_dir,
         var_names=gate_names,
         tables=context.tables,
     )
-    return _fail_on_unassessable(context, payload, gate_names)
-
-
-def _fail_on_unassessable(
-    context: StatisticalFitContext,
-    payload: dict,
-    gate_names: list[str] | None,
-) -> dict:
-    """Fail the gate when a gated variable's R-hat / ESS could not be assessed.
-
-    The shared writer reduces R-hat / ESS with NaN-skipping operations
-    (``np.nanmax``, a row-wise minimum, ``np.nanmin``), and a NaN also compares
-    False against the thresholds, so it never reaches ``rhat_failing`` /
-    ``ess_failing`` either. A trace holding one healthy parameter and one
-    constant or unsampled one therefore returned ``passed=true`` with finite
-    extrema and empty failing lists (2026-08-22 ITT audit, finding 1). Its BFMI
-    check was already hardened against exactly this; R-hat and ESS were not.
-
-    The scan runs over the same gated set as the writer — the model's free RVs
-    plus the curated headline terms — so a *mathematically constant*
-    deterministic (an ``LKJCorr`` matrix diagonal, the only non-finite rows in
-    the stored bundles) cannot trip it: those are never free RVs and the curated
-    lists do not name them. Recorded as its own ``diagnostics_assessable`` check
-    rather than folded into ``rhat``, because "we measured this and it failed" and
-    "we could not measure this" are different verdicts;
-    ``reporting.convergence_gate_failures`` already fails closed on any non-``True``
-    check it does not recognise, so the release gate picks it up unchanged.
-    """
-    try:
-        signals = _sampling_quality(context.trace, var_names=gate_names)
-    except Exception as exc:  # pragma: no cover - defensive
-        rprint(f"[yellow]unassessable-parameter scan failed: {exc}[/yellow]")
-        return payload
-    unassessable = list(signals.unassessable)
-    payload["checks"]["diagnostics_assessable"] = not unassessable
-    payload["unassessable_parameters"] = unassessable
-    if unassessable:
-        payload["passed"] = False
-        shown = ", ".join(unassessable[:6])
-        if len(unassessable) > 6:
-            shown += f", ... ({len(unassessable)} in total)"
-        rprint(
-            "[red]  Convergence gate: REVIEW — R-hat / ESS could not be assessed "
-            f"for {shown}[/red]"
-        )
-    # Rewritten whether or not the scan found anything, so the artefact records
-    # that the check *ran*. Writing only on failure left every clean fit's
-    # ``diagnostics_summary.json`` without the key, which reads identically to a
-    # fit from before the check existed — and left the file disagreeing with the
-    # ``tables`` entry built from the same payload.
-    with open(
-        os.path.join(context.output_dir, "diagnostics_summary.json"),
-        "w",
-        encoding="utf-8",
-    ) as handle:
-        json.dump(payload, handle, indent=2, default=str)
-    if context.tables is not None:
-        context.tables["diagnostics_summary"] = payload
-    return payload
 
 
 #: Monte-Carlo tolerance for a derived (post-processed) headline estimand: the

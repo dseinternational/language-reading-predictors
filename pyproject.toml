@@ -59,7 +59,7 @@ environments = [
 # dse-research-utils isn't published to PyPI — resolve it from the public git
 # tag. To develop against a sibling checkout, replace this entry with:
 #   dse-research-utils = { path = "../research/src/python", editable = true }
-dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.11.2" }
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.12.0" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"
