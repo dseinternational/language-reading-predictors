@@ -84,7 +84,10 @@ SPEC = ModelSpec(
                 "dependence-model sensitivity is lrp-rli-itt-215 (#551): the "
                 "same contrast with the per-child LKJ residual-correlation block "
                 "on, published as a posterior difference. Read its interval and "
-                "P(> 0) beside this one — the point estimate should agree — and "
+                "P(> 0) beside this one — the companion adds a per-child "
+                "logistic-normal offset, so its point estimate is a different "
+                "(latent-conditional) estimand and is not invariant by "
+                "construction, although the two agree closely here — and "
                 "treat this contrast as dependence-checked only once that "
                 "companion has passed the house gate."
             ),

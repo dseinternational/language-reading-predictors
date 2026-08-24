@@ -1205,6 +1205,25 @@ def build_joint_mechanism_model(
             "joint mechanism model has no usable rows: no observation has both the "
             f"exposure {mechanism_symbol!r} and at least one of {outcome_symbols}."
         )
+    # Re-check adjuster variance on the FINAL fitted rows (2026-08-23 joint audit,
+    # lower-priority robustness correction). The loader screens for constant columns
+    # on its prepared frame, but the wave subset above (levels design) and this
+    # exposure/outcome mask both change the design afterwards, and no second check
+    # was applied. A constant adjuster is collinear with the intercept, so its
+    # coefficient is unidentified and its prior is what the posterior reports. Every
+    # registered jm-001 / jm-002 adjuster varies on the current data, so this closes
+    # a latent defect; it fails loudly rather than dropping the column, because
+    # silently dropping it would make the recorded ``effective_adjustment`` wrong.
+    for name in adjust_for:
+        values = np.asarray(prepared.covariates[name], dtype=float)
+        finite = values[np.isfinite(values)]
+        if finite.size and np.ptp(finite) == 0.0:
+            raise ValueError(
+                f"joint mechanism adjuster {name!r} is constant on the "
+                f"{prepared.n_obs} fitted rows (value {float(finite[0]):g}), so its "
+                "coefficient is not identified. Drop it from adjust_for for this "
+                "design, or widen the analysis rows."
+            )
 
     if design == "levels" and prepared.n_obs != prepared.n_children:
         raise ValueError(

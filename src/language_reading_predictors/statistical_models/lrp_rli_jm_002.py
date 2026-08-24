@@ -65,7 +65,12 @@ SPEC = ModelSpec(
         design="transition",
         outcome_symbols=("W", "N"),
         contrast=("N", "W"),
-        # Matched to mech-096 / mech-101 so the re-reported Delta is like-for-like.
+        # Matched term-for-term to mech-096 / mech-101. The *rows* are not matched:
+        # this joint likelihood needs both outcomes' baselines, so it drops rows the
+        # single-outcome fits keep and standardises the exposure over a different
+        # population. The comparison is approximate; ``comparator_population`` in
+        # config.json records the fitted-row identity (2026-08-23 joint audit,
+        # finding 7).
         adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         confounder_symbols=("G", "A"),
         include_group=True,

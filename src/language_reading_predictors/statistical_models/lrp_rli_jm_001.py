@@ -40,9 +40,17 @@ The conditional slope follows from the covariance block:
 Note this conditions on the **latent** nonword logit where ``ca-011`` conditions on
 the *observed* nonword count. Partialling the latent skill is the cleaner reading of
 "holding decoding fixed"; it also partials measurement error, so it will generally
-retain *less* than the observed-score version. Read the two as bracketing, not as one
-correcting the other. ``share_retained`` is a ratio of posterior quantities and is
-only interpretable while ``beta_W`` stays clear of zero - report its median and
+retain *less* than the observed-score version. They are **not** two bounds on one
+underlying answer: this fit and the ``ca-010`` / ``ca-011`` sensitivities differ in
+likelihood, in how missing predictors are treated, in what is conditioned on, in
+fitted rows and in estimand, so reading them as bracketing a single quantity is not
+supported (2026-08-23 joint audit, finding 4). Read them as different questions whose
+answers happen to be comparable in scale. ``share_retained`` is a ratio of posterior
+quantities and only interpretable while ``beta_W`` stays clear of zero *and* the
+held-fixed outcome's residual scale ``sigma_N`` stays clear of zero, since that scale
+divides the conditional slope; the pipeline applies that rule (0.05 logit, 95%
+support - ``_jm_ratio_stability``) and withholds the ratio when it fails, publishing
+the denominator-free ``abs_slope_reduction`` beside it. Report its median and
 interval, never a mean.
 
 **Estimand and its limits.** Every slope is an *adjusted association*, never a causal

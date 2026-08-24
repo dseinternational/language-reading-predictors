@@ -44,10 +44,10 @@ with a per-outcome Beta-Binomial likelihood and dispersion $\kappa_k$. As in LRP
 _Denominators and caveats._
 
 - Taught ($\mathrm{TR}$): $N = 24$ — documented (Burgoyne et al., 2012, Table 3).
-- Not-taught ($\mathrm{UR}$): $N = 12$ — **observed maximum, not documented** and flagged unconfirmed; the probability-scale interpretation is conditional on that scoring maximum being correct.
+- Not-taught ($\mathrm{UR}$): $N = 12$ — **confirmed** against the #214 per-block word-list logic (9 words × 4 types per block, split 6 taught + 3 not-taught per type → 12 not-taught per modality) and recorded as such in `measures.py` (`n_trials_confirmed=True`).
 - A positive taught-minus-not-taught difference establishes only that the taught effect is larger. Assess whether transfer is small from the marginal UR AME against a substantively defined negligible-effect threshold.
 - $n \approx 54$; this is an archived observed-data contrast over the randomised window, with the selection and missing-data qualifications above. The headline contrast compares expected proportions correct, not raw words.
-- The factorised fit does not estimate within-child residual covariance. The registered dependence-model sensitivity is [`lrp-rli-itt-315`](../lrp-rli-itt-315) (#551): the same contrast with `use_residual_correlation=True`, published as a posterior difference that carries the estimated within-child covariance. Read its interval and P(> 0) beside this one — the point estimate should agree — and treat this contrast as dependence-checked only once that companion has passed the house gate; until then the report must not make a definitive paired generalisation claim.
+- The factorised fit does not estimate within-child residual covariance. The registered dependence-model sensitivity is [`lrp-rli-itt-315`](../lrp-rli-itt-315) (#551): the same contrast with `use_residual_correlation=True`, published as a posterior difference that carries the estimated within-child covariance. Read its interval and P(> 0) beside this one — the companion adds a per-child logistic-normal offset, so its point estimate is a different (latent-conditional) estimand and is not invariant by construction, although the two agree closely here — and treat this contrast as dependence-checked only once that companion has passed the house gate; until then the report must not make a definitive paired generalisation claim.
 - PSIS-LOO leaves out a child by summing that child's observed outcome-cell log likelihoods.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}

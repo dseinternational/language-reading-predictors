@@ -101,7 +101,21 @@ if slopes is not None and len(slopes):
                 "there, not here.\n"
             )
 
-    _share = slopes[slopes["term"] == "share_retained"]
+    _share_all = slopes[slopes["term"] == "share_retained"]
+    # Waves where the pre-specified stability rule failed carry blanked summaries
+    # (2026-08-23 joint audit, finding 10): the ratio's denominator or the
+    # held-fixed outcome's residual scale is not supported away from zero, so the
+    # posterior is heavy-tailed and any summary would describe the draws.
+    _share = _share_all[_share_all["median"].notna()]
+    _withheld = [str(r["wave"]) for _, r in _share_all.iterrows() if pd.isna(r["median"])]
+    if _withheld:
+        print(
+            f"\n**The ratio is withheld as unstable at {', '.join(_withheld)}.** The "
+            "posterior does not put at least 95% of its mass on the unconditional "
+            "slope, or on the held-fixed outcome's residual scale, being away from "
+            "zero. Read the two slopes and their absolute difference "
+            "(`abs_slope_reduction`) instead.\n"
+        )
     if len(_share):
         _by = ", ".join(f"{r['wave']} {r['median']:.2f}" for _, r in _share.iterrows())
         _lo_share, _hi_share = _share["median"].min(), _share["median"].max()
@@ -109,24 +123,27 @@ if slopes is not None and len(slopes):
         # would make an "attenuated but not removed" claim simply false.
         if _lo_share >= 0.5:
             _reading = (
-                "Most of the letter-sound → word-reading association is retained: it "
-                "is attenuated but not removed when nonword decoding is held fixed."
+                "Over half the letter-sound → word-reading association remains after "
+                "the latent nonword skill is partialled out."
             )
         elif _hi_share <= 0.5:
             _reading = (
-                "Less than half the letter-sound → word-reading association is "
-                "retained, so most of it runs through the decoding channel this "
-                "model conditions on."
+                "Less than half the letter-sound → word-reading association remains "
+                "after the latent nonword skill is partialled out."
             )
         else:
             _reading = (
-                "How much is retained varies across waves — from most of the "
-                "association to less than half — so no single summary applies "
-                "throughout."
+                "How much remains varies across waves — from over half to less than "
+                "half — so no single summary applies throughout."
             )
         print(
-            f"\n**Does it survive holding decoding fixed?** The identified share "
-            f"retained is {_by}. {_reading}\n"
+            f"\n**How much of the association remains when latent decoding is held "
+            f"fixed?** The ratio of adjusted associations is {_by}. {_reading} It is "
+            "a ratio of two adjusted associations — not a mediation proportion, not "
+            "a causal path fraction, and not evidence that the association *runs "
+            "through* a decoding channel; a shared unobserved ability would move "
+            "both slopes together and produce the same ratio (2026-08-23 joint "
+            "audit, finding 4).\n"
         )
         print(
             "\n_Two cautions._ First, this conditions on the **latent** nonword logit, "
@@ -217,7 +234,45 @@ print(
 # Per-outcome LOO-PIT (transition design only — the levels design computes no
 # PSIS-based diagnostics; see the note below). The word-reading `loo_pit.png` is
 # already shown in the technical section; this is its nonword sibling.
-print(_img("loo_pit_n.png", "LOO-PIT calibration — nonword decoding"))
+print(
+    _img(
+        "loo_pit_n.png",
+        "Conditional leave-one-cell-out PIT calibration — nonword decoding",
+    )
+)
+print(
+    "\n_Holdout unit._ These per-outcome PIT plots hold out **one child-outcome "
+    "cell**. The child's other outcome and their other transition rows stay in the "
+    "posterior, so they assess conditional prediction of a held-out cell for an "
+    "otherwise observed child — not calibration for a wholly left-out child, which "
+    "is the unit the stored PSIS-LOO declares. Do not read one as validating the "
+    "other (2026-08-23 joint audit, finding 6).\n"
+)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Per-outcome predictive coverage (2026-08-23 joint audit, lower-priority reporting
+# correction). The shared coverage sentence pools the two outcomes' cells and
+# weights them by their observed counts; W has 79 items and N is a 6-item count
+# floored for 40-72% of children, so a pooled number can hide a badly fitted N
+# behind a well fitted W. The pooled value stays as the secondary summary.
+_jm_cov = _csv("ppc_summary.csv")
+if _jm_cov is not None and "outcome" in _jm_cov.columns:
+    _by_outcome = _jm_cov[_jm_cov["outcome"].notna()]
+    if len(_by_outcome):
+        print("#### Predictive coverage by outcome\n")
+        print(
+            _by_outcome[
+                ["outcome", "level_pct", "n_inside", "n_total", "coverage"]
+            ].to_markdown(index=False)
+        )
+        print(
+            "\n_Read each outcome's row against its own nominal level._ The pooled "
+            "sentence in the technical section weights the two by their observed "
+            "cell counts, so it is the secondary view.\n"
+        )
 ```
 
 ```{python}

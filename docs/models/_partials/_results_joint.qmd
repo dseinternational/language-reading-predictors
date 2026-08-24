@@ -262,8 +262,20 @@ for _symbol in _joint_outcomes[1:]:
     print(f"#### {_symbol}\n")
     print(_img(f"prior_predictive_check_{_suffix}.png", f"Prior-predictive check ({_symbol})"))
     print(_img(f"posterior_predictive_check_{_suffix}.png", f"Posterior-predictive check ({_symbol})"))
-    print(_img(f"loo_pit_{_suffix}.png", f"LOO-PIT calibration ({_symbol})"))
+    print(
+        _img(
+            f"loo_pit_{_suffix}.png",
+            f"Conditional leave-one-cell-out PIT calibration ({_symbol})",
+        )
+    )
 ```
+
+_Holdout unit._ These per-outcome PIT plots hold out **one child-outcome cell**,
+not a whole child: the same child's other outcome stays in the posterior, so they
+assess conditional prediction of a held-out cell for an otherwise observed child.
+The fit's stored PSIS-LOO — the ELPD and Pareto-$k$ in the technical section —
+uses the declared **child** unit. The two answer different questions; do not read
+one as validating the other (2026-08-23 joint audit, finding 6).
 
 :::
 
