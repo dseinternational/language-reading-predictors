@@ -1,0 +1,53 @@
+---
+title: "LRPDID104: Baseline-allocation prior sensitivity for word reading (WR)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPDID104 is the **baseline-allocation prior-sensitivity companion** to [LRPDID01](../lrp-rli-did-001/). Same model, same data, same sampler settings; two prior widths differ.
+
+| | LRPDID01 (reference) | LRPDID104 (this model) |
+| --- | --- | --- |
+| $\text{arm\_gap}_{t1}$ | $\mathcal{N}(0,\ 0.3)$ | $\mathcal{N}(0,\ 1)$ |
+| $\sigma_{\text{child}}$ | $\text{HalfNormal}(0.5)$ | $\text{HalfNormal}(1)$ |
+| $\tau_{t2}$ and every other term | tier scale | tier scale — unchanged |
+
+## Why this model exists
+
+Despite the family name, the published contrast is not a literal difference in differences. The design estimates a **free arm gap at each wave**, so $\tau_{t2}$ is the covariate-adjusted t2 arm-gap *level*, not $\tau_{t2} - \text{arm\_gap}_{t1}$. Under randomisation a gap level is a perfectly valid causal contrast, and the family's 2026-08-24 estimand sign-off keeps it.
+
+What that sign-off also records is that the baseline adjustment which *does* happen is **soft and prior-weighted**. A realised t1 imbalance has two places to go: the tightly regularised $\text{arm\_gap}_{t1}$, or the arm-mean of the shared child random intercepts — and whatever the intercepts absorb is netted out of all three wave gaps, ANCOVA-style. So $\tau_{t2}$ sits somewhere between the unadjusted t2 gap and a fully baseline-corrected one, with the mix set by exactly two numbers: the $\text{arm\_gap}_{t1}$ prior scale and $\sigma_{\text{child}}$.
+
+The registered treatment-prior sweep varies $\tau_{t2}$'s own prior, which answers a different question — how much of the estimate the effect prior supplies — and leaves the allocation untouched. This companion is the estimand-matched check: it holds $\tau_{t2}$ at its tier default and frees both allocation widths instead, so the baseline gap can take the realised imbalance rather than being shrunk into the intercepts.
+
+## How to read the comparison
+
+Both fits must pass the complete automatic gate before they are compared. If $\tau_{t2}$ here matches LRPDID01 to within Monte-Carlo error, the published contrast does not depend on how the realised t1 imbalance was allocated, and the gap-level estimand is behaving like a baseline-referenced one. A material shift says the opposite — that part of the published number is a function of the $\text{arm\_gap}_{t1}$ prior — and would be the case for re-parameterising this family on a t1-referenced gap *change*, as the level-factor family did in #552.
+
+Note that this is a question about **precision and allocation**, not about identification: randomisation identifies the t2 contrast either way.
+
+_Sign convention and reading rules as LRPDID01._ No term here is a new causal quantity.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_did.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

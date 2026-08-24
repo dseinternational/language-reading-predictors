@@ -1369,9 +1369,44 @@ def test_did_golden_sentences(tmp_path):
     assert "3.1 items higher" in texts[0]
     assert "randomised comparison" in texts[0]
     assert "98% probability" in texts[1]
-    assert "descriptive associations" in texts[2]
+    # #576 finding 3: the t3 gap is a comparison of randomly assigned groups too,
+    # of a different exposure — so the box must not demote it to a "descriptive
+    # association", and must not claim the mechanism it cannot identify.
+    assert "descriptive association" not in texts[2]
+    assert "randomly assigned groups" in texts[2]
+    assert "starting the intervention earlier rather than later" in texts[2]
     assert "narrowed by about 1.2 items" in texts[3]
-    assert "not a second randomised effect" in texts[3]
+    assert "does not show why" in texts[3]
+
+
+def test_did_gap_change_prefers_the_common_population(tmp_path):
+    """#576 material qualification 6: don't quote a composition-mixing gap change.
+
+    When a child is observed at t2 but not t3, the two legs of the wave-specific
+    gap change are standardised over different children, so the difference mixes
+    the change over time with a change in who is averaged over. Where the fit
+    recomputes both legs on the common children, the box quotes that instead.
+    """
+    d = _setup_dir(tmp_path, "did")
+    _write_csv(
+        d,
+        "did_summary.csv",
+        {
+            "tau_t2_items_median": 3.1,
+            "tau_t2_items_lo": 0.4,
+            "tau_t2_items_hi": 6.0,
+            "prob_tau_t2_pos": 0.985,
+            "off_floor": False,
+            "delta_crossover_items_available": True,
+            "delta_crossover_items_median": 1.2,
+            "delta_crossover_items_common_available": True,
+            "delta_crossover_items_common_median": 0.7,
+            "delta_crossover_items_common_n_children": 51,
+        },
+    )
+    texts = [s["text"] for s in generate_key_findings(d)["sentences"]]
+    assert "narrowed by about 0.7 items" in texts[3]
+    assert "1.2 items" not in texts[3]
 
 
 def test_did_off_floor_uses_percentage_points(tmp_path):
@@ -2438,6 +2473,12 @@ def test_historical_joint_within_companion_withholds_unresolved_correlations(tmp
     assert "did not resolve a within-child correlation" in _texts(payload)
     assert "not substantively identified" in _texts(payload)
     assert "clearest within-child coupling" not in _texts(payload)
+    # Non-resolution is the conclusion the within-scale prior decides, so the box
+    # that publishes it has to say so. The resolvable branch already carried a
+    # prior caveat; this one carried none (2026-08-24 historical-joint review).
+    assert "under this fit's within-scale prior" in _texts(payload)
+    assert "wider-prior sensitivity" in _texts(payload)
+    assert any(s["kind"] == "causal" for s in payload["sentences"])
 
 
 def test_mechanism_findings_headline_interaction_when_present(tmp_path):

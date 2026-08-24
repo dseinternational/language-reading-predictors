@@ -138,6 +138,17 @@ PSENSE_THRESHOLD = 0.05
 #: exactly what the companion exists to do.
 _CONTRAST_DIRECTION_SHIFT = 0.05
 
+#: How far the implied cross-outcome posterior correlation must move between a
+#: factorised parent and its companion before the contrast's width change is
+#: attributed to covariance at all (2026-08-24 review of the joint audit). Both
+#: correlations are read off equal-tailed interval widths, and a factorised
+#: parent's is *structurally* zero — its outcomes share no parameter — so the
+#: parent's measured value is this approximation's own noise floor. On the three
+#: registered pairs it is -0.011, -0.010 and -0.019 against exact posterior-draw
+#: values of -0.003, -0.006 and -0.006, so a band just above that floor separates
+#: Monte Carlo noise from a covariance correction.
+_AME_CORRELATION_NOISE = 0.03
+
 #: Trace backing the natural-effect temporal-ordering sensitivity.  The fixed
 #: basename is part of the release contract: a table is not independently
 #: auditable when its posterior exists only in memory during the fit.
@@ -249,10 +260,17 @@ def causal_term_for(config: Mapping[str, Any]) -> str:
     reaches this lookup — :func:`gate_applies` excludes it (2026-08-20 review,
     finding 4).
 
-    The ``did`` dose models have no ``tau_t2`` at all: their focal quantity is the
-    dose slope. The choice mirrors ``DiDRunPlan.effect_term`` and is read from the
+    The ``did`` dose models have no ``tau_t2`` at all: their focal *coefficient* is
+    the dose slope. The choice mirrors ``DiDRunPlan.effect_term`` and is read from the
     persisted plan rather than re-derived from ``spec.extra``, so a fit's release
     decision and its own psense emission cannot disagree about which term matters.
+
+    This returns the **coefficient** power-scaling measures, which for a ``did`` fit
+    is not the same object as the estimand it publishes (#576 finding 1) — LRPDID07
+    power-scales ``mu_dose`` and publishes a treated-row natural-scale marginal. The
+    two are used at different stages and must not be conflated: the psense diagnosis
+    reads this name, while the sweep's sign-stability clause reads the published
+    estimand's own column via :func:`sweep_sign_column`.
     """
     kind = config.get("kind")
     if kind == "gain_factors":
@@ -443,7 +461,38 @@ def _config_name(output_dir: str | Path, model_id: str) -> str:
     return name[len(prefix) :] if model_id and name.startswith(prefix) else ""
 
 
-def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool, str]:
+def sweep_sign_column(config: Mapping[str, Any] | None) -> tuple[str, str]:
+    """Which sweep column's sign must be stable, and what it is called (#576 finding 1).
+
+    The default is ``tau_logit_mean``, the swept coefficient — right for a family
+    whose published headline *is* that coefficient's marginal transform. It is wrong
+    for a fit whose published headline is a distinct natural-scale quantity. The
+    period-varying DiD dose model is the case that forced this: its slopes are
+    ``beta_dose_phase[p] = mu_dose + sigma_dose * z[p]``, the gate read ``mu_dose``
+    — a hierarchical centre, not the realised mean of two unconstrained slopes —
+    while the report published a treated-row marginal that applies each row's own
+    realised slope through a nonlinear items transform with unequal per-period row
+    counts. The two are not the same estimand, so a fit could clear the robustness
+    gate for one quantity and publish another.
+
+    A fit whose resolved plan declares ``focal_estimand_scale == "natural"``
+    therefore has its sign-stability clause read the published estimand's column,
+    ``items_mean``. A stored fit written before the field existed carries no
+    ``focal_estimand_scale`` and keeps the coefficient column, so old decisions stay
+    reproducible without a refit.
+    """
+    plan = (config or {}).get("resolved_run_plan") or {}
+    if isinstance(plan, Mapping) and str(plan.get("focal_estimand_scale") or "") == "natural":
+        return "items_mean", str(plan.get("focal_estimand") or "the published estimand")
+    return "tau_logit_mean", "the swept coefficient"
+
+
+def _standard_sweep_evidence(
+    output_dir: str | Path,
+    outcome: str,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> tuple[bool, str]:
     """Does an attached ``tau`` sweep actually qualify as evidence for this fit?
 
     Returns ``(ready, reason)``; ``reason`` names the first failure so a withhold can
@@ -467,7 +516,9 @@ def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool
       level/did installers' contract) still exists beside the fit and matches its
       recorded digest (#489 review); sweep-relative ITT paths are validated by the
       sweep-level evaluator instead;
-    - the sign of ``tau_logit_mean`` is the same in every cell.
+    - the sign of the **published estimand's** column is the same in every cell —
+      ``items_mean`` for a fit whose plan declares a natural-scale focal estimand,
+      ``tau_logit_mean`` otherwise (:func:`sweep_sign_column`).
 
     This deliberately does not call ``evaluate_standard_sensitivity``. That evaluator
     measures the sweep against ``_standard_expected_cells()`` — the complete 44-cell
@@ -560,13 +611,50 @@ def _standard_sweep_evidence(output_dir: str | Path, outcome: str) -> tuple[bool
                 "treatment-prior sweep's recorded digest"
             )
 
+    if config is None:
+        config, _config_error = _read_json(Path(output_dir) / "config.json")
+        if not isinstance(config, Mapping):
+            config = {}
+    # Run-plan binding (#576 finding 6). Checked here as well as at install time so a
+    # *stale* attached bundle stops lifting the gate the moment the fit's own plan
+    # changes, rather than only when someone re-runs the installer. Opt-in on the
+    # plan recording a digest, so a stored fit written before the field existed
+    # re-decides exactly as it did.
+    plan = config.get("resolved_run_plan") or {}
+    recorded_plan_digest = (
+        str(plan.get("run_plan_digest") or "").strip().lower()
+        if isinstance(plan, Mapping)
+        else ""
+    )
+    if recorded_plan_digest:
+        if "primary_run_plan_sha256" not in rows.columns:
+            return False, (
+                f"the attached {STANDARD_SENSITIVITY_FILENAME} predates run-plan "
+                "binding, so it cannot be shown to describe the model this fit "
+                "actually fitted"
+            )
+        recorded = {
+            str(value).strip().lower() for value in rows["primary_run_plan_sha256"]
+        }
+        if recorded != {recorded_plan_digest}:
+            return False, (
+                "the attached treatment-prior sweep was computed against a "
+                "different resolved run plan than this fit's, so it is not this "
+                "fit's evidence"
+            )
+    sign_column, estimand_label = sweep_sign_column(config)
+    if sign_column not in rows.columns:
+        return False, (
+            f"the attached {STANDARD_SENSITIVITY_FILENAME} has no {sign_column!r} "
+            f"column, so the sign of {estimand_label} cannot be checked"
+        )
     signs = np.sign(
-        pd.to_numeric(rows["tau_logit_mean"], errors="coerce").to_numpy(dtype=float)
+        pd.to_numeric(rows[sign_column], errors="coerce").to_numpy(dtype=float)
     )
     if not np.isfinite(signs).all() or len(set(signs.tolist())) != 1:
         return False, (
-            "the effect changes sign across the attached treatment-prior sweep, so "
-            "its direction is not stable under the prior"
+            f"{estimand_label} changes sign across the attached treatment-prior "
+            "sweep, so its direction is not stable under the prior"
         )
     return True, ""
 
@@ -757,7 +845,7 @@ def evaluate_itt_release(
     if tier not in _WITHHOLD_TIERS:
         return ReleaseDecision(status="qualify", note=_QUALIFY_NOTE, **common)
     sweep_ready, sweep_reason = _standard_sweep_evidence(
-        output_dir, str(config.get("outcome_symbol") or "")
+        output_dir, str(config.get("outcome_symbol") or ""), config=config
     )
     if sweep_ready:
         return ReleaseDecision(
@@ -2313,6 +2401,10 @@ def _blending_pair_release_failures(
 ) -> tuple[str, ...]:
     """Robustness-stage failures for the mandatory phoneme-blending link pair.
 
+    Three families now carry a version of the policy, dispatched from here: the ITT
+    archive-grade pair, the level pair (#584 decision 2) and the DiD pair (#576
+    finding 2). They differ in evidence *strength*, never in bindingness.
+
     The registered policy is that neither ``lrp-rli-itt-008`` nor
     ``lrp-rli-itt-108`` may release without the validated trace-backed paired
     bundle, but until 2026-08-20 that was enforced only in the key-findings
@@ -2328,6 +2420,8 @@ def _blending_pair_release_failures(
     kind = str(config.get("kind") or "")
     if kind == "level_factors":
         return _level_blending_pair_release_failures(output_dir, config)
+    if kind == "did":
+        return _did_blending_pair_release_failures(output_dir, config)
     if kind != "itt":
         return ()
     from language_reading_predictors.statistical_models.blending_sensitivity import (
@@ -2359,6 +2453,40 @@ def _blending_pair_release_failures(
         )
     return ()
 
+
+
+def _did_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The DiD family's phoneme-blending pairing (#576 finding 2).
+
+    Same policy as the ITT and level pairs. It did not exist for ``did``, so
+    ``lrp-rli-did-003`` — the ordinary-logit fit of a ten-item, three-alternative
+    forced-choice test — could publish an unqualified ``B`` headline with no
+    guessing-floor companion anywhere. The ITT companion does not cover it: the
+    longitudinal random-intercept likelihood lets t1 and t3 data inform the t2
+    posterior, so the two fits' response-link sensitivities are not interchangeable.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_did_blending_link_pair,
+    )
+    from language_reading_predictors.statistical_models.did import (
+        DID_BLENDING_COMPANION_MODEL_ID,
+        DID_BLENDING_PRIMARY_MODEL_ID,
+    )
+
+    try:
+        status = evaluate_did_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the DiD B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            f"({DID_BLENDING_PRIMARY_MODEL_ID} + {DID_BLENDING_COMPANION_MODEL_ID}) "
+            "is not release-ready: " + reason,
+        )
+    return ()
 
 
 def _level_blending_pair_release_failures(
@@ -2461,10 +2589,10 @@ def _joint_blending_scope_note(output_dir: Path, config: Mapping[str, Any]) -> s
 def _dependence_identification_note(output_dir: Path) -> str:
     """Qualifier when a fitted dependence block never moved off its prior.
 
-    A companion that switches the LKJ residual block on exists to answer one
-    question — was the parent's factorised interval too wide or too narrow? That
-    answer is the *data's* only if the correlation posterior is distinguishable
-    from the correlation prior. For the three registered two-outcome companions
+    A companion that switches the LKJ residual block on estimates the within-child
+    covariance the parent's factorised interval omits. That covariance is the
+    *data's* only if the correlation posterior is distinguishable from the
+    correlation prior. For the three registered two-outcome companions
     at n = 53 it is not: posterior-to-prior SD ratios of 1.002, 1.008 and 1.001
     (2026-08-22 ITT audit, finding 3). The interval such a fit publishes is the
     LKJ prior's implied correction, and a reader is entitled to be told so beside
@@ -2577,8 +2705,120 @@ def _required_dependence_companion(config: Mapping[str, Any]) -> str:
     return str(contrast.get("dependence_companion") or "")
 
 
+def _joint_marginal_widths(
+    directory: Path, outcomes: tuple[str, str]
+) -> dict[str, float] | None:
+    """Each contrast outcome's probability-scale AME interval width, or ``None``."""
+    frame = _read_csv(directory, "tau_summary.csv")
+    if frame is None or frame.empty or "outcome" not in frame.columns:
+        return None
+    needed = ("ame_prob_lo", "ame_prob_hi")
+    if any(column not in frame.columns for column in needed):
+        return None
+    indexed = frame.set_index(frame["outcome"].astype(str))
+    widths: dict[str, float] = {}
+    for outcome in outcomes:
+        if outcome not in indexed.index:
+            return None
+        row = indexed.loc[outcome]
+        lo, hi = _finite(row["ame_prob_lo"]), _finite(row["ame_prob_hi"])
+        if lo is None or hi is None or hi <= lo:
+            return None
+        widths[outcome] = hi - lo
+    return widths
+
+
+def _joint_width_channels(
+    *,
+    parent_dir: Path,
+    companion_dir: Path,
+    outcomes: tuple[str, str],
+    parent_width: float,
+    companion_width: float,
+) -> dict[str, Any]:
+    """Split the contrast's width change into marginal and covariance channels.
+
+    2026-08-24 review of the joint audit. Finding 2 asked that the dependence block
+    be assessed through its consequence for the declared contrast, which
+    :func:`_joint_contrast_consequence` does for the contrast's *location*. But the
+    reason three report templates give for running the companion at all is about its
+    *width*: that a factorised interval omits within-child cross-outcome covariance,
+    so a positive residual correlation leaves it too wide and a negative one too
+    narrow. That sign rule describes the covariance term
+    ``Var(A - B) = V_A + V_B - 2 Cov(A, B)`` in isolation. It does not describe what
+    separates these two fits, because the companion also adds a per-child
+    logistic-normal layer whose own parameter uncertainty widens *both* marginals.
+
+    So measure which channel the change came through instead of asserting one. Each
+    fit's implied cross-outcome posterior correlation follows from the same identity
+    read on equal-tailed interval widths,
+    ``r = (W_A^2 + W_B^2 - W_diff^2) / (2 W_A W_B)``; the parent's is structurally
+    zero because a factorised fit shares no parameter between outcomes, so its
+    measured value is this approximation's own noise floor and is recorded beside
+    the companion's for exactly that purpose. ``marginal`` is what the companion's
+    wider marginals alone would do at the parent's correlation, and ``covariance``
+    is the remainder.
+
+    Returns the record fields, or a ``channel_status`` explaining why the split
+    could not be taken. Never raises: this is descriptive provenance attached to a
+    release decision, not a gate.
+    """
+    parent_widths = _joint_marginal_widths(parent_dir, outcomes)
+    companion_widths = _joint_marginal_widths(companion_dir, outcomes)
+    if parent_widths is None or companion_widths is None:
+        return {
+            "channel_status": "unavailable",
+            "channel_reason": "tau_summary.csv is missing the per-outcome AME interval",
+        }
+    left, right = outcomes
+
+    def _implied(widths: Mapping[str, float], diff_width: float) -> float | None:
+        a, b = widths[left], widths[right]
+        value = (a * a + b * b - diff_width * diff_width) / (2 * a * b)
+        return value if -1.0 <= value <= 1.0 else None
+
+    parent_r = _implied(parent_widths, parent_width)
+    companion_r = _implied(companion_widths, companion_width)
+    if parent_r is None or companion_r is None:
+        return {
+            "channel_status": "unavailable",
+            "channel_reason": (
+                "the interval widths imply a correlation outside [-1, 1], so the "
+                "Gaussian width identity does not describe these posteriors"
+            ),
+        }
+    a, b = companion_widths[left], companion_widths[right]
+    marginal_only = float(np.sqrt(max(a * a + b * b - 2 * parent_r * a * b, 0.0)))
+    marginal_channel = marginal_only - parent_width
+    covariance_channel = companion_width - marginal_only
+    moved = abs(marginal_channel) + abs(covariance_channel)
+    correlation_change = companion_r - parent_r
+    if abs(correlation_change) <= _AME_CORRELATION_NOISE:
+        dominant = "marginal_uncertainty"
+    elif abs(covariance_channel) > abs(marginal_channel):
+        dominant = "cross_outcome_covariance"
+    else:
+        dominant = "marginal_uncertainty"
+    return {
+        "channel_status": "measured",
+        "parent_marginal_widths": {k: float(v) for k, v in parent_widths.items()},
+        "companion_marginal_widths": {
+            k: float(v) for k, v in companion_widths.items()
+        },
+        "parent_implied_ame_correlation": float(parent_r),
+        "companion_implied_ame_correlation": float(companion_r),
+        "implied_ame_correlation_change": float(correlation_change),
+        "marginal_width_channel": float(marginal_channel),
+        "covariance_width_channel": float(covariance_channel),
+        "covariance_channel_share": (
+            float(abs(covariance_channel) / moved) if moved else None
+        ),
+        "dominant_width_channel": dominant,
+    }
+
+
 def _joint_contrast_consequence(
-    parent_dir: Path, companion_dir: Path
+    parent_dir: Path, companion_dir: Path, *, pair: tuple[str, str] | None = None
 ) -> tuple[dict[str, Any], str]:
     """Measure what the dependence model does to the **declared contrast**.
 
@@ -2598,30 +2838,46 @@ def _joint_contrast_consequence(
     a threshold on the interval, whose movement *is* the companion's purpose.
     """
     record: dict[str, Any] = {}
+
+    def _unusable(status: str, reason: str) -> tuple[dict[str, Any], str]:
+        """The comparison could not be taken, so say so rather than publishing silence.
+
+        Fail-closed, matching the binding checks above: an absent or unreadable
+        comparison is not evidence that the dependence model left the contrast
+        alone. Without a note the reader sees an unqualified release and has no
+        way to tell "checked and unchanged" from "never checked".
+        """
+        record["status"] = status
+        record["reason"] = reason
+        return record, (
+            "The dependence model's consequence for the declared contrast could "
+            f"not be measured ({reason}), so the paired contrast is "
+            "dependence-unchecked in substance even though the companion is bound "
+            "beside it. Regenerate this decision once both fits carry a readable "
+            "contrast summary."
+        )
+
     parent = _read_csv(parent_dir, "tau_difference.csv")
     companion = _read_csv(companion_dir, "tau_difference.csv")
     if parent is None or companion is None or parent.empty or companion.empty:
-        record["status"] = "unavailable"
-        record["reason"] = "one or both fits have no tau_difference.csv"
-        return record, ""
+        return _unusable("unavailable", "one or both fits have no tau_difference.csv")
     p, c = parent.iloc[0], companion.iloc[0]
     if str(p.get("contrast")) != str(c.get("contrast")):
-        record["status"] = "mismatched"
-        record["reason"] = (
+        return _unusable(
+            "mismatched",
             f"parent reports {p.get('contrast')!r} and companion "
-            f"{c.get('contrast')!r}"
+            f"{c.get('contrast')!r}",
         )
-        return record, ""
     needed = ("diff_prob_median", "diff_prob_lo", "diff_prob_hi", "prob_diff_pos")
     if any(col not in parent.columns or col not in companion.columns for col in needed):
-        record["status"] = "unavailable"
-        record["reason"] = "tau_difference.csv is missing the contrast columns"
-        return record, ""
+        return _unusable(
+            "unavailable", "tau_difference.csv is missing the contrast columns"
+        )
     values = {name: (_finite(p[name]), _finite(c[name])) for name in needed}
     if any(v[0] is None or v[1] is None for v in values.values()):
-        record["status"] = "unavailable"
-        record["reason"] = "tau_difference.csv holds non-finite contrast values"
-        return record, ""
+        return _unusable(
+            "unavailable", "tau_difference.csv holds non-finite contrast values"
+        )
     p_med, c_med = values["diff_prob_median"]
     p_pos, c_pos = values["prob_diff_pos"]
     p_width = values["diff_prob_hi"][0] - values["diff_prob_lo"][0]
@@ -2646,6 +2902,19 @@ def _joint_contrast_consequence(
             "material": bool(flipped or direction_shift >= _CONTRAST_DIRECTION_SHIFT),
         }
     )
+    if pair is not None and all(pair):
+        record.update(
+            _joint_width_channels(
+                parent_dir=parent_dir,
+                companion_dir=companion_dir,
+                outcomes=pair,
+                parent_width=p_width,
+                companion_width=c_width,
+            )
+        )
+    else:
+        record["channel_status"] = "unavailable"
+        record["channel_reason"] = "the resolved plan does not name the contrast pair"
     if not record["material"]:
         return record, ""
     cause = (
@@ -2658,6 +2927,198 @@ def _joint_contrast_consequence(
         f"companion {cause} (parent P(> 0) = {p_pos:.2f}, companion "
         f"{c_pos:.2f}). Read the paired conclusion from the companion, not from "
         "this fit's factorised interval alone."
+    )
+
+
+#: Binding fields a within-child historical-joint fit and its wider-prior
+#: sensitivity companion must agree on before the pair counts as evidence about the
+#: *same* model under a *different* prior (#588 finding 5). Everything the fitted
+#: equation and the analysis rows depend on, and every prior scale except the one
+#: under test.
+_HISTORICAL_JOINT_PRIOR_BINDING: tuple[
+    tuple[str, Callable[[Mapping[str, Any]], Any]], ...
+] = (
+    ("the measure list", lambda c: list(_plan(c).get("measures") or [])),
+    (
+        "the analysis window",
+        lambda c: [
+            list(_plan(c).get("waves") or []),
+            list(_plan(c).get("extension_waves") or []),
+        ],
+    ),
+    ("the likelihood", lambda c: str(_plan(c).get("likelihood") or "")),
+    (
+        "the priors not under test",
+        lambda c: [
+            _plan(c).get("eta_prior_sigma"),
+            _plan(c).get("sigma_subject_prior_sigma"),
+            _plan(c).get("lkj_eta"),
+            _plan(c).get("within_lkj_eta"),
+        ],
+    ),
+    ("the input data checksum", lambda c: str(c.get("data_sha256") or "") or None),
+    (
+        "the fitted-row identity",
+        lambda c: str((c.get("fitted_subject_identity") or {}).get("sha256") or "")
+        or None,
+    ),
+)
+
+#: How far a measure's power-scaling prior sensitivity may sit before the fit's own
+#: diagnostics say the within-scale prior is doing the deciding. ArviZ's own flag
+#: threshold; quoted rather than re-derived so the qualification and the psense
+#: table cannot disagree.
+_HISTORICAL_JOINT_PRIOR_SENSITIVE = PSENSE_THRESHOLD
+
+
+def _historical_joint_prior_sensitivity(output_dir: Path) -> str:
+    """The measured prior sensitivity of ``sigma_within``, as a phrase or ``""``.
+
+    The qualification below is about a prior whose influence the fit has already
+    measured, so quote the measurement rather than asserting that the prior matters.
+    """
+    frame = _read_csv(output_dir, "psense_summary.csv", index_col=0)
+    if frame is None or frame.empty or "prior" not in frame.columns:
+        return ""
+    rows = frame.loc[frame.index.astype(str).str.startswith("sigma_within")]
+    values = pd.to_numeric(rows["prior"], errors="coerce").dropna()
+    if values.empty:
+        return ""
+    top = float(values.max())
+    if top < _HISTORICAL_JOINT_PRIOR_SENSITIVE:
+        return (
+            f" This fit's own power scaling puts the largest sigma_within prior "
+            f"sensitivity at {top:.2f}, below ArviZ's "
+            f"{_HISTORICAL_JOINT_PRIOR_SENSITIVE:.2f} flag."
+        )
+    return (
+        f" This fit's own power scaling already flags that prior: the largest "
+        f"sigma_within prior sensitivity is {top:.2f}, against ArviZ's "
+        f"{_HISTORICAL_JOINT_PRIOR_SENSITIVE:.2f} flag threshold."
+    )
+
+
+def _historical_joint_prior_companion_qualifications(
+    output_dir: Path, config: Mapping[str, Any]
+) -> list[str]:
+    """Qualify a within-child historical-joint fit whose prior sensitivity is absent.
+
+    2026-08-23 joint audit, finding 5, completing what #609 registered. The family
+    is descriptive, so :func:`gate_applies` excludes it and no robustness verdict is
+    produced for it at all — which left the parent publishing a **prior-dependent
+    classification** with nothing machine-readable saying so. Which measures clear
+    the 0.05-logit resolvability threshold, and therefore which correlations may be
+    interpreted, is decided by ``sigma_within``, whose prior the registered
+    companion varies; on the stored fit that parameter is also the most
+    power-scaling-sensitive quantity in the model.
+
+    A **qualification, never a withhold**: the fit is valid, its convergence gate
+    passes and its tables are correct under the declared prior. What is qualified is
+    the robustness of the classification those tables carry. Fail-closed on every
+    unreadable or unbound path, and silent for a fit the constant does not pair or
+    that has no within-child block (so a stored ``jc-001`` decision is untouched).
+    """
+    from language_reading_predictors.statistical_models.historical_joint import (
+        HISTORICAL_JOINT_PRIOR_COMPANIONS,
+    )
+
+    if str(config.get("kind") or "") != "historical_joint":
+        return []
+    model_id = str(config.get("model_id") or "")
+    companion = HISTORICAL_JOINT_PRIOR_COMPANIONS.get(model_id, "")
+    if not companion or not bool(_plan(config).get("within_correlation")):
+        return []
+    measured = _historical_joint_prior_sensitivity(output_dir)
+
+    def _note(reason: str) -> list[str]:
+        return [
+            f"the registered within-scale prior sensitivity ({companion}) is not "
+            f"release-ready beside this fit ({reason}), so which measures clear the "
+            "resolvability threshold — and therefore which correlations may be read "
+            f"at all — is a conclusion under this fit's prior alone.{measured}"
+        ]
+
+    try:
+        directory = Path(output_dir).resolve()
+        config_name = str(config.get("config_name") or "") or _config_name(
+            directory, model_id
+        )
+        if not config_name:
+            return _note("this fit's configuration name could not be resolved")
+        companion_dir = directory.parent / f"{companion}-{config_name}"
+        decision, decision_error = _read_json(
+            companion_dir / RELEASE_DECISION_FILENAME
+        )
+        if decision_error is not None or not isinstance(decision, Mapping):
+            return _note("it has not been fitted, or its release decision is unreadable")
+        if not bool(decision.get("publishable")):
+            return _note("its own release decision withholds publication")
+        companion_config = _load_config(companion_dir)
+        if not companion_config:
+            return _note("its config.json is missing or unreadable")
+        if str(companion_config.get("model_id") or "") != companion:
+            return _note("the sibling directory does not identify itself as the companion")
+        ours = _plan(config).get("sigma_within_prior_sigma")
+        theirs = _plan(companion_config).get("sigma_within_prior_sigma")
+        if ours is None or theirs is None:
+            return _note("the within-scale prior is not recorded on both fits")
+        if ours == theirs:
+            return _note(
+                "it was fitted under the same within-scale prior, so it varies "
+                "nothing"
+            )
+        for description, reader in _HISTORICAL_JOINT_PRIOR_BINDING:
+            mine, yours = reader(config), reader(companion_config)
+            if mine is None or yours is None:
+                return _note(f"{description} is not recorded on both fits")
+            if mine != yours:
+                return _note(f"{description} differs between the two fits")
+        changed = _historical_joint_resolvability_change(directory, companion_dir)
+    except Exception as exc:  # noqa: BLE001 - a check that cannot run must fail closed
+        return _note(f"it could not be verified: {exc}")
+    if changed:
+        return [
+            f"the within-scale prior sensitivity ({companion}) changes the "
+            f"resolvability classification ({changed}), so the interpretable set of "
+            "correlations here depends on that prior rather than on the data."
+        ]
+    return []
+
+
+def _historical_joint_resolvability_change(
+    parent_dir: Path, companion_dir: Path
+) -> str:
+    """Which measures the wider prior reclassifies, as a phrase or ``""``.
+
+    The classification *is* the conclusion for this family, so comparing it across
+    the two independently sampled fits is the comparison that matters — not pairing
+    draws, which are unrelated between chains fitted under different priors.
+    """
+    parent = _read_csv(parent_dir, "within_scale_summary.csv")
+    companion = _read_csv(companion_dir, "within_scale_summary.csv")
+    if parent is None or companion is None:
+        return "one of the two fits has no within_scale_summary.csv"
+    needed = {"measure", "resolvable"}
+    if not needed <= set(parent.columns) or not needed <= set(companion.columns):
+        return "within_scale_summary.csv does not record the classification"
+
+    def _flags(frame: pd.DataFrame) -> dict[str, bool]:
+        return {
+            str(row["measure"]): str(row["resolvable"]).strip().lower()
+            in {"true", "1"}
+            for _, row in frame.iterrows()
+        }
+
+    mine, theirs = _flags(parent), _flags(companion)
+    if set(mine) != set(theirs):
+        return "the two fits classify different measure sets"
+    moved = sorted(name for name in mine if mine[name] != theirs[name])
+    if not moved:
+        return ""
+    return ", ".join(
+        f"{name}: {'resolvable' if mine[name] else 'unresolvable'} here, "
+        f"{'resolvable' if theirs[name] else 'unresolvable'} under the wider prior"
+        for name in moved
     )
 
 
@@ -2745,8 +3206,13 @@ def _joint_dependence_companion_note(
     except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
         return _note(f"the companion could not be verified: {exc}"), None
 
+    declared = _plan(config).get("contrast")
+    pair: tuple[str, str] | None = None
+    if isinstance(declared, Mapping):
+        left, right = str(declared.get("left") or ""), str(declared.get("right") or "")
+        pair = (left, right) if left and right else None
     contrast_record, contrast_note = _joint_contrast_consequence(
-        directory, companion_dir
+        directory, companion_dir, pair=pair
     )
     contrast_record["companion"] = companion
     return contrast_note, contrast_record
@@ -2908,12 +3374,20 @@ def evaluate_publication(
         jm_wave_artifact_failures,
         jm_wave_qualifications,
     ) = _joint_mechanism_wave_release_failures(output_dir, config)
-    if jm_wave_qualifications:
+    # The within-child historical-joint fits are descriptive, so the robustness
+    # gate never runs for them and any note computed below would be discarded with
+    # it. Their prior-sensitivity qualification therefore attaches here, where a
+    # non-gated family's qualifications live (#588 finding 5).
+    hj_prior_qualifications = _historical_joint_prior_companion_qualifications(
+        output_dir, config
+    )
+    if jm_wave_qualifications or hj_prior_qualifications:
         qualification["publication_qualification"] = "; ".join(
             part
             for part in (
                 qualification["publication_qualification"],
                 *jm_wave_qualifications,
+                *hj_prior_qualifications,
             )
             if part
         )

@@ -463,6 +463,9 @@ Pagnamenta
 Pandoc
 Papagno
 papersize
+parameterise
+parameterised
+parameterising
 parameterisation
 parameterisations
 parentless
@@ -577,6 +580,7 @@ scratchpad
 secondaries
 Secord
 Semel
+semidefiniteness
 sens
 SESOI
 setattr
@@ -619,6 +623,7 @@ Toffalini
 tolist
 toplevel
 trainability
+traj
 trivariate
 trog
 Tsvg

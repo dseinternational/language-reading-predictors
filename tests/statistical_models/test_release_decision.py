@@ -1556,19 +1556,36 @@ _JOINT_BOUND_IDENTITY: dict = {
 }
 
 
-def _tau_difference(directory: Path, *, median: float, prob_pos: float) -> None:
+def _tau_difference(
+    directory: Path,
+    *,
+    median: float,
+    prob_pos: float,
+    half_width: float = 0.08,
+    contrast: str = "TE_minus_UE",
+) -> None:
     pd.DataFrame(
         [
             {
-                "contrast": "TE_minus_UE",
+                "contrast": contrast,
                 "headline_scale": "proportion_correct_risk_difference",
                 "diff_prob_median": median,
-                "diff_prob_lo": median - 0.08,
-                "diff_prob_hi": median + 0.08,
+                "diff_prob_lo": median - half_width,
+                "diff_prob_hi": median + half_width,
                 "prob_diff_pos": prob_pos,
             }
         ]
     ).to_csv(directory / "tau_difference.csv", index=False)
+
+
+def _tau_summary(directory: Path, widths: tuple[float, float]) -> None:
+    """Per-outcome AME intervals of the requested widths (2026-08-24 review)."""
+    pd.DataFrame(
+        [
+            {"outcome": name, "ame_prob_lo": -0.5 * width, "ame_prob_hi": 0.5 * width}
+            for name, width in zip(("TE", "UE"), widths)
+        ]
+    ).to_csv(directory / "tau_summary.csv", index=False)
 
 
 def _joint_contrast_fit_dir(
@@ -1581,6 +1598,8 @@ def _joint_contrast_fit_dir(
     identity_overrides: dict | None = None,
     contrast_median: float = 0.034,
     contrast_prob_pos: float = 0.76,
+    contrast_half_width: float = 0.08,
+    marginal_widths: tuple[float, float] | None = None,
 ) -> Path:
     d = tmp_path / f"{model_id}-reporting"
     d.mkdir(parents=True)
@@ -1614,7 +1633,14 @@ def _joint_contrast_fit_dir(
         ],
         index=["tau[TE]", "tau[UE]"],
     ).to_csv(d / "psense_summary.csv")
-    _tau_difference(d, median=contrast_median, prob_pos=contrast_prob_pos)
+    _tau_difference(
+        d,
+        median=contrast_median,
+        prob_pos=contrast_prob_pos,
+        half_width=contrast_half_width,
+    )
+    if marginal_widths is not None:
+        _tau_summary(d, marginal_widths)
     _write_core_artifacts(d, "joint")
     return d
 
@@ -1629,6 +1655,10 @@ def _joint_companion_dir(
     identity_overrides: dict | None = None,
     contrast_median: float = 0.0343,
     contrast_prob_pos: float = 0.7557,
+    contrast_half_width: float = 0.08,
+    contrast_label: str = "TE_minus_UE",
+    marginal_widths: tuple[float, float] | None = None,
+    write_contrast: bool = True,
 ) -> Path:
     d = tmp_path / f"{model_id}-reporting"
     d.mkdir(parents=True)
@@ -1659,7 +1689,16 @@ def _joint_companion_dir(
             }
         )
     )
-    _tau_difference(d, median=contrast_median, prob_pos=contrast_prob_pos)
+    if write_contrast:
+        _tau_difference(
+            d,
+            median=contrast_median,
+            prob_pos=contrast_prob_pos,
+            half_width=contrast_half_width,
+            contrast=contrast_label,
+        )
+    if marginal_widths is not None:
+        _tau_summary(d, marginal_widths)
     return d
 
 
@@ -1825,6 +1864,290 @@ def test_a_dependence_model_that_flips_the_contrast_sign_qualifies(tmp_path):
     evaluation = evaluate_publication(d)
     assert "reverses the sign of the contrast median" in evaluation.robustness.note
     assert evaluation.dependence_contrast["direction_flipped"] is True
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-24 review of the joint audit: the reason three report templates give for
+# running a dependence companion is that a factorised interval omits within-child
+# cross-outcome covariance, so its width is wrong in a known direction. On the
+# three registered pairs that is not what separates the two intervals -- the
+# companion's extra logistic-normal layer widens both marginals while the implied
+# cross-outcome correlation stays indistinguishable from zero. The pairing now
+# measures which channel the width change came through instead of assuming one.
+# ---------------------------------------------------------------------------
+
+#: Per-outcome AME widths and the contrast width they imply at zero cross-outcome
+#: correlation, taken from the stored ``lrp-rli-itt-015`` / ``-215`` pair.
+_PARENT_MARGINALS = (0.094, 0.121)
+_COMPANION_MARGINALS = (0.0976, 0.1235)
+_PARENT_CONTRAST_WIDTH = 0.1532220610747682
+_COMPANION_CONTRAST_WIDTH = 0.15741032367668903
+
+
+def test_wider_companion_marginals_are_not_reported_as_a_covariance_correction(
+    tmp_path,
+):
+    """The registered pairs' actual shape: both marginals widen, the implied
+    cross-outcome correlation does not move, and the contrast interval grows."""
+    d = _joint_contrast_fit_dir(
+        tmp_path,
+        marginal_widths=_PARENT_MARGINALS,
+        contrast_half_width=_PARENT_CONTRAST_WIDTH / 2,
+    )
+    _joint_companion_dir(
+        tmp_path,
+        marginal_widths=_COMPANION_MARGINALS,
+        contrast_half_width=_COMPANION_CONTRAST_WIDTH / 2,
+    )
+    record = evaluate_publication(d).dependence_contrast
+    assert record["channel_status"] == "measured"
+    assert record["parent_implied_ame_correlation"] == pytest.approx(0.0, abs=1e-9)
+    assert record["companion_implied_ame_correlation"] == pytest.approx(0.0, abs=1e-9)
+    assert record["covariance_width_channel"] == pytest.approx(0.0, abs=1e-9)
+    assert record["marginal_width_channel"] > 0
+    assert record["dominant_width_channel"] == "marginal_uncertainty"
+
+
+def test_a_genuine_covariance_correction_is_attributed_to_covariance(tmp_path):
+    """The complement: identical marginals, a materially narrower contrast. This is
+    the case the sign rule describes, and it must still be recognised."""
+    d = _joint_contrast_fit_dir(
+        tmp_path,
+        marginal_widths=_PARENT_MARGINALS,
+        contrast_half_width=_PARENT_CONTRAST_WIDTH / 2,
+    )
+    _joint_companion_dir(
+        tmp_path,
+        marginal_widths=_PARENT_MARGINALS,
+        contrast_half_width=0.11001363551851197 / 2,
+    )
+    record = evaluate_publication(d).dependence_contrast
+    assert record["companion_implied_ame_correlation"] == pytest.approx(0.5, abs=1e-9)
+    assert record["marginal_width_channel"] == pytest.approx(0.0, abs=1e-9)
+    assert record["covariance_width_channel"] < 0
+    assert record["dominant_width_channel"] == "cross_outcome_covariance"
+    assert record["covariance_channel_share"] == pytest.approx(1.0, abs=1e-9)
+
+
+def test_the_channel_split_is_descriptive_and_never_qualifies_on_its_own(tmp_path):
+    """A missing ``tau_summary.csv`` costs the split, not the release: the gate-
+    relevant half of the comparison is the contrast's own movement."""
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    assert evaluation.dependence_contrast["channel_status"] == "unavailable"
+    assert "dependence-unchecked" not in (evaluation.robustness.note or "")
+
+
+def test_an_unmeasurable_contrast_comparison_attaches_the_qualifier(tmp_path):
+    """Fail closed. A bound companion with no readable contrast summary is not
+    evidence that the dependence model left the contrast alone, and without a note
+    the reader cannot tell "checked and unchanged" from "never checked"."""
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path, write_contrast=False)
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is True
+    assert "could not be measured" in evaluation.robustness.note
+    assert evaluation.dependence_contrast["status"] == "unavailable"
+
+
+def test_a_mismatched_contrast_label_attaches_the_qualifier(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path, contrast_label="UE_minus_TE")
+    evaluation = evaluate_publication(d)
+    assert "could not be measured" in evaluation.robustness.note
+    assert evaluation.dependence_contrast["status"] == "mismatched"
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-23 joint audit, finding 5, completed: a within-child historical-joint
+# fit's resolvability classification is decided by the within-scale prior, and the
+# registered wider-prior companion has to be release-ready beside it before that
+# classification is read as a result. The family is descriptive, so the robustness
+# gate never runs for it -- the qualification attaches to publication_qualification.
+# ---------------------------------------------------------------------------
+
+_HJ_PLAN: dict = {
+    "measures": ["basread", "bpvs", "basdig"],
+    "waves": [1, 2, 3],
+    "extension_waves": [],
+    "likelihood": "logistic_normal_binomial",
+    "eta_prior_sigma": 1.5,
+    "sigma_subject_prior_sigma": 1.0,
+    "lkj_eta": 2.0,
+    "within_lkj_eta": 2.0,
+    "within_correlation": True,
+    "sigma_within_prior_sigma": 0.5,
+}
+
+
+def _within_scale_summary(directory: Path, resolvable: dict[str, bool]) -> None:
+    pd.DataFrame(
+        [
+            {"measure": name, "resolvable": flag, "prob_above_minimum": 0.9}
+            for name, flag in resolvable.items()
+        ]
+    ).to_csv(directory / "within_scale_summary.csv", index=False)
+
+
+_HJ_DEFAULT_RESOLVABLE = {"basread": True, "bpvs": False, "basdig": False}
+
+
+def _historical_joint_fit_dir(
+    tmp_path: Path,
+    *,
+    model_id: str = "lrp-rlm-jc-002",
+    plan_overrides: dict | None = None,
+    identity_overrides: dict | None = None,
+    resolvable: dict[str, bool] | None = None,
+    prior_sensitivity: float | None = 0.65,
+) -> Path:
+    d = tmp_path / f"{model_id}-reporting"
+    d.mkdir(parents=True)
+    (d / "diagnostics_summary.json").write_text(json.dumps(_gate(True)))
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "historical_joint",
+                "config_name": "reporting",
+                "data_sha256": "rlm-abc",
+                "fitted_subject_identity": {"sha256": "rows-digest"},
+                **(identity_overrides or {}),
+                "resolved_run_plan": {**_HJ_PLAN, **(plan_overrides or {})},
+            }
+        )
+    )
+    if prior_sensitivity is not None:
+        pd.DataFrame(
+            [{"prior": prior_sensitivity, "likelihood": 0.5, "diagnosis": "x"}],
+            index=["sigma_within[basread]"],
+        ).to_csv(d / "psense_summary.csv")
+    _within_scale_summary(d, resolvable or _HJ_DEFAULT_RESOLVABLE)
+    _write_core_artifacts(d, "historical_joint")
+    return d
+
+
+def _historical_joint_companion_dir(
+    tmp_path: Path,
+    *,
+    model_id: str = "lrp-rlm-jc-102",
+    publishable: bool = True,
+    plan_overrides: dict | None = None,
+    identity_overrides: dict | None = None,
+    resolvable: dict[str, bool] | None = None,
+) -> Path:
+    d = tmp_path / f"{model_id}-reporting"
+    d.mkdir(parents=True)
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "historical_joint",
+                "config_name": "reporting",
+                "data_sha256": "rlm-abc",
+                "fitted_subject_identity": {"sha256": "rows-digest"},
+                **(identity_overrides or {}),
+                "resolved_run_plan": {
+                    **_HJ_PLAN,
+                    "sigma_within_prior_sigma": 1.0,
+                    **(plan_overrides or {}),
+                },
+            }
+        )
+    )
+    (d / RELEASE_DECISION_FILENAME).write_text(
+        json.dumps(
+            {
+                "status": "ok" if publishable else "robustness_unresolved",
+                "publishable": publishable,
+            }
+        )
+    )
+    _within_scale_summary(d, resolvable or _HJ_DEFAULT_RESOLVABLE)
+    return d
+
+
+def test_a_within_child_fit_without_its_prior_sensitivity_is_qualified(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is True
+    qualification = evaluation.publication_qualification
+    assert "lrp-rlm-jc-102" in qualification
+    assert "has not been fitted" in qualification
+    # The qualification quotes the fit's own measurement rather than asserting
+    # that the prior matters.
+    assert "0.65" in qualification
+
+
+def test_the_qualification_reaches_the_persisted_decision(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    record = evaluate_publication(d).as_dict()
+    assert "lrp-rlm-jc-102" in record["publication_qualification"]
+
+
+def test_a_bound_prior_sensitivity_that_agrees_attaches_nothing(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(tmp_path)
+    assert evaluate_publication(d).publication_qualification == ""
+
+
+def test_a_prior_sensitivity_that_reclassifies_a_measure_is_qualified(tmp_path):
+    """The classification *is* the conclusion for this family."""
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(
+        tmp_path, resolvable={"basread": True, "bpvs": True, "basdig": False}
+    )
+    qualification = evaluate_publication(d).publication_qualification
+    assert "changes the resolvability classification" in qualification
+    assert "bpvs: unresolvable here, resolvable under the wider prior" in qualification
+
+
+def test_a_companion_under_the_same_prior_varies_nothing(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(
+        tmp_path, plan_overrides={"sigma_within_prior_sigma": 0.5}
+    )
+    assert "varies nothing" in evaluate_publication(d).publication_qualification
+
+
+def test_a_withheld_prior_sensitivity_does_not_count(tmp_path):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(tmp_path, publishable=False)
+    assert "withholds publication" in evaluate_publication(d).publication_qualification
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected",
+    [
+        ({"plan_overrides": {"measures": ["basread", "bpvs"]}}, "measure list"),
+        ({"plan_overrides": {"waves": [1, 2]}}, "analysis window"),
+        ({"plan_overrides": {"likelihood": "beta_binomial"}}, "likelihood"),
+        ({"plan_overrides": {"lkj_eta": 4.0}}, "priors not under test"),
+        (
+            {"identity_overrides": {"data_sha256": "other"}},
+            "input data checksum",
+        ),
+        (
+            {"identity_overrides": {"fitted_subject_identity": {"sha256": "other"}}},
+            "fitted-row identity",
+        ),
+    ],
+)
+def test_a_tampered_prior_pair_binding_field_fails_closed(tmp_path, kwargs, expected):
+    d = _historical_joint_fit_dir(tmp_path)
+    _historical_joint_companion_dir(tmp_path, **kwargs)
+    assert expected in evaluate_publication(d).publication_qualification
+
+
+def test_the_between_child_fit_is_out_of_scope(tmp_path):
+    """``jc-001`` has no within-child block, so its stored decision is untouched."""
+    d = _historical_joint_fit_dir(
+        tmp_path,
+        model_id="lrp-rlm-jc-001",
+        plan_overrides={"within_correlation": False},
+    )
+    assert evaluate_publication(d).publication_qualification == ""
 
 
 # ---------------------------------------------------------------------------

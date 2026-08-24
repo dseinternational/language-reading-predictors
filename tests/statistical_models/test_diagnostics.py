@@ -453,6 +453,81 @@ def test_marked_repeated_rows_are_aggregated_by_child():
     assert got.attrs["aggregation"] == "sum over repeated child rows"
 
 
+def _repeated_transition_joint_trace() -> xr.DataTree:
+    """Two children x two outcomes x three transitions: the ``jm-002`` shape.
+
+    Twelve flattened cells. ``loo_child_idx`` marks the six that belong to each
+    child, and ``y_post_cell_outcome`` marks the six that belong to each outcome, so
+    the two diagnostics that read this trace slice it along different axes.
+    """
+    values = np.arange(1.0, 13.0).reshape(1, 1, 12)
+    child = np.array([0] * 6 + [1] * 6)
+    outcome = np.tile(np.repeat([0, 1], 3), 2)
+    return xr.DataTree.from_dict(
+        {
+            "posterior": xr.Dataset(
+                {"tau": (("chain", "draw", "outcome"), np.zeros((1, 1, 2)))},
+                coords={"chain": [0], "draw": [0], "outcome": ["W", "N"]},
+            ),
+            "observed_data": xr.Dataset({"y_post": ("cell", np.arange(12))}),
+            "posterior_predictive": xr.Dataset(
+                {"y_post": (("chain", "draw", "cell"), values)}
+            ),
+            "log_likelihood": xr.Dataset(
+                {"y_post": (("chain", "draw", "cell"), -values)}
+            ),
+            "constant_data": xr.Dataset(
+                {
+                    "loo_child_idx": ("cell", child),
+                    "y_post_cell_outcome": ("cell", outcome),
+                }
+            ),
+        }
+    )
+
+
+def test_child_aggregation_covers_both_outcomes_and_every_transition():
+    """The declared holdout unit with repeated transitions *and* several outcomes.
+
+    #588 acceptance criterion: LOO tests must include multiple outcomes and multiple
+    transitions per child and preserve the declared unit. Leaving out one cell would
+    predict a child's word-reading transition while their other transitions and their
+    nonword cells stayed in the posterior; the stored LOO leaves out the child.
+    """
+    got = diag._joint_log_likelihood_by_child(_repeated_transition_joint_trace())
+    assert got is not None
+    assert got.sizes["loo_child"] == 2
+    assert got.attrs["loo_unit"] == "child"
+    # Child 0 holds cells 1-6, child 1 cells 7-12 -- both outcomes, all three
+    # transitions, summed within child.
+    np.testing.assert_allclose(got.values, [[[-21.0, -57.0]]])
+
+
+def test_the_outcome_loo_pit_tree_keeps_the_cell_unit_the_stored_loo_aggregates():
+    """The two diagnostics answer different questions, and the code says which.
+
+    2026-08-23 joint audit, finding 6. The outcome-specific LOO-PIT tree carries the
+    focal outcome's raw cells, so ArviZ recomputes leave-one-*cell*-out weights: on
+    this trace six units against the stored LOO's two children. Neither validates the
+    other, and the figure title names the unit it actually leaves out.
+    """
+    trace = _repeated_transition_joint_trace()
+    context = SimpleNamespace(
+        trace=trace, prior_samples=None, spec=SimpleNamespace(extra={}), model=None
+    )
+    selected = diag._joint_outcome_predictive_tree(context, "N")
+    focal = selected.log_likelihood["y_post"]
+    cell_dim = next(d for d in focal.dims if d not in {"chain", "draw"})
+    # Three transitions for each of the two children, kept as separate units.
+    assert focal.sizes[cell_dim] == 6
+    np.testing.assert_array_equal(
+        selected.observed_data["y_post"].values, np.array([3, 4, 5, 9, 10, 11])
+    )
+    aggregated = diag._joint_log_likelihood_by_child(trace)
+    assert aggregated.sizes["loo_child"] < focal.sizes[cell_dim]
+    assert diag.JOINT_LOO_PIT_UNIT_LABEL == "conditional leave-one-cell-out"
+
+
 def test_marked_repeated_rows_ignore_per_row_G_for_the_unit_count():
     """With ``loo_child_idx`` present the unit count comes from the map itself: a
     per-observation ``G`` in a stacked repeated-row design has one entry per ROW,

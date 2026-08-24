@@ -270,7 +270,16 @@ class PrimaryFloorReference:
 
 @dataclass(frozen=True)
 class PrimaryStandardReference:
-    """Current registered primary fit to which a standard sweep is anchored."""
+    """Current registered primary fit to which a standard sweep is anchored.
+
+    ``run_plan_digest`` is the canonical digest of the primary's *modelling* fields
+    (#576 finding 6). Identity, the data hash, row counts and arm totals do not move
+    when the likelihood, the intercept anchor, the age adjustment, a random-effect
+    choice or a prior width changes, so without it a primary fitted under an older
+    plan could be released by a sweep generated under a newer one. Empty for a family
+    that does not yet compute one, which keeps the check opt-in rather than silently
+    failing every other runner closed.
+    """
 
     model_dir: Path
     config_name: str
@@ -283,6 +292,7 @@ class PrimaryStandardReference:
     config_sha256: str
     trace_sha256: str
     sampling: Mapping[str, int | float]
+    run_plan_digest: str = ""
 
     def manifest_values(self) -> dict[str, Any]:
         values: dict[str, Any] = {
@@ -295,6 +305,11 @@ class PrimaryStandardReference:
             "primary_config_sha256": self.config_sha256,
             "primary_trace_sha256": self.trace_sha256,
         }
+        if self.run_plan_digest:
+            # Emitted only where a family computes one, so the manifests (and the
+            # row-versus-reference comparison that walks these keys) of families
+            # without run-plan binding are unchanged.
+            values["primary_run_plan_sha256"] = self.run_plan_digest
         values.update(
             {
                 f"primary_sampling_{key}": self.sampling[key]
@@ -655,6 +670,11 @@ LEVEL_SENSITIVITY_SIGMA_CHILD_SIGMAS = (0.5, 1.0, 1.5)
 DID_SENSITIVITY_MODEL_IDS = (
     "lrp-rli-did-001",
     "lrp-rli-did-003",
+    # The blending guessing-floor twin of did-003 (#576 finding 2). Its parent is
+    # prior-dominant on tau_t2, so the twin will very likely need the same evidence,
+    # and the pair cannot release half-covered: whichever side is withheld withholds
+    # both.
+    "lrp-rli-did-103",
     "lrp-rli-did-007",
     "lrp-rli-did-013",
     "lrp-rli-did-101",
@@ -786,6 +806,15 @@ def load_primary_level_reference(
     )
 
 
+def did_run_plan_digest(resolved_run_plan: Mapping[str, Any]) -> str:
+    """Re-export of :func:`did.did_run_plan_digest` for the sweep runner's convenience."""
+    from language_reading_predictors.statistical_models.did import (
+        did_run_plan_digest as _digest,
+    )
+
+    return _digest(resolved_run_plan)
+
+
 def did_focal_term(resolved_run_plan: Mapping[str, Any]) -> str:
     """The focal coefficient a did fit's release decision turns on.
 
@@ -910,6 +939,11 @@ def load_primary_did_reference(
         config_sha256=sha256_file(config_path),
         trace_sha256=sha256_file(trace_path),
         sampling=sampling,
+        # #576 finding 6: bind the sweep to the *equation* the primary fitted, not
+        # only to its identity and row counts. Computed from the stored plan with
+        # the same defaults a fresh resolution takes, so a fit written before a
+        # field existed digests identically and stays reproducible without a refit.
+        run_plan_digest=did_run_plan_digest(plan),
     )
 
 
@@ -1249,6 +1283,13 @@ def _validate_cell_trace(
     primary's stored ``resolved_run_plan``, so a semantically stale grid — a
     pre-#552 ``b_grp_time[1]`` sweep against a t1-centred primary — is refused
     even when every hash matches.
+
+    Where the reference carries a run-plan digest (the ``did`` family, #576 finding
+    6) the stamped provenance must reproduce it too. The focal-term check above
+    catches only a *renamed* estimand; a primary refitted with a different
+    likelihood, intercept anchor, age adjustment, random-effect choice or prior
+    width keeps the same focal term, the same data hash and the same row counts,
+    so nothing else here would notice.
     """
     import arviz as az
 
@@ -1288,6 +1329,17 @@ def _validate_cell_trace(
                 True,
             ),
         )
+        if reference.run_plan_digest:
+            # #576 finding 6: the stamped provenance must also name the primary's
+            # *fitted equation*, so a cell sampled under a newer registered
+            # declaration cannot be installed against an older primary.
+            identity = identity + (
+                (
+                    "primary_run_plan_sha256",
+                    reference.run_plan_digest.strip().lower(),
+                    True,
+                ),
+            )
         for key, expected, lower in identity:
             recorded = str(provenance.get(key, "")).strip()
             if lower:
@@ -1437,7 +1489,9 @@ def attach_outcome_bundle(
     published evidence.
     """
     from language_reading_predictors.statistical_models.release import (
+        _read_json as _read_json_file,
         _standard_sweep_evidence,
+        sweep_sign_column as _sweep_sign_column,
     )
 
     rows = rows.reset_index(drop=True).copy()
@@ -1465,18 +1519,40 @@ def attach_outcome_bundle(
             f"{outcome}: refusing to attach — one or more cells failed the "
             "convergence gate"
         )
-    signs = set(np.sign(rows["tau_logit_mean"].astype(float)).tolist())
+    # The sign that must be stable is the *published estimand's*, not necessarily the
+    # swept coefficient's (#576 finding 1); the gate's own final check below uses the
+    # same helper, so this fast-fail cannot disagree with it.
+    primary_config, _ = _read_json_file(primary_dir / "config.json")
+    sign_column, estimand_label = _sweep_sign_column(primary_config)
+    if sign_column not in rows.columns:
+        raise RuntimeError(
+            f"{outcome}: sweep rows lack the {sign_column!r} column carrying "
+            f"{estimand_label}"
+        )
+    signs = set(np.sign(rows[sign_column].astype(float)).tolist())
     if len(signs) != 1:
         raise RuntimeError(
-            f"{outcome}: the effect changes sign across the grid; the bundle is "
-            "reportable evidence of instability, not of stability — not attaching"
+            f"{outcome}: {estimand_label} changes sign across the grid; the bundle "
+            "is reportable evidence of instability, not of stability — not attaching"
         )
-    for column, expected in (
+    bindings = [
         ("primary_config_sha256", reference.config_sha256),
         ("primary_trace_sha256", reference.trace_sha256),
-    ):
+    ]
+    if reference.run_plan_digest:
+        # #576 finding 6. Without this a sweep generated from a newer registered
+        # declaration could still lift the gate on a primary fitted under an older
+        # one: nothing else in the manifest moves when the equation changes but the
+        # data, identity and row counts do not.
+        bindings.append(("primary_run_plan_sha256", reference.run_plan_digest))
+        if "primary_run_plan_sha256" not in rows.columns:
+            raise RuntimeError(
+                f"{outcome}: sweep rows carry no primary_run_plan_sha256, so they "
+                "cannot be bound to the primary's fitted model; re-run the sweep"
+            )
+    for column, expected in bindings:
         recorded = {str(v).strip().lower() for v in rows[column]}
-        if recorded != {expected}:
+        if recorded != {str(expected).strip().lower()}:
             raise RuntimeError(
                 f"{outcome}: sweep rows bind to a different primary {column}; "
                 "re-run the sweep against the current fit"

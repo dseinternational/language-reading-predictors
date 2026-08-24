@@ -31,11 +31,28 @@ from language_reading_predictors.statistical_models.historical_growth import (
 )
 
 __all__ = [
+    "HISTORICAL_JOINT_PRIOR_COMPANIONS",
     "HistoricalJointModelSettings",
     "HistoricalJointRunPlan",
     "declared_historical_joint_settings",
     "resolve_historical_joint_run_plan",
 ]
+
+
+#: Within-child fit -> its registered wider-``sigma_within``-prior sensitivity
+#: companion (#588 finding 5). The *authority* is the companion module, which is
+#: built from its parent's frozen settings with ``dataclasses.replace`` so only the
+#: within-scale prior can differ; this constant restates the pairing so the release
+#: decision can reach it without importing every model module, exactly as
+#: ``JOINT_DEPENDENCE_COMPANIONS`` and ``BLENDING_LINK_MODELS`` do for their
+#: policies. It exists because the parent's classification of which measures clear
+#: the resolvability threshold — and therefore which correlations are interpretable
+#: at all — turns on that prior, and power scaling measures ``sigma_within`` as the
+#: most prior-sensitive quantity in the fit. ``test_historical_joint_run_plan``
+#: fails if the constant and the module declarations drift apart.
+HISTORICAL_JOINT_PRIOR_COMPANIONS: dict[str, str] = {
+    "lrp-rlm-jc-002": "lrp-rlm-jc-102",
+}
 
 
 _DEFAULT_MEASURES = ("basread", "bpvs", "basdig")
@@ -412,7 +429,11 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
             "and group-specific child-level scale. Stable child deviations and "
             "wave-specific within-child deviations have separate cross-measure LKJ "
             "correlation matrices shared across groups; the wave-specific residual "
-            "supplies the extra-Binomial variance."
+            "supplies the extra-Binomial variance. Its scale is pooled across "
+            "groups while the stable child-level scale is group-indexed - a "
+            "parsimony assumption on the parameter that decides the resolvability "
+            "classification, so a group whose wave-to-wave departures differ from "
+            "the others cannot show it (2026-08-24 historical-joint review)."
         )
         estimand = (
             "The headline is the within-child correlation matrix of wave-specific "

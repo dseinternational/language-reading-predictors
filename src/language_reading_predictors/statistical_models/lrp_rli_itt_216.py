@@ -11,15 +11,32 @@ own-baseline and linear-age precision terms, same contrast — with the per-chil
 share no parameter, so the parent's likelihood and priors factorise and its
 contrast ``AME[TE] - AME[TR]`` is the difference of two a-posteriori
 independent quantities: its interval omits the within-child covariance that the
-same 54 children supplying both outcomes induce. A positive residual correlation
-(the plausible direction) makes the factorised interval too wide, a negative one
-too narrow. This companion estimates
-that covariance — a per-child bivariate-normal offset ``u_i`` with
-``Sigma = diag(sigma) Corr diag(sigma)``, ``Corr ~ LKJ(eta = 4)``,
+same 54 children supplying both outcomes induce. Taken alone that omission has a
+known sign, since ``Var(A - B) = V_A + V_B - 2 Cov(A, B)``: a positive covariance
+leaves the factorised interval too wide and a negative one too narrow. This
+companion estimates that covariance — a per-child bivariate-normal offset ``u_i``
+with ``Sigma = diag(sigma) Corr diag(sigma)``, ``Corr ~ LKJ(eta = 4)``,
 ``sigma_k ~ HalfNormal(0.5)``, non-centred through ``pm.LKJCholeskyCov`` — and
 publishes the contrast as a posterior difference under it. It is **not** a
-replacement for the parent: the parent remains the model of record, and this fit
-answers whether the parent's interval was too wide or too narrow.
+replacement for the parent: the parent remains the model of record.
+
+**That sign rule does not describe what separates the two intervals here**
+(2026-08-24 review of the joint audit). A child-level offset shared by both
+outcomes reaches the *between-arm* contrast only through
+``rho sigma_1 sigma_2 (1/n_1 + 1/n_0)``, and at these fitted values — ``rho``
+prior-dominated near zero, residual SDs of 0.10 to 0.17 logit, arms of 28 and 26 —
+that term is two orders of magnitude below the contrast's own posterior variance.
+Measured on all three registered pairs, the posterior correlation between the two
+outcomes' average marginal effects is indistinguishable from zero in the
+correlated fit as well as the factorised one (exact draw-level values -0.003 to
+-0.006 factorised, +0.001 to +0.006 correlated), while every per-outcome marginal
+interval widens by 2 to 6 %. The companion's contrast interval is consequently 2
+to 4 % *wider* than the parent's despite a positive ``rho`` — the added
+logistic-normal layer's own parameter uncertainty, not a covariance correction.
+``release_decision.json`` records that split per fit under
+``dependence_contrast``. Read this companion as asking whether the contrast
+survives modelling within-child dependence — here it does — rather than as
+reporting how far the parent's interval was wrong.
 
 Read it beside the parent, and read ``dependence_identification.csv`` first.
 **This fit's correlation posterior is its correlation prior**: posterior SD

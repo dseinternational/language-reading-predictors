@@ -149,13 +149,20 @@ class DidDosePayload(FittedPayload):
 
 @dataclass(frozen=True)
 class DidArmWavePayload(FittedPayload):
-    """Exact fitted rows and baseline anchor for an arm-by-wave DiD fit."""
+    """Exact fitted rows, baseline anchor and score-mean link of an arm-by-wave DiD fit.
+
+    ``alpha_anchor`` is on the linear-predictor scale, so it is already mapped back
+    through ``score_mean_link`` (#576 finding 2): the two fields belong together, and
+    reading either without the other misplaces the anchor by about 1.1 logits on the
+    phoneme-blending pair.
+    """
 
     design: Literal["arm_by_wave"]
     alpha_anchor: float | None
     age_t1_scaler: Standardiser
     analysis_row_ids: np.ndarray
     waves: tuple[int, ...]
+    score_mean_link: str = "logit"
 
 
 @dataclass(frozen=True)

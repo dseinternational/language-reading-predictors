@@ -51,6 +51,7 @@ _GATE_VISIBLE_DIAGNOSTIC_CSV = frozenset(
         "analysis_set_by_transition.csv",
         "concurrent_fit_diagnostics.csv",
         "did_cell_ppc.csv",
+        "did_within_child_ppc.csv",
         "joint_mechanism_fit_diagnostics.csv",
         "pareto_k.csv",
         "posterior_predictive_calibration.csv",

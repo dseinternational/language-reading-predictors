@@ -574,3 +574,41 @@ def test_empty_prior_group_is_replaced_so_a_re_emit_can_repair_it(tmp_path):
     ctx2 = SimpleNamespace(trace=populated, prior_samples=fresh)
     _diag._attach_prior_groups(ctx2)
     assert float(ctx2.trace["prior"]["alpha"].values.ravel()[0]) == 1.0
+
+
+def test_a_publishable_fit_shows_the_qualification_it_publishes_under():
+    """``publication_qualification`` was rendered only inside the development-only
+    banner, so every qualification attached to a *reporting-tier* fit — the
+    joint-mechanism new-child coverage floors, the historical-joint prior
+    sensitivity — was written to ``release_decision.json`` and shown to nobody
+    (2026-08-24 historical-joint review)."""
+    repo = Path(__file__).resolve().parents[2]
+    badge = (repo / "docs/models/_partials/_gate_badge.qmd").read_text(
+        encoding="utf-8"
+    )
+
+    # Read in both branches: the development-only banner and the new
+    # published-with-a-qualification one.
+    assert badge.count("publication_qualification") >= 2
+    assert 'callout-warning title="Published with a qualification"' in badge
+    assert "This fit is release-eligible" in badge
+    # The development-only banner still owns the not-eligible message; the new
+    # branch is an ``elif`` so a development fit shows one banner, not two.
+    assert badge.index('title="Development-only fit"') < badge.index(
+        'title="Published with a qualification"'
+    )
+    assert "elif isinstance(_release_decision, dict)" in badge
+
+
+def test_the_historical_joint_report_states_which_scale_the_rule_uses():
+    repo = Path(__file__).resolve().parents[2]
+    results = (
+        repo / "docs/models/_partials/_results_historical_joint.qmd"
+    ).read_text(encoding="utf-8")
+
+    assert "realised_prob_above_minimum" in results
+    assert "lenient" in results
+    assert "registered wider-prior companion is part of the result" in results
+    # The retired reason must not come back: multiple likelihood nodes are not the
+    # obstacle (2026-08-23 joint audit, finding 8).
+    assert "no\nprediction target has been defined" in results

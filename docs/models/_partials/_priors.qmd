@@ -1,6 +1,6 @@
 ## Priors
 
-The priors below are documented in `priors.py` (the single source of truth, so they cannot drift between models). The **role** column distinguishes *causal* terms where a design identifies them, *precision* terms, descriptive or adjusted *association* terms, *nuisance* terms (such as intercepts, dispersion and random-intercept scales), and any *GP* amplitudes or lengthscales. A role describes how a parameter may be interpreted in this model; it does not turn an association into an effect.
+The priors below are documented in `priors.py` (the single source of truth, so they cannot drift between models). The **role** column distinguishes *causal* terms where a design identifies them, *regime* terms — identified by the design too, but as a contrast between assigned treatment *schedules* rather than between treated and untreated — *precision* terms, descriptive or adjusted *association* terms, *nuisance* terms (such as intercepts, dispersion and random-intercept scales), and any *GP* amplitudes or lengthscales. A role describes how a parameter may be interpreted in this model; it does not turn an association into an effect.
 
 ```{python}
 # | echo: false

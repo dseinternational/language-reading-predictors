@@ -191,12 +191,17 @@ def _prior_table_overrides(
         plan = getattr(context, "resolved_plan", None)
         if not isinstance(plan, DiDRunPlan):
             plan = resolve_did_run_plan(spec)
-        # Time offsets and every post-crossover term are associations.  Only the
-        # saturated arm-by-wave model's t2 arm gap is licensed by randomisation.
+        # Time offsets are associations. Both arm gaps after t1 are identified by
+        # the original randomisation, but they are contrasts of *different*
+        # exposures: t2 is treated-versus-untreated, t3 is early-start-versus-
+        # delayed-start treatment schedule (#576 finding 3). The distinct ``regime``
+        # role keeps that difference visible in the priors table instead of
+        # collapsing t3 into the ordinary "adjusted association" bucket, which
+        # misdescribed it as latent-ability-confounded.
         role["beta_period"] = "association"
         role["arm_gap_t1"] = "association"
-        role["arm_gap_t3"] = "association"
-        role["delta_crossover"] = "association"
+        role["arm_gap_t3"] = "regime"
+        role["delta_crossover"] = "regime"
         rationale["beta_period"] = (
             "Wave/period offset; an age, maturation and treatment-history association, "
             "not a randomised treatment effect."
@@ -207,11 +212,21 @@ def _prior_table_overrides(
         )
         rationale["tau_t2"] = (
             "Immediate-minus-waitlist t2 contrast identified by the original "
-            "randomisation; the only causal coefficient in the binary crossover model."
+            "randomisation: the effect of assignment to immediate treatment versus no "
+            "treatment yet, and the only treated-versus-untreated coefficient in the "
+            "binary crossover model."
         )
         rationale["arm_gap_t3"] = (
-            "Post-crossover immediate-minus-waitlist t3 association comparing different "
-            "treatment histories (approximately 40 versus 20 weeks)."
+            "Randomised t3 contrast between assigned treatment *schedules* — "
+            "early-start (about 40 weeks) versus delayed-start (about 20 weeks). Both "
+            "arms are treated by t3, so it is not a treated-versus-untreated effect; "
+            "randomisation still identifies it, but duration, carryover, maturation, "
+            "ceiling effects and different taught blocks are inseparable within it."
+        )
+        rationale["delta_crossover"] = (
+            "Change between two randomised regime contrasts (t2 gap minus t3 gap); a "
+            "description of how the assigned-arm difference moves after crossover, "
+            "never an identified catch-up mechanism."
         )
         rationale["sigma_delta"] = (
             "Exploratory between-waitlist-child SD of unexplained t3 catch-up; may mix "
@@ -242,8 +257,12 @@ def _prior_table_overrides(
                 "dose model; not itself the t2 randomised arm contrast."
             )
             rationale["theta_treated"] = (
-                "Modelled current-treatment presence at the mean treated dose; a "
-                "crossover association, not a second available-case modified ITT estimate."
+                "Crossover arm-by-period *cell* contrast at the mean treated dose. "
+                "With treated = (immediate arm) OR (period 2) the four-cell fixed-"
+                "effect design is saturated, so this term is (waitlist P2 - waitlist "
+                "P1) - (immediate P2 - immediate P1): a treatment-timing/history "
+                "association, not a separately identified current-treatment-presence "
+                "effect and not a second available-case modified ITT estimate."
             )
             rationale["gamma_t1"] = (
                 "Shared pre-randomisation t1 outcome precision term broadcast to both "
@@ -254,10 +273,17 @@ def _prior_table_overrides(
                 "sessions, with untreated rows coded at zero intensity."
             )
             rationale["mu_dose"] = (
-                "Average observational intensive-margin session association across P1/P2."
+                "Hierarchical centre the per-period session slopes are drawn around. "
+                "It is the swept and power-scaled coefficient, not the quantity the "
+                "fit publishes: the headline is the treated-row natural-scale dose "
+                "marginal in dose_marginal_summary.csv (#576 finding 1)."
             )
             rationale["beta_dose_phase"] = (
-                "Partial-pooled observational intensive-margin session associations by period."
+                "Partial-pooled observational intensive-margin session associations by "
+                "period. The period-2 slope relates period-2 sessions to the t3 "
+                "period-end level conditional on t1; it is not a period-2 gain slope, "
+                "because the treatment-affected t2 period-start score and the prior "
+                "period-1 dose are deliberately omitted."
             )
             # Dose slopes now share build_dose_response_model's ``beta_mech`` prior
             # (Normal(0, 1)) so the shared summary compares like with like.

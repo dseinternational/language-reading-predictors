@@ -4,11 +4,14 @@
 """Waitlist-crossover / difference-in-differences orchestration (``kind="did"``).
 
 ``fit_did`` fits the arm-by-wave family: bounded t1/t2/t3 levels with separate
-immediate-minus-waitlist gaps, where ``tau_t2`` is the clean randomised contrast
-and ``arm_gap_t3`` / ``delta_crossover`` are post-crossover associations. The dose
-companions add treated-centred session intensity and report their slopes as
-observational associations — through the same summary writer the dose-response
-family uses, imported from :mod:`.dose_response`.
+immediate-minus-waitlist gaps. ``tau_t2`` is the randomised immediate-versus-not-yet
+assignment contrast; ``arm_gap_t3`` is a *different* randomised contrast — assignment
+to the early-start rather than the delayed-start treatment schedule — and
+``delta_crossover`` is the change between the two, never an identified catch-up
+mechanism (#576 finding 3). The dose companions add treated-centred session intensity
+and report their slopes as observational associations — through the same summary
+writer the dose-response family uses, imported from :mod:`.dose_response`, so both
+dose designs publish the same named marginal on the same treated-row population.
 """
 
 from __future__ import annotations
@@ -62,11 +65,6 @@ from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     load_and_prepare,
 )
-from language_reading_predictors.statistical_models.prior_artifacts import (
-    marginal_pushforward_rows,
-    pushforward_outcome_label,
-    write_prior_pushforward,
-)
 from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
@@ -110,6 +108,27 @@ def _did_heterogeneity_summary(trace: Any, *, ci_prob: float) -> dict[str, float
         key: float(np.mean(sd < _SIGMA_DELTA_ROPE)),
         f"prior_{key}": float(prior_below),
     }
+
+
+def _waitlist_crossover_index(
+    built: _factories.BuiltModel[FittedPayload],
+) -> np.ndarray:
+    """Row -> ``waitlist_child`` position, reproducing the factory's ``safe_idx``.
+
+    ``build_did_model`` indexes ``v_delta`` by a dense position over the waitlist
+    children who have a t3 row, with every other row pointed at position 0 and
+    multiplied by a zero mask. The trajectory helper has to remove exactly those
+    fitted deviations again, so the mapping is rebuilt here from the fitted rows
+    rather than re-derived by a second, subtly different rule (#576 finding 5).
+    """
+    prepared = built.prepared
+    waitlist_subjects = np.unique(
+        prepared.subject_ids[(prepared.G == 0) & (prepared.phase == 2)]
+    )
+    lookup = {subject: position for position, subject in enumerate(waitlist_subjects)}
+    return np.asarray(
+        [lookup.get(subject, 0) for subject in prepared.subject_ids], dtype=int
+    )
 
 
 def _did_analysis_contract(
@@ -164,6 +183,15 @@ def _did_analysis_contract(
     design_eligible = int(np.isin(loaded_prepared.phase, design_codes).sum())
     contract: dict = {
         "design": payload.design,
+        # The one named quantity this fit publishes, so a reader of config.json
+        # never has to infer it from which CSV happens to exist (#576 finding 1).
+        "focal_estimand": {
+            "name": plan.focal_estimand,
+            "scale": plan.focal_estimand_scale,
+            "artifact": plan.focal_estimand_artifact,
+            "swept_coefficient": plan.effect_term,
+        },
+        "run_plan_digest": plan.run_plan_digest,
         "analysis_row_manifest": "analysis_rows.csv",
         "analysis_row_sha256": hashlib.sha256(
             "\n".join(row_ids).encode("utf-8")
@@ -197,10 +225,46 @@ def _did_analysis_contract(
                     "sd": float(scaler.sd),
                     "untreated_value": 0.0,
                 },
+                # The parameters this fit's posterior actually contains, with
+                # labels the four-cell design supports (#576 finding 9 and
+                # lower-severity 2). The pre-#576 block hard-coded ``beta_dose``,
+                # which a period-varying fit does not have, and called
+                # ``theta_treated`` a "current-treatment presence" effect: with
+                # ``treated = (G == 1) OR (period == P2)`` the arm-by-period fixed
+                # effects are saturated, so at the mean treated dose that
+                # coefficient is the crossover *cell* contrast, not a separately
+                # identified presence effect.
                 "dose_terms": {
-                    "theta_treated": "current-treatment presence association",
-                    "beta_dose": "intensive session-dose association",
-                    "beta_group": "randomised-arm/history adjustment",
+                    **(
+                        {
+                            "mu_dose": (
+                                "hierarchical centre of the per-period session "
+                                "slopes; not the published marginal"
+                            ),
+                            "sigma_dose": "between-period SD of the session slopes",
+                            "beta_dose_phase": (
+                                "partial-pooled per-period intensive session-dose "
+                                "associations"
+                            ),
+                        }
+                        if plan.period_varying
+                        else {
+                            "beta_dose": "intensive session-dose association",
+                        }
+                    ),
+                    "theta_treated": (
+                        "crossover cell contrast at the mean treated dose: "
+                        "(waitlist P2 - waitlist P1) - (immediate P2 - immediate P1); "
+                        "a time-by-arm cell/treatment-timing association, not an "
+                        "isolated current-treatment-presence effect"
+                    ),
+                    "beta_group": "randomised-arm/treatment-history adjustment",
+                    "period_slope_scope": (
+                        "the P2 slope relates P2 sessions to the t3 period-end level "
+                        "conditional on t1; it is not a P2 gain slope, because the "
+                        "treatment-affected t2 period-start score and prior P1 dose "
+                        "are deliberately omitted"
+                    ),
                 },
             }
         )
@@ -222,12 +286,29 @@ def _did_analysis_contract(
                     if arm_payload.alpha_anchor is not None
                     else None
                 ),
+                "score_mean_link": arm_payload.score_mean_link,
                 "arm_gap_orientation": "immediate minus waitlist",
+                # #576 finding 3: t3 is a *different randomised exposure contrast*,
+                # not an observational one. Assignment stays randomised after
+                # crossover, so latent ability does not confound it; what is missing
+                # is the mechanism, because duration, carryover, maturation, ceiling
+                # effects and different taught blocks are inseparable there.
                 "contrast_status": {
                     "arm_gap_t1": "pre-randomisation balance association",
-                    "tau_t2": "randomised t2 causal contrast",
-                    "arm_gap_t3": "post-crossover 40-week-vs-20-week association",
-                    "delta_crossover": "t2 gap minus t3 gap; catch-up association",
+                    "tau_t2": (
+                        "randomised assignment contrast: immediate treatment versus "
+                        "no treatment yet, at t2"
+                    ),
+                    "arm_gap_t3": (
+                        "randomised assignment contrast between treatment schedules: "
+                        "early-start (about 40 weeks) versus delayed-start (about 20 "
+                        "weeks) treatment history at t3; not a treated-versus-"
+                        "untreated effect and not mechanism-identified"
+                    ),
+                    "delta_crossover": (
+                        "change between two randomised regime contrasts (t2 gap minus "
+                        "t3 gap); not an identified catch-up mechanism"
+                    ),
                 },
                 "marginal_standardization": (
                     "wave-specific fitted-row standardised arm means and gaps"
@@ -277,16 +358,41 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     render_model_graph(ctx)
 
     def _write_did_cell_ppc(c: StatisticalFitContext) -> None:
+        node = "y_offfloor" if off_floor else "y_post"
         cell_ppc = _report.did_cell_ppc(
             c.trace,
             phase=c.prepared.phase,
             G=c.prepared.G,
             dose=dose,
-            node="y_offfloor" if off_floor else "y_post",
+            node=node,
             ci_prob=c.reporting.ci_prob,
         )
         save_table(c, "did_cell_ppc", cell_ppc)
         save_did_cell_ppc_plot(c, cell_ppc)
+        if not dose:
+            # The repeated-measures covariance check (#576 material qualification
+            # 3). The cell PPC above compares marginal cell means and zero rates,
+            # which a model with badly wrong within-child dependence can still
+            # reproduce; this one compares within-child changes and wave-to-wave
+            # correlations, which it cannot. Guarded: an expensive fit must not be
+            # lost to a diagnostic.
+            with guard_optional(
+                c, "DiD within-child PPC",
+                filename="did_within_child_ppc.csv", kind="table", verb="skipped",
+            ):
+                save_table(
+                    c,
+                    "did_within_child_ppc",
+                    _report.did_within_child_ppc(
+                        c.trace,
+                        phase=c.prepared.phase,
+                        subject_ids=c.prepared.subject_ids,
+                        G=c.prepared.G,
+                        node=node,
+                        ci_prob=c.reporting.ci_prob,
+                    ),
+                    required=False,
+                )
 
     _did_diag = plan.diagnostic_vars()
     _did_effect = plan.effect_term
@@ -304,6 +410,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ),
     )
     did_cell_ppc = ctx.tables["did_cell_ppc"]
+    _within_child_ppc = ctx.tables.get("did_within_child_ppc")
     # Preserve the existing post-trace diagnostic tail.
     _diag.save_prior_posterior_plot(ctx, var_names=_did_diag)
     _diag.run_psense(ctx, var_names=list(plan.psense_terms))
@@ -323,6 +430,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 eta_name="eta",
                 ci_prob=ctx.reporting.ci_prob,
                 row_mask=ctx.prepared.phase == 1,
+                score_mean_link=plan.score_mean_link,
             )
             prior_pushforward_df = pd.DataFrame([prior_pushforward])
             save_table(
@@ -332,33 +440,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             ctx,
             ["tau_t2", "arm_gap_t3", "delta_crossover"],
             name="did_contrasts_forest.png",
-            title="Randomised t2 and post-crossover contrasts",
-        )
-    elif not period_varying:
-        # Pooled-dose companions (#381). The period-varying ones route through
-        # ``write_dose_slope_summary`` below, which emits the same check from the
-        # shared writer; these do not reach it, so they emit it here. The
-        # treated-row mask matches the writer's DiD averaging population: the
-        # dose is treated-centred with untreated rows hard-coded to zero, so
-        # the intensive-margin estimand averages over treated rows only.
-        from language_reading_predictors.statistical_models.measures import MEASURES
-
-        _dose_payload = built.require_payload(DidDosePayload, family="did dose")
-        write_prior_pushforward(
-            ctx,
-            marginal_pushforward_rows(
-                ctx,
-                [
-                    (
-                        "beta_dose",
-                        "the association of a +1 SD session-dose step with "
-                        f"{pushforward_outcome_label(ctx, sym)}",
-                    )
-                ],
-                n_trials=1 if off_floor else MEASURES[sym].n_trials,
-                convention="forward",
-                row_mask=np.asarray(_dose_payload.treated) == 1,
-            ),
+            title="Randomised t2 and t3 treatment-schedule contrasts",
         )
 
     from language_reading_predictors.statistical_models.measures import MEASURES
@@ -375,6 +457,8 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         dose=dose,
         off_floor=off_floor,
         wave=None if dose else ctx.prepared.phase,
+        score_mean_link=plan.score_mean_link,
+        subject_ids=None if dose else ctx.prepared.subject_ids,
     )
     did_df = pd.DataFrame([did_s])
     save_table(ctx, "did_summary", did_df)
@@ -415,11 +499,13 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "covariate profiles drawn from the fitted t2 rows"
             ),
             contrast_status=(
-                "randomised t2 arm contrast within a within-child longitudinal "
+                "randomised t2 assignment contrast — immediate treatment versus no "
+                "treatment yet — within a within-child longitudinal "
                 "(waitlist-crossover) model"
             ),
             event_label="off the floor at t2 (prevalence)",
             split=True,
+            score_mean_link=plan.score_mean_link,
         )
 
         # Data-space figures (#317): the crossover trajectory (headline picture) and
@@ -434,6 +520,24 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             child_idx=built.prepared.child_idx,
             off_floor=off_floor,
             obs_node=_obs_node,
+            score_mean_link=plan.score_mean_link,
+            # LRPDID13 adds a waitlist-child t3 deviation. It is a random effect
+            # like the child intercept, so a *population* trajectory has to
+            # integrate it too; leaving the fitted values in eta made the "curve"
+            # a same-children conditional display wearing a population label
+            # (#576 finding 5).
+            extra_effect_name="v_delta" if plan.use_varying_delta else None,
+            extra_effect_sd_name="sigma_delta" if plan.use_varying_delta else None,
+            extra_effect_rows=(
+                ((built.prepared.G == 0) & (built.prepared.phase == 2))
+                if plan.use_varying_delta
+                else None
+            ),
+            extra_effect_idx=(
+                _waitlist_crossover_index(built)
+                if plan.use_varying_delta
+                else None
+            ),
         )
         write_child_fit(
             ctx,
@@ -444,13 +548,20 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             obs_node=_obs_node,
         )
 
-    if period_varying:
-        # Period-resolved dose readout (#135): partial-pooled per-period dose
-        # slopes + a between-period SD, written by the shared dose-slope summary.
-        # The headline question — does the L dose-gain slope vary by period? — is
-        # answered by the nested PSIS-LOO vs the pooled comparator (lrp-rli-did-107)
-        # in compare_statistical_models.py, not by this single-fit table.
-        section_header("Period-resolved dose-slope summary")
+    if dose:
+        # The dose readout (#135), written by the shared dose-slope summary for
+        # BOTH dose designs (#576 finding 1). Before this the pooled companions
+        # emitted only an inline prior pushforward and no ``dose_marginal_summary``
+        # at all, so "the published dose estimand" meant one thing for did-007 and
+        # something else for did-006/107. For the period-varying fit the headline
+        # question — does the L dose-gain slope vary by period? — is answered by
+        # the nested PSIS-LOO against the pooled comparator (lrp-rli-did-107) in
+        # compare_statistical_models.py, not by this single-fit table.
+        section_header(
+            "Period-resolved dose-slope summary"
+            if period_varying
+            else "Pooled dose-slope summary"
+        )
         # The DiD dose factory standardises sessions among treated P1/P2 rows
         # only, so the persisted per-session calibration must come from the
         # fitted payload's scaler — not the loader's all-rows scaler, whose SD
@@ -463,7 +574,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         _dose_payload = built.require_payload(DidDosePayload, family="did dose")
         write_dose_slope_summary(
             ctx,
-            period_varying=True,
+            period_varying=period_varying,
             dose_scaler=_dose_payload.dose_scaler,
             marginal_row_mask=np.asarray(_dose_payload.treated) == 1,
         )
@@ -496,14 +607,28 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 "mean_tail_flags": int(did_cell_ppc["mean_tail_flag"].sum()),
                 "zero_tail_flags": int(did_cell_ppc["zero_tail_flag"].sum()),
             },
+            **(
+                {
+                    "did_within_child_ppc": {
+                        "file": "did_within_child_ppc.csv",
+                        "n_statistics": int(len(_within_child_ppc)),
+                        "tail_flags": int(_within_child_ppc["tail_flag"].sum()),
+                    }
+                }
+                if _within_child_ppc is not None and not _within_child_ppc.empty
+                else {}
+            ),
             **did_contract,
             **(
                 {
                     "dose_slope_summary": ctx.tables[
                         "dose_slope_summary"
-                    ].to_dict("records")
+                    ].to_dict("records"),
+                    "dose_marginal_summary": ctx.tables[
+                        "dose_marginal_summary"
+                    ].to_dict("records"),
                 }
-                if period_varying
+                if dose
                 else {}
             ),
             **({"heterogeneity_summary": het} if het is not None else {}),
