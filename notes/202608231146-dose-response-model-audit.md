@@ -116,7 +116,7 @@ The model fits a grand `alpha` plus all three unconstrained `alpha_phase` indica
 - `dose-077`'s displayed equation includes cumulative dose although the registered specification omits it ([report](../docs/models/lrp-rli-dose-077/index.qmd#L41-L49)).
 - `dose-277` also claims to retain cumulative-dose control although it does not ([report](../docs/models/lrp-rli-dose-277/index.qmd#L23-L28)).
 - The shared partial calls a per-1-SD coefficient “per additional session”, headlines posterior means rather than the house-standard medians and describes the wrong ArviZ comparison field/sign convention ([partial](../docs/models/_partials/_results_dose_response.qmd#L3-L9)).
-- All five templates put priors before results, contrary to the findings-first template contract ([validator](../scripts/restructure_statistical_reports.py#L107-L120)).
+- ~~All five templates put priors before results, contrary to the findings-first template contract~~ — **withdrawn (2026-08-24, #607).** The templates are correct and the validator was stale: it encoded the #352 order, which #373 deliberately reversed four days later. The same check failed 264 of 264 statistical templates, not five. Fixed in #607; see [the 2026-08-24 note](202608241900-report-template-contract-607.md).
 - `dose-083` and `dose-084` contain malformed “Adjusted association” prose; the catalogue omits both and elsewhere incorrectly calls `dose_response` a randomised family.
 
 ### 12. Dose scaling can precede the final outcome mask — low

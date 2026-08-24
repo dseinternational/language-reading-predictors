@@ -1,13 +1,22 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Apply the issue-321 findings-first order to statistical-report templates.
+"""Apply the signed-off findings-first order to statistical-report templates.
+
+The contract is the **#373** order, not the original #352 one. #352 (issue 321)
+established the findings-first scaffolding — `_gate_badge`, `_key_findings`,
+`_reading_guide` and the collapsed `_technical` block — and put the family-result
+include ahead of the prior sections. Four days later #373 ("box-cull, BARG
+reproducibility, and priors-before-results reorder") deliberately moved the
+result partial back below `_priors` and `_prior_predictive`, which is where every
+template in the repository has it. This module encoded the superseded #352 order
+until #607, and so rejected every real template it was pointed at.
 
 The rewrite is intentionally conservative: it recognises only the shared
 statistical-report include contract, validates every candidate before writing
 anything, and lists every non-conforming template in one failure. Model-specific
-prose is left untouched; the recognised family-result include moves ahead of the
-transparency and technical blocks.
+prose is left untouched; the recognised family-result include keeps its position
+below the prior blocks and moves ahead of the collapsed technical block.
 """
 
 from __future__ import annotations
@@ -80,6 +89,22 @@ def _validate_common(includes: list[str | None]) -> str:
     return results[0]
 
 
+def _bottom_target(result: str) -> tuple[str, ...]:
+    """Return the managed tail order below the model-specific prose.
+
+    The result partial sits *after* the prior blocks (#373) and before the
+    collapsed technical block. Both the already-restructured validation path and
+    the legacy migration path read the order from here so they cannot drift.
+    """
+    return (
+        "_partials/_priors.qmd",
+        "_partials/_prior_predictive.qmd",
+        result,
+        "_partials/_technical.qmd",
+        "_partials/_footer.qmd",
+    )
+
+
 def _validate_order(includes: list[str | None], names: tuple[str, ...]) -> None:
     positions = [_single_index(includes, name) for name in names]
     if positions != sorted(positions):
@@ -107,17 +132,7 @@ def rewrite_template(text: str) -> str:
     if has_gate or has_technical:
         if not (has_gate and has_technical) or has_convergence or has_diagnostics:
             raise TemplateContractError("mixed old/new report scaffolding")
-        _validate_order(
-            includes,
-            (
-                *_TOP_TARGET,
-                result,
-                "_partials/_priors.qmd",
-                "_partials/_prior_predictive.qmd",
-                "_partials/_technical.qmd",
-                "_partials/_footer.qmd",
-            ),
-        )
+        _validate_order(includes, (*_TOP_TARGET, *_bottom_target(result)))
         return text
 
     _single_index(includes, "_partials/_convergence.qmd")
@@ -174,13 +189,7 @@ def rewrite_template(text: str) -> str:
         raise TemplateContractError(
             "unexpected content inside bottom include block: " + repr(unexpected[0])
         )
-    bottom_target = (
-        result,
-        "_partials/_priors.qmd",
-        "_partials/_prior_predictive.qmd",
-        "_partials/_technical.qmd",
-        "_partials/_footer.qmd",
-    )
+    bottom_target = _bottom_target(result)
     bottom_block = [f"{{{{< include {name} >}}}}" for name in bottom_target]
     rewritten = lines[:bottom_start] + bottom_block + lines[bottom_end + 1 :]
     result_text = "\n".join(rewritten) + ("\n" if text.endswith("\n") else "")
@@ -220,7 +229,10 @@ def restructure(*, write: bool) -> int:
             print(f"- {path.relative_to(REPO)}: {message}", file=sys.stderr)
         return 1
     if not rewrites:
-        print(f"All {candidates} statistical-report templates already match issue #321.")
+        print(
+            f"All {candidates} statistical-report templates already match the "
+            "#373 include order."
+        )
         return 0
     if not write:
         print(
