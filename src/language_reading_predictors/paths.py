@@ -26,6 +26,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
+from dse_research_utils.environment.paths import OutputRoot
+
 _SRC_DIR = Path(__file__).resolve().parent.parent  # <repo>/src
 ROOT_DIR = _SRC_DIR.parent  # <repo>
 DATA_DIR = ROOT_DIR / "data"
@@ -33,7 +35,11 @@ DOCS_DIR = ROOT_DIR / "docs"
 
 OUTPUT_ROOT_ENV_VAR = "DSE_LRP_OUTPUT_DIR"
 
-_cli_override: Path | None = None
+# The resolution policy (override > env var > default, at call time) lives in
+# ``dse_research_utils.environment.paths`` as of v0.12.0, shared with the other
+# research repositories. What stays here is this repo's configuration: the
+# env-var name, the repo-local default, and the layout below the root.
+_OUTPUT_ROOT = OutputRoot(OUTPUT_ROOT_ENV_VAR, ROOT_DIR / "output")
 
 
 def set_output_root(path: str | os.PathLike[str] | None) -> Path:
@@ -43,26 +49,15 @@ def set_output_root(path: str | os.PathLike[str] | None) -> Path:
     resolved output root. Call once, early in a command, before the pipeline
     constructs any run directory.
     """
-    global _cli_override
-    _cli_override = Path(path).expanduser().resolve() if path else None
-    return output_root()
+    return _OUTPUT_ROOT.set(path)
 
 
 def output_root() -> Path:
     """Resolve the output root: CLI override, then ``DSE_LRP_OUTPUT_DIR``, then default."""
-    if _cli_override is not None:
-        return _cli_override
-    env = os.environ.get(OUTPUT_ROOT_ENV_VAR)
-    if env:
-        return Path(env).expanduser().resolve()
-    return ROOT_DIR / "output"
+    return _OUTPUT_ROOT.resolve()
 
 
 # Layout below the (configurable) root — unchanged relative structure.
-def output_dir() -> Path:
-    return output_root()
-
-
 def gb_models_dir() -> Path:
     return output_root() / "models"
 
@@ -85,15 +80,9 @@ def stat_comparison_dir() -> Path:
 
 def is_overridden() -> bool:
     """True when the resolved root differs from the repo-local ``<repo>/output``."""
-    return output_root() != (ROOT_DIR / "output")
+    return _OUTPUT_ROOT.is_overridden()
 
 
 def describe_output_root() -> str:
     """One-line description of the resolved root and its source, for run logs."""
-    if _cli_override is not None:
-        source = "--output-dir"
-    elif os.environ.get(OUTPUT_ROOT_ENV_VAR):
-        source = OUTPUT_ROOT_ENV_VAR
-    else:
-        source = "repo-local default"
-    return f"{output_root()}  (source: {source})"
+    return _OUTPUT_ROOT.describe()
