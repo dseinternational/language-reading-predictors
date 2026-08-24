@@ -1556,19 +1556,36 @@ _JOINT_BOUND_IDENTITY: dict = {
 }
 
 
-def _tau_difference(directory: Path, *, median: float, prob_pos: float) -> None:
+def _tau_difference(
+    directory: Path,
+    *,
+    median: float,
+    prob_pos: float,
+    half_width: float = 0.08,
+    contrast: str = "TE_minus_UE",
+) -> None:
     pd.DataFrame(
         [
             {
-                "contrast": "TE_minus_UE",
+                "contrast": contrast,
                 "headline_scale": "proportion_correct_risk_difference",
                 "diff_prob_median": median,
-                "diff_prob_lo": median - 0.08,
-                "diff_prob_hi": median + 0.08,
+                "diff_prob_lo": median - half_width,
+                "diff_prob_hi": median + half_width,
                 "prob_diff_pos": prob_pos,
             }
         ]
     ).to_csv(directory / "tau_difference.csv", index=False)
+
+
+def _tau_summary(directory: Path, widths: tuple[float, float]) -> None:
+    """Per-outcome AME intervals of the requested widths (2026-08-24 review)."""
+    pd.DataFrame(
+        [
+            {"outcome": name, "ame_prob_lo": -0.5 * width, "ame_prob_hi": 0.5 * width}
+            for name, width in zip(("TE", "UE"), widths)
+        ]
+    ).to_csv(directory / "tau_summary.csv", index=False)
 
 
 def _joint_contrast_fit_dir(
@@ -1581,6 +1598,8 @@ def _joint_contrast_fit_dir(
     identity_overrides: dict | None = None,
     contrast_median: float = 0.034,
     contrast_prob_pos: float = 0.76,
+    contrast_half_width: float = 0.08,
+    marginal_widths: tuple[float, float] | None = None,
 ) -> Path:
     d = tmp_path / f"{model_id}-reporting"
     d.mkdir(parents=True)
@@ -1614,7 +1633,14 @@ def _joint_contrast_fit_dir(
         ],
         index=["tau[TE]", "tau[UE]"],
     ).to_csv(d / "psense_summary.csv")
-    _tau_difference(d, median=contrast_median, prob_pos=contrast_prob_pos)
+    _tau_difference(
+        d,
+        median=contrast_median,
+        prob_pos=contrast_prob_pos,
+        half_width=contrast_half_width,
+    )
+    if marginal_widths is not None:
+        _tau_summary(d, marginal_widths)
     _write_core_artifacts(d, "joint")
     return d
 
@@ -1629,6 +1655,10 @@ def _joint_companion_dir(
     identity_overrides: dict | None = None,
     contrast_median: float = 0.0343,
     contrast_prob_pos: float = 0.7557,
+    contrast_half_width: float = 0.08,
+    contrast_label: str = "TE_minus_UE",
+    marginal_widths: tuple[float, float] | None = None,
+    write_contrast: bool = True,
 ) -> Path:
     d = tmp_path / f"{model_id}-reporting"
     d.mkdir(parents=True)
@@ -1659,7 +1689,16 @@ def _joint_companion_dir(
             }
         )
     )
-    _tau_difference(d, median=contrast_median, prob_pos=contrast_prob_pos)
+    if write_contrast:
+        _tau_difference(
+            d,
+            median=contrast_median,
+            prob_pos=contrast_prob_pos,
+            half_width=contrast_half_width,
+            contrast=contrast_label,
+        )
+    if marginal_widths is not None:
+        _tau_summary(d, marginal_widths)
     return d
 
 
@@ -1825,6 +1864,99 @@ def test_a_dependence_model_that_flips_the_contrast_sign_qualifies(tmp_path):
     evaluation = evaluate_publication(d)
     assert "reverses the sign of the contrast median" in evaluation.robustness.note
     assert evaluation.dependence_contrast["direction_flipped"] is True
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-24 review of the joint audit: the reason three report templates give for
+# running a dependence companion is that a factorised interval omits within-child
+# cross-outcome covariance, so its width is wrong in a known direction. On the
+# three registered pairs that is not what separates the two intervals -- the
+# companion's extra logistic-normal layer widens both marginals while the implied
+# cross-outcome correlation stays indistinguishable from zero. The pairing now
+# measures which channel the width change came through instead of assuming one.
+# ---------------------------------------------------------------------------
+
+#: Per-outcome AME widths and the contrast width they imply at zero cross-outcome
+#: correlation, taken from the stored ``lrp-rli-itt-015`` / ``-215`` pair.
+_PARENT_MARGINALS = (0.094, 0.121)
+_COMPANION_MARGINALS = (0.0976, 0.1235)
+_PARENT_CONTRAST_WIDTH = 0.1532220610747682
+_COMPANION_CONTRAST_WIDTH = 0.15741032367668903
+
+
+def test_wider_companion_marginals_are_not_reported_as_a_covariance_correction(
+    tmp_path,
+):
+    """The registered pairs' actual shape: both marginals widen, the implied
+    cross-outcome correlation does not move, and the contrast interval grows."""
+    d = _joint_contrast_fit_dir(
+        tmp_path,
+        marginal_widths=_PARENT_MARGINALS,
+        contrast_half_width=_PARENT_CONTRAST_WIDTH / 2,
+    )
+    _joint_companion_dir(
+        tmp_path,
+        marginal_widths=_COMPANION_MARGINALS,
+        contrast_half_width=_COMPANION_CONTRAST_WIDTH / 2,
+    )
+    record = evaluate_publication(d).dependence_contrast
+    assert record["channel_status"] == "measured"
+    assert record["parent_implied_ame_correlation"] == pytest.approx(0.0, abs=1e-9)
+    assert record["companion_implied_ame_correlation"] == pytest.approx(0.0, abs=1e-9)
+    assert record["covariance_width_channel"] == pytest.approx(0.0, abs=1e-9)
+    assert record["marginal_width_channel"] > 0
+    assert record["dominant_width_channel"] == "marginal_uncertainty"
+
+
+def test_a_genuine_covariance_correction_is_attributed_to_covariance(tmp_path):
+    """The complement: identical marginals, a materially narrower contrast. This is
+    the case the sign rule describes, and it must still be recognised."""
+    d = _joint_contrast_fit_dir(
+        tmp_path,
+        marginal_widths=_PARENT_MARGINALS,
+        contrast_half_width=_PARENT_CONTRAST_WIDTH / 2,
+    )
+    _joint_companion_dir(
+        tmp_path,
+        marginal_widths=_PARENT_MARGINALS,
+        contrast_half_width=0.11001363551851197 / 2,
+    )
+    record = evaluate_publication(d).dependence_contrast
+    assert record["companion_implied_ame_correlation"] == pytest.approx(0.5, abs=1e-9)
+    assert record["marginal_width_channel"] == pytest.approx(0.0, abs=1e-9)
+    assert record["covariance_width_channel"] < 0
+    assert record["dominant_width_channel"] == "cross_outcome_covariance"
+    assert record["covariance_channel_share"] == pytest.approx(1.0, abs=1e-9)
+
+
+def test_the_channel_split_is_descriptive_and_never_qualifies_on_its_own(tmp_path):
+    """A missing ``tau_summary.csv`` costs the split, not the release: the gate-
+    relevant half of the comparison is the contrast's own movement."""
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    assert evaluation.dependence_contrast["channel_status"] == "unavailable"
+    assert "dependence-unchecked" not in (evaluation.robustness.note or "")
+
+
+def test_an_unmeasurable_contrast_comparison_attaches_the_qualifier(tmp_path):
+    """Fail closed. A bound companion with no readable contrast summary is not
+    evidence that the dependence model left the contrast alone, and without a note
+    the reader cannot tell "checked and unchanged" from "never checked"."""
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path, write_contrast=False)
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is True
+    assert "could not be measured" in evaluation.robustness.note
+    assert evaluation.dependence_contrast["status"] == "unavailable"
+
+
+def test_a_mismatched_contrast_label_attaches_the_qualifier(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path, contrast_label="UE_minus_TE")
+    evaluation = evaluate_publication(d)
+    assert "could not be measured" in evaluation.robustness.note
+    assert evaluation.dependence_contrast["status"] == "mismatched"
 
 
 # ---------------------------------------------------------------------------
