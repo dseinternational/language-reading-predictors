@@ -24,7 +24,6 @@ import pytest
 
 from language_reading_predictors.statistical_models import factories as F
 from language_reading_predictors.statistical_models.mediation_settings import (
-    MediationModelSettings,
     resolve_mediation_multi_run_plan,
     resolve_mediation_run_plan,
 )
