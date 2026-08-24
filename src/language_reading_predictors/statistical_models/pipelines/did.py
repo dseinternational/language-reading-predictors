@@ -110,7 +110,9 @@ def _did_heterogeneity_summary(trace: Any, *, ci_prob: float) -> dict[str, float
     }
 
 
-def _waitlist_crossover_index(built) -> np.ndarray:
+def _waitlist_crossover_index(
+    built: _factories.BuiltModel[FittedPayload],
+) -> np.ndarray:
     """Row -> ``waitlist_child`` position, reproducing the factory's ``safe_idx``.
 
     ``build_did_model`` indexes ``v_delta`` by a dense position over the waitlist
