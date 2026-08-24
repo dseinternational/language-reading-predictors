@@ -349,3 +349,134 @@ def test_production_beta_binomial_random_intercept_recovers_truth() -> None:
     assert _covers("kappa", truth["kappa"])
     # The simulated ages are outcome-independent, so the precision term is null.
     assert abs(float(_draws("gamma_A").mean())) < 0.15
+
+
+def test_production_recovery_under_material_baseline_imbalance() -> None:
+    """#576 finding 4: recovery when the realised t1 arm gap is **not** zero.
+
+    The recovery test above simulates a zero baseline gap, so it cannot see what the
+    family's estimand sign-off is about. ``tau_t2`` is the covariate-adjusted t2
+    arm-gap *level*, not the differenced ``tau_t2 - arm_gap_t1``, and the baseline
+    adjustment it does carry is soft: a realised imbalance is allocated between the
+    tightly regularised ``arm_gap_t1`` (Normal(0, 0.3)) and the arm-mean of the
+    shared child intercepts. Under a zero true baseline gap every parameterisation
+    agrees, so the distinction is untested precisely where it matters.
+
+    Here the truth carries a material +0.45-logit t1 gap. Three things must hold:
+    the level ``tau_t2`` recovers the *level* (0.60), not the change; the balance
+    term recovers the baseline gap rather than being shrunk to nothing by its tight
+    prior; and the derived change ``tau_t2 - arm_gap_t1`` recovers the true change
+    (0.15). Together those pin the estimand the family publishes, so a future
+    re-parameterisation onto a t1-referenced gap change cannot land silently.
+    """
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models.factories import (
+        build_did_model,
+    )
+
+    truth = {
+        "alpha": -0.4,
+        "wave_offset": np.asarray([0.0, 0.35, 0.55]),
+        # A material pre-randomisation imbalance in the immediate arm's favour.
+        "arm_gap": np.asarray([0.45, 0.60, 0.20]),
+        "sigma_child": 0.45,
+        "kappa": 60.0,
+    }
+    prepared, _realised_sigma_child = _prepared_arm_wave_panel(
+        n_children_per_arm=60, truth=truth, n_trials=30, seed=20260824
+    )
+    built = build_did_model(prepared, outcome_symbol="W")
+    with built.model:
+        trace = pm.sample(
+            draws=500,
+            tune=500,
+            chains=2,
+            cores=2,
+            target_accept=0.9,
+            nuts_sampler="nutpie",
+            return_inferencedata=True,
+            random_seed=20260824,
+            progressbar=False,
+        )
+
+    posterior = trace.posterior
+
+    def _draws(name: str) -> np.ndarray:
+        return posterior[name].values.ravel()
+
+    def _covers(name: str, value: float) -> bool:
+        d = _draws(name)
+        lo, hi = np.quantile(d, (0.03, 0.97))
+        return bool(lo <= value <= hi)
+
+    # 1. The published contrast is the t2 arm-gap LEVEL.
+    assert _covers("tau_t2", 0.60)
+    assert abs(float(_draws("tau_t2").mean()) - 0.60) < 0.30
+    # It is emphatically not the gap *change*: 0.15 must sit outside the interval,
+    # or the two estimands would be indistinguishable and this test vacuous.
+    assert not _covers("tau_t2", 0.15)
+
+    # 2. The tight balance prior still lets the realised imbalance be recovered
+    #    rather than shrinking it into the child intercepts.
+    assert _covers("arm_gap_t1", 0.45)
+
+    # 3. The derived t1-referenced change recovers the true change.
+    change = _draws("tau_t2") - _draws("arm_gap_t1")
+    lo, hi = np.quantile(change, (0.03, 0.97))
+    assert lo <= 0.15 <= hi
+
+
+def test_wide_baseline_allocation_priors_do_not_move_the_t2_level() -> None:
+    """#576 finding 4: the registered allocation sensitivity (LRPDID104) is honest.
+
+    Widening ``arm_gap_t1`` and ``sigma_child`` changes *how* a realised baseline
+    imbalance is allocated. It must not change what ``tau_t2`` estimates. Fitting the
+    same simulated panel under both prior settings and requiring both posteriors to
+    cover the true t2 gap level is what makes the companion a sensitivity rather than
+    a second, differently-defined model.
+    """
+    import pymc as pm
+
+    from language_reading_predictors.statistical_models.factories import (
+        build_did_model,
+    )
+
+    truth = {
+        "alpha": -0.4,
+        "wave_offset": np.asarray([0.0, 0.35, 0.55]),
+        "arm_gap": np.asarray([0.45, 0.60, 0.20]),
+        "sigma_child": 0.45,
+        "kappa": 60.0,
+    }
+    prepared, _ = _prepared_arm_wave_panel(
+        n_children_per_arm=60, truth=truth, n_trials=30, seed=20260824
+    )
+    covered = {}
+    for label, kwargs in (
+        ("default", {}),
+        (
+            "wide",
+            {"arm_gap_t1_prior_sigma": 1.0, "sigma_child_prior_sigma": 1.0},
+        ),
+    ):
+        built = build_did_model(prepared, outcome_symbol="W", **kwargs)
+        with built.model:
+            trace = pm.sample(
+                draws=400,
+                tune=400,
+                chains=2,
+                cores=2,
+                target_accept=0.9,
+                nuts_sampler="nutpie",
+                return_inferencedata=True,
+                random_seed=20260824,
+                progressbar=False,
+            )
+        tau = trace.posterior["tau_t2"].values.ravel()
+        lo, hi = np.quantile(tau, (0.03, 0.97))
+        covered[label] = (bool(lo <= 0.60 <= hi), float(tau.mean()))
+    assert covered["default"][0], covered
+    assert covered["wide"][0], covered
+    # And the two point estimates agree to well within their own uncertainty.
+    assert abs(covered["default"][1] - covered["wide"][1]) < 0.15, covered

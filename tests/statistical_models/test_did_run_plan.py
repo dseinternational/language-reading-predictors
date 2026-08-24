@@ -73,6 +73,126 @@ def test_settings_reject_period_varying_without_dose():
         DiDModelSettings(period_varying_dose=True)  # dose defaults False
 
 
+# --- #576 lower-severity 4 and 5: fail before any I/O -------------------------
+
+
+def test_settings_reject_boolean_prior_widths():
+    """``bool`` is an ``int`` subclass, so ``True`` used to become ``1.0`` silently."""
+    for name in (
+        "tau_t2_prior_sigma",
+        "arm_gap_t1_prior_sigma",
+        "sigma_child_prior_sigma",
+        "kappa_prior_sigma",
+    ):
+        with pytest.raises(TypeError, match="bool is not a prior width"):
+            DiDModelSettings(**{name: True})
+
+
+@pytest.mark.parametrize("value", [0.0, -1.0, float("inf"), float("nan")])
+def test_settings_reject_non_positive_prior_widths(value):
+    with pytest.raises(ValueError, match="finite and positive"):
+        DiDModelSettings(tau_t2_prior_sigma=value)
+
+
+def test_settings_reject_a_binary_window_the_factory_cannot_fit():
+    with pytest.raises(ValueError, match=r"requires waves=\(0, 1, 2\)"):
+        DiDModelSettings(waves=(0, 1))
+
+
+def test_settings_reject_waves_on_a_dose_model():
+    """A dose variant never reads ``waves``; declaring one must not be ignored."""
+    with pytest.raises(ValueError, match="never\s+reads"):
+        DiDModelSettings(dose=True, waves=(0, 1))
+
+
+def test_settings_reject_a_guessing_floor_on_a_dose_or_off_floor_model():
+    with pytest.raises(ValueError, match="no score mean to map"):
+        DiDModelSettings(
+            likelihood="bernoulli_offfloor",
+            score_mean_link="three_choice_guessing_floor",
+        )
+    with pytest.raises(ValueError, match="response-link sensitivity"):
+        DiDModelSettings(dose=True, score_mean_link="three_choice_guessing_floor")
+
+
+def test_settings_reject_a_kappa_prior_on_the_off_floor_branch():
+    with pytest.raises(ValueError, match="no dispersion parameter"):
+        DiDModelSettings(
+            likelihood="bernoulli_offfloor",
+            kappa_prior_family="halfnormal_inverse_sqrt",
+        )
+
+
+def test_resolution_rejects_outcomes_omitting_the_focal_outcome():
+    """The one column the model cannot be built without (#576 lower-severity 4).
+
+    This used to resolve cleanly and fail inside the factory with ``KeyError:
+    Outcome 'W' missing from prepared data`` — after ``make_context`` had reset an
+    output directory and the loader had read the whole panel.
+    """
+    spec = ModelSpec(
+        model_id="lrp-rli-did-999",
+        kind="did",
+        title="t",
+        outcome_symbol="W",
+        family="did",
+        design="d",
+        estimand_type="mixed",
+        causal_status="c",
+        extra={"outcomes": ("L",)},
+    )
+    with pytest.raises(ValueError, match="do not include the focal outcome"):
+        resolve_did_run_plan(spec)
+
+
+def test_resolution_rejects_a_guessing_floor_on_a_non_blending_outcome():
+    spec = ModelSpec(
+        model_id="lrp-rli-did-999",
+        kind="did",
+        title="t",
+        outcome_symbol="W",
+        family="did",
+        design="d",
+        estimand_type="mixed",
+        causal_status="c",
+        model_settings=DiDModelSettings(
+            outcomes=("W",), score_mean_link="three_choice_guessing_floor"
+        ),
+    )
+    with pytest.raises(ValueError, match="property of the phoneme-blending items"):
+        resolve_did_run_plan(spec)
+
+
+def test_dose_recipe_names_periods_not_inherited_waves():
+    """#576 lower-severity 3: a dose recipe must not print ``waves=(0, 1, 2)``."""
+    spec = ModelSpec(
+        model_id="lrp-rli-did-999",
+        kind="did",
+        title="t",
+        outcome_symbol="L",
+        family="did",
+        design="d",
+        estimand_type="association",
+        causal_status="none",
+        model_settings=DiDModelSettings(outcomes=("L",), dose=True, periods=(0, 1)),
+    )
+    recipe = resolve_did_run_plan(spec).recipe_markdown(title="t")
+    assert "Periods: P1, P2" in recipe
+    assert "Waves:" not in recipe
+
+
+def test_every_registered_plan_names_one_focal_estimand():
+    """#576 finding 1: the published quantity is recorded, not inferred."""
+    for spec in _did_specs():
+        plan = resolve_did_run_plan(spec)
+        assert plan.focal_estimand
+        assert plan.focal_estimand_scale == "natural"
+        assert plan.focal_estimand_artifact.endswith(".csv")
+        recorded = plan.as_dict()
+        assert recorded["focal_estimand"] == plan.focal_estimand
+        assert recorded["run_plan_digest"] == plan.run_plan_digest
+
+
 def test_from_legacy_extra_rejects_unknown_key():
     with pytest.raises(ValueError, match="unknown DiD setting"):
         DiDModelSettings.from_legacy_extra(
@@ -91,7 +211,9 @@ def test_from_legacy_extra_round_trips_the_dose_keys():
             "period_varying_dose": True,
             "likelihood": "beta_binomial",
             "outcomes": ("W",),
-            "waves": (0, 1),
+            # ``waves`` stays at the default: a dose model fits the P1/P2 transition
+            # frame and never reads it, so a non-default declaration is rejected
+            # rather than silently ignored (#576 lower-severity 4, below).
             "periods": (0, 1),
             "use_child_re": True,
             "use_age": False,
@@ -101,7 +223,7 @@ def test_from_legacy_extra_round_trips_the_dose_keys():
     assert settings.dose is True
     assert settings.period_varying_dose is True
     assert settings.outcomes == ("W",)
-    assert settings.waves == (0, 1)
+    assert settings.waves == (0, 1, 2)
     assert settings.periods == (0, 1)
     assert settings.use_age is False
 

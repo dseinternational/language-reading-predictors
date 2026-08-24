@@ -33,13 +33,19 @@ via :mod:`sensitivity` (#488 review):
   (R-hat <= 1.01, ESS >= 400, BFMI >= 0.3, zero divergences); an unconverged
   cell is not evidence and blocks that model's report-local copy.
 - Rows carry the standard sweep's full column set, the primary fit's
-  ``config.json`` / ``trace.nc`` sha256 bindings, and a content-addressed cell
-  trace. ``tau_sigma`` / ``tau_logit_*`` are the schema's generic focal-term
-  columns: for did-007 they hold the ``mu_dose`` prior scale and posterior
-  (``sensitivity_axis`` records which term was swept). Items columns use the
-  family's own translations — the wave-standardised t2 arm gap
-  (``did_summary``) for arm-by-wave fits, the +1 SD session pushforward
-  (``dose_marginal_summary``'s definition) for dose fits.
+  ``config.json`` / ``trace.nc`` sha256 bindings, its **resolved run-plan digest**
+  (#576 finding 6 — identity, data hash and row counts do not move when the
+  likelihood, intercept anchor, age adjustment, random-effect choice or a prior
+  width changes, so without this a sweep generated under a newer plan could lift
+  an older primary's gate), and a content-addressed cell trace. ``tau_sigma`` /
+  ``tau_logit_*`` are the schema's generic focal-term columns: for did-007 they
+  hold the ``mu_dose`` prior scale and posterior (``sensitivity_axis`` records
+  which term was swept). The ``items_*`` columns carry each fit's **published
+  focal estimand** — the wave-standardised t2 arm gap (``did_summary``) for
+  arm-by-wave fits, the treated-row dose marginal (through the shared
+  ``dose_marginal_draws``) for dose fits — and are what the release gate's
+  sign-stability clause reads, because a fit must not clear a robustness gate for
+  one quantity while publishing another (#576 finding 1).
 - With ``--attach`` the per-model rows are written to
   ``<fit-dir>/tau_prior_sensitivity.csv`` beside each primary whose cells all
   converged (trace-backed, digest-verified, atomic, rolled back on failure).
@@ -59,7 +65,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pymc as pm
-from scipy.special import expit
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
@@ -135,19 +140,27 @@ def _grid_for(plan) -> tuple[float, ...]:
 def _items_translation(
     trace, built, plan, *, n_trials: int, ci_prob: float
 ) -> tuple[float, float, float]:
-    """(items_mean, items_lo, items_hi) on the family's own estimand scale.
+    """(items_mean, items_lo, items_hi) for this fit's **published focal estimand**.
 
-    Arm-by-wave fits use ``did_summary``'s wave-standardised t2 arm gap — the
-    exact quantity the primary's report and key findings carry. Dose fits use
-    ``_write_dose_slope_summary``'s natural-scale marginal: raise the
-    standardised session dose by 1 on every **treated** fitted row with that
-    row's period-specific slope (untreated rows are excluded — the dose is
-    treated-centred, so a dose step there is not a supported counterfactual).
+    These are the columns the release gate's sign-stability clause reads for a
+    ``did`` fit (``release.sweep_sign_column``), so they must be the quantity the
+    fit publishes rather than a convenient cousin of it (#576 finding 1).
+
+    Arm-by-wave fits use ``did_summary``'s wave-standardised t2 arm gap — the exact
+    quantity the primary's report and key findings carry. Dose fits call
+    :func:`pipelines.dose_response.dose_marginal_draws`, the *same* function
+    ``write_dose_slope_summary`` uses for the posterior marginal and its prior
+    pushforward: each treated row is stepped by one standardised session SD at its
+    own period's realised slope. Reimplementing the transform here is how a sweep
+    ends up validating a slightly different estimand from the one on the page, so it
+    is imported rather than repeated.
     """
+    from language_reading_predictors.statistical_models.pipelines.dose_response import (
+        dose_marginal_draws,
+    )
     from language_reading_predictors.statistical_models.reporting import did_summary
 
     lo_q = (1.0 - ci_prob) / 2.0
-    posterior = trace.posterior
     if not plan.dose:
         summary = did_summary(
             trace,
@@ -155,36 +168,29 @@ def _items_translation(
             n_trials=n_trials,
             off_floor=plan.off_floor,
             wave=np.asarray(built.prepared.phase, dtype=np.int64),
+            score_mean_link=plan.score_mean_link,
+            subject_ids=np.asarray(built.prepared.subject_ids),
         )
         return (
             float(summary["tau_t2_items_mean"]),
             float(summary["tau_t2_items_lo"]),
             float(summary["tau_t2_items_hi"]),
         )
-    eta = (
-        posterior["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )
-    if plan.period_varying:
-        stacked = posterior["beta_dose_phase"].stack(sample=("chain", "draw"))
-        phase_dim = next(d for d in stacked.dims if d != "sample")
-        slopes = stacked.transpose(phase_dim, "sample").values
-        delta_eta = slopes[np.asarray(built.prepared.phase, dtype=np.int64)]
-    else:
-        slope = posterior["beta_dose"].stack(sample=("chain", "draw")).values
-        delta_eta = np.broadcast_to(slope[None, :], eta.shape)
     # Match write_dose_slope_summary's DiD averaging population: the dose is
     # treated-centred with untreated rows hard-coded to zero, so the
     # intensive-margin marginal averages over treated rows only.
     treated = np.asarray(
         built.require_payload(DidDosePayload, family="did sensitivity").treated
     )
-    keep = treated == 1
-    eta = eta[keep]
-    delta_eta = delta_eta[keep]
-    items = (expit(eta + delta_eta) - expit(eta)).mean(axis=0) * float(n_trials)
+    phase_idx = np.asarray(built.prepared.phase, dtype=np.int64)
+    items = dose_marginal_draws(
+        trace.posterior,
+        phase_idx=phase_idx,
+        delta_std=np.ones(phase_idx.shape[0], dtype=float),
+        n_trials=n_trials,
+        period_varying=plan.period_varying,
+        row_mask=treated == 1,
+    )
     return (
         float(np.mean(items)),
         float(np.quantile(items, lo_q)),
@@ -279,6 +285,20 @@ def _fit_cell(
             f"{model_id} did sensitivity does not match its current primary "
             "did data, sample, arm counts, or config"
         )
+    # #576 finding 6. None of the checks above move when the *equation* changes:
+    # a primary fitted under an older likelihood, intercept anchor, age adjustment,
+    # random-effect choice or prior width has the same identity, data hash, row
+    # count and arm totals as one fitted under today's declaration. The plan digest
+    # is the field that does move, so a sweep generated from a newer registered
+    # declaration fails here rather than silently lifting the older fit's gate.
+    plan_digest = plan.run_plan_digest
+    if primary_reference.run_plan_digest and plan_digest != primary_reference.run_plan_digest:
+        raise RuntimeError(
+            f"{model_id}: the registered declaration resolves to run plan "
+            f"{plan_digest[:12]} but the stored primary was fitted under "
+            f"{primary_reference.run_plan_digest[:12]}; refit the primary before "
+            "sweeping it, or the sweep would certify a model this fit is not"
+        )
 
     row = {
         **primary_reference.manifest_values(),
@@ -296,6 +316,7 @@ def _fit_cell(
         "n": n,
         "n_intervention": n_intervention,
         "n_control": n_control,
+        "primary_run_plan_sha256": plan_digest,
         "pd": float(np.mean(focal_draws > 0)),
         "tau_logit_mean": float(np.mean(focal_draws)),
         "tau_logit_lo": float(np.quantile(focal_draws, lo_q)),
@@ -348,6 +369,8 @@ def _fit_cell(
         "primary_model_id": str(row["primary_model_id"]),
         "primary_config_sha256": str(row["primary_config_sha256"]),
         "primary_trace_sha256": str(row["primary_trace_sha256"]),
+        "primary_run_plan_sha256": plan_digest,
+        "focal_estimand": plan.focal_estimand,
         "free_variables": free_names,
         "sampling": {
             "draws": sampling.draws,

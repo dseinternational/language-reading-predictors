@@ -42,9 +42,21 @@ from language_reading_predictors.statistical_models.plotting import (
 
 
 def _draw_did_cell_panel(
-    ax: "plt.Axes", cell_ppc: pd.DataFrame, *, stem: str, ylabel: str, title: str
+    ax: "plt.Axes",
+    cell_ppc: pd.DataFrame,
+    *,
+    stem: str,
+    ylabel: str,
+    title: str,
+    ci_prob: float,
 ) -> None:
-    """One DiD cell-PPC panel: replicated median/interval vs observed, by cell."""
+    """One DiD cell-PPC panel: replicated median/interval vs observed, by cell.
+
+    ``ci_prob`` is the coverage the ``replicated_*_lo`` / ``_hi`` columns were
+    computed at. The legend used to say "95% interval" unconditionally while the
+    table was written at the house 89% (#576 lower-severity 1), which is the one
+    error a reader cannot catch by looking harder at the figure.
+    """
     x = np.arange(len(cell_ppc))
     labels = cell_ppc["cell"].str.replace("_", "\n").tolist()
     centre = cell_ppc[f"replicated_{stem}_median"].to_numpy(float)
@@ -53,7 +65,11 @@ def _draw_did_cell_panel(
     observed = cell_ppc[f"observed_{stem}"].to_numpy(float)
     ax.errorbar(
         x, centre, yerr=np.vstack((centre - lo, hi - centre)), fmt="o", capsize=4,
-        color=COLOUR_BLUE, label="posterior predictive median and 95% interval",
+        color=COLOUR_BLUE,
+        label=(
+            "posterior predictive median and "
+            f"{int(round(ci_prob * 100))}% interval"
+        ),
     )
     ax.scatter(x, observed, marker="x", s=55, linewidth=2, color=COLOUR_RED,
                label="observed")
@@ -68,19 +84,26 @@ def _draw_did_cell_panel(
 def save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -> None:
     """Cell-stratified DiD posterior-predictive checks as two individual figures:
     ``did_cell_ppc_mean`` (cell mean) and ``did_cell_ppc_zero_rate`` (proportion
-    at zero)."""
-    with guard_optional(
-        ctx, "DiD cell PPC plot",
-        filename="did_cell_ppc_mean.png", kind="figure", verb="failed",
+    at zero).
+
+    One guard per figure (#576 lower-severity 7). A single guard around both
+    registered only the *mean* filename, so a failure while drawing the second
+    figure was recorded against the first — leaving the manifest naming a skip for a
+    file that exists and saying nothing about the one that does not.
+    """
+    for stem, ylabel, name in (
+        ("mean", "cell mean", "did_cell_ppc_mean"),
+        ("zero_rate", "proportion at zero", "did_cell_ppc_zero_rate"),
     ):
-        for stem, ylabel, name in (
-            ("mean", "cell mean", "did_cell_ppc_mean"),
-            ("zero_rate", "proportion at zero", "did_cell_ppc_zero_rate"),
+        with guard_optional(
+            ctx, f"DiD cell PPC plot ({ylabel})",
+            filename=f"{name}.png", kind="figure", verb="failed",
         ):
             fig, ax = plt.subplots(figsize=FIGSIZE_LG)
             _draw_did_cell_panel(
                 ax, cell_ppc, stem=stem, ylabel=ylabel,
                 title=f"Cell-stratified PPC: {ylabel}",
+                ci_prob=ctx.reporting.ci_prob,
             )
             fig.tight_layout()
             save_styled_figure(ctx.output_dir, name, fig=fig)
@@ -308,8 +331,18 @@ def write_group_trajectory(
     off_floor: bool,
     obs_node: str = "y_post",
     crossover_wave: int = 1,
+    score_mean_link: str = "logit",
+    extra_effect_name: str | None = None,
+    extra_effect_sd_name: str | None = None,
+    extra_effect_rows: np.ndarray | None = None,
+    extra_effect_idx: np.ndarray | None = None,
 ) -> None:
-    """Population per-arm score-trajectory figure (#317 fig 1). Guarded like the PPC."""
+    """Population per-arm score-trajectory figure (#317 fig 1). Guarded like the PPC.
+
+    ``extra_effect_*`` names a second child-level random effect on a subset of rows
+    (LRPDID13's waitlist-crossover deviation), which must be integrated for the curve
+    to be population-level rather than fitted-child conditional (#576 finding 5).
+    """
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
     from language_reading_predictors.statistical_models.measures import MEASURES
 
@@ -331,6 +364,11 @@ def write_group_trajectory(
             ci_prob=ctx.reporting.ci_prob,
             crossover_wave=crossover_wave,
             obs_node=obs_node,
+            score_mean_link=score_mean_link,
+            extra_effect_name=extra_effect_name,
+            extra_effect_sd_name=extra_effect_sd_name,
+            extra_effect_rows=extra_effect_rows,
+            extra_effect_idx=extra_effect_idx,
         )
         ctx.tables["group_trajectory"] = summary
 

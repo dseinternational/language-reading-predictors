@@ -2,7 +2,9 @@
 
 The waitlist-crossover model is a longitudinal sensitivity analysis alongside the corresponding available-case modified ITT estimate, not an independent randomised experiment. The binary-treatment models estimate separate immediate-minus-waitlist gaps at t1, t2 and t3 without forcing the randomised t2 gap to equal the post-crossover change in that gap.
 
-_Four contrasts with different interpretations._ `arm_gap_t1` is a pre-treatment balance quantity. `tau_t2`, the **t2 immediate-minus-waitlist contrast**, is the clean randomised contrast; positive values favour the intervention. `arm_gap_t3` compares two already-treated arms with different exposure histories and is associational. `delta_crossover = tau_t2 - arm_gap_t3` is the amount by which the immediate-arm advantage closes after the waitlist crosses over; positive values indicate catch-up, but this is not a second randomised treatment effect. Agreement between `tau_t2` and the corresponding available-case modified ITT estimate is a parameterisation check on shared data, not independent replication.
+_Four contrasts, two randomised exposures._ `arm_gap_t1` is a pre-treatment balance quantity, not an effect. `tau_t2`, the **t2 immediate-minus-waitlist contrast**, is the randomised effect of assignment to *immediate treatment versus no treatment yet*; positive values favour the intervention. `arm_gap_t3` is also identified by the original randomisation — assignment does not stop being random once the waiting list crosses over — but it is a **different exposure contrast**: assignment to the *early-start* treatment history (about 40 weeks) versus the *delayed-start* one (about 20 weeks). It is not a treated-versus-untreated effect, because both arms are treated by t3. `delta_crossover = tau_t2 - arm_gap_t3` is the change between those two randomised regime contrasts.
+
+_What the t3 quantities cannot tell you._ The limitation at t3 is **mechanism, not confounding**. Latent ability does not confound a randomised assignment, so these are not the ordinary "adjusted association" caveat. What is unavailable is the *reason* the gap changes: treatment duration, carryover from the immediate arm's earlier block, ordinary maturation, ceiling effects and the fact that the two arms were taught different blocks at different times are inseparable in a single number. A narrowing gap is therefore consistent with the waiting-list children benefiting, and equally consistent with the earlier advantage decaying or with a ceiling — so `delta_crossover` is never evidence of an identified catch-up process. Agreement between `tau_t2` and the corresponding available-case modified ITT estimate is a parameterisation check on shared data, not independent replication.
 
 _Why there is no period-start outcome:_ the binary-treatment models jointly use the t1, t2 and t3 levels and do not condition on each period's start outcome. The t2 score is already treatment-affected for the immediate arm when it becomes the P2 baseline, so including a common period-start `gamma_own` term would condition one arm on an intervention-induced intermediate. The child random intercept partially pools stable between-child differences; it does not perform exact fixed-effect differencing or make every child their own control. The dose variants use the pre-randomisation t1 outcome as one common precision covariate for both transition rows, never the treatment-affected t2 outcome.
 
@@ -12,7 +14,17 @@ _How to read the contrast table:_ each row is one estimated quantity. The poster
 # | echo: false
 did_summary = _csv("did_summary.csv")
 dose_slope_summary = _csv("dose_slope_summary.csv")
+dose_marginal_summary = _csv("dose_marginal_summary.csv")
 did_summary if did_summary is not None else dose_slope_summary
+```
+
+```{python}
+# | echo: false
+# The dose companions' own estimates. Displaying only ``did_summary`` above hid
+# ``dose_slope_summary`` entirely whenever both existed, which for LRPDID07 meant
+# suppressing the very table its scientific question is about (#576 finding 7).
+if did_summary is not None and dose_slope_summary is not None:
+    display(dose_slope_summary)
 ```
 
 ```{python}
@@ -25,9 +37,19 @@ if did_summary is not None:
     _off = "off_floor" in did_summary.columns and bool(_d["off_floor"])
     _labels = {
         "arm_gap_t1": "Pre-treatment arm gap (`arm_gap_t1`; balance quantity)",
-        "tau_t2": "Randomised t2 arm contrast (`tau_t2`; causal)",
-        "arm_gap_t3": "Post-crossover t3 arm gap (`arm_gap_t3`; association)",
-        "delta_crossover": "Closure of the arm gap (`delta_crossover`; association)",
+        "tau_t2": (
+            "Randomised t2 assignment contrast — immediate treatment vs none yet "
+            "(`tau_t2`; causal)"
+        ),
+        "arm_gap_t3": (
+            "Randomised t3 treatment-schedule contrast — early start vs delayed "
+            "start (`arm_gap_t3`; causal for that exposure, not a treated-vs-"
+            "untreated effect)"
+        ),
+        "delta_crossover": (
+            "Change between the two randomised regime contrasts "
+            "(`delta_crossover`; not an identified catch-up mechanism)"
+        ),
     }
 
     def _print_arm_term(_term):
@@ -63,6 +85,38 @@ if did_summary is not None:
                 "not integrated by a scalar arm-gap toggle, so only the "
                 "logit-scale t3 gap is reported._"
             )
+        # The common-child gap change (#576 material qualification 6). The two legs
+        # of `delta_crossover_items` are each standardised over their own wave's
+        # fitted rows; when those row sets differ the difference mixes the change
+        # over time with a change in who is averaged over.
+        if "delta_crossover_items_common_available" in did_summary.columns:
+            if bool(_d["delta_crossover_items_common_available"]):
+                _identical = bool(
+                    _d.get("delta_crossover_items_common_population_identical", False)
+                )
+                _n_common = int(_d["delta_crossover_items_common_n_children"])
+                _unit = "off-floor risk difference" if _off else "items"
+                _digits = 3 if _off else 1
+                print(
+                    "**Gap change on a common population:** recomputing both legs on "
+                    f"the {_n_common} children observed at *both* t2 and t3 gives "
+                    f"**{_d['delta_crossover_items_common_median']:+.{_digits}f} {_unit}** "
+                    f"(89% CrI {_d['delta_crossover_items_common_lo']:+.{_digits}f} to "
+                    f"{_d['delta_crossover_items_common_hi']:+.{_digits}f}). "
+                    + (
+                        "The two waves are fitted on the same children, so this "
+                        "matches the wave-specific figure above by construction."
+                        if _identical
+                        else "The wave-specific figure above averages each leg over "
+                        "its own wave's fitted rows, so it mixes the change over "
+                        "time with a change in composition; prefer this one."
+                    )
+                )
+            else:
+                print(
+                    "_No common-population gap change is available for this fit: "
+                    "too few children are observed at both t2 and t3._"
+                )
         if "delta_crossover_sample_average_median" in did_summary.columns:
             print(
                 "**Exploratory heterogeneous catch-up:** the sample-average child-specific "
@@ -78,8 +132,11 @@ if did_summary is not None:
         )
 
     for _term, _label in (
-        ("beta_group", "Post-crossover arm association (`beta_group`)"),
-        ("theta_treated", "Current-treatment/crossover association (`theta_treated`)"),
+        ("beta_group", "Randomised-arm / treatment-history adjustment (`beta_group`)"),
+        (
+            "theta_treated",
+            "Crossover cell contrast at the mean treated dose (`theta_treated`)",
+        ),
     ):
         if f"{_term}_median" in did_summary.columns:
             _p = _d[f"prob_{_term}_pos"]
@@ -89,24 +146,96 @@ if did_summary is not None:
                 f"P(> 0) = {_p:.3f}. This coefficient is not a randomised treatment effect."
             )
 
-    if "beta_dose_median" in did_summary.columns:
-        print(
-            f"**Session-dose association (`beta_dose`):** median "
-            f"{_d.beta_dose_median:+.3f} logit units per 1 SD sessions "
-            f"(50% CrI {_d.beta_dose_lo50:+.3f} to {_d.beta_dose_hi50:+.3f}; "
-            f"89% {_d.beta_dose_lo:+.3f} to {_d.beta_dose_hi:+.3f}); "
-            f"P(> 0) = {_d.prob_beta_dose_pos:.3f}."
-        )
 if dose_slope_summary is not None:
-    _main = dose_slope_summary.iloc[0]
+    # Every row, on the house median + 50% + 89% convention (#576 finding 7).
+    # Printing only the first row published the hyper-centre and hid both period
+    # slopes and their between-period scale — the estimates LRPDID07 exists to
+    # produce — and quoted the posterior mean where the house point estimate is
+    # the median.
+    _dose_labels = {
+        "dose_overall": (
+            "Hierarchical centre of the period slopes (`mu_dose`)",
+            " This is the value the period slopes are drawn around, not the "
+            "quantity this fit publishes.",
+        ),
+        "dose_period1": ("Period-1 session slope (`beta_dose_phase[P1]`)", ""),
+        "dose_period2": ("Period-2 session slope (`beta_dose_phase[P2]`)", ""),
+        "sigma_dose_between_period": (
+            "Between-period SD of the session slopes (`sigma_dose`)",
+            " This is how much the slope varies by period.",
+        ),
+        "dose_pooled": ("Pooled session slope (`beta_dose`)", ""),
+        "dose_between_child": ("Between-child session slope (`beta_dose_between`)", ""),
+        "on_intervention": ("On-intervention presence term (`theta_treated`)", ""),
+    }
+    for _, _row in dose_slope_summary.iterrows():
+        _label, _gloss = _dose_labels.get(str(_row.term), (f"`{_row.term}`", ""))
+        _pp = (
+            f"; P(> 0) = {_row.p_pos:.3f}"
+            if "p_pos" in dose_slope_summary.columns and _row.p_pos == _row.p_pos
+            else ""
+        )
+        print(
+            f"**{_label}:** median {_row['median']:+.3f} logit units per "
+            f"1 SD sessions (50% CrI {_row.lo50:+.3f} to {_row.hi50:+.3f}; "
+            f"89% {_row.lo:+.3f} to {_row.hi:+.3f}){_pp}.{_gloss}"
+        )
+
+if dose_marginal_summary is not None:
+    # The fit's *published* focal estimand: the natural-scale marginal the release
+    # gate's sign-stability clause reads (#576 finding 1).
+    _m = dose_marginal_summary.iloc[0]
+
+    def _text(_value) -> str:
+        """A CSV cell as clean text; empty for an absent or NaN cell."""
+        if _value is None or _value != _value:
+            return ""
+        return str(_value).strip()
+
     print(
-        f"**Dose slope headline (`{_main.term}`):** mean {_main['mean']:+.3f} "
-        f"(89% CrI {_main.lo:+.3f} to {_main.hi:+.3f}); "
-        f"P(> 0) = {_main.p_pos:.3f}."
+        f"\n**Published dose estimand — {_text(_m.contrast_label)}:** median "
+        f"**{_m.items_median:+.2f} items** (50% CrI {_m.items_lo50:+.2f} to "
+        f"{_m.items_hi50:+.2f}; 89% {_m.items_lo:+.2f} to {_m.items_hi:+.2f}); "
+        f"P(> 0) = {_m.prob_pos:.3f}. Averaged over the {int(_m.n_rows)} "
+        f"{_text(_m.row_population).removesuffix(' only')} among "
+        f"{int(_m.n_rows_fitted)} fitted rows, "
+        "each stepped at its own period's realised slope. This — not the "
+        "hierarchical centre above — is the quantity this fit publishes, and the "
+        "one its prior pushforward, prior-sensitivity sweep and release gate all "
+        "check."
     )
+    _support = _text(_m.get("support_note", ""))
+    if _support:
+        print(f"\n_{_support}_")
 ```
 
-_Read dose terms as associations._ Session dose is observational. A positive dose slope means higher treated-centred session counts are associated with a higher period-end outcome after arm, period, current-treatment, t1 outcome and t1 age adjustment; it does **not** mean more sessions were randomised or proven causal. The cell terms account for treatment presence and schedule, leaving dose to describe residual session variation within the supported treated cells.
+```{python}
+# | echo: false
+# | output: asis
+# Dose-only prose. It used to print on every DiD report, including the fifteen
+# arm-by-wave fits that have no dose term at all.
+if dose_slope_summary is not None:
+    print(
+        "_Read dose terms as associations._ Session dose is observational. A "
+        "positive dose slope means higher treated-centred session counts are "
+        "associated with a higher period-end outcome after arm, period, "
+        "treatment-timing, t1 outcome and t1 age adjustment; it does **not** mean "
+        "more sessions were randomised or proven causal.\n"
+    )
+    print(
+        "\n_What the cell terms are._ With `treated = (arm == immediate) OR "
+        "(period == P2)`, the arm-by-period fixed effects are **saturated**. At "
+        "the mean treated dose, `theta_treated` is therefore the crossover _cell_ "
+        "contrast — (waitlist P2 \u2212 waitlist P1) \u2212 (immediate P2 \u2212 "
+        "immediate P1) — a time-by-arm quantity describing treatment timing and "
+        "history, not a separately identified \"effect of being on the "
+        "intervention\". Read it that way, and read the period slopes the same "
+        "way: the P2 slope relates P2 sessions to the **t3 period-end level** "
+        "conditional on t1, and is not a P2 _gain_ slope, because the "
+        "treatment-affected t2 period-start score and the prior P1 dose are "
+        "deliberately omitted from the model.\n"
+    )
+```
 
 ### What the model predicts on the test scale
 
@@ -160,18 +289,49 @@ if _has("icon_array.png"):
 # The binary t1–t3 levels model emits the crossover trajectory; the dose companions
 # are transition-frame and do not, so the heading prints only when the figure exists.
 if _has("group_trajectory.png"):
+    _traj = _csv("group_trajectory.csv")
     print("### Score trajectories — the crossover picture\n")
     print(_img("group_trajectory.png", "Per-arm score trajectory across t1–t3, with credible ribbons and observed arm means"))
+    # The direction sentence is DERIVED from this fit's posterior, never asserted
+    # (#576 finding 8). The pre-#576 text told every reader that "the immediate arm
+    # pulls ahead at t2 and the wait-list arm catches up", which contradicts a null,
+    # negative or widening-gap posterior — and eleven of these reports render from
+    # the same partial.
+    _t2_dir = ""
+    if did_summary is not None and "prob_tau_t2_pos" in did_summary.columns:
+        _p2 = float(_d["prob_tau_t2_pos"])
+        _t2_dir = (
+            f"At t2 the posterior probability that the immediate arm is ahead is "
+            f"{_p2:.3f} ({_odds(_p2)}); read the gap from the figure and the table "
+            "above rather than from the shape of two lines."
+        )
+    _t3_dir = ""
+    if did_summary is not None and "prob_delta_crossover_pos" in did_summary.columns:
+        _p3 = float(_d["prob_delta_crossover_pos"])
+        _t3_dir = (
+            f" The probability that the gap is *smaller* at t3 than at t2 is "
+            f"{_p3:.3f} ({_odds(_p3)}) — a description of the two randomised regime "
+            "contrasts, not evidence about why they differ."
+        )
+    # Whether every child-level random effect really was integrated is recorded by
+    # the writer, so "population-level" is checkable rather than asserted.
+    _marginalised = ""
+    if _traj is not None and "marginalised_effects" in _traj.columns:
+        _eff = str(_traj["marginalised_effects"].iloc[0])
+        _marginalised = (
+            f" Integrated random effects: `{'`, `'.join(_eff.split('|'))}`."
+            if _eff
+            else " No child-level random effect was integrated for this fit."
+        )
     print(
         f"\n_How to read it:_ each line is the model's posterior **mean** score on {outcome_label} for "
         "one randomised arm across the waves, with its 89% credible ribbon; filled dots are the observed "
-        "per-arm means. This is the headline crossover picture: the immediate arm pulls ahead at t2 and "
-        "the wait-list arm catches up once it too receives the intervention. The curve is "
-        "**population-level** — the child random intercept is integrated over its distribution and "
+        f"per-arm means. {_t2_dir}{_t3_dir} The curve is "
+        "**population-level** — every child-level random effect is integrated over its distribution and "
         "averaged over each arm's observed children (g-computation), so it is a *different distribution* "
-        "from the same-children per-child panels below. **Only the t2 gap (`tau_t2`) is randomised**; the "
-        "t3 separation and `delta_crossover` are post-crossover associations, deliberately not read as "
-        "randomised effects."
+        f"from the same-children per-child panels below.{_marginalised} **Only `tau_t2` is a randomised "
+        "treated-versus-untreated effect**; the t3 separation is a randomised *treatment-schedule* "
+        "contrast and `delta_crossover` the change between the two, neither of them mechanism-identified."
     )
 ```
 
@@ -220,6 +380,41 @@ if _has("did_cell_ppc_mean.png"):
     print(_img("did_cell_ppc_mean.png", "Observed vs posterior-predictive cell mean by arm and time"))
 if _has("did_cell_ppc_zero_rate.png"):
     print(_img("did_cell_ppc_zero_rate.png", "Observed vs posterior-predictive proportion at zero by arm and time"))
+```
+
+### Within-child posterior-predictive checks
+
+The cell checks above compare *marginal* cell means and zero rates. A model whose within-child dependence is wrong can still reproduce those. This model assumes a single stable child random intercept plus conditionally independent rows, which is a restrictive repeated-measures covariance: it makes every pair of a child's waves equicorrelated and fixes how far a child can move between consecutive waves. The table below therefore compares the observed **within-child change** (its arm-specific mean and its spread) and the observed **across-child correlation** of paired waves with the same statistics recomputed on each posterior-predictive replicate. Replicates that systematically understate the spread of within-child changes, or overstate the wave-to-wave correlation, are the signature of an over-restrictive covariance — the failure the marginal checks cannot see.
+
+```{python}
+# | echo: false
+_did_within = _csv("did_within_child_ppc.csv")
+if _did_within is not None:
+    display(_did_within)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _did_within is not None and "tail_flag" in _did_within.columns:
+    _flagged = _did_within.loc[_did_within["tail_flag"].astype(bool)]
+    if len(_flagged):
+        print(
+            f"**{len(_flagged)} of {len(_did_within)} within-child statistics fall in a "
+            "predictive tail** ("
+            + ", ".join(
+                f"`{r.statistic}` at {r.wave_pair}" for _, r in _flagged.iterrows()
+            )
+            + "). Treat the repeated-measures covariance as a live caveat on this fit "
+            "and read the wave-specific contrasts accordingly."
+        )
+    else:
+        print(
+            "No within-child statistic falls in a predictive tail, so the model's "
+            "repeated-measures covariance reproduces the observed within-child "
+            "changes and wave-to-wave correlations. That is a check passed, not proof "
+            "the structure is right: at this sample size the check has limited power."
+        )
 ```
 
 ```{python}

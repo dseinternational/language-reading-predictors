@@ -59,6 +59,9 @@ from dse_research_utils.plot.styles import (
 )
 
 from language_reading_predictors.figure_io import save_styled_figure
+from language_reading_predictors.statistical_models.likelihood import (
+    apply_score_mean_link,
+)
 
 __all__ = [
     "ARM_LABELS",
@@ -168,8 +171,12 @@ def marginal_cell_probabilities(
     u_child_rows: np.ndarray | None = None,
     sigma_child: np.ndarray | None = None,
     n_gh: int = 16,
+    extra_effect_rows: np.ndarray | None = None,
+    extra_effect_sd: np.ndarray | None = None,
+    extra_effect_mask: np.ndarray | None = None,
+    score_mean_link: str = "logit",
 ) -> dict[tuple[int, int], np.ndarray]:
-    """Per-draw population mean probability for every (arm, wave) cell.
+    """Per-draw population mean score for every (arm, wave) cell.
 
     ``eta`` is ``(n_obs, S)``; ``arm`` / ``wave`` are ``(n_obs,)`` integer labels;
     ``u_child_rows`` is the fitted child intercept already gathered to each row
@@ -178,18 +185,56 @@ def marginal_cell_probabilities(
     **marginal** (new-child) per-row probability; averaging over the rows in each
     (arm, wave) cell standardises over the children actually observed in that cell
     (g-computation). Returns ``{(arm, wave): (S,)}``.
+
+    A model may add a *second* child-level random effect on a subset of rows — the
+    waitlist-crossover catch-up deviation ``v_delta``, which enters only waitlist t3
+    rows (LRPDID13). ``extra_effect_rows`` is that fitted deviation gathered to every
+    row, ``extra_effect_sd`` its per-draw SD and ``extra_effect_mask`` the boolean
+    rows it applies to. Leaving it in ``eta`` would produce a *fitted-children
+    conditional* curve labelled population-level (#576 finding 5), so it is removed
+    and integrated exactly like the intercept: the two deviations are independent, so
+    on the masked rows the marginalising SD is
+    ``sqrt(sigma_child**2 + sigma_delta**2)``.
+
+    ``score_mean_link`` maps the integrated probability onto the fitted score-mean
+    scale, so a guessing-floor fit's trajectory is drawn on the mean the likelihood
+    used rather than on a bare inverse logit.
     """
     eta = np.asarray(eta, dtype=float)
     eta0 = eta if u_child_rows is None else eta - np.asarray(u_child_rows, dtype=float)
-    p_row = _gh_marginal_prob(eta0, sigma_child, n_gh=n_gh)  # (n_obs, S)
+    if extra_effect_rows is not None:
+        mask = (
+            np.ones(eta0.shape[0], dtype=bool)
+            if extra_effect_mask is None
+            else np.asarray(extra_effect_mask, dtype=bool)
+        )
+        eta0 = eta0 - np.asarray(extra_effect_rows, dtype=float) * mask[:, None]
+
+    if extra_effect_rows is not None and extra_effect_sd is not None:
+        # Two different marginalising SDs across the rows, so integrate in two
+        # passes and stitch: the masked rows carry both variance components.
+        base_sd = (
+            np.zeros(eta0.shape[1], dtype=float)
+            if sigma_child is None
+            else np.asarray(sigma_child, dtype=float)
+        )
+        combined_sd = np.sqrt(base_sd**2 + np.asarray(extra_effect_sd, dtype=float) ** 2)
+        p_row = _gh_marginal_prob(
+            eta0, None if sigma_child is None else base_sd, n_gh=n_gh
+        )
+        p_extra = _gh_marginal_prob(eta0, combined_sd, n_gh=n_gh)
+        p_row = np.where(mask[:, None], p_extra, p_row)
+    else:
+        p_row = _gh_marginal_prob(eta0, sigma_child, n_gh=n_gh)  # (n_obs, S)
+    p_row = apply_score_mean_link(p_row, score_mean_link)
     arm = np.asarray(arm)
     wave = np.asarray(wave)
     out: dict[tuple[int, int], np.ndarray] = {}
     for g in np.unique(arm):
         for w in np.unique(wave):
-            mask = (arm == g) & (wave == w)
-            if mask.any():
-                out[(int(g), int(w))] = p_row[mask].mean(axis=0)
+            mask_cell = (arm == g) & (wave == w)
+            if mask_cell.any():
+                out[(int(g), int(w))] = p_row[mask_cell].mean(axis=0)
     return out
 
 
@@ -294,6 +339,11 @@ def write_group_arm_trajectory(
     n_gh: int = 16,
     max_draws: int = 4000,
     name: str = "group_trajectory",
+    score_mean_link: str = "logit",
+    extra_effect_name: str | None = None,
+    extra_effect_sd_name: str | None = None,
+    extra_effect_rows: np.ndarray | None = None,
+    extra_effect_idx: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """Population per-arm score trajectory with ribbons + observed means (#317 fig 1).
 
@@ -301,6 +351,15 @@ def write_group_arm_trajectory(
     averages over each cell's observed children); the observed dots are the raw
     per-arm cell means. Writes ``{name}.png`` / ``.svg`` and ``{name}.csv``; returns
     the summary table.
+
+    ``extra_effect_name`` names a *second* child-level random effect applied to a
+    subset of rows (the waitlist-crossover catch-up deviation ``v_delta``, LRPDID13).
+    ``extra_effect_rows`` is the boolean row mask it applies to and
+    ``extra_effect_idx`` maps each row to its position in that effect's own
+    coordinate. It is removed and integrated over ``Normal(0, extra_effect_sd_name)``
+    alongside the intercept, so the curve stays population-level rather than
+    silently conditioning on the fitted waitlist children (#576 finding 5). The
+    returned table records what was integrated.
     """
     post = trace.posterior
     eta = _stack_last(post[eta_name])  # (n_obs, S)
@@ -315,8 +374,40 @@ def write_group_arm_trajectory(
         if child_sd_name is not None and child_sd_name in post:
             sigma = _stack_last(post[child_sd_name])[cols]  # (S,)
 
+    extra_rows = None
+    extra_sd = None
+    integrated_extra = ""
+    if extra_effect_name is not None and extra_effect_name in post:
+        if extra_effect_idx is None or extra_effect_rows is None:
+            raise ValueError(
+                f"{extra_effect_name} needs both extra_effect_idx and "
+                "extra_effect_rows to be removed from eta"
+            )
+        if extra_effect_sd_name is None or extra_effect_sd_name not in post:
+            # Fail loud: silently skipping the integration is exactly the defect
+            # this parameter exists to fix.
+            raise ValueError(
+                f"{extra_effect_name} cannot be marginalised without its scale "
+                f"{extra_effect_sd_name!r} in the posterior"
+            )
+        extra = _stack_last(post[extra_effect_name])[:, cols]
+        extra_rows = extra[np.asarray(extra_effect_idx, dtype=int)]
+        extra_sd = _stack_last(post[extra_effect_sd_name])[cols]
+        integrated_extra = extra_effect_name
+
     cell_draws = marginal_cell_probabilities(
-        eta, arm=arm, wave=wave, u_child_rows=u_child_rows, sigma_child=sigma, n_gh=n_gh
+        eta,
+        arm=arm,
+        wave=wave,
+        u_child_rows=u_child_rows,
+        sigma_child=sigma,
+        n_gh=n_gh,
+        extra_effect_rows=extra_rows,
+        extra_effect_sd=extra_sd,
+        extra_effect_mask=(
+            None if extra_effect_rows is None else np.asarray(extra_effect_rows, dtype=bool)
+        ),
+        score_mean_link=score_mean_link,
     )
     observed = np.asarray(trace.observed_data[obs_node].values, dtype=float)
     if off_floor:
@@ -356,6 +447,19 @@ def write_group_arm_trajectory(
                     "n_children_in_cell": cell_n.get(key, 0),
                     "n_trials": 1 if off_floor else int(n_trials),
                     "outcome": outcome_symbol,
+                    # Self-describing marginalisation (#576 finding 5): a reader
+                    # (and the report partial) can tell from the table itself
+                    # whether every child-level random effect in the model was
+                    # integrated, so "population-level" is a checkable claim.
+                    "marginalised_effects": "|".join(
+                        name
+                        for name in (
+                            child_effect_name if sigma is not None else "",
+                            integrated_extra,
+                        )
+                        if name
+                    ),
+                    "score_mean_link": str(score_mean_link),
                 }
             )
     summary = pd.DataFrame(rows)
