@@ -13,6 +13,16 @@ Preliminary research data and models — all conclusions remain provisional.
 
 The audit note records the diagnosis. This note records what was independently verified, what was changed, and what deliberately was not.
 
+## Overlap with the #588 joint-family batch
+
+PR #609 (`notes/202608240900-joint-588-remediation.md`) landed first and addressed three of the same findings from the joint audit's side, choosing the _lighter_ option each time. This batch supersedes two of those and keeps the third:
+
+- **Wave selection.** #609 chose "label, not refit": the findings box carried an "exploratory wave selection" note saying the lead wave was picked after seeing all four and that only the artefact-hosting wave got the full lifecycle. Since #591 every wave gets the full lifecycle and nothing selects a wave at all, so that note is removed rather than merged — it would now assert two things that are false.
+- **The ratio.** #609 introduced one stability rule (`_jm_ratio_stability`: 0.05 logit, 95% support, checked on _both_ the denominator and the held-fixed residual scale), blanked an unstable ratio's whole row and added the denominator-free `abs_slope_reduction`. That rule is **kept as the family's only rule** — this batch's `conditional_slope_ratio.csv` reproduces its verdict rather than applying a second, competing one, and adds the three region probabilities beside it. A pull request that shipped two different stability thresholds for one quantity would have been a defect, not a merge.
+- **Interpretation.** #609's "operational test-score slope contrast, not a construct-level decoding-specificity measure" wording is kept verbatim in the term labels and the headline; this batch's common-factor algebra (unequal loadings on one general ability produce a non-zero Δ with no causal route) is the mechanism behind that statement and sits beside it.
+
+Two of #609's additions are complementary and untouched: per-outcome rows in the _conditional_ `ppc_summary.csv` (this batch adds them to the _marginal_ companion, on the same null-pooled-row convention), and `comparator_population` in `jm-002`'s `config.json` (this batch adds the exposure scaler and the cross-model `comparable` verdict).
+
 ## Independent verification first
 
 Every checkable claim was re-derived against the code, the two stored reporting-tier fits and the current data (SHA-256 `dc8dda5780b705e902155372c135a993778506c547ef8ebb2b5b03668c11f043`, matching the audit). **No finding was a phantom.** In particular:

@@ -53,18 +53,26 @@ The conditional slope follows from the covariance block:
 
 ``share_retained`` is a **conditional-to-marginal slope ratio, not a bounded pathway
 share**: negative under suppression, above one under amplification, and not
-summarisable as ``beta_W`` approaches zero. It is published with a denominator
--stability rule fixed in advance, with the posterior probability of each of those
-three cases, and with no mean; this observational model identifies no pathway
-decomposition, so a value below one does not mean part of the association runs
-through decoding.
+summarisable as either ``beta_W`` or the held-fixed outcome's residual scale
+``sigma_N`` approaches zero, since that scale divides the conditional slope. One
+stability rule fixed in advance governs it (0.05 logit, 95% support, both routes -
+``_jm_ratio_stability``): the pipeline withholds the ratio when it fails and
+publishes the denominator-free ``abs_slope_reduction`` beside it, and where it holds
+the ratio is published with the posterior probability of each of the three regions
+and with no mean. This observational model identifies no pathway decomposition, so a
+value below one does not mean part of the association runs through decoding.
 
 Note this conditions on the **latent** nonword logit where ``ca-011`` conditions on
 the *observed* nonword count. Partialling the latent skill is the cleaner reading of
-"holding decoding fixed". Classical measurement-error intuition suggests it should
-retain *less*, but that ordering is not guaranteed across two nonlinear models with
-different likelihoods, different missing-data handling and floor compression, so the
-two are not presented as bracketing an answer.
+"holding decoding fixed"; it also partials measurement error. They are **not** two
+bounds on one underlying answer: this fit and the ``ca-010`` / ``ca-011``
+sensitivities differ in likelihood, in how missing predictors are treated, in what is
+conditioned on, in fitted rows and in estimand, so reading them as bracketing a
+single quantity is not supported (2026-08-23 joint audit, finding 4). Classical
+measurement-error intuition suggests the latent version should retain *less*, but
+that ordering is not guaranteed across two nonlinear models differing in all of the
+above. Read them as different questions whose answers happen to be comparable in
+scale.
 
 **Estimand and its limits.** Every slope is an *adjusted association*, never a causal
 effect: latent general ability is unobserved and the residual covariance does not

@@ -138,6 +138,7 @@ distracters
 docstrings
 documentclass
 Donolato
+entrywise
 dropna
 dse
 dsegroup
@@ -249,6 +250,7 @@ IDA
 idxmax
 idxmin
 ignorability
+restandardised
 iloc
 importorskip
 incl
@@ -430,6 +432,7 @@ numba
 numchil
 numpy
 numpyro
+notna
 nunique
 nutpie
 NVIQ

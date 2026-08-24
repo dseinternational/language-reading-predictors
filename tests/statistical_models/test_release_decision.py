@@ -1541,12 +1541,46 @@ def test_declared_link_sensitivity_outside_the_registered_pair_fails_closed(
 # ---------------------------------------------------------------------------
 
 
+_JOINT_BOUND_PLAN: dict = {
+    "outcomes": ["TE", "UE"],
+    "use_cross_baselines": False,
+    "use_age_linear": True,
+    "use_age_gp": False,
+    "loo_unit": "child",
+}
+_JOINT_BOUND_IDENTITY: dict = {
+    "fitted_subject_identity": {"sha256": "rows-digest", "n_rows": 54},
+    "fitted_data_identity": {"digest": "data-digest", "observed": [["y_post", [108]]]},
+    "sampling": {"draws": 6000, "tune": 6000, "chains": 6, "target_accept": 0.95},
+    "provenance": {"source": {"commit": "deadbeef"}},
+}
+
+
+def _tau_difference(directory: Path, *, median: float, prob_pos: float) -> None:
+    pd.DataFrame(
+        [
+            {
+                "contrast": "TE_minus_UE",
+                "headline_scale": "proportion_correct_risk_difference",
+                "diff_prob_median": median,
+                "diff_prob_lo": median - 0.08,
+                "diff_prob_hi": median + 0.08,
+                "prob_diff_pos": prob_pos,
+            }
+        ]
+    ).to_csv(directory / "tau_difference.csv", index=False)
+
+
 def _joint_contrast_fit_dir(
     tmp_path: Path,
     *,
     model_id: str = "lrp-rli-itt-015",
     companion: str | None = "lrp-rli-itt-215",
     data_sha256: str = "abc123",
+    plan_overrides: dict | None = None,
+    identity_overrides: dict | None = None,
+    contrast_median: float = 0.034,
+    contrast_prob_pos: float = 0.76,
 ) -> Path:
     d = tmp_path / f"{model_id}-reporting"
     d.mkdir(parents=True)
@@ -1554,6 +1588,12 @@ def _joint_contrast_fit_dir(
     contrast: dict = {"left": "TE", "right": "UE"}
     if companion is not None:
         contrast["dependence_companion"] = companion
+    plan = {
+        **_JOINT_BOUND_PLAN,
+        "use_residual_correlation": False,
+        "contrast": contrast,
+        **(plan_overrides or {}),
+    }
     (d / "config.json").write_text(
         json.dumps(
             {
@@ -1561,10 +1601,9 @@ def _joint_contrast_fit_dir(
                 "kind": "joint",
                 "config_name": "reporting",
                 "data_sha256": data_sha256,
-                "resolved_run_plan": {
-                    "use_residual_correlation": False,
-                    "contrast": contrast,
-                },
+                **_JOINT_BOUND_IDENTITY,
+                **(identity_overrides or {}),
+                "resolved_run_plan": plan,
             }
         )
     )
@@ -1575,6 +1614,7 @@ def _joint_contrast_fit_dir(
         ],
         index=["tau[TE]", "tau[UE]"],
     ).to_csv(d / "psense_summary.csv")
+    _tau_difference(d, median=contrast_median, prob_pos=contrast_prob_pos)
     _write_core_artifacts(d, "joint")
     return d
 
@@ -1585,12 +1625,30 @@ def _joint_companion_dir(
     model_id: str = "lrp-rli-itt-215",
     publishable: bool = True,
     data_sha256: str = "abc123",
+    plan_overrides: dict | None = None,
+    identity_overrides: dict | None = None,
+    contrast_median: float = 0.0343,
+    contrast_prob_pos: float = 0.7557,
 ) -> Path:
     d = tmp_path / f"{model_id}-reporting"
     d.mkdir(parents=True)
+    plan = {
+        **_JOINT_BOUND_PLAN,
+        "use_residual_correlation": True,
+        "contrast": {"left": "TE", "right": "UE"},
+        **(plan_overrides or {}),
+    }
     (d / "config.json").write_text(
         json.dumps(
-            {"model_id": model_id, "kind": "joint", "data_sha256": data_sha256}
+            {
+                "model_id": model_id,
+                "kind": "joint",
+                "config_name": "reporting",
+                "data_sha256": data_sha256,
+                **_JOINT_BOUND_IDENTITY,
+                **(identity_overrides or {}),
+                "resolved_run_plan": plan,
+            }
         )
     )
     (d / RELEASE_DECISION_FILENAME).write_text(
@@ -1601,6 +1659,7 @@ def _joint_companion_dir(
             }
         )
     )
+    _tau_difference(d, median=contrast_median, prob_pos=contrast_prob_pos)
     return d
 
 
@@ -1635,7 +1694,7 @@ def test_joint_companion_on_different_data_attaches_the_qualifier(tmp_path):
     evaluation = evaluate_publication(d)
     assert evaluation.status == "ok"
     assert "dependence-unchecked" in evaluation.robustness.note
-    assert "same input data" in evaluation.robustness.note
+    assert "input data checksum" in evaluation.robustness.note
 
 
 def test_joint_companion_that_withholds_attaches_the_qualifier(tmp_path):
@@ -1647,14 +1706,179 @@ def test_joint_companion_that_withholds_attaches_the_qualifier(tmp_path):
     assert "withholds publication" in evaluation.robustness.note
 
 
-def test_a_stored_joint_plan_without_the_companion_field_is_unaffected(tmp_path):
-    """Every pre-field stored fit re-decides identically: no companion id in the
-    plan means no check, mirroring how the level-factors focal_term fallback
-    keeps stored decisions reproducible."""
+# ---------------------------------------------------------------------------
+# 2026-08-23 joint audit, finding 2: the pairing is bound field by field, the
+# requirement comes from the registered constant rather than the stored plan,
+# and the dependence block is assessed through its consequence for the declared
+# contrast rather than through nuisance-correlation identification.
+# ---------------------------------------------------------------------------
+
+
+def test_a_stored_joint_plan_without_the_companion_field_still_binds(tmp_path):
+    """Every stored parent artefact predates ``dependence_companion``, so deriving
+    the requirement from the plan alone left the qualifier dormant on exactly the
+    fits it was written for. The registered constant is now the authority."""
     d = _joint_contrast_fit_dir(tmp_path, companion=None)
     evaluation = evaluate_publication(d)
     assert evaluation.status == "ok"
+    assert "lrp-rli-itt-215" in (evaluation.robustness.note or "")
+    assert "dependence-unchecked" in evaluation.robustness.note
+
+
+def test_an_unregistered_joint_fit_without_a_companion_field_is_unaffected(tmp_path):
+    """A joint fit that neither the constant nor its own plan pairs is out of
+    scope, so old decisions for such fits re-decide identically."""
+    d = _joint_contrast_fit_dir(
+        tmp_path, model_id="lrp-rli-itt-997", companion=None
+    )
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
     assert (evaluation.robustness.note or "") == ""
+
+
+@pytest.mark.parametrize(
+    "kwargs, expected",
+    [
+        ({"plan_overrides": {"outcomes": ["UE", "TE"]}}, "ordered outcome list"),
+        (
+            {"plan_overrides": {"contrast": {"left": "UE", "right": "TE"}}},
+            "contrast direction",
+        ),
+        (
+            {"plan_overrides": {"use_cross_baselines": True}},
+            "precision terms",
+        ),
+        ({"plan_overrides": {"loo_unit": "cell"}}, "PSIS-LOO unit"),
+        (
+            {"identity_overrides": {"fitted_subject_identity": {"sha256": "other"}}},
+            "fitted-row identity",
+        ),
+        (
+            {"identity_overrides": {"fitted_data_identity": {"digest": "other"}}},
+            "fitted-data digest",
+        ),
+        (
+            {"identity_overrides": {"sampling": {"draws": 100, "chains": 2}}},
+            "sampling configuration",
+        ),
+        (
+            {"identity_overrides": {"provenance": {"source": {"commit": "cafe"}}}},
+            "source commit",
+        ),
+        (
+            {"plan_overrides": {"use_residual_correlation": False}},
+            "not a residual-correlated fit",
+        ),
+    ],
+)
+def test_a_tampered_binding_field_fails_the_pairing_closed(tmp_path, kwargs, expected):
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path, **kwargs)
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert "dependence-unchecked" in evaluation.robustness.note
+    assert expected in evaluation.robustness.note
+
+
+@pytest.mark.parametrize(
+    "field", ["fitted_subject_identity", "fitted_data_identity", "sampling", "provenance"]
+)
+def test_an_unrecorded_binding_field_fails_the_pairing_closed(tmp_path, field):
+    """A field absent on either side is not evidence of a match."""
+    d = _joint_contrast_fit_dir(tmp_path, identity_overrides={field: None})
+    _joint_companion_dir(tmp_path, identity_overrides={field: None})
+    evaluation = evaluate_publication(d)
+    assert "dependence-unchecked" in evaluation.robustness.note
+    assert "not recorded on both fits" in evaluation.robustness.note
+
+
+def test_a_bound_pair_records_the_declared_contrast_consequence(tmp_path):
+    """The robustness gate classifies conditional-logit ``tau``; the released
+    quantity is a nonlinear difference of standardised average marginal effects.
+    The pairing measures that quantity directly and persists the comparison."""
+    d = _joint_contrast_fit_dir(tmp_path)
+    _joint_companion_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    record = evaluation.dependence_contrast
+    assert record["status"] == "compared"
+    assert record["contrast"] == "TE_minus_UE"
+    assert record["companion"] == "lrp-rli-itt-215"
+    assert record["material"] is False
+    assert record["direction_flipped"] is False
+    assert record["direction_probability_shift"] == pytest.approx(0.0043, abs=1e-9)
+    assert evaluation.as_dict()["dependence_contrast"]["status"] == "compared"
+
+
+def test_a_dependence_model_that_moves_the_direction_probability_qualifies(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path, contrast_prob_pos=0.95)
+    _joint_companion_dir(tmp_path, contrast_prob_pos=0.80)
+    evaluation = evaluate_publication(d)
+    assert evaluation.publishable is True
+    assert "materially changes the declared contrast" in evaluation.robustness.note
+    assert "moves P(> 0) by 0.15" in evaluation.robustness.note
+    assert evaluation.dependence_contrast["material"] is True
+
+
+def test_a_dependence_model_that_flips_the_contrast_sign_qualifies(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path, contrast_median=0.03)
+    _joint_companion_dir(tmp_path, contrast_median=-0.03)
+    evaluation = evaluate_publication(d)
+    assert "reverses the sign of the contrast median" in evaluation.robustness.note
+    assert evaluation.dependence_contrast["direction_flipped"] is True
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-23 joint audit, finding 12: the phoneme-blending response-link policy's
+# scope in a joint fit.
+# ---------------------------------------------------------------------------
+
+
+def _joint_blending_fit_dir(tmp_path: Path, *, data_sha256: str = "abc123") -> Path:
+    d = tmp_path / "lrp-rli-itt-012-reporting"
+    d.mkdir(parents=True)
+    (d / "diagnostics_summary.json").write_text(json.dumps(_gate(True)))
+    (d / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": "lrp-rli-itt-012",
+                "kind": "joint",
+                "config_name": "reporting",
+                "data_sha256": data_sha256,
+                "resolved_run_plan": {
+                    "outcomes": ["W", "R", "B"],
+                    "use_residual_correlation": False,
+                    "contrast": None,
+                },
+            }
+        )
+    )
+    pd.DataFrame(
+        [{"prior": 0.01, "likelihood": 0.30, "diagnosis": "✓"}], index=["tau[W]"]
+    ).to_csv(d / "psense_summary.csv")
+    _write_core_artifacts(d, "joint")
+    return d
+
+
+def test_a_joint_b_row_without_the_008_bundle_beside_it_is_qualified(tmp_path):
+    """The joint B row is a secondary structural cross-check; when the pairing
+    that governs the B model of record is not verifiable beside it, the note says
+    the row must not be read as a blending treatment claim."""
+    d = _joint_blending_fit_dir(tmp_path)
+    evaluation = evaluate_publication(d)
+    assert evaluation.status == "ok"
+    assert evaluation.publishable is True
+    note = evaluation.robustness.note
+    assert "secondary structural cross-check" in note
+    assert "must not be read as a phoneme-blending treatment claim" in note
+
+
+def test_a_joint_fit_without_b_is_out_of_blending_scope(tmp_path, monkeypatch):
+    d = _joint_blending_fit_dir(tmp_path)
+    config = json.loads((d / "config.json").read_text())
+    config["resolved_run_plan"]["outcomes"] = ["W", "R"]
+    (d / "config.json").write_text(json.dumps(config))
+    evaluation = evaluate_publication(d)
+    assert "secondary structural cross-check" not in (evaluation.robustness.note or "")
 
 
 def test_gate_skips_a_pooled_level_factors_plan():

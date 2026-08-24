@@ -37,10 +37,13 @@ from language_reading_predictors.statistical_models.pipelines import (
 )
 from language_reading_predictors.statistical_models.pipelines.joint_mechanism import (
     _JM_SLOPE_REQUIRED,
+    _JM_TERM_LABELS,
+    _jm_cell_outcome_labels,
     _jm_exposure_logit_sd,
     _jm_marginal_ppc,
     _jm_primary_fit_plan,
     _jm_ratio_governance_row,
+    _jm_ratio_stability,
     _jm_slope_rows,
     _jm_wave_eligibility,
     _jm_write_slopes,
@@ -130,7 +133,156 @@ def test_slope_rows_carry_the_house_interval_convention():
         "beta_held_on_focal",
         "beta_mech_focal_given_held",
         "share_retained",
+        "abs_slope_reduction",
     }
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-23 joint audit, findings 4 and 10: the reported labels describe what the
+# model identifies, and the ratio is published only where it is stable.
+# ---------------------------------------------------------------------------
+
+
+def _levels_trace_with(*, denominator_scale: float, held_scale: float) -> xr.DataTree:
+    """A levels-shaped posterior with tunable ratio-instability routes."""
+    rng = np.random.default_rng(11)
+    chains, draws = 2, 400
+    data = {
+        "beta_mech": (
+            ("chain", "draw", "outcome"),
+            np.stack(
+                [
+                    rng.normal(denominator_scale, 0.08, size=(chains, draws)),
+                    rng.normal(1.00, 0.20, size=(chains, draws)),
+                ],
+                axis=-1,
+            ),
+        ),
+        "delta_ls_decoding": (
+            ("chain", "draw"),
+            rng.normal(0.75, 0.20, size=(chains, draws)),
+        ),
+        "rho_outcome": (("chain", "draw"), rng.normal(0.40, 0.15, size=(chains, draws))),
+        "beta_held_on_focal": (
+            ("chain", "draw"),
+            rng.normal(0.30, 0.09, size=(chains, draws)),
+        ),
+        "beta_mech_focal_given_held": (
+            ("chain", "draw"),
+            rng.normal(0.18, 0.06, size=(chains, draws)),
+        ),
+        "share_retained": (
+            ("chain", "draw"),
+            rng.normal(0.72, 0.12, size=(chains, draws)),
+        ),
+        "sigma_u_resid": (
+            ("chain", "draw", "outcome"),
+            np.stack(
+                [
+                    np.full((chains, draws), 0.80),
+                    np.abs(rng.normal(held_scale, 0.01, size=(chains, draws))),
+                ],
+                axis=-1,
+            ),
+        ),
+    }
+    posterior = xr.Dataset(
+        data,
+        coords={
+            "chain": range(chains),
+            "draw": range(draws),
+            "outcome": list(_OUTCOMES),
+        },
+    )
+    return xr.DataTree.from_dict({"posterior": posterior})
+
+
+def test_the_reported_labels_do_not_claim_construct_level_decoding_specificity():
+    """The contrast is between two adjusted test-score associations. The tests
+    differ in item count, distribution, discrimination, reliability and floor
+    behaviour, and nothing calibrates them to a common latent outcome scale, so a
+    shared ability loading differently on them produces a non-zero contrast alone."""
+    delta = _JM_TERM_LABELS["delta_ls_decoding"]
+    assert "operational test-score slope contrast" in delta
+    assert "not a construct-level" in delta
+    share = _JM_TERM_LABELS["share_retained"]
+    assert "ratio of adjusted associations" in share
+    assert "share" not in share.lower().split("ratio")[0]
+
+
+def test_a_stable_ratio_is_published_but_never_with_a_posterior_mean():
+    trace = _levels_trace_with(denominator_scale=1.0, held_scale=0.8)
+    rows = {
+        r["term"]: r
+        for r in _jm_slope_rows(
+            trace,
+            outcome_symbols=_OUTCOMES,
+            contrast=_CONTRAST,
+            ci_prob=0.89,
+            wave="t3",
+            converged=True,
+        )
+    }
+    share = rows["share_retained"]
+    assert share["share_retained_stable"] is True
+    assert np.isfinite(share["median"])
+    # A ratio's posterior mean is a property of the draws, not of the quantity.
+    assert np.isnan(share["mean"])
+    assert np.isfinite(rows["abs_slope_reduction"]["median"])
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"denominator_scale": 0.0, "held_scale": 0.8},  # denominator at zero
+        {"denominator_scale": 1.0, "held_scale": 0.001},  # held-fixed scale at zero
+    ],
+)
+def test_an_unstable_ratio_is_withheld_and_the_difference_survives(kwargs):
+    """Either instability route makes the ratio heavy-tailed, so a finite Monte
+    Carlo summary describes the draws rather than the quantity. The denominator-free
+    absolute reduction has no denominator to blow up and is still published."""
+    trace = _levels_trace_with(**kwargs)
+    stability = _jm_ratio_stability(trace, contrast=_CONTRAST)
+    assert stability["share_retained_stable"] is False
+    rows = {
+        r["term"]: r
+        for r in _jm_slope_rows(
+            trace,
+            outcome_symbols=_OUTCOMES,
+            contrast=_CONTRAST,
+            ci_prob=0.89,
+            wave="t3",
+            converged=True,
+        )
+    }
+    share = rows["share_retained"]
+    assert all(
+        np.isnan(share[key])
+        for key in ("median", "mean", "lo50", "hi50", "lo", "hi", "prob_pos")
+    )
+    assert np.isfinite(rows["abs_slope_reduction"]["median"])
+
+
+def test_the_transition_design_has_no_ratio_to_stabilise():
+    assert _jm_ratio_stability(_trace(levels=False), contrast=_CONTRAST) is None
+
+
+def test_per_outcome_coverage_labels_come_from_the_saved_cell_map():
+    """Never re-derived: a reconstructed ordering could misalign a measure with
+    another's counts."""
+    ctx = SimpleNamespace(
+        trace=SimpleNamespace(
+            constant_data={
+                "y_post_cell_outcome": SimpleNamespace(
+                    values=np.array([0, 1, 0, 1, 1])
+                )
+            }
+        )
+    )
+    assert _jm_cell_outcome_labels(ctx, _OUTCOMES) == ["W", "N", "W", "N", "N"]
+    empty = SimpleNamespace(trace=SimpleNamespace(constant_data={}))
+    assert _jm_cell_outcome_labels(empty, _OUTCOMES) is None
 
 
 def test_transition_rows_omit_the_conditional_slope_terms():
@@ -434,11 +586,14 @@ def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagno
     # order of magnitude, so a pooled figure alone can hide one badly calibrated leg
     # (2026-08-23 follow-up review, robustness gap 2).
     assert set(marginal["level_pct"]) == {50, 90}
-    assert set(marginal["outcome"]) == {"all", "W", "N"}
+    # The pooled row leaves ``outcome`` null and the per-outcome rows name it — the
+    # convention ``ppc_interval_coverage_by_group`` uses for the conditional table,
+    # so one filter reads both files.
+    assert set(marginal["outcome"].dropna()) == {"W", "N"}
     for level in (50, 90):
         at_level = marginal[marginal["level_pct"] == level]
-        pooled = at_level[at_level["outcome"] == "all"].iloc[0]
-        legs = at_level[at_level["outcome"] != "all"]
+        pooled = at_level[at_level["outcome"].isna()].iloc[0]
+        legs = at_level[at_level["outcome"].notna()]
         assert int(pooled["n_total"]) == int(legs["n_total"].sum())
         assert int(pooled["n_inside"]) == int(legs["n_inside"].sum())
 
@@ -626,10 +781,16 @@ def test_the_slope_ratio_publishes_no_mean_and_reports_its_three_regions():
     )
 
     governance = _jm_ratio_governance_row(
-        trace, ci_prob=0.89, wave="t1", focal="W", converged=True
+        trace, ci_prob=0.89, wave="t1", contrast=_CONTRAST, converged=True
     )
     assert governance is not None
-    assert governance["denominator_stable"] is True
+    # The governance table reproduces the pipeline's ONE stability rule rather than
+    # applying a second, competing one (#591 follow-up review, finding 5).
+    assert governance["share_retained_stable"] is True
+    assert (
+        governance["share_retained_stable"]
+        is _jm_ratio_stability(trace, contrast=_CONTRAST)["share_retained_stable"]
+    )
     assert governance["prob_lt_0"] == pytest.approx(0.2, abs=0.02)
     assert governance["prob_gt_1"] == pytest.approx(0.2, abs=0.02)
     assert governance["prob_in_unit"] == pytest.approx(0.6, abs=0.02)
@@ -652,13 +813,13 @@ def test_the_slope_ratio_is_marked_unstable_when_its_denominator_straddles_zero(
         _ratio_trace(ratio, denominator),
         ci_prob=0.89,
         wave="t2",
-        focal="W",
+        contrast=_CONTRAST,
         converged=True,
     )
     assert governance is not None
-    assert governance["denominator_stable"] is False
+    assert governance["share_retained_stable"] is False
     assert governance["denominator_lo"] < 0 < governance["denominator_hi"]
-    assert governance["denominator_prob_near_zero"] > 0.05
+    assert governance["prob_denominator_above_minimum"] < 0.95
 
 
 def test_the_transition_design_registers_no_ratio_to_govern():
@@ -668,7 +829,7 @@ def test_the_transition_design_registers_no_ratio_to_govern():
             _trace(levels=False),
             ci_prob=0.89,
             wave="stacked",
-            focal="W",
+            contrast=_CONTRAST,
             converged=True,
         )
         is None
@@ -697,10 +858,11 @@ def test_marginal_coverage_survives_asymmetric_outcome_missingness(tmp_path):
     _jm_marginal_ppc(ctx, outcome_symbols=_OUTCOMES)
 
     frame = pd.read_csv(tmp_path / "ppc_summary_marginal.csv")
-    at_50 = frame[frame["level_pct"] == 50].set_index("outcome")
-    assert int(at_50.loc["W", "n_total"]) == 12
-    assert int(at_50.loc["N", "n_total"]) == 9
-    assert int(at_50.loc["all", "n_total"]) == 21
+    at_50 = frame[frame["level_pct"] == 50]
+    by_outcome = at_50[at_50["outcome"].notna()].set_index("outcome")
+    assert int(by_outcome.loc["W", "n_total"]) == 12
+    assert int(by_outcome.loc["N", "n_total"]) == 9
+    assert int(at_50[at_50["outcome"].isna()].iloc[0]["n_total"]) == 21
 
 
 def test_the_exposure_scale_is_recorded_per_wave(tmp_path):

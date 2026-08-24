@@ -6,42 +6,63 @@ Substantially edited by a LLM-based AI tool (Codex/GPT-5).
 
 Descriptive joint group-by-wave growth for the historical cohort: each measure keeps its own fitted group-by-wave cells, and the per-child stable offsets are correlated across measures. A companion model additionally correlates wave-specific departures after removing those stable levels and the group-by-wave means. These are **natural-history** estimates — `readgrp` is a cohort factor, so between-group contrasts describe how the groups differ, not what caused the difference, and neither correlation identifies direction or causation.
 
-### Cross-measure correlation of stable child levels
-
-The posterior correlation matrix of the per-child stable offsets — do children
-who sit persistently higher on one measure also sit persistently higher on the
-others, net of their group's wave-by-wave trajectory?
-
-_How to read the table:_ each row is one measure pair. `mean` is the posterior
-correlation of the stable child levels (`lo`/`hi` its 89% credible interval)
-and `prob_pos` the posterior probability the correlation is positive. The
-matrix is shared across the three reading groups (a stated assumption).
-
-```{python}
-# | echo: false
-corr = _csv("measure_correlation_summary.csv")
-corr if corr is not None else "No correlation summary (run the fit first)."
-```
-
-```{python}
-# | echo: false
-mat = _csv("measure_correlation.csv", index_col=0)
-mat if mat is not None else "No correlation matrix."
-```
-
 ```{python}
 # | echo: false
 from IPython.display import Markdown, display
 
+# Section order follows the fit's own declared estimand (2026-08-23 joint audit,
+# lower-priority reporting correction). ``jc-002``'s headline IS the within-child
+# correlation — that is why the model exists and what its Key Findings box leads
+# with — but this partial used to print the between-child matrix first and then
+# label the within-child result a "companion headline", so the Results section
+# contradicted the box. When the within-child summary is present it leads, and the
+# between-child matrix follows as the secondary view; ``jc-001`` writes no
+# within-child summary and is unchanged.
 within = _csv("within_measure_correlation_summary.csv")
-if within is not None:
-    display(Markdown("### Cross-measure correlation of within-child departures (companion headline)"))
+_between_intro = (
+    "The posterior correlation matrix of the per-child stable offsets — do "
+    "children who sit persistently higher on one measure also sit persistently "
+    "higher on the others, net of their group's wave-by-wave trajectory?\n\n"
+    "_How to read the table:_ each row is one measure pair. `median` is the "
+    "posterior correlation of the stable child levels (`lo50`/`hi50` its inner "
+    "50% range and `lo`/`hi` its 89% credible interval) and `prob_pos` the "
+    "posterior probability the correlation is positive. Quote the median — the "
+    "house convention (`METHODS.md`); `mean` is retained beside it only because "
+    "averaging correlation *matrices* entrywise keeps the printed matrix below "
+    "positive semidefinite, which taking entrywise medians would not. The matrix "
+    "is shared across the three reading groups (a stated assumption)."
+)
+
+
+def _render_between() -> None:
+    heading = (
+        "### Cross-measure correlation of stable child levels"
+        + (" (secondary)" if within is not None else "")
+    )
+    display(Markdown(heading))
+    display(Markdown(_between_intro))
+    corr = _csv("measure_correlation_summary.csv")
+    display(
+        corr
+        if corr is not None
+        else Markdown("No correlation summary (run the fit first).")
+    )
+    mat = _csv("measure_correlation.csv", index_col=0)
+    display(mat if mat is not None else Markdown("No correlation matrix."))
+
+
+def _render_within() -> None:
+    display(
+        Markdown(
+            "### Cross-measure correlation of within-child departures (headline)"
+        )
+    )
     scale = _csv("within_scale_summary.csv")
     if scale is not None:
         display(Markdown("#### Residual-scale identifiability"))
-        display(Markdown("A correlation is not substantively interpretable when either measure's wave-specific residual variance collapses to zero. `prob_above_minimum` is the posterior probability that the residual standard deviation exceeds the deliberately small 0.05-logit identifiability threshold; `resolvable` requires at least 0.95 support. This is not a minimum important effect threshold. `median` is the fitted scale parameter `sigma_within`; `realised_departure_sd_median` is the spread of the departures the model actually carries, which is smaller because those departures are constrained to average to zero within each child and within each group-by-wave cell. **This residual also carries the measurement noise.** The likelihood here is Binomial rather than Beta-Binomial, so true wave-to-wave fluctuation and measurement error are a single term that cannot be separated; independent measurement noise attenuates the correlations below toward zero by an amount the model cannot estimate, so an unresolvable pair means this design cannot see co-fluctuation, not that there is none. The correlations themselves are unaffected by the centring, since the same constraint is applied to every measure."))
+        display(Markdown("A correlation is not substantively interpretable when either measure's wave-specific residual variance collapses to zero. `prob_above_minimum` is the posterior probability that the residual standard deviation exceeds the deliberately small 0.05-logit identifiability threshold; `resolvable` requires at least 0.95 support. This is not a minimum important effect threshold. `median` is the fitted scale parameter `sigma_within`; `realised_departure_sd_median` is the spread of the departures the model actually carries, which is smaller because those departures are constrained to average to zero within each child and within each group-by-wave cell. **This residual also carries the extra-Binomial occasion-specific measurement (test) noise.** Ordinary Binomial item-sampling variation is still represented by the likelihood itself; what is inseparable is the *extra-Binomial* component — occasion-specific test noise sits in the same logistic-normal term as genuine wave-to-wave fluctuation, because this likelihood is Binomial rather than Beta-Binomial. That independent component attenuates the correlations below toward zero by an amount the model cannot estimate, so an unresolvable pair means this design cannot see co-fluctuation, not that there is none. The correlations themselves are unaffected by the centring, since the same constraint is applied to every measure."))
         display(scale)
-    display(Markdown("The latent within-child correlation asks whether a wave when a child is above their own stable level on one measure is also an above-level wave on another, after removing the group-by-wave mean. `median` is the posterior correlation on the logit scale; `lo50`/`hi50` and `lo`/`hi` are the inner 50% and outer 89% credible intervals; `prob_pos` is its posterior probability of being positive. `pair_resolvable` must be true before interpreting a row; false means at least one residual scale is not distinguishable from measurement noise."))
+    display(Markdown("The latent within-child correlation asks whether a wave when a child is above their own stable level on one measure is also an above-level wave on another, after removing the group-by-wave mean. `median` is the posterior correlation on the logit scale; `lo50`/`hi50` and `lo`/`hi` are the inner 50% and outer 89% credible intervals; `prob_pos` is its posterior probability of being positive. `pair_resolvable` must be true before interpreting a row; false means at least one residual scale is not distinguishable from the extra-Binomial occasion-specific noise it shares a term with."))
     display(within)
     within_mat = _csv("within_measure_correlation.csv", index_col=0)
     if within_mat is not None:
@@ -51,6 +72,11 @@ if within is not None:
         display(Markdown("#### Matched between-versus-within comparison"))
         display(Markdown("`within_minus_between_median` compares the two latent-logit correlations for the same measure pair and balanced rows; its 89% interval and `prob_within_gt_between` quantify uncertainty. A difference is descriptive and does not identify a mechanism."))
         display(comparison)
+
+
+if within is not None:
+    _render_within()
+_render_between()
 ```
 
 ### Per-measure fitted cells and growth
@@ -84,11 +110,31 @@ for _m in _jc_measures:
   `posterior_mean_minus_observed_mean` is the gap. `posterior_median_child_mean`
   is a different quantity — the level for a mid-group child rather than the cell
   average — and is not a calibration target.
-- Growth rows: `mean` (+ `q_lo` / `q_hi`) is posterior growth in items over
-  the interval, computed on the `n_subjects` children observed at both
-  endpoint waves; `p_gt_0` is the posterior probability it is positive.
+- Growth rows: `q50` (+ `q25` / `q75` and `q_lo` / `q_hi`) is posterior growth in
+  items over the interval, computed on the `n_subjects` children observed at both
+  endpoint waves; `p_gt_0` is the posterior probability it is positive. Quote
+  `q50` — the house median convention; `mean` is retained as a secondary column.
+  Matching the children holds composition fixed, but it does **not** cancel their
+  per-child offsets: this is an items-scale quantity taken through the inverse
+  logit, so growth still depends on where each child sits on that curve, and in
+  `jc-002` the wave-specific departure does not cancel even on the latent scale.
+  (Cell-average calibration rows above stay means: a cell *average* is the
+  quantity being calibrated.)
 
-_No PSIS-LOO for this model._ The model has one likelihood node per measure, so a single pointwise PSIS-LOO
-is not defined for it; the posterior-predictive checks below are the fit
-diagnostics. The per-measure `lrp-rlm-hg-*` models carry LOO for their own
-single-measure fits.
+_No PSIS-LOO for this model._ Not because several likelihood nodes make it
+undefined — they share an observation coordinate, so their conditional
+log-likelihood contributions can be summed per child-wave row — but because no
+prediction target has been defined and implemented for this family
+(2026-08-23 joint audit, finding 8). Row-level validation predicts *another
+occasion for an already observed child* and, in `jc-002`, must handle the
+held-out occasion's own latent departure; child-level validation predicts *a new
+child* and must integrate the stable and within-child latent effects under an
+explicit treatment of the sample-dependent centring constraints. An exploratory
+post-hoc probe of older stored traces gave maximum Pareto-$k$ around 0.92/1.21 at
+the child-wave unit and 1.64/1.63 at the child unit, so naive conditional PSIS
+was unreliable there too; those traces predate the current priors and their ELPD
+and LOO-PIT are **not** current diagnostics and are not published. Until a
+target-specific implementation (grouped child-level K-fold or exact refits with
+held-out child effects integrated) exists, the posterior-predictive checks below
+are the fit diagnostics. The per-measure `lrp-rlm-hg-*` models carry LOO for their
+own single-measure fits.

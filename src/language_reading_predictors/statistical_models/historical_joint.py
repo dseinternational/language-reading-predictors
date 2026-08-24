@@ -373,8 +373,37 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         extension_waves=settings.extension_waves,
     )
 
+    # 2026-08-23 joint audit, finding 8. The previous reason — "multiple likelihood
+    # nodes, so no pointwise unit is defined" — was wrong. The nodes share an
+    # observation coordinate, so their conditional log-likelihood contributions can
+    # be summed per child-wave row; multiple nodes are not the obstacle. What is
+    # missing is a *defined and implemented prediction target*: row-level validation
+    # predicts another occasion for an already observed child (and, when
+    # ``within_correlation`` is on, must handle that occasion's own latent
+    # departure), while child-level validation predicts a new child and must
+    # integrate the stable and within-child latent effects under an explicit
+    # treatment of the sample-dependent centring constraints. An exploratory
+    # post-hoc probe of older stored traces also gave maximum Pareto-k of about
+    # 0.92/1.21 per child-wave and 1.64/1.63 per child, so naive conditional PSIS
+    # was unreliable there; those traces predate the current priors, so those values
+    # are not current diagnostics and nothing from them is published.
     loo_reason = (
-        "the model has one likelihood node per measure, so no single pooled pointwise predictive unit is defined"
+        "no out-of-sample prediction target has been defined and implemented for "
+        "this family. Multiple likelihood nodes are not the obstacle: they share an "
+        "observation coordinate, so their contributions can be summed per "
+        "child-wave row. Choosing between a new occasion for a known child and a "
+        "new child changes what has to be integrated"
+        + (
+            " — including each held-out occasion's own latent departure and the "
+            "sample-dependent double-centring constraint"
+            if settings.within_correlation
+            else ""
+        )
+        + ". Until a target-specific implementation exists (grouped child-level "
+        "K-fold or exact refits with held-out child effects integrated from their "
+        "population distribution), production LOO is not computed, and an "
+        "exploratory PSIS probe of older stored traces was unreliable and is not "
+        "reported"
     )
     if settings.within_correlation:
         design = (
@@ -481,7 +510,7 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
             settings.within_lkj_eta if settings.within_correlation else None
         ),
         compute_loo=False,
-        loo_unit="not_defined_multiple_likelihood_nodes",
+        loo_unit="undeclared_prediction_target_not_implemented",
         loo_reason=loo_reason,
         design=design,
         estimand=estimand,

@@ -69,8 +69,17 @@ if _eb_anchor:
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("prior_predictive_check.png", "Prior-predictive vs observed"))
-if not _has("prior_predictive_check.png"):
+# One plot per measure for a family carrying one likelihood node per measure
+# (historical joint writes only ``prior_predictive_check_{measure}.png``, so the
+# unsuffixed-only lookup rendered nothing and then said no plot existed —
+# 2026-08-23 joint audit, lower-priority reporting correction). Sorted so page
+# order is stable across renders.
+_pp_panels = ["prior_predictive_check.png"] + sorted(
+    _p.name for _p in _here.glob("prior_predictive_check_*.png")
+)
+for _pp in _pp_panels:
+    print(_img(_pp, "Prior-predictive vs observed"))
+if not any(_has(_pp) for _pp in _pp_panels):
     print("_No prior-predictive plot available for this model._")
 ```
 

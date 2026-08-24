@@ -1348,6 +1348,62 @@ def ppc_interval_coverage(
     return pd.DataFrame(rows)
 
 
+def ppc_interval_coverage_by_group(
+    trace: xr.DataTree,
+    *,
+    node: str,
+    group_labels: Sequence[str],
+    group_name: str = "outcome",
+    ci_levels: Sequence[float] = (0.5, 0.9),
+) -> pd.DataFrame:
+    """:func:`ppc_interval_coverage`, split by a label per flattened observation.
+
+    A multi-outcome family flattens its cells into one likelihood node, so the
+    pooled coverage statistic mixes tests with different denominators, floors and
+    ceilings and weights them by their observed cell counts. That aggregate is
+    well-defined but it can conceal outcome-specific miscalibration -- a badly
+    fitted 6-item floored outcome is invisible beside a well-fitted 79-item one
+    (2026-08-23 joint audit, lower-priority reporting correction).
+
+    Returns the same schema as the pooled frame with an extra label column, so the
+    per-group rows concatenate with it and ``ppc_coverage_markdown`` continues to
+    read the pooled row it always did.
+    """
+    y_rep, y_obs = _ppc_node_arrays(trace, node)
+    labels = np.asarray(group_labels).astype(str)
+    if labels.shape[0] != y_obs.shape[0]:
+        raise ValueError(
+            f"group_labels has {labels.shape[0]} entries but {node!r} has "
+            f"{y_obs.shape[0]} observations"
+        )
+    finite = np.isfinite(y_obs)
+    y_rep, y_obs, labels = y_rep[finite], y_obs[finite], labels[finite]
+    rows: list[dict[str, object]] = []
+    for label in dict.fromkeys(labels):
+        keep = labels == label
+        subset_rep, subset_obs = y_rep[keep], y_obs[keep]
+        n = int(subset_obs.shape[0])
+        for p in ci_levels:
+            lo = np.quantile(subset_rep, (1.0 - p) / 2.0, axis=1)
+            hi = np.quantile(subset_rep, (1.0 + p) / 2.0, axis=1)
+            n_in = int(np.count_nonzero((subset_obs >= lo) & (subset_obs <= hi)))
+            rows.append(
+                {
+                    "mode": "count_interval",
+                    "node": node,
+                    "unit": "observations",
+                    "quantity": "observed score",
+                    group_name: str(label),
+                    "level": float(p),
+                    "level_pct": int(round(p * 100)),
+                    "n_total": n,
+                    "n_inside": n_in,
+                    "coverage": float(n_in / n) if n else float("nan"),
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 def ppc_calibration_table(
     trace: xr.DataTree,
     *,
@@ -1498,6 +1554,17 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
     usable = cov[
         (cov["n_total"].astype(float) > 0) & np.isfinite(cov["coverage"].astype(float))
     ]
+    if usable.empty:
+        return ""
+    # Per-group breakdown rows (``ppc_interval_coverage_by_group``) are a *split* of
+    # the pooled rows, not extra observations, so summing them in as well would
+    # double every total. They carry a group label the pooled rows leave null; drop
+    # them here and let the family's own results partial render them
+    # (2026-08-23 joint audit, lower-priority reporting correction). Frames without
+    # the column are untouched, so stored fits render identically.
+    for group_column in ("outcome", "measure"):
+        if group_column in usable.columns:
+            usable = usable[usable[group_column].isna()]
     if usable.empty:
         return ""
     # Pool across likelihood nodes by summing counts, never by averaging rates:
@@ -2786,6 +2853,7 @@ def tau_difference_summary(
     ci_prob: float,
     G: np.ndarray | None = None,
     metadata: dict[str, str] | None = None,
+    row_mask: np.ndarray | None = None,
 ) -> dict[str, float | str]:
     """Summarise an outcome-effect difference on probability and logit scales.
 
@@ -2799,9 +2867,17 @@ def tau_difference_summary(
     Human-readable semantics come from ``metadata`` rather than being inferred
     from symbols. This keeps LRPITT16's expressive-versus-receptive contrast
     distinct from LRPITT15/115's taught-versus-untaught contrasts.
+
+    ``row_mask`` restricts the standardisation population exactly as it does in
+    :func:`tau_summary_joint`, and is intersected with each outcome's observed
+    rows. The influence audit needs it: per-outcome movement is not sufficient to
+    determine contrast movement, because both magnitude *and* posterior covariance
+    matter, so the declared contrast has to be recomputed over the retained
+    children rather than reconstructed from its marginal components (2026-08-23
+    joint audit, finding 9).
     """
     a, b = pair
-    draws, ame = _joint_ame_draws(trace, outcomes, G=G)
+    draws, ame = _joint_ame_draws(trace, outcomes, G=G, row_mask=row_mask)
     ia, ib = outcomes.index(a), outcomes.index(b)
     diff = draws[ia] - draws[ib]
     diff_prob = ame[ia] - ame[ib]
@@ -7652,12 +7728,14 @@ def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, st
                 "causal",
             )
         )
+        sentences.append(_kf_sentence(_kf_pair_selection_note(len(within)), "note"))
         return sentences
 
     df = _kf_csv(output_dir, "measure_correlation_summary.csv")
     if df is None:
         raise _KeyFindingsUnavailable("measure_correlation_summary.csv is not present")
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
+    pair_note = _kf_pair_selection_note(len(df))
     pair = (
         f"{_kf_plain_label(row.get('label_i', row['measure_i']))} and "
         f"{_kf_plain_label(row.get('label_j', row['measure_j']))}"
@@ -7689,7 +7767,28 @@ def _kf_build_historical_joint(output_dir, config: Mapping) -> list[dict[str, st
             "changing one skill changes another.",
             "causal",
         ),
+        _kf_sentence(pair_note, "note"),
     ]
+
+
+def _kf_pair_selection_note(n_pairs: int) -> str:
+    """Label the leading measure pair as an exploratory, uncertainty-based choice.
+
+    2026-08-23 joint audit, lower-priority reporting correction. The lead pair is
+    the one whose ``P(rho > 0)`` sits furthest from 0.5 among those examined -- in
+    ``jc-002``, among those first passing the residual-scale resolvability rule. It
+    is therefore neither pre-specified nor the largest effect, and calling it "the
+    clearest" without saying so invites a reader to treat it as a finding about
+    that pair specifically. Naming the selection is the fix; no multiplicity
+    adjustment is claimed or implied, and none is applied.
+    """
+    return (
+        f"**Exploratory pair selection.** The leading pair is the one whose "
+        f"direction is clearest of the {n_pairs} examined -- chosen after seeing "
+        "all of them and on uncertainty, not on effect size, and not "
+        "pre-specified. Read the full table rather than this pair alone. No "
+        "multiplicity adjustment is applied and none is implied."
+    )
 
 
 def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
@@ -8064,6 +8163,11 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
     hi_sym, lo_sym = (str(contrast[0]), str(contrast[1]))
     diagnostics = _kf_csv(output_dir, "joint_mechanism_fit_diagnostics.csv")
 
+    # No lead wave. The retired builder headlined the wave whose ``P(Δ > 0)`` sat
+    # furthest from 0.5 — a selection made after seeing every posterior — and
+    # labelled that choice exploratory (2026-08-23 joint audit, finding 3). Since
+    # #591 every fitted wave receives the same full lifecycle and the whole set is
+    # reported in wave order, so there is no selection left to label.
     sentences: list[dict[str, str]] = []
     if per_wave:
         headline = (
@@ -8082,6 +8186,21 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
         " Both slopes come from one posterior with an explicit cross-outcome "
         "dependence block, so this is a within-model contrast — not the "
         "product-of-marginals sensitivity that separate fits can only bound."
+    )
+    # 2026-08-23 joint audit, finding 4: the numbers are right; the construct-level
+    # reading is not licensed. The two tests differ in item count, score
+    # distribution, discrimination, reliability and floor/ceiling behaviour, and the
+    # model puts them on no common latent outcome scale — so one shared ability
+    # loading differently on the two tests produces a non-zero slope contrast by
+    # itself. This is an operational property of the two scores, not a measure of
+    # decoding specificity.
+    headline += (
+        " Read it as an **operational contrast between two adjusted test-score "
+        "associations**, not as construct-level decoding specificity: the two tests "
+        "differ in item count, score distribution, discrimination, reliability and "
+        "floor/ceiling behaviour, and this model calibrates them to no common latent "
+        "outcome scale, so a single shared ability that loads differently on them "
+        "would produce a non-zero contrast on its own."
     )
     if design == "levels":
         headline += (
@@ -8114,6 +8233,17 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
         )
     else:
         direction = "the contrast does not keep one sign across the fitted waves"
+    # A levels-scale reversal has a ready non-causal reading; the ANCOVA design's
+    # must not borrow it (2026-08-21 review).
+    if any(p < 0.5 for p in probs):
+        direction += (
+            " — which on the levels scale is what a shared reading-development / "
+            "general-ability component would produce and what the 6-item nonword "
+            "floor would exaggerate"
+            if design == "levels"
+            else " — a reversal of the Tier-1 contrast, to be read against the "
+            "matched mech-096 / mech-101 pair"
+        )
     sentences.append(
         _kf_sentence(
             f"Direction: {direction} (P(Δ > 0) = "
@@ -8127,39 +8257,71 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
         )
     )
 
-    ratio = _kf_csv(output_dir, "conditional_slope_ratio.csv")
-    if ratio is not None and "denominator_stable" in ratio.columns:
-        stable = ratio["denominator_stable"].astype(str).str.lower().isin(
-            {"true", "1"}
+    # The ratio: one stability rule, applied in the pipeline and reproduced in
+    # ``conditional_slope_ratio.csv``. Reported only where it holds, never as a
+    # median classified against 0.5, and never as a mediated share (2026-08-23 joint
+    # audit, findings 4 and 10; #591 follow-up review, finding 5).
+    share = df[df["term"] == "share_retained"]
+    if not share.empty:
+        stable_flags = (
+            share["share_retained_stable"].astype(str).str.lower().isin({"true", "1"})
+            if "share_retained_stable" in share.columns
+            else pd.Series(True, index=share.index)
         )
-        if not stable.all():
-            unstable = ", ".join(
-                str(w) for w in ratio.loc[~stable, "wave"].drop_duplicates()
-            )
+        stable = share[stable_flags]
+        unstable_waves = [str(w) for w in share.loc[~stable_flags, "wave"]]
+        governance = _kf_csv(output_dir, "conditional_slope_ratio.csv")
+        regions = ""
+        if governance is not None and "prob_in_unit" in governance.columns:
+            usable = governance[
+                governance["wave"].astype(str).isin(set(stable["wave"].astype(str)))
+            ]
+            if not usable.empty:
+                regions = (
+                    " P(0 ≤ ratio ≤ 1) = "
+                    + ", ".join(
+                        f"{_kf_float(v):.2f}" for v in usable["prob_in_unit"]
+                    )
+                    + "."
+                )
+        if not stable.empty:
             sentences.append(
                 _kf_sentence(
-                    f"The conditional-to-marginal slope ratio is not summarised at "
-                    f"{unstable}: the unconditional letter-sound → "
-                    f"{_kf_measure_label(lo_sym)} slope is not far enough from zero "
-                    "for a ratio to be stable there.",
+                    f"Holding latent {_kf_measure_label(hi_sym)} fixed, the ratio of "
+                    f"the adjusted letter-sound → {_kf_measure_label(lo_sym)} "
+                    "association to its unconditional value is "
+                    f"{_kf_jm_wave_series(stable)}.{regions} It is a **ratio of two "
+                    "adjusted associations** — unbounded, not a mediation "
+                    "proportion, not a causal path fraction, and not evidence that "
+                    "the association runs through a decoding channel. It partials "
+                    "the *latent* held-fixed skill rather than an observed score.",
                     "detail",
                 )
             )
-        if stable.any():
-            usable = ratio[stable]
+        reduction = df[df["term"] == "abs_slope_reduction"]
+        if not reduction.empty:
             sentences.append(
                 _kf_sentence(
-                    "Holding latent "
-                    f"{_kf_measure_label(hi_sym)} fixed, the letter-sound → "
-                    f"{_kf_measure_label(lo_sym)} slope retains a fraction of "
-                    f"{_kf_jm_wave_series(usable)} of its unconditional value "
-                    f"(P inside [0, 1] = "
-                    f"{', '.join(f'{_kf_float(v):.2f}' for v in usable['prob_in_unit'])}"
-                    "). This is a conditional-to-marginal **slope ratio**, not a "
-                    "mediated share: it is unbounded, it partials a latent skill "
-                    "rather than an observed score, and this observational model "
-                    "identifies no pathway decomposition.",
+                    "On the denominator-free scale, holding latent "
+                    f"{_kf_measure_label(hi_sym)} fixed reduces the absolute "
+                    f"letter-sound → {_kf_measure_label(lo_sym)} slope by "
+                    f"{_kf_jm_wave_series(reduction)} logit per SD. This companion "
+                    "is reported whether or not the ratio is stable, because a "
+                    "difference has no denominator to blow up.",
                     "detail",
+                )
+            )
+        if unstable_waves:
+            sentences.append(
+                _kf_sentence(
+                    f"The ratio is withheld as unstable at "
+                    f"{', '.join(unstable_waves)}: the posterior does not put at "
+                    "least 95% of its mass on the unconditional slope, or on the "
+                    "held-fixed outcome's residual scale, being away from zero, so "
+                    "the ratio is heavy-tailed and its summary would describe the "
+                    "draws rather than the quantity. Read the two slopes and their "
+                    "absolute difference instead.",
+                    "note",
                 )
             )
 

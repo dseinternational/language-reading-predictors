@@ -1894,6 +1894,35 @@ class LongitudinalPanel:
         return self.dropped_subjects * self.n_waves
 
 
+def _require_finite_integers(values, source, label: str) -> None:
+    """Reject non-finite or fractional entries before an integer cast.
+
+    ``pandas``' ``astype(int)`` truncates towards zero without warning and NumPy's
+    ``to_numpy(dtype=int)`` does the same, so an index code or a bounded count that
+    is 2.7 in the source becomes 2 in the fitted model with nothing recorded. This
+    is the pre-cast guard the historical loader lacked (2026-08-23 joint audit,
+    finding 11). Missing values are the caller's business: pass the column with
+    ``NaN`` already dropped where ``NaN`` is a permitted state.
+    """
+    numeric = pd.to_numeric(values, errors="coerce")
+    if numeric.isna().any():
+        bad = sorted({repr(v) for v in values[numeric.isna()]})[:5]
+        raise ValueError(
+            f"{source}: {label} has non-numeric or non-finite value(s): "
+            f"{', '.join(bad)}."
+        )
+    finite = np.isfinite(numeric.to_numpy(dtype=float))
+    if not finite.all():
+        raise ValueError(f"{source}: {label} has non-finite value(s).")
+    fractional = numeric != numeric.round()
+    if fractional.any():
+        bad = sorted({float(v) for v in numeric[fractional]})[:5]
+        raise ValueError(
+            f"{source}: {label} has non-integer value(s): "
+            f"{', '.join(f'{v:g}' for v in bad)}."
+        )
+
+
 def load_longitudinal_panel(
     dataset: DatasetSpec,
     measures: Sequence[StudyMeasure],
@@ -1938,6 +1967,13 @@ def load_longitudinal_panel(
         raise ValueError(f"{csv_path} missing required columns: {missing_cols}")
 
     df = df.copy()
+    # Validate the index columns BEFORE casting (2026-08-23 joint audit, finding
+    # 11). ``astype(int)`` truncates silently, so a fractional wave code 2.7 became
+    # wave 2 and a fractional group code became another cohort, with no error and no
+    # trace in the fit. The current source data pass these probes, so this closes a
+    # latent defect rather than repairing a live one.
+    for column, label in ((wave_c, "wave"), (grp, "group")):
+        _require_finite_integers(df[column], csv_path, f"{label} code {column!r}")
     df[wave_c] = df[wave_c].astype(int)
     df[grp] = df[grp].astype(int)
     unknown_groups = sorted(set(df[grp].unique()) - set(dataset.group_labels))
@@ -2007,14 +2043,35 @@ def load_longitudinal_panel(
         .reset_index(drop=True)
     )
 
-    # Ceiling guard (always) + complete-case row-count check.
+    # Count guard (always) + group-stability + complete-case row-count checks.
+    #
+    # 2026-08-23 joint audit, finding 11. This used to test only the upper bound, so
+    # a negative, non-finite or fractional score reached the factory, which casts
+    # with ``to_numpy(dtype=int)``: 3.5 silently became 3, and a negative value
+    # produced an invalid Binomial/Beta-Binomial likelihood rather than an error.
+    # ``NaN`` is retained -- it is the documented missing-data selection.
     for m in measures:
         observed = panel_df[m.symbol].dropna()
-        if len(observed) and float(observed.max()) > m.n_trials:
+        if not len(observed):
+            continue
+        _require_finite_integers(observed, csv_path, f"{m.symbol!r} score")
+        low, high = float(observed.min()), float(observed.max())
+        if low < 0 or high > m.n_trials:
             raise ValueError(
-                f"Observed {m.symbol!r} exceeds measure ceiling {m.n_trials} "
-                f"(max {float(observed.max()):g})."
+                f"Observed {m.symbol!r} falls outside its count support "
+                f"[0, {m.n_trials}] (min {low:g}, max {high:g})."
             )
+    # Each child belongs to exactly one cohort. ``readgrp`` is a fixed group factor,
+    # and the factory indexes a child's subject intercept and overdispersion by it,
+    # so a child changing group across waves would silently split their own history
+    # between two population grids.
+    moving = panel_df.groupby(subj)[grp].nunique()
+    moving = moving[moving != 1]
+    if not moving.empty:
+        raise ValueError(
+            f"{csv_path}: subject(s) change group across waves: "
+            f"{sorted(moving.index.tolist())}"
+        )
     if complete_case and measure_syms:
         core_rows = panel_df[panel_df[wave_c].isin(waves)]
         per_subject = core_rows.groupby(subj)[measure_syms[0]].size()

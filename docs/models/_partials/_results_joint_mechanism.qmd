@@ -62,7 +62,7 @@ slopes = _csv("joint_mechanism_slopes.csv")
 slopes if slopes is not None else "No joint-mechanism slope table."
 ```
 
-_How to read the table:_ one row per fitted wave and term. `median` is the posterior median; `lo50`/`hi50` the inner 50% and `lo`/`hi` the outer 89% equal-tailed credible interval; `prob_pos` the posterior probability the quantity exceeds zero. `beta_mech[·]` are the per-outcome letter-sound slopes on one commensurate logit-per-SD scale; `delta_ls_decoding` is their identified difference; `rho_outcome` is the cross-outcome correlation of the dependence block; `beta_mech_focal_given_held` and `share_retained` (levels design only) are the letter-sound → word-reading slope holding _latent_ decoding fixed and its ratio to the unconditional slope. The ratio's `mean` cell is deliberately **blank**: a ratio's mean is dominated by draws where the denominator is small, so it is not a summary of anything. `converged` must be true before a row is interpreted — the prose below excludes any wave whose row fails it, and says so.
+_How to read the table:_ one row per fitted wave and term. `median` is the posterior median; `lo50`/`hi50` the inner 50% and `lo`/`hi` the outer 89% equal-tailed credible interval; `prob_pos` the posterior probability the quantity exceeds zero. `beta_mech[·]` are the per-outcome letter-sound slopes on one commensurate logit-per-SD scale; `delta_ls_decoding` is their identified difference; `rho_outcome` is the cross-outcome correlation of the dependence block; `beta_mech_focal_given_held` and `share_retained` (levels design only) are the letter-sound → word-reading slope holding _latent_ decoding fixed and its ratio to the unconditional slope, with `abs_slope_reduction` the denominator-free companion to that ratio. The ratio's `mean` cell is deliberately **blank**: a ratio's mean is dominated by draws where the denominator is small, so it is not a summary of anything — and a wave failing the stability rule has its whole ratio row blanked, with `share_retained_stable` recording why. `converged` must be true before a row is interpreted — the prose below excludes any wave whose row fails it, and says so.
 
 ```{python}
 # | echo: false
@@ -197,24 +197,32 @@ if ratio is not None and len(ratio):
         "conditional slope divided by the unconditional `β_W`. It is a "
         "**conditional-to-marginal slope ratio**, not a bounded pathway share: it is "
         "negative under suppression, above one under amplification, and undefined in "
-        "the limit as the denominator approaches zero. This model identifies no "
-        "mediation, so a value below one does **not** mean that part of the "
-        "association 'runs through' decoding.\n"
+        "the limit as either its denominator or the held-fixed outcome's residual "
+        "scale approaches zero. This model identifies no mediation, so a value below "
+        "one does **not** mean that part of the association 'runs through' decoding "
+        "— a shared unobserved ability moving both slopes together would produce the "
+        "same ratio.\n"
     )
     print(
-        "\n_How it is governed._ `denominator_stable` applies a rule fixed in "
-        "advance: the unconditional slope's 89% interval must exclude zero and at "
-        "most 5% of its posterior mass may lie within 0.1 logit per SD of zero. "
-        "`prob_lt_0`, `prob_in_unit` and `prob_gt_1` are the posterior probabilities "
-        "of suppression, ordinary attenuation and amplification — read those rather "
-        "than classifying the median.\n"
+        "\n_How it is governed._ One rule, fixed in advance and applied in the "
+        "pipeline: the posterior must put at least 95% of its mass on **both** the "
+        "unconditional slope and the held-fixed outcome's residual scale being more "
+        "than 0.05 logit from zero (that scale divides the conditional slope). "
+        "`share_retained_stable` is that verdict — the same one the slope table "
+        "applies, never a second competing rule — and "
+        "`prob_denominator_above_minimum` / `prob_held_scale_above_minimum` are its "
+        "two components. `prob_lt_0`, `prob_in_unit` and `prob_gt_1` are the "
+        "posterior probabilities of suppression, ordinary attenuation and "
+        "amplification: read those rather than classifying the median.\n"
     )
-    _stable = ratio["denominator_stable"].astype(str).str.lower().isin({"true", "1"})
+    _stable = ratio["share_retained_stable"].astype(str).str.lower().isin({"true", "1"})
     if (~_stable).any():
         _bad = ", ".join(str(w) for w in ratio.loc[~_stable, "wave"].drop_duplicates())
         print(
-            f"\n**Not summarised at {_bad}:** the denominator is too close to zero "
-            "there for the ratio to be stable.\n"
+            f"\n**Withheld as unstable at {_bad}:** the ratio is heavy-tailed there, "
+            "so any summary would describe the draws rather than the quantity. Read "
+            "the two slopes and their absolute difference (`abs_slope_reduction`, in "
+            "the slope table above) instead.\n"
         )
     if _stable.any():
         _ok = ratio[_stable]
@@ -327,7 +335,45 @@ print(
 # Per-outcome LOO-PIT (transition design only — the levels design computes no
 # PSIS-based diagnostics; see the note below). The word-reading `loo_pit.png` is
 # already shown in the technical section; this is its nonword sibling.
-print(_img("loo_pit_n.png", "LOO-PIT calibration — nonword decoding"))
+print(
+    _img(
+        "loo_pit_n.png",
+        "Conditional leave-one-cell-out PIT calibration — nonword decoding",
+    )
+)
+print(
+    "\n_Holdout unit._ These per-outcome PIT plots hold out **one child-outcome "
+    "cell**. The child's other outcome and their other transition rows stay in the "
+    "posterior, so they assess conditional prediction of a held-out cell for an "
+    "otherwise observed child — not calibration for a wholly left-out child, which "
+    "is the unit the stored PSIS-LOO declares. Do not read one as validating the "
+    "other (2026-08-23 joint audit, finding 6).\n"
+)
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# Per-outcome predictive coverage (2026-08-23 joint audit, lower-priority reporting
+# correction). The shared coverage sentence pools the two outcomes' cells and
+# weights them by their observed counts; W has 79 items and N is a 6-item count
+# floored for 40-72% of children, so a pooled number can hide a badly fitted N
+# behind a well fitted W. The pooled value stays as the secondary summary.
+_jm_cov = _csv("ppc_summary.csv")
+if _jm_cov is not None and "outcome" in _jm_cov.columns:
+    _by_outcome = _jm_cov[_jm_cov["outcome"].notna()]
+    if len(_by_outcome):
+        print("#### Predictive coverage by outcome\n")
+        print(
+            _by_outcome[
+                ["outcome", "level_pct", "n_inside", "n_total", "coverage"]
+            ].to_markdown(index=False)
+        )
+        print(
+            "\n_Read each outcome's row against its own nominal level._ The pooled "
+            "sentence in the technical section weights the two by their observed "
+            "cell counts, so it is the secondary view.\n"
+        )
 ```
 
 ```{python}
@@ -374,8 +420,10 @@ if _pareto is not None and "pareto_k" in _pareto.columns:
 # | output: asis
 jm_marginal = _csv("ppc_summary_marginal.csv") if _design == "levels" else None
 if jm_marginal is not None and len(jm_marginal):
+    # The pooled rows leave ``outcome`` null; the per-outcome rows carry the symbol,
+    # the same convention the conditional coverage split uses.
     _pooled = (
-        jm_marginal[jm_marginal["outcome"].astype(str) == "all"]
+        jm_marginal[jm_marginal["outcome"].isna()]
         if "outcome" in jm_marginal.columns
         else jm_marginal
     )

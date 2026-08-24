@@ -90,16 +90,31 @@ from language_reading_predictors.statistical_models.subfits import run_subfit
 #: the conditional-to-marginal slope *ratio*: it is unbounded, can be negative or
 #: exceed one, and is not a mediated share (2026-08-23 follow-up review, finding 5).
 _JM_TERM_LABELS: dict[str, str] = {
+    # 2026-08-23 joint audit, finding 4, and the #591 follow-up review, finding 3.
+    # "Decoding specificity" is a construct-level claim this model does not identify:
+    # W and N differ in item count (79 vs 6), score distribution, discrimination,
+    # reliability and floor/ceiling behaviour, and nothing here calibrates them to a
+    # common latent outcome scale. A single common ability loading differently on the
+    # two tests produces a non-zero slope contrast on its own. What IS identified is
+    # an operational contrast between two adjusted test-score associations, so that
+    # is what the label says.
     "delta_ls_decoding": (
-        "Delta = beta(LS->N) - beta(LS->W) (measurement-scale-dependent "
-        "association contrast)"
+        "Delta = beta(LS->N) - beta(LS->W): operational test-score slope contrast "
+        "(logit per SD), not a construct-level decoding-specificity measure"
     ),
     "rho_outcome": "residual correlation between the two outcomes",
     "beta_held_on_focal": "implied coefficient of the held-fixed outcome",
     "beta_mech_focal_given_held": "beta(LS->W) holding latent nonword decoding fixed",
+    # Likewise a ratio of two adjusted associations, not a mediation proportion or
+    # a causal path fraction — and unbounded, so it is governed rather than read off
+    # its median (#591 follow-up review, finding 5).
     "share_retained": (
-        "conditional-to-marginal slope ratio for beta(LS->W) (unbounded; not a "
-        "mediated share)"
+        "ratio of adjusted associations: beta(LS->W) holding latent decoding fixed, "
+        "over the unconditional beta(LS->W) (unbounded; not a mediated share)"
+    ),
+    "abs_slope_reduction": (
+        "absolute reduction in beta(LS->W) when latent decoding is held fixed "
+        "(logit per SD) - the denominator-free companion to the ratio"
     ),
 }
 
@@ -108,16 +123,24 @@ _JM_TERM_LABELS: dict[str, str] = {
 #: and it carries the governance table below rather than being read off its median.
 _JM_RATIO_TERM = "share_retained"
 
-#: Denominator of that ratio. The ratio is interpretable only while this slope's
-#: reporting interval stays clear of zero.
+#: Denominator of that ratio, and the residual scale that divides the conditional
+#: slope through ``rho * sigma_focal / sigma_held``.
 _JM_RATIO_DENOMINATOR = "beta_mech"
 
-#: Prespecified denominator-stability rule for the conditional-to-marginal ratio: the
-#: marginal slope's reporting interval must exclude zero and no more than 5% of its
-#: posterior mass may lie within 0.1 logit per SD of zero. Both numbers are fixed in
-#: advance so the rule cannot be tuned to a fit (2026-08-23 follow-up review).
-_JM_RATIO_NEAR_ZERO = 0.1
-_JM_RATIO_NEAR_ZERO_MASS = 0.05
+#: Deliberately small logit-scale identifiability threshold for the ``share_retained``
+#: ratio's two instability routes (2026-08-23 joint audit, finding 10), matching the
+#: historical-joint residual-scale rule's 0.05-logit convention. A ratio is reported
+#: only when the posterior supports, with at least ``_JM_STABILITY_SUPPORT``
+#: probability, BOTH that its denominator ``beta_mech[focal]`` is away from zero and
+#: that the held-fixed outcome's residual scale ``sigma_u_resid[held]`` is away from
+#: zero (it divides the conditional slope). Neither is a minimum-important-effect
+#: threshold. A finite Monte Carlo mean over a heavy-tailed ratio looks reassuring
+#: precisely when the quantity is least meaningful, which is why the mean is
+#: withheld for this term regardless. This is the family's ONE stability rule: the
+#: ``conditional_slope_ratio.csv`` governance table reports the same verdict rather
+#: than applying a second, competing one (#591 follow-up review, finding 5).
+_JM_RATIO_MIN_ABS = 0.05
+_JM_STABILITY_SUPPORT = 0.95
 
 #: Columns every ``joint_mechanism_slopes.csv`` row carries. The house standard is
 #: median + inner 50% + outer 89% + tail probability (METHODS.md; #421 acceptance
@@ -155,7 +178,6 @@ def _jm_term_summary(
     ci_prob: float,
     *,
     outcome: str | None = None,
-    suppress_mean: bool = False,
 ) -> dict | None:
     """Median / mean / inner-50% / outer-``ci_prob`` / P(>0) for one posterior term.
 
@@ -163,11 +185,8 @@ def _jm_term_summary(
     a term (the transition design has no conditional slope) simply omits its rows
     instead of failing.
 
-    ``suppress_mean`` writes ``NaN`` instead of the posterior mean. It is set for the
-    conditional-to-marginal slope ratio: the model documentation has always said the
-    ratio's mean must not be reported, but the generic table published one anyway and
-    the report rendered it (2026-08-23 follow-up review, finding 5). A blank cell in a
-    published column cannot be misread the way a number can.
+    The ratio term's mean is blanked by its caller rather than here, so there is one
+    place that decides what a ratio may publish.
     """
     draws = _jm_draws(trace, name, outcome=outcome)
     if draws is None:
@@ -175,7 +194,7 @@ def _jm_term_summary(
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     return {
         "median": float(np.median(draws)),
-        "mean": float("nan") if suppress_mean else float(np.mean(draws)),
+        "mean": float(np.mean(draws)),
         "lo50": float(np.quantile(draws, 0.25)),
         "hi50": float(np.quantile(draws, 0.75)),
         "lo": float(np.quantile(draws, lo_q)),
@@ -189,46 +208,42 @@ def _jm_ratio_governance_row(
     *,
     ci_prob: float,
     wave: str,
-    focal: str,
+    contrast: tuple[str, str],
     converged: bool | None,
 ) -> dict | None:
-    """One row of ``conditional_slope_ratio.csv``: the ratio and its stability rule.
+    """One row of ``conditional_slope_ratio.csv``: the ratio and its stability verdict.
 
     The conditional-to-marginal slope ratio is unbounded. Under suppression or a sign
-    reversal it is negative; under amplification it exceeds one; and as the marginal
-    slope approaches zero it is not summarisable at all. Classifying its median
-    against 0.5 — which the report did — reads a negative ratio as "most of the
-    association runs through decoding", a mediation claim this observational model
-    does not identify (2026-08-23 follow-up review, finding 5).
+    reversal it is negative; under amplification it exceeds one; and as either its
+    denominator or the held-fixed outcome's residual scale approaches zero it is not
+    summarisable at all. Classifying its median against 0.5 — which the report did —
+    reads a negative ratio as "most of the association runs through decoding", a
+    mediation claim this observational model does not identify (#591 follow-up
+    review, finding 5).
 
-    So the ratio is published with a **predeclared denominator-stability rule** and
-    with probability mass in the three regions that mean different things, rather
-    than as a median to be classified:
-
-    * ``stable`` requires the denominator's reporting interval to exclude zero *and*
-      at most 5% of its posterior mass within 0.1 logit per SD of zero. Both limits
-      are prespecified, not read off the fit.
-    * ``prob_lt_0`` / ``prob_in_unit`` / ``prob_gt_1`` are suppression, ordinary
-      attenuation and amplification respectively.
+    So the ratio is published with the probability mass in the three regions that
+    mean different things — ``prob_lt_0`` (suppression), ``prob_in_unit`` (ordinary
+    attenuation) and ``prob_gt_1`` (amplification) — rather than as a median to be
+    classified. The stability verdict is **not** a second rule: it is
+    :func:`_jm_ratio_stability`'s, reproduced here with its two probabilities so the
+    governance table and the slope table can never disagree about whether a wave's
+    ratio is reportable.
 
     Returns ``None`` for a design that registers no ratio.
     """
     ratio = _jm_draws(trace, _JM_RATIO_TERM)
+    focal = contrast[1]
     denominator = _jm_draws(trace, _JM_RATIO_DENOMINATOR, outcome=focal)
-    if ratio is None or denominator is None:
+    stability = _jm_ratio_stability(trace, contrast=contrast)
+    if ratio is None or denominator is None or stability is None:
         return None
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
-    den_lo = float(np.quantile(denominator, lo_q))
-    den_hi = float(np.quantile(denominator, hi_q))
-    near_zero = float(np.mean(np.abs(denominator) < _JM_RATIO_NEAR_ZERO))
-    stable = bool(
-        (den_lo > 0.0 or den_hi < 0.0) and near_zero <= _JM_RATIO_NEAR_ZERO_MASS
-    )
     return {
         "wave": wave,
         "term": _JM_RATIO_TERM,
         "label": _JM_TERM_LABELS[_JM_RATIO_TERM],
         "focal_outcome": focal,
+        "held_outcome": contrast[0],
         "median": float(np.median(ratio)),
         "lo50": float(np.quantile(ratio, 0.25)),
         "hi50": float(np.quantile(ratio, 0.75)),
@@ -237,10 +252,9 @@ def _jm_ratio_governance_row(
         "prob_lt_0": float(np.mean(ratio < 0.0)),
         "prob_in_unit": float(np.mean((ratio >= 0.0) & (ratio <= 1.0))),
         "prob_gt_1": float(np.mean(ratio > 1.0)),
-        "denominator_lo": den_lo,
-        "denominator_hi": den_hi,
-        "denominator_prob_near_zero": near_zero,
-        "denominator_stable": stable,
+        "denominator_lo": float(np.quantile(denominator, lo_q)),
+        "denominator_hi": float(np.quantile(denominator, hi_q)),
+        **stability,
         "converged": converged,
     }
 
@@ -284,16 +298,108 @@ def _jm_slope_rows(
         "rho_outcome",
         "beta_held_on_focal",
         "beta_mech_focal_given_held",
-        _JM_RATIO_TERM,
     ):
-        _add(
-            term,
-            _JM_TERM_LABELS[term],
-            _jm_term_summary(
-                trace, term, ci_prob, suppress_mean=term == _JM_RATIO_TERM
-            ),
-        )
+        _add(term, _JM_TERM_LABELS[term], _jm_term_summary(trace, term, ci_prob))
+
+    # The ratio and its denominator-free companion, gated by the pre-specified
+    # stability rule (2026-08-23 joint audit, finding 10).
+    stability = _jm_ratio_stability(trace, contrast=contrast)
+    share = _jm_term_summary(trace, "share_retained", ci_prob)
+    if share is not None:
+        # The posterior mean of a ratio with a near-zero denominator is a property
+        # of the sampled draws, not of the quantity. Withheld unconditionally.
+        share["mean"] = float("nan")
+        if stability is not None and not stability["share_retained_stable"]:
+            # Undefined, not merely uncertain: blank the summary rather than print
+            # numbers a reader would take as an estimate.
+            for key in ("median", "lo50", "hi50", "lo", "hi", "prob_pos"):
+                share[key] = float("nan")
+        _add("share_retained", _JM_TERM_LABELS["share_retained"], share)
+    _add(
+        "abs_slope_reduction",
+        _JM_TERM_LABELS["abs_slope_reduction"],
+        _jm_abs_slope_reduction(trace, ci_prob, contrast=contrast),
+    )
+    if stability is not None:
+        for row in rows:
+            if row["term"] in ("share_retained", "abs_slope_reduction"):
+                row.update(stability)
     return rows
+
+
+def _jm_ratio_stability(trace, *, contrast: tuple[str, str]) -> dict | None:
+    """Pre-specified stability rule for the ``share_retained`` ratio.
+
+    Two instability routes, both checked on the posterior rather than eyeballed:
+    the denominator ``beta_mech[focal]`` near zero, and the held-fixed outcome's
+    residual scale ``sigma_u_resid[held]`` near zero, which divides the conditional
+    slope through ``rho * sigma_focal / sigma_held``. Either makes the ratio
+    heavy-tailed, so a finite Monte Carlo summary can look reassuring while the
+    quantity has no stable value (2026-08-23 joint audit, finding 10).
+
+    ``None`` when the fit registers no ratio, so the transition design is untouched.
+    """
+    posterior = trace.posterior
+    if "share_retained" not in posterior or "beta_mech" not in posterior:
+        return None
+    held, focal = contrast
+    denominator = np.abs(np.asarray(posterior["beta_mech"].sel(outcome=focal).values))
+    prob_denominator = float(np.mean(denominator > _JM_RATIO_MIN_ABS))
+    prob_scale = float("nan")
+    if "sigma_u_resid" in posterior:
+        scale = np.asarray(posterior["sigma_u_resid"].sel(outcome=held).values)
+        prob_scale = float(np.mean(scale > _JM_RATIO_MIN_ABS))
+    stable = prob_denominator >= _JM_STABILITY_SUPPORT and (
+        not np.isfinite(prob_scale) or prob_scale >= _JM_STABILITY_SUPPORT
+    )
+    return {
+        "ratio_min_abs": _JM_RATIO_MIN_ABS,
+        "prob_denominator_above_minimum": prob_denominator,
+        "prob_held_scale_above_minimum": prob_scale,
+        "share_retained_stable": bool(stable),
+    }
+
+
+def _jm_abs_slope_reduction(
+    trace, ci_prob: float, *, contrast: tuple[str, str]
+) -> dict | None:
+    """Per-draw ``|beta_focal| - |beta_focal_given_held|`` on the logit-per-SD scale.
+
+    The denominator-free reading of the same comparison: how much of the
+    letter-sound association with the focal outcome disappears when the latent
+    held-fixed skill is partialled out. Reportable whether or not the ratio is
+    stable, which is why the ratio's failure state has something to fall back on
+    (2026-08-23 joint audit, finding 10). Taken from the two slopes directly rather
+    than reconstructed through the ratio, so it inherits none of the ratio's
+    near-zero-denominator behaviour.
+    """
+    posterior = trace.posterior
+    if (
+        "beta_mech_focal_given_held" not in posterior
+        or "beta_mech" not in posterior
+    ):
+        return None
+    focal = contrast[1]
+    conditional = np.asarray(posterior["beta_mech_focal_given_held"].values).ravel()
+    unconditional = np.asarray(
+        posterior["beta_mech"].sel(outcome=focal).values
+    ).ravel()
+    if conditional.shape != unconditional.shape:
+        return None
+    draws = np.abs(unconditional) - np.abs(conditional)
+    draws = draws[np.isfinite(draws)]
+    if not draws.size:
+        return None
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    return {
+        "median": float(np.median(draws)),
+        "mean": float(np.mean(draws)),
+        "lo50": float(np.quantile(draws, 0.25)),
+        "hi50": float(np.quantile(draws, 0.75)),
+        "lo": float(np.quantile(draws, lo_q)),
+        "hi": float(np.quantile(draws, hi_q)),
+        "prob_pos": float(np.mean(draws > 0)),
+    }
 
 
 def _jm_marginal_ppc(
@@ -381,9 +487,13 @@ def _jm_marginal_ppc(
         # Pooled *and* per-outcome coverage. The two outcomes sit on incompatible
         # denominators (79 items against 6) and the 6-item one is heavily floored,
         # so a pooled figure can hide a badly calibrated leg behind a well
-        # calibrated one (2026-08-23 follow-up review, robustness gap 2).
-        groups: list[tuple[str, str, np.ndarray]] = [
-            ("all", "observations", np.ones(y_obs.shape[0], dtype=bool))
+        # calibrated one (#591 follow-up review, robustness gap 2). The pooled row
+        # leaves ``outcome`` null and the per-outcome rows carry the symbol — the
+        # same convention ``ppc_interval_coverage_by_group`` uses for the
+        # conditional table, so a reader filtering one file's split filters the
+        # other's identically.
+        groups: list[tuple[object, str, np.ndarray]] = [
+            (None, "observations", np.ones(y_obs.shape[0], dtype=bool))
         ]
         groups += [
             (symbol, f"observations ({symbol})", col == index)
@@ -419,6 +529,23 @@ def _jm_marginal_ppc(
         save_table(ctx, name, frame, required=True)
         written.append(frame)
     return written[0] if written else None
+
+
+def _jm_cell_outcome_labels(
+    ctx: StatisticalFitContext, outcome_symbols: tuple[str, ...]
+) -> list[str] | None:
+    """One outcome symbol per flattened ``y_post`` cell, from the saved cell map.
+
+    ``None`` when the map is absent or does not align, so a per-outcome coverage
+    split is skipped rather than misaligning a measure with another's counts.
+    """
+    constant = getattr(ctx.trace, "constant_data", None)
+    if constant is None or "y_post_cell_outcome" not in constant:
+        return None
+    index = np.asarray(constant["y_post_cell_outcome"].values).astype(int)
+    if index.size == 0 or int(index.max()) >= len(outcome_symbols):
+        return None
+    return [outcome_symbols[i] for i in index]
 
 
 def _jm_primary_fit_plan(
@@ -463,13 +590,31 @@ def _jm_primary_fit_plan(
             _diag.save_joint_posterior_predictive_plot(
                 c, symbol, filename_stem=stem
             )
-        # Coverage is denominator-agnostic for flattened child x outcome cells;
-        # the per-outcome overlays remain the appropriate figure views.
+        # Coverage is denominator-agnostic for flattened child x outcome cells, but
+        # pooling W and N hides outcome-specific miscalibration and weights the two
+        # by their observed cell counts -- and these outcomes differ sharply (79
+        # items versus a 6-item count floored for 40-72% of children). Publish
+        # per-outcome rows and keep the pooled row as the secondary summary the
+        # shared coverage sentence reads (2026-08-23 joint audit, lower-priority
+        # reporting correction).
         with guard_optional(
             c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
         ):
             coverage = _report.ppc_interval_coverage(c.trace, node="y_post")
-            save_table(c, "ppc_summary", coverage, required=False)
+            frames = [coverage]
+            labels = _jm_cell_outcome_labels(c, outcome_symbols)
+            if labels is not None:
+                frames.append(
+                    _report.ppc_interval_coverage_by_group(
+                        c.trace, node="y_post", group_labels=labels
+                    )
+                )
+            save_table(
+                c,
+                "ppc_summary",
+                pd.concat(frames, ignore_index=True),
+                required=False,
+            )
         if marginal_ppc:
             _jm_marginal_ppc(c, outcome_symbols=outcome_symbols)
 
@@ -836,9 +981,6 @@ def _fit_joint_mechanism_levels(
     ratio_rows: list[dict] = []
     diagnostic_rows: list[dict] = []
     gate = None
-    # The conditional-slope ratio's denominator: contrast[1] is the focal outcome
-    # whose slope is partialled (see the factory's contrast deterministics).
-    focal_outcome = contrast[1]
     for w in sorted(wave_built):
         built = wave_built[w]
         tp = w + 1
@@ -914,7 +1056,7 @@ def _fit_joint_mechanism_levels(
             trace,
             ci_prob=ci,
             wave=f"t{tp}",
-            focal=focal_outcome,
+            contrast=contrast,
             converged=bool(convergence.get("converged")),
         )
         if ratio_row is not None:
@@ -1073,6 +1215,50 @@ def _plot_joint_mechanism_by_wave(
     save_styled_figure(ctx.output_dir, "joint_mechanism_by_wave", data=keep)
 
 
+def _jm_comparator_population(
+    ctx: StatisticalFitContext, outcome_symbols: tuple[str, ...]
+) -> dict:
+    """Fitted-row identity for the matched single-outcome comparison.
+
+    2026-08-23 joint audit, finding 7. ``jm-002`` is described as changing only the
+    dependence treatment relative to ``mech-096`` / ``mech-101``, but it is not a
+    strict sensitivity: the joint likelihood needs *both* outcomes' baselines, so a
+    transition with a valid word-reading baseline but no nonword baseline is in the
+    single-outcome fit and not in this one. The exposure standardisation is then
+    computed over a different population as well, so a difference between the
+    numbers is not attributable to covariance alone. This records what the fit
+    actually used so a reader -- and the cross-model comparison -- can quantify the
+    gap rather than take the claim on trust.
+    """
+    record: dict = {
+        "n_rows": int(getattr(ctx.prepared, "n_obs", 0) or 0),
+        "n_children": int(getattr(ctx.prepared, "n_children", 0) or 0),
+        "baseline_rule": (
+            "joint: a row enters only when EVERY declared outcome's baseline is "
+            "observed, so the fitted set can be smaller than each matched "
+            "single-outcome comparator's"
+        ),
+        "exposure_standardisation": (
+            "computed over these rows, so the exposure SD differs from a "
+            "comparator fitted on a different row set"
+        ),
+        "comparison_status": "approximate_not_like_for_like",
+    }
+    post_counts = getattr(ctx.prepared, "post_counts", None)
+    if isinstance(post_counts, dict):
+        observed = {}
+        for symbol in outcome_symbols:
+            values = post_counts.get(symbol)
+            if values is not None:
+                observed[symbol] = int(np.count_nonzero(np.isfinite(np.asarray(values, dtype=float))))
+        if observed:
+            record["observed_cells_by_outcome"] = observed
+    identity = _report.fitted_subject_identity(ctx.prepared)
+    if identity is not None:
+        record["fitted_subject_identity"] = identity
+    return record
+
+
 def _fit_joint_mechanism_transition(
     spec: ModelSpec,
     config: str,
@@ -1148,9 +1334,17 @@ def _fit_joint_mechanism_transition(
             "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
             "estimand": (
                 "phase-stacked bivariate letter-sound slopes on {W, N} with a "
-                "bivariate (LKJ) child random intercept; identified "
-                "decoding-specificity contrast"
+                "bivariate (LKJ) child random intercept; within-model operational "
+                "contrast between the two adjusted test-score slopes (not a "
+                "construct-level decoding-specificity measure)"
             ),
+            # 2026-08-23 joint audit, finding 7. The joint fit requires *both*
+            # outcomes' baselines, so it drops rows the single-outcome comparators
+            # keep, and the exposure standardisation is then computed over a
+            # different population too. Recording the row identity makes the
+            # comparison's approximation machine-readable instead of leaving the
+            # report to assert "like-for-like".
+            "comparator_population": _jm_comparator_population(ctx, outcome_symbols),
             "joint_dependence": "lkj_child_intercept",
             "likelihood": "beta_binomial",
             "mechanism_symbol": plan.mechanism_symbol,

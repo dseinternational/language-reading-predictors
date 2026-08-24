@@ -1823,6 +1823,10 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             ],
         )
         _write_joint_mechanism_wave_bundle(d, waves=("t3", "t4"))
+        # #591 follow-up review, finding 1: the whole wave set is reported and none
+        # is selected, so the phrase that must appear is the one saying so — the
+        # construct-level relabelling from the 2026-08-23 joint audit (finding 4) is
+        # asserted separately below.
         return d, "All fitted waves are reported"
     if kind == "pooled_levels":
         # ``d`` already exists from the shared setup above; the family reads its

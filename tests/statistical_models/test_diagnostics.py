@@ -788,15 +788,20 @@ def test_the_joint_loo_pit_figure_names_the_unit_it_actually_leaves_out(
     )
 
     diag.save_joint_loo_pit_plot(context, "N", filename_stem="loo_pit_n")
-    assert titles == ["LOO-PIT calibration (N, conditional leave-one-cell-out)"]
     assert diag.JOINT_LOO_PIT_UNIT_LABEL == "conditional leave-one-cell-out"
+    assert titles == [
+        "Conditional leave-one-cell-out PIT calibration (N) — "
+        "the child's other cells remain observed"
+    ]
 
     # A family whose likelihood really is one cell per child may say so.
     titles.clear()
     diag.save_joint_loo_pit_plot(
         context, "N", filename_stem="loo_pit_n", unit_label="leave-one-child-out"
     )
-    assert titles == ["LOO-PIT calibration (N, leave-one-child-out)"]
+    # …and gets its own label alone: the "other cells remain observed" clause is a
+    # property of the cell-level unit, so it must not travel with a different one.
+    assert titles == ["Leave-one-child-out PIT calibration (N)"]
 
 
 def _synthetic_trace(
