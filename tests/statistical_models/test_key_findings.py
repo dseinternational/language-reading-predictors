@@ -1433,6 +1433,70 @@ def test_did_period_varying_dose_companion_is_recognised(tmp_path):
 # --- remaining family archetypes ------------------------------------------------
 
 
+def _write_joint_mechanism_wave_bundle(
+    d: Path, *, waves: tuple[str, ...], converged: dict[str, bool] | None = None
+) -> None:
+    """The per-wave bundle the levels design must publish for every fitted wave.
+
+    Since the 2026-08-23 follow-up review every published wave carries its own
+    persisted trace, new-child predictive check, power-scaling result and (for a
+    non-hosting wave) sub-fit provenance row, and the release evaluator fails closed
+    on any of them. A synthetic case must therefore supply the whole bundle, which is
+    also what makes the release test below meaningful.
+    """
+    converged = converged or {}
+    model_id = str(_read_json(d, "config.json")["model_id"])
+    rows, provenance = [], []
+    for index, wave in enumerate(waves):
+        host = index == 0
+        trace_file = "trace.nc" if host else f"trace_wave_{wave}.nc"
+        ppc_file = f"ppc_summary_marginal_{wave}.csv"
+        psense_file = f"psense_wave_{wave}_summary.csv"
+        (d / trace_file).write_bytes(b"trace")
+        _write_rows(
+            d,
+            ppc_file,
+            [
+                {
+                    "mode": "count_interval_marginal",
+                    "node": "y_post",
+                    "outcome": outcome,
+                    "level_pct": level,
+                    "n_total": 50,
+                    "n_inside": 40,
+                    "coverage": coverage,
+                }
+                for level, coverage in ((50, 0.52), (90, 0.88))
+                for outcome in ("all", "W", "N")
+            ],
+        )
+        (d / psense_file).write_text(",prior,likelihood,diagnosis\nbeta_mech[W],0.01,0.02,✓\n")
+        rows.append(
+            {
+                "wave": wave,
+                "timepoint": index + 3,
+                "role": "anchor" if host else "sub-fit",
+                "n": 53,
+                "converged": converged.get(wave, True),
+                "trace_file": trace_file,
+                "marginal_ppc_file": ppc_file,
+                "psense_file": psense_file,
+            }
+        )
+        if not host:
+            provenance.append(
+                {
+                    "label": f"{model_id} wave {wave}",
+                    "role": "wave",
+                    "converged": converged.get(wave, True),
+                    "trace_file": trace_file,
+                }
+            )
+    _write_rows(d, "joint_mechanism_fit_diagnostics.csv", rows)
+    if provenance:
+        _write_rows(d, "subfit_provenance.csv", provenance)
+
+
 def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
     """Synthetic fit artefacts plus one family-specific expected phrase."""
     d = _setup_dir(tmp_path, kind)
@@ -1758,10 +1822,12 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
                 _jm("t4", "share_retained", 0.66, 0.38, 0.92, 1.0),
             ],
         )
-        # 2026-08-23 joint audit, finding 4: the direction sentence describes an
-        # operational property of the two adjusted test-score associations, not a
-        # construct-level "decoding-use signature" the design cannot identify.
-        return d, "an operational property of these two"
+        _write_joint_mechanism_wave_bundle(d, waves=("t3", "t4"))
+        # #591 follow-up review, finding 1: the whole wave set is reported and none
+        # is selected, so the phrase that must appear is the one saying so — the
+        # construct-level relabelling from the 2026-08-23 joint audit (finding 4) is
+        # asserted separately below.
+        return d, "All fitted waves are reported"
     if kind == "pooled_levels":
         # ``d`` already exists from the shared setup above; the family reads its
         # symbols from the resolved plan, so only config.json needs replacing.
@@ -1998,14 +2064,7 @@ def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
     assert "post-hoc, project-agreed smallest-important difference" in _texts(payload)
 
 
-def test_joint_mechanism_findings_exclude_non_converged_waves(tmp_path):
-    """A non-converged wave sub-fit is published flagged in the slopes CSV, but it
-    must not lead — or range into — the gate-interlocked findings box: the
-    clearest-wave selection previously ran over every row while the fit-level
-    release gate covers only the anchor wave (2026-08-21 joint-mechanism review,
-    finding 4)."""
-    d, _ = _remaining_family_case(tmp_path, "joint_mechanism")
-
+def _jm_slope_rows_fixture(converged_t4: bool) -> list[dict]:
     def _jm(wave, term, median, prob_pos, converged):
         return {
             "wave": wave, "term": term, "label": term, "median": median,
@@ -2014,27 +2073,67 @@ def test_joint_mechanism_findings_exclude_non_converged_waves(tmp_path):
             "converged": converged,
         }
 
-    _write_rows(
-        d,
-        "joint_mechanism_slopes.csv",
-        [
-            _jm("t3", "beta_mech[W]", 0.24, 1.0, True),
-            _jm("t3", "beta_mech[N]", 1.02, 1.0, True),
-            _jm("t3", "delta_ls_decoding", 0.79, 0.90, True),
-            _jm("t3", "share_retained", 0.71, 1.0, True),
-            # The clearest delta sits on the NON-converged wave: the old
-            # selection would have headlined it.
-            _jm("t4", "beta_mech[W]", 0.29, 1.0, False),
-            _jm("t4", "beta_mech[N]", 0.95, 1.0, False),
-            _jm("t4", "delta_ls_decoding", 0.66, 0.999, False),
-            _jm("t4", "share_retained", 0.20, 1.0, False),
-        ],
-    )
+    return [
+        _jm("t3", "beta_mech[W]", 0.24, 1.0, True),
+        _jm("t3", "beta_mech[N]", 1.02, 1.0, True),
+        _jm("t3", "delta_ls_decoding", 0.79, 0.90, True),
+        _jm("t3", "share_retained", 0.71, 1.0, True),
+        # The most extreme delta sits on the t4 wave: the retired selection rule
+        # would have headlined it on that basis alone.
+        _jm("t4", "beta_mech[W]", 0.29, 1.0, converged_t4),
+        _jm("t4", "beta_mech[N]", 0.95, 1.0, converged_t4),
+        _jm("t4", "delta_ls_decoding", 0.66, 0.999, converged_t4),
+        _jm("t4", "share_retained", 0.20, 1.0, converged_t4),
+    ]
+
+
+def test_joint_mechanism_findings_never_select_a_wave_after_seeing_it(tmp_path):
+    """No reporting path may lead with the wave whose posterior is most extreme.
+
+    The retired builder headlined the converged wave whose ``P(Δ > 0)`` sat furthest
+    from 0.5 — a selection made after seeing the posteriors, which a reader then has
+    to discount. Every fitted wave is now reported, in wave order (2026-08-23
+    joint-mechanism follow-up review, finding 1)."""
+    d, _ = _remaining_family_case(tmp_path, "joint_mechanism")
+    _write_rows(d, "joint_mechanism_slopes.csv", _jm_slope_rows_fixture(True))
+
     payload = generate_key_findings(d)
     text = _texts(payload)
     assert payload["status"] == "ok"
+    assert "All fitted waves are reported; none is selected as a headline." in text
+    # Both waves' medians appear, in wave order, and neither is singled out.
+    assert "t3 +0.79, t4 +0.66" in text
     assert "at t4" not in text
-    assert "t4 0.20" not in text
+    # And the contrast is no longer presented as a decoding-use signature.
+    assert "not a decoding-use signature" in text
+
+
+def test_joint_mechanism_release_withholds_when_a_published_wave_failed(tmp_path):
+    """A failed wave withholds the whole fit, rather than being quietly excluded.
+
+    Before the 2026-08-23 review the fit-level gate covered only the wave hosting the
+    artefacts, so three of four published posteriors could fail unnoticed while the
+    box simply dropped them. The wave bundle is now release-gating (finding 1)."""
+    d, _ = _remaining_family_case(tmp_path, "joint_mechanism")
+    _write_rows(d, "joint_mechanism_slopes.csv", _jm_slope_rows_fixture(False))
+    _write_joint_mechanism_wave_bundle(d, waves=("t3", "t4"), converged={"t4": False})
+
+    payload = generate_key_findings(d)
+    assert payload["status"] != "ok"
+    assert "wave t4" in json.dumps(payload)
+
+
+def test_joint_mechanism_builder_still_excludes_a_flagged_wave(tmp_path):
+    """The builder keeps its own filter as a second line, below the release gate."""
+    from language_reading_predictors.statistical_models.reporting import (
+        _kf_build_joint_mechanism,
+    )
+
+    d, _ = _remaining_family_case(tmp_path, "joint_mechanism")
+    _write_rows(d, "joint_mechanism_slopes.csv", _jm_slope_rows_fixture(False))
+    sentences = _kf_build_joint_mechanism(d, _read_json(d, "config.json"))
+    text = " ".join(s["text"] for s in sentences)
+    assert "t4 +0.66" not in text
     assert "Wave(s) t4 did not meet the convergence gate" in text
 
 

@@ -1057,15 +1057,26 @@ def _add_decoding_contrast_deterministics(
 
     and ``share_retained = beta_mech_focal_given_held / beta_f`` is the identified
     counterpart of the review's product-of-marginals ratio (the ``ca-010`` /
-    ``ca-011`` paired-draws quantity). ``share_retained`` is a **ratio of posterior
-    quantities**: it is only interpretable while the denominator stays away from
-    zero, and the report must say so rather than quoting a mean.
+    ``ca-011`` paired-draws quantity).
+
+    ``share_retained`` is a **conditional-to-marginal slope ratio, not a bounded
+    pathway share**. It is unbounded: negative under suppression or a sign reversal,
+    above one under amplification, and unstable wherever the denominator ``beta_f``
+    approaches zero. It does not identify a mediated fraction — this is an
+    observational model with no mediation identification — so the pipeline governs it
+    with an explicit denominator-stability rule, publishes the probability mass below
+    zero, inside [0, 1] and above one, and never publishes its mean (2026-08-23
+    follow-up review, finding 5). The retained variable name is the machine key; the
+    scientific label is the conditional-to-marginal slope ratio.
 
     Note the estimands differ subtly and deliberately: ``ca-011`` conditions on the
     *observed* nonword count (measurement error and all), whereas this conditions on
     the *latent* nonword logit. Partialling the latent skill is the cleaner reading of
-    "holding decoding fixed", and it will generally retain *less* than the
-    observed-score version, which attenuates the adjustment toward no adjustment.
+    "holding decoding fixed". Classical additive measurement-error intuition suggests
+    it should retain *less*, but that ordering is **not** guaranteed across two
+    nonlinear models with different likelihoods, different missing-data handling,
+    floor compression and possibly non-classical measurement error — so the two must
+    not be presented as bracketing the answer.
     """
     hi = outcome_symbols.index(contrast[0])
     lo = outcome_symbols.index(contrast[1])
@@ -1148,8 +1159,12 @@ def build_joint_mechanism_model(
     Every slope is an **adjusted association**: latent general ability is unobserved
     and neither dependence block stands in for it. The contrast is a Campbell-Fiske
     convergent/discriminant argument, never identification of a causal decoding
-    effect. Each outcome keeps its own denominator (79 items for ``W``, 6 for ``N``);
-    the flattened-cell likelihood never pools them.
+    effect — and that argument is itself conditional on cross-instrument measurement
+    invariance the model does not impose: if both outcomes load on one general
+    ability with unequal loadings, the latent-scale slopes stay proportional to those
+    loadings and their difference is non-zero with no causal letter-sound route at all
+    (2026-08-23 follow-up review, finding 3). Each outcome keeps its own denominator
+    (79 items for ``W``, 6 for ``N``); the flattened-cell likelihood never pools them.
     """
     from dse_research_utils.math.constants import EPSILON
     from language_reading_predictors.statistical_models.preprocessing import (
@@ -1167,9 +1182,20 @@ def build_joint_mechanism_model(
     K = len(outcome_symbols)
     if K != 2:
         raise ValueError("joint mechanism model expects exactly two outcomes")
+    contrast = tuple(contrast)
     for s in contrast:
         if s not in outcome_symbols:
             raise ValueError(f"contrast outcome {s!r} not in outcome_symbols")
+    # A duplicate or short contrast — ``("N", "N")`` — silently produced a
+    # ``delta_ls_decoding`` identically zero and a share-retained partialling the
+    # focal outcome against itself. The registered typed run plans already reject
+    # it, but this is a public factory boundary and must enforce the same
+    # invariant (2026-08-23 follow-up review, robustness gap 6).
+    if len(contrast) != 2 or set(contrast) != set(outcome_symbols):
+        raise ValueError(
+            "joint mechanism contrast must name each outcome exactly once; got "
+            f"{contrast!r} for outcomes {outcome_symbols!r}"
+        )
     for s in outcome_symbols:
         if s not in prepared.post_counts:
             raise KeyError(f"Outcome {s!r} missing a post score in prepared data")

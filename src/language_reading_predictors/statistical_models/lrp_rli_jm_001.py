@@ -8,9 +8,10 @@ decoding-specificity note (202607172358) both wait on. Two quantities the suite
 currently reports are **product-of-marginals sensitivities**, assembled by pairing
 draws from separate fits under a working-independence assumption:
 
-1. the **share retained** - what fraction of the letter-sound -> word-reading slope
-   survives holding nonword decoding fixed (0.97 / 0.74 / 0.80 / 0.66 at t1-t4),
-   currently the ratio of ``ca-011``'s slope to ``ca-010``'s; and
+1. the **conditional-to-marginal slope ratio** - the letter-sound -> word-reading
+   slope holding nonword decoding fixed, as a fraction of the unconditional slope
+   (0.97 / 0.74 / 0.80 / 0.66 at t1-t4), currently the ratio of ``ca-011``'s slope
+   to ``ca-010``'s; and
 2. the **decoding-specificity contrast** ``Delta = beta(LS->N) - beta(LS->W)``,
    currently paired from ``mech-096`` and ``mech-101``.
 
@@ -25,43 +26,67 @@ standardised same-wave letter-sound logit, with a per-outcome slope. The adjustm
 set is matched term-for-term to ``ca-010`` / ``ca-011`` - age, hearing (``hs`` plus
 its ``hs_missing`` indicator), non-verbal ability (``blocks``) and the flagged group
 nuisance (the same wide ``Normal(0, 1)``) - and the slope prior is the same
-regularising ``Normal(0, 0.3)``, so the identified ``share_retained`` replaces their
-paired-draws ratio like for like. Both outcomes' residuals are drawn
+regularising ``Normal(0, 0.3)``. That makes the two conditional slopes comparable in
+construction; it does **not** make this a nested replacement for their paired-draws
+ratio. Both outcomes' residuals are drawn
 from one bivariate normal with an LKJ correlation; the likelihood is **Binomial**
 rather than Beta-Binomial because that residual already carries the extra-binomial
 variance (two overdispersion mechanisms on one row is how the ITT joint's LKJ block
 went prior-dominated in 2026-04).
+
+Publication lifecycle. Every wave this model publishes is fitted, convergence-scanned
+over its reported deterministics as well as its free variables, given the informative
+new-child predictive check and a recorded power-scaling result, and persisted as a
+named trace; the release decision fails closed on any missing, inconsistent or failed
+part of that bundle. The wave with the most rows hosts the shared fit-level artefacts
+- an operational file-placement rule carrying no scientific priority - and no
+reporting path selects a wave after seeing its posterior (2026-08-23 follow-up
+review, #591). A wave is fitted only if it clears prespecified minima on usable rows,
+on each outcome separately and on jointly observed pairs. The exposure is
+standardised within each wave, so one SD is a different raw letter-sound increment at
+each one; the per-wave scales are published in ``config.json``.
 
 The conditional slope follows from the covariance block:
 
     beta(LS->W | N) = beta_W - rho (sigma_W / sigma_N) beta_N
     share_retained  = beta(LS->W | N) / beta_W
 
+``share_retained`` is a **conditional-to-marginal slope ratio, not a bounded pathway
+share**: negative under suppression, above one under amplification, and not
+summarisable as either ``beta_W`` or the held-fixed outcome's residual scale
+``sigma_N`` approaches zero, since that scale divides the conditional slope. One
+stability rule fixed in advance governs it (0.05 logit, 95% support, both routes -
+``_jm_ratio_stability``): the pipeline withholds the ratio when it fails and
+publishes the denominator-free ``abs_slope_reduction`` beside it, and where it holds
+the ratio is published with the posterior probability of each of the three regions
+and with no mean. This observational model identifies no pathway decomposition, so a
+value below one does not mean part of the association runs through decoding.
+
 Note this conditions on the **latent** nonword logit where ``ca-011`` conditions on
 the *observed* nonword count. Partialling the latent skill is the cleaner reading of
-"holding decoding fixed"; it also partials measurement error, so it will generally
-retain *less* than the observed-score version. They are **not** two bounds on one
-underlying answer: this fit and the ``ca-010`` / ``ca-011`` sensitivities differ in
-likelihood, in how missing predictors are treated, in what is conditioned on, in
-fitted rows and in estimand, so reading them as bracketing a single quantity is not
-supported (2026-08-23 joint audit, finding 4). Read them as different questions whose
-answers happen to be comparable in scale. ``share_retained`` is a ratio of posterior
-quantities and only interpretable while ``beta_W`` stays clear of zero *and* the
-held-fixed outcome's residual scale ``sigma_N`` stays clear of zero, since that scale
-divides the conditional slope; the pipeline applies that rule (0.05 logit, 95%
-support - ``_jm_ratio_stability``) and withholds the ratio when it fails, publishing
-the denominator-free ``abs_slope_reduction`` beside it. Report its median and
-interval, never a mean.
+"holding decoding fixed"; it also partials measurement error. They are **not** two
+bounds on one underlying answer: this fit and the ``ca-010`` / ``ca-011``
+sensitivities differ in likelihood, in how missing predictors are treated, in what is
+conditioned on, in fitted rows and in estimand, so reading them as bracketing a
+single quantity is not supported (2026-08-23 joint audit, finding 4). Classical
+measurement-error intuition suggests the latent version should retain *less*, but
+that ordering is not guaranteed across two nonlinear models differing in all of the
+above. Read them as different questions whose answers happen to be comparable in
+scale.
 
 **Estimand and its limits.** Every slope is an *adjusted association*, never a causal
 effect: latent general ability is unobserved and the residual covariance does not
-stand in for it. The contrast is a Campbell-Fiske convergent/discriminant argument (a
-pure-general-ability account gives no reason for letter sounds to predict pure
-decoding *more* than sight-readable word reading), not identification of a causal
-decoding mechanism. Nonword decoding is a 6-item count floored for 72 / 64 / 52 / 40 %
-of children at t1-t4, so its residual scale - and through it ``share_retained`` - is
-the least well determined quantity in the model. The corresponding randomised-arm
-result is an available-case modified ITT estimate in the ITT suite.
+stand in for it. The contrast is a Campbell-Fiske convergent/discriminant argument,
+not identification of a causal decoding mechanism - and that argument assumes a
+cross-instrument measurement invariance this model does not impose: with unequal
+loadings on one general ability, the two latent-scale slopes differ even with no
+causal letter-sound route. Nonword decoding is a 6-item count floored for
+72 / 64 / 52 / 40 % of children at t1-t4, so its residual scale - and through it the
+conditional slope ratio - is the least well determined quantity in the model. The
+corresponding randomised-arm result is an available-case modified ITT estimate in the
+ITT suite. Outcome missingness is assumed ignorable given the fitted terms; no
+missing-not-at-random sensitivity is registered, and every quantity here is
+conditional on that assumption.
 
 Companion: ``jm-002`` re-reports the Tier-1 Delta on the phase-stacked ANCOVA
 parameterisation that ``mech-096`` / ``mech-101`` use.
@@ -78,7 +103,7 @@ SPEC = ModelSpec(
     kind="joint_mechanism",
     title=(
         "Per-wave joint {word reading (W), nonword decoding (N)} levels model: "
-        "identified decoding-specificity contrast and share retained"
+        "identified decoding-specificity contrast and conditional slope ratio"
     ),
     mechanism_symbol="L",
     adjustment=["G", "A"],
@@ -90,7 +115,7 @@ SPEC = ModelSpec(
         design="levels",
         outcome_symbols=("W", "N"),
         # contrast[0] - contrast[1] is the reported Delta; contrast[1] is also the
-        # focal outcome whose slope share_retained partials.
+        # focal outcome whose slope the conditional-slope ratio partials.
         contrast=("N", "W"),
         # Matched to ca-010 / ca-011: non-verbal ability and hearing — with the
         # hs_missing indicator that the missing-indicator policy pairs with the

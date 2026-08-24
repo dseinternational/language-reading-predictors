@@ -954,6 +954,19 @@ def _beta_mech_draws(model_id: str, config: str) -> np.ndarray | None:
 #: deterministic is the identified counterpart of the product-of-marginals 1A row.
 TIER1_JOINT_MODEL = "lrp-rli-jm-002"
 
+#: Fitted-sample fields the comparison contract reconciles across the joint fit and
+#: its two marginal comparators. Same parameterisation is not the same *sample*: the
+#: joint fit requires both outcome baselines and standardises the exposure once over
+#: that union, while each marginal filters to its own outcome's rows and
+#: re-standardises there (2026-08-23 joint-mechanism follow-up review, finding 2).
+_TIER1_CONTRACT_FIELDS = ("n_rows", "exposure_logit_sd")
+
+#: How close two exposure scalers must be before the comparison counts as sharing a
+#: unit. 1e-9 is exact-equality-with-floating-point-slack, deliberately: any real
+#: difference in the scaler means "per SD" denotes a different raw increment, however
+#: small, and the point of the check is to say so rather than to tolerate it.
+_TIER1_SCALER_TOLERANCE = 1e-9
+
 
 def _joint_delta_draws(model_id: str, config: str) -> np.ndarray | None:
     """Flattened draws of the within-model ``delta_ls_decoding`` contrast, or None."""
@@ -970,6 +983,70 @@ def _joint_delta_draws(model_id: str, config: str) -> np.ndarray | None:
     )
 
 
+def _fit_config(model_id: str, config: str) -> dict:
+    """One fit's stored ``config.json``, or ``{}`` when absent or unreadable."""
+    path = os.path.join(_run_dir(model_id, config), "config.json")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return {}
+
+
+def _tier1_sample_contract(model_id: str, config: str) -> dict:
+    """Fitted rows, observed cells and exposure scale for one 1A source.
+
+    Read from the fit's own ``config.json``, never re-derived: the question is what
+    *that posterior* was fitted to, and a re-derivation over today's data would answer
+    a different one. A field the fit did not record comes back ``None``, which the
+    comparability verdict treats as "not proven" rather than "the same".
+    """
+    stored = _fit_config(model_id, config)
+    extra = stored.get("extra") if isinstance(stored.get("extra"), dict) else {}
+    return {
+        "model": model_id,
+        "n_rows": stored.get("n_obs"),
+        "n_children": stored.get("n_children"),
+        "exposure_logit_sd": extra.get("exposure_logit_sd"),
+    }
+
+
+def _tier1_comparability(rows: list[dict]) -> tuple[bool, str]:
+    """Whether the 1A sources share a fitted sample and exposure unit, and why not.
+
+    "Same parameterisation" is not "same estimand input". The joint fit requires both
+    outcome baselines and standardises the exposure once over that union; each
+    marginal filters to its own outcome's rows and re-standardises there. When those
+    differ, one SD denotes a different raw increment in each fit and the two contrasts
+    are not on one scale — so the difference between them cannot be attributed to
+    cross-outcome covariance alone (2026-08-23 joint-mechanism follow-up review,
+    finding 2).
+    """
+    reasons: list[str] = []
+    for field in _TIER1_CONTRACT_FIELDS:
+        values = [row.get(field) for row in rows]
+        if any(value is None for value in values):
+            missing = ", ".join(
+                str(row["model"]) for row in rows if row.get(field) is None
+            )
+            reasons.append(f"{field} not recorded by {missing}")
+            continue
+        numeric = [float(value) for value in values]
+        spread = max(numeric) - min(numeric)
+        tolerance = _TIER1_SCALER_TOLERANCE if field == "exposure_logit_sd" else 0.0
+        if spread > tolerance:
+            reasons.append(
+                f"{field} differs across sources ("
+                + ", ".join(
+                    f"{row['model']} {float(row[field]):.6g}" for row in rows
+                )
+                + ")"
+            )
+    if not reasons:
+        return True, "fitted rows and exposure scale agree across all 1A sources"
+    return False, "; ".join(reasons)
+
+
 def _tier1_delta_row(
     *,
     config: str,
@@ -979,6 +1056,8 @@ def _tier1_delta_row(
     assumption: str,
     source: str,
     gate_ok: bool,
+    comparable: bool,
+    comparability_note: str,
     beta_n_mean: float | None = None,
     beta_w_mean: float | None = None,
 ) -> dict:
@@ -1000,6 +1079,11 @@ def _tier1_delta_row(
         "beta_N_mean": beta_n_mean,
         "beta_W_mean": beta_w_mean,
         "gate_ok": gate_ok,
+        # Whether this row shares fitted rows and an exposure unit with the other 1A
+        # rows. ``False`` (or an unresolved contract) means the gap between the rows
+        # is not attributable to cross-outcome dependence alone.
+        "comparable": comparable,
+        "comparability_note": comparability_note,
     }
 
 
@@ -1019,13 +1103,42 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
     the same ANCOVA parameterisation and adjustment set fitted *jointly*, with an LKJ
     child-intercept covariance — flagged ``identified=True``. It is added rather than
     substituted: the sensitivity row is the comparator the decoding-specificity note
-    quotes, and the difference between the two rows is the evidence about what the
-    working-independence assumption cost. When no ``jm-002`` run exists for the config,
-    only the sensitivity row is written and a message says so.
+    quotes. When no ``jm-002`` run exists for the config, only the sensitivity row is
+    written and a message says so; when only ``jm-002`` exists, the 1A contrast is
+    still written and the 1B forest is skipped.
+
+    Both rows carry a ``comparable`` flag and a reason, and the same verdict is
+    written standalone to ``tier1_1a_comparison_contract.csv`` (fitted rows, children
+    and exposure scaler per source). Same parameterisation is not the same estimand
+    input: ``jm-002`` requires both outcome baselines and standardises the exposure
+    once over that union, while each marginal filters to its own outcome's rows and
+    re-standardises there. Only when the contract holds is the gap between the two
+    rows the cost of the working-independence assumption; otherwise it mixes that with
+    a sample and scale change (2026-08-23 joint-mechanism follow-up review, finding 2).
     1B: a forest of ``beta_mech`` per outcome, grouped positive-control (written code:
     W, N) vs negative-control (oral language: R, E, T, F). A non-converged run is
     *marked*, never silently dropped (METHODS.md).
     """
+    # The comparison contract, resolved before any row is written so both the
+    # contrast rows and the standalone reconciliation table quote one verdict.
+    contract_rows = [
+        _tier1_sample_contract(model_id, config)
+        for model_id in ("lrp-rli-mech-096", "lrp-rli-mech-101", TIER1_JOINT_MODEL)
+    ]
+    comparable, comparability_note = _tier1_comparability(contract_rows)
+    contract_frame = pd.DataFrame(
+        [{**row, "config": config, "comparable": comparable} for row in contract_rows]
+    )
+    contract_frame.to_csv(
+        os.path.join(out_dir, "tier1_1a_comparison_contract.csv"), index=False
+    )
+    if not comparable:
+        print(
+            "Tier-1 1A: the joint and marginal sources are NOT a like-for-like "
+            f"comparison — {comparability_note}. The difference between the two "
+            "contrast rows is not attributable to cross-outcome dependence alone."
+        )
+
     rows: list[dict] = []
     draws: dict[str, np.ndarray] = {}
     for model_id, sym, role in TIER1_MECH:
@@ -1050,12 +1163,13 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
                 "prob_pos": float(np.mean(b > 0)),
             }
         )
-    if not rows:
-        return False
-
-    df = pd.DataFrame(rows)
-    forest_csv = os.path.join(out_dir, "tier1_negative_control_forest.csv")
-    df.to_csv(forest_csv, index=False)
+    # The 1B forest needs the marginal mechanism rows; the 1A contrast does not.
+    # Returning here used to discard an otherwise valid joint-only 1A result
+    # (2026-08-23 follow-up review, robustness gap 5).
+    df = pd.DataFrame(rows) if rows else None
+    if df is not None:
+        forest_csv = os.path.join(out_dir, "tier1_negative_control_forest.csv")
+        df.to_csv(forest_csv, index=False)
 
     # 1A. Two rows where both are available, never one replacing the other:
     #
@@ -1067,8 +1181,14 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
     #    carries the covariance the pairing sets to zero.
     #
     # Keeping the sensitivity row is deliberate: it is the historical comparator the
-    # decoding-specificity note quotes, and the gap between the two rows is itself the
-    # evidence about how much the working-independence assumption cost.
+    # decoding-specificity note quotes. What the gap between the two rows means
+    # depends on ``comparable`` above: only when the sources share fitted rows and one
+    # exposure unit is that gap the cost of the working-independence assumption. On
+    # the current fits they do not — the joint model requires both outcome baselines
+    # and standardises the exposure once over that union, while each marginal filters
+    # to its own outcome's rows and re-standardises there — so the gap mixes a
+    # dependence change with a sample and scale change (2026-08-23 follow-up review,
+    # finding 2).
     contrast_rows: list[dict] = []
     if "N" in draws and "W" in draws:
         s = min(draws["N"].shape[0], draws["W"].shape[0])
@@ -1089,6 +1209,8 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
                     _gate_ok("lrp-rli-mech-096", config)
                     and _gate_ok("lrp-rli-mech-101", config)
                 ),
+                comparable=comparable,
+                comparability_note=comparability_note,
                 beta_n_mean=float(np.mean(draws["N"])),
                 beta_w_mean=float(np.mean(draws["W"])),
             )
@@ -1108,6 +1230,8 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
                 assumption="joint_posterior_lkj_child_intercept",
                 source=TIER1_JOINT_MODEL,
                 gate_ok=_gate_ok(TIER1_JOINT_MODEL, config),
+                comparable=comparable,
+                comparability_note=comparability_note,
             )
         )
     else:
@@ -1119,6 +1243,9 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
         pd.DataFrame(contrast_rows).to_csv(
             os.path.join(out_dir, "tier1_1a_contrast.csv"), index=False
         )
+    if df is None:
+        # Joint-only: the 1A contrast is written, the 1B forest cannot be.
+        return bool(contrast_rows)
 
     # 1B forest.
     labels, means, los, his, colors = [], [], [], [], []

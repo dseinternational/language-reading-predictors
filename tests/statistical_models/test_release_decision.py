@@ -2083,3 +2083,138 @@ def test_the_withhold_policy_is_unchanged_by_the_tier_correction():
     assert {"primary", "adjusted_robustness", "off_grid"} == set(
         release_module._WITHHOLD_TIERS
     )
+
+
+# --- joint-mechanism per-wave bundle (2026-08-23 follow-up review, finding 1) ----
+
+
+def _joint_mechanism_levels_fit_dir(
+    tmp_path: Path,
+    *,
+    converged: dict[str, bool] | None = None,
+    coverage: dict[str, float] | None = None,
+) -> Path:
+    """A levels fit publishing two waves, each with its complete bundle.
+
+    Before the review only the wave hosting the fit-level artefacts passed through
+    the full lifecycle, so a fit could be declared publishable while its other
+    published posteriors had no persisted trace, no informative predictive check and
+    no recorded power-scaling result.
+    """
+    converged = converged or {}
+    coverage = coverage or {}
+    d = _fit_dir(tmp_path, kind="joint_mechanism")
+    config = json.loads((d / "config.json").read_text())
+    config["extra"] = {"design": "levels", "contrast": ["N", "W"]}
+    (d / "config.json").write_text(json.dumps(config))
+
+    rows, provenance, slopes = [], [], []
+    for index, wave in enumerate(("t3", "t4")):
+        host = index == 0
+        trace_file = "trace.nc" if host else f"trace_wave_{wave}.nc"
+        ppc_file = f"ppc_summary_marginal_{wave}.csv"
+        psense_file = f"psense_wave_{wave}_summary.csv"
+        (d / trace_file).write_bytes(b"trace fixture")
+        pd.DataFrame(
+            [
+                {
+                    "outcome": outcome,
+                    "level_pct": level,
+                    "n_total": 50,
+                    "n_inside": 40,
+                    "coverage": coverage.get(wave, default),
+                }
+                for level, default in ((50, 0.52), (90, 0.88))
+                for outcome in ("all", "W", "N")
+            ]
+        ).to_csv(d / ppc_file, index=False)
+        (d / psense_file).write_text(",prior,likelihood,diagnosis\nbeta_mech,0.01,0.02,✓\n")
+        rows.append(
+            {
+                "wave": wave,
+                "role": "anchor" if host else "sub-fit",
+                "converged": converged.get(wave, True),
+                "trace_file": trace_file,
+                "marginal_ppc_file": ppc_file,
+                "psense_file": psense_file,
+            }
+        )
+        slopes.append({"wave": wave, "term": "delta_ls_decoding", "median": 0.5})
+        if not host:
+            provenance.append(
+                {
+                    "label": f"lrp-test-001 wave {wave}",
+                    "role": "wave",
+                    "converged": converged.get(wave, True),
+                    "trace_file": trace_file,
+                }
+            )
+    pd.DataFrame(rows).to_csv(d / "joint_mechanism_fit_diagnostics.csv", index=False)
+    pd.DataFrame(slopes).to_csv(d / "joint_mechanism_slopes.csv", index=False)
+    pd.DataFrame(provenance).to_csv(d / "subfit_provenance.csv", index=False)
+    return d
+
+
+def test_a_complete_joint_mechanism_wave_bundle_publishes(tmp_path):
+    assert evaluate_publication(_joint_mechanism_levels_fit_dir(tmp_path)).publishable
+
+
+def test_a_failed_published_wave_withholds_the_whole_joint_mechanism_fit(tmp_path):
+    d = _joint_mechanism_levels_fit_dir(tmp_path, converged={"t4": False})
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("gate_failed", "computation")
+    assert any("wave t4" in check for check in decision.failing_checks)
+
+
+@pytest.mark.parametrize(
+    "artefact",
+    ["trace_wave_t4.nc", "ppc_summary_marginal_t4.csv", "psense_wave_t4_summary.csv"],
+)
+def test_a_missing_wave_artefact_withholds_the_joint_mechanism_fit(tmp_path, artefact):
+    d = _joint_mechanism_levels_fit_dir(tmp_path)
+    (d / artefact).unlink()
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
+    assert artefact in decision.missing_artifacts
+
+
+def test_a_wave_without_its_subfit_provenance_row_withholds(tmp_path):
+    """A published sub-fit estimate is auditable only through its provenance row."""
+    d = _joint_mechanism_levels_fit_dir(tmp_path)
+    (d / "subfit_provenance.csv").unlink()
+    decision = evaluate_publication(d)
+    assert decision.status == "artifacts_incomplete"
+    assert any("subfit_provenance.csv" in item for item in decision.missing_artifacts)
+
+
+def test_a_slope_table_naming_an_unpublished_wave_withholds(tmp_path):
+    """Slopes and the wave diagnostics must describe the same set of fits."""
+    d = _joint_mechanism_levels_fit_dir(tmp_path)
+    pd.DataFrame(
+        [{"wave": w, "term": "delta_ls_decoding", "median": 0.5} for w in ("t3", "t9")]
+    ).to_csv(d / "joint_mechanism_slopes.csv", index=False)
+    decision = evaluate_publication(d)
+    assert decision.status == "artifacts_incomplete"
+    assert any(
+        "joint_mechanism_slopes.csv" in item for item in decision.missing_artifacts
+    )
+
+
+def test_poor_new_child_coverage_qualifies_rather_than_withholds(tmp_path):
+    """The predeclared predictive-adequacy rule. Substantive misfit is a finding
+    about the model, not evidence that sampling failed, so it attaches a
+    qualification instead of withholding (2026-08-23 review, robustness gap 2)."""
+    d = _joint_mechanism_levels_fit_dir(tmp_path, coverage={"t4": 0.10})
+    decision = evaluate_publication(d)
+    assert decision.publishable
+    assert "below the predeclared floor" in decision.publication_qualification
+    assert "wave t4" in decision.publication_qualification
+
+
+def test_the_wave_bundle_check_does_not_apply_to_the_transition_design(tmp_path):
+    """``jm-002`` publishes one posterior and writes no per-wave table."""
+    d = _fit_dir(tmp_path, kind="joint_mechanism")
+    config = json.loads((d / "config.json").read_text())
+    config["extra"] = {"design": "transition"}
+    (d / "config.json").write_text(json.dumps(config))
+    assert evaluate_publication(d).publishable

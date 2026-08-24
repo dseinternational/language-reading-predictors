@@ -6,11 +6,23 @@
 ``fit_joint_mechanism`` fits letter-sound knowledge jointly against word reading
 and nonword decoding in one of two designs: a *levels* fit carrying a bivariate
 residual dependence block on the observation row, and a *transition* fit over
-period transitions. Only the levels design yields ``rho_outcome`` and the
-conditional slopes, so those terms are emitted conditionally, and a wave with too
-few usable rows is not fitted at all — a residual correlation from a handful of
-children would be prior-dominated. Nothing here is randomised: every slope is an
-adjusted association.
+period transitions. **Both** designs report ``rho_outcome`` — it is the
+off-diagonal of whichever block the design carries — while only the levels design
+adds the conditional slope and its ratio, because partialling the held-fixed
+outcome is a same-row operation (2026-08-23 follow-up review, documentation gap
+4). A wave that fails the prespecified row, per-outcome and overlap minima is not
+fitted at all: a residual correlation from a handful of jointly observed children
+would be prior-dominated. Nothing here is randomised: every slope is an adjusted
+association.
+
+Publication lifecycle (2026-08-23 follow-up review, finding 1). Every wave the
+levels design publishes is fitted, convergence-scanned over its reported
+deterministics as well as its free random variables, given the informative
+new-child predictive check and power-scaling sensitivity, and persisted as a
+named trace. One wave additionally hosts the fit-level artefacts (``trace.nc``,
+``diagnostics_summary.json``), chosen by row count — an operational
+artefact-hosting rule, never a scientific primary. No reporting path selects a
+wave after seeing its posterior.
 """
 
 from __future__ import annotations
@@ -37,6 +49,7 @@ from language_reading_predictors.statistical_models.adjustment import (
 )
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
+    record_artifact,
     save_table,
 )
 from language_reading_predictors.statistical_models.context import (
@@ -53,6 +66,11 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
+from language_reading_predictors.statistical_models.release import (
+    JOINT_MECHANISM_WAVE_MARGINAL_PPC as _JM_WAVE_MARGINAL_PPC,
+    JOINT_MECHANISM_WAVE_PSENSE as _JM_WAVE_PSENSE,
+    JOINT_MECHANISM_WAVE_TRACE as _JM_WAVE_TRACE,
+)
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -64,35 +82,50 @@ from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
 
 
-#: Terms reported for both designs, in report order. ``rho_outcome`` and the two
-#: conditional-slope terms exist only where the dependence block sits on the
-#: observation row (the ``levels`` design), so they are emitted conditionally.
+#: Terms reported for both designs, in report order. ``rho_outcome`` is emitted by
+#: **both** designs — it is the off-diagonal of whichever dependence block the design
+#: carries — while the two conditional-slope terms exist only where that block sits on
+#: the observation row (the ``levels`` design), so those are emitted conditionally.
+#: ``share_retained`` keeps its machine key for continuity, but its published label is
+#: the conditional-to-marginal slope *ratio*: it is unbounded, can be negative or
+#: exceed one, and is not a mediated share (2026-08-23 follow-up review, finding 5).
 _JM_TERM_LABELS: dict[str, str] = {
-    # 2026-08-23 joint audit, finding 4. "Decoding specificity" is a construct-level
-    # claim this model does not identify: W and N differ in item count (79 vs 6),
-    # score distribution, discrimination, reliability and floor/ceiling behaviour,
-    # and nothing here calibrates them to a common latent outcome scale. A single
-    # common ability loading differently on the two tests produces a non-zero slope
-    # contrast on its own. What IS identified is an operational contrast between two
-    # adjusted test-score associations, so that is what the label says.
+    # 2026-08-23 joint audit, finding 4, and the #591 follow-up review, finding 3.
+    # "Decoding specificity" is a construct-level claim this model does not identify:
+    # W and N differ in item count (79 vs 6), score distribution, discrimination,
+    # reliability and floor/ceiling behaviour, and nothing here calibrates them to a
+    # common latent outcome scale. A single common ability loading differently on the
+    # two tests produces a non-zero slope contrast on its own. What IS identified is
+    # an operational contrast between two adjusted test-score associations, so that
+    # is what the label says.
     "delta_ls_decoding": (
         "Delta = beta(LS->N) - beta(LS->W): operational test-score slope contrast "
         "(logit per SD), not a construct-level decoding-specificity measure"
     ),
     "rho_outcome": "residual correlation between the two outcomes",
     "beta_held_on_focal": "implied coefficient of the held-fixed outcome",
-    "beta_mech_focal_given_held": "beta(LS->W) holding nonword decoding fixed",
+    "beta_mech_focal_given_held": "beta(LS->W) holding latent nonword decoding fixed",
     # Likewise a ratio of two adjusted associations, not a mediation proportion or
-    # a causal path fraction.
+    # a causal path fraction — and unbounded, so it is governed rather than read off
+    # its median (#591 follow-up review, finding 5).
     "share_retained": (
         "ratio of adjusted associations: beta(LS->W) holding latent decoding fixed, "
-        "over the unconditional beta(LS->W)"
+        "over the unconditional beta(LS->W) (unbounded; not a mediated share)"
     ),
     "abs_slope_reduction": (
         "absolute reduction in beta(LS->W) when latent decoding is held fixed "
         "(logit per SD) - the denominator-free companion to the ratio"
     ),
 }
+
+#: The one reported term that is a ratio of posterior quantities. Its mean is never
+#: published (a ratio's mean is dominated by draws where the denominator is small),
+#: and it carries the governance table below rather than being read off its median.
+_JM_RATIO_TERM = "share_retained"
+
+#: Denominator of that ratio, and the residual scale that divides the conditional
+#: slope through ``rho * sigma_focal / sigma_held``.
+_JM_RATIO_DENOMINATOR = "beta_mech"
 
 #: Deliberately small logit-scale identifiability threshold for the ``share_retained``
 #: ratio's two instability routes (2026-08-23 joint audit, finding 10), matching the
@@ -103,7 +136,9 @@ _JM_TERM_LABELS: dict[str, str] = {
 #: zero (it divides the conditional slope). Neither is a minimum-important-effect
 #: threshold. A finite Monte Carlo mean over a heavy-tailed ratio looks reassuring
 #: precisely when the quantity is least meaningful, which is why the mean is
-#: withheld for this term regardless.
+#: withheld for this term regardless. This is the family's ONE stability rule: the
+#: ``conditional_slope_ratio.csv`` governance table reports the same verdict rather
+#: than applying a second, competing one (#591 follow-up review, finding 5).
 _JM_RATIO_MIN_ABS = 0.05
 _JM_STABILITY_SUPPORT = 0.95
 
@@ -127,6 +162,16 @@ _JM_SLOPE_REQUIRED: frozenset[str] = frozenset(
 )
 
 
+def _jm_draws(trace, name: str, *, outcome: str | None = None) -> np.ndarray | None:
+    """Flattened posterior draws for one term, or ``None`` when it is absent."""
+    if name not in trace.posterior:
+        return None
+    var = trace.posterior[name]
+    if outcome is not None:
+        var = var.sel(outcome=outcome)
+    return np.asarray(var.values).ravel()
+
+
 def _jm_term_summary(
     trace,
     name: str,
@@ -139,13 +184,13 @@ def _jm_term_summary(
     Returns ``None`` when the variable is absent, so a design that does not register
     a term (the transition design has no conditional slope) simply omits its rows
     instead of failing.
+
+    The ratio term's mean is blanked by its caller rather than here, so there is one
+    place that decides what a ratio may publish.
     """
-    if name not in trace.posterior:
+    draws = _jm_draws(trace, name, outcome=outcome)
+    if draws is None:
         return None
-    var = trace.posterior[name]
-    if outcome is not None:
-        var = var.sel(outcome=outcome)
-    draws = np.asarray(var.values).ravel()
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     return {
         "median": float(np.median(draws)),
@@ -155,6 +200,62 @@ def _jm_term_summary(
         "lo": float(np.quantile(draws, lo_q)),
         "hi": float(np.quantile(draws, hi_q)),
         "prob_pos": float(np.mean(draws > 0)),
+    }
+
+
+def _jm_ratio_governance_row(
+    trace,
+    *,
+    ci_prob: float,
+    wave: str,
+    contrast: tuple[str, str],
+    converged: bool | None,
+) -> dict | None:
+    """One row of ``conditional_slope_ratio.csv``: the ratio and its stability verdict.
+
+    The conditional-to-marginal slope ratio is unbounded. Under suppression or a sign
+    reversal it is negative; under amplification it exceeds one; and as either its
+    denominator or the held-fixed outcome's residual scale approaches zero it is not
+    summarisable at all. Classifying its median against 0.5 — which the report did —
+    reads a negative ratio as "most of the association runs through decoding", a
+    mediation claim this observational model does not identify (#591 follow-up
+    review, finding 5).
+
+    So the ratio is published with the probability mass in the three regions that
+    mean different things — ``prob_lt_0`` (suppression), ``prob_in_unit`` (ordinary
+    attenuation) and ``prob_gt_1`` (amplification) — rather than as a median to be
+    classified. The stability verdict is **not** a second rule: it is
+    :func:`_jm_ratio_stability`'s, reproduced here with its two probabilities so the
+    governance table and the slope table can never disagree about whether a wave's
+    ratio is reportable.
+
+    Returns ``None`` for a design that registers no ratio.
+    """
+    ratio = _jm_draws(trace, _JM_RATIO_TERM)
+    focal = contrast[1]
+    denominator = _jm_draws(trace, _JM_RATIO_DENOMINATOR, outcome=focal)
+    stability = _jm_ratio_stability(trace, contrast=contrast)
+    if ratio is None or denominator is None or stability is None:
+        return None
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    return {
+        "wave": wave,
+        "term": _JM_RATIO_TERM,
+        "label": _JM_TERM_LABELS[_JM_RATIO_TERM],
+        "focal_outcome": focal,
+        "held_outcome": contrast[0],
+        "median": float(np.median(ratio)),
+        "lo50": float(np.quantile(ratio, 0.25)),
+        "hi50": float(np.quantile(ratio, 0.75)),
+        "lo": float(np.quantile(ratio, lo_q)),
+        "hi": float(np.quantile(ratio, hi_q)),
+        "prob_lt_0": float(np.mean(ratio < 0.0)),
+        "prob_in_unit": float(np.mean((ratio >= 0.0) & (ratio <= 1.0))),
+        "prob_gt_1": float(np.mean(ratio > 1.0)),
+        "denominator_lo": float(np.quantile(denominator, lo_q)),
+        "denominator_hi": float(np.quantile(denominator, hi_q)),
+        **stability,
+        "converged": converged,
     }
 
 
@@ -306,7 +407,10 @@ def _jm_marginal_ppc(
     *,
     outcome_symbols: tuple[str, ...],
     ci_levels: tuple[float, ...] = (0.5, 0.9),
-) -> None:
+    trace=None,
+    prepared=None,
+    name: str = "ppc_summary_marginal",
+) -> pd.DataFrame | None:
     """New-child predictive coverage, written to ``ppc_summary_marginal.csv``.
 
     Why this exists. The levels design carries one bivariate latent residual **per
@@ -327,15 +431,23 @@ def _jm_marginal_ppc(
     Done in NumPy rather than via ``pm.sample_posterior_predictive(var_names=[...])``
     deliberately: naming the residual there still conditioned on its posterior values,
     silently reproducing the conditional numbers under a marginal label.
+
+    ``trace`` / ``prepared`` / ``name`` let a non-anchor wave write its own copy from
+    its own persisted posterior, which is what makes every published wave carry the
+    check rather than only the artefact-hosting one. Coverage is written pooled and
+    **per outcome**, and the table is a *required* artefact.
     """
+    trace = ctx.trace if trace is None else trace
+    prepared = ctx.prepared if prepared is None else prepared
+    written: list[pd.DataFrame] = []
     with guard_optional(
-        ctx, "ppc_summary_marginal.csv",
-        filename="ppc_summary_marginal.csv", kind="table", verb="skipped",
+        ctx, f"{name}.csv",
+        filename=f"{name}.csv", kind="table", verb="skipped",
     ):
-        post = ctx.trace.posterior
+        post = trace.posterior
         required = {"eta", "u_resid", "sigma_u_resid", "rho_outcome"}
         if not required <= set(post.data_vars):
-            return
+            return None
         # Linear predictor with the fitted residual removed.
         eta = np.asarray(post["eta"].values)
         core = eta - np.asarray(post["u_resid"].values)
@@ -344,7 +456,7 @@ def _jm_marginal_ppc(
         sigma = np.asarray(post["sigma_u_resid"].values).reshape(-1, n_outcomes)
         rho = np.asarray(post["rho_outcome"].values).reshape(-1)
         if n_outcomes != 2:
-            return
+            return None
 
         rng = np.random.default_rng(ctx.sampling.random_seed)
         z = rng.standard_normal((core.shape[0], n_obs, 2))
@@ -360,39 +472,63 @@ def _jm_marginal_ppc(
         )
         p = 1.0 / (1.0 + np.exp(-(core + u_new)))
 
-        row = np.asarray(ctx.trace.constant_data["y_post_cell_row"].values).astype(int)
+        row = np.asarray(trace.constant_data["y_post_cell_row"].values).astype(int)
         col = np.asarray(
-            ctx.trace.constant_data["y_post_cell_outcome"].values
+            trace.constant_data["y_post_cell_outcome"].values
         ).astype(int)
         n_trials = np.array(
-            [ctx.prepared.n_trials[s] for s in outcome_symbols], dtype=int
+            [prepared.n_trials[s] for s in outcome_symbols], dtype=int
         )[col]
         y_rep = rng.binomial(n_trials[None, :], p[:, row, col])  # (draw, cell)
 
-        y_obs = np.asarray(ctx.trace.observed_data["y_post"].values, dtype=float)
+        y_obs = np.asarray(trace.observed_data["y_post"].values, dtype=float)
         finite = np.isfinite(y_obs)
-        y_rep, y_obs = y_rep[:, finite], y_obs[finite]
-        n = int(y_obs.shape[0])
+        y_rep, y_obs, col = y_rep[:, finite], y_obs[finite], col[finite]
+        # Pooled *and* per-outcome coverage. The two outcomes sit on incompatible
+        # denominators (79 items against 6) and the 6-item one is heavily floored,
+        # so a pooled figure can hide a badly calibrated leg behind a well
+        # calibrated one (#591 follow-up review, robustness gap 2). The pooled row
+        # leaves ``outcome`` null and the per-outcome rows carry the symbol — the
+        # same convention ``ppc_interval_coverage_by_group`` uses for the
+        # conditional table, so a reader filtering one file's split filters the
+        # other's identically.
+        groups: list[tuple[object, str, np.ndarray]] = [
+            (None, "observations", np.ones(y_obs.shape[0], dtype=bool))
+        ]
+        groups += [
+            (symbol, f"observations ({symbol})", col == index)
+            for index, symbol in enumerate(outcome_symbols)
+        ]
         rows = []
         for level in ci_levels:
             lo = np.quantile(y_rep, (1.0 - level) / 2.0, axis=0)
             hi = np.quantile(y_rep, (1.0 + level) / 2.0, axis=0)
-            n_in = int(np.count_nonzero((y_obs >= lo) & (y_obs <= hi)))
-            rows.append(
-                {
-                    "mode": "count_interval_marginal",
-                    "node": "y_post",
-                    "unit": "observations",
-                    "quantity": "observed score (new-child predictive)",
-                    "level": float(level),
-                    "level_pct": int(round(level * 100)),
-                    "n_total": n,
-                    "n_inside": n_in,
-                    "coverage": float(n_in / n) if n else float("nan"),
-                }
-            )
+            inside = (y_obs >= lo) & (y_obs <= hi)
+            for outcome, unit, mask in groups:
+                n = int(np.count_nonzero(mask))
+                n_in = int(np.count_nonzero(inside & mask))
+                rows.append(
+                    {
+                        "mode": "count_interval_marginal",
+                        "node": "y_post",
+                        "outcome": outcome,
+                        "unit": unit,
+                        "quantity": "observed score (new-child predictive)",
+                        "level": float(level),
+                        "level_pct": int(round(level * 100)),
+                        "n_total": n,
+                        "n_inside": n_in,
+                        "coverage": float(n_in / n) if n else float("nan"),
+                    }
+                )
         frame = pd.DataFrame(rows)
-        save_table(ctx, "ppc_summary_marginal", frame, required=False)
+        # Required, not optional: the ordinary conditional check is saturated by
+        # construction and PSIS-LOO is deliberately not computed, so this is the
+        # levels design's only informative predictive check. ``release`` fails a
+        # wave whose file is absent (2026-08-23 follow-up review, robustness gap 2).
+        save_table(ctx, name, frame, required=True)
+        written.append(frame)
+    return written[0] if written else None
 
 
 def _jm_cell_outcome_labels(
@@ -483,7 +619,12 @@ def _jm_primary_fit_plan(
             _jm_marginal_ppc(c, outcome_symbols=outcome_symbols)
 
     def _write_loo_pit(c: StatisticalFitContext) -> None:
-        # The generic LOO-PIT would pool tests with different denominators.
+        # The generic LOO-PIT would pool tests with different denominators. Note the
+        # leave-out unit: this subsets one outcome's flattened cells and keeps no
+        # child map, so it leaves out one *cell* while the same child's other
+        # transitions, other outcome and fitted intercept stay in — a conditional
+        # check, not the leave-one-child-out target the main PSIS-LOO declares. The
+        # figure title says so (2026-08-23 follow-up review, finding 4).
         for index, symbol in enumerate(outcome_symbols):
             stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
             _diag.save_joint_loo_pit_plot(
@@ -567,6 +708,162 @@ def fit_joint_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     return _fit_joint_mechanism_transition(spec, config, plan)
 
 
+#: Deterministics the levels design publishes and therefore convergence-scans. They
+#: are functions of free variables, but a ratio or a correlation can mix far worse
+#: than its arguments, so a verdict that omits them does not cover what is published.
+_JM_REPORTED_DETERMINISTICS: tuple[str, ...] = (
+    "delta_ls_decoding",
+    "rho_outcome",
+    "beta_held_on_focal",
+    "beta_mech_focal_given_held",
+    "share_retained",
+)
+
+
+def _jm_wave_eligibility(
+    sub,
+    *,
+    plan: _joint_mechanism.JointMechanismRunPlan,
+    outcome_symbols: tuple[str, ...],
+    timepoint: int,
+) -> dict:
+    """Whether one wave clears the prespecified minima, and the counts behind that.
+
+    Three floors, not one. The union count (exposure plus *at least one* outcome)
+    bounds neither leg's own sample nor the jointly observed pairs — and it is the
+    jointly observed pairs that identify the residual correlation and, through it, the
+    conditional slope and its ratio. A wave could clear a union floor while one
+    outcome is nearly absent, and would then publish a prior-dominated ``rho_outcome``
+    (2026-08-23 follow-up review, robustness gap 1).
+
+    The recorded counts are also the *wave-specific* eligibility ledger. A wave subset
+    inherits ``prepared.dropped_rows`` from the four-timepoint panel unchanged, so the
+    stored figure is neither the panel's nor this wave's (metadata gap 3).
+    """
+    assert plan.min_wave_rows is not None
+    assert plan.min_wave_outcome_rows is not None
+    assert plan.min_wave_overlap_rows is not None
+    usable = ~np.isnan(sub.post_counts[plan.mechanism_symbol])
+    observed = {s: ~np.isnan(sub.post_counts[s]) for s in outcome_symbols}
+    any_outcome = np.zeros(sub.n_obs, dtype=bool)
+    both_outcomes = np.ones(sub.n_obs, dtype=bool)
+    for symbol in outcome_symbols:
+        any_outcome |= observed[symbol]
+        both_outcomes &= observed[symbol]
+    n_usable = int(np.count_nonzero(usable & any_outcome))
+    per_outcome = {
+        symbol: int(np.count_nonzero(usable & observed[symbol]))
+        for symbol in outcome_symbols
+    }
+    n_overlap = int(np.count_nonzero(usable & both_outcomes))
+    reasons: list[str] = []
+    if n_usable < plan.min_wave_rows:
+        reasons.append(f"{n_usable} usable rows < {plan.min_wave_rows}")
+    for symbol, count in per_outcome.items():
+        if count < plan.min_wave_outcome_rows:
+            reasons.append(f"{count} {symbol} cells < {plan.min_wave_outcome_rows}")
+    if n_overlap < plan.min_wave_overlap_rows:
+        reasons.append(
+            f"{n_overlap} jointly observed rows < {plan.min_wave_overlap_rows}"
+        )
+    return {
+        "wave": f"t{timepoint}",
+        "timepoint": timepoint,
+        "panel_rows_at_wave": int(sub.n_obs),
+        "usable_rows": n_usable,
+        **{f"cells_{symbol}": count for symbol, count in per_outcome.items()},
+        "jointly_observed_rows": n_overlap,
+        "wave_eligibility_dropped": int(sub.n_obs) - n_usable,
+        "fitted": not reasons,
+        "skipped_because": "; ".join(reasons),
+    }
+
+
+def _jm_reported_deterministics(built) -> list[str]:
+    """The reported deterministics a built joint-mechanism model actually registers."""
+    names = set(built.model.named_vars)
+    return [name for name in _JM_REPORTED_DETERMINISTICS if name in names]
+
+
+def _jm_exposure_logit_sd(built, mechanism_symbol: str) -> float | None:
+    """SD of the exposure logit on the rows the factory standardised it over.
+
+    One standard deviation is the unit both slopes are reported in, and the levels
+    design re-standardises within each wave — so a cross-wave coefficient range does
+    not denote a fixed raw letter-sound increment unless this number is published
+    beside it (2026-08-23 follow-up review, robustness gap 8). It is also what makes
+    the joint-versus-marginal comparison auditable (finding 2).
+    """
+    from language_reading_predictors.statistical_models.preprocessing import logit_safe
+
+    prepared = built.prepared
+    if mechanism_symbol not in prepared.post_counts:
+        return None
+    values = logit_safe(
+        prepared.post_counts[mechanism_symbol], prepared.n_trials[mechanism_symbol]
+    )
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        return None
+    return float(np.std(values, ddof=1))
+
+
+def _jm_copy_wave_artifacts(ctx: StatisticalFitContext, *, timepoint: int) -> None:
+    """Re-file the artefact-hosting wave's predictive and psense tables per wave.
+
+    The shared runner writes ``ppc_summary_marginal.csv`` and ``psense_summary.csv``
+    under their house names. Copying them to the per-wave names means the release
+    check requires one uniform bundle for *every* published wave instead of special
+    casing the wave that happens to host the fit-level artefacts — and it costs no
+    second computation, because both are re-filings of frames already in hand.
+    """
+    for source, target in (
+        ("ppc_summary_marginal", _JM_WAVE_MARGINAL_PPC.format(timepoint=timepoint)),
+        ("psense_summary", f"{_JM_WAVE_PSENSE.format(timepoint=timepoint)}_summary"),
+    ):
+        frame = ctx.tables.get(source)
+        if frame is None:
+            continue
+        save_table(
+            ctx, target, frame, index=source == "psense_summary", register=False
+        )
+
+
+def _jm_wave_psense(
+    ctx: StatisticalFitContext,
+    built,
+    trace,
+    *,
+    plan: _joint_mechanism.JointMechanismRunPlan,
+    timepoint: int,
+) -> None:
+    """Power-scaling sensitivity for one non-hosting wave, from its own posterior.
+
+    Power scaling is importance reweighting over draws already in hand, so it needs
+    only the ``log_likelihood`` / ``log_prior`` groups — which a sub-fit trace does
+    not carry until they are attached here. Guarded: psense is a secondary diagnostic
+    and must not cost a wave its fit, but its absence *is* checked at release, so a
+    silent skip cannot pass as a recorded result.
+    """
+    stem = _JM_WAVE_PSENSE.format(timepoint=timepoint)
+    with guard_optional(
+        ctx, f"{stem}_summary.csv", filename=f"{stem}_summary.csv", kind="table"
+    ):
+        names = {rv.name for rv in built.model.free_RVs} | set(built.model.named_vars)
+        var_names = plan.psense_vars(names)
+        if not var_names:
+            return
+        with_densities = _diag.attach_log_densities(trace, built.model, strict=False)
+        frame = _diag.psense_artifacts(
+            with_densities, ctx.output_dir, var_names, stem=stem
+        )
+        if frame is not None:
+            record_artifact(
+                ctx, stem, filename=f"{stem}_summary.csv", df=frame
+            )
+
+
 def _fit_joint_mechanism_levels(
     spec: ModelSpec,
     config: str,
@@ -574,16 +871,24 @@ def _fit_joint_mechanism_levels(
 ) -> StatisticalFitContext:
     """Per-wave levels/concurrent bivariate fit (#421 Tier 3 (1); ``jm-001``).
 
-    One cross-sectional fit per timepoint, mirroring the ``concurrent`` family's
-    published shape: the diagnostic-anchor wave (most rows; ties -> latest) carries
-    the trace / gate / PPC artefacts, every wave's convergence is recorded in
-    ``joint_mechanism_fit_diagnostics.csv``, and no wave is silently dropped.
+    One cross-sectional fit per timepoint. **Every** published wave is fitted,
+    convergence-scanned over its reported deterministics as well as its free random
+    variables, given the informative new-child predictive check and power-scaling
+    sensitivity, and persisted as a named trace; the wave with the most rows (ties ->
+    latest) additionally hosts the fit-level artefacts (``trace.nc``,
+    ``diagnostics_summary.json``, the model graph). That rule is operational — which
+    fit carries the shared artefacts — and carries no scientific priority, which is
+    why nothing downstream selects a wave to headline (2026-08-23 follow-up review,
+    finding 1). ``joint_mechanism_fit_diagnostics.csv`` names each wave's trace,
+    predictive and power-scaling files so ``release`` can check the whole bundle, and
+    no wave is silently dropped.
     """
     outcome_symbols = plan.outcome_symbols
     contrast = plan.contrast
     # Trait covariates are t1-measured, so they broadcast from baseline across the
-    # four timepoint rows — exactly as ca-010 / ca-011 enter them, which is what
-    # makes the identified share_retained a like-for-like replacement.
+    # four timepoint rows — the same route ca-010 / ca-011 enter them by. That makes
+    # the two conditional slopes comparable in construction; it does not make them
+    # nested (see the run plan's comparator_equivalence).
     covariates = plan.declared_adjustment
     predictor_slope_sigma = plan.predictor_slope_sigma
     assert predictor_slope_sigma is not None
@@ -609,52 +914,79 @@ def _fit_joint_mechanism_levels(
 
     # Usable rows at a wave: the exposure observed (it is never imputed — imputing
     # the focal exposure would bias both slopes toward zero) and at least one outcome
-    # observed. A wave below the floor is skipped *and named*: a silently dropped
-    # timepoint would read as "that wave was not estimable" when it was never tried.
+    # observed. A wave below any prespecified floor is skipped *and named*: a silently
+    # dropped timepoint would read as "that wave was not estimable" when it was never
+    # tried. The per-outcome and overlap floors matter because the residual
+    # correlation and the conditional slope are estimated from *jointly* observed
+    # pairs, which the union count does not bound (2026-08-23 review, gap 1).
     wave_indices = sorted({int(p) for p in np.unique(prepared_all.phase)})
     wave_subsets: dict[int, object] = {}
+    eligibility: list[dict] = []
     skipped: list[str] = []
     for w in wave_indices:
         sub = _subset_prepared(prepared_all, prepared_all.phase == w)
-        usable = ~np.isnan(sub.post_counts[plan.mechanism_symbol])
-        any_outcome = np.zeros(sub.n_obs, dtype=bool)
-        for symbol in outcome_symbols:
-            any_outcome |= ~np.isnan(sub.post_counts[symbol])
-        n_usable = int(np.count_nonzero(usable & any_outcome))
-        assert plan.min_wave_rows is not None
-        if n_usable < plan.min_wave_rows:
-            skipped.append(f"t{w + 1} ({n_usable} usable rows)")
+        record = _jm_wave_eligibility(
+            sub, plan=plan, outcome_symbols=outcome_symbols, timepoint=w + 1
+        )
+        eligibility.append(record)
+        if not record["fitted"]:
+            skipped.append(f"t{w + 1} ({record['skipped_because']})")
             continue
         wave_subsets[w] = sub
     if skipped:
         rprint(
             "[yellow]Joint mechanism: skipped "
-            f"{', '.join(skipped)} — fewer than {plan.min_wave_rows} rows with the "
-            "exposure and at least one outcome observed.[/yellow]"
+            f"{', '.join(skipped)} — below the prespecified wave minima "
+            f"(rows >= {plan.min_wave_rows}, each outcome >= "
+            f"{plan.min_wave_outcome_rows}, jointly observed >= "
+            f"{plan.min_wave_overlap_rows}).[/yellow]"
         )
     if not wave_subsets:
         raise ValueError(
-            f"{spec.model_id}: no timepoint has at least {plan.min_wave_rows} rows "
-            f"with the exposure {plan.mechanism_symbol!r} and an outcome observed."
+            f"{spec.model_id}: no timepoint meets the prespecified wave minima for "
+            f"the exposure {plan.mechanism_symbol!r} and both outcomes."
         )
     # Build after the data filter, so a specification error (a bad contrast, a missing
     # covariate) raises rather than being swallowed as "this wave is not fittable".
     wave_built = {w: _build(sub) for w, sub in wave_subsets.items()}
-    # Diagnostic anchor = most rows; ties -> latest. An operational artefact-selection
-    # rule, not a claim that the wave is best-powered or substantively primary.
+    # Artefact host = most rows; ties -> latest. An operational choice about which fit
+    # carries the shared fit-level files, NOT a claim that the wave is best-powered or
+    # substantively primary — every wave now gets the same diagnostic treatment.
     primary_wave = max(wave_built, key=lambda w: (wave_built[w].prepared.n_obs, w))
+    for record in eligibility:
+        built = wave_built.get(record["timepoint"] - 1)
+        record["fitted_rows"] = (
+            int(built.prepared.n_obs) if built is not None else None
+        )
+        record["factory_dropped"] = (
+            record["usable_rows"] - int(built.prepared.n_obs)
+            if built is not None
+            else None
+        )
+        record["exposure_logit_sd"] = (
+            _jm_exposure_logit_sd(built, plan.mechanism_symbol)
+            if built is not None
+            else None
+        )
+        record["hosts_fit_artifacts"] = (
+            built is not None and record["timepoint"] - 1 == primary_wave
+        )
+    eligibility_df = pd.DataFrame(eligibility)
+    save_table(ctx, "joint_mechanism_wave_eligibility", eligibility_df)
 
     ctx.prepared = wave_built[primary_wave].prepared
     print_header(ctx)
 
     slope_rows: list[dict] = []
+    ratio_rows: list[dict] = []
     diagnostic_rows: list[dict] = []
     gate = None
     for w in sorted(wave_built):
         built = wave_built[w]
         tp = w + 1
+        reported = _jm_reported_deterministics(built)
         if w == primary_wave:
-            section_header(f"Build model (anchor wave t{tp})")
+            section_header(f"Build model (artefact-hosting wave t{tp})")
             attach_built(ctx, built)
             render_model_graph(ctx)
             model_names = {rv.name for rv in ctx.model.free_RVs} | set(
@@ -678,18 +1010,40 @@ def _fit_joint_mechanism_levels(
             trace = ctx.trace
             convergence = _diag.subfit_convergence(
                 ctx.trace,
-                label=f"{spec.model_id} anchor wave t{tp}",
-                var_names=[rv.name for rv in ctx.model.free_RVs],
+                label=f"{spec.model_id} wave t{tp}",
+                # Free variables *and* the deterministics this wave publishes: a
+                # ratio can mix far worse than the slopes it is built from.
+                var_names=[rv.name for rv in ctx.model.free_RVs] + reported,
             )
             convergence["converged"] = bool(
                 _report.convergence_gate_clean_passed(gate)
                 and convergence.get("converged")
             )
+            trace_file = "trace.nc"
+            # The fit-level files are written under their house names by the shared
+            # runner; copy them to the per-wave names too, so the release check can
+            # require one uniform bundle per published wave.
+            _jm_copy_wave_artifacts(ctx, timepoint=tp)
         else:
             res = run_subfit(
-                ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
+                ctx,
+                built,
+                label=f"{spec.model_id} wave t{tp}",
+                role="wave",
+                posterior_predictive=["y_post"],
+                trace_filename=_JM_WAVE_TRACE.format(timepoint=tp),
+                extra_var_names=reported,
             )
             trace, convergence = res.trace, res.convergence
+            trace_file = res.trace_file
+            _jm_marginal_ppc(
+                ctx,
+                outcome_symbols=outcome_symbols,
+                trace=trace,
+                prepared=built.prepared,
+                name=_JM_WAVE_MARGINAL_PPC.format(timepoint=tp),
+            )
+            _jm_wave_psense(ctx, built, trace, plan=plan, timepoint=tp)
         slope_rows += _jm_slope_rows(
             trace,
             outcome_symbols=outcome_symbols,
@@ -698,6 +1052,15 @@ def _fit_joint_mechanism_levels(
             wave=f"t{tp}",
             converged=bool(convergence.get("converged")),
         )
+        ratio_row = _jm_ratio_governance_row(
+            trace,
+            ci_prob=ci,
+            wave=f"t{tp}",
+            contrast=contrast,
+            converged=bool(convergence.get("converged")),
+        )
+        if ratio_row is not None:
+            ratio_rows.append(ratio_row)
         diagnostic_rows.append(
             {
                 "wave": f"t{tp}",
@@ -705,11 +1068,20 @@ def _fit_joint_mechanism_levels(
                 "role": "anchor" if w == primary_wave else "sub-fit",
                 "n": built.prepared.n_obs,
                 **convergence,
+                # The bundle a published wave must carry, named so the release
+                # evaluator can check it without re-deriving the convention.
+                "trace_file": trace_file,
+                "marginal_ppc_file": _JM_WAVE_MARGINAL_PPC.format(timepoint=tp)
+                + ".csv",
+                "psense_file": _JM_WAVE_PSENSE.format(timepoint=tp) + "_summary.csv",
+                "convergence_vars": ", ".join(reported),
             }
         )
 
-    section_header("Decoding-specificity contrast and share retained")
+    section_header("Decoding-specificity contrast and conditional slope ratio")
     slopes_df = _jm_write_slopes(ctx, slope_rows, contrast=contrast)
+    if ratio_rows:
+        save_table(ctx, "conditional_slope_ratio", pd.DataFrame(ratio_rows))
     diagnostics_df = pd.DataFrame(diagnostic_rows)
     save_table(ctx, "joint_mechanism_fit_diagnostics", diagnostics_df)
     _plot_joint_mechanism_by_wave(ctx, slopes_df, ci)
@@ -742,20 +1114,44 @@ def _fit_joint_mechanism_levels(
             ),
             "include_group_nuisance": plan.include_group,
             "predictor_slope_sigma": predictor_slope_sigma,
-            "diagnostic_anchor_timepoint": primary_wave + 1,
+            "artifact_hosting_timepoint": primary_wave + 1,
             "timepoints": [w + 1 for w in sorted(wave_built)],
             "n_published_fits": int(len(diagnostics_df)),
             "all_published_fits_converged": bool(
                 not diagnostics_df.empty
                 and diagnostics_df["converged"].eq(True).all()
             ),
+            # Wave-specific eligibility, kept apart from the panel ``dropped_rows``
+            # ledger a wave subset inherits unchanged (2026-08-23 review, gap 3).
+            "wave_eligibility": eligibility_df.to_dict("records"),
+            "wave_minima": {
+                "usable_rows": plan.min_wave_rows,
+                "rows_per_outcome": plan.min_wave_outcome_rows,
+                "jointly_observed_rows": plan.min_wave_overlap_rows,
+            },
+            # The exposure is re-standardised within each wave, so one SD is a
+            # different raw letter-sound increment at each one; a cross-wave
+            # coefficient range is not on a fixed scale without these numbers
+            # (2026-08-23 review, gap 8).
+            "wave_exposure_logit_sd": {
+                str(record["wave"]): record["exposure_logit_sd"]
+                for record in eligibility
+                if record["exposure_logit_sd"] is not None
+            },
             "matched_comparators": list(plan.matched_comparators),
+            "comparator_equivalence": plan.comparator_equivalence,
             "output_contract": (
                 "joint_mechanism_slopes.csv carries median + inner 50% + outer "
                 "reporting interval + P(>0) per wave for both slopes, their "
-                "difference, the residual correlation and the conditional slope / "
-                "share retained; joint_mechanism_fit_diagnostics.csv records every "
-                "published wave's convergence"
+                "difference, the residual correlation and the conditional slope and "
+                "its conditional-to-marginal ratio (whose mean is deliberately "
+                "blank); conditional_slope_ratio.csv governs that ratio with a "
+                "prespecified denominator-stability rule and the probability mass "
+                "below zero, inside [0, 1] and above one; "
+                "joint_mechanism_wave_eligibility.csv records why each wave was or "
+                "was not fitted; joint_mechanism_fit_diagnostics.csv records every "
+                "published wave's convergence and names its trace, new-child "
+                "predictive and power-scaling files"
             ),
             "joint_mechanism_slopes": slopes_df.to_dict("records"),
         },
@@ -769,12 +1165,20 @@ def _plot_joint_mechanism_by_wave(
     """Per-wave forest of the two letter-sound slopes and their identified difference.
 
     One figure per file (PNG + SVG + CSV via ``save_styled_figure``), not a panel, so
-    it can be reused on its own.
+    it can be reused on its own. A wave that failed its convergence check is marked
+    ``[GATE-FAIL]`` on its row rather than removed: the METHODS.md rule is that a
+    non-converged fit is *flagged*, never silently dropped, and the plot previously
+    did neither (2026-08-23 follow-up review, finding 1).
     """
     keep = df[df["term"].str.startswith(("beta_mech[", "delta_ls_decoding"))]
     if keep.empty:
         return
     keep = keep.reset_index(drop=True)
+    converged = (
+        keep["converged"].astype(str).str.lower().isin({"true", "1"})
+        if "converged" in keep.columns
+        else pd.Series(True, index=keep.index)
+    )
     y = np.arange(len(keep))[::-1]
     plt.figure(figsize=(7.2, 0.42 * len(keep) + 1.6))
     colours = [
@@ -794,7 +1198,15 @@ def _plot_joint_mechanism_by_wave(
             [row["lo50"], row["hi50"]], [y[i], y[i]], color=colours[i], lw=3.0, alpha=0.7
         )
     plt.axvline(0.0, color="grey", ls=":", lw=1)
-    plt.yticks(y, [f"{r['wave']}  {r['term']}" for _, r in keep.iterrows()], fontsize=8)
+    plt.yticks(
+        y,
+        [
+            f"{r['wave']}  {r['term']}"
+            + ("" if converged.iloc[i] else "  [GATE-FAIL]")
+            for i, (_, r) in enumerate(keep.iterrows())
+        ],
+        fontsize=8,
+    )
     plt.xlabel(
         f"logit per SD of letter sounds (median, inner 50%, outer "
         f"{int(ci_prob * 100)}%)"
@@ -950,6 +1362,12 @@ def _fit_joint_mechanism_transition(
                 baseline_symbols=plan.outcome_symbols,
             ),
             "matched_comparators": list(plan.matched_comparators),
+            "comparator_equivalence": plan.comparator_equivalence,
+            # The exposure is standardised once over this model's joint union of
+            # rows; each marginal comparator re-standardises on its own rows, so the
+            # three do not share a unit (2026-08-23 review, finding 2).
+            "exposure_logit_sd": _jm_exposure_logit_sd(built, plan.mechanism_symbol),
+            "loo_pit_unit": _diag.JOINT_LOO_PIT_UNIT_LABEL,
             "output_contract": (
                 "joint_mechanism_slopes.csv carries median + inner 50% + outer "
                 "reporting interval + P(>0) for both slopes, their identified "

@@ -139,6 +139,16 @@ class SubfitResult:
     sampling: dict[str, Any]
     data: SubfitData
     convergence_scope: ConvergenceScope
+    convergence_vars: tuple[str, ...] = ()
+    """Exactly the parameters the convergence verdict scanned, in scan order.
+
+    ``convergence_scope`` says *how* the scan was chosen; this says what it actually
+    covered. A published deterministic — a ratio above all — can mix far worse than
+    every free variable it is built from, so "which parameters did that verdict
+    include" has to be answerable from the provenance row rather than inferred
+    (2026-08-23 joint-mechanism follow-up review, finding 1). Empty when the scan was
+    unrestricted (``convergence_scope="all"``).
+    """
     posterior_predictive: tuple[str, ...] = ()
     trace_file: str | None = None
     trace_sha256: str | None = None
@@ -161,6 +171,7 @@ class SubfitResult:
             "min_bfmi": self.convergence.get("min_bfmi"),
             "n_divergences": self.convergence.get("n_divergences"),
             "convergence_scope": self.convergence_scope,
+            "convergence_vars": ", ".join(self.convergence_vars),
             "n_children": self.data.n_children,
             "n_obs": self.data.n_obs,
             # Shapes travel with the names: an auditor comparing two rows has to be
@@ -399,6 +410,7 @@ def _require_subfit_reuse_compatibility(
     sampling: dict[str, Any],
     data: SubfitData,
     convergence_scope: ConvergenceScope,
+    convergence_vars: tuple[str, ...],
     posterior_predictive: tuple[str, ...],
 ) -> None:
     """Fail unless one persisted provenance row matches this named sub-fit."""
@@ -442,6 +454,7 @@ def _require_subfit_reuse_compatibility(
         sampling=sampling,
         data=data,
         convergence_scope=convergence_scope,
+        convergence_vars=convergence_vars,
         posterior_predictive=posterior_predictive,
         trace_file=trace_filename,
     ).provenance_row()
@@ -450,6 +463,7 @@ def _require_subfit_reuse_compatibility(
         "label",
         "role",
         "convergence_scope",
+        "convergence_vars",
         "observed_nodes",
         "identity_keys",
         "data_digest",
@@ -503,6 +517,7 @@ def run_subfit(
     posterior_predictive: Sequence[str] | None = None,
     trace_filename: str | None = None,
     convergence_scope: ConvergenceScope = "free_rvs",
+    extra_var_names: Sequence[str] | None = None,
 ) -> SubfitResult:
     """Sample one sub-fit, check it, record its provenance, return it typed.
 
@@ -513,6 +528,9 @@ def run_subfit(
 
     ``posterior_predictive`` draws the named nodes inside the same model context
     (the floor-rule secondaries need ``y_post`` for their predictive summaries).
+    ``extra_var_names`` extends the free-variable convergence scan with the sub-fit's
+    *reported deterministics*, whose mixing their arguments do not imply; the scanned
+    set is recorded on the provenance row.
     ``trace_filename`` persists the sub-fit trace next to the primary's and
     records it on the artefact manifest, which is what makes a published
     secondary estimate independently auditable. In ``--reuse-trace`` mode, a
@@ -546,6 +564,23 @@ def run_subfit(
     }
     data = describe_fitted_data(built)
     pp = tuple(posterior_predictive or ())
+    scanned: list[str] = []
+    if convergence_scope == "free_rvs":
+        scanned = [rv.name for rv in built.model.free_RVs]
+        # Reported deterministics are not implied by their arguments: a ratio of two
+        # well-mixed slopes can have far worse R-hat and ESS than either. A family
+        # that publishes one names it here so the verdict beside it covers it
+        # (2026-08-23 joint-mechanism follow-up review, finding 1).
+        scanned += [
+            name
+            for name in (extra_var_names or ())
+            if name not in scanned and name in built.model.named_vars
+        ]
+    elif extra_var_names:
+        raise ValueError(
+            "extra_var_names is only meaningful with convergence_scope='free_rvs'; "
+            "the unrestricted scan already covers every reported variable"
+        )
 
     trace = None
     reuse = os.environ.get("DSE_LRP_REUSE_TRACE")
@@ -581,6 +616,7 @@ def run_subfit(
             sampling=sampling,
             data=data,
             convergence_scope=convergence_scope,
+            convergence_vars=tuple(scanned),
             posterior_predictive=pp,
         )
         trace = az.from_netcdf(source_path)
@@ -610,11 +646,7 @@ def run_subfit(
     convergence = subfit_convergence(
         trace,
         label=label,
-        var_names=(
-            [rv.name for rv in built.model.free_RVs]
-            if convergence_scope == "free_rvs"
-            else None
-        ),
+        var_names=scanned or None,
     )
     failure_type, failure = _classify_failure(convergence)
 
@@ -638,6 +670,7 @@ def run_subfit(
         sampling=sampling,
         data=data,
         convergence_scope=convergence_scope,
+        convergence_vars=tuple(scanned),
         posterior_predictive=pp,
         trace_file=trace_filename,
         trace_sha256=trace_sha256,

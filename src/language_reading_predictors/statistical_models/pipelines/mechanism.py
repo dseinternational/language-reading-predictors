@@ -183,6 +183,15 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # numbers are computed, not hand-written, and the quantiles are auditable.
     if _items_worked:
         meta_extra["mechanism_items"] = _items_worked
+    # The exposure unit, on the rows this fit actually used. ``beta_mech`` is "per SD
+    # of the exposure", and the factory re-standardises on its own kept rows — so two
+    # mechanism fits of the same exposure on different outcomes report slopes in
+    # *different raw increments*. Any cross-model contrast that treats them as
+    # commensurate has to be able to check that, and could not before (2026-08-23
+    # joint-mechanism follow-up review, finding 2).
+    _exposure_sd = _mechanism_exposure_logit_sd(ctx, run_plan)
+    if _exposure_sd is not None:
+        meta_extra["exposure_logit_sd"] = _exposure_sd
     if mechanism_is_covariate:
         # Record the exposure's raw-units anchor so a report can translate the
         # per-SD ``beta_mech`` into raw score points: the factory re-standardises
@@ -242,6 +251,34 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     write_run_metadata(ctx, extra=meta_extra)
 
     return finalize_report(ctx)
+
+
+def _mechanism_exposure_logit_sd(
+    ctx: StatisticalFitContext, run_plan: _mechanism.MechanismRunPlan
+) -> float | None:
+    """SD of the exposure logit on this fit's rows, or ``None`` when undefined.
+
+    Bounded-count exposures only: a covariate exposure is already standardised by the
+    loader and records its raw anchor separately, and a lagged (``mechanism_at_pre``)
+    exposure reads a different column. Returning ``None`` rather than a wrong number
+    keeps the cross-model comparison honest about what it can and cannot prove.
+    """
+    if run_plan.mechanism_is_covariate or run_plan.mechanism_at_pre:
+        return None
+    symbol = run_plan.mechanism_symbol
+    prepared = ctx.prepared
+    if prepared is None or symbol not in prepared.post_counts:
+        return None
+    from language_reading_predictors.statistical_models.preprocessing import logit_safe
+
+    values = np.asarray(
+        logit_safe(prepared.post_counts[symbol], prepared.n_trials[symbol]),
+        dtype=float,
+    )
+    values = values[np.isfinite(values)]
+    if values.size < 2:
+        return None
+    return float(np.std(values, ddof=1))
 
 
 def _write_exposure_support(ctx: StatisticalFitContext) -> None:

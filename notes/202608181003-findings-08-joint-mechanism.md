@@ -2,6 +2,8 @@
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 >
 > Substantially corrected by a LLM-based AI tool (Codex/GPT-5).
+>
+> The comparator-equivalence, per-wave reporting and Δ-interpretation corrections for [#591](https://github.com/dseinternational/language-reading-predictors/issues/591) were made by a LLM-based AI tool (Claude Code/Opus 5).
 
 # Findings: the `joint_mechanism` family — is the letter-sound route specific to decoding?
 
@@ -26,12 +28,14 @@ The two models also differ in machinery. `jm-001` uses a Binomial likelihood wit
 
 ## What was found — and the two models disagree
 
-| Model    | Design                      | Δ = slope(→nonword) − slope(→word) | 89% range      | Reading                                      |
-| -------- | --------------------------- | ---------------------------------- | -------------- | -------------------------------------------- |
-| `jm-002` | transition (post given pre) | **+0.81**                          | +0.50 to +1.14 | letter sounds track **nonword** reading more |
-| `jm-001` | levels (cross-sectional)    | **−0.48**                          | −0.98 to +0.03 | letter sounds track **word** reading more    |
+| Model    | Design                      | Δ = slope(→nonword) − slope(→word)     | 89% range      | Reading                                        |
+| -------- | --------------------------- | -------------------------------------- | -------------- | ---------------------------------------------- |
+| `jm-002` | transition (post given pre) | **+0.81**                              | +0.50 to +1.14 | letter sounds track **nonword** reading more   |
+| `jm-001` | levels (cross-sectional)    | **−0.47, −0.17, −0.26, +0.06** (t1–t4) | see below      | mixed; the sign does not hold across the waves |
 
 **These point in opposite directions, and that should not be smoothed over.** Both are well-converged fits of the same children.
+
+`jm-001` is reported as **all four waves**, not as one. An earlier version of this note quoted its timepoint-1 estimate (−0.48) as "`jm-001`'s Δ"; that was the wave whose posterior sat furthest from 0.5, chosen after the fits were seen, and both the model report and the key-findings box now report the whole set instead (#591). The 89% intervals are −0.97 to +0.04, −0.61 to +0.25, −0.68 to +0.15 and −0.30 to +0.41. Note also that the levels design re-standardises the exposure within each wave (SD 1.59, 1.38, 1.39, 1.44 logits), so "per SD" is a slightly different raw increment at each timepoint.
 
 Three considerations explain the disagreement and why the baseline-conditional transition estimand is the more relevant one for the stated question; they do not turn it into a causal result.
 
@@ -39,9 +43,11 @@ Three considerations explain the disagreement and why the baseline-conditional t
 
 **The factorised numerical cross-check agrees with `jm-002`.** Computing the same contrast from two separate single-outcome mechanism fits gives **+0.78** (89% +0.475 to +1.099), close to `jm-002`'s +0.81. The comparison table correctly marks that product-of-marginals calculation as _not_ an identified posterior contrast and `jm-002` as identified within its joint posterior. The agreement is reassuring only as a numerical cross-check: the fits use the same data and closely related likelihood, prior and adjustment assumptions, so they are not independent evidence.
 
-**`jm-001`'s interval includes zero narrowly** (upper limit +0.03) and its estimate varies across waves from −0.48 at timepoint 1 through −0.15 and −0.26 to +0.06 at timepoint 4, so it is not a stable finding even on its own terms.
+**And the two are not fitted on the same rows or the same unit** (#591). `jm-002` requires both outcome baselines on every retained transition and standardises the exposure once over that joint union (153 rows, SD 1.412); `mech-096` keeps its own 152 nonword rows (SD 1.386) and `mech-101` its own 156 word-reading rows (SD 1.434). One SD is therefore a slightly different raw increment in each fit. The +0.81 versus +0.78 gap is **not** a measurement of what the working-independence assumption cost — it mixes a dependence change with a sample and scale change — and `scripts/compare_statistical_models.py` now publishes that reconciliation with an explicit `comparable` verdict beside both rows.
 
-The defensible conclusion: **within the baseline-conditional transition model, letter-sound knowledge is more tightly associated with nonword decoding than with word reading.** That is compatible with a decoding-specific channel, but it does not identify one: residual confounding, differing measurement properties and the severe nonword-reading floor remain alternative explanations for the contrast.
+**`jm-001`'s intervals include zero at every wave** and its estimate moves from −0.47 at timepoint 1 through −0.17 and −0.26 to +0.06 at timepoint 4, so it is not a stable finding even on its own terms.
+
+The defensible conclusion: **within the baseline-conditional transition model, letter-sound knowledge is more tightly associated with nonword decoding than with word reading.** That is compatible with a decoding-specific channel, but it does not identify one. Nor does the contrast's sign by itself rule the common factor out: with `LS`, `N` and `W` all loading on one latent general ability, the two latent-scale slopes stay proportional to their loadings, so Δ is proportional to the loading _difference_ with no causal letter-sound route at all. Residual confounding, unequal loadings, differing measurement properties (79 items against 6, with no cross-instrument invariance imposed) and the severe nonword-reading floor all remain alternative explanations for the contrast.
 
 ## A caveat about `jm-002`'s machinery
 
@@ -59,4 +65,6 @@ This model initially failed the convergence gate for exactly this reason and was
 
 ## Model inventory
 
-Both models pass the convergence gate with zero divergences and are publishable. `jm-001` (per-wave levels, matched to the `concurrent` family's parameterisation) and `jm-002` (phase-stacked transitions, matched to `mech-096`/`mech-101`).
+Both models pass the convergence gate with zero divergences and are publishable. `jm-001` (per-wave levels, constructed against the `concurrent` family's parameterisation) and `jm-002` (phase-stacked transitions, constructed against `mech-096`/`mech-101`). "Constructed against" is not "nested with": `jm-001` conditions on the **latent** held-fixed outcome in a logistic-normal Binomial model where `ca-011` conditions on an **observed** count in a Beta-Binomial one with mean-imputed predictors, and `jm-002` differs from its marginals in fitted rows and exposure scale as above. Each model's `config.json` and report now carry that statement explicitly.
+
+Both models also report a quantity whose name is misleading if read literally. `share_retained` is a **conditional-to-marginal slope ratio**, not a bounded pathway share: it is unbounded, can be negative under suppression or exceed one under amplification, and identifies no mediated fraction. It is published with a prespecified denominator-stability rule, with the posterior probability of each of those three cases, and without a mean (#591).

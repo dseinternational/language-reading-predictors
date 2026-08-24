@@ -765,6 +765,45 @@ def test_save_joint_loo_pit_plot_writes_file_without_tau(tmp_path):
     assert (tmp_path / "loo_pit_n.png").exists()
 
 
+def test_the_joint_loo_pit_figure_names_the_unit_it_actually_leaves_out(
+    tmp_path, monkeypatch
+):
+    """This plot subsets one outcome's flattened cells and keeps no child map, so it
+    leaves out one **cell** — the omitted cell's child keeps its other transitions,
+    its other outcome and its fitted random effect. Presenting it as the calibration
+    companion to a leave-one-child-out PSIS-LOO overstates what it checks, so the
+    unit is on the figure (2026-08-23 joint-mechanism follow-up review, finding 4)."""
+    titles: list[str] = []
+    monkeypatch.setattr(
+        diag,
+        "_save_pc",
+        lambda out, build, filename, title=None: titles.append(title),
+    )
+    context = SimpleNamespace(
+        trace=_joint_trace_without_tau(),
+        prior_samples=None,
+        spec=SimpleNamespace(extra={}),
+        model=None,
+        output_dir=str(tmp_path),
+    )
+
+    diag.save_joint_loo_pit_plot(context, "N", filename_stem="loo_pit_n")
+    assert diag.JOINT_LOO_PIT_UNIT_LABEL == "conditional leave-one-cell-out"
+    assert titles == [
+        "Conditional leave-one-cell-out PIT calibration (N) — "
+        "the child's other cells remain observed"
+    ]
+
+    # A family whose likelihood really is one cell per child may say so.
+    titles.clear()
+    diag.save_joint_loo_pit_plot(
+        context, "N", filename_stem="loo_pit_n", unit_label="leave-one-child-out"
+    )
+    # …and gets its own label alone: the "other cells remain observed" clause is a
+    # property of the cell-level unit, so it must not travel with a different one.
+    assert titles == ["Leave-one-child-out PIT calibration (N)"]
+
+
 def _synthetic_trace(
     shift, *, n=800, chains=4, seed=1, n_div=0, kappa_shift=None
 ):
