@@ -138,6 +138,17 @@ PSENSE_THRESHOLD = 0.05
 #: exactly what the companion exists to do.
 _CONTRAST_DIRECTION_SHIFT = 0.05
 
+#: How far the implied cross-outcome posterior correlation must move between a
+#: factorised parent and its companion before the contrast's width change is
+#: attributed to covariance at all (2026-08-24 review of the joint audit). Both
+#: correlations are read off equal-tailed interval widths, and a factorised
+#: parent's is *structurally* zero — its outcomes share no parameter — so the
+#: parent's measured value is this approximation's own noise floor. On the three
+#: registered pairs it is -0.011, -0.010 and -0.019 against exact posterior-draw
+#: values of -0.003, -0.006 and -0.006, so a band just above that floor separates
+#: Monte Carlo noise from a covariance correction.
+_AME_CORRELATION_NOISE = 0.03
+
 #: Trace backing the natural-effect temporal-ordering sensitivity.  The fixed
 #: basename is part of the release contract: a table is not independently
 #: auditable when its posterior exists only in memory during the fit.
@@ -2461,10 +2472,10 @@ def _joint_blending_scope_note(output_dir: Path, config: Mapping[str, Any]) -> s
 def _dependence_identification_note(output_dir: Path) -> str:
     """Qualifier when a fitted dependence block never moved off its prior.
 
-    A companion that switches the LKJ residual block on exists to answer one
-    question — was the parent's factorised interval too wide or too narrow? That
-    answer is the *data's* only if the correlation posterior is distinguishable
-    from the correlation prior. For the three registered two-outcome companions
+    A companion that switches the LKJ residual block on estimates the within-child
+    covariance the parent's factorised interval omits. That covariance is the
+    *data's* only if the correlation posterior is distinguishable from the
+    correlation prior. For the three registered two-outcome companions
     at n = 53 it is not: posterior-to-prior SD ratios of 1.002, 1.008 and 1.001
     (2026-08-22 ITT audit, finding 3). The interval such a fit publishes is the
     LKJ prior's implied correction, and a reader is entitled to be told so beside
@@ -2577,8 +2588,120 @@ def _required_dependence_companion(config: Mapping[str, Any]) -> str:
     return str(contrast.get("dependence_companion") or "")
 
 
+def _joint_marginal_widths(
+    directory: Path, outcomes: tuple[str, str]
+) -> dict[str, float] | None:
+    """Each contrast outcome's probability-scale AME interval width, or ``None``."""
+    frame = _read_csv(directory, "tau_summary.csv")
+    if frame is None or frame.empty or "outcome" not in frame.columns:
+        return None
+    needed = ("ame_prob_lo", "ame_prob_hi")
+    if any(column not in frame.columns for column in needed):
+        return None
+    indexed = frame.set_index(frame["outcome"].astype(str))
+    widths: dict[str, float] = {}
+    for outcome in outcomes:
+        if outcome not in indexed.index:
+            return None
+        row = indexed.loc[outcome]
+        lo, hi = _finite(row["ame_prob_lo"]), _finite(row["ame_prob_hi"])
+        if lo is None or hi is None or hi <= lo:
+            return None
+        widths[outcome] = hi - lo
+    return widths
+
+
+def _joint_width_channels(
+    *,
+    parent_dir: Path,
+    companion_dir: Path,
+    outcomes: tuple[str, str],
+    parent_width: float,
+    companion_width: float,
+) -> dict[str, Any]:
+    """Split the contrast's width change into marginal and covariance channels.
+
+    2026-08-24 review of the joint audit. Finding 2 asked that the dependence block
+    be assessed through its consequence for the declared contrast, which
+    :func:`_joint_contrast_consequence` does for the contrast's *location*. But the
+    reason three report templates give for running the companion at all is about its
+    *width*: that a factorised interval omits within-child cross-outcome covariance,
+    so a positive residual correlation leaves it too wide and a negative one too
+    narrow. That sign rule describes the covariance term
+    ``Var(A - B) = V_A + V_B - 2 Cov(A, B)`` in isolation. It does not describe what
+    separates these two fits, because the companion also adds a per-child
+    logistic-normal layer whose own parameter uncertainty widens *both* marginals.
+
+    So measure which channel the change came through instead of asserting one. Each
+    fit's implied cross-outcome posterior correlation follows from the same identity
+    read on equal-tailed interval widths,
+    ``r = (W_A^2 + W_B^2 - W_diff^2) / (2 W_A W_B)``; the parent's is structurally
+    zero because a factorised fit shares no parameter between outcomes, so its
+    measured value is this approximation's own noise floor and is recorded beside
+    the companion's for exactly that purpose. ``marginal`` is what the companion's
+    wider marginals alone would do at the parent's correlation, and ``covariance``
+    is the remainder.
+
+    Returns the record fields, or a ``channel_status`` explaining why the split
+    could not be taken. Never raises: this is descriptive provenance attached to a
+    release decision, not a gate.
+    """
+    parent_widths = _joint_marginal_widths(parent_dir, outcomes)
+    companion_widths = _joint_marginal_widths(companion_dir, outcomes)
+    if parent_widths is None or companion_widths is None:
+        return {
+            "channel_status": "unavailable",
+            "channel_reason": "tau_summary.csv is missing the per-outcome AME interval",
+        }
+    left, right = outcomes
+
+    def _implied(widths: Mapping[str, float], diff_width: float) -> float | None:
+        a, b = widths[left], widths[right]
+        value = (a * a + b * b - diff_width * diff_width) / (2 * a * b)
+        return value if -1.0 <= value <= 1.0 else None
+
+    parent_r = _implied(parent_widths, parent_width)
+    companion_r = _implied(companion_widths, companion_width)
+    if parent_r is None or companion_r is None:
+        return {
+            "channel_status": "unavailable",
+            "channel_reason": (
+                "the interval widths imply a correlation outside [-1, 1], so the "
+                "Gaussian width identity does not describe these posteriors"
+            ),
+        }
+    a, b = companion_widths[left], companion_widths[right]
+    marginal_only = float(np.sqrt(max(a * a + b * b - 2 * parent_r * a * b, 0.0)))
+    marginal_channel = marginal_only - parent_width
+    covariance_channel = companion_width - marginal_only
+    moved = abs(marginal_channel) + abs(covariance_channel)
+    correlation_change = companion_r - parent_r
+    if abs(correlation_change) <= _AME_CORRELATION_NOISE:
+        dominant = "marginal_uncertainty"
+    elif abs(covariance_channel) > abs(marginal_channel):
+        dominant = "cross_outcome_covariance"
+    else:
+        dominant = "marginal_uncertainty"
+    return {
+        "channel_status": "measured",
+        "parent_marginal_widths": {k: float(v) for k, v in parent_widths.items()},
+        "companion_marginal_widths": {
+            k: float(v) for k, v in companion_widths.items()
+        },
+        "parent_implied_ame_correlation": float(parent_r),
+        "companion_implied_ame_correlation": float(companion_r),
+        "implied_ame_correlation_change": float(correlation_change),
+        "marginal_width_channel": float(marginal_channel),
+        "covariance_width_channel": float(covariance_channel),
+        "covariance_channel_share": (
+            float(abs(covariance_channel) / moved) if moved else None
+        ),
+        "dominant_width_channel": dominant,
+    }
+
+
 def _joint_contrast_consequence(
-    parent_dir: Path, companion_dir: Path
+    parent_dir: Path, companion_dir: Path, *, pair: tuple[str, str] | None = None
 ) -> tuple[dict[str, Any], str]:
     """Measure what the dependence model does to the **declared contrast**.
 
@@ -2598,30 +2721,46 @@ def _joint_contrast_consequence(
     a threshold on the interval, whose movement *is* the companion's purpose.
     """
     record: dict[str, Any] = {}
+
+    def _unusable(status: str, reason: str) -> tuple[dict[str, Any], str]:
+        """The comparison could not be taken, so say so rather than publishing silence.
+
+        Fail-closed, matching the binding checks above: an absent or unreadable
+        comparison is not evidence that the dependence model left the contrast
+        alone. Without a note the reader sees an unqualified release and has no
+        way to tell "checked and unchanged" from "never checked".
+        """
+        record["status"] = status
+        record["reason"] = reason
+        return record, (
+            "The dependence model's consequence for the declared contrast could "
+            f"not be measured ({reason}), so the paired contrast is "
+            "dependence-unchecked in substance even though the companion is bound "
+            "beside it. Regenerate this decision once both fits carry a readable "
+            "contrast summary."
+        )
+
     parent = _read_csv(parent_dir, "tau_difference.csv")
     companion = _read_csv(companion_dir, "tau_difference.csv")
     if parent is None or companion is None or parent.empty or companion.empty:
-        record["status"] = "unavailable"
-        record["reason"] = "one or both fits have no tau_difference.csv"
-        return record, ""
+        return _unusable("unavailable", "one or both fits have no tau_difference.csv")
     p, c = parent.iloc[0], companion.iloc[0]
     if str(p.get("contrast")) != str(c.get("contrast")):
-        record["status"] = "mismatched"
-        record["reason"] = (
+        return _unusable(
+            "mismatched",
             f"parent reports {p.get('contrast')!r} and companion "
-            f"{c.get('contrast')!r}"
+            f"{c.get('contrast')!r}",
         )
-        return record, ""
     needed = ("diff_prob_median", "diff_prob_lo", "diff_prob_hi", "prob_diff_pos")
     if any(col not in parent.columns or col not in companion.columns for col in needed):
-        record["status"] = "unavailable"
-        record["reason"] = "tau_difference.csv is missing the contrast columns"
-        return record, ""
+        return _unusable(
+            "unavailable", "tau_difference.csv is missing the contrast columns"
+        )
     values = {name: (_finite(p[name]), _finite(c[name])) for name in needed}
     if any(v[0] is None or v[1] is None for v in values.values()):
-        record["status"] = "unavailable"
-        record["reason"] = "tau_difference.csv holds non-finite contrast values"
-        return record, ""
+        return _unusable(
+            "unavailable", "tau_difference.csv holds non-finite contrast values"
+        )
     p_med, c_med = values["diff_prob_median"]
     p_pos, c_pos = values["prob_diff_pos"]
     p_width = values["diff_prob_hi"][0] - values["diff_prob_lo"][0]
@@ -2646,6 +2785,19 @@ def _joint_contrast_consequence(
             "material": bool(flipped or direction_shift >= _CONTRAST_DIRECTION_SHIFT),
         }
     )
+    if pair is not None and all(pair):
+        record.update(
+            _joint_width_channels(
+                parent_dir=parent_dir,
+                companion_dir=companion_dir,
+                outcomes=pair,
+                parent_width=p_width,
+                companion_width=c_width,
+            )
+        )
+    else:
+        record["channel_status"] = "unavailable"
+        record["channel_reason"] = "the resolved plan does not name the contrast pair"
     if not record["material"]:
         return record, ""
     cause = (
@@ -2745,8 +2897,13 @@ def _joint_dependence_companion_note(
     except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
         return _note(f"the companion could not be verified: {exc}"), None
 
+    declared = _plan(config).get("contrast")
+    pair: tuple[str, str] | None = None
+    if isinstance(declared, Mapping):
+        left, right = str(declared.get("left") or ""), str(declared.get("right") or "")
+        pair = (left, right) if left and right else None
     contrast_record, contrast_note = _joint_contrast_consequence(
-        directory, companion_dir
+        directory, companion_dir, pair=pair
     )
     contrast_record["companion"] = companion
     return contrast_note, contrast_record

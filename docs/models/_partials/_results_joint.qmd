@@ -176,6 +176,58 @@ else:
 ```{python}
 # | echo: false
 # | output: asis
+# What the registered dependence companion actually did to this contrast
+# (2026-08-24 review of the joint audit). ``release_decision.json`` records the
+# comparison the release decision made -- the contrast's movement, and the split of
+# its interval-width change into the companion's wider per-outcome marginals and the
+# cross-outcome covariance the sign rule above is about. Rendering it keeps the
+# report's account of the companion measured rather than asserted, and silent on
+# every fit that has no bound companion (including the companions themselves).
+_dep_path = _here / "release_decision.json"
+_dep = None
+if _dep_path.exists():
+    try:
+        with open(_dep_path, encoding="utf-8") as _dep_fh:
+            _dep = (json.load(_dep_fh) or {}).get("dependence_contrast")
+    except (OSError, ValueError):
+        _dep = None
+if isinstance(_dep, dict) and _dep.get("status") == "compared":
+    _cmp = _dep.get("companion", "the registered companion")
+    _lines = [
+        f"_Measured against the dependence companion (`{_cmp}`)._ The declared "
+        f"contrast's median moves by {_dep['median_shift']:+.5f} on the "
+        f"proportion-correct scale and its P(> 0) by "
+        f"{_dep['direction_probability_shift']:.3f}; its "
+        f"{100 * float(config.get('ci_prob', 0.89)):.0f}% interval is "
+        f"{_dep['interval_width_ratio']:.3f} times as wide under the dependence model."
+    ]
+    if _dep.get("channel_status") == "measured":
+        _share = _dep.get("covariance_channel_share")
+        _lines.append(
+            "That width change splits into "
+            f"{_dep['marginal_width_channel']:+.5f} from the companion's wider "
+            f"per-outcome marginals and {_dep['covariance_width_channel']:+.5f} from "
+            "cross-outcome covariance"
+            + (f" ({100 * _share:.0f}% of the movement)" if _share is not None else "")
+            + ". The implied posterior correlation between the two outcomes' average "
+            f"marginal effects is {_dep['parent_implied_ame_correlation']:+.3f} here "
+            f"and {_dep['companion_implied_ame_correlation']:+.3f} in the companion; "
+            "this fit's value is structurally zero, so it doubles as the "
+            "approximation's own noise floor."
+        )
+        if str(_dep.get("dominant_width_channel")) == "marginal_uncertainty":
+            _lines.append(
+                "**The difference between the two intervals is therefore the "
+                "companion's extra layer of parameter uncertainty, not a covariance "
+                "correction** — the omission described above is real in principle but "
+                "too small to measure at this sample size."
+            )
+    print(" ".join(_lines))
+```
+
+```{python}
+# | echo: false
+# | output: asis
 # The dependence block's own posterior (#551): per-outcome residual SDs and the
 # within-child residual correlation, read off the fit's diagnostics summary so the
 # report states plainly where the block is weakly identified.
