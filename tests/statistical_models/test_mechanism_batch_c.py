@@ -407,7 +407,12 @@ def _write_publishable_fit_dir(d: Path, model_id: str) -> None:
 
 
 def _synthetic_frame(tmp_path: Path, n_children: int = 20):
-    from tests.statistical_models.test_factories import _write_synthetic
+    # Relative, not ``tests.statistical_models.test_factories``: pytest imports these
+    # modules as the ``statistical_models`` package (``tests/`` has no ``__init__.py``,
+    # so it is the basedir pytest prepends to sys.path, not a package). The absolute
+    # form only resolves when the repo root happens to be on sys.path — which
+    # ``python -m pytest`` arranges and the ``pytest`` entry point CI runs does not.
+    from .test_factories import _write_synthetic
 
     return _write_synthetic(tmp_path, n_children=n_children)
 
