@@ -143,6 +143,8 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # folded into config.json below so the report partial renders the caption from
     # computed numbers.
     _items_worked = _write_mechanism_items(ctx)
+    _write_mechanism_slope_summary(ctx)
+    _write_dispersion_summary(ctx)
     _write_readiness_threshold(ctx)
     _write_exposure_support(ctx)
 
@@ -177,6 +179,11 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             moderator_interaction=(
                 run_plan.moderator_symbol is not None and run_plan.include_interaction
             ),
+            # The #603 / #604 focal exposure terms. They are not adjusters, but they
+            # do carry coefficients, and the fitted record exists to name every
+            # coefficient a fit estimates (#586 finding 9) — so they are recorded
+            # under their own kinds rather than left out or relabelled.
+            exposure_terms=_exposure_term_records(run_plan, prepared),
         ),
     }
     # Items-scale worked-example reference points (#319): recorded so the caption
@@ -251,6 +258,72 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     write_run_metadata(ctx, extra=meta_extra)
 
     return finalize_report(ctx)
+
+
+def _exposure_term_records(
+    run_plan: _mechanism.MechanismRunPlan, prepared
+) -> tuple[dict, ...]:
+    """Fitted-record entries for the family's focal exposure coefficients.
+
+    Empty for a pooled design, whose single ``beta_mech`` (or ``f_mech``) is already
+    described by ``resolved_run_plan``. The sensitivities replace it with several
+    coefficients answering different questions, so each is named with the question it
+    answers and an explicit non-adjuster ``kind``.
+    """
+    symbol = run_plan.mechanism_symbol
+    if run_plan.mechanism_is_covariate:
+        source = symbol
+        scale = "standardised raw covariate"
+        wave = prepared.covariate_time.get(symbol, "unknown")
+    else:
+        source = prepared.column_map.get(symbol, symbol)
+        scale = "standardised logit of the exposure count"
+        wave = "pre" if run_plan.mechanism_at_pre else "post"
+    common = {
+        "exposure": symbol,
+        "source_column": source,
+        "wave": wave,
+        "missing_indicator": False,
+    }
+    records: list[dict] = []
+    if run_plan.decompose_between_within:
+        records.append(
+            {
+                "term": "beta_between",
+                "kind": "exposure_between_child",
+                "scale": f"child fitted-row mean of the {scale}",
+                "question": "do children whose average exposure is higher score "
+                "higher on the outcome?",
+                **common,
+            }
+        )
+        if not run_plan.phase_varying_slope:
+            records.append(
+                {
+                    "term": "beta_within",
+                    "kind": "exposure_within_child",
+                    "scale": f"deviation from the child's mean of the {scale}",
+                    "question": "when a child's own exposure moves, does their "
+                    "outcome move with it?",
+                    **common,
+                }
+            )
+    if run_plan.phase_varying_slope:
+        records.append(
+            {
+                "term": "beta_mech_phase",
+                "kind": "exposure_phase_varying_slope",
+                "scale": (
+                    f"per-period slope on the deviation from the child's mean of the {scale}"
+                    if run_plan.decompose_between_within
+                    else f"per-period slope on the {scale}"
+                ),
+                "question": "does the exposure-outcome slope differ across the "
+                "three period transitions?",
+                **common,
+            }
+        )
+    return tuple(records)
 
 
 def _mechanism_exposure_logit_sd(
@@ -331,165 +404,309 @@ def _write_exposure_support(ctx: StatisticalFitContext) -> None:
         save_table(ctx, "exposure_support", pd.DataFrame(rows), register=False)
 
 
-def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
-    """Posterior adjusted dose-response of the mechanism predictor on the outcome.
+def _mechanism_exposure_axis(ctx: StatisticalFitContext) -> tuple[np.ndarray, str, str]:
+    """The fitted rows' exposure values, and the axis column/label for the logit view.
 
-    With the HSGP ``f_mech`` on (the default) this is the non-parametric curve. When
-    the model uses the linear slope instead (``linear_mechanism=True``, so no
-    ``f_mech`` variable exists) it falls back to the straight
-    ``beta_mech * z(logit(predictor))`` band — the predictor's linear logit
-    contribution (at the mean of any moderator) — so the adjusted predictor->outcome
-    relationship is still shown rather than left implicit in a coefficient. Both
-    branches hold the adjustment set fixed and write the same CSV/PNG schema, except
-    for the x column: ``mech_logit`` for a bounded-count measure exposure,
-    ``mech_x`` (the raw covariate score) for a covariate exposure
-    (``mechanism_is_covariate``, always linear). Guarded by the caller.
+    A covariate exposure is plotted in its own raw score; a bounded-count exposure
+    on its logit-safe scale, taken from the period-start column under
+    ``mechanism_at_pre`` because that is the vector the factory fitted (plotting the
+    post logit there would label the fitted pre-slope against the wrong exposure,
+    #405 review).
     """
-    post = ctx.trace.posterior
-
     from language_reading_predictors.statistical_models.measures import MEASURES
-    from language_reading_predictors.statistical_models.preprocessing import (
-        logit_safe,
-        standardise,
-    )
+    from language_reading_predictors.statistical_models.preprocessing import logit_safe
 
     sym = ctx.spec.mechanism_symbol
     run_plan = _mechanism_run_plan(ctx)
-    is_covariate = run_plan.mechanism_is_covariate
-    if is_covariate:
-        # Covariate exposure: x is the raw score (the loader scaler inverted); the
-        # model's z is the loader z re-standardised on the kept rows, exactly as
-        # the factory did it.
+    if run_plan.mechanism_is_covariate:
         z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
-        _scaler = ctx.prepared.covariate_scalers.get(sym)
-        x_vals = _scaler.inverse(z_loaded) if _scaler is not None else z_loaded
-        z_L, _ = standardise(z_loaded)
-        x_col, x_label = "mech_x", f"{sym} (raw score)"
-    elif run_plan.mechanism_at_pre:
-        # Lagged form: the factory fits the mechanism on its period-start (pre)
-        # logit, so the reported curve must use that same vector on the same rows.
-        # Using the post logit here would plot and label the fitted pre-slope
-        # against the wrong exposure — pre/post differ materially (#405 review).
-        mech_logit = np.asarray(ctx.prepared.pre_logit[sym], dtype=float)
-        x_vals = mech_logit
-        z_L, _ = standardise(mech_logit)
-        x_col, x_label = "mech_logit", f"logit({sym}_pre)"
-    else:
-        N = MEASURES[sym].n_trials
-        mech_logit = logit_safe(ctx.prepared.post_counts[sym], N)
-        x_vals = mech_logit
-        # z the same standardisation the factory applied to the logit input.
-        z_L, _ = standardise(mech_logit)
-        x_col, x_label = "mech_logit", f"logit({sym}_post)"
+        scaler = ctx.prepared.covariate_scalers.get(sym)
+        x_vals = scaler.inverse(z_loaded) if scaler is not None else z_loaded
+        return x_vals, "mech_x", f"{sym} (raw score)"
+    if run_plan.mechanism_at_pre:
+        x_vals = np.asarray(ctx.prepared.pre_logit[sym], dtype=float)
+        return x_vals, "mech_logit", f"logit({sym}_pre)"
+    x_vals = np.asarray(
+        logit_safe(ctx.prepared.post_counts[sym], MEASURES[sym].n_trials), dtype=float
+    )
+    return x_vals, "mech_logit", f"logit({sym}_post)"
 
-    if "f_mech" in post:
-        f = post["f_mech"].stack(sample=("chain", "draw")).values  # (n_obs, n_sample)
-        kind = "GP"
-    elif "beta_mech" in post:
-        # Linear mechanism: the predictor enters as beta_mech * z. Build the
-        # per-observation contribution so the band mirrors the GP branch (an exact
-        # straight line).
-        b = post["beta_mech"].stack(sample=("chain", "draw")).values  # (n_sample,)
-        f = z_L[:, None] * b[None, :]  # (n_obs, n_sample)
-        kind = "linear"
-    else:
-        # No f_mech / beta_mech in the posterior — e.g. a phase_specific_mechanism
-        # fit, whose per-phase f_mech is not registered under either name, so the
-        # curve would be silently skipped. Warn loudly rather than no-op (issue
-        # #273); register the phase-specific curve as pm.Deterministic("f_mech",
-        # ..., dims="obs_id") in the factory if such a model is ever shipped.
+
+def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
+    """The analyst's logit-scale view of the fitted exposure term.
+
+    One row per distinct exposure value on the fitted rows, carrying the mechanism
+    term's contribution to the outcome logit **standardised over those rows** — the
+    same reference population as the family's declared natural-scale estimand
+    (#602), so the two views describe one quantity on two scales rather than two
+    quantities. For the HSGP curve and the pooled linear slope the contribution
+    depends on the exposure alone, so the standardisation is a no-op and this is the
+    familiar band; for the between/within split (#603) and the per-period slopes
+    (#604) the contribution is row-specific and the average over the fitted rows is
+    what makes a single plotted curve well defined.
+
+    The x column is ``mech_logit`` for a bounded-count measure exposure and
+    ``mech_x`` (the raw covariate score) for a covariate exposure
+    (``mechanism_is_covariate``). Guarded by the caller.
+    """
+    from language_reading_predictors.statistical_models.mechanism_items import (
+        resolve_mechanism_terms,
+    )
+
+    sym = ctx.spec.mechanism_symbol
+    x_vals, x_col, x_label = _mechanism_exposure_axis(ctx)
+
+    try:
+        terms = resolve_mechanism_terms(
+            ctx.trace, x_exposure=x_vals, exposure_n_trials=None, group="posterior"
+        )
+    except KeyError as exc:
+        # No recognisable exposure term in the posterior — e.g. a
+        # ``phase_specific_mechanism`` fit, whose per-phase curve is registered under
+        # neither name. Warn loudly rather than no-op (issue #273).
         rprint(
-            "[yellow]_write_mechanism_curve: no 'f_mech'/'beta_mech' in the "
-            f"posterior for {ctx.spec.model_id} (phase_specific_mechanism?); "
-            "no mechanism_curve.csv/plot written.[/yellow]"
+            f"[yellow]_write_mechanism_curve: {exc}; no mechanism_curve.csv/plot "
+            f"written for {ctx.spec.model_id}.[/yellow]"
         )
         return
 
-    order = np.argsort(x_vals)
-    x = x_vals[order]
-    f_ord = f[order]
-    mean = f_ord.mean(axis=1)
-    lo = np.quantile(f_ord, 0.055, axis=1)
-    hi = np.quantile(f_ord, 0.945, axis=1)
-    lo50 = np.quantile(f_ord, 0.25, axis=1)
-    hi50 = np.quantile(f_ord, 0.75, axis=1)
+    # ``x_vals`` is already the fitted regressor's own scale here (the logit, or the
+    # raw covariate score), so the exposure -> contribution map is exact on the
+    # observed grid and needs no transform.
+    xs = np.unique(x_vals)
+    f_ord = np.stack(
+        [
+            np.broadcast_to(
+                terms.contribution_at(float(v)),
+                (x_vals.size, terms.fitted.shape[1]),
+            ).mean(axis=0)
+            for v in xs
+        ]
+    )  # (U, S)
     save_table(
         ctx,
         "mechanism_curve",
         pd.DataFrame(
-            {x_col: x, "f_mean": mean, "f_lo": lo, "f_hi": hi,
-             "f_lo50": lo50, "f_hi50": hi50}
+            {
+                x_col: xs,
+                "f_mean": f_ord.mean(axis=1),
+                "f_lo": np.quantile(f_ord, 0.055, axis=1),
+                "f_hi": np.quantile(f_ord, 0.945, axis=1),
+                "f_lo50": np.quantile(f_ord, 0.25, axis=1),
+                "f_hi50": np.quantile(f_ord, 0.75, axis=1),
+            }
         ),
         register=False,
     )
     outcome = ctx.spec.outcome_symbol or "W"
-
-    # Preserve a posterior end-to-end contrast on the outcome-items scale for
-    # the key-findings box (#320).  The contrast compares the lowest and highest
-    # observed exposure values while setting any moderator to its standardised
-    # mean (zero).  Removing the fitted mechanism and moderator contributions
-    # from eta before adding the two endpoint contributions keeps every other
-    # fitted row characteristic fixed and retains the posterior dependence that
-    # the pointwise curve CSV alone cannot reconstruct.
-    eta = (
-        post["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )
-    eta_base = eta - f
-    if "gamma_mod" in post and "z_moderator" in ctx.trace.constant_data:
-        z_mod = np.asarray(ctx.trace.constant_data["z_moderator"].values).reshape(-1)
-        gamma_mod = post["gamma_mod"].stack(sample=("chain", "draw")).values
-        eta_base = eta_base - z_mod[:, None] * gamma_mod[None, :]
-        if "gamma_int" in post:
-            z_mech = np.asarray(
-                ctx.trace.constant_data["z_mech_logit"].values
-            ).reshape(-1)
-            gamma_int = post["gamma_int"].stack(sample=("chain", "draw")).values
-            eta_base = eta_base - (
-                z_mech[:, None] * z_mod[:, None] * gamma_int[None, :]
-            )
-    endpoint_items = (
-        expit(eta_base + f_ord[-1][None, :])
-        - expit(eta_base + f_ord[0][None, :])
-    ).mean(axis=0) * float(ctx.prepared.n_trials[outcome])
-    lo_q = (1 - ctx.reporting.ci_prob) / 2
-    if is_covariate:
-        exposure_low = float(x[0])
-        exposure_high = float(x[-1])
-        exposure_unit = f"{sym} raw-score units"
-    else:
-        # Invert the Haldane-corrected logit used by preprocessing so the
-        # headline exposure range is in test items, not log-odds.
-        N = ctx.prepared.n_trials[sym]
-        exposure_low = float(np.clip((N + 1) * expit(x[0]) - 0.5, 0, N))
-        exposure_high = float(np.clip((N + 1) * expit(x[-1]) - 0.5, 0, N))
-        exposure_unit = f"{sym} items"
-    mechanism_summary = pd.DataFrame(
-        [
-            {
-                "exposure_low": exposure_low,
-                "exposure_high": exposure_high,
-                "exposure_unit": exposure_unit,
-                "items_median": float(np.median(endpoint_items)),
-                "items_lo": float(np.quantile(endpoint_items, lo_q)),
-                "items_hi": float(np.quantile(endpoint_items, 1 - lo_q)),
-                "items_lo50": float(np.quantile(endpoint_items, 0.25)),
-                "items_hi50": float(np.quantile(endpoint_items, 0.75)),
-                "prob_pos": float(np.mean(endpoint_items > 0)),
-            }
-        ]
-    )
-    save_table(ctx, "mechanism_summary", mechanism_summary)
     plt.figure(figsize=FIGSIZE_LG)
-    plt.plot(x, mean, color=COLOUR_BLUE, lw=2)
-    plt.fill_between(x, lo, hi, color=COLOUR_BLUE, alpha=0.2)
+    plt.plot(xs, f_ord.mean(axis=1), color=COLOUR_BLUE, lw=2)
+    plt.fill_between(
+        xs,
+        np.quantile(f_ord, 0.055, axis=1),
+        np.quantile(f_ord, 0.945, axis=1),
+        color=COLOUR_BLUE,
+        alpha=0.2,
+    )
     plt.xlabel(x_label)
     plt.ylabel("predictor logit contribution")
-    plt.title(f"Mechanism curve ({kind}): {sym} -> {outcome}")
+    plt.title(f"Mechanism curve ({terms.kind}): {sym} -> {outcome}")
     # mechanism_curve.csv (the plotted band) is written just above.
     save_styled_figure(ctx.output_dir, "mechanism_curve")
+
+
+def _write_dispersion_summary(ctx: StatisticalFitContext) -> pd.DataFrame | None:
+    """``dispersion_summary.csv``: the concentration posterior and its implied VIF.
+
+    The Beta-Binomial concentration is a nuisance parameter only if the prior leaves
+    the ordinary hypothesis "no extra-Binomial variation" available. On a
+    high-denominator outcome the family's shared ``kappa ~ HalfNormal(50)`` does not:
+    with ``alpha + beta = kappa`` the variance inflation over Binomial is
+
+        VIF = (kappa + n) / (kappa + 1) = 1 + (n - 1) / (kappa + 1)
+
+    so being within 10% of Binomial variance needs ``kappa >= 10 (n - 1) - 1`` —
+    779 at n = 79 and 1689 at n = 170 — and ``HalfNormal(50)`` gives that region
+    vanishing mass (#605). This table publishes the fitted concentration beside the
+    prior it was drawn against, the implied variance inflation, and the posterior
+    probability of being within 10% of Binomial, so a reader can see whether the data
+    moved ``kappa`` or the prior carried it.
+
+    Written for every mechanism fit — the question is about the *registered* prior,
+    so the default fits are exactly where the answer matters.
+    """
+    post = ctx.trace.posterior
+    if "kappa" not in post:
+        return None
+    run_plan = _mechanism_run_plan(ctx)
+    outcome = run_plan.outcome_symbol
+    n_trials = int(MEASURES[outcome].n_trials)
+    kappa = np.asarray(post["kappa"].values, dtype=float).ravel()
+    inflation = (kappa + n_trials) / (kappa + 1.0)
+    ci_prob = float(ctx.reporting.ci_prob)
+    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    family = run_plan.kappa_prior_family
+    default_sigma = 0.25 if family == "halfnormal_inverse_sqrt" else 50.0
+    sigma = default_sigma if run_plan.kappa_sigma is None else float(run_plan.kappa_sigma)
+    row = {
+        "outcome_symbol": outcome,
+        "n_trials": n_trials,
+        "kappa_prior_family": family,
+        "kappa_prior_sigma": sigma,
+        "kappa_prior_label": (
+            f"1/sqrt(kappa) ~ HalfNormal({sigma:g})"
+            if family == "halfnormal_inverse_sqrt"
+            else f"kappa ~ HalfNormal({sigma:g})"
+        ),
+        "reaches_near_binomial": family == "halfnormal_inverse_sqrt",
+        "kappa_median": float(np.median(kappa)),
+        "kappa_lo": float(np.quantile(kappa, lo_q)),
+        "kappa_hi": float(np.quantile(kappa, hi_q)),
+        "variance_inflation_median": float(np.median(inflation)),
+        "variance_inflation_lo": float(np.quantile(inflation, lo_q)),
+        "variance_inflation_hi": float(np.quantile(inflation, hi_q)),
+        # The concentration a near-Binomial fit would need at this denominator.
+        "kappa_for_10pct_of_binomial": 10.0 * (n_trials - 1) - 1.0,
+        "prob_within_10pct_of_binomial": float(np.mean(inflation <= 1.1)),
+        "ci_prob": ci_prob,
+        "n_obs": int(ctx.prepared.n_obs),
+    }
+    frame = pd.DataFrame([row])
+    save_table(ctx, "dispersion_summary", frame, required=False)
+    return frame
+
+
+def _write_mechanism_slope_summary(ctx: StatisticalFitContext) -> pd.DataFrame | None:
+    """Per-question exposure-slope table for the #603 / #604 sensitivities.
+
+    The pooled designs have one exposure coefficient and ``diagnostics.csv`` already
+    carries it. The two sensitivities have several, and the whole point of each is
+    that the several answer *different questions* — so the table names the question
+    beside every coefficient rather than leaving a reader to map ``beta_between``
+    onto "do children who generally know more letter sounds generally read more
+    words?" themselves. Returns ``None`` (writing nothing) for a pooled design.
+
+    Every row is an adjusted association. The within-child coefficient removes
+    stable between-child confounding, including the stable part of latent general
+    ability; it does not make the exposure temporally prior to the outcome, and it
+    does not remove time-varying confounding or reverse causation. A difference
+    between period slopes is evidence against pooling, not evidence that the
+    relationship changed over time.
+    """
+    run_plan = _mechanism_run_plan(ctx)
+    if not (run_plan.decompose_between_within or run_plan.phase_varying_slope):
+        return None
+    post = ctx.trace.posterior
+    ci_prob = float(ctx.reporting.ci_prob)
+    exposure = run_plan.mechanism_symbol
+    outcome = run_plan.outcome_symbol
+    unit = (
+        f"{outcome} logit per 1 SD of the standardised {exposure} exposure"
+        if run_plan.mechanism_is_covariate
+        else f"{outcome} logit per 1 SD of the {exposure} logit"
+    )
+    rows: list[dict] = []
+
+    def add(name: str, draws, question: str, causal_note: str, **extra) -> None:
+        row = _report.coef_row(name, draws, ci_prob)
+        row.update(
+            question=question,
+            causal_status="adjusted association",
+            causal_note=causal_note,
+            unit=unit,
+            exposure_symbol=exposure,
+            outcome_symbol=outcome,
+            n_obs=int(ctx.prepared.n_obs),
+            ci_prob=ci_prob,
+            **extra,
+        )
+        rows.append(row)
+
+    if run_plan.decompose_between_within and "beta_between" in post:
+        add(
+            "beta_between",
+            post["beta_between"].values,
+            "Between children: do children whose study-average exposure is higher "
+            "also tend to score higher on the outcome?",
+            "Cross-sectional between-child comparison; confounded by every stable "
+            "child characteristic, latent general ability included.",
+            component="between",
+        )
+    if run_plan.phase_varying_slope and "beta_mech_phase" in post:
+        if "mu_mech" in post:
+            add(
+                "mu_mech",
+                post["mu_mech"].values,
+                "Shared mean of the per-period slopes: the pooled exposure "
+                "association the per-period slopes are shrunk toward.",
+                "Partially-pooled mean of three adjusted associations; only the "
+                "first period is randomised-arm-clean, and the exposure is not "
+                "randomised in any of them.",
+                component="phase_mean",
+            )
+        if "sigma_mech_phase" in post:
+            add(
+                "sigma_mech_phase",
+                post["sigma_mech_phase"].values,
+                "How much the exposure slope varies between periods — the "
+                "quantity that answers whether pooling was safe.",
+                "A scale, not an association; a large value is evidence against "
+                "pooling, not evidence the mechanism changed over time.",
+                component="phase_scale",
+            )
+        per_phase = post["beta_mech_phase"]
+        phase_dim = next(d for d in per_phase.dims if d not in ("chain", "draw"))
+        for index in range(per_phase.sizes[phase_dim]):
+            add(
+                f"beta_mech_phase[{index}]",
+                per_phase.isel({phase_dim: index}).values,
+                f"Within period t{index + 1}->t{index + 2}"
+                + (
+                    " (the randomised transition)"
+                    if index == 0
+                    else " (post-crossover: both arms on the intervention)"
+                )
+                + ": how the outcome tracks the exposure in that period alone.",
+                "Adjusted association. The exposure is not randomised in any "
+                "period; from period 2 both arms are on the intervention, so a "
+                "period difference also differs in age, treatment history and "
+                "measurement position.",
+                component="phase_slope",
+                phase=index,
+                period=f"t{index + 1}->t{index + 2}",
+            )
+    elif run_plan.decompose_between_within and "beta_within" in post:
+        add(
+            "beta_within",
+            post["beta_within"].values,
+            "Within a child: when a child's own exposure moves away from their "
+            "study average, does their outcome move with it?",
+            "Removes stable between-child confounding, including the stable part "
+            "of latent general ability. Exposure and outcome are still measured at "
+            "the same wave, so this is not temporally ordered and does not rule "
+            "out time-varying confounding or reverse causation.",
+            component="within",
+        )
+    if not rows:
+        return None
+    frame = pd.DataFrame(rows)
+    save_table(ctx, "mechanism_slope_summary", frame)
+    print_table(
+        metrics_table(
+            [
+                {
+                    "coefficient": r["coefficient"],
+                    "median": f"{r['median']:+.3f}",
+                    f"{int(round(ci_prob * 100))}% CI": f"[{r['lo']:+.3f}, {r['hi']:+.3f}]",
+                    "P(>0)": f"{r['prob_pos']:.3f}",
+                }
+                for r in rows
+            ],
+            title=f"Exposure slopes by question - {exposure} -> {outcome}",
+            columns=["coefficient", "median", f"{int(round(ci_prob * 100))}% CI", "P(>0)"],
+        )
+    )
+    return frame
 
 
 #: Friendly labels for covariate mechanism exposures (no ``Measure`` entry, so no
@@ -500,93 +717,108 @@ _COVARIATE_EXPOSURE_LABELS = {
 }
 
 
-def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
-    """Items-scale mechanism dose-response curve + worked example (#319).
+def _mechanism_items_axis(ctx: StatisticalFitContext) -> tuple[np.ndarray, str, int | None]:
+    """The fitted rows' exposure in natural units, its label and its item ceiling."""
+    from language_reading_predictors.statistical_models.measures import MEASURES
 
-    Companion to ``_write_mechanism_curve``: the logit-scale CSV/plot remain the
-    analyst's object; this renders the same fitted curve on the items scale
-    (exposure items -> predicted outcome items) with a credible ribbon and one
-    computed worked-example contrast between fixed quantiles of the observed
-    exposure. Returns the ``worked`` dict (quantile reference points + the
-    computed caption) so ``fit_mechanism`` can persist it to ``config.json`` for
-    the report partial. Never raises through the fit — a failure logs and returns
-    ``{}``.
+    run_plan = _mechanism_run_plan(ctx)
+    sym = ctx.spec.mechanism_symbol
+    if run_plan.mechanism_is_covariate:
+        z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
+        scaler = ctx.prepared.covariate_scalers.get(sym)
+        x_exposure = scaler.inverse(z_loaded) if scaler is not None else z_loaded
+        return x_exposure, _COVARIATE_EXPOSURE_LABELS.get(sym, sym), None
+    if run_plan.mechanism_at_pre:
+        # Lagged form: the fitted term (via z_mech_logit) is on the pre exposure, so
+        # the items-scale x-axis must be the pre counts, not the post counts —
+        # otherwise the worked-example quantiles land on the wrong distribution and
+        # the axis is mislabelled (#405 review).
+        return (
+            np.asarray(ctx.prepared.pre_counts[sym], dtype=float),
+            f"{MEASURES[sym].label} (period start)",
+            MEASURES[sym].n_trials,
+        )
+    return (
+        np.asarray(ctx.prepared.post_counts[sym], dtype=float),
+        MEASURES[sym].label,
+        MEASURES[sym].n_trials,
+    )
+
+
+def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
+    """The family's declared natural-scale estimand: tables, figure, prior check.
+
+    Writes ``mechanism_summary.csv`` — the headline interquartile contrast first,
+    the secondary observed-range contrast second, each tagged with its
+    machine-readable ``estimand`` — and ``mechanism_curve_items.csv`` plus the
+    items-scale figure, all from **one** computation over the fitted rows (#602).
+    Returns the ``worked`` dict so ``fit_mechanism`` can persist the reference
+    points to ``config.json`` for the report partial.
+
+    The summary table is the deliverable and is written outside the guard: only the
+    figure and the prior pushforward are best-effort, because a plotting failure
+    must not cost the headline number the key-findings box reads.
     """
     from language_reading_predictors.statistical_models.measures import MEASURES
     from language_reading_predictors.statistical_models.mechanism_items import (
+        mechanism_summary_table,
         write_mechanism_items_artifacts,
     )
 
-    try:
-        spec = ctx.spec
-        run_plan = _mechanism_run_plan(ctx)
-        sym = spec.mechanism_symbol
-        outcome = spec.outcome_symbol or "W"
-        is_covariate = run_plan.mechanism_is_covariate
+    spec = ctx.spec
+    run_plan = _mechanism_run_plan(ctx)
+    sym = spec.mechanism_symbol
+    outcome = spec.outcome_symbol or "W"
+    is_covariate = run_plan.mechanism_is_covariate
+    x_exposure, exposure_label, exposure_n_trials = _mechanism_items_axis(ctx)
+    ref_quantiles = run_plan.items_ref_quantiles
 
-        if is_covariate:
-            z_loaded = np.asarray(ctx.prepared.covariates[sym], dtype=float)
-            scaler = ctx.prepared.covariate_scalers.get(sym)
-            x_exposure = scaler.inverse(z_loaded) if scaler is not None else z_loaded
-            exposure_label = _COVARIATE_EXPOSURE_LABELS.get(sym, sym)
-            exposure_n_trials = None
-        elif run_plan.mechanism_at_pre:
-            # Lagged form: the fitted curve (via z_mech_logit) is on the pre
-            # exposure, so the items-scale x-axis must be the pre counts, not the
-            # post counts — otherwise the worked-example quantiles land on the
-            # wrong distribution and the axis is mislabelled (#405 review).
-            x_exposure = np.asarray(ctx.prepared.pre_counts[sym], dtype=float)
-            exposure_label = f"{MEASURES[sym].label} (period start)"
-            exposure_n_trials = MEASURES[sym].n_trials
-        else:
-            x_exposure = np.asarray(ctx.prepared.post_counts[sym], dtype=float)
-            exposure_label = MEASURES[sym].label
-            exposure_n_trials = MEASURES[sym].n_trials
-
-        # The mechanism factory always fits a Beta-Binomial likelihood, so the
-        # y-axis is an item count. Floored (off-floor Bernoulli) mechanism
-        # outcomes are a future addition (#319 design note); wire the flag when
-        # such a model ships.
-        ref_quantiles = run_plan.items_ref_quantiles
-        worked = write_mechanism_items_artifacts(
-            ctx.output_dir,
-            ctx.trace,
-            x_exposure=x_exposure,
-            outcome_symbol=outcome,
-            outcome_label=MEASURES[outcome].label,
-            n_trials_outcome=MEASURES[outcome].n_trials,
-            exposure_label=exposure_label,
-            exposure_is_covariate=is_covariate,
-            exposure_n_trials=exposure_n_trials,
-            ci_prob=ctx.reporting.ci_prob,
-            ref_quantiles=ref_quantiles,
-            outcome_off_floor=False,
-        )
+    # The mechanism factory always fits a Beta-Binomial likelihood, so the y-axis is
+    # an item count. Floored (off-floor Bernoulli) mechanism outcomes are a future
+    # addition (#319 design note); wire the flag when such a model ships.
+    worked = write_mechanism_items_artifacts(
+        ctx.output_dir,
+        ctx.trace,
+        x_exposure=x_exposure,
+        outcome_symbol=outcome,
+        outcome_label=MEASURES[outcome].label,
+        n_trials_outcome=MEASURES[outcome].n_trials,
+        exposure_label=exposure_label,
+        exposure_is_covariate=is_covariate,
+        exposure_n_trials=exposure_n_trials,
+        ci_prob=ctx.reporting.ci_prob,
+        ref_quantiles=ref_quantiles,
+        outcome_off_floor=False,
+    )
+    save_table(
+        ctx,
+        "mechanism_summary",
+        mechanism_summary_table(
+            worked,
+            exposure_unit=(
+                f"{sym} raw-score units" if is_covariate else f"{sym} items"
+            ),
+        ),
+    )
+    # ``mechanism_curve_items.csv`` is written inside the helper (which takes an
+    # output directory, not a context); record it for the manifest.
+    record_artifact(ctx, "mechanism_curve_items", required=False)
+    with guard_optional(
+        ctx,
+        "mechanism prior pushforward",
+        filename="prior_pushforward.csv",
+        kind="table",
+        verb="not written",
+    ):
         _write_mechanism_prior_pushforward(
             ctx,
             x_exposure=x_exposure,
             outcome=outcome,
             exposure_label=exposure_label,
+            exposure_n_trials=None if is_covariate else exposure_n_trials,
             ref_quantiles=ref_quantiles,
         )
-        # ``mechanism_curve_items.csv`` is written inside the helper (which takes
-        # an output directory, not a context); record it for the manifest.
-        record_artifact(ctx, "mechanism_curve_items", required=False)
-        return worked
-    except Exception as exc:  # pragma: no cover - defensive; logit curve stands alone
-        rprint(f"[yellow]Items-scale mechanism curve failed: {exc}[/yellow]")
-        write_prior_pushforward(
-            ctx,
-            [
-                _report.unavailable_pushforward(
-                    estimand="mechanism_curve",
-                    estimand_label="the mechanism dose-response contrast",
-                    role="association",
-                    reason=f"the items-scale mechanism curve could not be built: {exc}",
-                )
-            ],
-        )
-        return {}
+    return worked
 
 
 def _write_mechanism_prior_pushforward(
@@ -595,6 +827,7 @@ def _write_mechanism_prior_pushforward(
     x_exposure: np.ndarray,
     outcome: str,
     exposure_label: str,
+    exposure_n_trials: int | None,
     ref_quantiles: tuple[float, float],
 ) -> None:
     """Estimand-scale prior check for the mechanism family (#381).
@@ -632,6 +865,7 @@ def _write_mechanism_prior_pushforward(
             source,
             x_exposure=x_exposure,
             n_trials_outcome=n_trials,
+            exposure_n_trials=exposure_n_trials,
             ci_prob=ctx.reporting.ci_prob,
             ref_quantiles=ref_quantiles,
             group="prior",
@@ -666,11 +900,70 @@ def _write_mechanism_prior_pushforward(
                 reason=str(exc),
             )
         ]
-    with guard_optional(
-        ctx, "mechanism prior pushforward",
-        filename="prior_pushforward.csv", kind="table", verb="not written",
-    ):
-        write_prior_pushforward(ctx, rows)
+    write_prior_pushforward(ctx, rows)
+
+
+def _items_scale_knee(
+    ctx: StatisticalFitContext, *, x_obs: np.ndarray, is_covariate: bool
+) -> dict:
+    """The steepest interval of the **expected-items** curve, ``items_``-prefixed.
+
+    ``readiness_threshold`` locates the steepest interval of the *latent-logit*
+    contribution. The expected-items derivative is
+    ``d E[y] / dx = N * p (1 - p) * d eta / dx``, so its maximum can sit at a
+    different exposure value — which is the question a reader who asks "where do
+    predicted words rise fastest?" is actually asking (#602). It is computed here
+    under the **declared reference population**, by binning the standardised
+    items-scale curve rather than relabelling the logit statistic, and is published
+    *alongside* the logit interval because the two answer different questions.
+
+    Returns an empty dict, not a raised error, when it cannot be computed: the
+    latent-logit interval is the established deliverable and must not be lost to a
+    companion statistic.
+    """
+    from language_reading_predictors.statistical_models.measures import MEASURES
+    from language_reading_predictors.statistical_models.mechanism_items import (
+        standardised_items_by_row,
+    )
+
+    outcome = ctx.spec.outcome_symbol or "W"
+    x_exposure, _label, exposure_n_trials = _mechanism_items_axis(ctx)
+    try:
+        items_rows = standardised_items_by_row(
+            ctx.trace,
+            x_exposure=x_exposure,
+            n_trials_outcome=MEASURES[outcome].n_trials,
+            exposure_n_trials=None if is_covariate else exposure_n_trials,
+        )
+        items = _report.readiness_threshold(
+            ctx.trace,
+            exposure_values=np.asarray(x_obs, dtype=float),
+            ci_prob=ctx.reporting.ci_prob,
+            curve=items_rows,
+            scale="expected_items",
+        )
+    except (KeyError, ValueError) as exc:
+        rprint(
+            f"[yellow]_items_scale_knee: {exc}; the items-scale steepest interval "
+            "is omitted (the latent-logit one still stands).[/yellow]"
+        )
+        return {}
+    keep = (
+        "knee_count_median",
+        "knee_count_ci_low",
+        "knee_count_ci_high",
+        "half_rise_count_median",
+        "slope_below_knee_median",
+        "slope_above_knee_median",
+        "increasing_frac",
+        "steepest_interval_index",
+        "steepest_interval_share",
+        "boundary_pinned",
+        "prob_slope_above_gt_below",
+        "knee_well_defined",
+        "scale",
+    )
+    return {f"items_{k}": items[k] for k in keep if k in items}
 
 
 def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
@@ -725,6 +1018,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
         x_obs = np.clip((N + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(N))
         x_label = f"{sym} (raw count, out of {N})"
 
+    summary.update(_items_scale_knee(ctx, x_obs=x_obs, is_covariate=is_covariate))
     save_table(ctx, "readiness_threshold", pd.DataFrame([summary]), register=False)
 
     order = np.argsort(x_obs)

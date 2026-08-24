@@ -145,6 +145,16 @@ JOINT_READINESS_LXN_W_LOO_IDS: list[str] = ["lrp-rli-mech-063", "lrp-rli-mech-16
 # already are that comparison, so no second pair is registered for it.
 RW_MODERATION_LOO_IDS: list[str] = ["lrp-rli-mech-104", "lrp-rli-mech-204"]
 
+# Phase-stability sensitivity (#604): the partially-pooled per-period exposure slope
+# against its pooled-slope comparator, same outcome and same rows -- a nested
+# PSIS-LOO test of "is the exposure slope stable across the three period
+# transitions?", in the manner of dose-077/277 and did-007/107. One pair per
+# channel: word reading (the family anchor) and receptive vocabulary (the Tier-1
+# negative control, and the family's widest denominator). The pooled model is listed
+# first, so the comparison reads as "does letting the slope vary buy anything?"
+PHASE_VARYING_W_LOO_IDS: list[str] = ["lrp-rli-mech-101", "lrp-rli-mech-302"]
+PHASE_VARYING_R_LOO_IDS: list[str] = ["lrp-rli-mech-097", "lrp-rli-mech-303"]
+
 # Dose-response (LRP77, #104 Phase 2): the period-varying dose model vs its
 # pooled-dose comparator, same word-reading outcome and rows — a nested PSIS-LOO
 # test of whether the dose-gain slope varies by period.
@@ -733,50 +743,107 @@ def tau_forest(config: str, out_path: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _mechanism_slope_distribution(
-    trace: xr.DataTree, mech_logit: np.ndarray
-) -> np.ndarray:
-    """Posterior draws of a curve model's average slope, comparable to ``beta_mech``.
+#: Reference quantiles of the fitted exposure that define the family's declared
+#: headline interval (#602). Mirrors ``MechanismModelSettings.items_ref_quantiles``,
+#: whose registered value is the same on every mechanism model in this forest.
+MECH_REF_QUANTILES: tuple[float, float] = (0.25, 0.75)
 
-    **Estimand.** The *fitted-row average derivative*: the secant slope of ``f_mech``
-    at each fitted observation's exposure, averaged over the fitted rows. This is the
-    curve analogue of the linear models' ``beta_mech``, which is likewise a
-    per-fitted-row quantity, so the two are commensurable on one axis.
 
-    The previous implementation dropped rows at duplicate exposures and then took an
-    unweighted ``np.gradient`` mean over the surviving *unique* grid (#586 finding 6).
-    That is neither a fitted-row average nor an interval-weighted one: on a bounded
-    count measure many children share an exposure value, so deduplication silently
-    reweighted the average toward sparsely-populated regions of the range — exactly
-    the regions where an HSGP curve is least constrained. Derivatives are still
-    computed on the unique sorted grid (``np.gradient`` needs strictly increasing
-    ``x``), but they are then mapped back to every fitted row before averaging, so
-    each observation counts once.
+def _counts_from_logit(ell: np.ndarray, n_trials: int) -> np.ndarray:
+    """Invert the Haldane-corrected logit the loader applies to a bounded count."""
+    return np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
+
+
+def _logit_from_count(count: float, n_trials: int) -> float:
+    """The Haldane-corrected logit of a bounded count (the loader's transform)."""
+    return float(np.log((count + 0.5) / (n_trials - count + 0.5)))
+
+
+def _mechanism_interval_slope(
+    trace: xr.DataTree, mech_logit: np.ndarray, n_trials: int
+) -> tuple[np.ndarray, str]:
+    """Posterior draws of the declared-interval slope, per SD of the exposure logit.
+
+    **Estimand.** The secant slope of the fitted exposure term across the family's
+    **declared headline interval** — the interquartile range of the fitted exposure
+    (#602) — expressed per 1 SD of the exposure logit::
+
+        slope = [f(x_hi) - f(x_lo)] * sd(mech_logit) / [ell(x_hi) - ell(x_lo)]
+
+    For a linear fit this is *exactly* ``beta_mech``, which is what makes the two
+    shapes commensurable on one axis. For a curve fit it is the rise across the same
+    interval the report's headline contrast uses, so the forest and the per-model
+    headline describe one relation on two scales rather than two different
+    quantities over two different intervals.
+
+    Before #602 the curve models contributed a fitted-row average derivative over
+    the *whole* observed range instead. That is a defensible statistic, but it is
+    not the declared interval, and the observed extremes are order statistics of a
+    156-row sample sitting exactly where an HSGP curve is least constrained — so it
+    is retained as a labelled secondary column, never as the plotted quantity.
 
     Input arrays must be aligned (one row of ``f_mech`` per ``mech_logit`` entry).
     """
+    counts = _counts_from_logit(mech_logit, n_trials)
+    x_lo = float(round(float(np.quantile(counts, MECH_REF_QUANTILES[0]))))
+    x_hi = float(round(float(np.quantile(counts, MECH_REF_QUANTILES[1]))))
+    ell_lo, ell_hi = _logit_from_count(x_lo, n_trials), _logit_from_count(x_hi, n_trials)
+    if not ell_hi > ell_lo:
+        raise ValueError(
+            "the declared interquartile exposure interval is degenerate; no slope "
+            "is defined over it"
+        )
+    mech_sd = float(np.std(mech_logit, ddof=1))
+
+    if "f_mech" in trace.posterior:
+        f = trace.posterior["f_mech"].stack(sample=("chain", "draw")).values  # (n, S)
+        order = np.argsort(mech_logit)
+        xs, fs = mech_logit[order], f[order]
+        keep = np.concatenate([[True], np.diff(xs) > 0])
+        xs, fs = xs[keep], fs[keep]
+        if xs.size < 2:
+            raise ValueError("Fewer than two distinct exposure values; no slope defined.")
+
+        def at(value: float) -> np.ndarray:
+            j = int(np.clip(np.searchsorted(xs, value), 1, xs.size - 1))
+            x0, x1 = xs[j - 1], xs[j]
+            w = 0.0 if x1 == x0 else (float(np.clip(value, xs[0], xs[-1])) - x0) / (x1 - x0)
+            return fs[j - 1] * (1.0 - w) + fs[j] * w
+
+        return (at(ell_hi) - at(ell_lo)) * mech_sd / (ell_hi - ell_lo), "curve"
+    if "beta_mech" in trace.posterior:
+        # Already per SD: beta_mech multiplies the standardised mechanism logit, and
+        # the secant of a straight line over any interval equals its slope.
+        return (
+            np.asarray(trace.posterior["beta_mech"].values, dtype=float).ravel(),
+            "linear",
+        )
+    raise ValueError("Trace has neither f_mech nor beta_mech.")
+
+
+def _mechanism_row_average_slope(
+    trace: xr.DataTree, mech_logit: np.ndarray
+) -> np.ndarray:
+    """Fitted-row average derivative of ``f_mech``, retained as a secondary column.
+
+    Derivatives are computed on the unique sorted grid (``np.gradient`` needs
+    strictly increasing ``x``) and then mapped back to every fitted row before
+    averaging, so each observation counts once rather than each distinct value
+    (#586 finding 6). Returns ``beta_mech`` unchanged for a linear fit, whose
+    derivative is constant.
+    """
     if "f_mech" not in trace.posterior:
-        raise ValueError("Trace has no f_mech variable.")
-
+        return np.asarray(trace.posterior["beta_mech"].values, dtype=float).ravel()
     f = trace.posterior["f_mech"].stack(sample=("chain", "draw")).values  # (n, S)
-
     order = np.argsort(mech_logit)
-    x_sorted = mech_logit[order]
-    f_ord = f[order]
-
-    # Derivatives on the unique grid (np.gradient requires strictly increasing x).
+    x_sorted, f_ord = mech_logit[order], f[order]
     keep = np.concatenate([[True], np.diff(x_sorted) > 0])
-    x_unique = x_sorted[keep]
+    x_unique, f_unique = x_sorted[keep], f_ord[keep]
     if x_unique.size < 2:
         raise ValueError("Fewer than two distinct exposure values; no slope defined.")
-    f_unique = f_ord[keep]
     grad = np.gradient(f_unique, x_unique, axis=0)  # (n_unique, S)
-
-    # Map each fitted row onto its grid point, so ties count once per observation
-    # rather than once per distinct value.
-    row_index = np.searchsorted(x_unique, mech_logit)
-    row_index = np.clip(row_index, 0, x_unique.size - 1)
-    return grad[row_index].mean(axis=0)  # (S,)
+    row_index = np.clip(np.searchsorted(x_unique, mech_logit), 0, x_unique.size - 1)
+    return grad[row_index].mean(axis=0) * float(np.std(mech_logit, ddof=1))
 
 
 def mechanism_forest(config: str, out_path: str) -> bool:
@@ -789,17 +856,16 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     ``mech-056`` (R) and ``mech-057`` (E) were switched to a linear mechanism in the
     #258 review because the nonparametric curve would not converge for them. Their
     slope is the ``beta_mech`` coefficient, which multiplies the *standardised*
-    mechanism logit and is therefore already per SD. A curve model has no single
-    slope, so its comparable quantity is the average gradient of ``f_mech`` — taken
-    against the raw logit, since that is the grid the curve is evaluated and plotted
-    on, and then multiplied by the raw logit's SD to reach the same per-SD scale.
+    mechanism logit and is therefore already per SD.
 
-    That conversion is the point. The two quantities differ by exactly
-    ``sd(mech_logit)``, so plotting the raw-logit gradient beside ``beta_mech``
-    without it would put visibly different scales on one axis (the SDs here run
-    0.46 to 1.43). Until 2026-08-05 the function simply skipped any model without
-    ``f_mech``, so the two linear models contributed nothing and the "forest" was a
-    single point that looked like a complete comparison.
+    A curve model has no single slope, so its comparable quantity is the secant
+    across the family's **declared headline interval** — the interquartile range of
+    the fitted exposure (#602) — divided by that interval's width in SDs of the
+    exposure logit. For a linear fit that construction returns ``beta_mech``
+    exactly, which is what makes the two shapes commensurable, and it puts the
+    forest on the same interval as every per-model headline instead of a second,
+    undeclared one. The fitted-row average derivative over the whole observed range,
+    which the forest plotted until #602, is kept as a labelled secondary column.
     """
     labels: list[str] = []
     shapes: list[str] = []
@@ -808,6 +874,7 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     his: list[float] = []
     gates: list[str] = []
     model_ids: list[str] = []
+    row_avgs: list[float] = []
 
     for model_id, sym in MECH_IDS:
         # Fail closed on the convergence gate, like every other comparison in this
@@ -849,23 +916,19 @@ def mechanism_forest(config: str, out_path: str) -> bool:
             )
             continue
         mech_logit = np.asarray(trace.constant_data["mech_post_logit"].values, dtype=float)
-        # ddof=1 to match ``preprocessing.standardise``, which is what defined the
-        # scale ``beta_mech`` is expressed in.
-        mech_sd = float(np.std(mech_logit, ddof=1))
 
-        if "f_mech" in trace.posterior:
-            # Average gradient w.r.t. the raw logit, rescaled to per-SD.
-            slopes = _mechanism_slope_distribution(trace, mech_logit) * mech_sd
-            shape = "curve"
-        elif "beta_mech" in trace.posterior:
-            # Already per SD: beta_mech multiplies the standardised mechanism logit.
-            slopes = np.asarray(trace.posterior["beta_mech"].values, dtype=float).ravel()
-            shape = "linear"
-        else:
+        try:
+            # ddof=1 inside matches ``preprocessing.standardise``, which is what
+            # defined the scale ``beta_mech`` is expressed in.
+            slopes, shape = _mechanism_interval_slope(
+                trace, mech_logit, MEASURES[sym].n_trials
+            )
+            row_avg = _mechanism_row_average_slope(trace, mech_logit)
+        except ValueError as exc:
             print(
-                f"[warn] {model_id}: neither f_mech nor beta_mech in the posterior; "
-                "DROPPING this model from the persisted mechanism forest AND its CSV "
-                "(it will be absent from the artefact, not merely un-plotted)."
+                f"[warn] {model_id}: {exc}; DROPPING this model from the persisted "
+                "mechanism forest AND its CSV (it will be absent from the artefact, "
+                "not merely un-plotted)."
             )
             continue
 
@@ -875,6 +938,7 @@ def mechanism_forest(config: str, out_path: str) -> bool:
         # 89% equal-tailed band (house standard).
         los.append(float(np.quantile(slopes, 0.055)))
         his.append(float(np.quantile(slopes, 0.945)))
+        row_avgs.append(float(np.median(row_avg)))
         labels.append(f"{model_id} ({sym}->W, {shape})")
         shapes.append(shape)
         gates.append(gate)
@@ -897,7 +961,9 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     plt.gca().invert_yaxis()
     plt.axvline(0.0, color="k", lw=0.75, ls="--")
     plt.xlabel("Mechanism slope (outcome logit per SD of the mechanism logit)")
-    plt.title("Mechanism-model slopes — curve models as the fitted-row average slope")
+    plt.title(
+        "Mechanism-model slopes over the declared interquartile exposure interval"
+    )
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -915,15 +981,24 @@ def mechanism_forest(config: str, out_path: str) -> bool:
             "converged": [g == "PASS" for g in gates],
             "gate_status": gates,
             "estimand": [
-                "beta_mech coefficient (outcome logit per SD of the exposure logit)"
+                "beta_mech coefficient (outcome logit per SD of the exposure logit); "
+                "identical to the interquartile secant for a straight line"
                 if s == "linear"
-                else "fitted-row average slope of f_mech, rescaled to per SD of the "
-                "exposure logit"
+                else "secant of f_mech across the declared interquartile exposure "
+                "interval, per SD of the exposure logit"
                 for s in shapes
             ],
+            "estimand_id": "mechanism_slope_interquartile_per_sd",
+            "ref_quantile_low": MECH_REF_QUANTILES[0],
+            "ref_quantile_high": MECH_REF_QUANTILES[1],
             "slope_median": medians,
             "slope_lo": los,
             "slope_hi": his,
+            # Secondary, never plotted: the whole-observed-range fitted-row average
+            # derivative this forest reported until #602, kept so the change is
+            # auditable and a reader can see how much the interval choice moves a
+            # curve model (it moves a linear one not at all).
+            "secondary_row_average_slope_median": row_avgs,
         }
     ).to_csv(out_path.replace(".png", ".csv"), index=False)
     return True
@@ -1766,16 +1841,17 @@ def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
     shift = 100.0 * (sb["items_median"] - sa["items_median"]) / sa["items_median"]
     fig.text(
         0.5, -0.015,
-        f"Row-averaged endpoint contrast (lowest to highest observed letter-sound score, "
-        f"averaged over every fitted child-period):\n{sa['items_median']:+.2f} items "
+        f"Headline contrast ({sa['exposure_low']:g} against {sa['exposure_high']:g} "
+        "letter sounds — the declared interquartile interval — standardised over every "
+        f"fitted child-period):\n{sa['items_median']:+.2f} items "
         f"[{sa['items_lo']:+.2f}, {sa['items_hi']:+.2f}] unadjusted against "
         f"{sb['items_median']:+.2f} [{sb['items_lo']:+.2f}, {sb['items_hi']:+.2f}] "
-        f"ability-adjusted — a {shift:.0f}% shift. The curves hold the other covariates "
-        "at their fitted means and the child\nintercept at zero, so their rise is smaller "
-        "than the row-averaged contrast. Identical rows and identical model but for the "
-        "ability term. Both are adjusted\nassociations under the DAG, not causal effects; "
-        "block design is a single noisy subtest, so this bounds what the measured proxy "
-        "accounts for, not the latent\nability node. The band flares where the data thin "
+        f"ability-adjusted — a {shift:.0f}% shift. The plotted curves are that same "
+        "standardised quantity across the observed range, so the contrast is the gap "
+        "between two points\non them. Identical rows and identical model but for the "
+        "ability term. Both are adjusted associations under the DAG, not causal effects; "
+        "block design is a single noisy\nsubtest, so this bounds what the measured proxy "
+        "accounts for, not the latent ability node. The band flares where the data thin "
         "out at the top of the scale.",
         ha="center", va="top", fontsize=8.6, color="#333333")
     fig.tight_layout()
@@ -1928,6 +2004,42 @@ def joint_readiness_lxn_w_loo_compare(config: str, out_path: str) -> bool:
     return True
 
 
+
+
+def phase_varying_slope_loo_compare(config: str, out_path: str, ids: list[str]) -> bool:
+    """Nested LOO of a partially-pooled per-period exposure slope vs the pooled one.
+
+    The pair differs by exactly one declared setting (``phase_varying_slope``), so
+    the comparison answers "is the exposure slope stable across the three period
+    transitions?" predictively rather than by eyeballing a forest (#604). Both fits
+    share the same rows and likelihood, which ``_loo_compare`` verifies before
+    differencing.
+
+    An inconclusive result is the expected outcome at this sample size and is a
+    pass, not a failure: with ~52 rows per period the varying-slope model adds two
+    shrunk deviations, and the standing ``|elpd_diff| < 4`` rule will usually
+    decline to separate them. Read it as "LOO does not distinguish these models",
+    and read ``sigma_mech_phase``'s own posterior in the varying fit for the size of
+    the between-period spread.
+    """
+    if not _loo_compare(ids, config, out_path):
+        return False
+    _copy_compare_beside_runs(
+        out_path,
+        ids,
+        config,
+        note=(
+            f"Nested comparison: {ids[1]} is {ids[0]} with phase_varying_slope=True, "
+            "so the pair differs by the per-period exposure slopes alone (a shared "
+            "mean mu_mech plus shrunk per-period deviations, scale "
+            "sigma_mech_phase). A period difference is evidence against pooling, "
+            "not evidence that the relationship changed over time; only the t1->t2 "
+            "transition is randomised-arm-clean and the exposure is not randomised "
+            "in any period. Read exposure_support.csv beside this table for the "
+            "per-period exposure overlap the comparison rests on."
+        ),
+    )
+    return True
 
 
 def rw_moderation_loo_compare(config: str, out_path: str) -> bool:
@@ -2205,6 +2317,19 @@ def main() -> None:
     else:
         print("Skipping L x N -> W LOO compare: LRP63 / LRP63base runs missing.")
 
+
+    for label, ids in (
+        ("phase_varying_w", PHASE_VARYING_W_LOO_IDS),
+        ("phase_varying_r", PHASE_VARYING_R_LOO_IDS),
+    ):
+        path = os.path.join(args.out, f"{label}_loo_compare.csv")
+        if phase_varying_slope_loo_compare(args.config, path, ids):
+            print(f"Wrote {path}")
+        else:
+            print(
+                f"Skipping {label} LOO compare: {ids[0]} / {ids[1]} runs missing "
+                "or gated."
+            )
 
     rw_mod_path = os.path.join(args.out, "rw_moderation_loo_compare.csv")
     if rw_moderation_loo_compare(args.config, rw_mod_path):

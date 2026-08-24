@@ -1,0 +1,39 @@
+---
+title: "LRP303: Phase-varying slope — letter sounds (LS) → receptive vocabulary (RV)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+The vocabulary channel of the phase-stability pair (#604). This is [LRP97](../lrp-rli-mech-097) with **one** thing changed: the exposure slope is allowed to vary across the three period transitions, partially pooled toward a shared mean. Rows, outcome, baseline, adjustment set and priors are identical, and LRP97 is the pooled comparator for the nested PSIS-LOO test. [LRP302](../lrp-rli-mech-302) is the word-reading channel and carries the fuller account of the design.
+
+**Why this channel too.** LRP97 is a Tier-1 **negative control**: under the revised DAG receptive vocabulary is not a causal descendant of letter-sound knowledge, so any adjusted $L \to R$ association is purely backdoor. Pooling three treatment histories matters at least as much for a backdoor association as for a substantive one — period-varying confounding is precisely what a stable pooled slope could be hiding. The vocabulary tests also carry the family's widest denominator (170 items), where a slope difference translates into the largest item-scale difference.
+
+## How to read a period difference
+
+As in LRP302: a difference between the per-period slopes is **evidence against pooling**, not evidence about mechanism change over time. Only the t1→t2 transition is randomised-arm-clean, the exposure is not randomised in any period, and the later periods differ in age, treatment history and measurement position at once. Read the exposure-support table beside the slopes. On this outcome the pooled slope was expected to be near zero in the first place, so read the per-period slopes against that expectation rather than against the reading outcomes'.
+
+## Adjustment set
+
+$\{G, A, HS, IS, SP\}$ plus baseline $R_\text{pre}$ — the matched Tier-1 conditioning set, so the negative-control comparison stays like-for-like. GA is unblockable; every slope here is an **adjusted association**.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

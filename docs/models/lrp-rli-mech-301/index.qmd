@@ -1,0 +1,48 @@
+---
+title: "LRP301: Between/within split — letter sounds (LS) → word reading (WR)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+This is [LRP101](../lrp-rli-mech-101) with **one** thing changed: the standardised letter-sound exposure is split into each child's own fitted-row average and their deviation from it, so the model estimates two coefficients where LRP101 estimates one. Rows, outcome, baseline, adjustment set and priors are identical.
+
+**The question it fixes.** Every other mechanism fit reports one exposure coefficient estimated over a child random intercept. That coefficient is a precision-weighted *blend* of two associations that answer different questions:
+
+- **Between children** ($\beta_\text{between}$) — do children who generally know more letter sounds generally read more words?
+- **Within a child** ($\beta_\text{within}$) — when a child's own letter-sound score moves away from their study average, does their word reading move with it?
+
+The random intercept does not separate them. It models repeated-measures dependence under an independence assumption, is not permitted to correlate with the exposure, and does not decompose the exposure into a child mean and a deviation from it — so the weights are set by the variance ratio rather than by the question.
+
+**This is not hypothetical on these data.** The [pooled-levels family](../lrp-rli-pl-001) already runs the split and finds the two far apart for exactly this pair: $r = 0.81$ between against $0.45$ within on the logit scale ($0.70$ against $0.51$ on raw counts). A blend of $0.81$ and $0.45$ is not a good answer to either question. The developmental reading of this family — "children who know more letter sounds read more words" — is naturally a **within-child** claim, and that is the component the pooled parameterisation is least able to isolate.
+
+## What the split does and does not buy
+
+$\beta_\text{within}$ removes **stable** between-child confounding, including the stable part of latent general ability. It does **not** make the exposure temporally prior to the outcome — exposure and outcome are still measured at the same wave — and it does not remove time-varying confounding or reverse causation. The result is a better-posed association, not an identified effect. $\beta_\text{between}$ is frankly a cross-sectional comparison and is confounded by every stable child characteristic.
+
+Because the between term cancels from any exposure contrast, this fit's headline natural-scale contrast is the **within-child** one: moving one wave's exposure while holding that child's study average fixed.
+
+## Adjustment set
+
+$\{G, A, HS, IS, SP\}$ plus baseline $W_\text{pre}$ — identical to LRP101/LRP58 (revised-DAG parents of $L$, #245). GA is unblockable; neither coefficient is causal.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

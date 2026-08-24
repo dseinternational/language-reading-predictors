@@ -33,6 +33,7 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
 )
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.itt import KAPPA_PRIOR_FAMILIES
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES, MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
@@ -79,6 +80,10 @@ _LEGACY_KEYS = frozenset(
         "mech_hsgp_m",
         "mech_lengthscale_tight",
         "items_ref_quantiles",
+        "decompose_between_within",
+        "phase_varying_slope",
+        "kappa_prior_family",
+        "kappa_sigma",
         "target_accept",
     }
 )
@@ -211,6 +216,17 @@ class MechanismModelSettings:
     mech_hsgp_m: int | None = None
     mech_lengthscale_tight: bool = False
     items_ref_quantiles: tuple[float, float] = (0.25, 0.75)
+    #: Mundlak between/within split of the exposure (#603). Default off, so no
+    #: registered fit changes; linear designs only.
+    decompose_between_within: bool = False
+    #: Partially-pooled per-period exposure slopes (#604). Default off; linear
+    #: designs only, and never alongside ``phase_specific_mechanism``.
+    phase_varying_slope: bool = False
+    #: Beta-Binomial concentration prior family and scale (#605). The registered
+    #: default enforces a floor on overdispersion at high denominators;
+    #: ``"halfnormal_inverse_sqrt"`` reaches the near-Binomial limit.
+    kappa_prior_family: str = "halfnormal_concentration"
+    kappa_sigma: float | None = None
 
     def __post_init__(self) -> None:
         if self.outcomes is not None:
@@ -243,9 +259,24 @@ class MechanismModelSettings:
             "mechanism_is_covariate",
             "mechanism_at_pre",
             "mech_lengthscale_tight",
+            "decompose_between_within",
+            "phase_varying_slope",
         ):
             if not isinstance(getattr(self, flag), bool):
                 raise TypeError(f"{flag} must be bool")
+        if self.kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
+            raise ValueError(
+                "kappa_prior_family must be one of "
+                f"{sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
+            )
+        if self.kappa_sigma is not None:
+            if isinstance(self.kappa_sigma, bool) or not isinstance(
+                self.kappa_sigma, (int, float)
+            ):
+                raise TypeError("kappa_sigma must be a positive number or None")
+            if not self.kappa_sigma > 0:
+                raise ValueError("kappa_sigma must be a positive number or None")
+            object.__setattr__(self, "kappa_sigma", float(self.kappa_sigma))
         if self.moderator_is_covariate and self.moderator_symbol is None:
             raise ValueError("moderator_is_covariate requires moderator_symbol")
         basis = self.mech_hsgp_m
@@ -265,6 +296,46 @@ class MechanismModelSettings:
                 "linear_mechanism cannot be combined with "
                 "phase_specific_mechanism; the factory's linear branch would "
                 "silently ignore the phase-specific declaration"
+            )
+        # #603 / #604: both sensitivities restructure the single linear slope. On an
+        # HSGP design there is no scalar to split or vary, so the declaration could
+        # only be honoured by building a different model than the one declared.
+        if self.decompose_between_within and not self.linear_mechanism:
+            raise ValueError(
+                "decompose_between_within requires linear_mechanism=True: a "
+                "between/within split of a nonparametric curve is a separate "
+                "design question, not a reparameterisation of this one"
+            )
+        if self.phase_varying_slope and not self.linear_mechanism:
+            raise ValueError(
+                "phase_varying_slope requires linear_mechanism=True; a per-period "
+                "HSGP curve is phase_specific_mechanism, which this family cannot "
+                "report"
+            )
+        if self.phase_varying_slope and self.phase_specific_mechanism:
+            raise ValueError(
+                "phase_varying_slope and phase_specific_mechanism are mutually "
+                "exclusive: the first varies one linear slope by period, the "
+                "second builds a separate curve per period"
+            )
+        # Neither sensitivity carries the moderation terms. ``gamma_int`` multiplies
+        # the *undecomposed* standardised exposure, so a moderated split fit would
+        # report a between/within decomposition beside an interaction built on the
+        # blend it exists to reject; a moderated period-varying fit would likewise
+        # vary the main slope by period while its interaction stayed pooled. Both are
+        # coherent designs, but neither is this one, and the report would describe
+        # the wrong model.
+        if self.moderator_symbol is not None and (
+            self.decompose_between_within or self.phase_varying_slope
+        ):
+            which = (
+                "decompose_between_within"
+                if self.decompose_between_within
+                else "phase_varying_slope"
+            )
+            raise ValueError(
+                f"{which} cannot be combined with moderator_symbol: the "
+                "interaction term would still be built on the pooled exposure"
             )
         object.__setattr__(
             self,
@@ -304,6 +375,12 @@ class MechanismModelSettings:
             mech_hsgp_m=extra.get("mech_hsgp_m"),
             mech_lengthscale_tight=extra.get("mech_lengthscale_tight", False),
             items_ref_quantiles=extra.get("items_ref_quantiles", (0.25, 0.75)),
+            decompose_between_within=extra.get("decompose_between_within", False),
+            phase_varying_slope=extra.get("phase_varying_slope", False),
+            kappa_prior_family=extra.get(
+                "kappa_prior_family", "halfnormal_concentration"
+            ),
+            kappa_sigma=extra.get("kappa_sigma"),
         )
 
 
@@ -334,6 +411,10 @@ class MechanismRunPlan:
     mech_hsgp_m: int | None
     mech_lengthscale_tight: bool
     items_ref_quantiles: tuple[float, float]
+    decompose_between_within: bool
+    phase_varying_slope: bool
+    kappa_prior_family: str
+    kappa_sigma: float | None
     confounders: tuple[str, ...]
     likelihood: str
     observation_node: str
@@ -415,6 +496,10 @@ class MechanismRunPlan:
             "moderator_is_covariate": self.moderator_is_covariate,
             "include_interaction": self.include_interaction,
             "linear_mechanism": self.linear_mechanism,
+            "decompose_between_within": self.decompose_between_within,
+            "phase_varying_slope": self.phase_varying_slope,
+            "kappa_prior_family": self.kappa_prior_family,
+            "kappa_sigma": self.kappa_sigma,
             "adjust_for": adjusters,
             "mechanism_is_covariate": self.mechanism_is_covariate,
             "mechanism_at_pre": self.mechanism_at_pre,
@@ -430,6 +515,12 @@ class MechanismRunPlan:
         """Curated variables used by summaries, sensitivity and the gate."""
         adjusters = self.adjust_for if effective_adjust_for is None else effective_adjust_for
         names = ["alpha", "beta_G", "gamma_own", "kappa"]
+        if self.kappa_prior_family == "halfnormal_inverse_sqrt":
+            # ``kappa`` is a Deterministic under this family (#605), so name the
+            # sampled parameter too: the diagnostics table and the
+            # prior-vs-posterior overlay should show what NUTS actually explored,
+            # not only its reciprocal-square transform.
+            names.append("inv_sqrt_kappa")
         names += [f"gamma_{s}" for s in self.confounders if s in MEASURES]
         names += [f"gamma_{c}" for c in adjusters]
         if "A" in self.confounders and not self.use_age_gp:
@@ -437,12 +528,52 @@ class MechanismRunPlan:
         if self.use_subject_random_intercept:
             names.append("sigma_child")
         if self.linear_mechanism:
-            names.append("beta_mech")
+            names += self.linear_slope_vars
         if self.moderator_symbol is not None:
             names.append("gamma_mod")
             if self.include_interaction:
                 names.append("gamma_int")
         return names
+
+    @property
+    def linear_slope_vars(self) -> list[str]:
+        """Fitted exposure-slope parameter names on the linear branch.
+
+        The pooled design fits one ``beta_mech``; the Mundlak split (#603) replaces
+        it with ``beta_between`` plus ``beta_within``; the period-varying
+        sensitivity (#604) replaces the single within/pooled slope with the shared
+        mean ``mu_mech``, the between-period scale ``sigma_mech_phase`` and the
+        per-period vector ``beta_mech_phase``. Deriving the list here keeps the
+        diagnostics, the convergence scan and the summaries from drifting apart.
+        """
+        if not self.linear_mechanism:
+            return []
+        names: list[str] = []
+        if self.decompose_between_within:
+            names.append("beta_between")
+        if self.phase_varying_slope:
+            names += ["mu_mech", "sigma_mech_phase", "beta_mech_phase"]
+        elif self.decompose_between_within:
+            names.append("beta_within")
+        else:
+            names.append("beta_mech")
+        return names
+
+    @property
+    def exposure_form_label(self) -> str:
+        """Plain-language name of the fitted exposure term."""
+        if not self.linear_mechanism:
+            return "HSGP curve"
+        if self.decompose_between_within and self.phase_varying_slope:
+            return (
+                "between/within split with partially-pooled per-period within-child "
+                "slopes"
+            )
+        if self.decompose_between_within:
+            return "between/within (Mundlak) split of the linear slope"
+        if self.phase_varying_slope:
+            return "partially-pooled per-period linear slopes"
+        return "linear slope"
 
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
@@ -453,7 +584,16 @@ class MechanismRunPlan:
             if self.mechanism_at_pre
             else "same-period post bounded score"
         )
-        form = "linear slope" if self.linear_mechanism else "HSGP curve"
+        form = self.exposure_form_label
+        dispersion = (
+            "1/sqrt(kappa) ~ HalfNormal("
+            f"{0.25 if self.kappa_sigma is None else self.kappa_sigma:g}), which "
+            "reaches the near-Binomial limit"
+            if self.kappa_prior_family == "halfnormal_inverse_sqrt"
+            else "kappa ~ HalfNormal("
+            f"{50.0 if self.kappa_sigma is None else self.kappa_sigma:g}) on the "
+            "concentration"
+        )
         outcomes = ", ".join(self.outcomes) if self.outcomes else "family default set"
         pre_required = ", ".join(self.pre_required)
         confounders = ", ".join(self.confounders) if self.confounders else "none"
@@ -480,7 +620,7 @@ class MechanismRunPlan:
             f"Complete-case covariates: {complete}. Moderator: "
             f"{self.moderator_symbol or 'none'}. Child random intercept: "
             f"{self.use_subject_random_intercept}. Likelihood: {self.likelihood} "
-            f"(`{self.observation_node}`).\n\n"
+            f"(`{self.observation_node}`) with {dispersion}.\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate, posterior-predictive checks and PSIS-LOO reliability "
@@ -756,24 +896,65 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         if settings.mechanism_at_pre
         else "same-period post exposure"
     )
-    form = "linear slope" if settings.linear_mechanism else "HSGP curve"
+    form_settings = settings
+    form = (
+        "HSGP curve"
+        if not form_settings.linear_mechanism
+        else "between/within split with partially-pooled per-period within-child "
+        "slopes"
+        if form_settings.decompose_between_within and form_settings.phase_varying_slope
+        else "between/within (Mundlak) split of the linear slope"
+        if form_settings.decompose_between_within
+        else "partially-pooled per-period linear slopes"
+        if form_settings.phase_varying_slope
+        else "linear slope"
+    )
     design = (
         "Stacked available-case period-transition Beta-Binomial regression with "
         f"phase intercepts, an autoregressive baseline, {alignment}, a {form}, "
         "declared adjustment terms and optional linear moderation. Repeated rows "
         "from a child are handled by the declared child random-intercept setting."
     )
+    if settings.kappa_prior_family == "halfnormal_inverse_sqrt":
+        design += (
+            " The Beta-Binomial concentration is put on the dispersion scale, "
+            "1/sqrt(kappa) ~ HalfNormal("
+            f"{0.25 if settings.kappa_sigma is None else settings.kappa_sigma:g}), "
+            "so the near-Binomial limit is reachable (#605)."
+        )
     estimand = (
         "The adjusted association between the declared mechanism exposure and the "
         "post-period outcome, conditional on the fitted baseline and adjustment "
-        "terms. A linear model reports a slope; an HSGP model reports an adjusted "
-        "curve and its items-scale contrast. Neither is a randomised effect."
+        "terms. The family's headline natural-scale contrast is the "
+        f"{int(round(100 * settings.items_ref_quantiles[0]))}th-to-"
+        f"{int(round(100 * settings.items_ref_quantiles[1]))}th percentile exposure "
+        "difference in outcome items, standardised over the fitted rows (each row "
+        "keeping its own phase, covariates, baseline and fitted child intercept); "
+        "the full observed exposure range is reported beside it as a labelled "
+        "secondary contrast. A linear model also reports its slope; an HSGP model "
+        "also reports the adjusted curve. None is a randomised effect."
     )
     causal_status = (
         "Associational only. The exposure is not randomised, the child random "
         "intercept does not remove time-varying or latent confounding, and the "
         "mechanism term must not be described as causing the outcome."
     )
+    if settings.decompose_between_within:
+        causal_status += (
+            " The between/within split removes stable between-child confounding "
+            "from the within-child coefficient, including the stable part of latent "
+            "general ability, but exposure and outcome are still measured at the "
+            "same wave, so neither coefficient is temporally ordered and neither "
+            "rules out time-varying confounding or reverse causation."
+        )
+    if settings.phase_varying_slope:
+        causal_status += (
+            " A difference between the per-period slopes is evidence against "
+            "pooling, not evidence that the mechanism changed over time: a child's "
+            "third transition differs from their first in age, treatment history "
+            "and measurement position at once, and only the first period is "
+            "randomised-arm-clean."
+        )
     analysis_population = (
         "Available-case period transitions that first have group, age, the "
         "autoregressive baseline's period-start score and at least one loaded post "
@@ -838,6 +1019,10 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         mech_hsgp_m=settings.mech_hsgp_m,
         mech_lengthscale_tight=settings.mech_lengthscale_tight,
         items_ref_quantiles=settings.items_ref_quantiles,
+        decompose_between_within=settings.decompose_between_within,
+        phase_varying_slope=settings.phase_varying_slope,
+        kappa_prior_family=settings.kappa_prior_family,
+        kappa_sigma=settings.kappa_sigma,
         confounders=confounders,
         likelihood="beta_binomial",
         observation_node="y_post",
@@ -986,6 +1171,8 @@ def mechanism_diagnostic_vars(plan: MechanismPlan) -> list[str]:
     spec = plan.spec
     settings, _ = declared_mechanism_settings(spec)
     names = ["alpha", "beta_G", "gamma_own", "kappa"]
+    if settings.kappa_prior_family == "halfnormal_inverse_sqrt":
+        names.append("inv_sqrt_kappa")
     names += [f"gamma_{s}" for s in plan.confounders if s in MEASURES]
     names += [f"gamma_{c}" for c in plan.adjust_for]
     if "A" in plan.confounders and not settings.use_age_gp:
@@ -993,7 +1180,14 @@ def mechanism_diagnostic_vars(plan: MechanismPlan) -> list[str]:
     if settings.use_subject_random_intercept:
         names.append("sigma_child")
     if settings.linear_mechanism:
-        names.append("beta_mech")
+        if settings.decompose_between_within:
+            names.append("beta_between")
+        if settings.phase_varying_slope:
+            names += ["mu_mech", "sigma_mech_phase", "beta_mech_phase"]
+        elif settings.decompose_between_within:
+            names.append("beta_within")
+        else:
+            names.append("beta_mech")
     if settings.moderator_symbol is not None:
         names.append("gamma_mod")
         if settings.include_interaction:

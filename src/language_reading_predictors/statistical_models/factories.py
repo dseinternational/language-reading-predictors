@@ -1487,11 +1487,15 @@ def build_mechanism_model(
     moderator_is_covariate: bool = False,
     include_interaction: bool = True,
     linear_mechanism: bool = False,
+    decompose_between_within: bool = False,
+    phase_varying_slope: bool = False,
     adjust_for: Iterable[str] = (),
     mechanism_is_covariate: bool = False,
     mechanism_at_pre: bool = False,
     mech_hsgp_m: int | None = None,
     mech_lengthscale_prior: Continuous | None = None,
+    kappa_prior_family: str = "halfnormal_concentration",
+    kappa_sigma: float | None = None,
     frozen_design: MechanismDesign | None = None,
 ) -> BuiltModel[MechanismPayload]:
     """
@@ -1595,6 +1599,60 @@ def build_mechanism_model(
     ``phase_specific_mechanism`` is likewise unaffected. Default-off, so the
     concurrent mechanism family is byte-identical.
 
+    ``decompose_between_within`` (default False, #603): Mundlak split of the
+    exposure. A single exposure coefficient over a child random intercept returns a
+    precision-weighted **blend** of two associations that answer different
+    questions — do children who generally score higher on the exposure generally
+    score higher on the outcome (*between*), and does a child's outcome move when
+    their own exposure moves (*within*)? The random intercept does not separate
+    them: it models repeated-measures dependence under an independence assumption
+    and is not permitted to correlate with the exposure. On these data the two
+    differ substantially (the ``pooled_levels`` family measures r = 0.81 between
+    against 0.45 within for letter sounds and word reading on the logit scale), so a
+    blend is a poor answer to either. With this flag the standardised exposure is
+    split into each child's fitted-row mean (``beta_between``) and their deviation
+    from it (``beta_within``), both registered as ``pm.Data`` so the design is
+    replayable. **Linear only** — a between/within split of a nonparametric curve is
+    a larger design question. A within-child coefficient removes *stable*
+    between-child confounding, including the stable part of latent general ability;
+    it does not make the exposure temporally prior to the outcome (both are still
+    same-wave), and it does not remove time-varying confounding or reverse
+    causation. The result is a better-posed association, not an identified effect.
+
+    ``phase_varying_slope`` (default False, #604): partially-pooled per-period
+    exposure slopes ``beta_mech_phase = mu_mech + sigma_mech_phase * z_phase``
+    instead of one pooled slope, so the family's stability-across-periods assumption
+    can be checked rather than assumed. The family stacks the randomised t1->t2
+    transition with the two post-crossover ones and gives each its own intercept but
+    one common exposure slope; nothing in the published output tested that. Partial
+    pooling rather than three free slopes, because at roughly 52 rows per period
+    independent slopes are noisy — the same choice ``build_dose_response_model``
+    makes for its period-varying dose. **Linear only**, and mutually exclusive with
+    ``phase_specific_mechanism`` (which is itself rejected upstream), so a
+    per-period *slope* cannot be confused with a per-period *curve*. When combined
+    with ``decompose_between_within`` the per-period slopes carry the within-child
+    deviation and ``beta_between`` stays pooled, again as in the dose family. A
+    period difference is evidence against pooling, not evidence about mechanism
+    change over time: a child's third transition differs from their first in age,
+    treatment history and measurement position at once, and only the first is
+    randomised-arm-clean — every per-period slope remains an adjusted association.
+
+    ``kappa_prior_family`` / ``kappa_sigma`` (default ``"halfnormal_concentration"``
+    / None, #605): the Beta-Binomial concentration prior, validated against the
+    shared ``itt.KAPPA_PRIOR_FAMILIES`` tuple by the run plan. The default
+    ``kappa ~ HalfNormal(50)`` is not weak on a high-denominator outcome: with
+    ``alpha + beta = kappa`` the variance inflation over Binomial is
+    ``(kappa + n) / (kappa + 1)``, so being within 10% of Binomial variance needs
+    ``kappa >= 10 (n - 1) - 1`` — 779 at ``n = 79`` and 1689 at ``n = 170``, both of
+    which ``HalfNormal(50)`` gives vanishing mass. The prior therefore *enforces* a
+    floor on overdispersion (about 3.3x at the prior median for word reading, 5.9x
+    for the vocabulary tests) rather than leaving the near-Binomial limit — the
+    ordinary hypothesis "no extra-Binomial variation" — available.
+    ``"halfnormal_inverse_sqrt"`` puts ``1 / sqrt(kappa) ~ HalfNormal(kappa_sigma)``
+    instead, whose tail does reach that limit; it is the parameterisation the ITT
+    family offers as a sensitivity and ``level_factors`` adopted as its default
+    (#584 decision 4). ``kappa_sigma`` is the scale of whichever family is selected.
+
     ``mech_hsgp_m`` / ``mech_lengthscale_prior`` (both default None): thin-support
     reparameterisation of the ``f_mech`` HSGP (issue #430). ``None`` reproduces the
     shared defaults exactly — basis count ``_MECH_HSGP_M`` and ``ell_prior_mech()`` —
@@ -1629,6 +1687,33 @@ def build_mechanism_model(
         raise ValueError(
             "mech_hsgp_m must be a positive HSGP basis count (or None for the "
             f"shared default {_MECH_HSGP_M}); got {mech_hsgp_m!r}."
+        )
+    # The two #603/#604 sensitivities restructure the *linear* exposure term. On the
+    # HSGP path there is no scalar slope to split or vary, and silently ignoring the
+    # request would publish a report describing a model that was never fitted. The
+    # run plan rejects these combinations before any I/O; this is the factory-level
+    # backstop for a direct caller.
+    if decompose_between_within and not linear_mechanism:
+        raise ValueError(
+            "decompose_between_within requires linear_mechanism=True: a "
+            "between/within split of a nonparametric curve is a different design, "
+            "not a reparameterisation of this one."
+        )
+    if phase_varying_slope and not linear_mechanism:
+        raise ValueError(
+            "phase_varying_slope requires linear_mechanism=True; per-phase HSGP "
+            "curves are phase_specific_mechanism, which the pipeline cannot report."
+        )
+    if phase_varying_slope and phase_specific_mechanism:
+        raise ValueError(
+            "phase_varying_slope and phase_specific_mechanism are mutually "
+            "exclusive: the first varies one linear slope by period, the second "
+            "builds a separate curve per period."
+        )
+    if kappa_prior_family not in ("halfnormal_concentration", "halfnormal_inverse_sqrt"):
+        raise ValueError(
+            "kappa_prior_family must be 'halfnormal_concentration' or "
+            f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
         )
     if mechanism_is_covariate:
         # A covariate exposure may enter EITHER linearly (a single ``beta_mech``
@@ -1769,6 +1854,22 @@ def build_mechanism_model(
                     np.asarray(moderator_post_logit, dtype=float) - _mod_scaler.mean
                 ) / _mod_scaler.sd
 
+    # Mundlak split of the standardised exposure (#603). Built on the *fitted* rows —
+    # after the keep-mask above — so the child mean is the mean of the rows this model
+    # actually uses, and ``z_L == mech_child_mean + mech_within_dev`` exactly. Both
+    # vectors are registered as ``pm.Data`` below so a refit replays this design
+    # rather than re-deriving a slightly different one.
+    mech_child_mean: np.ndarray | None = None
+    mech_within_dev: np.ndarray | None = None
+    if decompose_between_within:
+        _child_np = np.asarray(prepared.child_idx, dtype=int)
+        _z = np.asarray(z_L, dtype=float)
+        mech_child_mean = np.zeros_like(_z)
+        for _child in np.unique(_child_np):
+            _rows = _child_np == _child
+            mech_child_mean[_rows] = _z[_rows].mean()
+        mech_within_dev = _z - mech_child_mean
+
     coords = {
         "obs_id": np.arange(prepared.n_obs),
         "phase": np.arange(prepared.n_phases),
@@ -1795,6 +1896,14 @@ def build_mechanism_model(
         z_L_d = z_M_d = None
         if z_L is not None:
             z_L_d = pm.Data("z_mech_logit", z_L, dims="obs_id")
+        mech_between_d = mech_within_d = None
+        if decompose_between_within:
+            mech_between_d = pm.Data(
+                "mech_child_mean", mech_child_mean, dims="obs_id"
+            )
+            mech_within_d = pm.Data(
+                "mech_within_dev", mech_within_dev, dims="obs_id"
+            )
         if moderator_symbol is not None:
             z_M_d = pm.Data("z_moderator", z_M, dims="obs_id")
         confounder_data: dict[str, pt.TensorVariable] = {}
@@ -1909,8 +2018,39 @@ def build_mechanism_model(
             # Used for low / floored count outcomes (e.g. nonword decoding) where
             # a full GP dose-response is not identifiable. No f_mech variable is
             # created, so the mechanism-curve step is skipped downstream.
-            beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech")
-            eta = eta + beta_mech * z_L_d
+            if decompose_between_within:
+                # Mundlak split (#603). The between term stays pooled across periods
+                # — it is one number per child by construction — while the slope on
+                # the within-child deviation is the one a period-varying sensitivity
+                # would vary. Same arrangement as the dose family's
+                # ``beta_dose_between`` beside its period slopes.
+                beta_between = _priors.beta_mech_prior().to_pymc("beta_between")
+                eta = eta + beta_between * mech_between_d
+                slope_target = mech_within_d
+            else:
+                slope_target = z_L_d
+            if phase_varying_slope:
+                # Partially-pooled per-period slopes (#604): a shared mean plus
+                # shrunk per-period deviations, non-centred for geometry.
+                mu_mech = _priors.beta_mech_prior().to_pymc("mu_mech")
+                sigma_mech_phase = _priors.sigma_mech_phase_prior().to_pymc(
+                    "sigma_mech_phase"
+                )
+                beta_mech_phase_raw = pm.Normal(
+                    "beta_mech_phase_raw", mu=0.0, sigma=1.0, dims="phase"
+                )
+                beta_mech_phase = pm.Deterministic(
+                    "beta_mech_phase",
+                    mu_mech + sigma_mech_phase * beta_mech_phase_raw,
+                    dims="phase",
+                )
+                eta = eta + beta_mech_phase[phase_d] * slope_target
+            elif decompose_between_within:
+                beta_within = _priors.beta_mech_prior().to_pymc("beta_within")
+                eta = eta + beta_within * slope_target
+            else:
+                beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech")
+                eta = eta + beta_mech * slope_target
         elif phase_specific_mechanism:
             phase_specific = []
             for p in range(prepared.n_phases):
@@ -1966,7 +2106,25 @@ def build_mechanism_model(
             eta = eta + f_mech
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
-        kappa = _priors.kappa_prior().to_pymc("kappa")
+        if kappa_prior_family == "halfnormal_inverse_sqrt":
+            # Dispersion-scale parameterisation (#605), so the near-Binomial limit is
+            # reachable. ``HalfNormal`` on the concentration cannot get there: at
+            # n = 79 (word reading) coming within 10% of Binomial variance needs
+            # kappa > 779 and at n = 170 (the vocabulary tests) kappa > 1689, both of
+            # which HalfNormal(50) gives effectively zero mass — so the registered
+            # prior enforces roughly threefold and sixfold overdispersion a priori.
+            # Same constructor as the ITT sensitivity and the level-factors default.
+            kappa = _rlm_dispersion_kappa(
+                float(_priors.inv_sqrt_kappa_prior().sigma)
+                if kappa_sigma is None
+                else kappa_sigma
+            )
+        else:
+            kappa = (
+                _priors.kappa_prior()
+                if kappa_sigma is None
+                else _priors.kappa_prior(sigma=kappa_sigma)
+            ).to_pymc("kappa")
 
         beta_binomial_from_logit(
             "y_post",

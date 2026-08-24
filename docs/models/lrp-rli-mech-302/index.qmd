@@ -1,0 +1,45 @@
+---
+title: "LRP302: Phase-varying slope — letter sounds (LS) → word reading (WR)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+This is [LRP101](../lrp-rli-mech-101) with **one** thing changed: the exposure slope is allowed to vary across the three period transitions, partially pooled toward a shared mean. Rows, outcome, baseline, adjustment set and priors are identical.
+
+**The assumption it tests.** Every active mechanism fit stacks t1→t2 (randomised), t2→t3 and t3→t4 (both post-crossover), giving each period its own intercept but **one common exposure slope** and **one common arm coefficient**. That is an assumption, not a finding: it says the exposure–outcome relationship is stable across three substantively different treatment histories, and nothing in the published output tested it. If the assumption fails, group-by-period structure the model does not carry has nowhere to go but the exposure term.
+
+**Why partial pooling.** At roughly 52 rows per period, three independent slopes are noisy. The per-period deviations are shrunk toward the shared mean $\mu_\text{mech}$ with scale $\sigma_\text{mech,phase}$ unless the data show real period variation — the same choice the [dose-response family](../lrp-rli-dose-077) makes for its period-varying dose. LRP101 is the pooled comparator for the nested PSIS-LOO test, so "is the slope stable across periods?" gets a predictive answer rather than an eyeballed forest.
+
+**Why not per-period curves.** `phase_specific_mechanism` looks like the answer but is not: the factory can build per-period curves while the family's curve, items and steepest-interval artefacts and its power-scaling variables are all single-curve, so it is rejected during run-plan resolution (#599). This is the linear alternative, and it is deliberately not that.
+
+## How to read a period difference
+
+A difference between the per-period slopes is **evidence against pooling**, not evidence about mechanism change over time. A child's third transition differs from their first in age, treatment history and measurement position at once. Only the t1→t2 transition is randomised-arm-clean, and even there the *exposure* is not randomised — so all three per-period slopes are adjusted associations.
+
+The **exposure support by period and arm** table below is part of the reading, not decoration: the comparison only means something where the periods occupy comparable parts of the exposure range. Treat a cell with little overlap as a place the pooled fit was extrapolating rather than comparing.
+
+## Adjustment set
+
+$\{G, A, HS, IS, SP\}$ plus baseline $W_\text{pre}$ — identical to LRP101/LRP58 (revised-DAG parents of $L$, #245). GA is unblockable; every slope here is an **adjusted association**.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

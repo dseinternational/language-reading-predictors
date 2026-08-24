@@ -355,26 +355,67 @@ def test_mechanism_forest_records_gate_estimand_and_uses_medians(
     assert np.allclose(written["slope_median"], 0.3)
 
 
-def test_curve_slope_is_a_fitted_row_average_over_an_irregular_grid(cmp_mod):
+def test_curve_row_average_slope_weights_ties_once_per_fitted_row(cmp_mod):
     """Ties count once per fitted row, not once per distinct exposure value.
 
     On a bounded count measure many children share an exposure, so deduplicating
     before averaging reweights the mean toward the sparse tail of the range — where
     an HSGP curve is least constrained. Pinned with a deliberately lopsided grid:
-    five rows at the shallow end, one at the steep end.
+    five rows at the shallow end, one at the steep end. This statistic is the
+    forest's *secondary* column since #602; the plotted quantity is the declared
+    interquartile secant below.
     """
     # Piecewise-linear curve: slope 1 below 0, slope 11 above it.
     x = np.array([-2.0, -2.0, -2.0, -1.0, 0.0, 1.0])
     curve = np.where(x <= 0.0, x, 11.0 * x)
 
-    slopes = cmp_mod._mechanism_slope_distribution(_mech_trace(x, curve=curve), x)
+    slopes = cmp_mod._mechanism_row_average_slope(_mech_trace(x, curve=curve), x)
 
     # Unique grid is [-2, -1, 0, 1]; np.gradient there gives [1, 1, 6, 11].
     # Deduplicating and averaging equally would give (1 + 1 + 6 + 11) / 4 = 4.75.
     # Weighting by fitted rows gives (1*3 + 1 + 6 + 11) / 6 = 3.5 — the three tied
     # shallow rows now pull the average toward where the data actually are.
-    assert np.allclose(slopes, 3.5)
-    assert not np.allclose(slopes, 4.75)
+    # ``_mechanism_row_average_slope`` also rescales to per-SD of the exposure logit.
+    assert np.allclose(slopes, 3.5 * float(np.std(x, ddof=1)))
+
+
+def test_forest_slope_uses_the_declared_interquartile_interval(cmp_mod):
+    """The plotted quantity is the declared headline interval's secant (#602).
+
+    A linear fit must return ``beta_mech`` exactly — that identity is what makes
+    the curve and linear rows commensurable on one axis — and a curve fit must
+    return the secant across the interquartile exposure interval rather than the
+    whole-range average derivative, which is a different, undeclared quantity.
+    """
+    n_trials = 32
+    counts = np.array([2.0, 8.0, 17.0, 22.0, 28.0, 32.0])
+    ell = np.log((counts + 0.5) / (n_trials - counts + 0.5))
+
+    linear, shape = cmp_mod._mechanism_interval_slope(
+        _mech_trace(ell, beta=0.3), ell, n_trials
+    )
+    assert shape == "linear"
+    assert np.allclose(linear, 0.3)
+
+    # A curve that is flat below the interquartile band and rises above it: the
+    # whole-range average derivative and the interquartile secant must differ.
+    curve = np.where(ell <= 0.0, 0.0, 4.0 * ell)
+    interval, shape = cmp_mod._mechanism_interval_slope(
+        _mech_trace(ell, curve=curve), ell, n_trials
+    )
+    assert shape == "curve"
+    row_average = cmp_mod._mechanism_row_average_slope(_mech_trace(ell, curve=curve), ell)
+    x_lo = round(float(np.quantile(counts, 0.25)))
+    x_hi = round(float(np.quantile(counts, 0.75)))
+    ell_lo = np.log((x_lo + 0.5) / (n_trials - x_lo + 0.5))
+    ell_hi = np.log((x_hi + 0.5) / (n_trials - x_hi + 0.5))
+    expected = (
+        (np.interp(ell_hi, ell, curve) - np.interp(ell_lo, ell, curve))
+        * float(np.std(ell, ddof=1))
+        / (ell_hi - ell_lo)
+    )
+    assert np.allclose(interval, expected)
+    assert not np.allclose(interval, row_average)
 
 
 def test_mechanism_comparisons_are_copied_beside_both_paired_runs(
