@@ -13,6 +13,19 @@ are loaded (#394 pillar 4).
 The migration does not change the fitted equations or scientific warrant.  The
 letter-sound slopes, decoding-specificity contrast and conditional-slope ratio
 remain adjusted associations rather than causal mechanism effects.
+
+Both designs report ``rho_outcome``: it is the off-diagonal of whichever
+dependence block the design carries. Only the *levels* design also reports the
+conditional slope and its ratio to the marginal slope, because partialling the
+held-fixed outcome is a same-row operation and the transition design's block
+sits between children (2026-08-23 follow-up review, documentation gap 4).
+
+The 2026-08-23 follow-up review (#591) also settled three interpretation
+contracts this module now encodes in the generated recipe: the contrast is a
+measurement-scale-dependent association rather than a decoding-mechanism test;
+the transition design's estimand is an ANCOVA post-level association, not a
+within-child change effect; and the matched comparators are related estimands
+whose difference from the joint fit is not attributable to dependence alone.
 """
 
 from __future__ import annotations
@@ -164,7 +177,10 @@ class JointMechanismRunPlan:
     compute_loo: bool
     loo_unit: str
     min_wave_rows: int | None
+    min_wave_outcome_rows: int | None
+    min_wave_overlap_rows: int | None
     matched_comparators: tuple[str, str]
+    comparator_equivalence: str
     design_description: str
     estimand: str
     causal_status: str
@@ -268,7 +284,8 @@ class JointMechanismRunPlan:
         adjusters = ", ".join(self.declared_adjustment) or "none"
         return (
             "Note: Generated from the validated joint-mechanism run plan; template "
-            "drafted by a LLM-based AI tool (Codex/GPT-5).\n\n"
+            "drafted by a LLM-based AI tool (Codex/GPT-5) and substantially edited "
+            "by a LLM-based AI tool (Claude Code/Opus 5).\n\n"
             f"# Model recipe: {title}\n\n"
             f"Model ID: `{self.model_id}`.\n\n"
             f"## Design\n\n{self.design_description}\n\n"
@@ -284,6 +301,9 @@ class JointMechanismRunPlan:
             f"adjustment terms: {adjusters}. Confounder flags: "
             f"{', '.join(self.confounder_symbols) or 'none'}. Likelihood: "
             f"`{self.likelihood}`; dependence block: `{self.joint_dependence}`.\n\n"
+            "## Matched comparators\n\n"
+            f"{', '.join(f'`{m}`' for m in self.matched_comparators)}. "
+            f"{self.comparator_equivalence}\n\n"
             "## Uncertainty and checks\n\n"
             f"{self._loo_sentence()} Interpret the posterior only after every "
             "published fit passes the zero-divergence convergence gate, predictive "
@@ -382,6 +402,14 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
             "lkj_residual_within_wave", "lkj_child_intercept"
         ] = "lkj_residual_within_wave"
         min_wave_rows = 10
+        # A wave needs enough rows on *each* outcome, and enough jointly observed
+        # pairs, before its residual correlation and conditional slope mean
+        # anything: the earlier rule only counted rows with the exposure and *at
+        # least one* outcome, so a wave observing one outcome twice could in
+        # principle be fitted and publish a prior-dominated rho (2026-08-23
+        # follow-up review, robustness gap 1). Prespecified, not data-adaptive.
+        min_wave_outcome_rows = 10
+        min_wave_overlap_rows = 10
         # One bivariate latent residual per child over at most two observed cells:
         # PSIS-LOO is conditional on a saturated per-child latent (the fitted
         # reporting run showed p_loo > n and 48/53 Pareto-k above 0.7), so it is
@@ -390,23 +418,43 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         # why the pipeline publishes the new-child *marginal* predictive check.
         compute_loo = False
         comparators = ("lrp-rli-ca-010", "lrp-rli-ca-011")
+        comparator_equivalence = (
+            "Related sensitivity estimands, NOT like-for-like replacements. This "
+            "design is a bivariate logistic-normal Binomial model conditioning on "
+            "the *latent* held-fixed outcome; `lrp-rli-ca-010` / `lrp-rli-ca-011` "
+            "are separate Beta-Binomial fits and `lrp-rli-ca-011` conditions on an "
+            "*observed* transformed nonword count with missing predictor values "
+            "mean-imputed. Common rows and a common exposure scale would not make "
+            "them nested, so the difference between the two conditional slopes is "
+            "not attributable to cross-outcome dependence alone (2026-08-23 "
+            "follow-up review, finding 2)."
+        )
         design_description = (
             "Separate cross-sectional bivariate fits at each RLI wave. Both bounded "
             "outcomes share the same standardised mechanism exposure and an LKJ "
-            "observation-row residual block; the best-populated latest wave is the "
-            "diagnostic anchor and every other usable wave is a recorded sub-fit."
+            "observation-row residual block. Every published wave is fitted, "
+            "convergence-scanned over its reported deterministics, given the "
+            "informative new-child predictive check and power-scaling sensitivity, "
+            "and persisted as a named trace; one wave additionally carries the "
+            "fit-level artefacts, chosen by row count purely as an operational "
+            "artefact-hosting rule."
         )
         estimand = (
             "Per-wave mechanism slopes for both outcomes, their within-model "
             "decoding-specificity difference, the residual outcome correlation, and "
-            "the share of the focal slope retained after partialling the other latent "
-            "outcome."
+            "the conditional-to-marginal slope ratio obtained after partialling the "
+            "other latent outcome. The ratio is a slope ratio, not a bounded "
+            "pathway share, and no wave is selected as a headline after seeing its "
+            "posterior."
         )
         population = (
             "At each of four waves, archived RLI children with the mechanism score "
             "and at least one outcome observed, plus all retained baseline trait "
-            "covariates. Waves with fewer than ten usable children are named and "
-            "skipped rather than fitted."
+            "covariates. A wave is named and skipped rather than fitted unless it "
+            "has at least ten usable children, at least ten observations on each "
+            "outcome and at least ten children observing both outcomes. The "
+            "exposure is standardised within each wave, so one standard deviation "
+            "denotes a wave-specific raw letter-sound increment."
         )
     else:
         if settings.covariates:
@@ -420,20 +468,42 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         likelihood = "beta_binomial"
         dependence = "lkj_child_intercept"
         min_wave_rows = None
+        min_wave_outcome_rows = None
+        min_wave_overlap_rows = None
         # Genuine leave-one-child-out: the factory registers ``loo_child_idx``
         # (cells -> child), so the shared aggregation sums each child's cells
         # across all three transitions before importance sampling.
         compute_loo = True
         comparators = ("lrp-rli-mech-096", "lrp-rli-mech-101")
+        comparator_equivalence = (
+            "Same parameterisation, but NOT the same fitted sample or exposure "
+            "scale. This model requires both outcome baselines on every retained "
+            "transition and standardises the letter-sound logit once over that "
+            "joint union; each matched mechanism model requires only its own "
+            "baseline, filters to its own outcome's rows and re-standardises the "
+            "exposure on those rows. One standard deviation therefore denotes a "
+            "different raw letter-sound increment in each fit, and the word-reading "
+            "marginal retains rows this model excludes, so the gap between the "
+            "joint contrast and the paired-marginal sensitivity cannot be "
+            "attributed to cross-outcome covariance alone (2026-08-23 follow-up "
+            "review, finding 2). Each fit records its own fitted rows and exposure "
+            "scaler, and `scripts/compare_statistical_models.py` publishes that "
+            "reconciliation beside the two contrast rows with an explicit "
+            "`comparable` verdict."
+        )
         design_description = (
             "One phase-stacked bivariate ANCOVA over the three RLI transitions. Each "
             "outcome retains its own baseline and phase intercepts, while an LKJ "
             "bivariate child intercept represents between-child outcome dependence."
         )
         estimand = (
-            "The two adjusted mechanism slopes conditional on each outcome's own "
-            "baseline and their within-model decoding-specificity difference on the "
-            "same parameterisation as the two matched mechanism models."
+            "The two adjusted mechanism slopes for each outcome's post-level "
+            "conditional on that outcome's own baseline — an ANCOVA-parameterised "
+            "association, not a within-child change effect — and their within-model "
+            "decoding-specificity difference on the same parameterisation as the "
+            "two matched mechanism models. The common slope pools between-child and "
+            "within-child information; the child random intercept does not remove "
+            "stable general-ability confounding."
         )
         population = (
             "Available RLI transition rows with the mechanism exposure, at least one "
@@ -462,19 +532,39 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         compute_loo=compute_loo,
         loo_unit="child",
         min_wave_rows=min_wave_rows,
+        min_wave_outcome_rows=min_wave_outcome_rows,
+        min_wave_overlap_rows=min_wave_overlap_rows,
         matched_comparators=comparators,
+        comparator_equivalence=comparator_equivalence,
         design_description=design_description,
         estimand=estimand,
         causal_status=(
             "Adjusted association only. Randomised group is a nuisance term here; "
             "unobserved general ability can still confound the mechanism-outcome "
-            "slopes, and the dependence block does not repair that backdoor path."
+            "slopes, and the dependence block does not repair that backdoor path. "
+            "The decoding-specificity contrast is measurement-scale dependent: with "
+            "both outcomes and the exposure loading on one latent general ability, "
+            "the two latent-scale slopes remain proportional to their loadings, so "
+            "the difference is proportional to the loading difference even with no "
+            "causal letter-sound route. Different item counts, link discrimination, "
+            "floor compression and non-classical measurement error can each produce "
+            "a non-zero contrast, and the model imposes no cross-instrument "
+            "measurement invariance. A positive contrast is consistent with the "
+            "proposed decoding account; it neither rejects a common-factor "
+            "explanation nor identifies a mechanism (2026-08-23 follow-up review, "
+            "finding 3)."
         ),
         analysis_population=population,
         missing_data_assumption=(
             "The focal mechanism is never imputed. A row enters when that exposure "
             "and at least one outcome are observed, subject to the design-specific "
             "baseline and covariate requirements. Outcome-specific missing cells are "
-            "masked, under ignorable missingness conditional on fitted terms."
+            "masked, under ignorable missingness conditional on fitted terms — a "
+            "conditional missing-at-random assumption, alongside filled covariates "
+            "carrying explicit missingness indicators. No missing-not-at-random or "
+            "complete-case joint-model sensitivity is registered for this family: "
+            "the deferral is deliberate and its consequence is that the published "
+            "slopes, contrast and ratio are conditional on that assumption "
+            "(2026-08-23 follow-up review, robustness gap 7)."
         ),
     )

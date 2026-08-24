@@ -349,21 +349,32 @@ def compute_log_likelihood_and_prior(
     node per measure makes single-target pointwise PSIS-LOO undefined. ``log_prior`` is
     always guarded.
     """
-    density_model = log_density_model(context.model)
+    context.trace = attach_log_densities(
+        context.trace, context.model, strict=strict
+    )
+
+
+def attach_log_densities(trace, model, *, strict: bool = True):
+    """Return ``trace`` with the ``log_likelihood`` and ``log_prior`` groups added.
+
+    The model-and-trace form of :func:`compute_log_likelihood_and_prior`, extracted so
+    a *sub-fit* posterior can be given the groups power scaling needs without being
+    installed on the fit context first — the joint-mechanism levels design measures
+    power-scaling sensitivity for every published wave, not only the wave hosting the
+    fit-level artefacts (2026-08-23 joint-mechanism follow-up review, finding 1).
+    """
+    density_model = log_density_model(model)
     try:
-        context.trace = compute_log_likelihood(
-            context.trace, model=density_model, progressbar=False
-        )
+        trace = compute_log_likelihood(trace, model=density_model, progressbar=False)
     except Exception as exc:
         if strict:
             raise
         rprint(f"[yellow]log_likelihood group skipped: {exc}[/yellow]")
     try:
-        context.trace = compute_log_prior(
-            context.trace, model=density_model, progressbar=False
-        )
+        trace = compute_log_prior(trace, model=density_model, progressbar=False)
     except Exception as exc:  # pragma: no cover - psense is secondary
         rprint(f"[yellow]log_prior group skipped: {exc}[/yellow]")
+    return trace
 
 
 def compute_log_likelihood_and_loo(context: StatisticalFitContext) -> None:
@@ -1259,8 +1270,17 @@ def psense_artifacts(
     trace,
     out: str,
     var_names: list[str],
+    *,
+    stem: str = "psense",
 ):
-    """Write ``psense_summary.csv`` and ``psense.png`` for ``var_names``.
+    """Write ``{stem}_summary.csv`` and ``{stem}.png`` for ``var_names``.
+
+    ``stem`` defaults to ``"psense"``, the fit-level pair every family writes. A
+    family publishing several posteriors from one fit — the joint-mechanism levels
+    design publishes one per wave — passes a per-fit stem so each published
+    posterior carries its own recorded power-scaling result instead of the
+    artefact-hosting fit's standing in for all of them (2026-08-23 joint-mechanism
+    follow-up review, finding 6).
 
     Split out of :func:`run_psense` (#381) so the regeneration script can produce
     exactly the fit-time artefacts from a stored trace, with no second
@@ -1273,7 +1293,7 @@ def psense_artifacts(
     fit time it is a warning, because psense is recommended-but-secondary at this
     n; a regeneration run reports it as a skip with its reason.
     """
-    summary_path = os.path.join(out, "psense_summary.csv")
+    summary_path = os.path.join(out, f"{stem}_summary.csv")
     df = None
     try:
         os.unlink(summary_path)
@@ -1301,7 +1321,7 @@ def psense_artifacts(
             df = pd.DataFrame(s)
         descriptor, temporary_path = tempfile.mkstemp(
             dir=out,
-            prefix=".psense_summary-",
+            prefix=f".{stem}_summary-",
             suffix=".tmp",
         )
         os.close(descriptor)
@@ -1315,7 +1335,7 @@ def psense_artifacts(
                 os.unlink(temporary_path)
             except FileNotFoundError:
                 pass
-        rprint(f"[yellow]psense_summary skipped: {exc}[/yellow]")
+        rprint(f"[yellow]{stem}_summary skipped: {exc}[/yellow]")
 
     import arviz_plots as azp
 
@@ -1331,7 +1351,7 @@ def psense_artifacts(
                 likelihood_var_names=likelihood_var_names,
                 **plot_kwargs,
             ),
-            "psense.png",
+            f"{stem}.png",
             title="Prior/likelihood power-scaling sensitivity",
         )
     return df
@@ -1829,6 +1849,14 @@ def _joint_outcome_predictive_tree(
     likelihood means PSIS weights are recomputed for that outcome rather than
     borrowed from pooled tests with different denominators.
 
+    The leave-out unit is therefore **one cell**, not one child. In a family whose
+    cells repeat within child (the joint-mechanism transition design has three
+    transitions per child per outcome), the omitted cell's child keeps its other
+    transitions, its other outcome and its fitted random effect, so this is a
+    *conditional* calibration check and not the leave-one-child-out target the main
+    PSIS-LOO declares. :data:`JOINT_LOO_PIT_UNIT_LABEL` names it on the figure
+    (2026-08-23 joint-mechanism follow-up review, finding 4).
+
     ``posterior_var`` names the posterior variable carried into the tree for the
     relative-ESS calculation; ``None`` resolves the first of
     :data:`_JOINT_LOO_PIT_POSTERIOR_VARS` present, then any posterior variable.
@@ -1888,17 +1916,34 @@ def _joint_outcome_predictive_tree(
     )
 
 
+#: What one outcome-specific joint LOO-PIT plot actually leaves out. The tree this
+#: builds subsets the flattened ``y_post`` cells for one outcome and keeps no child
+#: map, so a repeated-measures family leaves out **one cell**, not one child: the same
+#: child's other transitions, its other outcome and its fitted random effect all stay
+#: in. Naming that on the figure is the difference between a calibration diagnostic
+#: and a mislabelled one (2026-08-23 joint-mechanism follow-up review, finding 4).
+JOINT_LOO_PIT_UNIT_LABEL = "conditional leave-one-cell-out"
+
+
 def save_joint_loo_pit_plot(
     context: StatisticalFitContext,
     outcome_symbol: str,
     *,
     filename_stem: str = "loo_pit",
     posterior_var: str | None = None,
+    unit_label: str = JOINT_LOO_PIT_UNIT_LABEL,
 ) -> None:
     """Save an outcome-specific LOO-PIT calibration plot for a joint fit.
 
     ``posterior_var`` is forwarded to :func:`_joint_outcome_predictive_tree`; leave
     it ``None`` unless a family needs a specific relative-ESS variable.
+
+    ``unit_label`` names the leave-out unit in the figure title. It defaults to
+    :data:`JOINT_LOO_PIT_UNIT_LABEL` because that is what this plot computes — the
+    child-aggregated weights that :func:`_joint_log_likelihood_by_child` builds for
+    the *main* PSIS-LOO are deliberately not used here, since pooling two
+    incompatible denominators is what the per-outcome view exists to avoid. A family
+    whose likelihood really is one cell per child may pass its own label.
     """
     try:
         samples = thin_for_plots(context.trace)
@@ -1915,7 +1960,7 @@ def save_joint_loo_pit_plot(
         context.output_dir,
         lambda: azp.plot_loo_pit(outcome_tree, var_names=["y_post"]),
         f"{filename_stem}.png",
-        title=f"LOO-PIT calibration ({outcome_symbol})",
+        title=f"LOO-PIT calibration ({outcome_symbol}, {unit_label})",
     )
 
 

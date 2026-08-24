@@ -37,9 +37,12 @@ from language_reading_predictors.statistical_models.pipelines import (
 )
 from language_reading_predictors.statistical_models.pipelines.joint_mechanism import (
     _JM_SLOPE_REQUIRED,
+    _jm_exposure_logit_sd,
     _jm_marginal_ppc,
     _jm_primary_fit_plan,
+    _jm_ratio_governance_row,
     _jm_slope_rows,
+    _jm_wave_eligibility,
     _jm_write_slopes,
 )
 
@@ -192,9 +195,11 @@ def test_diag_vars_include_the_dependence_block_per_design():
 
 
 def test_registered_specs_declare_their_designs_and_comparators():
-    """jm-001 must match ca-010 / ca-011 and jm-002 must match mech-096 / mech-101,
-    or the identified quantities are not like-for-like replacements for the
-    paired-draws ones they exist to replace."""
+    """jm-001 must be constructed against ca-010 / ca-011 and jm-002 against
+    mech-096 / mech-101, or the identified quantities are not even comparable with
+    the paired-draws ones they sit beside. (Comparable in construction is not
+    nested: each plan also carries an explicit ``comparator_equivalence`` statement
+    saying what still differs — 2026-08-23 follow-up review, finding 2.)"""
     assert JM001.kind == JM002.kind == "joint_mechanism"
     assert JM001.estimand_type == JM002.estimand_type == "association"
     assert JM001.causal_status == JM002.causal_status == "none"
@@ -221,6 +226,14 @@ def test_registered_specs_declare_their_designs_and_comparators():
         "deapp_c_missing",
     )
     assert levels.contrast == transition.contrast == ("N", "W")
+
+    # Neither is claimed as a nested replacement, and the reason travels with the
+    # plan into config.json, the recipe and the report.
+    for plan in (levels, transition):
+        assert plan.comparator_equivalence
+        assert "NOT" in plan.comparator_equivalence
+    assert "latent" in levels.comparator_equivalence
+    assert "exposure scale" in transition.comparator_equivalence
 
 
 # --- artefact contract: the four outputs the #427 review found silently absent ----
@@ -417,7 +430,17 @@ def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagno
     # The marginal one is a genuinely different, falsifiable statistic.
     assert set(marginal["mode"]) == {"count_interval_marginal"}
     assert (marginal["coverage"] < 1.0).any()
-    assert list(marginal["level_pct"]) == [50, 90]
+    # Pooled *and* per-outcome, at both levels: the two denominators differ by an
+    # order of magnitude, so a pooled figure alone can hide one badly calibrated leg
+    # (2026-08-23 follow-up review, robustness gap 2).
+    assert set(marginal["level_pct"]) == {50, 90}
+    assert set(marginal["outcome"]) == {"all", "W", "N"}
+    for level in (50, 90):
+        at_level = marginal[marginal["level_pct"] == level]
+        pooled = at_level[at_level["outcome"] == "all"].iloc[0]
+        legs = at_level[at_level["outcome"] != "all"]
+        assert int(pooled["n_total"]) == int(legs["n_total"].sum())
+        assert int(pooled["n_inside"]) == int(legs["n_inside"].sum())
 
 
 def test_marginal_ppc_degrades_when_the_covariance_block_is_absent(tmp_path):
@@ -440,3 +463,259 @@ def test_marginal_ppc_degrades_when_the_covariance_block_is_absent(tmp_path):
     _jm_marginal_ppc(ctx, outcome_symbols=_OUTCOMES)
 
     assert not (tmp_path / "ppc_summary_marginal.csv").exists()
+
+
+# --- 2026-08-23 follow-up review (#591): lifecycle, governance and semantics -----
+
+
+def _prepared_wave(
+    *,
+    n: int,
+    observed_w: int | None = None,
+    observed_n: int | None = None,
+    mechanism_missing: int = 0,
+):
+    """A minimal one-wave prepared frame for the eligibility rule.
+
+    Only the fields the rule reads: the exposure and each outcome's post counts.
+    ``observed_*`` truncates how many rows carry that outcome, which is how an
+    asymmetric-missingness wave is built.
+    """
+    def _column(observed: int | None) -> np.ndarray:
+        values = np.full(n, 5.0)
+        if observed is not None:
+            values[observed:] = np.nan
+        return values
+
+    mechanism = np.full(n, 3.0)
+    if mechanism_missing:
+        mechanism[:mechanism_missing] = np.nan
+    return SimpleNamespace(
+        n_obs=n,
+        n_trials={"L": 26, "W": 79, "N": 6},
+        post_counts={
+            "L": mechanism,
+            "W": _column(observed_w),
+            "N": _column(observed_n),
+        },
+    )
+
+
+def test_a_wave_needs_rows_on_each_outcome_and_on_jointly_observed_pairs():
+    """The union count bounds neither leg nor the overlap, and it is the overlap that
+    identifies the residual correlation and the conditional slope (2026-08-23 review,
+    robustness gap 1)."""
+    plan = resolve_joint_mechanism_run_plan(JM001)
+    assert (
+        plan.min_wave_rows,
+        plan.min_wave_outcome_rows,
+        plan.min_wave_overlap_rows,
+    ) == (10, 10, 10)
+
+    healthy = _jm_wave_eligibility(
+        _prepared_wave(n=40),
+        plan=plan,
+        outcome_symbols=_OUTCOMES,
+        timepoint=1,
+    )
+    assert healthy["fitted"] is True
+    assert healthy["cells_W"] == healthy["cells_N"] == 40
+    assert healthy["jointly_observed_rows"] == 40
+    assert healthy["skipped_because"] == ""
+
+    # 40 usable rows, but only 4 of them observe N: the union floor passes and the
+    # per-outcome floor is what stops a prior-dominated rho being published.
+    thin_leg = _jm_wave_eligibility(
+        _prepared_wave(n=40, observed_n=4),
+        plan=plan,
+        outcome_symbols=_OUTCOMES,
+        timepoint=2,
+    )
+    assert thin_leg["fitted"] is False
+    assert "4 N cells < 10" in thin_leg["skipped_because"]
+    assert thin_leg["usable_rows"] == 40
+
+    # Both legs are well observed, but on disjoint rows: no jointly observed pair.
+    disjoint = _prepared_wave(n=40)
+    disjoint.post_counts["W"][20:] = np.nan
+    disjoint.post_counts["N"][:20] = np.nan
+    no_overlap = _jm_wave_eligibility(
+        disjoint, plan=plan, outcome_symbols=_OUTCOMES, timepoint=3
+    )
+    assert no_overlap["fitted"] is False
+    assert "0 jointly observed rows < 10" in no_overlap["skipped_because"]
+
+
+def test_the_wave_ledger_separates_wave_eligibility_from_the_panel_drop_count():
+    """A wave subset inherits ``dropped_rows`` from the four-timepoint panel, so the
+    wave-specific counts have to be recorded separately (2026-08-23 review, gap 3)."""
+    plan = resolve_joint_mechanism_run_plan(JM001)
+    record = _jm_wave_eligibility(
+        _prepared_wave(n=40, mechanism_missing=3),
+        plan=plan,
+        outcome_symbols=_OUTCOMES,
+        timepoint=2,
+    )
+    assert record["panel_rows_at_wave"] == 40
+    assert record["usable_rows"] == 37
+    assert record["wave_eligibility_dropped"] == 3
+    assert record["wave"] == "t2" and record["timepoint"] == 2
+
+
+def _ratio_trace(ratio_draws: np.ndarray, denominator_draws: np.ndarray):
+    chains, draws = 1, ratio_draws.size
+    return xr.DataTree.from_dict(
+        {
+            "posterior": xr.Dataset(
+                {
+                    "share_retained": (
+                        ("chain", "draw"),
+                        ratio_draws.reshape(chains, draws),
+                    ),
+                    "beta_mech": (
+                        ("chain", "draw", "outcome"),
+                        np.stack(
+                            [
+                                denominator_draws.reshape(chains, draws),
+                                np.full((chains, draws), 1.0),
+                            ],
+                            axis=-1,
+                        ),
+                    ),
+                },
+                coords={
+                    "chain": range(chains),
+                    "draw": range(draws),
+                    # beta_mech's first column is W, the focal outcome.
+                    "outcome": ["W", "N"],
+                },
+            )
+        }
+    )
+
+
+def test_the_slope_ratio_publishes_no_mean_and_reports_its_three_regions():
+    """A ratio's mean is dominated by small-denominator draws, and classifying its
+    median against 0.5 reads a negative ratio as 'most of it runs through decoding'.
+    Both are retired (2026-08-23 review, finding 5)."""
+    rng = np.random.default_rng(3)
+    # A suppression-and-amplification mixture: mass below zero and above one.
+    ratio = np.concatenate(
+        [
+            rng.normal(-0.4, 0.05, 200),
+            rng.normal(0.6, 0.05, 600),
+            rng.normal(1.4, 0.05, 200),
+        ]
+    )
+    trace = _ratio_trace(ratio, rng.normal(0.8, 0.05, ratio.size))
+
+    rows = _jm_slope_rows(
+        trace,
+        outcome_symbols=_OUTCOMES,
+        contrast=_CONTRAST,
+        ci_prob=0.89,
+        wave="t1",
+        converged=True,
+    )
+    ratio_row = next(r for r in rows if r["term"] == "share_retained")
+    assert np.isnan(ratio_row["mean"])
+    assert np.isfinite(ratio_row["median"])
+    # Every other reported term keeps its mean.
+    assert all(
+        np.isfinite(r["mean"]) for r in rows if r["term"] != "share_retained"
+    )
+
+    governance = _jm_ratio_governance_row(
+        trace, ci_prob=0.89, wave="t1", focal="W", converged=True
+    )
+    assert governance is not None
+    assert governance["denominator_stable"] is True
+    assert governance["prob_lt_0"] == pytest.approx(0.2, abs=0.02)
+    assert governance["prob_gt_1"] == pytest.approx(0.2, abs=0.02)
+    assert governance["prob_in_unit"] == pytest.approx(0.6, abs=0.02)
+    total = (
+        governance["prob_lt_0"]
+        + governance["prob_in_unit"]
+        + governance["prob_gt_1"]
+    )
+    assert total == pytest.approx(1.0)
+    assert "not a mediated share" in governance["label"]
+
+
+def test_the_slope_ratio_is_marked_unstable_when_its_denominator_straddles_zero():
+    """The identity divides by the unconditional slope, so the ratio means nothing
+    once that slope is compatible with zero — and nothing in the pipeline said so."""
+    rng = np.random.default_rng(4)
+    denominator = rng.normal(0.0, 0.4, 2000)
+    ratio = rng.normal(0.7, 0.3, 2000)
+    governance = _jm_ratio_governance_row(
+        _ratio_trace(ratio, denominator),
+        ci_prob=0.89,
+        wave="t2",
+        focal="W",
+        converged=True,
+    )
+    assert governance is not None
+    assert governance["denominator_stable"] is False
+    assert governance["denominator_lo"] < 0 < governance["denominator_hi"]
+    assert governance["denominator_prob_near_zero"] > 0.05
+
+
+def test_the_transition_design_registers_no_ratio_to_govern():
+    """No conditional slope, no ratio row — rather than a fabricated one."""
+    assert (
+        _jm_ratio_governance_row(
+            _trace(levels=False),
+            ci_prob=0.89,
+            wave="stacked",
+            focal="W",
+            converged=True,
+        )
+        is None
+    )
+
+
+def test_marginal_coverage_survives_asymmetric_outcome_missingness(tmp_path):
+    """One outcome missing on some rows must reduce that leg's denominator, not
+    silently pair an observation with another cell's replicate."""
+    trace = _artefact_trace(exact=False, n_obs=12)
+    observed = np.asarray(trace["observed_data"].ds["y_post"].values, dtype=float)
+    cols = np.asarray(trace["constant_data"].ds["y_post_cell_outcome"].values)
+    # Blank three nonword cells: the flattened likelihood carries NaN there.
+    nonword_cells = np.flatnonzero(cols == 1)[:3]
+    observed[nonword_cells] = np.nan
+    trace = xr.DataTree.from_dict(
+        {
+            "posterior": trace["posterior"].ds,
+            "observed_data": xr.Dataset({"y_post": ("cell", observed)}),
+            "posterior_predictive": trace["posterior_predictive"].ds,
+            "constant_data": trace["constant_data"].ds,
+        }
+    )
+    ctx = _artefact_ctx(tmp_path, trace)
+
+    _jm_marginal_ppc(ctx, outcome_symbols=_OUTCOMES)
+
+    frame = pd.read_csv(tmp_path / "ppc_summary_marginal.csv")
+    at_50 = frame[frame["level_pct"] == 50].set_index("outcome")
+    assert int(at_50.loc["W", "n_total"]) == 12
+    assert int(at_50.loc["N", "n_total"]) == 9
+    assert int(at_50.loc["all", "n_total"]) == 21
+
+
+def test_the_exposure_scale_is_recorded_per_wave(tmp_path):
+    """One SD is a different raw increment at every wave, because the exposure is
+    re-standardised within each (2026-08-23 review, robustness gap 8)."""
+    values = np.array([1.0, 3.0, 5.0, 7.0, 9.0])
+    built = SimpleNamespace(
+        prepared=SimpleNamespace(
+            n_trials={"L": 26},
+            post_counts={"L": values},
+        )
+    )
+    from language_reading_predictors.statistical_models.preprocessing import logit_safe
+
+    expected = float(np.std(logit_safe(values, 26), ddof=1))
+    assert _jm_exposure_logit_sd(built, "L") == pytest.approx(expected)
+    # A measure the frame does not carry is reported as unavailable, not as zero.
+    assert _jm_exposure_logit_sd(built, "W") is None

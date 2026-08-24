@@ -599,6 +599,7 @@ subfits
 submatrix
 subsetting
 subskill
+summarisable
 suptitle
 surv
 Sénéchal

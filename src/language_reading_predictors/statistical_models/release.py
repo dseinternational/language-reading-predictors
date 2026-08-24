@@ -102,6 +102,10 @@ from language_reading_predictors.statistical_models.sensitivity import (
 __all__ = [
     "GATED_KINDS",
     "GROWTH_INFLUENCE_TRACE_FILENAME",
+    "JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS",
+    "JOINT_MECHANISM_WAVE_MARGINAL_PPC",
+    "JOINT_MECHANISM_WAVE_PSENSE",
+    "JOINT_MECHANISM_WAVE_TRACE",
     "MEDIATION_T3_TRACE_FILENAME",
     "PSENSE_THRESHOLD",
     "RELEASE_DECISION_FILENAME",
@@ -130,6 +134,24 @@ MEDIATION_T3_TRACE_FILENAME = "trace_mediation_t3_sensitivity.nc"
 
 GROWTH_INFLUENCE_TRACE_FILENAME = "trace_growth_influence_sensitivity.nc"
 """Trace backing the growth family's high-Pareto observation-cell refit."""
+
+#: Per-wave artefact names for the joint-mechanism levels design. Every published
+#: wave carries the same three files, so the release check requires one uniform
+#: bundle instead of special-casing the wave hosting the fit-level artefacts
+#: (2026-08-23 joint-mechanism follow-up review, finding 1).
+JOINT_MECHANISM_WAVE_TRACE = "trace_wave_t{timepoint}.nc"
+JOINT_MECHANISM_WAVE_MARGINAL_PPC = "ppc_summary_marginal_t{timepoint}"
+JOINT_MECHANISM_WAVE_PSENSE = "psense_wave_t{timepoint}"
+
+#: Predeclared new-child predictive-adequacy floors for that design, pooled and per
+#: outcome. The ordinary conditional check is saturated by construction and PSIS-LOO
+#: is deliberately not computed, so the marginal check is the only one that can fail
+#: — and "can fail" needs a stated threshold rather than a reader's judgement. Set
+#: below nominal because the check is deliberately conservative (a redrawn residual
+#: widens the interval), and breaching it *qualifies* a release rather than
+#: withholding it: substantive misfit is information about the model, not evidence
+#: that the sampler failed.
+JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS: dict[int, float] = {50: 0.35, 90: 0.75}
 
 TauSensitivityClass = Literal[
     "clear", "prior_data_conflict", "prior_dominant", "unavailable"
@@ -1123,6 +1145,158 @@ def _mediation_t3_release_failures(
     if not (output_dir / MEDIATION_T3_TRACE_FILENAME).is_file():
         artifact_failures.append(MEDIATION_T3_TRACE_FILENAME)
     return tuple(computation_failures), tuple(artifact_failures)
+
+
+def _joint_mechanism_wave_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Fail-closed bundle check for every wave a joint-mechanism levels fit publishes.
+
+    The levels design publishes one posterior per timepoint. Before the 2026-08-23
+    follow-up review only the wave hosting the fit-level artefacts passed through the
+    full lifecycle, so ``release_decision.json`` could say "ok" while three of the
+    four published posteriors had no persisted trace, no informative predictive check
+    and no recorded power-scaling result — and the fit-level gate had never seen them.
+
+    Returns ``(computation, artefact, qualification)``:
+
+    * **computation** — a wave whose convergence verdict failed or could not be taken.
+      Withholds, exactly as the primary gate does.
+    * **artefact** — a missing or internally inconsistent bundle: an absent trace,
+      predictive or power-scaling file, a slope table naming waves the diagnostics
+      table does not, or a non-hosting wave with no matching sub-fit provenance row.
+      Withholds.
+    * **qualification** — the predeclared predictive-adequacy rule
+      (:data:`JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS`). Attaches a note; does not
+      withhold, because substantive misfit is a finding about the model rather than a
+      computational failure.
+    """
+    if config.get("kind") != "joint_mechanism":
+        return (), (), ()
+    extra = config.get("extra") or {}
+    if not isinstance(extra, Mapping):
+        return (), ("config.json (joint-mechanism configuration is unreadable)",), ()
+    if str(extra.get("design", "")) != "levels":
+        return (), (), ()
+
+    computation: list[str] = []
+    artefacts: list[str] = []
+    qualifications: list[str] = []
+
+    diagnostics = _read_csv(output_dir, "joint_mechanism_fit_diagnostics.csv")
+    required_columns = (
+        "wave",
+        "role",
+        "converged",
+        "trace_file",
+        "marginal_ppc_file",
+        "psense_file",
+    )
+    if diagnostics is None or diagnostics.empty:
+        return (), ("joint_mechanism_fit_diagnostics.csv",), ()
+    missing_columns = [c for c in required_columns if c not in diagnostics.columns]
+    if missing_columns:
+        return (
+            (),
+            (
+                "joint_mechanism_fit_diagnostics.csv (no "
+                f"{', '.join(missing_columns)} column)",
+            ),
+            (),
+        )
+
+    if int((diagnostics["role"].astype(str).str.strip() == "anchor").sum()) != 1:
+        artefacts.append(
+            "joint_mechanism_fit_diagnostics.csv (no unique artefact-hosting wave)"
+        )
+
+    provenance = _read_csv(output_dir, "subfit_provenance.csv")
+    model_id = str(config.get("model_id") or "")
+    for _, row in diagnostics.iterrows():
+        wave = str(row["wave"]).strip()
+        if _stored_bool(row.get("converged")) is not True:
+            computation.append(
+                f"joint-mechanism wave {wave} failed or was not convergence-checked"
+            )
+        for column in ("trace_file", "marginal_ppc_file", "psense_file"):
+            filename = str(row.get(column) or "").strip()
+            if not filename:
+                artefacts.append(
+                    f"joint_mechanism_fit_diagnostics.csv (wave {wave} declares no "
+                    f"{column})"
+                )
+            elif not (output_dir / filename).is_file():
+                artefacts.append(filename)
+        if str(row["role"]).strip() == "anchor":
+            continue
+        # A non-hosting wave is a sub-fit, and a published sub-fit estimate is only
+        # auditable through its provenance row: which rows it was fitted to, at what
+        # sampling settings, scanning which parameters, backed by which trace.
+        if provenance is None or "label" not in provenance.columns:
+            artefacts.append("subfit_provenance.csv")
+            continue
+        rows = provenance.loc[
+            provenance["label"].astype(str) == f"{model_id} wave {wave}"
+        ]
+        if len(rows) != 1:
+            artefacts.append(f"subfit_provenance.csv (no unique {wave} row)")
+            continue
+        record = rows.iloc[0]
+        if str(record.get("role", "")).strip() != "wave":
+            artefacts.append(f"subfit_provenance.csv (invalid {wave} role)")
+        if str(record.get("trace_file", "")).strip() != str(row["trace_file"]).strip():
+            artefacts.append(f"subfit_provenance.csv (invalid {wave} trace binding)")
+        if _stored_bool(record.get("converged")) is not True:
+            computation.append(
+                f"joint-mechanism wave {wave} provenance failed or was unchecked"
+            )
+
+    published = set(diagnostics["wave"].astype(str).str.strip())
+    slopes = _read_csv(output_dir, "joint_mechanism_slopes.csv")
+    if slopes is None or "wave" not in slopes.columns:
+        artefacts.append("joint_mechanism_slopes.csv")
+    else:
+        reported = set(slopes["wave"].astype(str).str.strip())
+        if reported != published:
+            artefacts.append(
+                "joint_mechanism_slopes.csv (waves do not match "
+                "joint_mechanism_fit_diagnostics.csv)"
+            )
+
+    qualifications.extend(
+        _joint_mechanism_coverage_qualifications(output_dir, diagnostics)
+    )
+    return tuple(computation), tuple(sorted(set(artefacts))), tuple(qualifications)
+
+
+def _joint_mechanism_coverage_qualifications(
+    output_dir: Path, diagnostics: pd.DataFrame
+) -> list[str]:
+    """Apply the predeclared new-child coverage floors to every published wave."""
+    notes: list[str] = []
+    for _, row in diagnostics.iterrows():
+        wave = str(row["wave"]).strip()
+        filename = str(row.get("marginal_ppc_file") or "").strip()
+        if not filename:
+            continue
+        coverage = _read_csv(output_dir, filename)
+        if coverage is None or not {"level_pct", "coverage"} <= set(coverage.columns):
+            continue
+        for _, entry in coverage.iterrows():
+            level = pd.to_numeric(entry.get("level_pct"), errors="coerce")
+            value = pd.to_numeric(entry.get("coverage"), errors="coerce")
+            floor = JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS.get(
+                int(level) if pd.notna(level) else -1
+            )
+            if floor is None or pd.isna(value) or float(value) >= floor:
+                continue
+            outcome = str(entry.get("outcome") or "all").strip() or "all"
+            notes.append(
+                f"new-child predictive coverage at wave {wave} ({outcome}) is "
+                f"{float(value):.2f} at the {int(level)}% level, below the "
+                f"predeclared floor of {floor:.2f}"
+            )
+    return notes
 
 
 _MISSINGNESS_DIAGNOSTIC_FIELDS = (
@@ -2334,6 +2508,13 @@ def evaluate_publication(
     3. **artifacts** — every artefact the fit recorded as *required* must be on
        disk. A required output that vanished between its write and finalisation is
        a withheld release, not a warning (#394 design point 3).
+    The joint-mechanism levels design's per-wave bundle is checked alongside these:
+    a published wave with no persisted trace, no informative predictive check, no
+    recorded power-scaling result, no matching sub-fit provenance row or a failed
+    convergence verdict withholds the whole fit, and breaching the predeclared
+    new-child coverage floor attaches a qualification (2026-08-23 joint-mechanism
+    follow-up review, finding 1).
+
     4. **robustness** — required influence checks must preserve their named
        scientific quantities; the phoneme-blending fits must carry their current,
        validated trace-backed link pair (``lrp-rli-itt-008`` + ``lrp-rli-itt-108``);
@@ -2458,12 +2639,27 @@ def evaluate_publication(
     itt_missingness_gate_failures, itt_missingness_artifact_failures = (
         _itt_missingness_release_failures(output_dir, config)
     )
+    (
+        jm_wave_gate_failures,
+        jm_wave_artifact_failures,
+        jm_wave_qualifications,
+    ) = _joint_mechanism_wave_release_failures(output_dir, config)
+    if jm_wave_qualifications:
+        qualification["publication_qualification"] = "; ".join(
+            part
+            for part in (
+                qualification["publication_qualification"],
+                *jm_wave_qualifications,
+            )
+            if part
+        )
     gate_failures = tuple(
         sorted(
             {
                 *t3_gate_failures,
                 *growth_gate_failures,
                 *itt_missingness_gate_failures,
+                *jm_wave_gate_failures,
             }
         )
     )
@@ -2486,6 +2682,7 @@ def evaluate_publication(
                 *t3_artifact_failures,
                 *growth_artifact_failures,
                 *itt_missingness_artifact_failures,
+                *jm_wave_artifact_failures,
                 *_recorded_required_artifacts(output_dir, artifacts),
             }
         )

@@ -4948,7 +4948,9 @@ _PSENSE_CLEAR_MARKERS = frozenset(
 )
 
 
-def _kf_psense_diagnosis(output_dir, term: str) -> str | None:
+def _kf_psense_diagnosis(
+    output_dir, term: str, *, filename: str = "psense_summary.csv"
+) -> str | None:
     """Power-scaling diagnosis for ``term`` from ``psense_summary.csv`` (#389 finding 3).
 
     Returns the ``diagnosis`` string (e.g. "potential prior-data conflict") when the
@@ -4960,8 +4962,13 @@ def _kf_psense_diagnosis(output_dir, term: str) -> str | None:
     is the single most common value in the stored suite (1117 of 2648 rows). Treating
     it as a diagnosis would publish a "prior-sensitive" caution on a *clean* estimate —
     so the clear markers are matched explicitly. Anything unrecognised is deliberately
-    treated as a flag: an unknown marker should over-warn, not go silent."""
-    path = os.path.join(str(output_dir), "psense_summary.csv")
+    treated as a flag: an unknown marker should over-warn, not go silent.
+
+    ``filename`` names a per-fit power-scaling table where a family publishes several
+    posteriors from one fit — the joint-mechanism levels design writes one per wave —
+    so each published result can be read against its own diagnosis rather than the
+    artefact-hosting fit's (2026-08-23 joint-mechanism follow-up review, finding 6)."""
+    path = os.path.join(str(output_dir), filename)
     if not os.path.exists(path):
         return None
     try:
@@ -7974,13 +7981,57 @@ def _kf_jm_interval(row) -> str:
     )
 
 
+def _kf_jm_wave_series(rows: pd.DataFrame, *, decimals: int = 2) -> str:
+    """Every wave's median in wave order, as ``t1 -0.47, t2 -0.17, ...``.
+
+    The whole set, never a selection. The previous builder led with the wave whose
+    ``P(> 0)`` sat furthest from 0.5 — a headline chosen after seeing which posterior
+    was most extreme, which is exactly the selection a reader would have to discount
+    (2026-08-23 follow-up review, finding 1).
+    """
+    return ", ".join(
+        f"{str(r['wave'])} {_kf_float(r['median']):+.{decimals}f}"
+        for _, r in rows.iterrows()
+    )
+
+
+def _kf_jm_psense_flags(output_dir, rows: pd.DataFrame) -> list[str]:
+    """Flagged power-scaling parameters per published wave, in wave order.
+
+    Each wave is read against **its own** table where one exists, so a diagnosis is
+    surfaced beside the result it belongs to rather than borrowed from the wave that
+    happens to host the fit-level artefacts.
+    """
+    terms = ("beta_mech[W]", "beta_mech[N]", "delta_ls_decoding", "rho_outcome")
+    flags: list[str] = []
+    for _, row in rows.iterrows():
+        wave = str(row.get("wave", "")).strip()
+        filename = str(row.get("psense_file") or "").strip() or "psense_summary.csv"
+        flagged = [
+            term
+            for term in terms
+            if _kf_psense_diagnosis(output_dir, term, filename=filename) is not None
+        ]
+        if flagged:
+            flags.append(f"{wave} ({', '.join(flagged)})" if wave else ", ".join(flagged))
+    return flags
+
+
 def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Identified decoding-specificity contrast — and, in the per-wave levels design,
-    the identified share retained — from the bivariate joint model (#421 Tier 3 (1)).
+    """Decoding-specificity contrast — and, in the per-wave levels design, the
+    conditional-to-marginal slope ratio — from the bivariate joint model (#421 Tier 3).
 
     Reads ``joint_mechanism_slopes.csv``, which carries one block of rows per fitted
     wave (``t1``…``t4`` for ``design="levels"``, a single ``stacked`` block for
     ``design="transition"``).
+
+    Three things this deliberately does not do (2026-08-23 follow-up review). It does
+    not pick a wave to headline: with several waves the whole set is reported, in wave
+    order. It does not call the contrast a decoding-use *signature*: the difference is
+    measurement-scale dependent, and unequal loadings on a common general-ability
+    factor produce a non-zero contrast with no causal letter-sound route at all. And
+    it does not read the conditional/marginal ratio as a mediated share: the ratio is
+    unbounded and governed by ``conditional_slope_ratio.csv``.
     """
     df = _kf_csv(output_dir, "joint_mechanism_slopes.csv")
     if df is None:
@@ -7992,11 +8043,9 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
             raise _KeyFindingsUnavailable(
                 f"joint_mechanism_slopes.csv has no {column!r} column"
             )
-    # The per-wave sub-fits publish flagged, never silently dropped — but the
-    # gate-interlocked findings box must not headline (or range over) a wave whose
-    # fit did not converge, exactly as the concurrent builder filters its per-wave
-    # marginals (2026-08-21 joint-mechanism review, finding 4). The fit-level
-    # release gate covers only the diagnostic-anchor wave.
+    # A wave whose fit did not converge is published flagged in the CSV but must not
+    # enter any number in the box. Since the 2026-08-23 review every published wave is
+    # also release-gating, so this filter is a second line rather than the only one.
     converged_rows = df["converged"].astype(str).str.lower().isin({"true", "1"})
     excluded_waves = [str(w) for w in df.loc[~converged_rows, "wave"].drop_duplicates()]
     df = df[converged_rows]
@@ -8013,31 +8062,21 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
     design = str(extra.get("design", "levels"))
     contrast = extra.get("contrast") or ("N", "W")
     hi_sym, lo_sym = (str(contrast[0]), str(contrast[1]))
+    diagnostics = _kf_csv(output_dir, "joint_mechanism_fit_diagnostics.csv")
 
-    # Headline: the identified contrast. With several waves, lead with the clearest
-    # one (distance of P(>0) from 0.5) and give the range, rather than implying a
-    # single number applies throughout.
-    lead = _kf_most_resolved_row(delta, prob_col="prob_pos")
-    where = f" at {lead['wave']}" if per_wave else ""
-    # The direction is read from the fit, never asserted. It is genuinely
-    # design-dependent: the ANCOVA parameterisation puts letter sounds well ahead on
-    # nonword decoding, while the levels parameterisation can favour word reading —
-    # they answer different questions, which is why both designs exist.
-    stronger, weaker = (
-        (hi_sym, lo_sym) if _kf_float(lead["median"]) > 0 else (lo_sym, hi_sym)
-    )
-    headline = (
-        f"On this model's scale letter-sound knowledge tracks "
-        f"{_kf_measure_label(stronger)} more closely than "
-        f"{_kf_measure_label(weaker)}: the identified contrast "
-        f"Δ = β(LS→{hi_sym}) − β(LS→{lo_sym}) is {_kf_jm_interval(lead)} logit per "
-        f"SD{where}."
-    )
+    sentences: list[dict[str, str]] = []
     if per_wave:
-        medians = [_kf_float(v) for v in delta["median"]]
-        headline += (
-            f" Across the {len(waves)} fitted timepoints it ranges "
-            f"{min(medians):+.2f} to {max(medians):+.2f}."
+        headline = (
+            f"Letter-sound knowledge tracks the two reading outcomes differently, "
+            f"and by how much depends on the wave: Δ = β(LS→{hi_sym}) − "
+            f"β(LS→{lo_sym}) is {_kf_jm_wave_series(delta)} logit per SD at the "
+            f"{len(waves)} fitted timepoints. All fitted waves are reported; none is "
+            "selected as a headline."
+        )
+    else:
+        headline = (
+            f"On this model's scale the identified contrast Δ = β(LS→{hi_sym}) − "
+            f"β(LS→{lo_sym}) is {_kf_jm_interval(delta.iloc[0])} logit per SD."
         )
     headline += (
         " Both slopes come from one posterior with an explicit cross-outcome "
@@ -8050,106 +8089,99 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
             "estimand from the transition/ANCOVA contrast the Tier-1 note reports, "
             "and the two need not agree in sign."
         )
-    sentences: list[dict[str, str]] = [_kf_sentence(headline, "headline")]
+    else:
+        headline += (
+            " It is an ANCOVA association — each outcome's post-level given its own "
+            "baseline — not a within-child change effect."
+        )
+    sentences.append(_kf_sentence(headline, "headline"))
 
-    slopes = df[df["term"].isin([f"beta_mech[{lo_sym}]", f"beta_mech[{hi_sym}]"])]
-    lead_wave = str(lead["wave"])
-    at_lead = {
-        str(r["term"]): r
-        for _, r in slopes[slopes["wave"] == lead_wave].iterrows()
-    }
-    hi_row, lo_row = at_lead.get(f"beta_mech[{hi_sym}]"), at_lead.get(
-        f"beta_mech[{lo_sym}]"
+    # The direction, read off the fit, with the interpretation limit attached. A
+    # positive contrast is consistent with a decoding route; it does not reject an
+    # unobserved common factor, because unequal loadings on one general ability
+    # already produce a non-zero difference between two differently scaled outcomes.
+    probs = [_kf_float(v) for v in delta["prob_pos"]]
+    where = " at every fitted wave" if per_wave else ""
+    if all(p > 0.5 for p in probs):
+        direction = (
+            f"letter sounds track {_kf_measure_label(hi_sym)} more closely than "
+            f"{_kf_measure_label(lo_sym)}{where}"
+        )
+    elif all(p < 0.5 for p in probs):
+        direction = (
+            f"letter sounds track {_kf_measure_label(lo_sym)} more closely than "
+            f"{_kf_measure_label(hi_sym)}{where}"
+        )
+    else:
+        direction = "the contrast does not keep one sign across the fitted waves"
+    sentences.append(
+        _kf_sentence(
+            f"Direction: {direction} (P(Δ > 0) = "
+            f"{', '.join(f'{p:.2f}' for p in probs)}). Read it as an adjusted, "
+            "measurement-scale-dependent association contrast, not a decoding-use "
+            "signature: the two outcomes have different item counts, floors and link "
+            "discrimination, and unequal loadings on one unobserved general-ability "
+            "factor would produce a non-zero contrast with no causal letter-sound "
+            "route at all.",
+            "confidence",
+        )
     )
-    if hi_row is not None and lo_row is not None:
-        sentences.append(
-            _kf_sentence(
-                f"The two letter-sound slopes{where}: {_kf_measure_label(hi_sym)} "
-                f"{_kf_jm_interval(hi_row)} versus {_kf_measure_label(lo_sym)} "
-                f"{_kf_jm_interval(lo_row)}, on one commensurate logit-per-SD scale.",
-                "detail",
-            )
-        )
 
-    share = df[df["term"] == "share_retained"]
-    if not share.empty:
-        shares = [_kf_float(v) for v in share["median"]]
-        by_wave = ", ".join(
-            f"{str(r['wave'])} {_kf_float(r['median']):.2f}"
-            for _, r in share.iterrows()
+    ratio = _kf_csv(output_dir, "conditional_slope_ratio.csv")
+    if ratio is not None and "denominator_stable" in ratio.columns:
+        stable = ratio["denominator_stable"].astype(str).str.lower().isin(
+            {"true", "1"}
         )
-        conditional = df[df["term"] == "beta_mech_focal_given_held"]
-        lead_cond = conditional[conditional["wave"] == lead_wave]
-        tail = ""
-        if not lead_cond.empty:
-            tail = (
-                f" At {lead_wave} the letter-sound slope on "
-                f"{_kf_measure_label(lo_sym)} holding {_kf_measure_label(hi_sym)} "
-                f"fixed is {_kf_jm_interval(lead_cond.iloc[0])} logit per SD."
+        if not stable.all():
+            unstable = ", ".join(
+                str(w) for w in ratio.loc[~stable, "wave"].drop_duplicates()
             )
-        # Stated as a measured fraction, not as "it survives": the direction is the
-        # fit's to report, and a share near zero would make the claim false.
-        sentences.append(
-            _kf_sentence(
-                f"Holding {_kf_measure_label(hi_sym)} fixed, the identified share "
-                f"of the letter-sound → {_kf_measure_label(lo_sym)} association "
-                f"retained is {by_wave} (median {min(shares):.2f}–{max(shares):.2f} "
-                f"across waves).{tail} "
-                "This replaces the paired-draws ratio of two separate fits; it "
-                "partials the *latent* held-fixed skill, so it retains less than a "
-                "version conditioning on the observed count. Read it as a ratio — "
-                "informative only while the unconditional slope stays clear of "
-                "zero.",
-                "detail",
-            )
-        )
-
-    rho = df[df["term"] == "rho_outcome"]
-    if not rho.empty:
-        lead_rho = rho[rho["wave"] == lead_wave]
-        if not lead_rho.empty:
-            level = "within-wave residual" if design == "levels" else "between-child"
             sentences.append(
                 _kf_sentence(
-                    f"The {level} correlation between the two outcomes{where} is "
-                    f"{_kf_jm_interval(lead_rho.iloc[0])}. This is the dependence "
-                    "block doing the work: an interval sitting on zero would mean the "
-                    "joint fit buys little over two separate ones.",
+                    f"The conditional-to-marginal slope ratio is not summarised at "
+                    f"{unstable}: the unconditional letter-sound → "
+                    f"{_kf_measure_label(lo_sym)} slope is not far enough from zero "
+                    "for a ratio to be stable there.",
+                    "detail",
+                )
+            )
+        if stable.any():
+            usable = ratio[stable]
+            sentences.append(
+                _kf_sentence(
+                    "Holding latent "
+                    f"{_kf_measure_label(hi_sym)} fixed, the letter-sound → "
+                    f"{_kf_measure_label(lo_sym)} slope retains a fraction of "
+                    f"{_kf_jm_wave_series(usable)} of its unconditional value "
+                    f"(P inside [0, 1] = "
+                    f"{', '.join(f'{_kf_float(v):.2f}' for v in usable['prob_in_unit'])}"
+                    "). This is a conditional-to-marginal **slope ratio**, not a "
+                    "mediated share: it is unbounded, it partials a latent skill "
+                    "rather than an observed score, and this observational model "
+                    "identifies no pathway decomposition.",
                     "detail",
                 )
             )
 
-    if design == "levels":
-        # A levels-scale reversal has a ready non-causal reading; the ANCOVA
-        # design's negative claim must not borrow it (2026-08-21 review).
-        negative_claim = (
-            "letter sounds track word reading more closely than pure "
-            "decoding, which on the levels scale is what a shared "
-            "reading-development / general-ability component would produce "
-            "and what the 6-item nonword floor would exaggerate (an adjusted "
-            "association, not a causal effect)"
-        )
-    else:
-        negative_claim = (
-            "letter sounds track word reading more closely than pure decoding "
-            "on this ANCOVA parameterisation — a reversal of the Tier-1 "
-            "contrast, to be read against the matched mech-096 / mech-101 pair "
-            "(an adjusted association, not a causal effect)"
-        )
-    sentences.append(
-        _kf_sentence(
-            _kf_association_direction(
-                lead["prob_pos"],
-                positive_claim=(
-                    "letter sounds track the pure-decoding channel more closely than "
-                    "the mixed word-reading channel — the decoding-use signature (an "
-                    "adjusted association, not a causal effect)"
-                ),
-                negative_claim=negative_claim,
-            ),
-            "confidence",
-        )
+    # The transition design publishes one posterior and writes no per-wave diagnostic
+    # table, so it is read against the fit-level power-scaling table.
+    psense_rows = (
+        diagnostics
+        if diagnostics is not None
+        else pd.DataFrame([{"wave": "", "psense_file": "psense_summary.csv"}])
     )
+    flags = _kf_jm_psense_flags(output_dir, psense_rows)
+    if flags:
+        sentences.append(
+            _kf_sentence(
+                "Power-scaling sensitivity is flagged for "
+                f"{'; '.join(flags)}. Those posteriors move materially when the "
+                "prior or the likelihood is reweighted, so read the affected numbers "
+                "as prior-dependent until direct alternative-prior fits resolve them.",
+                "detail",
+            )
+        )
+
     if excluded_waves:
         sentences.append(
             _kf_sentence(
@@ -8157,6 +8189,38 @@ def _kf_build_joint_mechanism(output_dir, config: Mapping) -> list[dict[str, str
                 "gate; their rows are published flagged in "
                 "joint_mechanism_slopes.csv but are excluded from every number "
                 "above.",
+                "detail",
+            )
+        )
+
+    rho = df[df["term"] == "rho_outcome"]
+    if not rho.empty:
+        level = "within-wave residual" if design == "levels" else "between-child"
+        sentences.append(
+            _kf_sentence(
+                f"The {level} correlation between the two outcomes is "
+                + (
+                    _kf_jm_wave_series(rho)
+                    if per_wave
+                    else _kf_jm_interval(rho.iloc[0])
+                )
+                + ". This is the dependence block doing the work: an interval "
+                "sitting on zero would mean the joint fit buys little over two "
+                "separate ones.",
+                "detail",
+            )
+        )
+
+    slopes = df[df["term"].isin([f"beta_mech[{lo_sym}]", f"beta_mech[{hi_sym}]"])]
+    if not per_wave and len(slopes) == 2:
+        at = {str(r["term"]): r for _, r in slopes.iterrows()}
+        sentences.append(
+            _kf_sentence(
+                f"The two letter-sound slopes: {_kf_measure_label(hi_sym)} "
+                f"{_kf_jm_interval(at[f'beta_mech[{hi_sym}]'])} versus "
+                f"{_kf_measure_label(lo_sym)} "
+                f"{_kf_jm_interval(at[f'beta_mech[{lo_sym}]'])}, on one commensurate "
+                "logit-per-SD scale.",
                 "detail",
             )
         )

@@ -61,10 +61,15 @@ def _ctx(tmp_path=None, *, draws=800, tune=500, chains=2):
 
 
 def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None):
-    """A tiny Binomial model plus the duck-typed ``prepared`` the runner reads."""
+    """A tiny Binomial model plus the duck-typed ``prepared`` the runner reads.
+
+    ``q`` is a registered Deterministic — not a free variable — so a test can check
+    that a *reported* deterministic is scanned only when a family names it.
+    """
     observed = np.asarray(counts)
     with pm.Model() as model:
         p = pm.Beta("p", 2.0, 2.0)
+        pm.Deterministic("q", p * 2.0)
         pm.Binomial("y", n=10, p=p, observed=observed)
     prepared = SimpleNamespace(
         n_children=n_children,
@@ -127,6 +132,9 @@ def _write_reuse_contract(
         sampling=sampling,
         data=data,
         convergence_scope="free_rvs",
+        # The scanned parameter set is part of the reuse contract: a rerun that
+        # widened or narrowed the convergence scan is not the same verdict.
+        convergence_vars=tuple(rv.name for rv in built.model.free_RVs),
         trace_file=trace_filename,
         trace_sha256=hashlib.sha256(subfit_trace.read_bytes()).hexdigest(),
     ).provenance_row()
@@ -427,6 +435,51 @@ def test_the_convergence_scope_selects_the_parameters_scanned(monkeypatch):
     run_subfit(ctx, _built(), label="scoped", role="wave")
     run_subfit(ctx, _built(), label="unscoped", role="wave", convergence_scope="all")
     assert seen == [["p"], None]
+
+
+def test_reported_deterministics_can_extend_the_scan_and_are_recorded(monkeypatch):
+    """A published deterministic is not covered by a scan over its arguments.
+
+    The joint-mechanism levels design publishes a slope *ratio*, which can mix far
+    worse than either slope it is built from, and the wave sub-fits' verdicts did not
+    see it. ``extra_var_names`` extends the scan, and the parameters it covered are
+    recorded on the provenance row so "which parameters did that verdict include" is
+    answerable (2026-08-23 joint-mechanism follow-up review, finding 1)."""
+    from language_reading_predictors.statistical_models import diagnostics as _diag
+
+    seen: list[list[str] | None] = []
+    real = _diag.subfit_convergence
+
+    def spy(trace, *, label, var_names=None):
+        seen.append(var_names)
+        return real(trace, label=label, var_names=var_names)
+
+    monkeypatch.setattr(_diag, "subfit_convergence", spy)
+    ctx = _ctx(None)
+    result = run_subfit(
+        ctx,
+        _built(),
+        label="with deterministics",
+        role="wave",
+        # ``q`` is a registered Deterministic on the toy model; ``absent`` is not,
+        # and naming a variable the model does not have must not widen the scan.
+        extra_var_names=["q", "absent"],
+    )
+    assert seen == [["p", "q"]]
+    assert result.convergence_vars == ("p", "q")
+    assert result.provenance_row()["convergence_vars"] == "p, q"
+
+    # The unrestricted scan already covers everything, so combining the two is a
+    # contradiction rather than a silent no-op.
+    with pytest.raises(ValueError, match="only meaningful"):
+        run_subfit(
+            ctx,
+            _built(),
+            label="contradiction",
+            role="wave",
+            convergence_scope="all",
+            extra_var_names=["q"],
+        )
 
 
 def test_reuse_trace_loads_a_persisted_subfit_without_sampling(tmp_path, monkeypatch):

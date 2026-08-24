@@ -967,7 +967,7 @@ def _joint_mechanism_levels_subset(tmp_path, *, wave: int = 3, n_children: int =
 def test_joint_mechanism_levels_builds_identified_contrasts(tmp_path):
     """The per-wave levels design (#421 Tier 3 (1)) fits both outcomes on one exposure
     with an **LKJ residual correlation**, so the decoding-specificity contrast *and*
-    the share retained are within-model deterministics.
+    the conditional slope ratio are within-model deterministics.
 
     Asserts the pieces the #427 review found missing: a genuine bivariate dependence
     block (per-outcome residual SDs and an off-diagonal correlation, not one scalar
@@ -1101,6 +1101,69 @@ def test_joint_mechanism_rejects_mismatched_phase_mode(tmp_path):
     sub = _joint_mechanism_levels_subset(tmp_path)
     with pytest.raises(ValueError, match="requires phase_mode='all'"):
         build_joint_mechanism_model(sub, design="transition")
+
+
+def test_joint_mechanism_rejects_a_duplicate_or_incomplete_contrast(tmp_path):
+    """``("N", "N")`` used to build: ``delta_ls_decoding`` was then identically zero
+    and the conditional slope partialled the focal outcome against itself. The typed
+    run plans already rejected it, but this is a public factory boundary and must
+    enforce the same invariant (2026-08-23 follow-up review, robustness gap 6)."""
+    from language_reading_predictors.statistical_models.factories import (
+        build_joint_mechanism_model,
+    )
+
+    sub = _joint_mechanism_levels_subset(tmp_path)
+    for contrast in (("N", "N"), ("W", "W"), ("N",), ("N", "W", "N")):
+        with pytest.raises(ValueError, match="each outcome exactly once"):
+            build_joint_mechanism_model(sub, design="levels", contrast=contrast)
+    # An outcome that is not in the model is still caught by the membership check.
+    with pytest.raises(ValueError, match="not in outcome_symbols"):
+        build_joint_mechanism_model(sub, design="levels", contrast=("N", "R"))
+    # And the valid orderings still build.
+    for contrast in (("N", "W"), ("W", "N")):
+        build_joint_mechanism_model(sub, design="levels", contrast=contrast)
+
+
+def test_joint_mechanism_levels_recovers_a_simulated_slope_difference(tmp_path):
+    """Simulation-based recovery for the family's headline quantity.
+
+    A coarse but real check that the wiring — exposure standardisation, per-outcome
+    slopes, flattened cells, contrast orientation — carries a *known* difference
+    through to ``delta_ls_decoding`` rather than a sign-flipped or index-swapped one.
+    Deliberately generous: this is a wiring check on ~20 children, not a calibration
+    study (2026-08-23 follow-up review, test gap)."""
+    from language_reading_predictors.statistical_models.factories import (
+        build_joint_mechanism_model,
+    )
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+        standardise,
+    )
+
+    sub = _joint_mechanism_levels_subset(tmp_path, n_children=60)
+    z = standardise(logit_safe(sub.post_counts["L"], sub.n_trials["L"]))[0]
+    rng = np.random.default_rng(19)
+    # A large, unambiguous difference: N's slope well above W's.
+    beta = {"W": 0.2, "N": 1.6}
+    for symbol in ("W", "N"):
+        p = 1.0 / (1.0 + np.exp(-(-0.5 + beta[symbol] * z)))
+        sub.post_counts[symbol] = rng.binomial(sub.n_trials[symbol], p).astype(float)
+
+    built = build_joint_mechanism_model(
+        sub, design="levels", contrast=("N", "W"), include_group=False,
+        confounder_symbols=(),
+    )
+    with built.model:
+        idata = pm.sample(
+            draws=400, tune=400, chains=2, cores=1, target_accept=0.9,
+            nuts_sampler="nutpie", random_seed=11, progressbar=False,
+        )
+    delta = idata.posterior["delta_ls_decoding"].values.ravel()
+    # The truth is +1.4; recovery only has to land clearly on the right side of zero
+    # with the true value inside a wide interval.
+    assert float(np.mean(delta > 0)) > 0.95
+    lo, hi = np.quantile(delta, [0.005, 0.995])
+    assert lo < (beta["N"] - beta["W"]) < hi
 
 
 def test_mechanism_factory_age_gp_skips_linear_term(tmp_path):
