@@ -19,67 +19,29 @@ helpers only standardise *saving* — PNG + SVG sibling + optional data CSV — 
 closing the figure. Both matplotlib figures and ``arviz_plots`` ``PlotCollection``
 objects route through here so a single change propagates to every model.
 
-Kept dependency-light (matplotlib + pandas + rich + the shared style constants) so
-neither the GB nor the Bayesian package pulls in the other's heavy imports.
+The save mechanics moved into ``dse_research_utils.plot.io`` in v0.12.0 (they were
+one of five parallel implementations across the research repositories); this module
+now applies this repository's policy to them — the SVG size cap is on by default
+here, whereas the shared helpers leave it opt-in. :data:`SVG_MAX_BYTES` is read at
+call time so it stays configurable (and monkeypatchable in tests).
 """
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
-import matplotlib.pyplot as plt
-import pandas as pd
-from rich import print as rprint
-
+import dse_research_utils.plot.io as plot_io
 from dse_research_utils.plot.styles import DPI_FILE
 
 # Issue #208: still emit SVGs, but skip very large ones (they are what make the
 # report viewer slow). ~2 MB is comfortably above a typical vector figure and well
 # below the multi-megabyte beeswarm/interaction grids we want to keep raster.
-SVG_MAX_BYTES = 2 * 1024 * 1024
-
-
-def _stem(name: str) -> str:
-    """Return ``name`` without a trailing ``.png``/``.svg`` so callers may pass
-    either the historical ``"trace_plot.png"`` or a bare ``"trace_plot"`` stem."""
-    for ext in (".png", ".svg"):
-        if name.endswith(ext):
-            return name[: -len(ext)]
-    return name
-
-
-def _write_svg_sibling(save, base: str, svg_max_bytes: int | None = None) -> None:
-    """Write ``base + '.svg'`` via ``save(path)`` then drop it if it is too large.
-
-    ``save`` is a one-arg callable (``fig.savefig`` or ``pc.savefig``) so this works
-    for both matplotlib figures and ``arviz_plots`` collections. The size cap reads
-    the module-level :data:`SVG_MAX_BYTES` at call time (so it stays configurable).
-    Guarded so an SVG-backend hiccup never costs us the (already-written) PNG.
-    """
-    if svg_max_bytes is None:
-        svg_max_bytes = SVG_MAX_BYTES
-    svg = base + ".svg"
-    try:
-        save(svg)
-        if os.path.getsize(svg) > svg_max_bytes:
-            os.remove(svg)
-    except Exception as exc:  # pragma: no cover - defensive
-        rprint(f"[yellow]SVG sibling for {os.path.basename(base)} skipped: {exc}[/yellow]")
-        if os.path.exists(svg):
-            try:
-                os.remove(svg)
-            except OSError:
-                pass
+SVG_MAX_BYTES = plot_io.SVG_MAX_BYTES
 
 
 def save_plot_data(output_dir: str, name: str, data: Any, *, index: bool = False) -> str:
     """Write the data behind a plot as ``<name>.csv`` (issue #208)."""
-    os.makedirs(output_dir, exist_ok=True)
-    path = os.path.join(output_dir, f"{_stem(name)}.csv")
-    df = data if isinstance(data, pd.DataFrame) else pd.DataFrame(data)
-    df.to_csv(path, index=index)
-    return path
+    return plot_io.save_plot_data(output_dir, name, data, index=index)
 
 
 def save_styled_figure(
@@ -97,31 +59,17 @@ def save_styled_figure(
 
     ``name`` may be a stem or carry a ``.png`` extension. Returns the PNG path.
     """
-    os.makedirs(output_dir, exist_ok=True)
-    fig = plt.gcf() if fig is None else fig
-    base = os.path.join(output_dir, _stem(name))
-    png = base + ".png"
-    fig.savefig(png, dpi=dpi, bbox_inches=bbox_inches)
-    if svg:
-        _write_svg_sibling(
-            lambda p: fig.savefig(p, format="svg", bbox_inches=bbox_inches), base
-        )
-    if data is not None:
-        save_plot_data(output_dir, name, data)
-    if close:
-        plt.close(fig)
-    return png
-
-
-def _pc_figure(pc: Any):
-    """Best-effort matplotlib ``Figure`` behind an ``arviz_plots`` collection."""
-    try:
-        return pc.viz["figure"].item()
-    except Exception:  # pragma: no cover - defensive
-        try:
-            return plt.gcf()
-        except Exception:
-            return None
+    return plot_io.save_styled_figure(
+        output_dir,
+        name,
+        fig=fig,
+        dpi=dpi,
+        bbox_inches=bbox_inches,
+        close=close,
+        svg=svg,
+        svg_max_bytes=SVG_MAX_BYTES,
+        data=data,
+    )
 
 
 def save_plotcollection(
@@ -139,21 +87,16 @@ def save_plotcollection(
     Adds a figure-level ``suptitle`` (ArviZ plots render untitled) and emits the
     SVG through ``pc.savefig`` so the collection lays out correctly.
     """
-    os.makedirs(output_dir, exist_ok=True)
-    base = os.path.join(output_dir, _stem(name))
-    if suptitle:
-        fig = _pc_figure(pc)
-        if fig is not None:
-            try:
-                fig.suptitle(suptitle)
-            except Exception:  # pragma: no cover - defensive
-                pass
-    pc.savefig(base + ".png", dpi=dpi)
-    if svg:
-        _write_svg_sibling(lambda p: pc.savefig(p), base)
-    if data is not None:
-        save_plot_data(output_dir, name, data)
-    plt.close("all")
+    plot_io.save_plotcollection(
+        pc,
+        output_dir,
+        name,
+        suptitle=suptitle,
+        dpi=dpi,
+        svg=svg,
+        svg_max_bytes=SVG_MAX_BYTES,
+        data=data,
+    )
 
 
 __all__ = [

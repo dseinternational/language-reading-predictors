@@ -17,10 +17,8 @@ import pymc as pm
 import pytest
 import xarray as xr
 
+from dse_research_utils.statistics import sampling_quality as sampling_quality_mod
 from language_reading_predictors.statistical_models import diagnostics as diag
-from language_reading_predictors.statistical_models import (
-    sampling_quality as sampling_quality_mod,
-)
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.reporting import (
     _reuse_compatibility_contract,
@@ -968,8 +966,10 @@ def test_subfit_convergence_catches_bad_nuisance_parameter():
 
 
 def test_subfit_convergence_flags_low_bfmi(monkeypatch):
-    # BFMI is now read by the shared ``sampling_quality`` extractor, so that is the
+    # BFMI is read by the shared ``sampling_quality`` extractor, so that is the
     # seam to patch; ``diag._bfmi_per_chain`` is no longer on this call path.
+    # The extractor moved to ``dse_research_utils`` in v0.12.0, so the patch has
+    # to target the module that resolves the name.
     monkeypatch.setattr(
         sampling_quality_mod, "_bfmi_per_chain", lambda _trace: np.asarray([0.2, 0.8])
     )
