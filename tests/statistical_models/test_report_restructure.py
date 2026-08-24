@@ -1,7 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Contract and rendered-HTML checks for the issue-321 report restructure."""
+"""Contract and rendered-HTML checks for the statistical-report restructure.
+
+The include contract is the #373 order (the #352 findings-first scaffolding with
+the result partial below the prior blocks). It is asserted against the real
+`docs/models/*/index.qmd` set as well as synthetic fixtures — checking fixtures
+alone is what let the validator drift from the repository until #607.
+"""
 
 from __future__ import annotations
 
@@ -88,6 +94,108 @@ def test_rewriter_is_conservative_idempotent_and_preserves_prose():
     assert "_partials/_convergence.qmd" not in rewritten
     assert "_partials/_diagnostics.qmd" not in rewritten
     assert rewrite_template(rewritten) == rewritten
+
+
+# The order every statistical template actually uses, established by #373
+# ("priors-before-results reorder") on top of the #352 findings-first
+# scaffolding. Until #607 the rewriter validated the superseded #352 order, so it
+# rejected all 264 real templates while passing against synthetic fixtures alone.
+_MANAGED_ORDER = (
+    "_partials/_header.qmd",
+    "_partials/_setup.qmd",
+    "_partials/_gate_badge.qmd",
+    "_partials/_key_findings.qmd",
+    "_partials/_reading_guide.qmd",
+    "_partials/_priors.qmd",
+    "_partials/_prior_predictive.qmd",
+    "<results>",
+    "_partials/_technical.qmd",
+    "_partials/_footer.qmd",
+)
+
+
+def _statistical_templates() -> list[Path]:
+    return [
+        path
+        for path in sorted((REPO / "docs/models").glob("*/index.qmd"))
+        if is_statistical_template(path.read_text(encoding="utf-8"))
+    ]
+
+
+def _managed_sequence(text: str) -> tuple[str, ...]:
+    includes = [
+        name
+        for line in text.splitlines()
+        if (name := _REWRITER._include(line.strip())) is not None
+    ]
+    return tuple(
+        "<results>" if name.startswith("_partials/_results_") else name
+        for name in includes
+    )
+
+
+def test_every_real_template_conforms_to_the_documented_order():
+    """The contract must be asserted against the repository, not fixtures alone."""
+    templates = _statistical_templates()
+    assert len(templates) > 200, f"expected the full report set; found {len(templates)}"
+    offenders = {
+        path.relative_to(REPO): _managed_sequence(path.read_text(encoding="utf-8"))
+        for path in templates
+        if _managed_sequence(path.read_text(encoding="utf-8")) != _MANAGED_ORDER
+    }
+    assert not offenders, f"templates diverge from the documented order: {offenders}"
+
+
+def test_rewriter_is_a_no_op_over_every_real_template():
+    """A stale contract must fail here rather than 'fix' the whole report set."""
+    templates = _statistical_templates()
+    assert len(templates) > 200, f"expected the full report set; found {len(templates)}"
+    rejected: list[str] = []
+    rewritten: list[str] = []
+    for path in templates:
+        text = path.read_text(encoding="utf-8")
+        try:
+            updated = rewrite_template(text)
+        except TemplateContractError as exc:
+            rejected.append(f"{path.relative_to(REPO)}: {exc}")
+            continue
+        if updated != text:
+            rewritten.append(str(path.relative_to(REPO)))
+    assert not rejected, f"rewriter rejected real templates: {rejected[:5]}"
+    assert not rewritten, f"rewriter would rewrite real templates: {rewritten[:5]}"
+
+
+def test_migration_places_the_result_partial_below_the_prior_blocks():
+    """The legacy migration path must target the #373 order, not the #352 one."""
+    assert _managed_sequence(rewrite_template(_OLD_TEMPLATE)) == _MANAGED_ORDER
+
+
+def test_rewriter_rejects_the_superseded_results_before_priors_order():
+    """A #352-ordered template is non-conforming and must not pass silently."""
+    superseded = "\n".join(
+        [
+            "---",
+            "title: Superseded order",
+            "---",
+            "",
+            "{{< include _partials/_header.qmd >}}",
+            "{{< include _partials/_setup.qmd >}}",
+            "{{< include _partials/_gate_badge.qmd >}}",
+            "{{< include _partials/_key_findings.qmd >}}",
+            "{{< include _partials/_reading_guide.qmd >}}",
+            "",
+            "## Overview",
+            "",
+            "{{< include _partials/_results_itt.qmd >}}",
+            "{{< include _partials/_priors.qmd >}}",
+            "{{< include _partials/_prior_predictive.qmd >}}",
+            "{{< include _partials/_technical.qmd >}}",
+            "{{< include _partials/_footer.qmd >}}",
+            "",
+        ]
+    )
+    with pytest.raises(TemplateContractError, match="expected order"):
+        rewrite_template(superseded)
 
 
 def test_rewriter_rejects_an_unrecognised_partial_contract():

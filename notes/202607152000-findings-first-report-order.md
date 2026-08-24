@@ -8,6 +8,7 @@
 - **Date:** 2026-07-15
 - **Status:** implementation decision
 - **Issue:** #321
+- **Status update (2026-08-24):** the _ordering_ of the family-result partial below is **superseded**. #373 ("box-cull, BARG reproducibility, and priors-before-results reorder", 2026-07-20) moved the result partial back below `_priors` and `_prior_predictive`, and that is the order every template uses. The rest of this note — the gate badge above the key findings, the fail-closed interlock, the collapsed technical fold — stands. See #607 and [the 2026-08-24 note](202608241900-report-template-contract-607.md).
 
 ## Decision
 
