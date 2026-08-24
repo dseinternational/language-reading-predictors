@@ -577,6 +577,7 @@ scratchpad
 secondaries
 Secord
 Semel
+semidefiniteness
 sens
 SESOI
 setattr

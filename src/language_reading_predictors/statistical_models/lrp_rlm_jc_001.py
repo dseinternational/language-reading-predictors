@@ -19,8 +19,12 @@ syndrome only) where a kept child has **all three** measures observed. The
 correlation matrix is shared across the three reading groups (a stated
 assumption at this n); the subject-intercept SDs and overdispersion are
 group-indexed per the 2026-07-16 heterogeneity decision. PSIS-LOO is not
-computed - the model has one likelihood node per measure, so a single
-pointwise LOO is not defined for it.
+computed, and **not** because the model carries one likelihood node per
+measure: those nodes share an observation coordinate, so their contributions
+could be summed per child-wave row. What is missing is a defined and
+implemented prediction target - a new occasion for a known child and a new
+child require different quantities to be integrated. The run plan's
+``loo_reason`` carries the full statement (2026-08-23 joint audit, finding 8).
 
 **Descriptive natural-history evidence, not an intervention effect:**
 ``readgrp`` is a cohort factor with no causal warrant, and a between-child

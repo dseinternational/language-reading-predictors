@@ -7936,6 +7936,16 @@ def build_rlm_joint_growth_model(
                 dims="cell",
             )
             if len(common_waves) >= 2:
+                # The **median-child** growth over the common window: built from
+                # ``eta_cell`` with the child offset at zero, so it is the change
+                # for a mid-group child, not the change in the cell average. The
+                # joint family's published growth
+                # (``posterior_growth_summary_{m}``) is the matched-children
+                # average taken from ``fitted_mean_items_obs_{m}`` instead, and no
+                # historical-joint reporting path reads this node — it is retained
+                # for parity with the single-measure ``historical_growth`` family,
+                # which does summarise it. Do not quote it as this family's growth
+                # result (2026-08-24 historical-joint review).
                 mean_items_m = n_trials * pm.math.sigmoid(eta_cell[mi])
                 pm.Deterministic(
                     f"growth_first_last_items_{m}",

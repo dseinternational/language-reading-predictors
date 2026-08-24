@@ -2438,6 +2438,12 @@ def test_historical_joint_within_companion_withholds_unresolved_correlations(tmp
     assert "did not resolve a within-child correlation" in _texts(payload)
     assert "not substantively identified" in _texts(payload)
     assert "clearest within-child coupling" not in _texts(payload)
+    # Non-resolution is the conclusion the within-scale prior decides, so the box
+    # that publishes it has to say so. The resolvable branch already carried a
+    # prior caveat; this one carried none (2026-08-24 historical-joint review).
+    assert "under this fit's within-scale prior" in _texts(payload)
+    assert "wider-prior sensitivity" in _texts(payload)
+    assert any(s["kind"] == "causal" for s in payload["sentences"])
 
 
 def test_mechanism_findings_headline_interaction_when_present(tmp_path):
