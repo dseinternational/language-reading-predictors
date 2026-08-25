@@ -13,6 +13,8 @@
 
 1. **Scope.** The mandatory guessing-floor link sensitivity `mu = 1/3 + (2/3) * inverse_logit(eta)` applies to **every registered model with `outcome_symbol="B"`, in every family**, whether the published quantity is a randomised contrast or an adjusted association. The release gate is keyed on the outcome symbol, not on `kind`, so a new `B` model in any family fails closed until it is paired or carries a recorded, dated exemption.
 2. **Evidence tier.** **One tier.** Every pair is bound by the content-addressed archive apparatus, not only the ITT pair. The local two-directory pair check is retired as a permanent arrangement.
+   > [!IMPORTANT]
+   > **Decision 2 was superseded on 2026-08-25** by `notes/202608252100-blending-pair-binding-608-decision-2.md` (signed off by Frank on 2026-08-25). Pairs bind their **resolved run plan** and a staleness check instead; the content-addressed archive stays ITT-only. The text above is left as the record of what was decided on 2026-08-24 — do not act on it. Decision 1 stands and is implemented.
 
 `METHODS.md` has been updated to say this. The wording that prompted the question — "any headline `B` interpretation" inside the ITT bullet — was correct as written; what was missing was that it applied to families with no pair built.
 

@@ -6,8 +6,8 @@
 # #608 decision 2, amended: bind the run plan, not the archive
 
 - **Date:** 2026-08-25
-- **Status:** scientific decision — **amends #608 decision 2**
-- **Issue:** #619 / #608
+- **Status:** scientific decision — **amends #608 decision 2**; **signed off by Frank on 2026-08-25**
+- **Issue:** #619 / #608 (implemented in #623)
 
 ## The decision
 
