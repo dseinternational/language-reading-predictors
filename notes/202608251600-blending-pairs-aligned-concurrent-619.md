@@ -44,10 +44,31 @@ Scope in `aligned` is the model of record: the `al-101` cumulative-session dose 
 
 `tests/statistical_models/test_blending_sensitivity.py` now pins the inventory: every natural-scale reporting helper — the twelve that turn `eta` into probability/items output — must accept `score_mean_link`. A new one has to opt in explicitly rather than defaulting to a hidden ordinary-link assumption. The lesson generalises past this issue: a script that infers structure from line numbers is evidence about the script, not about the code.
 
+## What the two pairs say
+
+Both companions are fitted at `reporting` tier on the same rows as their primaries, and both sampled cleanly: al-306 with 0 divergences, max R-hat 1.0003, min ESS 20,739; ca-307 with 0 divergences, max R-hat 1.0005, min ESS 23,681.
+
+**Aligned** moves the way the earlier pairs did. The per-protocol cohort marginal falls from **+0.30 items** (89 % −0.58 to +1.20, P(>0) 0.706) to **+0.18** (89 % −0.52 to +0.88, P(>0) 0.655). Neither number was ever evidence of anything — both intervals sit squarely across zero, as a confounded per-protocol contrast should — but the ordinary-link version was about 70 % larger.
+
+**Concurrent is the one worth reading carefully, because the link is not a rescaling.** Its t4 adjusted `+1 SD` marginals:
+
+| Predictor               | Ordinary logit | Guessing floor | Ratio | P(>0)         |
+| ----------------------- | -------------: | -------------: | ----: | ------------- |
+| Word reading            |          +0.82 |          +0.53 |  0.64 | 0.996 → 0.986 |
+| Letter sounds           |          +0.43 |          +0.38 |  0.90 | 0.919 → 0.953 |
+| Taught receptive vocab  |          +0.04 |          +0.10 |  2.50 | 0.553 → 0.665 |
+| Taught expressive vocab |      **−0.04** |      **+0.15** | −3.71 | 0.452 → 0.725 |
+| Receptive vocab         |          +0.33 |          +0.16 |  0.49 | 0.865 → 0.744 |
+| Expressive vocab        |          +0.24 |          +0.24 |  0.97 | 0.767 → 0.823 |
+
+The headline association shrinks by a third, receptive vocabulary halves, expressive vocabulary barely moves — and taught expressive vocabulary **changes sign**. Nothing here is decisive (every one of those small terms has a probability of direction well inside the inconclusive band, so the sign flip is noise being relabelled rather than a finding reversing), but it makes the mechanism concrete: the floor link compresses the response scale non-uniformly across rows, so a _ranking_ of items-scale associations is link-dependent in a way a single treatment contrast does not reveal. A reader comparing predictors by their items-scale marginal is comparing something the link partly determines.
+
+That is the clearest argument yet against the "it's only an association, so the link matters less" intuition that #608 rejected: in this family the link's effect on the reported quantities is _larger and less predictable_ than in the causal families, not smaller.
+
 ## Verification
 
 - Both companions build on the same rows as their primaries with identical free random variables; only the observed node's link differs.
-- Both pipelines run end-to-end at `dev`, and both are fitted at `reporting`.
+- Both pipelines run end-to-end at `dev`; both companions are fitted at `reporting` and pass their gates, and both pairs now evaluate release-ready.
 - The release gate withheld `lrp-rli-al-006` and `lrp-rli-ca-007` from the moment their branches landed until their twins were fitted, and left the non-B siblings, the `al-101` dose variant and the four other families untouched.
 - Full suite green; 23 new tests.
 
