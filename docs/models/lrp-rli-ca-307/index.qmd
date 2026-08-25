@@ -1,0 +1,58 @@
+---
+title: "LRP-CA-307: Concurrent conditional associations — skills → phoneme blending under the one-in-three guessing floor"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP-CA-307 is the registered **response-link companion** to [LRP-CA-007](../lrp-rli-ca-007/index.qmd) (#619, under the #608 policy), mirroring [LRPITT08b](../lrp-rli-itt-108/index.qmd), [LRPLF06b](../lrp-rli-lf-106/index.qmd), [LRPGF06f](../lrp-rli-gf-306/index.qmd) and [LRPAL06f](../lrp-rli-al-306/index.qmd). Same children, same waves, same predictors, same trait covariates and the same slope prior; the single difference is the outcome's score mean.
+
+Phoneme blending has ten **three-alternative forced-choice** items, so a child answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial inverse-logit mean does not know that, and the LRP-CA-007 posterior uses the room it leaves: 4 of its 54 primary-wave rows have posterior-mean expected proportions below one third and 9.7 % of the row-by-draw posterior mass sits below chance. This companion constrains the mean to $\tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$, so the model cannot predict below-chance performance.
+
+**The two fits are one piece of evidence**: both plans are marked link-sensitivity-required, and the release gate refuses to publish either without the other.
+
+_Causal labelling._ Unchanged, and deliberately so. Every coefficient here is an **adjusted association**, never a causal effect — the family exists to describe the conditional joint distribution of skill levels at each wave, and conditioning on contemporaneous (post-treatment) skills is intentional and licensed for that purpose. Read with the family's three standing caveats (Table-2 fallacy; measurement error; collinearity/regularisation at $n \approx 53$).
+
+That everything is associational is **not** an exemption from the pairing. The #608 decision binds association and contrast alike: the link determines the mapping onto the natural scale, and `concurrent_marginals.csv` reports items.
+
+**The link governs blending as the _outcome_.** Where B is a *predictor* — in [LRP-CA-001](../lrp-rli-ca-001/index.qmd) through CA-006 — it enters as a standardised same-wave logit covariate, not as a modelled score mean, so those fits are untouched and the resolver rejects the floor link for any non-B outcome.
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the focal wave's blending count, $N = 10$, with the **guessing-floor score mean** $\mu = \tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$ and
+
+$$
+\eta_i = \alpha + \sum_k \beta_k\, z_k\!\left(\operatorname{logit}\text{predictor}_k\right)_i
+  + \beta_{\text{age}} z(\text{age})_i + \beta_{\text{group}} G_i + \sum_c \gamma_c z(c)_i,
+$$
+
+over the same-wave skills word reading (W), letter sounds (L), taught receptive (TR) and expressive (TE) vocabulary, and receptive (R) and expressive (E) vocabulary, with the t1 trait covariates broadcast across waves. Priors are unchanged from LRP-CA-007.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+**Every reported natural-scale quantity is on this link**, and the link reaches **every sub-fit**: this family fits one model per wave, plus a single-skill sub-fit per predictor, so the link is threaded into each build and each marginal. An adjusted and a bivariate sub-fit of the same wave therefore cannot disagree about the response scale.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_concurrent.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

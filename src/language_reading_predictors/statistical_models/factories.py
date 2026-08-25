@@ -50,6 +50,8 @@ from language_reading_predictors.statistical_models.hsgp import (
     build_tau_modifier,
 )
 from language_reading_predictors.statistical_models.fitted_payloads import (
+    AlignedPayload,
+    ConcurrentPayload,
     DidArmWavePayload,
     DidDosePayload,
     DoseResponsePayload,
@@ -4348,7 +4350,15 @@ def build_concurrent_model(
     include_age: bool = True,
     include_group: bool = True,
     predictor_slope_sigma: float = 0.3,
-) -> BuiltModel[EmptyPayload]:
+    # #619: the phoneme-blending response link, applied to the OUTCOME's score mean.
+    # ``"logit"`` is the ordinary Beta-Binomial inverse-logit mean;
+    # ``"three_choice_guessing_floor"`` maps it onto [1/3, 1] for the ten
+    # three-alternative forced-choice blending items, whose expected score cannot
+    # fall below chance. B outcomes only, and released only beside the paired
+    # ordinary-link fit. A B *predictor* is unaffected: it enters as a standardised
+    # logit covariate, not as a modelled score.
+    score_mean_link: ScoreMeanLink = "logit",
+) -> BuiltModel[ConcurrentPayload]:
     """Concurrent conditional-associations model for ONE wave (#312).
 
     Expects a single-wave subset of the ``phase_mode="levels"`` frame (the pipeline
@@ -4475,11 +4485,16 @@ def build_concurrent_model(
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
-        beta_binomial_from_logit(
-            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
+        beta_binomial_from_score_mean_link(
+            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id",
+            score_mean_link=score_mean_link,
         )
 
-    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
+    return BuiltModel(
+        model=model,
+        prepared=prepared,
+        payload=ConcurrentPayload(score_mean_link=score_mean_link),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -6023,7 +6038,13 @@ def build_aligned_model(
     use_cohort: bool = True,
     use_dose: bool = False,
     likelihood: str = "beta_binomial",
-) -> BuiltModel[EmptyPayload]:
+    # #619: the phoneme-blending response link. ``"logit"`` is the ordinary
+    # Beta-Binomial inverse-logit mean; ``"three_choice_guessing_floor"`` maps it
+    # onto [1/3, 1] for the ten three-alternative forced-choice blending items,
+    # whose expected score cannot fall below chance. B only, graded only, and
+    # released only beside its paired ordinary-link fit.
+    score_mean_link: ScoreMeanLink = "logit",
+) -> BuiltModel[AlignedPayload]:
     """Per-protocol onset-aligned single-gain ANCOVA (LRPAL).
 
     A cross-sectional Beta-Binomial ANCOVA of the aligned post-score on its own
@@ -6142,8 +6163,9 @@ def build_aligned_model(
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
             kappa = _scalar_prior("kappa", _priors.kappa_prior)
-            beta_binomial_from_logit(
+            beta_binomial_from_score_mean_link(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                score_mean_link=score_mean_link,
                 observed=post, dims="obs_id",
             )
         else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
@@ -6152,7 +6174,11 @@ def build_aligned_model(
                 observed=(post > 0).astype(np.int64), dims="obs_id",
             )
 
-    return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
+    return BuiltModel(
+        model=model,
+        prepared=prepared,
+        payload=AlignedPayload(score_mean_link=score_mean_link),
+    )
 
 
 # ---------------------------------------------------------------------------

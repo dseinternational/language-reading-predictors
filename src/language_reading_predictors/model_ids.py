@@ -154,10 +154,15 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     "lrplf09a": ("lf", 209),
     "lrplf10a": ("lf", 210),
     "lrplf11a": ("lf", 211),
-    # The gain family's phoneme-blending response-link companion (#596). It cannot
-    # take 1xx (the treated-only ``b`` companions) or 2xx (the ``m`` moderation
-    # variants), so the ``f`` link-sensitivity suffix opens the 3xx block.
+    # The phoneme-blending response-link companions (#596, #619). The ``f``
+    # link-sensitivity suffix takes the **3xx block in every family**, so an id of
+    # the form ``-3NN`` reads as "the link companion of -0NN" wherever it appears.
+    # It opened at 3xx because the gain family's 1xx and 2xx were already the ``b``
+    # and ``m`` roles; keeping one block for the suffix everywhere is the rule the
+    # gf ``m`` note below states, applied from the start rather than retrofitted.
     "lrpgf06f": ("gf", 306),
+    "lrpal06f": ("al", 306),
+    "lrpca07f": ("ca", 307),
     "lrpitt08b": ("itt", 108),
     "lrpitt13b": ("itt", 113),
     "lrpitt14b": ("itt", 114),

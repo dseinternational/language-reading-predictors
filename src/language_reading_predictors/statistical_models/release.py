@@ -2424,6 +2424,10 @@ def _blending_pair_release_failures(
         return _did_blending_pair_release_failures(output_dir, config)
     if kind == "gain_factors":
         return _gain_blending_pair_release_failures(output_dir, config)
+    if kind == "aligned":
+        return _aligned_blending_pair_release_failures(output_dir, config)
+    if kind == "concurrent":
+        return _concurrent_blending_pair_release_failures(output_dir, config)
     if kind != "itt":
         return ()
     from language_reading_predictors.statistical_models.blending_sensitivity import (
@@ -2556,6 +2560,74 @@ def _gain_blending_pair_release_failures(
         return (
             "the mandatory phoneme-blending link pair "
             "(lrp-rli-gf-006 + lrp-rli-gf-306) is not release-ready: " + reason,
+        )
+    return ()
+
+
+def _aligned_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The aligned family's phoneme-blending pairing (#619).
+
+    Same policy and the same evidence tier as the level, DiD and gain pairs: both
+    fits' stored artefacts are read and cross-checked rather than recomputed from
+    trace.
+
+    Nothing in this family is randomised, and that is not an exemption. The #608
+    decision binds every ``B`` model whether its published quantity is a contrast or
+    an association, because the link determines the mapping from the latent scale to
+    the reported one and any natural-scale headline inherits it. LRPAL06's published
+    ``cohort_marginal.csv`` is exactly such a headline.
+
+    Scope is the model of record: ``resolve_aligned_run_plan`` sets
+    ``link_sensitivity_required_for_release`` only for the non-dose primary, so the
+    collider-conditioned dose sensitivity returns "no link pairing" here rather than
+    failing closed.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_aligned_blending_link_pair,
+    )
+
+    try:
+        status = evaluate_aligned_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the aligned B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            "(lrp-rli-al-006 + lrp-rli-al-306) is not release-ready: " + reason,
+        )
+    return ()
+
+
+def _concurrent_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The concurrent family's phoneme-blending pairing (#619).
+
+    Same policy and evidence tier as the level, DiD, gain and aligned pairs. Two
+    features are particular to this family. Its published output is a *table* of
+    per-wave marginals rather than a single card, so the pair check verifies the
+    identity evidence plus the table's shape rather than comparing one headline
+    number. And the link governs blending only as the **outcome**: the six sibling
+    models that carry B as a *predictor* take it as a standardised logit covariate,
+    not as a score mean, so their plans do not declare the pairing and they return
+    "no link pairing" here.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_concurrent_blending_link_pair,
+    )
+
+    try:
+        status = evaluate_concurrent_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the concurrent B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            "(lrp-rli-ca-007 + lrp-rli-ca-307) is not release-ready: " + reason,
         )
     return ()
 

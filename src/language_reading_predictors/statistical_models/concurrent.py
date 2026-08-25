@@ -36,9 +36,20 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
 )
+
+#: The registered phoneme-blending response-link pair for this family (#619, under
+#: the #608 policy). ``lrp-rli-ca-007`` fits the ordinary Beta-Binomial
+#: inverse-logit score mean; ``lrp-rli-ca-307`` fits the same model with the mean
+#: mapped onto [1/3, 1]. Neither may be released without the other.
+CONCURRENT_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-ca-007"
+CONCURRENT_BLENDING_COMPANION_MODEL_ID = "lrp-rli-ca-307"
 
 # The complete, closed set of legacy ``spec.extra`` keys the concurrent family
 # understands. Anything else is a typo and must fail before a fit starts.
@@ -51,6 +62,7 @@ _LEGACY_KEYS = frozenset(
         "include_group",
         "predictor_slope_sigma",
         "waves",
+        "score_mean_link",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -110,6 +122,15 @@ class ConcurrentModelSettings:
     include_group: bool = True
     predictor_slope_sigma: float | None = None
     waves: tuple[int, ...] | None = None
+    #: Phoneme-blending response link (#619, under the #608 policy). ``"logit"`` is
+    #: the ordinary Beta-Binomial inverse-logit score mean;
+    #: ``"three_choice_guessing_floor"`` maps it onto [1/3, 1] for the ten
+    #: three-alternative forced-choice blending items, whose expected score cannot
+    #: fall below chance. It applies to the **outcome's** score mean, so it is valid
+    #: only when the outcome is B -- a B *predictor* enters as a standardised
+    #: covariate, not as a modelled score. B only, and released only beside its
+    #: paired opposite-link fit.
+    score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -139,6 +160,11 @@ class ConcurrentModelSettings:
         object.__setattr__(
             self, "waves", _optional_positive_ints(self.waves, name="waves")
         )
+        if self.score_mean_link not in SCORE_MEAN_LINKS:
+            raise ValueError(
+                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+                f"got {self.score_mean_link!r}"
+            )
 
     @classmethod
     def from_legacy_extra(
@@ -165,6 +191,7 @@ class ConcurrentModelSettings:
             include_group=extra.get("include_group", True),
             predictor_slope_sigma=extra.get("predictor_slope_sigma"),
             waves=extra.get("waves"),
+            score_mean_link=extra.get("score_mean_link", "logit"),
         )
 
 
@@ -185,6 +212,14 @@ class ConcurrentRunPlan:
     # ``None`` -> the pipeline fills the build_concurrent_model default via _default_of.
     predictor_slope_sigma: float | None
     waves: tuple[int, ...]
+    # Phoneme-blending response link and its release pairing (#619).
+    # ``required_link_companion_model_id`` names the opposite-link fit that must be
+    # released beside this one; ``link_sensitivity_required_for_release`` is the
+    # policy flag the release gate reads, so a future B concurrent fit outside the
+    # registered pair fails closed rather than publishing unpaired.
+    score_mean_link: str
+    required_link_companion_model_id: str | None
+    link_sensitivity_required_for_release: bool
     # Recorded audit metadata (#394 pillar 4).
     design: str
     estimand: str
@@ -237,6 +272,14 @@ class ConcurrentRunPlan:
             if self.predictor_slope_sigma is None
             else f"{self.predictor_slope_sigma:g}"
         )
+        pairing = (
+            " This fit is one half of the mandatory phoneme-blending response-link "
+            f"pair: it must be read and released beside `"
+            f"{self.required_link_companion_model_id}`, which fits the same model "
+            "under the opposite score-mean link (#619)."
+            if self.required_link_companion_model_id
+            else ""
+        )
         return (
             "Note: Generated from the validated concurrent-associations run plan; "
             "template drafted by an LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -251,7 +294,8 @@ class ConcurrentRunPlan:
             f"Outcome: `{self.outcome_symbol}`. Predictor skills: {preds}. Trait "
             f"covariates: {covs}. Age term: {self.include_age}. Group nuisance term: "
             f"{self.include_group}. Complete-case covariates: {complete}. "
-            f"Predictor-slope prior sigma: {sigma}. Missingness indicators are "
+            f"Predictor-slope prior sigma: {sigma}. "
+            f"Score-mean link: {self.score_mean_link}.{pairing} Missingness indicators are "
             "nuisance subgroup offsets, not skill effects. Fitted waves: "
             f"{', '.join(map(str, self.waves))}.\n\n"
             "## Uncertainty and checks\n\n"
@@ -394,6 +438,26 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
             )
         waves = settings.waves or (1, 2, 3, 4)
     own = spec.outcome_symbol
+    if settings.score_mean_link == "three_choice_guessing_floor" and own != "B":
+        raise ValueError(
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
+            f"phoneme blending (B) as the modelled OUTCOME, got {own!r}. A B "
+            "predictor enters as a standardised covariate, not as a score mean."
+        )
+
+    # The mandatory phoneme-blending link pairing (#619, under the #608 policy).
+    # Every registered concurrent B fit is a model of record -- this family has no
+    # variant role -- so the pairing binds whenever the outcome is B.
+    link_pair_required = own == "B"
+    link_companion = (
+        (
+            CONCURRENT_BLENDING_PRIMARY_MODEL_ID
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else CONCURRENT_BLENDING_COMPANION_MODEL_ID
+        )
+        if link_pair_required
+        else None
+    )
 
     if not settings.predictor_symbols:
         raise ValueError(f"{spec.model_id}: predictor_symbols cannot be empty")
@@ -497,6 +561,9 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
         include_group=settings.include_group,
         predictor_slope_sigma=settings.predictor_slope_sigma,
         waves=waves,
+        score_mean_link=settings.score_mean_link,
+        required_link_companion_model_id=link_companion,
+        link_sensitivity_required_for_release=link_pair_required,
         design=design,
         estimand=estimand,
         causal_status=causal_status,

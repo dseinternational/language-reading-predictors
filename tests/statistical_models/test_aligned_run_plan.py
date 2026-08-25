@@ -204,3 +204,81 @@ def test_every_registered_aligned_model_resolves_with_metadata():
                 f"{spec.model_id}: {field} not recorded"
             )
         assert plan.prepare_kwargs()["outcomes"] == (spec.outcome_symbol,)
+
+
+# --- the phoneme-blending response-link pair (#619) ---------------------------
+
+
+def test_the_registered_blending_link_pair_is_paired_both_ways():
+    """#619: al-006 and al-306 fit the same analysis under the two response links,
+    each naming the other, and neither may release alone."""
+    specs = {spec.model_id: spec for spec in _aligned_specs()}
+    primary = resolve_aligned_run_plan(specs["lrp-rli-al-006"])
+    companion = resolve_aligned_run_plan(specs["lrp-rli-al-306"])
+    assert primary.score_mean_link == "logit"
+    assert companion.score_mean_link == "three_choice_guessing_floor"
+    assert primary.required_link_companion_model_id == "lrp-rli-al-306"
+    assert companion.required_link_companion_model_id == "lrp-rli-al-006"
+    assert primary.link_sensitivity_required_for_release
+    assert companion.link_sensitivity_required_for_release
+    # Same analysis, one difference.
+    for field in (
+        "outcome_symbol", "ability_covariate", "use_cohort", "use_dose",
+        "likelihood", "off_floor", "estimand", "causal_status",
+        "analysis_population",
+    ):
+        assert getattr(primary, field) == getattr(companion, field), field
+
+
+def test_only_graded_blending_headlines_require_the_link_pair():
+    """A non-B outcome has no chance floor, and the off-floor branch models a binary
+    indicator rather than a score mean."""
+    for kwargs in ({}, {"likelihood": "bernoulli_offfloor"}):
+        plan = resolve_aligned_run_plan(_spec(**kwargs))
+        assert plan.outcome_symbol == "W"
+        assert not plan.link_sensitivity_required_for_release
+        assert plan.required_link_companion_model_id is None
+
+
+def test_the_dose_sensitivity_variant_is_exempt_from_the_pairing():
+    """The pairing governs the fit whose B card is published. The cumulative-session
+    dose variant conditions on a collider and is a sensitivity reported beside the
+    headline, so requiring a floor twin of it would demand a fit that does not
+    exist — the boundary the level window comparator and the gain variants draw."""
+    plan = resolve_aligned_run_plan(_spec(outcome_symbol="B", use_dose=True))
+    assert not plan.link_sensitivity_required_for_release
+    assert plan.required_link_companion_model_id is None
+    # ... and it says where the headline lives instead of going silent.
+    assert "lrp-rli-al-006 + lrp-rli-al-306" in plan.design
+
+
+def test_the_guessing_floor_link_is_rejected_for_a_non_blending_outcome():
+    with pytest.raises(ValueError, match="only valid for phoneme blending"):
+        resolve_aligned_run_plan(
+            _spec(score_mean_link="three_choice_guessing_floor")
+        )
+
+
+def test_settings_reject_the_guessing_floor_on_the_off_floor_branch():
+    with pytest.raises(ValueError, match="no score mean to map"):
+        AlignedModelSettings(
+            likelihood="bernoulli_offfloor",
+            score_mean_link="three_choice_guessing_floor",
+        )
+
+
+def test_settings_reject_an_unknown_score_mean_link():
+    with pytest.raises(ValueError, match="score_mean_link must be one of"):
+        AlignedModelSettings(score_mean_link="probit")
+
+
+def test_the_link_reaches_the_factory_and_the_recipe():
+    specs = {spec.model_id: spec for spec in _aligned_specs()}
+    companion = resolve_aligned_run_plan(specs["lrp-rli-al-306"])
+    assert (
+        companion.factory_kwargs()["score_mean_link"]
+        == "three_choice_guessing_floor"
+    )
+    recipe = companion.recipe_markdown(title="t")
+    assert "Score-mean link: three_choice_guessing_floor" in recipe
+    assert "lrp-rli-al-006" in recipe

@@ -886,20 +886,26 @@ def test_blending_key_findings_show_both_current_links(tmp_path):
     assert "85% probability" in companion_texts
 
 
-def test_non_itt_blending_outcome_does_not_require_the_paired_bundle(tmp_path):
-    """A ``B`` outcome outside the registered pair must still finalise (#466 scope).
+def test_unpaired_family_blending_outcome_does_not_require_the_itt_bundle(tmp_path):
+    """A ``B`` outcome in a family with no registered pair must still finalise (#466 scope).
 
-    ``blending_sensitivity`` builds its two-trace bundle for ``lrp-rli-itt-008`` and
-    ``lrp-rli-itt-108`` only, but nine further models across the aligned, concurrent,
-    did, dose_response, gain_factors, level_factors and mediation families share the
-    ``B`` outcome symbol. Stamping the bundle hash on outcome symbol alone raised
-    ``FileNotFoundError`` inside ``runtime.finalize_report`` — after sampling, discarding the
-    whole fit — because those families' builders never reach the catchable
-    ``_KeyFindingsUnavailable`` that ``_kf_build_itt`` raises.
+    ``blending_sensitivity`` builds its two-trace archive bundle for
+    ``lrp-rli-itt-008`` and ``lrp-rli-itt-108`` only. Stamping that bundle's hash on
+    outcome symbol alone raised ``FileNotFoundError`` inside
+    ``runtime.finalize_report`` — after sampling, discarding the whole fit — because
+    other families' builders never reach the catchable ``_KeyFindingsUnavailable``
+    that ``_kf_build_itt`` raises.
+
+    The example is ``dose_response``: it is one of the two families that still has no
+    registered pair (#619). This test used ``aligned`` until #619 gave that family
+    ``lrp-rli-al-006`` + ``lrp-rli-al-306``, at which point a paired family stopped
+    being an example of an unpaired one — the *complementary* behaviour, a paired
+    family failing closed when its twin is absent, is covered in
+    ``test_blending_sensitivity.py``.
     """
-    d, _ = _remaining_family_case(tmp_path, "aligned")
+    d, _ = _remaining_family_case(tmp_path, "dose_response")
     config = json.loads((d / "config.json").read_text())
-    config["model_id"] = "lrp-rli-al-006"
+    config["model_id"] = "lrp-rli-dose-084"
     config["outcome_symbol"] = "B"
     _write_json(d, "config.json", config)
 

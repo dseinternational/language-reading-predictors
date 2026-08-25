@@ -1364,7 +1364,15 @@ class _StoredPairSpec:
     #: Filename and human label of the CSV holding the published card.
     card_file: str
     card_label: str
-    #: Card column -> the source CSV's column name for it.
+    #: Card column -> the source CSV's column name for it. **Empty** for a family
+    #: whose published output is a *table* rather than a single headline row (the
+    #: concurrent family publishes one marginal per wave x predictor x scale, and
+    #: names no single card). The pairing is unaffected: what binds it is the
+    #: identity evidence -- same data, same fitted rows, same sampling config, both
+    #: gates passed, genuinely opposite links -- and for a table card the row count
+    #: is compared too, so two fits that produced different marginal sets are not
+    #: mistaken for a pair. Inventing a "headline row" the family does not define
+    #: would put a number in the audit record that no report ever shows.
     card_columns: Mapping[str, str]
     #: Extra ``resolved_run_plan`` keys copied onto the card as strings. Recorded
     #: for the audit trail; never compared (the plans must differ, in the link).
@@ -1389,9 +1397,21 @@ def _stored_pair_card(
     )
     if not _report.convergence_gate_clean_passed(gate):
         raise ValueError(f"{model_id} did not pass its saved clean convergence gate")
-    row = _one_csv_row(
-        directory / spec.card_file, label=f"{model_id} {spec.card_label}"
-    )
+    card_path = directory / spec.card_file
+    if spec.card_columns:
+        row = _one_csv_row(card_path, label=f"{model_id} {spec.card_label}")
+        card_rows = 1
+    else:
+        # Table-valued card: verify it exists and is non-empty, and carry its shape.
+        if not card_path.is_file():
+            raise ValueError(
+                f"{model_id} has no {spec.card_label} ({spec.card_file})"
+            )
+        table = pd.read_csv(card_path)
+        if table.empty:
+            raise ValueError(f"{model_id}'s {spec.card_label} is empty")
+        row = {}
+        card_rows = int(len(table))
     plan = config.get("resolved_run_plan") or {}
     identity = config.get("fitted_data_identity") or {}
     card: dict[str, Any] = {
@@ -1404,8 +1424,11 @@ def _stored_pair_card(
     for field in spec.extra_plan_fields:
         card[field] = str(plan.get(field, ""))
     card["n_obs"] = config.get("n_obs")
-    for name, column in spec.card_columns.items():
-        card[name] = _finite_float(row.get(column), label=f"{model_id} {column}")
+    if spec.card_columns:
+        for name, column in spec.card_columns.items():
+            card[name] = _finite_float(row.get(column), label=f"{model_id} {column}")
+    else:
+        card["card_rows"] = card_rows
     return card
 
 
@@ -1487,12 +1510,15 @@ def _evaluate_stored_blending_link_pair(
             )
         # The run-plan digests must *differ* only in the link, so they are compared
         # by refusing agreement on everything else rather than on the digest itself.
-        for field, label in (
+        compared = [
             ("data_sha256", "dataset"),
             ("fitted_rows_digest", "fitted rows"),
             ("config_name", "sampling configuration"),
             ("n_obs", "row count"),
-        ):
+        ]
+        if not spec.card_columns:
+            compared.append(("card_rows", f"{spec.card_label} shape"))
+        for field, label in compared:
             values = {card[field] for card in cards.values()}
             if len(values) != 1:
                 raise ValueError(
@@ -1564,6 +1590,40 @@ _GAIN_PAIR_SPEC = _StoredPairSpec(
 )
 
 
+#: The aligned family's pair (#619). It has no ROPE row -- the per-protocol cohort
+#: contrast is never a randomised effect, so no minimally-important difference is
+#: declared for it -- and its published card is ``cohort_marginal.csv``.
+_ALIGNED_PAIR_SPEC = _StoredPairSpec(
+    kind="aligned",
+    kind_article="an aligned fit",
+    registered_label="the registered aligned blending fits",
+    not_this_family="an onset-aligned fit",
+    card_file="cohort_marginal.csv",
+    card_label="cohort marginal",
+    card_columns={
+        "items_median": "trt_items_median",
+        "items_lo": "trt_items_lo",
+        "items_hi": "trt_items_hi",
+        "pd": "prob_trt_pos",
+    },
+)
+
+
+#: The concurrent family's pair (#619). Its published output is a *table* -- one
+#: marginal per wave x predictor x scale -- and the family names no single headline
+#: row, so no scalar card is extracted; the pairing rests on the identity evidence
+#: plus a marginals-table shape check.
+_CONCURRENT_PAIR_SPEC = _StoredPairSpec(
+    kind="concurrent",
+    kind_article="a concurrent fit",
+    registered_label="the registered concurrent blending fits",
+    not_this_family="a concurrent-associations fit",
+    card_file="concurrent_marginals.csv",
+    card_label="concurrent marginals",
+    card_columns={},
+)
+
+
 def evaluate_level_blending_link_pair(
     output_dir: str | Path,
     *,
@@ -1620,6 +1680,89 @@ def evaluate_did_blending_link_pair(
     )
 
 
+def evaluate_aligned_blending_link_pair(
+    output_dir: str | Path,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Is this onset-aligned ``B`` fit releasable beside its opposite-link twin? (#619)
+
+    ``lrp-rli-al-006`` fits the ordinary logit Beta-Binomial score mean for a
+    ten-item, three-alternative forced-choice test, and its stored posterior puts
+    4.9 % of its row-by-draw mass below the guessing floor, with a worst row at
+    98.0 %.
+
+    Nothing here is randomised — the per-protocol cohort contrast is confounded by
+    age-at-onset and cohort/timing — and that is deliberately not an exemption: the
+    #608 decision binds association and contrast alike, because any quantity
+    reported on the natural scale inherits the link dependence regardless of what
+    identifies it. The card checked is therefore ``cohort_marginal.csv``, not a
+    ROPE row; this family declares no minimally-important difference for a
+    non-randomised contrast.
+
+    Scope is the model of record: the cumulative-session dose variant
+    (``use_dose``) is a collider-conditioned sensitivity reported beside the
+    headline, so its plan does not declare the pairing.
+
+    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    """
+    from language_reading_predictors.statistical_models.aligned import (
+        ALIGNED_BLENDING_COMPANION_MODEL_ID,
+        ALIGNED_BLENDING_PRIMARY_MODEL_ID,
+    )
+
+    return _evaluate_stored_blending_link_pair(
+        output_dir,
+        config=config,
+        spec=_ALIGNED_PAIR_SPEC,
+        registered=(
+            ALIGNED_BLENDING_PRIMARY_MODEL_ID,
+            ALIGNED_BLENDING_COMPANION_MODEL_ID,
+        ),
+    )
+
+
+def evaluate_concurrent_blending_link_pair(
+    output_dir: str | Path,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Is this concurrent ``B`` fit releasable beside its opposite-link twin? (#619)
+
+    ``lrp-rli-ca-007`` fits the ordinary logit Beta-Binomial score mean for a
+    ten-item, three-alternative forced-choice outcome, and its stored posterior puts
+    9.7 % of its row-by-draw mass below the guessing floor.
+
+    Every coefficient in this family is an adjusted association, and that is not an
+    exemption: the #608 decision binds association and contrast alike, because the
+    link determines the mapping onto the natural scale that
+    ``concurrent_marginals.csv`` reports.
+
+    The link governs blending as the **outcome**. Models where B is a *predictor*
+    are untouched — it enters those as a standardised same-wave logit covariate, not
+    as a modelled score mean — so they return "no link pairing" here.
+
+    Unlike the other families this one publishes a table rather than a single card,
+    so no scalar estimate is extracted; see :data:`_CONCURRENT_PAIR_SPEC`.
+
+    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    """
+    from language_reading_predictors.statistical_models.concurrent import (
+        CONCURRENT_BLENDING_COMPANION_MODEL_ID,
+        CONCURRENT_BLENDING_PRIMARY_MODEL_ID,
+    )
+
+    return _evaluate_stored_blending_link_pair(
+        output_dir,
+        config=config,
+        spec=_CONCURRENT_PAIR_SPEC,
+        registered=(
+            CONCURRENT_BLENDING_PRIMARY_MODEL_ID,
+            CONCURRENT_BLENDING_COMPANION_MODEL_ID,
+        ),
+    )
+
+
 def evaluate_gain_blending_link_pair(
     output_dir: str | Path,
     *,
@@ -1666,6 +1809,8 @@ __all__ = [
     "BLENDING_SENSITIVITY_FILENAME",
     "build_blending_link_sensitivity",
     "evaluate_blending_link_sensitivity",
+    "evaluate_aligned_blending_link_pair",
+    "evaluate_concurrent_blending_link_pair",
     "evaluate_did_blending_link_pair",
     "evaluate_gain_blending_link_pair",
     "evaluate_level_blending_link_pair",

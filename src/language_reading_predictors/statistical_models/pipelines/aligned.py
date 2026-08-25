@@ -33,6 +33,9 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    AlignedPayload,
+)
 from language_reading_predictors.statistical_models.figure_artifacts import (
     save_association_forest,
 )
@@ -77,6 +80,12 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Build model")
     built = _factories.build_aligned_model(prepared, **plan.factory_kwargs())
     attach_built(ctx, built)
+    # The score-mean link the factory BUILT, not the one the module declared, so the
+    # cohort marginal and its prior pushforward cannot drift from the likelihood
+    # (#619).
+    link = built.require_payload(
+        AlignedPayload, family="aligned"
+    ).score_mean_link
 
     render_model_graph(ctx)
 
@@ -124,7 +133,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
         cme = _report.treatment_marginal_effect(
             ctx.trace, trt=cohort, n_trials=n_marg, term="beta_cohort",
-            ci_prob=ctx.reporting.ci_prob,
+            ci_prob=ctx.reporting.ci_prob, score_mean_link=link,
         )
         save_table(ctx, "cohort_marginal", pd.DataFrame([cme]))
         meta_extra["cohort_marginal"] = cme
@@ -143,6 +152,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             pf = _report.prior_pushforward(
                 ctx.prior_samples, G=cohort, n_trials=n_marg,
                 term="beta_cohort", varying_term="", ci_prob=ctx.reporting.ci_prob,
+                score_mean_link=link,
             )
             rows = [
                 _report.labelled_pushforward(

@@ -1,0 +1,52 @@
+---
+title: "LRPAL06f: Aligned per-protocol gain for phoneme blending (PA) under the one-in-three guessing floor"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRPAL06f is the registered **response-link companion** to [LRPAL06](../lrp-rli-al-006/index.qmd) (#619, under the #608 policy), mirroring [LRPITT08b](../lrp-rli-itt-108/index.qmd), [LRPLF06b](../lrp-rli-lf-106/index.qmd) and [LRPGF06f](../lrp-rli-gf-306/index.qmd). Same children, same onset alignment, same adjustment set and the same cohort contrast `beta_cohort`; the single difference is the score mean.
+
+Phoneme blending has ten **three-alternative forced-choice** items, so a child answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial inverse-logit mean does not know that, and the LRPAL06 posterior uses the room it leaves: 2 of its 54 rows have posterior-mean expected proportions below one third, 4.9 % of the row-by-draw posterior mass sits below chance, and the worst single row puts 98.0 % of its mass there. This companion constrains the mean to $\tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$, so the model cannot predict below-chance performance.
+
+**The two fits are one piece of evidence.** Because the links can disagree about the size of the estimate — in the two pairs fitted under both, the items number fell by about 40 % and the interval crossed zero — neither is sufficient on its own: both plans are marked link-sensitivity-required, and the release gate refuses to publish either without the other.
+
+_Causal labelling._ Unchanged from LRPAL06, and deliberately so. This is a **per-protocol** design: `beta_cohort` contrasts the two arms at their own onset-aligned endpoints and is confounded by age-at-onset and cohort/timing, so **no coefficient here is a clean treatment effect** — all are associations, under either link. That is not an exemption from the pairing. The #608 decision binds association and contrast alike, because the link determines the mapping from the latent scale onto the natural one, and any quantity published in items inherits that dependence regardless of what identifies it. `cohort_marginal.csv` is exactly such a quantity.
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the aligned post-count, $N = 10$, with the **guessing-floor score mean** $\mu = \tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$ and
+
+$$
+\eta = \alpha + \beta_{\text{cohort}}\,\text{cohort} + \gamma_{\text{own}}\operatorname{logit}_*(\text{onset baseline})
+  + \gamma_A A_{\text{onset,std}} + \gamma_{\text{ability}}z(\text{blocks}).
+$$
+
+One row per child (no random intercept). Priors follow the shared template in `priors.py`, unchanged from LRPAL06.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+**Every reported natural-scale quantity is on this link.** The cohort marginal and its prior pushforward both map through $\tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\cdot)$ rather than the raw inverse logit, because the same latent shift $\Delta\eta$ produces a smaller response-scale change under the floor link. Summarising this posterior on the ordinary link would publish an LRPAL06 number from an LRPAL06f fit.
+
+**No intercept anchor to remap.** Like the gain family, this one gives $\alpha$ a zero-centred prior and carries the outcome level in $\gamma_{\text{own}}$, so there is no empirical-Bayes location to map back through the link — unlike the level companion, whose anchor moved 1.1 logits.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_aligned.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
