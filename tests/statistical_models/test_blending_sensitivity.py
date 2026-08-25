@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 import re
 import shutil
 from pathlib import Path
@@ -616,22 +617,21 @@ def test_level_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_pat
     _level_fit_dir(
         models, "lrp-rli-lf-106", link="three_choice_guessing_floor", items_median=0.43
     )
-    status = bs.evaluate_level_blending_link_pair(primary)
+    status = bs.evaluate_level_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and status["ready"], status
     cards = status["cards"]
     assert cards["lrp-rli-lf-006"]["score_mean_link"] == "logit"
     assert cards["lrp-rli-lf-106"]["items_median"] == 0.43
     # Either side of the pair sees the same verdict.
     companion_status = bs.evaluate_level_blending_link_pair(
-        models / "lrp-rli-lf-106-reporting"
-    )
+        models / "lrp-rli-lf-106-reporting", plan_checker=_plan_is_current)
     assert companion_status["ready"]
 
 
 def test_level_pair_is_not_ready_without_its_twin(tmp_path):
     models = tmp_path / "models"
     primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
-    status = bs.evaluate_level_blending_link_pair(primary)
+    status = bs.evaluate_level_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and not status["ready"]
     assert "not present beside this one" in status["reason"]
 
@@ -643,7 +643,7 @@ def test_level_pair_requires_the_registered_pairing_even_on_a_stale_plan(tmp_pat
     primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
     config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
     config["resolved_run_plan"].pop("link_sensitivity_required_for_release")
-    status = bs.evaluate_level_blending_link_pair(primary, config=config)
+    status = bs.evaluate_level_blending_link_pair(primary, config=config, plan_checker=_plan_is_current)
     assert status["required"] and not status["ready"]
 
 
@@ -656,7 +656,7 @@ def test_level_pair_rejects_an_unconverged_side(tmp_path):
         link="three_choice_guessing_floor",
         gate_passed=False,
     )
-    status = bs.evaluate_level_blending_link_pair(primary)
+    status = bs.evaluate_level_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "convergence gate" in status["reason"]
 
@@ -670,7 +670,7 @@ def test_level_pair_rejects_different_fitted_rows(tmp_path):
         link="three_choice_guessing_floor",
         digest="0th3r",
     )
-    status = bs.evaluate_level_blending_link_pair(primary)
+    status = bs.evaluate_level_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "fitted rows" in status["reason"]
 
@@ -679,7 +679,7 @@ def test_level_pair_rejects_two_fits_under_the_same_link(tmp_path):
     models = tmp_path / "models"
     primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
     _level_fit_dir(models, "lrp-rli-lf-106", link="logit")
-    status = bs.evaluate_level_blending_link_pair(primary)
+    status = bs.evaluate_level_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "opposite score-mean links" in status["reason"]
 
@@ -700,12 +700,13 @@ def test_level_pair_ignores_a_non_blending_level_fit(tmp_path):
         ),
         encoding="utf-8",
     )
-    status = bs.evaluate_level_blending_link_pair(directory)
+    status = bs.evaluate_level_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_level_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
+
 
     models = tmp_path / "models"
     primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
@@ -885,6 +886,7 @@ def test_gain_pair_exempts_the_b_variants(tmp_path):
 def test_release_gate_withholds_an_unpaired_gain_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
 
+
     models = tmp_path / "models"
     primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
     config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
@@ -896,6 +898,7 @@ def test_release_gate_withholds_an_unpaired_gain_blending_fit(tmp_path):
 
 def test_release_gate_lets_the_exempt_gain_b_variants_through(tmp_path):
     from language_reading_predictors.statistical_models import release
+
 
     models = tmp_path / "models"
     for model_id in ("lrp-rli-gf-106", "lrp-rli-gf-206"):
@@ -987,7 +990,7 @@ def test_aligned_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_p
         link="three_choice_guessing_floor",
         items_median=0.37,
     )
-    status = bs.evaluate_aligned_blending_link_pair(primary)
+    status = bs.evaluate_aligned_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and status["ready"], status
     assert status["cards"]["lrp-rli-al-306"]["items_median"] == 0.37
 
@@ -995,7 +998,7 @@ def test_aligned_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_p
 def test_aligned_pair_is_not_ready_without_its_twin(tmp_path):
     models = tmp_path / "models"
     primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
-    status = bs.evaluate_aligned_blending_link_pair(primary)
+    status = bs.evaluate_aligned_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and not status["ready"]
     assert "not present beside this one" in status["reason"]
 
@@ -1006,7 +1009,7 @@ def test_aligned_pair_rejects_different_fitted_rows(tmp_path):
     _aligned_fit_dir(
         models, "lrp-rli-al-306", link="three_choice_guessing_floor", digest="0th3r"
     )
-    status = bs.evaluate_aligned_blending_link_pair(primary)
+    status = bs.evaluate_aligned_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "fitted rows" in status["reason"]
 
@@ -1016,12 +1019,13 @@ def test_aligned_pair_ignores_a_non_blending_aligned_fit(tmp_path):
     directory = _aligned_fit_dir(
         models, "lrp-rli-al-001", link="logit", outcome_symbol="W", required=False
     )
-    status = bs.evaluate_aligned_blending_link_pair(directory)
+    status = bs.evaluate_aligned_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_aligned_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
+
 
     models = tmp_path / "models"
     primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
@@ -1108,7 +1112,7 @@ def test_concurrent_pair_is_ready_without_a_scalar_card(tmp_path):
     models = tmp_path / "models"
     primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
     _concurrent_fit_dir(models, "lrp-rli-ca-307", link="three_choice_guessing_floor")
-    status = bs.evaluate_concurrent_blending_link_pair(primary)
+    status = bs.evaluate_concurrent_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and status["ready"], status
     card = status["cards"]["lrp-rli-ca-007"]
     assert card["card_rows"] == 12
@@ -1125,7 +1129,7 @@ def test_concurrent_pair_rejects_a_different_marginals_shape(tmp_path):
         link="three_choice_guessing_floor",
         n_marginal_rows=9,
     )
-    status = bs.evaluate_concurrent_blending_link_pair(primary)
+    status = bs.evaluate_concurrent_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "concurrent marginals shape" in status["reason"]
 
@@ -1139,7 +1143,7 @@ def test_concurrent_pair_rejects_an_empty_marginals_table(tmp_path):
     pd.DataFrame(columns=["timepoint", "term"]).to_csv(
         companion / "concurrent_marginals.csv", index=False
     )
-    status = bs.evaluate_concurrent_blending_link_pair(primary)
+    status = bs.evaluate_concurrent_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "empty" in status["reason"]
 
@@ -1151,12 +1155,13 @@ def test_concurrent_pair_ignores_a_fit_where_b_is_only_a_predictor(tmp_path):
     directory = _concurrent_fit_dir(
         models, "lrp-rli-ca-001", link="logit", outcome_symbol="W", required=False
     )
-    status = bs.evaluate_concurrent_blending_link_pair(directory)
+    status = bs.evaluate_concurrent_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_concurrent_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
+
 
     models = tmp_path / "models"
     primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
@@ -1303,7 +1308,7 @@ def test_dose_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path
         link="three_choice_guessing_floor",
         items_median=0.009,
     )
-    status = bs.evaluate_dose_blending_link_pair(primary)
+    status = bs.evaluate_dose_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and status["ready"], status
     assert status["cards"]["lrp-rli-dose-384"]["items_median"] == 0.009
 
@@ -1311,7 +1316,7 @@ def test_dose_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path
 def test_dose_pair_is_not_ready_without_its_twin(tmp_path):
     models = tmp_path / "models"
     primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
-    status = bs.evaluate_dose_blending_link_pair(primary)
+    status = bs.evaluate_dose_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and not status["ready"]
     assert "not present beside this one" in status["reason"]
 
@@ -1322,7 +1327,7 @@ def test_dose_pair_rejects_different_fitted_rows(tmp_path):
     _dose_fit_dir(
         models, "lrp-rli-dose-384", link="three_choice_guessing_floor", digest="0th3r"
     )
-    status = bs.evaluate_dose_blending_link_pair(primary)
+    status = bs.evaluate_dose_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "fitted rows" in status["reason"]
 
@@ -1332,12 +1337,13 @@ def test_dose_pair_ignores_a_non_blending_dose_fit(tmp_path):
     directory = _dose_fit_dir(
         models, "lrp-rli-dose-077", link="logit", outcome_symbol="W", required=False
     )
-    status = bs.evaluate_dose_blending_link_pair(directory)
+    status = bs.evaluate_dose_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_dose_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
+
 
     models = tmp_path / "models"
     primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
@@ -1438,7 +1444,7 @@ def test_mediation_pair_selects_the_total_row_from_the_decomposition(tmp_path):
         link="three_choice_guessing_floor",
         total_items=0.41,
     )
-    status = bs.evaluate_mediation_blending_link_pair(primary)
+    status = bs.evaluate_mediation_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and status["ready"], status
     assert status["cards"]["lrp-rli-med-087"]["items_median"] == 0.674
     assert status["cards"]["lrp-rli-med-387"]["items_median"] == 0.41
@@ -1455,7 +1461,7 @@ def test_mediation_pair_rejects_a_decomposition_of_a_different_shape(tmp_path):
         link="three_choice_guessing_floor",
         n_quantities=3,
     )
-    status = bs.evaluate_mediation_blending_link_pair(primary)
+    status = bs.evaluate_mediation_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "mediation summary shape" in status["reason"]
 
@@ -1469,7 +1475,7 @@ def test_mediation_pair_rejects_a_card_with_no_total_row(tmp_path):
     table = pd.read_csv(companion / "mediation_summary.csv")
     table["quantity"] = table["quantity"].replace({"total": "IDE"})
     table.to_csv(companion / "mediation_summary.csv", index=False)
-    status = bs.evaluate_mediation_blending_link_pair(primary)
+    status = bs.evaluate_mediation_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "exactly one quantity='total' row" in status["reason"]
 
@@ -1477,7 +1483,7 @@ def test_mediation_pair_rejects_a_card_with_no_total_row(tmp_path):
 def test_mediation_pair_is_not_ready_without_its_twin(tmp_path):
     models = tmp_path / "models"
     primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
-    status = bs.evaluate_mediation_blending_link_pair(primary)
+    status = bs.evaluate_mediation_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and not status["ready"]
     assert "not present beside this one" in status["reason"]
 
@@ -1489,12 +1495,13 @@ def test_mediation_pair_exempts_the_interventional_relabelling(tmp_path):
     directory = _mediation_fit_dir(
         models, "lrp-rli-med-187", link="logit", required=False
     )
-    status = bs.evaluate_mediation_blending_link_pair(directory)
+    status = bs.evaluate_mediation_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_mediation_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
+
 
     models = tmp_path / "models"
     primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
@@ -1569,3 +1576,234 @@ def test_every_family_registering_a_blending_model_has_a_gate():
         "these registered B models are in families with no pair gate, so they would "
         f"fail closed at release: {sorted(ungated)}"
     )
+
+
+# --- the run-plan + provenance binding (#608 decision 2, as amended) ----------
+
+
+@pytest.fixture(autouse=True)
+def monkeypatch_plan_currency_fixture(monkeypatch, request):
+    """Stub the run-plan currency check for every fixture-based test in this module.
+
+    The synthetic fits here carry stub run plans, so the real checker -- which
+    re-resolves each model's module -- would report every stub field as stale and
+    fail tests that are about something else entirely.
+
+    A test that is *about* the checker opts out with ``@pytest.mark.real_plan_currency``.
+    Without that escape hatch those tests would be stubbed too and would pass
+    vacuously, which is worse than not having them.
+    """
+    if request.node.get_closest_marker("real_plan_currency") is not None:
+        return
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    monkeypatch.setattr(
+        blending_sensitivity, "_stale_plan_fields", lambda *_a, **_k: []
+    )
+
+
+def _plan_is_current(model_id: str, kind: str, stored):
+    """A currency checker that reports no staleness.
+
+    The synthetic fixtures in this module carry stub run plans, so the real checker
+    -- which re-resolves the module and would report every stub field as stale --
+    cannot be used against them. Injecting this is the same idiom
+    ``evaluate_blending_link_sensitivity`` already uses for its trace and row-map
+    validators; the staleness behaviour itself is tested against the real checker
+    below and against the two genuinely stale stored fits in the repository.
+    """
+    return []
+
+
+def _plan_pair(tmp_path, *, primary_plan=None, companion_plan=None):
+    """A ready gain pair whose two halves' stored run plans can be perturbed."""
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    companion = _gain_fit_dir(
+        models, "lrp-rli-gf-306", link="three_choice_guessing_floor"
+    )
+    for directory, extra in ((primary, primary_plan), (companion, companion_plan)):
+        if not extra:
+            continue
+        config = json.loads((directory / "config.json").read_text(encoding="utf-8"))
+        config["resolved_run_plan"].update(extra)
+        (directory / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    return primary
+
+
+def test_pair_rejects_halves_whose_run_plans_differ_beyond_the_link(monkeypatch):
+    """The defect this check exists for (#619 review).
+
+    A stored ``lrp-rli-med-087`` fitted before #600 lacked the g-formula's per-leg
+    baseline terms; its companion, built from current code, had them. Every check
+    that existed then passed — data, fitted rows, sampling config, card shape — and
+    the published comparison was confounded between the link and the model. What
+    separates the two is the resolved run plan, and nothing was comparing it.
+    """
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    a = {"skill_symbols": ["L", "E", "TE"], "adjust_for": ["hs"]}
+    b = {"skill_symbols": ["L", "E", "TE"], "adjust_for": ["hs", "erbto"]}
+    assert blending_sensitivity._comparable_plan(a) != blending_sensitivity._comparable_plan(b)
+    mismatched = sorted(
+        name
+        for name in set(a) | set(b)
+        if blending_sensitivity._normalise_plan_value(a.get(name))
+        != blending_sensitivity._normalise_plan_value(b.get(name))
+    )
+    assert mismatched == ["adjust_for"]
+
+
+def test_the_plan_comparison_survives_the_json_round_trip():
+    """Resolvers produce tuples; ``config.json`` returns lists.
+
+    Comparing them raw reports every tuple-valued field as drifted, which is a fact
+    about serialisation and would drown the real signal. This is the normalisation
+    that keeps the check meaningful — an earlier draft of it flagged fits made
+    minutes before, which is how the bug was noticed.
+    """
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    resolved = {"adjust_for": ("hs", "hs_missing"), "nested": ({"a": (1, 2)},)}
+    stored = json.loads(json.dumps({"adjust_for": ["hs", "hs_missing"],
+                                    "nested": [{"a": [1, 2]}]}))
+    assert blending_sensitivity._comparable_plan(resolved) == (
+        blending_sensitivity._comparable_plan(stored)
+    )
+
+
+def test_the_link_and_prose_fields_are_excluded_from_the_comparison():
+    """A pair MUST differ in the link and in the pairing bookkeeping derived from
+    it, and its generated prose embeds the link clause. Comparing those would fail
+    every pair for being a pair."""
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    logit = {
+        "score_mean_link": "logit",
+        "required_link_companion_model_id": "lrp-rli-gf-306",
+        "design": "... ordinary inverse-logit ...",
+        "settings_source": "legacy_extra",
+        "adjust_for": ("hs",),
+    }
+    floor = {
+        "score_mean_link": "three_choice_guessing_floor",
+        "required_link_companion_model_id": "lrp-rli-gf-006",
+        "design": "... mapped onto [1/3, 1] ...",
+        "settings_source": "typed",
+        "adjust_for": ("hs",),
+    }
+    assert blending_sensitivity._comparable_plan(logit) == (
+        blending_sensitivity._comparable_plan(floor)
+    )
+
+
+def test_every_gated_family_has_a_run_plan_resolver():
+    """The currency check fails closed when a family has no resolver, so a gated
+    family without one would withhold its pair. The two maps must stay in step."""
+    from language_reading_predictors.statistical_models import blending_sensitivity
+    from language_reading_predictors.statistical_models import release
+
+    missing = sorted(set(release._BLENDING_PAIR_GATES) - set(blending_sensitivity._PLAN_RESOLVERS))
+    assert not missing, (
+        f"these gated families have no run-plan resolver, so their pairs would fail "
+        f"the staleness check: {missing}"
+    )
+
+
+def test_provenance_is_recorded_and_surfaced_but_not_required_to_match():
+    """A companion is registered in a later commit than its primary by construction,
+    so requiring one commit would fail-close five of six live pairs for a fact about
+    git history. The note says where each half came from instead."""
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    note = blending_sensitivity._pair_provenance_note(
+        {
+            "model_id": "lrp-rli-gf-006",
+            "source_commit": "a" * 40,
+            "source_dirty": False,
+            "environment_lock_sha256": "e" * 64,
+        },
+        {
+            "model_id": "lrp-rli-gf-306",
+            "source_commit": "b" * 40,
+            "source_dirty": True,
+            "environment_lock_sha256": "f" * 64,
+        },
+    )
+    assert "different source commits" in note
+    assert "uncommitted changes" in note and "lrp-rli-gf-306" in note
+    assert "different environment locks" in note
+    # Identical provenance says nothing at all.
+    same = {
+        "model_id": "x",
+        "source_commit": "a" * 40,
+        "source_dirty": False,
+        "environment_lock_sha256": "e" * 64,
+    }
+    assert blending_sensitivity._pair_provenance_note(same, {**same, "model_id": "y"}) == ""
+
+
+def test_a_ready_pair_does_not_leak_private_card_fields(tmp_path):
+    """The comparable plan is an implementation detail of the check, not part of the
+    published card."""
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    _gain_fit_dir(models, "lrp-rli-gf-306", link="three_choice_guessing_floor")
+    status = bs.evaluate_gain_blending_link_pair(primary, plan_checker=_plan_is_current)
+    for card in status["cards"].values():
+        assert not any(name.startswith("_") for name in card), sorted(card)
+        assert "source_commit" in card and "environment_lock_sha256" in card
+
+
+@pytest.mark.real_plan_currency
+def test_the_real_currency_checker_passes_a_current_fit():
+    """Exercised against the real resolver, not the stub the fixture installs."""
+    import json as _json
+
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    directory = Path("output/statistical_models/models/lrp-rli-gf-306-reporting")
+    if not (directory / "config.json").is_file():
+        pytest.skip("lrp-rli-gf-306 is not fitted in this checkout")
+    config = _json.loads((directory / "config.json").read_text(encoding="utf-8"))
+    stored = blending_sensitivity._comparable_plan(config["resolved_run_plan"])
+    assert (
+        blending_sensitivity._stale_plan_fields("lrp-rli-gf-306", "gain_factors", stored)
+        == []
+    )
+
+
+@pytest.mark.real_plan_currency
+def test_the_real_currency_checker_catches_a_stale_stored_plan():
+    """The check earns its place on real evidence, not a synthetic perturbation.
+
+    ``lrp-rli-lf-006-reporting.pre-594-estimand-20260825`` is the fit this repository
+    actually published before #619's review: its card was produced by the estimand
+    #594 superseded, and it also predates #598's dispersion and child-SD priors.
+    Nothing in the pipeline flagged it. This asserts the checker names those fields.
+    """
+    import json as _json
+
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    directory = Path(
+        "output/statistical_models/models/"
+        "lrp-rli-lf-006-reporting.pre-594-estimand-20260825"
+    )
+    if not (directory / "config.json").is_file():
+        pytest.skip("the pre-#594 lf-006 backup is not present in this checkout")
+    config = _json.loads((directory / "config.json").read_text(encoding="utf-8"))
+    stored = blending_sensitivity._comparable_plan(config["resolved_run_plan"])
+    stale = blending_sensitivity._stale_plan_fields(
+        "lrp-rli-lf-006", "level_factors", stored
+    )
+    assert "standardisation_balance_term" in stale, stale
+    assert "sigma_child_prior_sigma" in stale, stale
+
+
+@pytest.mark.real_plan_currency
+def test_the_currency_checker_fails_closed_for_a_family_with_no_resolver():
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    with pytest.raises(ValueError, match="no registered run-plan resolver"):
+        blending_sensitivity._stale_plan_fields("lrp-rli-pl-001", "pooled_levels", {})

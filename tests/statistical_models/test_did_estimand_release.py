@@ -339,6 +339,26 @@ def _blending_fit_dir(
     return directory
 
 
+@pytest.fixture(autouse=True)
+def _stub_run_plan_currency(monkeypatch, request):
+    """Stub the run-plan currency check for this module's synthetic DiD fits.
+
+    #608 decision 2 (as amended 2026-08-25) makes a stored fit's run plan a release
+    input: it must still match what its module resolves. The fits built here are
+    minimal stubs, so the real checker reports every absent field as stale and fails
+    tests that are about the pairing rather than about currency. The checker's own
+    behaviour is tested against real stored fits in
+    ``test_blending_sensitivity.py``; ``@pytest.mark.real_plan_currency`` opts out.
+    """
+    if request.node.get_closest_marker("real_plan_currency") is not None:
+        return
+    from language_reading_predictors.statistical_models import blending_sensitivity
+
+    monkeypatch.setattr(
+        blending_sensitivity, "_stale_plan_fields", lambda *_a, **_k: []
+    )
+
+
 def test_blending_pair_is_ready_when_both_sides_are_present_and_gated(tmp_path):
     primary = _blending_fit_dir(tmp_path, DID_BLENDING_PRIMARY_MODEL_ID, link="logit")
     _blending_fit_dir(

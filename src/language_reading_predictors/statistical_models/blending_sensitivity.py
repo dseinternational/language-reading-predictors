@@ -1343,6 +1343,124 @@ def evaluate_local_blending_link_sensitivity(
 # says so in what it returns. Promoting the level pair to the archive path is
 # tracked separately; until then a level B fit publishes only beside its twin.
 
+#: Run-plan keys that a link pair is *expected* to differ on: the link itself and
+#: the pairing bookkeeping derived from it. Everything else must agree, because a
+#: link sensitivity that also moved a term, a prior or an adjustment set is not a
+#: link sensitivity.
+_PLAN_LINK_FIELDS: tuple[str, ...] = (
+    "model_id",
+    "score_mean_link",
+    "required_link_companion_model_id",
+    "link_sensitivity_required_for_release",
+    "run_plan_digest",
+)
+
+#: Generated prose. It is derived from the structural fields and embeds the link
+#: clause, so comparing it would report the link twice and nothing new. Excluded
+#: from the comparison, not from the record.
+_PLAN_PROSE_FIELDS: tuple[str, ...] = (
+    "design",
+    "estimand",
+    "causal_status",
+    "analysis_population",
+    "missing_data_assumption",
+    "natural_scale_estimand",
+    "loo_note",
+    # How the settings were *declared* (typed dataclass vs the legacy ``extra``
+    # dict), not what they resolve to. Two fits whose resolved settings agree are
+    # the same model whichever way they were written, so comparing this would fail
+    # a pair whose companion was declared in the newer style -- a false positive
+    # about house style, not about the fit.
+    "settings_source",
+)
+
+#: ``ModelSpec.kind`` -> the module and function that resolve its run plan. Used to
+#: re-resolve a stored fit's plan from its module and detect a fit whose recorded
+#: plan no longer matches what the code would produce today (#608 decision 2, as
+#: amended). There is no central resolver registry in the package, so this map is
+#: the one place the seven stored-artefact families' resolvers are named together;
+#: ``test_blending_sensitivity`` asserts it covers every gated family.
+_PLAN_RESOLVERS: dict[str, tuple[str, str]] = {
+    "aligned": ("aligned", "resolve_aligned_run_plan"),
+    "concurrent": ("concurrent", "resolve_concurrent_run_plan"),
+    "did": ("did", "resolve_did_run_plan"),
+    "dose_response": ("dose_response", "resolve_dose_response_run_plan"),
+    "gain_factors": ("gain_factors", "resolve_gain_factors_run_plan"),
+    "level_factors": ("level_factors", "resolve_level_factors_run_plan"),
+    "mediation": ("mediation_settings", "resolve_mediation_run_plan"),
+}
+
+
+def _normalise_plan_value(value: Any) -> Any:
+    """Make a run-plan value comparable across the JSON round trip.
+
+    ``config.json`` is JSON, so every tuple a resolver produces comes back as a
+    list. Comparing a freshly resolved plan against a stored one without this
+    reports every tuple-valued field as drifted -- a fact about serialisation, not
+    about the fit. Getting this wrong turns the check into noise, which is worse
+    than not having it.
+    """
+    if isinstance(value, (tuple, list)):
+        return [_normalise_plan_value(item) for item in value]
+    if isinstance(value, Mapping):
+        return {str(k): _normalise_plan_value(v) for k, v in value.items()}
+    return value
+
+
+def _comparable_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
+    """The structural part of a run plan, normalised for comparison."""
+    skip = set(_PLAN_LINK_FIELDS) | set(_PLAN_PROSE_FIELDS)
+    return {
+        str(name): _normalise_plan_value(value)
+        for name, value in plan.items()
+        if name not in skip
+    }
+
+
+def _stale_plan_fields(
+    model_id: str, kind: str, stored: Mapping[str, Any]
+) -> list[str]:
+    """Which of ``stored``'s fields no longer match what ``model_id``'s module resolves.
+
+    Empty means the stored plan is current. A family with no registered resolver
+    raises rather than returning empty: a check that cannot run must fail closed,
+    not pass silently.
+    """
+    entry = _PLAN_RESOLVERS.get(kind)
+    if entry is None:
+        raise ValueError(
+            f"{model_id}'s family ({kind!r}) has no registered run-plan resolver, "
+            "so its stored plan cannot be checked for staleness"
+        )
+    module_name, function_name = entry
+    import importlib
+
+    from language_reading_predictors.statistical_models.registry import (
+        discover_models,
+    )
+
+    lazy = discover_models().get(model_id)
+    if lazy is None:
+        raise ValueError(f"{model_id} is not a discoverable model module")
+    spec = getattr(lazy.load(), "SPEC", None)
+    if spec is None:
+        raise ValueError(f"{model_id}'s module declares no SPEC")
+    resolver = getattr(
+        importlib.import_module(
+            f"language_reading_predictors.statistical_models.{module_name}"
+        ),
+        function_name,
+    )
+    plan = resolver(spec)
+    as_dict = getattr(plan, "as_dict", None)
+    current = _comparable_plan(as_dict() if callable(as_dict) else dict(vars(plan)))
+    return sorted(
+        name
+        for name in set(stored) | set(current)
+        if stored.get(name, "<absent>") != current.get(name, "<absent>")
+    )
+
+
 @dataclass(frozen=True)
 class _StoredPairSpec:
     """How one family's stored-artefact blending pair is read and described.
@@ -1441,13 +1559,25 @@ def _stored_pair_card(
         card_rows = int(len(table))
     plan = config.get("resolved_run_plan") or {}
     identity = config.get("fitted_data_identity") or {}
+    source = (config.get("provenance") or {}).get("source") or {}
     card: dict[str, Any] = {
         "model_id": model_id,
         "score_mean_link": str(plan.get("score_mean_link", "logit")),
         "config_name": str(config.get("config_name", "")),
         "data_sha256": str(config.get("data_sha256", "")),
         "fitted_rows_digest": str(identity.get("digest", "")),
+        # Provenance is *recorded*, not required to match (#608 decision 2, as
+        # amended 2026-08-25). A companion is registered in a later commit than its
+        # primary, so the two halves can never share one unless the primary is
+        # refitted afterwards; requiring it would fail-close five of the six
+        # stored-artefact pairs for a fact about git history rather than about the
+        # models. What binds them instead is the run plan, below.
+        "source_commit": str(source.get("commit", "")),
+        "source_dirty": bool(source.get("dirty", True)),
+        "environment_lock_sha256": str(config.get("environment_lock_sha256", "")),
     }
+    card["_plan"] = _comparable_plan(plan)
+    card["kind"] = str(config.get("kind", ""))
     for field in spec.extra_plan_fields:
         card[field] = str(plan.get(field, ""))
     card["n_obs"] = config.get("n_obs")
@@ -1465,6 +1595,7 @@ def _evaluate_stored_blending_link_pair(
     config: Mapping[str, Any] | None,
     spec: _StoredPairSpec,
     registered: tuple[str, str],
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Shared body of the stored-artefact pair gates (level, DiD, gain).
 
@@ -1560,9 +1691,88 @@ def _evaluate_stored_blending_link_pair(
                     f"the paired fits do not record a {label}, so the pairing "
                     "cannot be verified"
                 )
+
+        # --- The run-plan binding (#608 decision 2, as amended 2026-08-25) --------
+        #
+        # The checks above compare data, rows, sampling config and the card's shape.
+        # None of them can see that the two halves fit *different specifications* --
+        # which is exactly how a stale `lrp-rli-med-087`, fitted before #600 added
+        # the g-formula's per-leg baseline terms, passed as the pair of a companion
+        # that had them. The two halves' posteriors then differed in the model, not
+        # only in the link, and the published comparison was confounded.
+        #
+        # Two distinct failures are possible and both are checked:
+        #   1. the halves disagree with *each other* beyond the link, and
+        #   2. a half disagrees with what its own module resolves *today* -- stale
+        #      even if both halves are equally stale, which is how `lrp-rli-lf-006`
+        #      came to publish the estimand #594 superseded.
+        plan_a, plan_b = (cards[model_id]["_plan"], cards[companion_id]["_plan"])
+        mismatched = sorted(
+            name
+            for name in set(plan_a) | set(plan_b)
+            if plan_a.get(name, "<absent>") != plan_b.get(name, "<absent>")
+        )
+        if mismatched:
+            raise ValueError(
+                "the paired fits resolve different run plans beyond the score-mean "
+                f"link, so they are not a like-for-like pair: {', '.join(mismatched)}"
+            )
+        for identifier in (model_id, companion_id):
+            card = cards[identifier]
+            check = plan_checker or _stale_plan_fields
+            stale = check(identifier, card["kind"], card["_plan"])
+            if stale:
+                raise ValueError(
+                    f"{identifier}'s stored run plan no longer matches what its "
+                    "module resolves, so the fit predates a change to its own "
+                    f"specification and must be refitted: {', '.join(stale)}"
+                )
     except (OSError, KeyError, TypeError, ValueError, pd.errors.ParserError) as exc:
         return {"required": True, "ready": False, "reason": str(exc)}
-    return {"required": True, "ready": True, "reason": "", "cards": cards}
+    provenance = _pair_provenance_note(cards[model_id], cards[companion_id])
+    published = {
+        identifier: {k: v for k, v in card.items() if not k.startswith("_")}
+        for identifier, card in cards.items()
+    }
+    return {
+        "required": True,
+        "ready": True,
+        "reason": "",
+        "cards": published,
+        "provenance_note": provenance,
+    }
+
+
+def _pair_provenance_note(primary: Mapping[str, Any], companion: Mapping[str, Any]) -> str:
+    """Say plainly where the two halves came from, when that is not one place.
+
+    Neither a differing commit nor a differing environment lock is a defect -- the
+    companion is registered later than its primary by construction, and a dependency
+    bump between the two fits changes nothing the run plan governs. But a reader
+    comparing two cards deserves to know they were produced under different
+    conditions rather than having to reconstruct it from ``config.json``.
+    """
+    notes: list[str] = []
+    if primary["source_commit"] != companion["source_commit"]:
+        notes.append(
+            f"fitted at different source commits ({primary['model_id']} at "
+            f"{primary['source_commit'][:12]}, {companion['model_id']} at "
+            f"{companion['source_commit'][:12]}); the run plans agree, which is what "
+            "binds the pair"
+        )
+    dirty = [c["model_id"] for c in (primary, companion) if c["source_dirty"]]
+    if dirty:
+        notes.append(
+            "fitted from a working tree with uncommitted changes: "
+            + ", ".join(dirty)
+            + " (provenance is less precise than a clean commit would give)"
+        )
+    if primary["environment_lock_sha256"] != companion["environment_lock_sha256"]:
+        notes.append(
+            "fitted under different environment locks, so the dependency versions "
+            "behind the two posteriors are not identical"
+        )
+    return "; ".join(notes)
 
 
 #: The level family's pair (#584 decision 2).
@@ -1697,6 +1907,7 @@ def evaluate_level_blending_link_pair(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Is this level-factor B fit releasable beside its opposite-link twin?
 
@@ -1711,6 +1922,7 @@ def evaluate_level_blending_link_pair(
     return _evaluate_stored_blending_link_pair(
         output_dir,
         config=config,
+        plan_checker=plan_checker,
         spec=_LEVEL_PAIR_SPEC,
         registered=(
             LEVEL_BLENDING_PRIMARY_MODEL_ID,
@@ -1723,6 +1935,7 @@ def evaluate_did_blending_link_pair(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Is this DiD ``B`` fit releasable beside its opposite-link twin? (#576 finding 2)
 
@@ -1744,6 +1957,7 @@ def evaluate_did_blending_link_pair(
     return _evaluate_stored_blending_link_pair(
         output_dir,
         config=config,
+        plan_checker=plan_checker,
         spec=_DID_PAIR_SPEC,
         registered=(DID_BLENDING_PRIMARY_MODEL_ID, DID_BLENDING_COMPANION_MODEL_ID),
     )
@@ -1753,6 +1967,7 @@ def evaluate_aligned_blending_link_pair(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Is this onset-aligned ``B`` fit releasable beside its opposite-link twin? (#619)
 
@@ -1783,6 +1998,7 @@ def evaluate_aligned_blending_link_pair(
     return _evaluate_stored_blending_link_pair(
         output_dir,
         config=config,
+        plan_checker=plan_checker,
         spec=_ALIGNED_PAIR_SPEC,
         registered=(
             ALIGNED_BLENDING_PRIMARY_MODEL_ID,
@@ -1795,6 +2011,7 @@ def evaluate_concurrent_blending_link_pair(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Is this concurrent ``B`` fit releasable beside its opposite-link twin? (#619)
 
@@ -1824,6 +2041,7 @@ def evaluate_concurrent_blending_link_pair(
     return _evaluate_stored_blending_link_pair(
         output_dir,
         config=config,
+        plan_checker=plan_checker,
         spec=_CONCURRENT_PAIR_SPEC,
         registered=(
             CONCURRENT_BLENDING_PRIMARY_MODEL_ID,
@@ -1836,6 +2054,7 @@ def evaluate_dose_blending_link_pair(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Is this dose-response ``B`` fit releasable beside its opposite-link twin? (#619)
 
@@ -1863,6 +2082,7 @@ def evaluate_dose_blending_link_pair(
     return _evaluate_stored_blending_link_pair(
         output_dir,
         config=config,
+        plan_checker=plan_checker,
         spec=_DOSE_PAIR_SPEC,
         registered=(
             DOSE_BLENDING_PRIMARY_MODEL_ID,
@@ -1875,6 +2095,7 @@ def evaluate_mediation_blending_link_pair(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Is this mediation ``B`` fit releasable beside its opposite-link twin? (#619)
 
@@ -1907,6 +2128,7 @@ def evaluate_mediation_blending_link_pair(
     return _evaluate_stored_blending_link_pair(
         output_dir,
         config=config,
+        plan_checker=plan_checker,
         spec=_MEDIATION_PAIR_SPEC,
         registered=(
             MEDIATION_BLENDING_PRIMARY_MODEL_ID,
@@ -1919,6 +2141,7 @@ def evaluate_gain_blending_link_pair(
     output_dir: str | Path,
     *,
     config: Mapping[str, Any] | None = None,
+    plan_checker: Callable[[str, str, Mapping[str, Any]], list[str]] | None = None,
 ) -> dict[str, Any]:
     """Is this gain-factor ``B`` fit releasable beside its opposite-link twin? (#596)
 
@@ -1948,6 +2171,7 @@ def evaluate_gain_blending_link_pair(
     return _evaluate_stored_blending_link_pair(
         output_dir,
         config=config,
+        plan_checker=plan_checker,
         spec=_GAIN_PAIR_SPEC,
         registered=(GAIN_BLENDING_PRIMARY_MODEL_ID, GAIN_BLENDING_COMPANION_MODEL_ID),
     )
