@@ -473,6 +473,16 @@ _GAIN += [
     _d("lrpgf13", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
        "TE gains with broad vocabulary associates TR,R,E (#421 Tier 1); only the on-intervention term is causal"),
 ]
+_GAIN += [
+    # Phoneme blending is response-link sensitive: each item has three alternatives,
+    # so the ordinary inverse-logit mean permits below-chance expected scores — and
+    # the gf-006 posterior uses that room (15/161 rows, 10.7 % of the mass, #596).
+    # The pair releases together or not at all, mirroring lrpitt08/08b and
+    # lrplf06/06b. Scope is the model of record: the treated-only (lrpgf06b) and
+    # moderation (lrpgf06m) variants carry a recorded, dated exemption.
+    _d("lrpgf06f", "gain_factors", "Gain factors link sensitivity", Status.ROBUSTNESS, "B",
+       "ANCOVA gain under the three-choice guessing-floor score-mean link", base="lrpgf06"),
+]
 _GAINM += [
     _d("lrpgf09m", "gain_factors", "Gain factors", Status.COMPANION, "TR",
        "associational treatment-moderation variant", base="lrpgf09"),

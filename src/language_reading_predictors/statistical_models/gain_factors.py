@@ -34,10 +34,22 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
+
+#: The registered phoneme-blending response-link pair for this family (#596).
+#: ``lrp-rli-gf-006`` fits the ordinary Beta-Binomial inverse-logit score mean;
+#: ``lrp-rli-gf-306`` fits the same model with the mean mapped onto [1/3, 1].
+#: Neither may be released without the other — see
+#: :func:`blending_sensitivity.evaluate_gain_blending_link_pair`.
+GAIN_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-gf-006"
+GAIN_BLENDING_COMPANION_MODEL_ID = "lrp-rli-gf-306"
 
 # The complete, closed set of legacy ``spec.extra`` keys the gain-factor family
 # understands. Anything else is a typo and must fail before a fit starts.
@@ -50,6 +62,7 @@ _LEGACY_KEYS = frozenset(
         "treated_only",
         "likelihood",
         "moderation_variant",
+        "score_mean_link",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -127,6 +140,13 @@ class GainFactorsModelSettings:
     #: (partly informed by post-crossover data) and is never the causal headline —
     #: that lives in the interaction-free primary it varies.
     moderation_variant: bool = False
+    #: Phoneme-blending response link (#596, under the #608 policy). ``"logit"`` is
+    #: the ordinary Beta-Binomial inverse-logit score mean;
+    #: ``"three_choice_guessing_floor"`` maps it onto [1/3, 1] for the ten
+    #: three-alternative forced-choice blending items, whose expected score cannot
+    #: fall below chance. B only, graded only, and released only beside its paired
+    #: opposite-link fit.
+    score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -149,6 +169,21 @@ class GainFactorsModelSettings:
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
+            )
+        if self.score_mean_link not in SCORE_MEAN_LINKS:
+            raise ValueError(
+                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+                f"got {self.score_mean_link!r}"
+            )
+        # The off-floor branch models a binary indicator, which has no score mean to
+        # map and no chance floor to respect. Checked here rather than in the factory
+        # so an incoherent pair fails at declaration, before an output directory is
+        # reset (#455). The B-only check needs ``outcome_symbol``, which lives on the
+        # spec, so it is enforced in ``resolve_gain_factors_run_plan``.
+        if self.score_mean_link != "logit" and self.likelihood != "beta_binomial":
+            raise ValueError(
+                "score_mean_link applies to the graded Beta-Binomial mean; the "
+                f"{self.likelihood!r} branch has no score mean to map"
             )
         # Interaction terms must name something the model actually builds (#455).
         # build_gain_factors_model raises the same way, but only once make_context has
@@ -230,6 +265,7 @@ class GainFactorsModelSettings:
             treated_only=extra.get("treated_only", False),
             likelihood=extra.get("likelihood", "beta_binomial"),
             moderation_variant=extra.get("moderation_variant", False),
+            score_mean_link=extra.get("score_mean_link", "logit"),
         )
 
 
@@ -248,6 +284,14 @@ class GainFactorsRunPlan:
     likelihood: str
     off_floor: bool
     moderation_variant: bool
+    # Phoneme-blending response link and its release pairing (#596).
+    # ``required_link_companion_model_id`` names the opposite-link fit that must be
+    # released beside this one; ``link_sensitivity_required_for_release`` is the
+    # policy flag the release gate reads, so a future B gain fit outside the
+    # registered pair fails closed rather than publishing unpaired.
+    score_mean_link: str
+    required_link_companion_model_id: str | None
+    link_sensitivity_required_for_release: bool
     # Covariate loading split by measurement wave (resolved from adjust_for).
     baseline_covariates: tuple[str, ...]
     pre_covariates: tuple[str, ...]
@@ -314,6 +358,7 @@ class GainFactorsRunPlan:
             "interactions": self.active_interactions,
             "treated_only": self.treated_only,
             "likelihood": self.likelihood,
+            "score_mean_link": self.score_mean_link,
         }
 
     def coefficient_names(
@@ -367,6 +412,14 @@ class GainFactorsRunPlan:
                 + "; ".join(f"{a} x {b}" for a, b in dropped)
                 + ")"
             )
+        pairing = (
+            " This fit is one half of the mandatory phoneme-blending response-link "
+            f"pair: it must be read and released beside `"
+            f"{self.required_link_companion_model_id}`, which fits the same model "
+            "under the opposite score-mean link (#596)."
+            if self.required_link_companion_model_id
+            else ""
+        )
         return (
             "Note: Generated from the validated gain-factor run plan; template "
             "drafted by an LLM-based AI tool (Claude Code/Opus 4.8).\n\n"
@@ -380,7 +433,8 @@ class GainFactorsRunPlan:
             "## Terms\n\n"
             f"Outcome: `{self.outcome_symbol}`. Upstream skill baselines: {skills}. "
             f"Ability covariate: {self.ability_covariate or 'none'}. Requested "
-            f"adjustment terms: {adjust}. Interactions: {inter}.\n\n"
+            f"adjustment terms: {adjust}. Interactions: {inter}. "
+            f"Score-mean link: {self.score_mean_link}.{pairing}\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate and posterior-predictive checks pass. The saved "
@@ -433,6 +487,33 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
             f"{spec.model_id}: skill_symbols contains duplicates: {settings.skill_symbols!r}"
         )
     off_floor = settings.likelihood == "bernoulli_offfloor"
+    if settings.score_mean_link == "three_choice_guessing_floor" and own != "B":
+        raise ValueError(
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
+            f"phoneme blending (B), got {own!r}"
+        )
+
+    # The mandatory phoneme-blending link pairing (#596, under the #608 policy).
+    # Scope is the **model of record** — the interaction-free graded primary whose
+    # B card is published as this family's headline. A treated-only companion and a
+    # moderation variant are outside it for the same reason ``release.gate_applies``
+    # already skips them, and for the reason the level family excludes its window
+    # comparator: the pairing governs the fit whose card is the headline, and
+    # requiring a floor twin of every variant would demand fits that do not exist —
+    # fail-closed doing damage rather than work. That exemption is recorded and
+    # dated in notes/202608251100-gain-blending-guessing-floor-596.md; their reports
+    # say where the paired headline lives instead. Off-floor fits have no score mean.
+    model_of_record = not settings.treated_only and not settings.moderation_variant
+    link_pair_required = own == "B" and not off_floor and model_of_record
+    link_companion = (
+        (
+            GAIN_BLENDING_PRIMARY_MODEL_ID
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else GAIN_BLENDING_COMPANION_MODEL_ID
+        )
+        if link_pair_required
+        else None
+    )
 
     # Covariate loading split by measurement wave — identical to the former inline
     # logic in fit_gain_factors: the ability covariate and any baseline-timed
@@ -460,10 +541,29 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
             "difference), on the fitted available-case sample."
         )
     else:
+        link_clause = (
+            " The score mean is mapped onto [1/3, 1] by the three-choice guessing "
+            "floor, because each phoneme-blending item has three response "
+            "alternatives and an expected score cannot fall below chance (#596)."
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else ""
+        )
+        # A B variant outside the pairing says where the paired headline lives
+        # rather than going silent about the link question, mirroring the level
+        # family's window comparator.
+        if own == "B" and not model_of_record:
+            link_clause += (
+                " This outcome's published blending estimate is the link-paired "
+                f"headline ({GAIN_BLENDING_PRIMARY_MODEL_ID} + "
+                f"{GAIN_BLENDING_COMPANION_MODEL_ID}): phoneme blending is "
+                "response-link sensitive, and this variant carries the ordinary "
+                "inverse-logit score mean alone, so it answers its own variant "
+                "question and not the response-link one (#596)."
+            )
         design = (
             "Period-stacked ANCOVA: the post-score is regressed on the child's own "
             "pre-score (a Beta-Binomial working likelihood) with a non-centred child "
-            "random intercept for repeated observations."
+            f"random intercept for repeated observations.{link_clause}"
         )
         estimand = (
             "Period-1 average marginal effect of random assignment on the fitted "
@@ -526,6 +626,9 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         likelihood=settings.likelihood,
         off_floor=off_floor,
         moderation_variant=settings.moderation_variant,
+        score_mean_link=settings.score_mean_link,
+        required_link_companion_model_id=link_companion,
+        link_sensitivity_required_for_release=link_pair_required,
         baseline_covariates=baseline_covariates,
         pre_covariates=pre_adj,
         post_covariates=post_adj,

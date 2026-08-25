@@ -227,6 +227,14 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         prepared, **plan.factory_kwargs(effective_adjustment=adjust_for)
     )
     attach_built(ctx, built)
+    # The score-mean link the factory BUILT, not the one the module declared. Every
+    # natural-scale summary below maps through it, so a floor-link posterior cannot
+    # publish ordinary-link items (#596). Read at function scope because the
+    # association marginals run for the treated-only companions too, which never
+    # enter the randomised-contrast block.
+    link = built.require_payload(
+        GainFactorsPayload, family="gain_factors"
+    ).score_mean_link
 
     render_model_graph(ctx)
 
@@ -328,6 +336,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             moderators=trt_moderators,
             ci_prob=ctx.reporting.ci_prob,
             row_mask=p1_mask,
+            score_mean_link=link,
         )
         save_table(ctx, "treatment_marginal", pd.DataFrame([tme]))
         meta_extra["treatment_marginal"] = tme
@@ -347,6 +356,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 ctx.prior_samples, G=trt, n_trials=n_marg,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
                 ci_prob=ctx.reporting.ci_prob, row_mask=p1_mask,
+                score_mean_link=link,
             )
             save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
 
@@ -376,6 +386,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
                 varying_term="",
                 moderators=trt_moderators,
                 row_mask=p1_mask,
+                score_mean_link=link,
                 # Treatment interactions make beta_trt and the AME diverge in sign, so
                 # the reported direction follows the marginal effect, not the coefficient (#391).
                 direction_from_ame=True,
@@ -393,7 +404,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             save_rope_plot(
                 ctx, spec.outcome_symbol, trt, n_marg, delta_items,
                 term="beta_trt", varying_term="", moderators=trt_moderators,
-                row_mask=p1_mask, split=True,
+                row_mask=p1_mask, split=True, score_mean_link=link,
             )
         elif off_floor and delta_prob is not None:
             # Off-floor risk-difference ROPE, matching the floored ITT path
@@ -438,6 +449,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             moderators=trt_moderators,
             row_mask=p1_mask,
             likelihood="bernoulli" if off_floor else "beta_binomial",
+            score_mean_link=link,
             child_re=True,
             child_idx=built.prepared.child_idx,
             delta=delta_prob if off_floor else delta_items,
@@ -476,6 +488,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             off_floor=off_floor,
             ci_prob=ctx.reporting.ci_prob,
             row_mask=None,
+            score_mean_link=link,
         )
         save_table(ctx, "association_marginals", am)
         meta_extra["association_marginals"] = {

@@ -20,11 +20,19 @@ format:
 
 ## Overview
 
-LRPGF06 is a **gain-factors** model for phoneme blending (blending) (`blending`): what is associated with how much children gain across the three period transitions (ANCOVA - the period post-count given its pre-count - Beta-Binomial logit, child random intercept). It conditions on the own baseline, age, cognitive ability (block design), the upstream DAG skills letter sounds (L), expressive vocabulary (E) and taught expressive vocabulary (TE), and the revised-DAG confounders hearing (HS = `hs`), speech (SP = `deapp_c`) and phonological memory (RW = `erbto`) — each with a missing-indicator — with focal interactions group$\times$ability, group$\times$own-baseline, age$\times$ability.
+LRPGF06 is a **gain-factors** model for phoneme blending (blending) (`blending`): what is associated with how much children gain across the three period transitions (ANCOVA - the period post-count given its pre-count - Beta-Binomial logit, child random intercept). It conditions on the own baseline, age, cognitive ability (block design), the upstream DAG skills letter sounds (L), expressive vocabulary (E) and taught expressive vocabulary (TE), and the revised-DAG confounders hearing (HS = `hs`), speech (SP = `deapp_c`) and phonological memory (RW = `erbto`) — each with a missing-indicator — with the age$\times$ability precision interaction. The causal headline is interaction-free in `trt` (#391 finding 3): the treatment$\times$ability and treatment$\times$own-baseline moderation questions live only in the explicitly associational variant [LRPGF06m](../lrp-rli-gf-206/index.qmd).
 
 _Causal labelling (DAG guardrails)._
 
 **Only the randomised on-intervention term is causal.** Under the revised DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10) the **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is an available-case modified ITT estimate; `beta_trt` itself is only the on-intervention log-odds contrast, not that marginal estimate. Every other coefficient is an **adjusted association**: the child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does **not** control latent general ability, so these internal slopes stay **descriptive associations** - report as "associated with", never "drives". Intervention sessions/dose are never conditioned on (a DAG collider). SES is excluded (not a DAG node; statistically redundant).
+
+::: {.callout-important}
+## Read this beside its response-link companion
+
+LRPGF06 fits the ordinary Beta-Binomial inverse-logit score mean. Phoneme blending has ten **three-alternative forced-choice** items, so a child answering at random scores about 3.3 out of 10 — and the ordinary link does not know that. This fit uses the room it leaves: **15 of its 161 rows** have posterior-mean expected proportions below one third, **10.7 %** of the row-by-draw posterior mass sits below chance, and the worst single row puts **99.8 %** of its mass there.
+
+[LRPGF06f](../lrp-rli-gf-306/index.qmd) refits exactly this model with the mean constrained to $\tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$. **The two fits are one piece of evidence**: because the links can disagree about the size of the effect — in the ITT pair, the only one fitted under both links, the items estimate halved and its 89 % interval crossed zero — neither is sufficient on its own. Both plans are marked link-sensitivity-required and the release gate refuses to publish either without the other (#596).
+:::
 
 ## Model
 

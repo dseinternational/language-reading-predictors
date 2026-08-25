@@ -219,7 +219,7 @@ to `output/statistical_models/models/{model_id}-{config}/`.
 | `lrp-rli-itt-129`         | `EI40`              | Denominator-sensitivity comparator for `029`: the same score rounded to whole marks (/40)                  |
 | `lrp-rli-itt-030`         | `EG`                | Available-case modified ITT analysis of APT expressive grammar (/37)                                       |
 
-### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-013` (+ `…b`, `…m`) (`kind="gain_factors"`)
+### Gain factors — `lrp-rli-gf-001–lrp-rli-gf-013` (+ `…b`, `…m`, `…f`) (`kind="gain_factors"`)
 
 **Purpose.** A DAG-focused ANCOVA on each outcome's period gain (post-score given its own
 pre-score), stacking every on-intervention and untreated period with a child random
@@ -245,21 +245,23 @@ alike. The `…b` variant is treated-only (gains while on intervention). Design 
 
 **Naming note.** "Factors" here (and in the level-factors family below) carries its plain-English sense — the observed covariates _associated with_ gains or levels — not the factor-analysis sense: these are regression models with no latent variables. The latent measurement model is `lrp-rli-mm-001` (`kind="corr_factor"`).
 
-| Model            | Outcome | Skill baselines (`skill_symbols`)         | Confounders (`adjust_for`) | Treated-only `…b` | Moderation `…m`  |
-| ---------------- | ------- | ----------------------------------------- | -------------------------- | ----------------- | ---------------- |
-| `lrp-rli-gf-001` | `W`     | `TR`, `TE`, `R`, `E`, `L`, `N`, `B`       | —                          | `lrp-rli-gf-101`  | `lrp-rli-gf-201` |
-| `lrp-rli-gf-002` | `R`     | `TR`                                      | `HS`, `RW`                 | `lrp-rli-gf-102`  | `lrp-rli-gf-202` |
-| `lrp-rli-gf-003` | `E`     | `R`, `TR`, `TE`                           | `HS`, `SP`, `RW`           | `lrp-rli-gf-103`  | `lrp-rli-gf-203` |
-| `lrp-rli-gf-004` | `L`     | —                                         | `HS`, `SP`                 | `lrp-rli-gf-104`  | `lrp-rli-gf-204` |
-| `lrp-rli-gf-005` | `P`     | `L`, `B` (off-floor Bernoulli likelihood) | `RW`                       | `lrp-rli-gf-105`  | `lrp-rli-gf-205` |
-| `lrp-rli-gf-006` | `B`     | `L`, `E`, `TE`                            | `HS`, `SP`, `RW`           | `lrp-rli-gf-106`  | `lrp-rli-gf-206` |
-| `lrp-rli-gf-007` | `F`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-107`  | `lrp-rli-gf-207` |
-| `lrp-rli-gf-008` | `T`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-108`  | `lrp-rli-gf-208` |
-| `lrp-rli-gf-009` | `TR`    | —                                         | `HS`, `RW`                 | —                 | `lrp-rli-gf-209` |
-| `lrp-rli-gf-010` | `TE`    | `TR`                                      | `HS`, `SP`, `RW`           | —                 | `lrp-rli-gf-210` |
-| `lrp-rli-gf-011` | `N`     | `L`, `B` (off-floor Bernoulli likelihood) | `SP`, `RW`                 | —                 | `lrp-rli-gf-211` |
-| `lrp-rli-gf-012` | `TR`    | `R`, `E`                                  | `HS`, `RW`                 | —                 | —                |
-| `lrp-rli-gf-013` | `TE`    | `TR`, `R`, `E`                            | `HS`, `SP`, `RW`           | —                 | —                |
+| Model            | Outcome | Skill baselines (`skill_symbols`)         | Confounders (`adjust_for`) | Treated-only `…b` | Moderation `…m`  | Link pair `…f`   |
+| ---------------- | ------- | ----------------------------------------- | -------------------------- | ----------------- | ---------------- | ---------------- |
+| `lrp-rli-gf-001` | `W`     | `TR`, `TE`, `R`, `E`, `L`, `N`, `B`       | —                          | `lrp-rli-gf-101`  | `lrp-rli-gf-201` | —                |
+| `lrp-rli-gf-002` | `R`     | `TR`                                      | `HS`, `RW`                 | `lrp-rli-gf-102`  | `lrp-rli-gf-202` | —                |
+| `lrp-rli-gf-003` | `E`     | `R`, `TR`, `TE`                           | `HS`, `SP`, `RW`           | `lrp-rli-gf-103`  | `lrp-rli-gf-203` | —                |
+| `lrp-rli-gf-004` | `L`     | —                                         | `HS`, `SP`                 | `lrp-rli-gf-104`  | `lrp-rli-gf-204` | —                |
+| `lrp-rli-gf-005` | `P`     | `L`, `B` (off-floor Bernoulli likelihood) | `RW`                       | `lrp-rli-gf-105`  | `lrp-rli-gf-205` | —                |
+| `lrp-rli-gf-006` | `B`     | `L`, `E`, `TE`                            | `HS`, `SP`, `RW`           | `lrp-rli-gf-106`  | `lrp-rli-gf-206` | `lrp-rli-gf-306` |
+| `lrp-rli-gf-007` | `F`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-107`  | `lrp-rli-gf-207` | —                |
+| `lrp-rli-gf-008` | `T`     | `R`, `TR`                                 | —                          | `lrp-rli-gf-108`  | `lrp-rli-gf-208` | —                |
+| `lrp-rli-gf-009` | `TR`    | —                                         | `HS`, `RW`                 | —                 | `lrp-rli-gf-209` | —                |
+| `lrp-rli-gf-010` | `TE`    | `TR`                                      | `HS`, `SP`, `RW`           | —                 | `lrp-rli-gf-210` | —                |
+| `lrp-rli-gf-011` | `N`     | `L`, `B` (off-floor Bernoulli likelihood) | `SP`, `RW`                 | —                 | `lrp-rli-gf-211` | —                |
+| `lrp-rli-gf-012` | `TR`    | `R`, `E`                                  | `HS`, `RW`                 | —                 | —                | —                |
+| `lrp-rli-gf-013` | `TE`    | `TR`, `R`, `E`                            | `HS`, `SP`, `RW`           | —                 | —                | —                |
+
+> **Phoneme blending carries a mandatory response-link pair (#596).** `lrp-rli-gf-006` fits the ordinary Beta-Binomial inverse-logit score mean; `lrp-rli-gf-306` (legacy `lrpgf06f`) refits it under the one-in-three guessing floor `mu = 1/3 + (2/3)·expit(eta)`, because blending's ten items are three-alternative forced choice and an expected score cannot fall below chance. The ordinary fit puts 10.7 % of its posterior mass below that floor. Neither half publishes without the other; the release gate reads both stored fits. Scope is the model of record — `gf-106` and `gf-206` carry a recorded exemption (`notes/202608251100-gain-blending-guessing-floor-596.md`). The `…f` suffix opens the 3xx block because 1xx and 2xx are already the `…b` and `…m` roles.
 
 > `gf-012` and `gf-013` (#421) extend `gf-009`/`gf-010` by entering broad receptive/expressive vocabulary as **downstream descriptive associations** (the review's RV/EV → taught-vocabulary finding), _not_ DAG-parent baselines; as everywhere in this family, only the randomised on-intervention term is causal. Their moderation questions are carried by the per-outcome variants `gf-209`/`gf-210`, so they take no `…m` of their own.
 

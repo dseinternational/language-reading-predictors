@@ -4245,6 +4245,7 @@ def treatment_marginal_effect(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     ci_prob: float = 0.95,
     row_mask: np.ndarray | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float]:
     """Items-scale average marginal effect of the treatment term (LRPGF, #127).
 
@@ -4274,6 +4275,12 @@ def treatment_marginal_effect(
     probability follows that same marginal effect: with active treatment interactions
     the coefficient and the AME can differ in sign per draw, so ``prob_trt_pos`` is
     ``P(AME > 0)``, not ``P(term > 0)`` (#391) — mirroring ``tau_summary_itt``.
+
+    ``score_mean_link`` is the inverse link of the fitted score model, forwarded to
+    the shared core so both counterfactual arms are mapped onto the response scale
+    the likelihood actually used. It must be the link the model was *built* with: a
+    guessing-floor fit summarised at the default ``"logit"`` would publish an
+    ordinary-link items number from a floor-link posterior (#596).
     """
     b, ame_prob = _itt_ame_draws(
         trace,
@@ -4283,6 +4290,7 @@ def treatment_marginal_effect(
         eta_name=eta_name,
         moderators=moderators,
         row_mask=row_mask,
+        score_mean_link=score_mean_link,
     )
     ame_items = float(n_trials) * ame_prob
     lo_q = (1 - ci_prob) / 2
@@ -4400,15 +4408,22 @@ def association_marginals(
     ci_prob: float = 0.95,
     row_mask: np.ndarray | None = None,
     group: str = "posterior",
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> pd.DataFrame:
     """Per-covariate items-scale association marginals for the gain family (#310).
 
     The adjusted-association analogue of :func:`treatment_marginal_effect`: for each
     covariate in ``terms`` it forms the per-draw change in the linear predictor from a
     ``+1 SD`` perturbation of that covariate, holding everything else at its observed
-    value, and averages the probability-scale change ``expit(η + Δη) − expit(η)`` over
-    observations. Reported on the probability and items scales (``n_trials`` ×
+    value, and averages the response-scale change ``m(η + Δη) − m(η)`` over
+    observations, where ``m`` is the fitted score mean ``score_mean_link ∘ expit``.
+    Reported on the probability and items scales (``n_trials`` ×
     probability), with an equal-tailed ``ci_prob`` interval and an inner 50 % band.
+
+    ``score_mean_link`` must be the link the model was **built** with: under the
+    phoneme-blending guessing floor the same ``Δη`` maps to a smaller response-scale
+    change than under the ordinary logit, so summarising a floor-link posterior at
+    the default would overstate every association in items (#596).
 
     Per draw ``s`` and observation ``i`` the perturbation's linear-predictor shift is
 
@@ -4542,7 +4557,14 @@ def association_marginals(
                 eta_base = eta_sel - de_sel * x_sel[:, None]
             else:
                 eta_base = eta_sel
-            ame_prob = (expit(eta_base + de_sel) - expit(eta_base)).mean(axis=0)  # (S,)
+            # Map both arms through the fitted score mean before differencing: under
+            # a non-identity link the response-scale change is not the logit-scale
+            # one rescaled, so differencing raw inverse-logits would report a
+            # quantity the likelihood never modelled (#596).
+            ame_prob = (
+                apply_score_mean_link(expit(eta_base + de_sel), score_mean_link)
+                - apply_score_mean_link(expit(eta_base), score_mean_link)
+            ).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
             prob_lo50, prob_hi50 = band50(ame_prob)
             items_lo50, items_hi50 = band50(ame_items)

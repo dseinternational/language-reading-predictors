@@ -2422,6 +2422,8 @@ def _blending_pair_release_failures(
         return _level_blending_pair_release_failures(output_dir, config)
     if kind == "did":
         return _did_blending_pair_release_failures(output_dir, config)
+    if kind == "gain_factors":
+        return _gain_blending_pair_release_failures(output_dir, config)
     if kind != "itt":
         return ()
     from language_reading_predictors.statistical_models.blending_sensitivity import (
@@ -2514,6 +2516,46 @@ def _level_blending_pair_release_failures(
         return (
             "the mandatory phoneme-blending link pair "
             "(lrp-rli-lf-006 + lrp-rli-lf-106) is not release-ready: " + reason,
+        )
+    return ()
+
+
+def _gain_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The gain family's phoneme-blending pairing (#596).
+
+    Same policy and the same evidence tier as the level pair: both fits' stored
+    artefacts are read and cross-checked rather than recomputed from trace. The
+    gain family needed its own instance because neither the ITT nor the level
+    companion covers it — it stacks three period transitions under a shared child
+    random intercept and conditions on the own baseline, so it is a different
+    likelihood over different rows, and its stored ordinary-link posterior puts
+    10.7 % of its mass below the three-choice guessing floor.
+
+    Scope is the **model of record**. ``evaluate_gain_blending_link_pair`` reads
+    ``link_sensitivity_required_for_release`` from the fit's own resolved plan, and
+    the gain resolver sets that only for the interaction-free graded primary — so
+    the treated-only ``lrp-rli-gf-106`` and moderation ``lrp-rli-gf-206`` variants
+    return "no link pairing" here rather than failing closed. That exemption is
+    recorded and dated in
+    ``notes/202608251100-gain-blending-guessing-floor-596.md``; it is the same
+    boundary :func:`gate_applies` already draws, and it keeps fail-closed from
+    demanding floor twins of variants that were never the published headline.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_gain_blending_link_pair,
+    )
+
+    try:
+        status = evaluate_gain_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the gain B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            "(lrp-rli-gf-006 + lrp-rli-gf-306) is not release-ready: " + reason,
         )
     return ()
 

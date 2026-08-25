@@ -167,9 +167,17 @@ class DidArmWavePayload(FittedPayload):
 
 @dataclass(frozen=True)
 class GainFactorsPayload(FittedPayload):
-    """Realised treatment-interaction moderators for a gain-factor fit."""
+    """Realised treatment-interaction moderators and score-mean link of a gain fit.
+
+    ``score_mean_link`` is what the factory *built*, not what the module declared,
+    so every natural-scale summary the pipeline derives (the treatment marginal, the
+    association marginals, the ROPE, the prior pushforward and the predicted scores)
+    reads the same link the likelihood used. Reading the declared setting instead
+    would let a floor-link posterior publish ordinary-link items (#596).
+    """
 
     trt_interaction_moderators: tuple[TreatmentModerator, ...]
+    score_mean_link: str = "logit"
 
 
 @dataclass(frozen=True)

@@ -395,3 +395,93 @@ def test_registered_headlines_are_interaction_free_and_variants_are_not():
             assert trt_pairs, f"{spec.model_id}: moderation variant without trt pairs"
         else:
             assert not trt_pairs, f"{spec.model_id}: headline declares {trt_pairs}"
+
+
+# --- the phoneme-blending response-link pair (#596) ---------------------------
+
+
+def test_the_registered_blending_link_pair_is_paired_both_ways():
+    """#596: gf-006 and gf-306 fit the same data under the two response links, each
+    naming the other, and neither may release alone."""
+    specs = {spec.model_id: spec for spec in _gain_factor_specs()}
+    primary = resolve_gain_factors_run_plan(specs["lrp-rli-gf-006"])
+    companion = resolve_gain_factors_run_plan(specs["lrp-rli-gf-306"])
+    assert primary.score_mean_link == "logit"
+    assert companion.score_mean_link == "three_choice_guessing_floor"
+    assert primary.required_link_companion_model_id == "lrp-rli-gf-306"
+    assert companion.required_link_companion_model_id == "lrp-rli-gf-006"
+    assert primary.link_sensitivity_required_for_release
+    assert companion.link_sensitivity_required_for_release
+    # Same analysis, one difference: the pair is only comparable if everything else
+    # about the two fits agrees.
+    for field in (
+        "outcome_symbol", "skill_symbols", "ability_covariate", "adjust_for",
+        "interactions", "treated_only", "likelihood", "off_floor",
+        "moderation_variant", "baseline_covariates", "pre_covariates",
+        "post_covariates", "estimand", "causal_status", "analysis_population",
+    ):
+        assert getattr(primary, field) == getattr(companion, field), field
+
+
+def test_only_graded_blending_headlines_require_the_link_pair():
+    """A non-B outcome has no chance floor to respect, and the off-floor branch
+    models a binary indicator rather than a score mean."""
+    for kwargs in ({}, {"likelihood": "bernoulli_offfloor"}):
+        plan = resolve_gain_factors_run_plan(_spec(**kwargs))
+        assert plan.outcome_symbol == "W"
+        assert not plan.link_sensitivity_required_for_release
+        assert plan.required_link_companion_model_id is None
+
+
+def test_the_b_variants_are_exempt_from_the_blending_link_pairing():
+    """The pairing governs the fit whose B card is the published headline. The
+    treated-only companion and the moderation variant are outside it for the same
+    reason ``release.gate_applies`` already skips them — requiring floor twins of
+    them would demand fits that do not exist, which is fail-closed doing damage
+    rather than work (recorded in
+    notes/202608251100-gain-blending-guessing-floor-596.md)."""
+    specs = {spec.model_id: spec for spec in _gain_factor_specs()}
+    for model_id in ("lrp-rli-gf-106", "lrp-rli-gf-206"):
+        plan = resolve_gain_factors_run_plan(specs[model_id])
+        assert plan.outcome_symbol == "B", model_id
+        assert not plan.link_sensitivity_required_for_release, model_id
+        assert plan.required_link_companion_model_id is None, model_id
+        # ... and it says where the headline lives instead of going silent.
+        assert "lrp-rli-gf-006 + lrp-rli-gf-306" in plan.design, model_id
+
+
+def test_the_guessing_floor_link_is_rejected_for_a_non_blending_outcome():
+    with pytest.raises(ValueError, match="only valid for phoneme blending"):
+        resolve_gain_factors_run_plan(
+            _spec(score_mean_link="three_choice_guessing_floor")
+        )
+
+
+def test_settings_reject_the_guessing_floor_on_the_off_floor_branch():
+    """A Bernoulli off-floor indicator has no score mean to map, so the pairing is
+    incoherent rather than merely inert — and it fails at declaration, before an
+    output directory is reset."""
+    with pytest.raises(ValueError, match="no score mean to map"):
+        GainFactorsModelSettings(
+            likelihood="bernoulli_offfloor",
+            score_mean_link="three_choice_guessing_floor",
+        )
+
+
+def test_settings_reject_an_unknown_score_mean_link():
+    with pytest.raises(ValueError, match="score_mean_link must be one of"):
+        GainFactorsModelSettings(score_mean_link="probit")
+
+
+def test_the_link_reaches_the_factory_and_the_recipe():
+    """The resolved link must be handed to the factory — a plan that recorded it but
+    did not pass it on would fit an ordinary-link model under a floor-link label."""
+    specs = {spec.model_id: spec for spec in _gain_factor_specs()}
+    companion = resolve_gain_factors_run_plan(specs["lrp-rli-gf-306"])
+    assert (
+        companion.factory_kwargs()["score_mean_link"]
+        == "three_choice_guessing_floor"
+    )
+    recipe = companion.recipe_markdown(title="t")
+    assert "Score-mean link: three_choice_guessing_floor" in recipe
+    assert "lrp-rli-gf-006" in recipe
