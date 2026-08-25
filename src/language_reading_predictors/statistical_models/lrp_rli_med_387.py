@@ -11,7 +11,7 @@ difference is the **outcome** leg's score mean.
 Phoneme blending has ten **three-alternative forced-choice** items, so a child
 answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial
 inverse-logit mean does not know that: the fitted med-087 posterior puts 5 of its 53
-rows below one third in posterior mean and 11.6 % of its row-by-draw mass below
+rows below one third in posterior mean and 12.1 % of its row-by-draw mass below
 chance, with a worst row at 99.1 %. That is the **highest** share of any registered
 ``B`` fit — higher than LRPITT08 (8.9 %), the fit the policy was written for. This
 companion constrains the outcome mean to ``1/3 + 2/3 * expit(eta)``.

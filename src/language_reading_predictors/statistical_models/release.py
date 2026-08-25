@@ -2681,7 +2681,7 @@ def _mediation_blending_pair_release_failures(
     difference of *simulated outcome means*, so ``score_mean_link`` enters the
     g-formula's counterfactual simulation cell by cell rather than any summary
     afterwards. LRP87's stored posterior also carries the largest below-chance share
-    of any registered ``B`` fit (11.6 %).
+    of any registered ``B`` fit (12.1 %).
 
     Scope is the model of record: ``lrp-rli-med-187`` declares ``companion_of`` and
     reproduces LRP87's numbers under an interventional relabelling, so its plan does

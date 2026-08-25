@@ -1880,7 +1880,7 @@ def evaluate_mediation_blending_link_pair(
 
     ``lrp-rli-med-087`` fits the ordinary logit Beta-Binomial mean for a ten-item,
     three-alternative forced-choice **outcome**, and its stored posterior carries the
-    largest below-chance share of any registered ``B`` fit: 11.6 % of its row-by-draw
+    largest below-chance share of any registered ``B`` fit: 12.1 % of its row-by-draw
     mass, above LRPITT08's 8.9 %.
 
     The link matters here in a way it does not elsewhere in the policy. Every NDE,

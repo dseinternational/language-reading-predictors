@@ -27,11 +27,15 @@ It governs the **outcome** only. The mediator here is letter sounds: a different
 
 `lrp-rli-med-387` sampled cleanly: 0 divergences, max R-hat 1.0007, min ESS 9,317, on the same rows as the primary.
 
+**The primary was refitted first, and the reason is worth recording.** The stored `lrp-rli-med-087` predated #600 (the #585 leg-contract fix) and so lacked `a_base_B` and `b_base_L`, the common-`C` baseline terms the g-formula requires on each leg. The companion, built from current code, carried them — so the first comparison drawn from that pair differed in the _model_, not only in the link, and the pair check passed anyway because it compares data, fitted rows, sampling config and card shape but **not the resolved run plan**. That is exactly the weakness #608 named for the stored-artefact tier, and it was found here by comparing each stored plan against what its module resolves today. `med-087` was refitted from current code; both halves now resolve identical plans apart from the link, and the numbers below are like-for-like.
+
+The confounding turned out to be small — the stale primary gave total +0.674, NDE +0.411, NIE +0.247 against the refit's +0.677 / +0.397 / +0.261 — so the qualitative finding was never in doubt. The lesson is about the check, not the conclusion: nothing in the pipeline would have told a reader those two fits were not comparable.
+
 | Quantity | LRP87 (logit) | LRP87f (guessing floor) | P(> 0)        |
 | -------- | ------------: | ----------------------: | ------------- |
-| Total    |  +0.674 items |              **+0.486** | 0.908 → 0.890 |
-| NDE      |        +0.411 |              **+0.207** | 0.763 → 0.709 |
-| NIE      |        +0.247 |              **+0.267** | 0.842 → 0.882 |
+| Total    |  +0.677 items |              **+0.486** | 0.904 → 0.890 |
+| NDE      |        +0.397 |              **+0.207** | 0.752 → 0.709 |
+| NIE      |        +0.261 |              **+0.267** | 0.815 → 0.882 |
 
 **The direct effect halves while the indirect effect does not move.** That is a different result in kind from the rest of the #619 series, where the link shrank magnitudes roughly uniformly or shuffled inconclusive terms. Here the _balance between the two routes_ changes: under the ordinary link the direct route carries the larger share of the total, and under the floor link the mediated route does.
 
@@ -41,7 +45,7 @@ The posterior median proportion mediated moves from **0.30 to 0.47**, and that n
 
 **What it does not change.** None of the identification. The binding unverifiable assumption is still no unmeasured L → B confounding, which latent general ability violates; intervention sessions remain a treatment-affected recanting witness that no adjustment set rescues. This is a model-based g-formula decomposition under stated cross-world assumptions, wide at n ~ 53, not an identified natural effect. The link fixes the response scale; every caveat that stood before stands now.
 
-Worth recording alongside: LRP87's ordinary-link posterior carries the **largest below-chance share of any registered `B` fit** — 11.6 % of its row-by-draw mass, above LRPITT08's 8.9 %, the fit the policy was written for. Of all the fits #608 identified, this was the one most exposed to the defect, and it is the one where the link moved the answer most.
+Worth recording alongside: LRP87's ordinary-link posterior carries the **largest below-chance share of any registered `B` fit** — 12.1 % of its row-by-draw mass, above LRPITT08's 8.9 %, the fit the policy was written for. (The #608 note records 11.6 % for this fit. That figure was correct for the pre-#600 fit it was measured against and is left standing there as the record of what was true then; the refit moves it to 12.1 %.) Of all the fits #608 identified, this was the one most exposed to the defect, and it is the one where the link moved the answer most.
 
 ## Scope
 

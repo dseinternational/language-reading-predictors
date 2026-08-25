@@ -345,7 +345,7 @@ _MECH = [
     # Phoneme blending is response-link sensitive: each item has three alternatives,
     # so the ordinary inverse-logit outcome mean permits below-chance expected
     # scores, and the lrp87 posterior carries the LARGEST below-chance share of any
-    # registered B fit (11.6 % of the mass, above LRPITT08's 8.9 %, #619). The pair
+    # registered B fit (12.1 % of the mass, above LRPITT08's 8.9 %, #619). The pair
     # releases together or not at all. Scope is the model of record: lrp187 is a
     # declared interventional relabelling companion whose numbers reproduce lrp87's,
     # so it is exempt and its prose names the paired headline.
