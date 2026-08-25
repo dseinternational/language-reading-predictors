@@ -3,11 +3,11 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 
-# The aligned and concurrent blending link pairs, and the helper that was missed twice
+# The aligned, concurrent and dose blending link pairs, and the helper that was missed twice
 
 - **Date:** 2026-08-25
 - **Status:** implementation record
-- **Issue:** #619 (under the #608 policy), first instalment
+- **Issue:** #619 (under the #608 policy), first instalment — three of the four unpaired families
 
 ## What was built
 
@@ -72,8 +72,28 @@ That is the clearest argument yet against the "it's only an association, so the 
 - The release gate withheld `lrp-rli-al-006` and `lrp-rli-ca-007` from the moment their branches landed until their twins were fitted, and left the non-B siblings, the `al-101` dose variant and the four other families untouched.
 - Full suite green; 23 new tests.
 
+## The dose family, added in the same branch
+
+`dose_response` is now paired too: `lrp-rli-dose-084` + **`lrp-rli-dose-384`** (legacy `lrp84f`). The companion sampled cleanly — 0 divergences, max R-hat 1.0011, min ESS 8,832 — on the same rows as the primary, with `target_accept` matched at 0.97 so the comparison isolates the link rather than confounding it with a sampling-quality difference.
+
+This is the family the #608 decision named as the case that defeats the observational exemption, so the pairing matters more for what it settles than for what it moves. `METHODS.md` defines every dose fit's focal estimand as the **natural-scale treated-row dose marginal**, published in items by `dose_marginal_summary.csv`, so it inherits the link exactly as a randomised contrast does. That no dose slope is causal changes what the number means, not what scale it sits on.
+
+|                                  |    LRP84 (logit) | LRP84f (guessing floor) |
+| -------------------------------- | ---------------: | ----------------------: |
+| Treated-row dose marginal, items |           +0.017 |                  −0.027 |
+| 89 % credible interval           | −0.740 to +0.724 |        −0.655 to +0.639 |
+| P(> 0)                           |            0.515 |                   0.472 |
+
+**Read honestly, this fit says nothing under either link, and the pairing does not change that.** The point estimate crosses from a hair above zero to a hair below it, but P(>0) moves 0.515 → 0.472 — both squarely inconclusive — and the interval merely narrows slightly. The sign flip is noise being relabelled, the same phenomenon as the concurrent taught-expressive term above. What the pair buys here is audit consistency: a reader can now see that the one blending dose result is inconclusive under _both_ links, rather than having to wonder whether the ordinary link was holding it up.
+
+One implementation detail is worth recording because it prevents a subtle failure. `dose_marginal_draws` is the single transform behind **both** the posterior dose marginal and its prior pushforward — an invariant #587 finding 5 established so the "check" could not compare two different contrasts. Passing the link into that one helper extends the invariant to the response scale: the prior check cannot end up on a different scale from the posterior it checks.
+
+A stale qualifier is also cleared. `docs/models/README.md` described `dose-084` as "qualified — the required guessing-floor link companion is not yet built for this family". It is built.
+
 ## Still outstanding on #619
 
-`dose_response` and `mediation` still have no pairing: LRPDOSE84, LRPMED87 and LRPMED187 publish unpaired, and neither family declares `score_mean_link`. `mediation` is the substantial one — the link has to enter the g-formula's counterfactual simulation in all three `decompose*` functions, not merely a summary — and it is the family where the model-of-record scope question returns, because MED-187 is a numerically identical `interventional` relabelling of MED-087.
+`mediation` is the **last** family with no pairing: LRPMED87 and LRPMED187 publish unpaired and the family does not declare `score_mean_link`. It is the substantial one — the link has to enter the g-formula's counterfactual simulation in all three `decompose*` functions, not merely a summary — and it is where the model-of-record scope question returns, because MED-187 is a numerically identical `interventional` relabelling of MED-087.
+
+Note for whoever takes it: `test_key_findings.py::test_unpaired_family_blending_outcome_does_not_require_the_itt_bundle` has now been retargeted twice, from `aligned` to `dose_response` to `mediation`, because each retarget was a family becoming paired. When `mediation` is paired there is no valid subject left, and the test should be replaced by an assertion that _every_ registered `B` model is paired.
 
 The two cross-cutting items are also open: keying the gate on `outcome_symbol` rather than `kind`, and #608's decision 2, that every pair should be bound by the content-addressed archive rather than the two-directory stored-artefact check.

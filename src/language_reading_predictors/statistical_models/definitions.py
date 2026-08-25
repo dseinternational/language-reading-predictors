@@ -368,6 +368,15 @@ _STRUCT = [
     # the W family covers only word reading. Same observational IS->outcome estimand.
     _d("lrp83", "dose_response", "Dose-response", Status.ASSOCIATION, "L", "period-resolved intervention dose -> letter sounds"),
     _d("lrp84", "dose_response", "Dose-response", Status.ASSOCIATION, "B", "period-resolved intervention dose -> phoneme blending"),
+    # Phoneme blending is response-link sensitive: each item has three alternatives,
+    # so the ordinary inverse-logit mean permits below-chance expected scores, and
+    # the lrp84 posterior uses that room (7.0 % of the mass, #619). This family is
+    # the case #608 used to reject exempting observational families: its focal
+    # estimand is the natural-scale treated-row dose marginal, published in items,
+    # so it inherits the link exactly as a randomised contrast does.
+    _d("lrp84f", "dose_response", "Dose-response link sensitivity", Status.ROBUSTNESS, "B",
+       "period-resolved dose under the three-choice guessing-floor score-mean link",
+       base="lrp84"),
     _d("lrpmm01", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "correlated-domain-factor measurement model (vocabulary / code / grammar)"),
     _d("lrpmm101", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "prior-geometry sensitivity for LRPMM01 (legacy free loading / residual pair, #383)", base="lrpmm01"),
     _d("lrpmm02", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "errors-in-variables code->word-reading mechanism slope (latent code factor, mech-058 adjustment)", base="lrpmm01"),

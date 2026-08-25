@@ -18,6 +18,10 @@ import numpy as np
 import pandas as pd
 from scipy.special import expit
 
+from language_reading_predictors.statistical_models.likelihood import (
+    apply_score_mean_link,
+)
+
 from language_reading_predictors.models._reporting import (
     metrics_table,
     print_table,
@@ -132,6 +136,9 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         contrast_label=contrast.label,
         contrast_kind=plan.dose_contrast,
         support_note=contrast.note,
+        # The link the factory BUILT, so the dose marginal and its prior pushforward
+        # both map onto the response scale the likelihood used (#619).
+        score_mean_link=built.payload.score_mean_link,
     )
 
     section_header("Dose calibration checks")
@@ -362,6 +369,7 @@ def dose_marginal_draws(
     period_varying: bool,
     row_mask: np.ndarray | None = None,
     eta_name: str = "eta",
+    score_mean_link: str = "logit",
 ) -> np.ndarray:
     """The family's items-scale dose contrast, from one draws group (#587 finding 5).
 
@@ -403,7 +411,16 @@ def dose_marginal_draws(
         if not keep.any():
             raise ValueError("row_mask selects no rows for the dose marginal.")
         eta, delta_eta = eta[keep], delta_eta[keep]
-    return (expit(eta + delta_eta) - expit(eta)).mean(axis=0) * float(n_trials)
+    # Map both operating points through the fitted score mean before differencing.
+    # Under a non-identity link the response-scale change is not the logit-scale one
+    # rescaled, so an ordinary-logit transform on a floor-link posterior would report
+    # a dose marginal the likelihood never modelled (#619). Because this one helper
+    # serves both the posterior marginal and its prior pushforward, passing the link
+    # here keeps that pair on the same scale by construction.
+    return (
+        apply_score_mean_link(expit(eta + delta_eta), score_mean_link)
+        - apply_score_mean_link(expit(eta), score_mean_link)
+    ).mean(axis=0) * float(n_trials)
 
 
 def _summarise_draws(
@@ -445,6 +462,7 @@ def write_dose_slope_summary(
     contrast_label: str = "a +1 SD session-dose step",
     contrast_kind: str = "one_sd_all_rows",
     support_note: str = "",
+    score_mean_link: str = "logit",
 ) -> None:
     """Posterior dose slope (overall + per-period) on the per-1-SD logit scale.
 
@@ -548,6 +566,7 @@ def write_dose_slope_summary(
         n_trials=n_trials,
         period_varying=period_varying,
         row_mask=marginal_row_mask,
+        score_mean_link=score_mean_link,
     )
     lo_q = (1 - ci_prob) / 2
     kept = (
@@ -625,6 +644,7 @@ def write_dose_slope_summary(
             n_trials=n_trials,
             period_varying=period_varying,
             row_mask=marginal_row_mask,
+            score_mean_link=score_mean_link,
         )
         prior_logit = (
             prior_group[focal].stack(sample=("chain", "draw")).values.ravel()

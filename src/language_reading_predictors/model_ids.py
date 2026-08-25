@@ -163,6 +163,7 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     "lrpgf06f": ("gf", 306),
     "lrpal06f": ("al", 306),
     "lrpca07f": ("ca", 307),
+    "lrp84f": ("dose", 384),
     "lrpitt08b": ("itt", 108),
     "lrpitt13b": ("itt", 113),
     "lrpitt14b": ("itt", 114),

@@ -157,6 +157,10 @@ class DoseResponsePayload(FittedPayload):
     dose_within: np.ndarray
     phase_support: tuple[tuple[float, float, float, float], ...]
     decompose_between_within: bool
+    #: The score-mean link the factory built (#619). The family's focal estimand is
+    #: the natural-scale treated-row dose marginal, so every consumer that maps eta
+    #: onto items must use this rather than assume the ordinary inverse logit.
+    score_mean_link: ScoreMeanLink = "logit"
 
 
 @dataclass(frozen=True)

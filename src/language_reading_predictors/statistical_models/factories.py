@@ -2180,6 +2180,10 @@ def build_dose_response_model(
     ability_baseline_wave: str = "t1",
     decompose_between_within: bool = True,
     sigma_child_prior_sigma: float = 0.5,
+    # #619: the phoneme-blending response link. B only, and released only beside its
+    # paired ordinary-link fit. The family's focal estimand is a natural-scale dose
+    # marginal, so it inherits the link exactly as a treatment contrast does.
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> BuiltModel[DoseResponsePayload]:
     """Period-resolved dose-response on the outcome post-score (#104 Phase 2, #587).
 
@@ -2476,11 +2480,12 @@ def build_dose_response_model(
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
 
-        beta_binomial_from_logit(
+        beta_binomial_from_score_mean_link(
             "y_post",
             eta,
             n_trials=N_outcome,
             kappa=kappa,
+            score_mean_link=score_mean_link,
             observed=outcome_post,
             dims="obs_id",
         )
@@ -2497,6 +2502,7 @@ def build_dose_response_model(
             dose_within=dose_within,
             phase_support=tuple(phase_support),
             decompose_between_within=decompose_between_within,
+            score_mean_link=score_mean_link,
         ),
     )
 
