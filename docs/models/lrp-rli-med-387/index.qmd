@@ -1,0 +1,51 @@
+---
+title: "LRP87f: Blending (PA) via letter sounds (LS) under the one-in-three guessing floor"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP87f is the registered **response-link companion** to [LRP87](../lrp-rli-med-087/index.qmd) (#619, under the #608 policy) — the last of the seven family pairings the policy requires. Same children, same rows, same mediator, same adjustment set and the same g-formula decomposition; the single difference is the **outcome** leg's score mean.
+
+Phoneme blending has ten **three-alternative forced-choice** items, so a child answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial inverse-logit mean does not know that, and the LRP87 posterior uses the room it leaves: 5 of its 53 rows have posterior-mean expected proportions below one third and **11.6 %** of the row-by-draw posterior mass sits below chance, with a worst row at 99.1 %. That is the **largest below-chance share of any registered `B` fit** — larger than [LRPITT08](../lrp-rli-itt-008/index.qmd)'s 8.9 %, the fit the policy was written for. This companion constrains the outcome mean to $\tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$.
+
+**The two fits are one piece of evidence**: both plans are marked link-sensitivity-required, and the release gate refuses to publish either without the other.
+
+### Why the link enters the simulation, not a summary
+
+In every other paired family the link corrects a *summary* — a treatment marginal, a ROPE row, a table of association marginals — computed once from the posterior. Here it cannot.
+
+Every NDE, NIE and total this family publishes is a **difference of simulated outcome means**: the g-formula accumulates $E[Y(g, M(g'))]$ over units and mediator replicates, then differences the cells. There is no downstream number to correct afterwards. So the link is threaded into `decompose`'s `outcome_p` — the one place the latent scale becomes a score — and every counterfactual cell is accumulated on the response scale the outcome likelihood used. Running the decomposition on the ordinary inverse logit against a floor-link posterior would produce items the fitted model never implied, cell by cell.
+
+**The link governs the outcome only.** The mediator here is letter sounds — a different measure, with its own leg and its own denominator. No registered mediation model has phoneme blending as its mediator, and the resolver rejects the floor link for any non-B outcome.
+
+_Causal labelling._ Unchanged, and none of it was ever strong. The binding unverifiable assumption is still **no unmeasured L → B confounding**, which latent general ability violates. Intervention sessions (`IS`) remain a treatment-affected recanting witness that no adjustment set rescues — the constructive answers are [LRP187](../lrp-rli-med-187/index.qmd) and #324, not this fit. This is a model-based g-formula decomposition under stated cross-world assumptions, wide at $n \approx 53$, **not an identified natural effect**. The link fixes the response scale; it does not touch any of that.
+
+## Model
+
+A joint mediator + outcome model on the ITT phase (t1 → t2, the randomised window). The mediator leg is the Beta-Binomial letter-sound count; the **outcome** leg is Beta-Binomial on the blending count with the **guessing-floor score mean** $\mu = \tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta_Y)$, over the same linear predictor LRP87 fits — treatment, the mediator, their interaction, the outcome and mediator baselines, age, and the hearing / speech confounders with their missingness indicators. Priors are unchanged.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+**The t3 sensitivity rebuilds the same legs**, link included. That sub-fit exists to vary the outcome *timing* and nothing else; a sensitivity that silently swapped the response link would be a different specification, which is exactly what the shared-baseline contract it already carries exists to prevent.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mediation.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

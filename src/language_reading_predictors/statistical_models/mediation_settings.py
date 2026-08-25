@@ -10,11 +10,22 @@ from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
+)
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES
 from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
+
+#: The registered phoneme-blending response-link pair for this family (#619, under
+#: the #608 policy). ``lrp-rli-med-087`` fits the ordinary Beta-Binomial
+#: inverse-logit outcome mean; ``lrp-rli-med-387`` fits the same decomposition with
+#: that mean mapped onto [1/3, 1]. Neither may be released without the other.
+MEDIATION_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-med-087"
+MEDIATION_BLENDING_COMPANION_MODEL_ID = "lrp-rli-med-387"
 
 __all__ = [
     "BaselineTerm",
@@ -41,6 +52,7 @@ _SINGLE_KEYS = frozenset(
         "estimand",
         "companion_of",
         "period_stacked",
+        "score_mean_link",
     }
 )
 _MULTI_KEYS = frozenset(
@@ -122,6 +134,14 @@ class MediationModelSettings:
     estimand: Literal["natural", "interventional"] = "natural"
     companion_of: str | None = None
     period_stacked: bool = False
+    #: Phoneme-blending response link for the **outcome** leg (#619, under the #608
+    #: policy). ``"logit"`` is the ordinary Beta-Binomial inverse-logit score mean;
+    #: ``"three_choice_guessing_floor"`` maps it onto [1/3, 1] for the ten
+    #: three-alternative forced-choice blending items, whose expected score cannot
+    #: fall below chance. It governs the outcome only -- a mediator is a separate leg
+    #: with its own measure. B outcomes only, graded only, and released only beside
+    #: the paired opposite-link fit.
+    score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -147,6 +167,23 @@ class MediationModelSettings:
             raise ValueError(f"unsupported outcome_kind {self.outcome_kind!r}")
         if self.estimand not in {"natural", "interventional"}:
             raise ValueError(f"unsupported estimand {self.estimand!r}")
+        if self.score_mean_link not in SCORE_MEAN_LINKS:
+            raise ValueError(
+                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+                f"got {self.score_mean_link!r}"
+            )
+        # The off-floor outcome models a binary indicator, which has no score mean to
+        # map and no chance floor to respect. Checked here so an incoherent pair
+        # fails at declaration, before an output directory is reset; the B-only check
+        # needs ``outcome_symbol`` and lives in the resolver.
+        if (
+            self.score_mean_link != "logit"
+            and self.outcome_kind != "beta_binomial"
+        ):
+            raise ValueError(
+                "score_mean_link applies to the graded Beta-Binomial outcome mean; "
+                f"the {self.outcome_kind!r} outcome has no score mean to map"
+            )
         if self.companion_of is not None and (
             not isinstance(self.companion_of, str) or not self.companion_of
         ):
@@ -173,6 +210,7 @@ class MediationModelSettings:
             outcome_kind=extra.get("outcome_kind", "beta_binomial"),
             estimand=extra.get("estimand", "natural"),
             companion_of=extra.get("companion_of"),
+            score_mean_link=extra.get("score_mean_link", "logit"),
             period_stacked=extra.get("period_stacked", False),
         )
 
@@ -343,6 +381,12 @@ class MediationRunPlan:
     outcome_kind: Literal["beta_binomial", "bernoulli_offfloor"]
     estimand: Literal["natural", "interventional"]
     companion_of: str | None
+    # Phoneme-blending response link for the outcome leg and its release pairing
+    # (#619). ``required_link_companion_model_id`` names the opposite-link fit that
+    # must be released beside this one.
+    score_mean_link: str
+    required_link_companion_model_id: str | None
+    link_sensitivity_required_for_release: bool
     declared_confounders: tuple[str, ...]
     effective_confounders: tuple[str, ...]
     raw_covariates: tuple[str, ...]
@@ -437,6 +481,7 @@ class MediationRunPlan:
             "outcome_kind": self.outcome_kind,
             "mediator_cross_baselines": self.mediator_cross_baselines,
             "outcome_cross_baselines": self.outcome_cross_baselines,
+            "score_mean_link": self.score_mean_link,
         }
 
     def period_factory_kwargs(self) -> dict[str, Any]:
@@ -657,6 +702,38 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
             raise ValueError("gaussian_composite mediation requires route_symbols")
     elif settings.route_symbols:
         raise ValueError("route_symbols apply only to gaussian_composite mediation")
+    if (
+        settings.score_mean_link == "three_choice_guessing_floor"
+        and spec.outcome_symbol != "B"
+    ):
+        raise ValueError(
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
+            f"phoneme blending (B) as the modelled OUTCOME, got "
+            f"{spec.outcome_symbol!r}. A mediator is a separate leg with its own "
+            "measure."
+        )
+
+    # The mandatory phoneme-blending link pairing (#619, under the #608 policy).
+    # Scope is the model of record: an ``interventional`` relabelling declares
+    # ``companion_of`` and is, by this family's own contract, a companion of the
+    # natural-effects fit whose numbers it reproduces exactly -- so it is exempt on
+    # the boundary the level window comparator, the gain variants and the aligned
+    # dose sensitivity already draw, and its prose names the paired headline. The
+    # off-floor outcome has no score mean.
+    graded_outcome = settings.outcome_kind == "beta_binomial"
+    model_of_record = settings.companion_of is None
+    link_pair_required = (
+        spec.outcome_symbol == "B" and graded_outcome and model_of_record
+    )
+    link_companion = (
+        (
+            MEDIATION_BLENDING_PRIMARY_MODEL_ID
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else MEDIATION_BLENDING_COMPANION_MODEL_ID
+        )
+        if link_pair_required
+        else None
+    )
     if settings.companion_of and settings.estimand != "interventional":
         raise ValueError("companion_of requires estimand='interventional'")
     if settings.mediator_kind == "gaussian_composite" and (
@@ -763,6 +840,9 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
         outcome_kind=settings.outcome_kind,
         estimand=settings.estimand,
         companion_of=settings.companion_of,
+        score_mean_link=settings.score_mean_link,
+        required_link_companion_model_id=link_companion,
+        link_sensitivity_required_for_release=link_pair_required,
         declared_confounders=confounders,
         effective_confounders=confounders,
         raw_covariates=raw,

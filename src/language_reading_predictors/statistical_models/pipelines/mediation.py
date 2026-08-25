@@ -38,6 +38,9 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
+from language_reading_predictors.statistical_models.fitted_payloads import (
+    MediationPayload,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
     load_and_prepare_lagged_outcome,
@@ -152,6 +155,10 @@ def _fit_t3_sensitivity(
         # baseline terms here would silently make it a different specification.
         mediator_cross_baselines=plan.mediator_cross_baselines,
         outcome_cross_baselines=plan.outcome_cross_baselines,
+        # ... and the same outcome score-mean link (#619): a sensitivity that
+        # silently swapped the link would be a different specification, which is the
+        # very thing the two lines above exist to prevent.
+        score_mean_link=plan.score_mean_link,
     )
     # Gate this temporal-ordering sensitivity sub-fit (bypasses the primary gate).
     # ``convergence_scope="all"`` keeps the scan this fit has always used: every
@@ -170,6 +177,7 @@ def _fit_t3_sensitivity(
         res_t3.trace,
         med_t3,
         ci_prob=ctx.reporting.ci_prob,
+        score_mean_link=plan.score_mean_link,
     )
     # Persist the verdict onto the published rows: this sub-fit bypasses the primary
     # gate, and the verdict was previously computed then discarded so the t3 table
@@ -278,6 +286,12 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         med_data,
         ci_prob=ctx.reporting.ci_prob,
         interventional=_interventional,
+        # The link the factory BUILT, so the g-formula accumulates every
+        # counterfactual cell on the response scale the outcome likelihood used
+        # (#619).
+        score_mean_link=built.require_payload(
+            MediationPayload, family="mediation"
+        ).score_mean_link,
     )
     save_table(ctx, "mediation_summary", med_df)
     # Extend the convergence gate to the POST-PROCESSED headline effects (#585

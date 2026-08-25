@@ -342,6 +342,16 @@ _MECH = [
     # replace the cross-world NDE/NIE interpretation.
     _d("lrp186", "mediation", "Mediation", Status.COMPANION, "N", "interventional-effects analogue via letter sounds (nonword, off-floor risk difference)", base="lrp86"),
     _d("lrp187", "mediation", "Mediation", Status.COMPANION, "B", "interventional-effects analogue via letter sounds (phoneme blending)", base="lrp87"),
+    # Phoneme blending is response-link sensitive: each item has three alternatives,
+    # so the ordinary inverse-logit outcome mean permits below-chance expected
+    # scores, and the lrp87 posterior carries the LARGEST below-chance share of any
+    # registered B fit (11.6 % of the mass, above LRPITT08's 8.9 %, #619). The pair
+    # releases together or not at all. Scope is the model of record: lrp187 is a
+    # declared interventional relabelling companion whose numbers reproduce lrp87's,
+    # so it is exempt and its prose names the paired headline.
+    _d("lrp87f", "mediation", "Mediation link sensitivity", Status.ROBUSTNESS, "B",
+       "g-formula via letter sounds under the three-choice guessing-floor outcome link",
+       base="lrp87"),
     # Period-stacked companion (#229 recommendation 2): the LRP59 design on the
     # gain-factor scaffold, exposure = per-period on-intervention (ignorability).
     _d("lrp92", "mediation", "Mediation", Status.ASSOCIATION, "W", "period-stacked g-formula via letter sounds (gain-factor scaffold, per-period on-intervention exposure)", base="lrp59"),

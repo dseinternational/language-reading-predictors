@@ -1377,6 +1377,12 @@ class _StoredPairSpec:
     #: Extra ``resolved_run_plan`` keys copied onto the card as strings. Recorded
     #: for the audit trail; never compared (the plans must differ, in the link).
     extra_plan_fields: tuple[str, ...] = ()
+    #: ``(column, value)`` selecting the headline row from a multi-row card file.
+    #: The mediation family publishes a decomposition table -- total, NDE, NIE,
+    #: proportion -- whose canonical headline is the ``total`` row; naming it here
+    #: keeps the audit record showing the number the report leads with, rather than
+    #: falling back to the shape-only check a family with *no* headline row needs.
+    card_row_selector: tuple[str, str] | None = None
 
 
 def _stored_pair_card(
@@ -1398,7 +1404,28 @@ def _stored_pair_card(
     if not _report.convergence_gate_clean_passed(gate):
         raise ValueError(f"{model_id} did not pass its saved clean convergence gate")
     card_path = directory / spec.card_file
-    if spec.card_columns:
+    if spec.card_columns and spec.card_row_selector is not None:
+        column, value = spec.card_row_selector
+        try:
+            table = pd.read_csv(card_path)
+        except (OSError, pd.errors.ParserError, UnicodeDecodeError) as exc:
+            raise ValueError(
+                f"{model_id} {spec.card_label} is not readable: {card_path}"
+            ) from exc
+        if column not in table.columns:
+            raise ValueError(
+                f"{model_id} {spec.card_label} has no {column!r} column to select "
+                f"the {value!r} row from"
+            )
+        matched = table[table[column].astype(str) == value]
+        if len(matched) != 1:
+            raise ValueError(
+                f"{model_id} {spec.card_label} must hold exactly one "
+                f"{column}={value!r} row, found {len(matched)}"
+            )
+        row = matched.iloc[0].to_dict()
+        card_rows = int(len(table))
+    elif spec.card_columns:
         row = _one_csv_row(card_path, label=f"{model_id} {spec.card_label}")
         card_rows = 1
     else:
@@ -1427,7 +1454,7 @@ def _stored_pair_card(
     if spec.card_columns:
         for name, column in spec.card_columns.items():
             card[name] = _finite_float(row.get(column), label=f"{model_id} {column}")
-    else:
+    if not spec.card_columns or spec.card_row_selector is not None:
         card["card_rows"] = card_rows
     return card
 
@@ -1516,7 +1543,7 @@ def _evaluate_stored_blending_link_pair(
             ("config_name", "sampling configuration"),
             ("n_obs", "row count"),
         ]
-        if not spec.card_columns:
+        if not spec.card_columns or spec.card_row_selector is not None:
             compared.append(("card_rows", f"{spec.card_label} shape"))
         for field, label in compared:
             values = {card[field] for card in cards.values()}
@@ -1640,6 +1667,29 @@ _DOSE_PAIR_SPEC = _StoredPairSpec(
         "items_hi": "items_hi",
         "pd": "prob_pos",
     },
+)
+
+
+#: The mediation family's pair (#619). Its published card is the g-formula
+#: decomposition table -- total, NDE/IDE, NIE/IIE, proportion -- whose canonical
+#: headline is the ``total`` row, selected here so the audit record shows the number
+#: the report leads with. Its natural-scale columns are named ``words_*`` throughout
+#: the family (a legacy name from the word-reading outcome it was built for); they
+#: are items of whichever measure the fit's outcome is.
+_MEDIATION_PAIR_SPEC = _StoredPairSpec(
+    kind="mediation",
+    kind_article="a mediation fit",
+    registered_label="the registered mediation blending fits",
+    not_this_family="a mediation fit",
+    card_file="mediation_summary.csv",
+    card_label="mediation summary",
+    card_columns={
+        "items_median": "words_median",
+        "items_lo": "words_lo",
+        "items_hi": "words_hi",
+        "pd": "prob_pos",
+    },
+    card_row_selector=("quantity", "total"),
 )
 
 
@@ -1821,6 +1871,50 @@ def evaluate_dose_blending_link_pair(
     )
 
 
+def evaluate_mediation_blending_link_pair(
+    output_dir: str | Path,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Is this mediation ``B`` fit releasable beside its opposite-link twin? (#619)
+
+    ``lrp-rli-med-087`` fits the ordinary logit Beta-Binomial mean for a ten-item,
+    three-alternative forced-choice **outcome**, and its stored posterior carries the
+    largest below-chance share of any registered ``B`` fit: 11.6 % of its row-by-draw
+    mass, above LRPITT08's 8.9 %.
+
+    The link matters here in a way it does not elsewhere in the policy. Every NDE,
+    NIE and total is a difference of *simulated outcome means* accumulated by the
+    g-formula, so the link enters the counterfactual simulation cell by cell rather
+    than any summary afterwards. There is no downstream number to correct.
+
+    It governs the **outcome** only: the mediator is a separate leg with its own
+    measure, and no registered mediation model has phoneme blending as its mediator.
+
+    Scope is the model of record. ``lrp-rli-med-187`` declares ``companion_of`` and
+    is, by this family's own contract, an ``interventional`` relabelling whose
+    numbers reproduce the natural-effects fit exactly — so it is exempt on the
+    boundary the level window comparator, the gain variants and the aligned dose
+    sensitivity already draw, and its prose names the paired headline.
+
+    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    """
+    from language_reading_predictors.statistical_models.mediation_settings import (
+        MEDIATION_BLENDING_COMPANION_MODEL_ID,
+        MEDIATION_BLENDING_PRIMARY_MODEL_ID,
+    )
+
+    return _evaluate_stored_blending_link_pair(
+        output_dir,
+        config=config,
+        spec=_MEDIATION_PAIR_SPEC,
+        registered=(
+            MEDIATION_BLENDING_PRIMARY_MODEL_ID,
+            MEDIATION_BLENDING_COMPANION_MODEL_ID,
+        ),
+    )
+
+
 def evaluate_gain_blending_link_pair(
     output_dir: str | Path,
     *,
@@ -1873,5 +1967,6 @@ __all__ = [
     "evaluate_dose_blending_link_pair",
     "evaluate_gain_blending_link_pair",
     "evaluate_level_blending_link_pair",
+    "evaluate_mediation_blending_link_pair",
     "evaluate_local_blending_link_sensitivity",
 ]

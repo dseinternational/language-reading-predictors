@@ -886,29 +886,27 @@ def test_blending_key_findings_show_both_current_links(tmp_path):
     assert "85% probability" in companion_texts
 
 
-def test_unpaired_family_blending_outcome_does_not_require_the_itt_bundle(tmp_path):
-    """A ``B`` outcome in a family with no registered pair must still finalise (#466 scope).
+def test_a_non_itt_blending_fit_does_not_need_the_itt_archive_bundle(tmp_path):
+    """A ``B`` outcome outside the ITT pair must still finalise (#466 scope).
 
     ``blending_sensitivity`` builds its two-trace archive bundle for
     ``lrp-rli-itt-008`` and ``lrp-rli-itt-108`` only. Stamping that bundle's hash on
     outcome symbol alone raised ``FileNotFoundError`` inside
     ``runtime.finalize_report`` — after sampling, discarding the whole fit — because
     other families' builders never reach the catchable ``_KeyFindingsUnavailable``
-    that ``_kf_build_itt`` raises.
+    that ``_kf_build_itt`` raises. Every family now has *a* pairing, but only ITT's
+    is archive-backed, so the scope boundary this pins is still live.
 
-    The example is ``mediation``: as of #619 it is the **last** family with no
-    registered pair. This test has been retargeted twice as #619 landed families —
-    from ``aligned``, then from ``dose_response`` — because a family stops being an
-    example of an unpaired one the moment it is paired. When ``mediation`` is paired
-    too, this test has no valid subject left and should be replaced by an assertion
-    that *every* registered ``B`` model is paired. The complementary behaviour — a
-    paired family failing closed when its twin is absent — is covered in
-    ``test_blending_sensitivity.py``.
+    Its subject is ``lrp-rli-med-187``, the interventional relabelling exempt from
+    its family's pairing — a ``B`` fit that legitimately carries neither the ITT
+    archive nor a link twin of its own.
     """
     d, _ = _remaining_family_case(tmp_path, "mediation")
     config = json.loads((d / "config.json").read_text())
-    config["model_id"] = "lrp-rli-med-087"
+    config["model_id"] = "lrp-rli-med-187"
     config["outcome_symbol"] = "B"
+    config.setdefault("resolved_run_plan", {})
+    config["resolved_run_plan"]["link_sensitivity_required_for_release"] = False
     _write_json(d, "config.json", config)
 
     assert not (d / "blending_link_sensitivity.csv").exists()
@@ -917,6 +915,61 @@ def test_unpaired_family_blending_outcome_does_not_require_the_itt_bundle(tmp_pa
     assert payload["status"] == "ok", payload.get("reason")
     assert "blending_link_sensitivity_sha256" not in payload
     assert payload["sentences"]
+
+
+def test_every_registered_blending_model_is_paired_or_exempt(tmp_path):
+    """The successor to the retargeting treadmill (#619).
+
+    Its predecessor asserted "a ``B`` outcome in an unpaired family still
+    finalises", and had to be retargeted once per family #619 paired — aligned, then
+    dose_response, then mediation — because each retarget was its subject
+    disappearing. With every family paired there is no unpaired family left to name,
+    so the invariant worth pinning is the opposite one: every registered ``B`` model
+    either declares the pairing or is a recorded exemption with a companion parent.
+    """
+    import glob
+    import importlib
+    import os
+
+    root = os.path.dirname(
+        importlib.import_module(
+            "language_reading_predictors.statistical_models.mediation"
+        ).__file__
+    )
+    unaccounted: list[str] = []
+    for path in sorted(glob.glob(os.path.join(root, "lrp_*.py"))):
+        module = importlib.import_module(
+            "language_reading_predictors.statistical_models."
+            + os.path.basename(path)[:-3]
+        )
+        spec = getattr(module, "SPEC", None)
+        if spec is None or getattr(spec, "outcome_symbol", None) != "B":
+            continue
+        from language_reading_predictors.statistical_models.definitions import (
+            MODEL_REGISTRY,
+        )
+
+        entry = MODEL_REGISTRY.get(spec.model_id)
+        # Paired primaries and their companions both declare the pairing; an exempt
+        # variant is registered with a ``base``, i.e. it is a variant of a model that
+        # does. Anything with neither is a B model nothing accounts for.
+        paired = spec.model_id in {
+            "lrp-rli-itt-008", "lrp-rli-itt-108",
+            "lrp-rli-lf-006", "lrp-rli-lf-106",
+            "lrp-rli-did-003", "lrp-rli-did-103",
+            "lrp-rli-gf-006", "lrp-rli-gf-306",
+            "lrp-rli-al-006", "lrp-rli-al-306",
+            "lrp-rli-ca-007", "lrp-rli-ca-307",
+            "lrp-rli-dose-084", "lrp-rli-dose-384",
+            "lrp-rli-med-087", "lrp-rli-med-387",
+        }
+        exempt = entry is not None and entry.base is not None
+        if not (paired or exempt):
+            unaccounted.append(spec.model_id)
+    assert not unaccounted, (
+        "these registered B models are neither in a link pair nor a recorded "
+        f"variant of one: {unaccounted}"
+    )
 
 
 def test_aligned_off_floor_uses_resolved_plan_and_percentage_points(tmp_path):

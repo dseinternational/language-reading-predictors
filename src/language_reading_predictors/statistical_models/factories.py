@@ -63,6 +63,7 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
     JointPayload,
     LevelFactorsPayload,
     LongCorrFactorPayload,
+    MediationPayload,
     MechanismDesign,
     MechanismPayload,
 )
@@ -3169,6 +3170,9 @@ def _build_outcome_leg(
     cross_baselines=(),
     cross_values: dict | None = None,
     own_offfloor=None,
+    # #619: the phoneme-blending response link, applied to the OUTCOME's score mean.
+    # A mediator is a separate leg with its own measure and is unaffected.
+    score_mean_link: ScoreMeanLink = "logit",
 ):
     """Shared outcome leg for the single-mediator-design factories.
 
@@ -3236,8 +3240,9 @@ def _build_outcome_leg(
         off = (np.asarray(W2_count) > 0).astype(np.int64)
         return pm.Bernoulli("y_offfloor", logit_p=eta_Y, observed=off, dims="obs_id")
     kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
-    return beta_binomial_from_logit(
+    return beta_binomial_from_score_mean_link(
         "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
+        score_mean_link=score_mean_link,
         observed=W2_count, dims="obs_id",
     )
 
@@ -3253,7 +3258,10 @@ def build_mediation_model(
     outcome_kind: str = "beta_binomial",
     mediator_cross_baselines=(),
     outcome_cross_baselines=(),
-) -> tuple[BuiltModel[EmptyPayload], MediationData]:
+    # #619: the phoneme-blending response link for the outcome leg. B outcomes only,
+    # graded only, and released only beside the paired ordinary-link fit.
+    score_mean_link: ScoreMeanLink = "logit",
+) -> tuple[BuiltModel[MediationPayload], MediationData]:
     """Joint mediator + outcome model for the ITT-phase (phase 0) decomposition.
 
     ``mediator_kind`` selects the mediator sub-model:
@@ -3425,6 +3433,7 @@ def build_mediation_model(
             cross_baselines=outcome_cross_baselines,
             cross_values=out_cross_values,
             own_offfloor=own_offfloor,
+            score_mean_link=score_mean_link,
         )
 
     med_data = MediationData(
@@ -3449,7 +3458,11 @@ def build_mediation_model(
         outcome_cross_values=out_cross_values,
         own_offfloor=own_offfloor,
     )
-    built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
+    built = BuiltModel(
+        model=model,
+        prepared=prepared,
+        payload=MediationPayload(score_mean_link=score_mean_link),
+    )
     return built, med_data
 
 

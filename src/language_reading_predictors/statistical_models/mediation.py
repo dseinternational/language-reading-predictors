@@ -67,6 +67,9 @@ import pandas as pd
 import xarray as xr
 from dse_research_utils.math.constants import EPSILON
 
+from language_reading_predictors.statistical_models.likelihood import (
+    apply_score_mean_link,
+)
 from language_reading_predictors.statistical_models.factories import (
     MediationData,
     PeriodStackedMediationData,
@@ -206,6 +209,7 @@ def decompose(
     seed: int = 47,
     interventional: bool = False,
     b_m_shift: float = 0.0,
+    score_mean_link: str = "logit",
 ) -> pd.DataFrame:
     """Return the NDE / NIE / Total / proportion-mediated posterior summary.
 
@@ -232,6 +236,15 @@ def decompose(
     quantity — ``IS`` never enters the fitted model, so the interventional
     functional cannot repair, or diagnose, dose confounding. Rows are labelled
     ``IDE``/``IIE`` and the proportion is ``IIE/Total``.
+
+    ``score_mean_link`` is the inverse link of the fitted **outcome** leg (#619).
+    Every NDE / NIE / total is a difference of simulated outcome means, so the link
+    has to enter the counterfactual simulation itself rather than any summary
+    afterwards: each ``E[Y(g, M(g'))]`` is accumulated on the response scale, and a
+    decomposition run on the ordinary logit against a floor-link posterior would
+    report items the fitted model never implied. It applies to the outcome only --
+    the mediator's own law is a separate leg with its own measure, and no registered
+    mediation model has phoneme blending as its mediator.
     """
     post = trace.posterior
     # Confounders come from the fitted model (via MediationData), so the
@@ -301,7 +314,10 @@ def decompose(
             eta = eta + b_conf[s][:, None] * conf[s]
         for name, row in out_cross_rows.items():
             eta = eta + b_cross[name][:, None] * row
-        return _sigmoid(eta)
+        # The fitted outcome score mean, not the bare inverse logit: under the
+        # phoneme-blending guessing floor the mean is 1/3 + 2/3 * expit(eta), and
+        # every counterfactual cell is accumulated on that scale (#619).
+        return apply_score_mean_link(_sigmoid(eta), score_mean_link)
 
     # E[Y(g_out, M(g'))] averaged over units, accumulated over mediator replicates.
     y_treat_Mtreat = np.zeros(S)
@@ -531,6 +547,7 @@ def decompose_period_stacked(
     seed: int = 47,
     b_m_shift: float = 0.0,
     row_mask: np.ndarray | None = None,
+    score_mean_link: str = "logit",
 ) -> pd.DataFrame:
     """NDE / NIE / Total for the period-stacked design (MED-092, #229).
 
@@ -617,7 +634,10 @@ def decompose_period_stacked(
             eta = eta + b_conf[s][:, None] * conf[s]
         for name, row in out_cross_rows.items():
             eta = eta + b_cross[name][:, None] * row
-        return _sigmoid(eta)
+        # The fitted outcome score mean, not the bare inverse logit: under the
+        # phoneme-blending guessing floor the mean is 1/3 + 2/3 * expit(eta), and
+        # every counterfactual cell is accumulated on that scale (#619).
+        return apply_score_mean_link(_sigmoid(eta), score_mean_link)
 
     def mediator_p(t: float) -> np.ndarray:
         mu = (
@@ -677,6 +697,7 @@ def decompose_two_mediator(
     seed: int = 47,
     order: tuple[str, str] = ("L", "E"),
     b_m_shifts: dict[str, float] | None = None,
+    score_mean_link: str = "logit",
 ) -> pd.DataFrame:
     """Two-mediator g-formula decomposition for LRP64 (letter-sound L + vocab E -> W).
 
@@ -792,7 +813,10 @@ def decompose_two_mediator(
             eta = eta + b_conf[s][:, None] * conf[s]
         for name, row in out_cross_rows.items():
             eta = eta + b_cross[name][:, None] * row
-        return _sigmoid(eta)
+        # The fitted outcome score mean, not the bare inverse logit: under the
+        # phoneme-blending guessing floor the mean is 1/3 + 2/3 * expit(eta), and
+        # every counterfactual cell is accumulated on that scale (#619).
+        return apply_score_mean_link(_sigmoid(eta), score_mean_link)
 
     def _add_leg_cross(mu, symbol):
         for name, row in med_cross_rows.get(symbol, {}).items():
