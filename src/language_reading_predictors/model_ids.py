@@ -92,6 +92,12 @@ VARIANT_ROLE_BY_SUFFIX: dict[str, str] = {
     "d": "dose_sensitivity",
     "a": "alternate",
     "m": "moderation",
+    # The response-link sensitivity role (#596). The level and ITT families spell
+    # their blending link companions ``b`` because 1xx was free there; in the gain
+    # family 1xx is already the treated-only ``b`` companions and 2xx the ``m``
+    # moderation variants, so the role needs its own suffix to keep the documented
+    # "one suffix, one block" rule -- ``f`` (floor) in the 3xx block.
+    "f": "link_sensitivity",
 }
 _LETTER_SUFFIXES: frozenset[str] = frozenset(
     s for s in VARIANT_ROLE_BY_SUFFIX if len(s) == 1
@@ -148,6 +154,10 @@ _VARIANT_RENUMBER: dict[str, tuple[str, int]] = {
     "lrplf09a": ("lf", 209),
     "lrplf10a": ("lf", 210),
     "lrplf11a": ("lf", 211),
+    # The gain family's phoneme-blending response-link companion (#596). It cannot
+    # take 1xx (the treated-only ``b`` companions) or 2xx (the ``m`` moderation
+    # variants), so the ``f`` link-sensitivity suffix opens the 3xx block.
+    "lrpgf06f": ("gf", 306),
     "lrpitt08b": ("itt", 108),
     "lrpitt13b": ("itt", 113),
     "lrpitt14b": ("itt", 114),

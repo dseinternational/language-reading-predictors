@@ -5170,6 +5170,12 @@ def build_gain_factors_model(
     interactions: Iterable[tuple[str, str]] = (),
     treated_only: bool = False,
     likelihood: str = "beta_binomial",
+    # #596: the phoneme-blending response link. ``"logit"`` is the ordinary
+    # Beta-Binomial inverse-logit mean; ``"three_choice_guessing_floor"`` maps it
+    # onto [1/3, 1] for the ten three-alternative forced-choice blending items,
+    # whose expected score cannot fall below chance. B only, graded only, and
+    # released only beside its paired ordinary-link fit.
+    score_mean_link: ScoreMeanLink = "logit",
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
     trt_prior_sigma: float | None = None,
@@ -5232,6 +5238,21 @@ def build_gain_factors_model(
         raise ValueError(
             "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
             f"got {likelihood!r}"
+        )
+    if score_mean_link not in SCORE_MEAN_LINKS:
+        raise ValueError(
+            f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+            f"got {score_mean_link!r}"
+        )
+    if score_mean_link == "three_choice_guessing_floor" and outcome_symbol != "B":
+        raise ValueError(
+            "three_choice_guessing_floor is only valid for phoneme blending (B), "
+            f"got {outcome_symbol!r}"
+        )
+    if likelihood != "beta_binomial" and score_mean_link != "logit":
+        raise ValueError(
+            "score_mean_link applies to the graded Beta-Binomial mean; the "
+            f"{likelihood!r} branch has no score mean to map"
         )
     # Treatment-prior sweep hook (#391): the gf sensitivity runner refits the
     # registered primary with only the beta_trt prior scale moved across its
@@ -5414,8 +5435,9 @@ def build_gain_factors_model(
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
             kappa = _scalar_prior("kappa", _priors.kappa_prior)
-            beta_binomial_from_logit(
+            beta_binomial_from_score_mean_link(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                score_mean_link=score_mean_link,
                 observed=post, dims="obs_id",
             )
         else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
@@ -5446,7 +5468,8 @@ def build_gain_factors_model(
         model=model,
         prepared=prepared,
         payload=GainFactorsPayload(
-            trt_interaction_moderators=tuple(trt_moderators)
+            trt_interaction_moderators=tuple(trt_moderators),
+            score_mean_link=score_mean_link,
         ),
     )
 

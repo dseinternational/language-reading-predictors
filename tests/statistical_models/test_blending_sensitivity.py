@@ -715,3 +715,190 @@ def test_release_gate_withholds_an_unpaired_level_blending_fit(tmp_path):
     _level_fit_dir(models, "lrp-rli-lf-106", link="three_choice_guessing_floor")
     assert release._blending_pair_release_failures(primary, config) == ()
 
+
+
+# --- the gain family's pair (#596) --------------------------------------------
+
+
+def _gain_fit_dir(
+    root: Path,
+    model_id: str,
+    *,
+    link: str,
+    kind: str = "gain_factors",
+    outcome_symbol: str = "B",
+    config_name: str = "reporting",
+    gate_passed: bool = True,
+    digest: str = "ad7c861af4c22af5",
+    data_sha256: str = "b" * 64,
+    n_obs: int = 161,
+    items_median: float = 0.835,
+    required: bool = True,
+) -> Path:
+    """A minimal stored gain-factor B fit: config, gate verdict and ROPE card."""
+    directory = root / f"{model_id}-{config_name}"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": kind,
+                "outcome_symbol": outcome_symbol,
+                "config_name": config_name,
+                "data_sha256": data_sha256,
+                "n_obs": n_obs,
+                "fitted_data_identity": {"digest": digest},
+                "resolved_run_plan": {
+                    "score_mean_link": link,
+                    "link_sensitivity_required_for_release": required,
+                    "required_link_companion_model_id": (
+                        "lrp-rli-gf-306"
+                        if model_id == "lrp-rli-gf-006"
+                        else "lrp-rli-gf-006"
+                    ),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (directory / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "divergences": 0 if gate_passed else 47,
+                "max_rhat": 1.0 if gate_passed else 1.9,
+                "min_ess": 4000.0 if gate_passed else 12.0,
+                "bfmi_per_chain": [0.9, 0.9] if gate_passed else [0.05, 0.9],
+                "checks": {
+                    "rhat": gate_passed,
+                    "ess": gate_passed,
+                    "divergences": gate_passed,
+                    "bfmi": gate_passed,
+                },
+                "passed": gate_passed,
+            }
+        ),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [{"items_median": items_median, "items_lo": 0.086, "items_hi": 1.58, "pd": 0.96}]
+    ).to_csv(directory / "rope_summary.csv", index=False)
+    return directory
+
+
+def test_gain_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    _gain_fit_dir(
+        models,
+        "lrp-rli-gf-306",
+        link="three_choice_guessing_floor",
+        items_median=0.44,
+    )
+    status = bs.evaluate_gain_blending_link_pair(primary)
+    assert status["required"] and status["ready"], status
+    cards = status["cards"]
+    assert cards["lrp-rli-gf-006"]["score_mean_link"] == "logit"
+    assert cards["lrp-rli-gf-306"]["items_median"] == 0.44
+    # Either side of the pair sees the same verdict.
+    assert bs.evaluate_gain_blending_link_pair(
+        models / "lrp-rli-gf-306-reporting"
+    )["ready"]
+
+
+def test_gain_pair_is_not_ready_without_its_twin(tmp_path):
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    status = bs.evaluate_gain_blending_link_pair(primary)
+    assert status["required"] and not status["ready"]
+    assert "not present beside this one" in status["reason"]
+
+
+def test_gain_pair_requires_the_registered_pairing_even_on_a_stale_plan(tmp_path):
+    """gf-006's stored reporting fit predates the pairing, so its plan carries no
+    ``link_sensitivity_required_for_release``. The requirement is derived from the
+    registered ids too, so that fit fails closed rather than releasing unpaired."""
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    config["resolved_run_plan"].pop("link_sensitivity_required_for_release")
+    status = bs.evaluate_gain_blending_link_pair(primary, config=config)
+    assert status["required"] and not status["ready"]
+
+
+def test_gain_pair_rejects_an_unconverged_side(tmp_path):
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    _gain_fit_dir(
+        models,
+        "lrp-rli-gf-306",
+        link="three_choice_guessing_floor",
+        gate_passed=False,
+    )
+    status = bs.evaluate_gain_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "convergence gate" in status["reason"]
+
+
+def test_gain_pair_rejects_different_fitted_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    _gain_fit_dir(
+        models,
+        "lrp-rli-gf-306",
+        link="three_choice_guessing_floor",
+        digest="0th3r",
+    )
+    status = bs.evaluate_gain_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "fitted rows" in status["reason"]
+
+
+def test_gain_pair_rejects_two_fits_under_the_same_link(tmp_path):
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    _gain_fit_dir(models, "lrp-rli-gf-306", link="logit")
+    status = bs.evaluate_gain_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "opposite score-mean links" in status["reason"]
+
+
+def test_gain_pair_ignores_a_non_blending_gain_fit(tmp_path):
+    models = tmp_path / "models"
+    directory = _gain_fit_dir(
+        models, "lrp-rli-gf-001", link="logit", outcome_symbol="W", required=False
+    )
+    status = bs.evaluate_gain_blending_link_pair(directory)
+    assert not status["required"] and status["ready"]
+
+
+def test_gain_pair_exempts_the_b_variants(tmp_path):
+    """#596 scope decision: the treated-only and moderation variants publish no
+    paired headline, so their plans do not declare the pairing and the gate lets
+    them through rather than demanding floor twins that do not exist."""
+    models = tmp_path / "models"
+    for model_id in ("lrp-rli-gf-106", "lrp-rli-gf-206"):
+        directory = _gain_fit_dir(models, model_id, link="logit", required=False)
+        status = bs.evaluate_gain_blending_link_pair(directory)
+        assert not status["required"] and status["ready"], model_id
+
+
+def test_release_gate_withholds_an_unpaired_gain_blending_fit(tmp_path):
+    from language_reading_predictors.statistical_models import release
+
+    models = tmp_path / "models"
+    primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    failures = release._blending_pair_release_failures(primary, config)
+    assert failures and "lrp-rli-gf-006 + lrp-rli-gf-306" in failures[0]
+    _gain_fit_dir(models, "lrp-rli-gf-306", link="three_choice_guessing_floor")
+    assert release._blending_pair_release_failures(primary, config) == ()
+
+
+def test_release_gate_lets_the_exempt_gain_b_variants_through(tmp_path):
+    from language_reading_predictors.statistical_models import release
+
+    models = tmp_path / "models"
+    for model_id in ("lrp-rli-gf-106", "lrp-rli-gf-206"):
+        directory = _gain_fit_dir(models, model_id, link="logit", required=False)
+        config = json.loads((directory / "config.json").read_text(encoding="utf-8"))
+        assert release._blending_pair_release_failures(directory, config) == ()
