@@ -46,6 +46,18 @@ class AlignedPayload(FittedPayload):
 
 
 @dataclass(frozen=True)
+class MediationPayload(FittedPayload):
+    """Score-mean link of a single-mediator mediation fit's OUTCOME leg (#619).
+
+    Carries what the factory built, so the g-formula's counterfactual simulation
+    accumulates each ``E[Y(g, M(g'))]`` on the response scale the outcome likelihood
+    used. The mediator leg has its own measure and is unaffected.
+    """
+
+    score_mean_link: ScoreMeanLink = "logit"
+
+
+@dataclass(frozen=True)
 class ConcurrentPayload(FittedPayload):
     """Score-mean link of one wave's concurrent-associations fit (#619).
 

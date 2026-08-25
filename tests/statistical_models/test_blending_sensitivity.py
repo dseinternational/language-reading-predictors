@@ -1346,3 +1346,226 @@ def test_release_gate_withholds_an_unpaired_dose_blending_fit(tmp_path):
     assert failures and "lrp-rli-dose-084 + lrp-rli-dose-384" in failures[0]
     _dose_fit_dir(models, "lrp-rli-dose-384", link="three_choice_guessing_floor")
     assert release._blending_pair_release_failures(primary, config) == ()
+
+
+# --- the mediation family's pair, and the symbol-keyed default (#619) ---------
+
+
+def _mediation_fit_dir(
+    root: Path,
+    model_id: str,
+    *,
+    link: str,
+    outcome_symbol: str = "B",
+    config_name: str = "reporting",
+    gate_passed: bool = True,
+    digest: str = "med87",
+    data_sha256: str = "f" * 64,
+    n_obs: int = 53,
+    total_items: float = 0.674,
+    n_quantities: int = 4,
+    required: bool = True,
+) -> Path:
+    """A minimal stored mediation B fit, carded by its decomposition table."""
+    directory = root / f"{model_id}-{config_name}"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "mediation",
+                "outcome_symbol": outcome_symbol,
+                "config_name": config_name,
+                "data_sha256": data_sha256,
+                "n_obs": n_obs,
+                "fitted_data_identity": {"digest": digest},
+                "resolved_run_plan": {
+                    "score_mean_link": link,
+                    "link_sensitivity_required_for_release": required,
+                    "required_link_companion_model_id": (
+                        "lrp-rli-med-387"
+                        if model_id == "lrp-rli-med-087"
+                        else "lrp-rli-med-087"
+                    ),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (directory / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "divergences": 0 if gate_passed else 47,
+                "max_rhat": 1.0 if gate_passed else 1.9,
+                "min_ess": 4000.0 if gate_passed else 12.0,
+                "bfmi_per_chain": [0.9, 0.9] if gate_passed else [0.05, 0.9],
+                "checks": {
+                    "rhat": gate_passed,
+                    "ess": gate_passed,
+                    "divergences": gate_passed,
+                    "bfmi": gate_passed,
+                },
+                "passed": gate_passed,
+            }
+        ),
+        encoding="utf-8",
+    )
+    quantities = ["total", "NDE", "NIE", "proportion_mediated"][:n_quantities]
+    pd.DataFrame(
+        [
+            {
+                "quantity": q,
+                "words_median": total_items if q == "total" else 0.1,
+                "words_lo": -0.148,
+                "words_hi": 1.498,
+                "prob_pos": 0.908,
+            }
+            for q in quantities
+        ]
+    ).to_csv(directory / "mediation_summary.csv", index=False)
+    return directory
+
+
+def test_mediation_pair_selects_the_total_row_from_the_decomposition(tmp_path):
+    """The card is a multi-row decomposition; the headline is the ``total`` row, so
+    the audit record shows the number the report leads with rather than a
+    shape-only check."""
+    models = tmp_path / "models"
+    primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
+    _mediation_fit_dir(
+        models,
+        "lrp-rli-med-387",
+        link="three_choice_guessing_floor",
+        total_items=0.41,
+    )
+    status = bs.evaluate_mediation_blending_link_pair(primary)
+    assert status["required"] and status["ready"], status
+    assert status["cards"]["lrp-rli-med-087"]["items_median"] == 0.674
+    assert status["cards"]["lrp-rli-med-387"]["items_median"] == 0.41
+    assert status["cards"]["lrp-rli-med-087"]["card_rows"] == 4
+
+
+def test_mediation_pair_rejects_a_decomposition_of_a_different_shape(tmp_path):
+    """A twin reporting a different set of quantities is not the same decomposition."""
+    models = tmp_path / "models"
+    primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
+    _mediation_fit_dir(
+        models,
+        "lrp-rli-med-387",
+        link="three_choice_guessing_floor",
+        n_quantities=3,
+    )
+    status = bs.evaluate_mediation_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "mediation summary shape" in status["reason"]
+
+
+def test_mediation_pair_rejects_a_card_with_no_total_row(tmp_path):
+    models = tmp_path / "models"
+    primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
+    companion = _mediation_fit_dir(
+        models, "lrp-rli-med-387", link="three_choice_guessing_floor"
+    )
+    table = pd.read_csv(companion / "mediation_summary.csv")
+    table["quantity"] = table["quantity"].replace({"total": "IDE"})
+    table.to_csv(companion / "mediation_summary.csv", index=False)
+    status = bs.evaluate_mediation_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "exactly one quantity='total' row" in status["reason"]
+
+
+def test_mediation_pair_is_not_ready_without_its_twin(tmp_path):
+    models = tmp_path / "models"
+    primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
+    status = bs.evaluate_mediation_blending_link_pair(primary)
+    assert status["required"] and not status["ready"]
+    assert "not present beside this one" in status["reason"]
+
+
+def test_mediation_pair_exempts_the_interventional_relabelling(tmp_path):
+    """med-187 declares companion_of and reproduces med-087's numbers under an
+    interventional relabelling, so the pairing governs the parent, not the alias."""
+    models = tmp_path / "models"
+    directory = _mediation_fit_dir(
+        models, "lrp-rli-med-187", link="logit", required=False
+    )
+    status = bs.evaluate_mediation_blending_link_pair(directory)
+    assert not status["required"] and status["ready"]
+
+
+def test_release_gate_withholds_an_unpaired_mediation_blending_fit(tmp_path):
+    from language_reading_predictors.statistical_models import release
+
+    models = tmp_path / "models"
+    primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    failures = release._blending_pair_release_failures(primary, config)
+    assert failures and "lrp-rli-med-087 + lrp-rli-med-387" in failures[0]
+    _mediation_fit_dir(models, "lrp-rli-med-387", link="three_choice_guessing_floor")
+    assert release._blending_pair_release_failures(primary, config) == ()
+
+
+def test_a_blending_fit_in_an_ungated_family_fails_closed(tmp_path):
+    """#608 decision 1, implemented in #619: the gate's default is keyed on the
+    OUTCOME SYMBOL, not on ``kind``.
+
+    Before this, the dispatch returned early for every unlisted kind — which is how
+    four families published unpaired ``B`` results for months without anything
+    failing. A ``B`` fit in a family with no registered pairing is a fit whose
+    response-link sensitivity nothing can verify, so it must not publish.
+    """
+    from language_reading_predictors.statistical_models import release
+
+    failures = release._blending_pair_release_failures(
+        tmp_path,
+        {"kind": "pooled_levels", "outcome_symbol": "B", "model_id": "lrp-rli-pl-999"},
+    )
+    assert failures
+    assert "no registered response-link pair gate" in failures[0]
+    # A non-B outcome in the same ungated family is untouched.
+    assert (
+        release._blending_pair_release_failures(
+            tmp_path,
+            {
+                "kind": "pooled_levels",
+                "outcome_symbol": "W",
+                "model_id": "lrp-rli-pl-001",
+            },
+        )
+        == ()
+    )
+
+
+def test_every_family_registering_a_blending_model_has_a_gate():
+    """The fail-closed default must not be load-bearing for anything registered.
+
+    If a registered ``B`` model's family had no gate, the default above would
+    withhold it — correct, but a surprise discovered at release time rather than
+    here. This asserts the two stay in step.
+    """
+    import glob
+    import importlib
+    import os
+
+    from language_reading_predictors.statistical_models import release
+
+    root = os.path.dirname(
+        importlib.import_module(
+            "language_reading_predictors.statistical_models.mediation"
+        ).__file__
+    )
+    gated = set(release._BLENDING_PAIR_GATES) | {"itt"}
+    ungated = set()
+    for path in sorted(glob.glob(os.path.join(root, "lrp_*.py"))):
+        module = importlib.import_module(
+            "language_reading_predictors.statistical_models."
+            + os.path.basename(path)[:-3]
+        )
+        spec = getattr(module, "SPEC", None)
+        if spec is not None and getattr(spec, "outcome_symbol", None) == "B":
+            if spec.kind not in gated:
+                ungated.add((spec.kind, spec.model_id))
+    assert not ungated, (
+        "these registered B models are in families with no pair gate, so they would "
+        f"fail closed at release: {sorted(ungated)}"
+    )

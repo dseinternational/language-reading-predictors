@@ -62,7 +62,9 @@ def _registered_specs() -> list[ModelSpec]:
 
 def test_every_registered_mediation_spec_is_typed_and_resolves():
     specs = _registered_specs()
-    assert len(specs) == 19
+    # 19 + the lrp-rli-med-387 phoneme-blending link companion (#619), which
+    # copies med-087 and differs only in the outcome's score mean.
+    assert len(specs) == 20
     assert {spec.kind for spec in specs} == {"mediation", "mediation_multi"}
     for spec in specs:
         assert spec.extra == {}

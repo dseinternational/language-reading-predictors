@@ -2418,19 +2418,27 @@ def _blending_pair_release_failures(
     outside the registered pair fails closed rather than releasing unpaired).
     """
     kind = str(config.get("kind") or "")
-    if kind == "level_factors":
-        return _level_blending_pair_release_failures(output_dir, config)
-    if kind == "did":
-        return _did_blending_pair_release_failures(output_dir, config)
-    if kind == "gain_factors":
-        return _gain_blending_pair_release_failures(output_dir, config)
-    if kind == "aligned":
-        return _aligned_blending_pair_release_failures(output_dir, config)
-    if kind == "concurrent":
-        return _concurrent_blending_pair_release_failures(output_dir, config)
-    if kind == "dose_response":
-        return _dose_blending_pair_release_failures(output_dir, config)
+    family_gate = _BLENDING_PAIR_GATES.get(kind)
+    if family_gate is not None:
+        return family_gate(output_dir, config)
     if kind != "itt":
+        # Symbol-keyed fail-closed (#608 decision 1, implemented in #619). Every
+        # family that registers a ``B`` model has a gate above. A ``B`` fit in a
+        # family that does not is a model whose response-link sensitivity nothing
+        # can verify -- so it must not publish, rather than slipping through because
+        # its ``kind`` was not remembered. This is the direction the policy always
+        # stated and the code did not do: before #619 the dispatch returned early
+        # for every unlisted kind, so four families published unpaired ``B`` results
+        # for months without anything failing.
+        if str(config.get("outcome_symbol") or "") == "B":
+            return (
+                f"{config.get('model_id')} reports a phoneme-blending (B) outcome, "
+                f"but the {kind!r} family has no registered response-link pair gate. "
+                "Blending is a three-alternative forced-choice test whose expected "
+                "score cannot fall below chance, and the #608 policy requires every "
+                "B model to be released beside its guessing-floor twin; add the "
+                "family's pairing before releasing this fit",
+            )
         return ()
     from language_reading_predictors.statistical_models.blending_sensitivity import (
         BLENDING_LINK_MODELS,
@@ -2661,6 +2669,55 @@ def _dose_blending_pair_release_failures(
             "(lrp-rli-dose-084 + lrp-rli-dose-384) is not release-ready: " + reason,
         )
     return ()
+
+
+def _mediation_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The mediation family's phoneme-blending pairing (#619).
+
+    Same policy and evidence tier as the other stored-artefact pairs, but the link
+    reaches further into this family than any other: every NDE, NIE and total is a
+    difference of *simulated outcome means*, so ``score_mean_link`` enters the
+    g-formula's counterfactual simulation cell by cell rather than any summary
+    afterwards. LRP87's stored posterior also carries the largest below-chance share
+    of any registered ``B`` fit (12.1 %).
+
+    Scope is the model of record: ``lrp-rli-med-187`` declares ``companion_of`` and
+    reproduces LRP87's numbers under an interventional relabelling, so its plan does
+    not declare the pairing and it returns "no link pairing" here.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_mediation_blending_link_pair,
+    )
+
+    try:
+        status = evaluate_mediation_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the mediation B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            "(lrp-rli-med-087 + lrp-rli-med-387) is not release-ready: " + reason,
+        )
+    return ()
+
+
+#: Per-family phoneme-blending pair gates, keyed by ``ModelSpec.kind`` (#619).
+#: ``itt`` is deliberately absent: it takes the trace-backed content-addressed
+#: archive path inside :func:`_blending_pair_release_failures` rather than the
+#: stored-artefact check these seven share. A ``B`` fit whose kind is in neither
+#: place fails closed -- see that function.
+_BLENDING_PAIR_GATES: dict[str, Callable[[Path, Mapping[str, Any]], tuple[str, ...]]] = {
+    "aligned": _aligned_blending_pair_release_failures,
+    "concurrent": _concurrent_blending_pair_release_failures,
+    "did": _did_blending_pair_release_failures,
+    "dose_response": _dose_blending_pair_release_failures,
+    "gain_factors": _gain_blending_pair_release_failures,
+    "level_factors": _level_blending_pair_release_failures,
+    "mediation": _mediation_blending_pair_release_failures,
+}
 
 
 def _joint_blending_scope_note(output_dir: Path, config: Mapping[str, Any]) -> str:
