@@ -156,6 +156,11 @@ def test_default_legacy_plan_preserves_execution_contract():
         "ability_adjust_symbols": (),
         "ability_baseline_wave": "t1",
         "decompose_between_within": True,
+        # #619: a W outcome takes the ordinary link, so the fitted model is
+        # unchanged — beta_binomial_from_score_mean_link delegates to the previous
+        # call for "logit". The key is asserted because the factory contract is what
+        # this test pins.
+        "score_mean_link": "logit",
     }
     assert plan.diagnostic_vars() == [
         "alpha",
@@ -294,7 +299,9 @@ def test_pipeline_has_no_direct_dose_response_setting_reads():
 
 def test_registered_models_are_typed_and_preserve_the_legacy_contract():
     specs = _registered_specs()
-    assert len(specs) == 5
+    # 5 primaries/variants + the lrp-rli-dose-384 phoneme-blending link companion
+    # (#619), which copies dose-084 and differs only in the score mean.
+    assert len(specs) == 6
     assert {spec.outcome_symbol for spec in specs} == {"W", "L", "B"}
 
     for registered in specs:

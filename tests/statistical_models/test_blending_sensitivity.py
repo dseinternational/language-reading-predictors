@@ -1218,3 +1218,131 @@ def test_every_natural_scale_reporting_helper_accepts_the_score_mean_link():
         "these natural-scale helpers take no score_mean_link, so they would "
         f"publish ordinary-link numbers from a floor-link posterior: {missing}"
     )
+
+
+# --- the dose family's pair (#619) --------------------------------------------
+
+
+def _dose_fit_dir(
+    root: Path,
+    model_id: str,
+    *,
+    link: str,
+    outcome_symbol: str = "B",
+    config_name: str = "reporting",
+    gate_passed: bool = True,
+    digest: str = "d05e",
+    data_sha256: str = "e" * 64,
+    n_obs: int = 160,
+    items_median: float = 0.017,
+    required: bool = True,
+) -> Path:
+    """A minimal stored dose-response B fit, carded by its dose marginal summary."""
+    directory = root / f"{model_id}-{config_name}"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "dose_response",
+                "outcome_symbol": outcome_symbol,
+                "config_name": config_name,
+                "data_sha256": data_sha256,
+                "n_obs": n_obs,
+                "fitted_data_identity": {"digest": digest},
+                "resolved_run_plan": {
+                    "score_mean_link": link,
+                    "link_sensitivity_required_for_release": required,
+                    "required_link_companion_model_id": (
+                        "lrp-rli-dose-384"
+                        if model_id == "lrp-rli-dose-084"
+                        else "lrp-rli-dose-084"
+                    ),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (directory / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "divergences": 0 if gate_passed else 47,
+                "max_rhat": 1.0 if gate_passed else 1.9,
+                "min_ess": 4000.0 if gate_passed else 12.0,
+                "bfmi_per_chain": [0.9, 0.9] if gate_passed else [0.05, 0.9],
+                "checks": {
+                    "rhat": gate_passed,
+                    "ess": gate_passed,
+                    "divergences": gate_passed,
+                    "bfmi": gate_passed,
+                },
+                "passed": gate_passed,
+            }
+        ),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [
+            {
+                "items_median": items_median,
+                "items_lo": -0.74,
+                "items_hi": 0.72,
+                "prob_pos": 0.515,
+            }
+        ]
+    ).to_csv(directory / "dose_marginal_summary.csv", index=False)
+    return directory
+
+
+def test_dose_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
+    _dose_fit_dir(
+        models,
+        "lrp-rli-dose-384",
+        link="three_choice_guessing_floor",
+        items_median=0.009,
+    )
+    status = bs.evaluate_dose_blending_link_pair(primary)
+    assert status["required"] and status["ready"], status
+    assert status["cards"]["lrp-rli-dose-384"]["items_median"] == 0.009
+
+
+def test_dose_pair_is_not_ready_without_its_twin(tmp_path):
+    models = tmp_path / "models"
+    primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
+    status = bs.evaluate_dose_blending_link_pair(primary)
+    assert status["required"] and not status["ready"]
+    assert "not present beside this one" in status["reason"]
+
+
+def test_dose_pair_rejects_different_fitted_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
+    _dose_fit_dir(
+        models, "lrp-rli-dose-384", link="three_choice_guessing_floor", digest="0th3r"
+    )
+    status = bs.evaluate_dose_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "fitted rows" in status["reason"]
+
+
+def test_dose_pair_ignores_a_non_blending_dose_fit(tmp_path):
+    models = tmp_path / "models"
+    directory = _dose_fit_dir(
+        models, "lrp-rli-dose-077", link="logit", outcome_symbol="W", required=False
+    )
+    status = bs.evaluate_dose_blending_link_pair(directory)
+    assert not status["required"] and status["ready"]
+
+
+def test_release_gate_withholds_an_unpaired_dose_blending_fit(tmp_path):
+    from language_reading_predictors.statistical_models import release
+
+    models = tmp_path / "models"
+    primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    failures = release._blending_pair_release_failures(primary, config)
+    assert failures and "lrp-rli-dose-084 + lrp-rli-dose-384" in failures[0]
+    _dose_fit_dir(models, "lrp-rli-dose-384", link="three_choice_guessing_floor")
+    assert release._blending_pair_release_failures(primary, config) == ()

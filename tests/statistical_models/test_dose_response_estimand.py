@@ -523,3 +523,96 @@ def test_effective_adjustment_names_the_adjusters_not_the_exposure():
     assert record["exposure"] == "attend"
     assert "attend" not in terms
     assert {"W_pre", "A", "beta_arm_late", "L_pre", "E_pre", "B_pre"} <= terms
+
+
+# --- the phoneme-blending response-link pair (#619) ---------------------------
+
+
+def test_the_registered_blending_link_pair_is_paired_both_ways():
+    """#619: dose-084 and dose-384 fit the same analysis under the two response
+    links, each naming the other, and neither may release alone."""
+    import importlib
+
+    from language_reading_predictors.statistical_models.dose_response import (
+        resolve_dose_response_run_plan,
+    )
+
+    def _plan(module: str):
+        mod = importlib.import_module(
+            f"language_reading_predictors.statistical_models.{module}"
+        )
+        return resolve_dose_response_run_plan(mod.SPEC)
+
+    primary, companion = _plan("lrp_rli_dose_084"), _plan("lrp_rli_dose_384")
+    assert primary.score_mean_link == "logit"
+    assert companion.score_mean_link == "three_choice_guessing_floor"
+    assert primary.required_link_companion_model_id == "lrp-rli-dose-384"
+    assert companion.required_link_companion_model_id == "lrp-rli-dose-084"
+    assert primary.link_sensitivity_required_for_release
+    assert companion.link_sensitivity_required_for_release
+    for field in (
+        "outcome_symbol", "adjust_baseline_symbol", "dose_covariate",
+        "dose_stage_covariate", "period_varying_dose",
+        "use_subject_random_intercept", "ability_adjust_symbols",
+        "ability_baseline_wave", "decompose_between_within", "outcomes",
+        "adjust_group", "adjust_age", "focal_term", "exposure", "dose_margin",
+        "dose_contrast", "estimand", "causal_status", "analysis_population",
+    ):
+        assert getattr(primary, field) == getattr(companion, field), field
+    # The companion must carry the primary's sampler setting too, or the comparison
+    # confounds the link with a sampling-quality difference.
+    assert companion.model_id != primary.model_id
+
+
+def test_only_a_blending_outcome_requires_the_link_pair():
+    import importlib
+
+    from language_reading_predictors.statistical_models.dose_response import (
+        resolve_dose_response_run_plan,
+    )
+
+    for module, expected in (
+        ("lrp_rli_dose_077", False),
+        ("lrp_rli_dose_083", False),
+        ("lrp_rli_dose_084", True),
+    ):
+        mod = importlib.import_module(
+            f"language_reading_predictors.statistical_models.{module}"
+        )
+        plan = resolve_dose_response_run_plan(mod.SPEC)
+        assert plan.link_sensitivity_required_for_release is expected, module
+
+
+def test_the_dose_marginal_transform_maps_through_the_link():
+    """The floor link compresses a given latent shift, so the same draws must give a
+    smaller items-scale dose marginal under it — and, because one helper serves both
+    the posterior marginal and its prior pushforward, they stay on the same scale."""
+    import numpy as np
+    import xarray as xr
+
+    from language_reading_predictors.statistical_models.pipelines import (
+        dose_response as P,
+    )
+
+    n_rows, n_draws = 6, 8
+    eta = xr.DataArray(
+        np.linspace(-1.0, 1.0, n_rows * n_draws).reshape(1, n_draws, n_rows),
+        dims=("chain", "draw", "obs_id"),
+    )
+    beta = xr.DataArray(
+        np.full((1, n_draws), 0.5), dims=("chain", "draw")
+    )
+    group = xr.Dataset({"eta": eta, "beta_dose": beta})
+    kw = dict(
+        phase_idx=np.zeros(n_rows, dtype=int),
+        delta_std=np.ones(n_rows),
+        n_trials=10,
+        period_varying=False,
+    )
+    ordinary = P.dose_marginal_draws(group, **kw)
+    floored = P.dose_marginal_draws(
+        group, **kw, score_mean_link="three_choice_guessing_floor"
+    )
+    assert np.all(np.abs(floored) < np.abs(ordinary))
+    # The floor link scales the response range by exactly 2/3.
+    assert np.allclose(floored, ordinary * (2.0 / 3.0))

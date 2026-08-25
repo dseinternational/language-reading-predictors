@@ -2428,6 +2428,8 @@ def _blending_pair_release_failures(
         return _aligned_blending_pair_release_failures(output_dir, config)
     if kind == "concurrent":
         return _concurrent_blending_pair_release_failures(output_dir, config)
+    if kind == "dose_response":
+        return _dose_blending_pair_release_failures(output_dir, config)
     if kind != "itt":
         return ()
     from language_reading_predictors.statistical_models.blending_sensitivity import (
@@ -2628,6 +2630,35 @@ def _concurrent_blending_pair_release_failures(
         return (
             "the mandatory phoneme-blending link pair "
             "(lrp-rli-ca-007 + lrp-rli-ca-307) is not release-ready: " + reason,
+        )
+    return ()
+
+
+def _dose_blending_pair_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[str, ...]:
+    """The dose family's phoneme-blending pairing (#619).
+
+    Same policy and evidence tier as the level, DiD, gain, aligned and concurrent
+    pairs. This is the family #608 used to close the observational-exemption
+    argument: the declared focal estimand is the natural-scale treated-row dose
+    marginal, published in items by ``dose_marginal_summary.csv``, so it inherits
+    the link exactly as a randomised contrast does. That no dose slope is causal
+    changes what the number means, not what scale it sits on.
+    """
+    from language_reading_predictors.statistical_models.blending_sensitivity import (
+        evaluate_dose_blending_link_pair,
+    )
+
+    try:
+        status = evaluate_dose_blending_link_pair(output_dir, config=config)
+    except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed
+        return (f"the dose B link pair could not be evaluated: {exc}",)
+    if status.get("required") and not status.get("ready"):
+        reason = str(status.get("reason") or "the paired evidence is stale")
+        return (
+            "the mandatory phoneme-blending link pair "
+            "(lrp-rli-dose-084 + lrp-rli-dose-384) is not release-ready: " + reason,
         )
     return ()
 

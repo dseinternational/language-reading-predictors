@@ -1624,6 +1624,25 @@ _CONCURRENT_PAIR_SPEC = _StoredPairSpec(
 )
 
 
+#: The dose family's pair (#619). Its published card is the treated-row dose
+#: marginal -- the family's declared focal estimand, and the natural-scale quantity
+#: #608 used to show that an observational family inherits the link too.
+_DOSE_PAIR_SPEC = _StoredPairSpec(
+    kind="dose_response",
+    kind_article="a dose fit",
+    registered_label="the registered dose blending fits",
+    not_this_family="a dose-response fit",
+    card_file="dose_marginal_summary.csv",
+    card_label="dose marginal summary",
+    card_columns={
+        "items_median": "items_median",
+        "items_lo": "items_lo",
+        "items_hi": "items_hi",
+        "pd": "prob_pos",
+    },
+)
+
+
 def evaluate_level_blending_link_pair(
     output_dir: str | Path,
     *,
@@ -1763,6 +1782,45 @@ def evaluate_concurrent_blending_link_pair(
     )
 
 
+def evaluate_dose_blending_link_pair(
+    output_dir: str | Path,
+    *,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Is this dose-response ``B`` fit releasable beside its opposite-link twin? (#619)
+
+    ``lrp-rli-dose-084`` fits the ordinary logit Beta-Binomial score mean for a
+    ten-item, three-alternative forced-choice outcome, and its stored posterior puts
+    7.0 % of its row-by-draw mass below the guessing floor.
+
+    This is the family the #608 decision used to close the "observational families
+    are exempt" argument, so it is worth restating here: ``METHODS.md`` defines every
+    dose fit's focal estimand as the **natural-scale treated-row dose marginal**, and
+    ``dose_marginal_summary.csv`` publishes it in items. A quantity reported on the
+    natural scale inherits the link regardless of what identifies it — that no dose
+    slope is causal changes what the number *means*, not what scale it is on.
+
+    This family has no variant role, so every registered ``B`` dose fit is a model of
+    record.
+
+    See :func:`_evaluate_stored_blending_link_pair` for the checks applied.
+    """
+    from language_reading_predictors.statistical_models.dose_response import (
+        DOSE_BLENDING_COMPANION_MODEL_ID,
+        DOSE_BLENDING_PRIMARY_MODEL_ID,
+    )
+
+    return _evaluate_stored_blending_link_pair(
+        output_dir,
+        config=config,
+        spec=_DOSE_PAIR_SPEC,
+        registered=(
+            DOSE_BLENDING_PRIMARY_MODEL_ID,
+            DOSE_BLENDING_COMPANION_MODEL_ID,
+        ),
+    )
+
+
 def evaluate_gain_blending_link_pair(
     output_dir: str | Path,
     *,
@@ -1812,6 +1870,7 @@ __all__ = [
     "evaluate_aligned_blending_link_pair",
     "evaluate_concurrent_blending_link_pair",
     "evaluate_did_blending_link_pair",
+    "evaluate_dose_blending_link_pair",
     "evaluate_gain_blending_link_pair",
     "evaluate_level_blending_link_pair",
     "evaluate_local_blending_link_sensitivity",

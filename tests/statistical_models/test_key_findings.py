@@ -896,16 +896,18 @@ def test_unpaired_family_blending_outcome_does_not_require_the_itt_bundle(tmp_pa
     other families' builders never reach the catchable ``_KeyFindingsUnavailable``
     that ``_kf_build_itt`` raises.
 
-    The example is ``dose_response``: it is one of the two families that still has no
-    registered pair (#619). This test used ``aligned`` until #619 gave that family
-    ``lrp-rli-al-006`` + ``lrp-rli-al-306``, at which point a paired family stopped
-    being an example of an unpaired one — the *complementary* behaviour, a paired
-    family failing closed when its twin is absent, is covered in
+    The example is ``mediation``: as of #619 it is the **last** family with no
+    registered pair. This test has been retargeted twice as #619 landed families —
+    from ``aligned``, then from ``dose_response`` — because a family stops being an
+    example of an unpaired one the moment it is paired. When ``mediation`` is paired
+    too, this test has no valid subject left and should be replaced by an assertion
+    that *every* registered ``B`` model is paired. The complementary behaviour — a
+    paired family failing closed when its twin is absent — is covered in
     ``test_blending_sensitivity.py``.
     """
-    d, _ = _remaining_family_case(tmp_path, "dose_response")
+    d, _ = _remaining_family_case(tmp_path, "mediation")
     config = json.loads((d / "config.json").read_text())
-    config["model_id"] = "lrp-rli-dose-084"
+    config["model_id"] = "lrp-rli-med-087"
     config["outcome_symbol"] = "B"
     _write_json(d, "config.json", config)
 

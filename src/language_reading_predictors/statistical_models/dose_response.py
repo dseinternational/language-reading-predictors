@@ -16,7 +16,18 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
+)
 from language_reading_predictors.statistical_models.measures import MEASURES
+
+#: The registered phoneme-blending response-link pair for this family (#619, under
+#: the #608 policy). ``lrp-rli-dose-084`` fits the ordinary Beta-Binomial
+#: inverse-logit score mean; ``lrp-rli-dose-384`` fits the same model with the mean
+#: mapped onto [1/3, 1]. Neither may be released without the other.
+DOSE_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-dose-084"
+DOSE_BLENDING_COMPANION_MODEL_ID = "lrp-rli-dose-384"
 
 __all__ = [
     "ABILITY_BASELINE_WAVES",
@@ -54,6 +65,7 @@ _FAMILY_KEYS = frozenset(
         "outcomes",
         "adjust_group",
         "adjust_age",
+        "score_mean_link",
     }
 )
 _GLOBAL_KEYS = frozenset({"target_accept"})
@@ -104,6 +116,14 @@ class DoseResponseModelSettings:
     outcomes: tuple[str, ...] = ()
     adjust_group: bool = True
     adjust_age: bool = True
+    #: Phoneme-blending response link (#619, under the #608 policy). ``"logit"`` is
+    #: the ordinary Beta-Binomial inverse-logit score mean;
+    #: ``"three_choice_guessing_floor"`` maps it onto [1/3, 1] for the ten
+    #: three-alternative forced-choice blending items, whose expected score cannot
+    #: fall below chance. B only, and released only beside its paired opposite-link
+    #: fit. The family's focal estimand is the natural-scale treated-row dose
+    #: marginal, so it is link-dependent in exactly the way a treatment contrast is.
+    score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -143,6 +163,11 @@ class DoseResponseModelSettings:
                 "ability_baseline_wave must be one of "
                 f"{ABILITY_BASELINE_WAVES!r}, got {wave!r}"
             )
+        if self.score_mean_link not in SCORE_MEAN_LINKS:
+            raise ValueError(
+                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+                f"got {self.score_mean_link!r}"
+            )
         object.__setattr__(self, "ability_baseline_wave", wave)
         for name in (
             "period_varying_dose",
@@ -180,6 +205,7 @@ class DoseResponseModelSettings:
             ability_adjust_symbols=extra.get("ability_adjust_symbols", ()),
             ability_baseline_wave=extra.get("ability_baseline_wave", "t1"),
             decompose_between_within=extra.get("decompose_between_within", True),
+            score_mean_link=extra.get("score_mean_link", "logit"),
             outcomes=extra.get("outcomes", ()),
             adjust_group=extra.get("adjust_group", True),
             adjust_age=extra.get("adjust_age", True),
@@ -205,6 +231,10 @@ class DoseResponseRunPlan:
     outcomes: tuple[str, ...]
     adjust_group: bool
     adjust_age: bool
+    # Phoneme-blending response link and its release pairing (#619).
+    score_mean_link: str
+    required_link_companion_model_id: str | None
+    link_sensitivity_required_for_release: bool
     phase_mode: str
     loader_covariates: tuple[str, ...]
     observation_node: str
@@ -247,6 +277,7 @@ class DoseResponseRunPlan:
             "ability_adjust_symbols": self.ability_adjust_symbols,
             "ability_baseline_wave": self.ability_baseline_wave,
             "decompose_between_within": self.decompose_between_within,
+            "score_mean_link": self.score_mean_link,
         }
 
     def coefficient_meanings(self) -> dict[str, str]:
@@ -455,6 +486,28 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
     settings, source = declared_dose_response_settings(spec)
     outcome = spec.outcome_symbol
     outcomes = settings.outcomes or (outcome,)
+    if settings.score_mean_link == "three_choice_guessing_floor" and outcome != "B":
+        raise ValueError(
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
+            f"phoneme blending (B), got {outcome!r}"
+        )
+
+    # The mandatory phoneme-blending link pairing (#619, under the #608 policy).
+    # This family has no variant role, so every registered B dose fit is a model of
+    # record and the pairing binds whenever the outcome is B. The family's focal
+    # estimand is the natural-scale treated-row dose marginal -- a quantity published
+    # in items -- so it inherits the link exactly as a treatment contrast does, which
+    # is the case #608 used to reject exempting observational families.
+    link_pair_required = outcome == "B"
+    link_companion = (
+        (
+            DOSE_BLENDING_PRIMARY_MODEL_ID
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else DOSE_BLENDING_COMPANION_MODEL_ID
+        )
+        if link_pair_required
+        else None
+    )
     # Reject symbols no measure defines *before* any I/O (#587 finding 12). The
     # previous resolver accepted an arbitrary string and only failed inside the
     # loader, after the output directory had been reset and the data read — exactly
@@ -532,6 +585,9 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
         outcomes=outcomes,
         adjust_group=settings.adjust_group,
         adjust_age=settings.adjust_age,
+        score_mean_link=settings.score_mean_link,
+        required_link_companion_model_id=link_companion,
+        link_sensitivity_required_for_release=link_pair_required,
         phase_mode="all",
         loader_covariates=loader_covariates,
         observation_node="y_post",

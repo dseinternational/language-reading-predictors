@@ -1,0 +1,53 @@
+---
+title: "LRP84f: Period-resolved dose-response — intervention dose -> phoneme blending (PA) under the one-in-three guessing floor"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LRP84f is the registered **response-link companion** to [LRP84](../lrp-rli-dose-084/index.qmd) (#619, under the #608 policy), mirroring [LRPITT08b](../lrp-rli-itt-108/index.qmd), [LRPLF06b](../lrp-rli-lf-106/index.qmd), [LRPGF06f](../lrp-rli-gf-306/index.qmd), [LRPAL06f](../lrp-rli-al-306/index.qmd) and [LRP-CA-307](../lrp-rli-ca-307/index.qmd). Same children, same rows, same period-resolved dose design, same adjustment set and the same focal slope; the single difference is the score mean.
+
+Phoneme blending has ten **three-alternative forced-choice** items, so a child answering at random scores about 3.3 out of 10. The ordinary Beta-Binomial inverse-logit mean does not know that, and the LRP84 posterior uses the room it leaves: 8 of its 160 rows have posterior-mean expected proportions below one third, 7.0 % of the row-by-draw posterior mass sits below chance, and the worst single row puts 100 % of its mass there. This companion constrains the mean to $\tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$, so the model cannot predict below-chance performance.
+
+**The two fits are one piece of evidence**: both plans are marked link-sensitivity-required, and the release gate refuses to publish either without the other.
+
+### Why this family in particular
+
+The #608 decision named the dose family as the case that defeats the "observational families do not need the link" argument, so it is worth restating here rather than leaving it to the policy note.
+
+`METHODS.md` defines every dose fit's focal estimand as the **natural-scale treated-row dose marginal** — the quantity `dose_marginal_summary.csv` publishes, in items. A quantity reported on the natural scale inherits the link regardless of what identifies it. That no dose slope here is causal changes what the number *means*; it does not change what scale it sits on, and the scale is what the link decides.
+
+_Causal labelling._ Unchanged from LRP84. There is still **no clean back-door set** for the focal `sessions → outcome` edge: `IS` has parents `A → IS`, `GA → IS` and `IG → IS`, all of which also point into the outcome, and **latent general ability `GA` is not measured**. Age and assigned group are adjusted; the cumulative prior dose is a descendant of the `IS` collider and is deliberately **not** conditioned on. Every dose slope is an **adjusted association**, never "dose drives gains". The extensive margin (`theta_treated`), the between/within split and the arm term keep exactly the meanings the fit's own `coefficient_meanings()` records.
+
+## Model
+
+Beta-Binomial$(N, \mu\kappa, (1-\mu)\kappa)$ on the period post-count, $N = 10$, with the **guessing-floor score mean** $\mu = \tfrac{1}{3} + \tfrac{2}{3}\operatorname{expit}(\eta)$ over the same period-resolved dose linear predictor LRP84 fits: the own baseline logit, treated-row-standardised sessions with partially pooled per-period slopes, the between/within decomposition, the extensive margin, age, arm and a child random intercept. Priors are unchanged.
+
+![Model diagram](model_graph.svg){#fig-model .lightbox fig-align="left"}
+
+**Every reported natural-scale quantity is on this link**, and one transform enforces it. `dose_marginal_draws` serves *both* the posterior dose marginal and its prior pushforward, and it takes the link — so the prior "check" cannot end up comparing two quantities on different response scales, which is exactly the failure #587 finding 5 fixed for the contrast and this change extends to the link.
+
+**No intercept anchor to remap.** Like the gain, aligned and concurrent companions, this family gives $\alpha$ a zero-centred prior and carries the outcome level in the own-baseline term, so there is no empirical-Bayes location to map back through the link.
+
+**Sampler settings are matched.** The companion carries LRP84's `target_accept = 0.97` rather than the preset default. A companion that quietly sampled at a different setting would confound the link comparison with a sampling-quality one.
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_dose_response.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
