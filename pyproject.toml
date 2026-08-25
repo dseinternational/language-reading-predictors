@@ -69,6 +69,9 @@ packages = ["src/language_reading_predictors"]
 
 # Pytest
 [tool.pytest.ini_options]
+markers = [
+    "real_plan_currency: exercise the real run-plan currency checker, not the stub the module's autouse fixture installs",
+]
 testpaths = ["tests"]
 addopts = "-q"
 
