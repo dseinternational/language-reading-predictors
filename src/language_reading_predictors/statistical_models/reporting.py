@@ -935,6 +935,7 @@ def marginal_prior_pushforward(
     convention: Literal["net_out", "forward"] = "net_out",
     row_mask: np.ndarray | None = None,
     term_index: Mapping[str, Any] | None = None,
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float]:
     """Prior pushforward for a family whose estimand is a one-unit items-scale AME (#381).
 
@@ -980,7 +981,14 @@ def marginal_prior_pushforward(
         eta = eta[np.asarray(row_mask)]
     delta = beta[None, :]  # (1, S) — a +1 shift on every retained row
     base = eta - delta if convention == "net_out" else eta
-    ame_prob = (expit(base + delta) - expit(base)).mean(axis=0)  # (S,)
+    # Map both operating points through the fitted score mean before differencing:
+    # under a non-identity link the response-scale change is not the logit-scale one
+    # rescaled, so the prior check must sit on the same scale as the posterior
+    # marginal it is compared against (#619).
+    ame_prob = (
+        apply_score_mean_link(expit(base + delta), score_mean_link)
+        - apply_score_mean_link(expit(base), score_mean_link)
+    ).mean(axis=0)  # (S,)
     return pushforward_values(
         beta, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
     )
@@ -4650,6 +4658,7 @@ def concurrent_marginals(
     eta_name: str = "eta",
     ci_prob: float = 0.95,
     group: str = "posterior",
+    score_mean_link: ScoreMeanLink = "logit",
 ) -> pd.DataFrame:
     """Per-predictor items-scale marginals for the concurrent family (#312).
 
@@ -4657,10 +4666,16 @@ def concurrent_marginals(
     predictor from a ``+1 SD`` perturbation of that predictor (and, for a
     bounded-count predictor, a ``+k items`` perturbation at the mean operating
     point), holding every other predictor at its observed value, and averages the
-    probability-scale change ``expit(η + Δη) − expit(η)`` over the fitted rows.
+    response-scale change ``m(η + Δη) − m(η)`` over the fitted rows, where ``m`` is
+    the fitted score mean ``score_mean_link ∘ expit``.
     Reported on the probability and items scales (``n_trials`` = the *focal
     outcome's* denominator × probability), with an equal-tailed ``ci_prob`` interval
     and an inner 50 % band.
+
+    ``score_mean_link`` must be the link the model was **built** with: under the
+    phoneme-blending guessing floor the same ``Δη`` maps to a smaller response-scale
+    change, so summarising a floor-link posterior at the default would overstate
+    every association in items (#619).
 
     Because the concurrent model has **no interaction terms**, the shift is a scalar
     per draw: ``Δη_s = β_s · Δz`` where ``Δz = 1`` for ``+1 SD`` and
@@ -4713,7 +4728,15 @@ def concurrent_marginals(
 
         for scale_label, dz in perturbations:
             delta_eta = beta * dz  # (S,), scalar shift per draw (no interactions)
-            ame_prob = (expit(eta + delta_eta[None, :]) - expit(eta)).mean(axis=0)  # (S,)
+            # Map both operating points through the fitted score mean before
+            # differencing: under a non-identity link the response-scale change is
+            # not the logit-scale one rescaled (#619).
+            ame_prob = (
+                apply_score_mean_link(
+                    expit(eta + delta_eta[None, :]), score_mean_link
+                )
+                - apply_score_mean_link(expit(eta), score_mean_link)
+            ).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob
             prob_lo50, prob_hi50 = band50(ame_prob)
             items_lo50, items_hi50 = band50(ame_items)

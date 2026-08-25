@@ -268,7 +268,9 @@ def test_every_registered_concurrent_model_resolves_with_metadata():
 
 def test_registered_concurrent_models_use_typed_paired_missingness_settings():
     specs = _concurrent_specs()
-    assert len(specs) == 11
+    # 11 primaries + the lrp-rli-ca-307 phoneme-blending link companion (#619),
+    # which copies ca-007's full covariate set and differs only in the score mean.
+    assert len(specs) == 12
     full = (
         "blocks",
         "hs",
@@ -287,3 +289,70 @@ def test_registered_concurrent_models_use_typed_paired_missingness_settings():
         assert plan.settings_source == "typed"
         assert plan.covariates == expected, spec.model_id
         assert plan.require_observed == ()
+
+
+# --- the phoneme-blending response-link pair (#619) ---------------------------
+
+
+def test_the_registered_blending_link_pair_is_paired_both_ways():
+    """#619: ca-007 and ca-307 fit the same analysis under the two response links,
+    each naming the other, and neither may release alone."""
+    specs = {spec.model_id: spec for spec in _concurrent_specs()}
+    primary = resolve_concurrent_run_plan(specs["lrp-rli-ca-007"])
+    companion = resolve_concurrent_run_plan(specs["lrp-rli-ca-307"])
+    assert primary.score_mean_link == "logit"
+    assert companion.score_mean_link == "three_choice_guessing_floor"
+    assert primary.required_link_companion_model_id == "lrp-rli-ca-307"
+    assert companion.required_link_companion_model_id == "lrp-rli-ca-007"
+    assert primary.link_sensitivity_required_for_release
+    assert companion.link_sensitivity_required_for_release
+    for field in (
+        "outcome_symbol", "predictor_symbols", "covariates", "require_observed",
+        "include_age", "include_group", "predictor_slope_sigma", "waves",
+        "estimand", "causal_status", "analysis_population",
+    ):
+        assert getattr(primary, field) == getattr(companion, field), field
+
+
+def test_only_a_blending_outcome_requires_the_link_pair():
+    """The link governs the OUTCOME's score mean. ca-001..006 carry B as a
+    standardised logit *predictor*, which models no B score mean, so they are out of
+    scope — an association with blending is not a blending score."""
+    specs = {spec.model_id: spec for spec in _concurrent_specs()}
+    for spec in specs.values():
+        plan = resolve_concurrent_run_plan(spec)
+        assert plan.link_sensitivity_required_for_release == (
+            plan.outcome_symbol == "B"
+        ), spec.model_id
+    # ca-001 has B among its predictors and is still out of scope.
+    ca1 = resolve_concurrent_run_plan(specs["lrp-rli-ca-001"])
+    assert "B" in ca1.predictor_symbols
+    assert not ca1.link_sensitivity_required_for_release
+
+
+def test_the_guessing_floor_link_is_rejected_for_a_non_blending_outcome():
+    specs = {spec.model_id: spec for spec in _concurrent_specs()}
+    from dataclasses import replace
+
+    bad = replace(
+        specs["lrp-rli-ca-001"],
+        model_settings=replace(
+            specs["lrp-rli-ca-001"].model_settings,
+            score_mean_link="three_choice_guessing_floor",
+        ),
+    )
+    with pytest.raises(ValueError, match="only valid for phoneme blending"):
+        resolve_concurrent_run_plan(bad)
+
+
+def test_settings_reject_an_unknown_score_mean_link():
+    with pytest.raises(ValueError, match="score_mean_link must be one of"):
+        ConcurrentModelSettings(score_mean_link="probit")
+
+
+def test_the_link_reaches_the_recipe():
+    specs = {spec.model_id: spec for spec in _concurrent_specs()}
+    companion = resolve_concurrent_run_plan(specs["lrp-rli-ca-307"])
+    recipe = companion.recipe_markdown(title="t")
+    assert "Score-mean link: three_choice_guessing_floor" in recipe
+    assert "lrp-rli-ca-007" in recipe

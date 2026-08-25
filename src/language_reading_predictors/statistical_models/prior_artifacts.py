@@ -1124,6 +1124,7 @@ def marginal_pushforward_rows(
     eta_name: str = "eta",
     row_mask: np.ndarray | None = None,
     scale: str | None = None,
+    score_mean_link: str = "logit",
 ) -> list[dict[str, object]]:
     """Build one labelled pushforward row per term (#381).
 
@@ -1156,6 +1157,7 @@ def marginal_pushforward_rows(
                 convention=convention,
                 row_mask=row_mask,
                 term_index=index,
+                score_mean_link=score_mean_link,
             )
         except Exception as exc:  # noqa: BLE001 - an absent term must stay legible
             rows.append(

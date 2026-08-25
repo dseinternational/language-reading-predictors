@@ -327,7 +327,7 @@ The current design decision is `notes/202607151800-did-arm-wave-redesign.md`; it
 | `lrp-rli-did-106` | `R`     | Dispersion-prior sensitivity for `lrp-rli-did-005` at a **high** (170-item) denominator, where the concentration prior floors over-dispersion at ≈5.9× (#576)  |
 | `lrp-rli-did-107` | `L`     | Pooled-dose LOO comparator for `lrp-rli-did-007`: one session slope instead of two period-resolved ones                                                        |
 
-### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`) (`kind="aligned"`)
+### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`, `lrp-rli-al-306`) (`kind="aligned"`)
 
 **Purpose.** An onset-aligned, per-protocol single gain: both arms aligned by intervention
 onset (immediate t1→t3, waitlist t2→t4) into one cross-sectional Beta-Binomial ANCOVA per
@@ -338,6 +338,8 @@ so _no_ term is causal — every coefficient is an association. Design note:
 is the binary off-floor-at-onset indicator — the #391 floor rule, adopted here by the
 2026-08-21 aligned review), `06` `B`, `07` `F`, `08` `T`; **`lrp-rli-al-101`** adds a
 cumulative-session dose sensitivity term (a collider — sensitivity only).
+
+> **Phoneme blending carries a mandatory response-link pair (#619).** `lrp-rli-al-006` fits the ordinary inverse-logit score mean; **`lrp-rli-al-306`** (legacy `lrpal06f`) refits it under the one-in-three guessing floor `mu = 1/3 + (2/3)·expit(eta)`, because blending's ten items are three-alternative forced choice and an expected score cannot fall below chance. The ordinary fit puts 4.9 % of its posterior mass below that floor. Neither half publishes without the other. That the cohort contrast is an **association** rather than a randomised effect is not an exemption: the link determines the natural scale `cohort_marginal.csv` reports. Scope is the model of record — the `al-101` dose sensitivity is out.
 
 ### Mechanism — `lrp-rli-mech-056–lrp-rli-mech-058`, `lrp-rli-mech-071–lrp-rli-mech-073`, `lrp-rli-mech-088–lrp-rli-mech-090`, `lrp-rli-mech-102–lrp-rli-mech-104` (`kind="mechanism"`)
 
@@ -481,6 +483,9 @@ record; concurrent letter sounds are excluded as a treatment-affected mediator. 
 | `lrp-rli-ca-009` | `concurrent` | `T`     | per-wave conditional associations of concurrent skills with receptive grammar (TROG-2)                  |
 | `lrp-rli-ca-010` | `concurrent` | `W`     | minimal-adjustment letter sounds → word reading, per wave (#421)                                        |
 | `lrp-rli-ca-011` | `concurrent` | `W`     | letter sounds + nonword decoding → word reading, decoding held fixed (#421)                             |
+| `lrp-rli-ca-307` | `concurrent` | `B`     | `ca-007` under the three-choice guessing-floor score-mean link (#619)                                   |
+
+> **Phoneme blending carries a mandatory response-link pair (#619).** `lrp-rli-ca-007` fits the ordinary inverse-logit score mean; **`lrp-rli-ca-307`** (legacy `lrpca07f`) refits it under the one-in-three guessing floor, because blending's ten items are three-alternative forced choice and an expected score cannot fall below chance. The ordinary fit puts 9.7 % of its posterior mass below that floor. Neither half publishes without the other. That every coefficient is an **association** is not an exemption — the link determines the natural scale `concurrent_marginals.csv` reports. The link governs blending as the **outcome** only: `ca-001`–`006` carry `B` as a standardised logit _predictor_ and model no `B` score mean, so they are untouched. Because this family publishes a table rather than a headline row, the pair check compares the marginals table's shape alongside the usual data/row/config identity rather than a single card.
 
 **Association only — three caveats.** Every coefficient is an adjusted association; conditioning on contemporaneous (post-treatment) skill levels is intentional because nothing is read causally (contrast the level-factors family, which omits cross-skill terms to protect a causal contrast). Read with the **Table-2 fallacy** (each coefficient answers a different conditional question), **measurement error** (classical error often attenuates a simple association, but the size and direction of distortion are not guaranteed in a multivariable nonlinear model; longitudinal factor model #313 is a complementary latent-measurement analysis), and **collinearity plus regularisation** (n ≈ 53 with a correlated predictor cluster, so mutually adjusted and single-skill coefficients answer materially different questions). Their difference shows sensitivity to the conditioning set; it is not a decomposition of shared variance. Group and the missingness offsets are non-interpretable nuisances. Floored measures (`P`, `N`) are excluded as predictors and as focal outcomes; `TR` approaches its 24-item ceiling at later waves, which the Beta-Binomial respects but which compresses the resolution of `ca-003`'s later-wave associations. The 170-item standardised `R` and `E` measures do not have that focal-specific warning.
 

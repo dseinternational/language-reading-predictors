@@ -476,6 +476,12 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     ctx.prepared = wave_subsets[primary_wave]
     print_header(ctx)
 
+    # The outcome's score-mean link (#619). Every per-wave build and every
+    # natural-scale marginal below uses it, so an adjusted and a bivariate sub-fit
+    # of the same wave cannot disagree about the response scale. The RLM/Byrne port
+    # has no phoneme-blending outcome, so it keeps the ordinary link.
+    link = plan.score_mean_link
+
     def _build(sub, preds, covs, *, age, group):
         if port == "rli":
             return _factories.build_concurrent_model(
@@ -486,6 +492,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                 include_age=age,
                 include_group=group,
                 predictor_slope_sigma=sigma0,
+                score_mean_link=link,
             )
         return _factories.build_rlm_concurrent_model(
             sub,
@@ -618,6 +625,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             ],
             n_trials=N_focal,
             convention="forward",
+            score_mean_link=link,
         ),
     )
 
@@ -655,7 +663,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         terms = _ca_concurrent_terms(sub, preds, measure_catalogue)
         terms_by_symbol = {term.label: term for term in terms}
         adj_mdf = _report.concurrent_marginals(
-            trace, terms=terms, n_trials=N_focal, ci_prob=hdi
+            trace, terms=terms, n_trials=N_focal, ci_prob=hdi,
+            score_mean_link=link,
         )
         adj_mdf.insert(0, "timepoint", tp)
         adj_mdf.insert(1, "adjustment", "adjusted")
@@ -683,6 +692,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                 terms=[terms_by_symbol[sym]],
                 n_trials=N_focal,
                 ci_prob=hdi,
+                score_mean_link=link,
             )
             biv_mdf.insert(0, "timepoint", tp)
             biv_mdf.insert(1, "adjustment", "bivariate")

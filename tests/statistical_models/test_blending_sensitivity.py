@@ -902,3 +902,319 @@ def test_release_gate_lets_the_exempt_gain_b_variants_through(tmp_path):
         directory = _gain_fit_dir(models, model_id, link="logit", required=False)
         config = json.loads((directory / "config.json").read_text(encoding="utf-8"))
         assert release._blending_pair_release_failures(directory, config) == ()
+
+
+# --- the aligned family's pair (#619) -----------------------------------------
+
+
+def _aligned_fit_dir(
+    root: Path,
+    model_id: str,
+    *,
+    link: str,
+    outcome_symbol: str = "B",
+    config_name: str = "reporting",
+    gate_passed: bool = True,
+    digest: str = "a11gn3d",
+    data_sha256: str = "c" * 64,
+    n_obs: int = 54,
+    items_median: float = 0.61,
+    required: bool = True,
+) -> Path:
+    """A minimal stored aligned B fit: config, gate verdict and cohort marginal."""
+    directory = root / f"{model_id}-{config_name}"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "aligned",
+                "outcome_symbol": outcome_symbol,
+                "config_name": config_name,
+                "data_sha256": data_sha256,
+                "n_obs": n_obs,
+                "fitted_data_identity": {"digest": digest},
+                "resolved_run_plan": {
+                    "score_mean_link": link,
+                    "link_sensitivity_required_for_release": required,
+                    "required_link_companion_model_id": (
+                        "lrp-rli-al-306"
+                        if model_id == "lrp-rli-al-006"
+                        else "lrp-rli-al-006"
+                    ),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (directory / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "divergences": 0 if gate_passed else 47,
+                "max_rhat": 1.0 if gate_passed else 1.9,
+                "min_ess": 4000.0 if gate_passed else 12.0,
+                "bfmi_per_chain": [0.9, 0.9] if gate_passed else [0.05, 0.9],
+                "checks": {
+                    "rhat": gate_passed,
+                    "ess": gate_passed,
+                    "divergences": gate_passed,
+                    "bfmi": gate_passed,
+                },
+                "passed": gate_passed,
+            }
+        ),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [
+            {
+                "trt_items_median": items_median,
+                "trt_items_lo": -0.4,
+                "trt_items_hi": 1.7,
+                "prob_trt_pos": 0.82,
+            }
+        ]
+    ).to_csv(directory / "cohort_marginal.csv", index=False)
+    return directory
+
+
+def test_aligned_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
+    _aligned_fit_dir(
+        models,
+        "lrp-rli-al-306",
+        link="three_choice_guessing_floor",
+        items_median=0.37,
+    )
+    status = bs.evaluate_aligned_blending_link_pair(primary)
+    assert status["required"] and status["ready"], status
+    assert status["cards"]["lrp-rli-al-306"]["items_median"] == 0.37
+
+
+def test_aligned_pair_is_not_ready_without_its_twin(tmp_path):
+    models = tmp_path / "models"
+    primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
+    status = bs.evaluate_aligned_blending_link_pair(primary)
+    assert status["required"] and not status["ready"]
+    assert "not present beside this one" in status["reason"]
+
+
+def test_aligned_pair_rejects_different_fitted_rows(tmp_path):
+    models = tmp_path / "models"
+    primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
+    _aligned_fit_dir(
+        models, "lrp-rli-al-306", link="three_choice_guessing_floor", digest="0th3r"
+    )
+    status = bs.evaluate_aligned_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "fitted rows" in status["reason"]
+
+
+def test_aligned_pair_ignores_a_non_blending_aligned_fit(tmp_path):
+    models = tmp_path / "models"
+    directory = _aligned_fit_dir(
+        models, "lrp-rli-al-001", link="logit", outcome_symbol="W", required=False
+    )
+    status = bs.evaluate_aligned_blending_link_pair(directory)
+    assert not status["required"] and status["ready"]
+
+
+def test_release_gate_withholds_an_unpaired_aligned_blending_fit(tmp_path):
+    from language_reading_predictors.statistical_models import release
+
+    models = tmp_path / "models"
+    primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    failures = release._blending_pair_release_failures(primary, config)
+    assert failures and "lrp-rli-al-006 + lrp-rli-al-306" in failures[0]
+    _aligned_fit_dir(models, "lrp-rli-al-306", link="three_choice_guessing_floor")
+    assert release._blending_pair_release_failures(primary, config) == ()
+
+
+# --- the concurrent family's pair (#619), whose card is a table ---------------
+
+
+def _concurrent_fit_dir(
+    root: Path,
+    model_id: str,
+    *,
+    link: str,
+    outcome_symbol: str = "B",
+    config_name: str = "reporting",
+    gate_passed: bool = True,
+    digest: str = "c0ncurr3nt",
+    data_sha256: str = "d" * 64,
+    n_obs: int = 54,
+    n_marginal_rows: int = 12,
+    required: bool = True,
+) -> Path:
+    """A minimal stored concurrent B fit, whose card is a marginals *table*."""
+    directory = root / f"{model_id}-{config_name}"
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": model_id,
+                "kind": "concurrent",
+                "outcome_symbol": outcome_symbol,
+                "config_name": config_name,
+                "data_sha256": data_sha256,
+                "n_obs": n_obs,
+                "fitted_data_identity": {"digest": digest},
+                "resolved_run_plan": {
+                    "score_mean_link": link,
+                    "link_sensitivity_required_for_release": required,
+                    "required_link_companion_model_id": (
+                        "lrp-rli-ca-307"
+                        if model_id == "lrp-rli-ca-007"
+                        else "lrp-rli-ca-007"
+                    ),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (directory / "diagnostics_summary.json").write_text(
+        json.dumps(
+            {
+                "divergences": 0 if gate_passed else 47,
+                "max_rhat": 1.0 if gate_passed else 1.9,
+                "min_ess": 4000.0 if gate_passed else 12.0,
+                "bfmi_per_chain": [0.9, 0.9] if gate_passed else [0.05, 0.9],
+                "checks": {
+                    "rhat": gate_passed,
+                    "ess": gate_passed,
+                    "divergences": gate_passed,
+                    "bfmi": gate_passed,
+                },
+                "passed": gate_passed,
+            }
+        ),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [
+            {"timepoint": 1, "term": f"X{i}", "scale": "+1 SD", "items_median": 0.1 * i}
+            for i in range(n_marginal_rows)
+        ]
+    ).to_csv(directory / "concurrent_marginals.csv", index=False)
+    return directory
+
+
+def test_concurrent_pair_is_ready_without_a_scalar_card(tmp_path):
+    """This family publishes a table and names no headline row, so the pairing rests
+    on the identity evidence plus the table's shape."""
+    models = tmp_path / "models"
+    primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
+    _concurrent_fit_dir(models, "lrp-rli-ca-307", link="three_choice_guessing_floor")
+    status = bs.evaluate_concurrent_blending_link_pair(primary)
+    assert status["required"] and status["ready"], status
+    card = status["cards"]["lrp-rli-ca-007"]
+    assert card["card_rows"] == 12
+    assert "items_median" not in card
+
+
+def test_concurrent_pair_rejects_a_different_marginals_shape(tmp_path):
+    """Two fits that produced different marginal sets are not the same analysis."""
+    models = tmp_path / "models"
+    primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
+    _concurrent_fit_dir(
+        models,
+        "lrp-rli-ca-307",
+        link="three_choice_guessing_floor",
+        n_marginal_rows=9,
+    )
+    status = bs.evaluate_concurrent_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "concurrent marginals shape" in status["reason"]
+
+
+def test_concurrent_pair_rejects_an_empty_marginals_table(tmp_path):
+    models = tmp_path / "models"
+    primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
+    companion = _concurrent_fit_dir(
+        models, "lrp-rli-ca-307", link="three_choice_guessing_floor"
+    )
+    pd.DataFrame(columns=["timepoint", "term"]).to_csv(
+        companion / "concurrent_marginals.csv", index=False
+    )
+    status = bs.evaluate_concurrent_blending_link_pair(primary)
+    assert not status["ready"]
+    assert "empty" in status["reason"]
+
+
+def test_concurrent_pair_ignores_a_fit_where_b_is_only_a_predictor(tmp_path):
+    """The link governs blending as the OUTCOME. The six siblings that carry B as a
+    standardised logit predictor model no B score mean, so they are out of scope."""
+    models = tmp_path / "models"
+    directory = _concurrent_fit_dir(
+        models, "lrp-rli-ca-001", link="logit", outcome_symbol="W", required=False
+    )
+    status = bs.evaluate_concurrent_blending_link_pair(directory)
+    assert not status["required"] and status["ready"]
+
+
+def test_release_gate_withholds_an_unpaired_concurrent_blending_fit(tmp_path):
+    from language_reading_predictors.statistical_models import release
+
+    models = tmp_path / "models"
+    primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
+    config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
+    failures = release._blending_pair_release_failures(primary, config)
+    assert failures and "lrp-rli-ca-007 + lrp-rli-ca-307" in failures[0]
+    _concurrent_fit_dir(models, "lrp-rli-ca-307", link="three_choice_guessing_floor")
+    assert release._blending_pair_release_failures(primary, config) == ()
+
+
+def test_every_natural_scale_reporting_helper_accepts_the_score_mean_link():
+    """The quiet failure mode this whole policy guards against (#619).
+
+    A helper that turns ``eta`` into probability/items output but takes no
+    ``score_mean_link`` will silently summarise a floor-link posterior on the
+    ordinary link — a wrong number wearing the right label, in a published CSV. That
+    is exactly what ``treatment_marginal_effect``, ``association_marginals``,
+    ``concurrent_marginals`` and ``marginal_prior_pushforward`` each did until they
+    were fixed, and ``concurrent_marginals`` was missed once because a stale
+    line-number lookup made it *look* already done.
+
+    Pinning the inventory means a new natural-scale helper has to opt in explicitly,
+    rather than defaulting to a hidden ordinary-link assumption.
+    """
+    import inspect
+
+    from language_reading_predictors.statistical_models import (
+        figure_artifacts as _figures,
+    )
+    from language_reading_predictors.statistical_models import (
+        predicted_scores as _predicted,
+    )
+    from language_reading_predictors.statistical_models import reporting as _reporting
+
+    required = {
+        _reporting: (
+            "tau_summary_itt",
+            "rope_summary",
+            "rope_sensitivity",
+            "prior_pushforward",
+            "marginal_prior_pushforward",
+            "did_summary",
+            "treatment_marginal_effect",
+            "association_marginals",
+            "concurrent_marginals",
+            "level_t2_marginal_effect",
+        ),
+        _figures: ("save_rope_plot",),
+        _predicted: ("write_predicted_scores_artifacts",),
+    }
+    missing = [
+        f"{module.__name__.rsplit('.', 1)[-1]}.{name}"
+        for module, names in required.items()
+        for name in names
+        if "score_mean_link"
+        not in inspect.signature(getattr(module, name)).parameters
+    ]
+    assert not missing, (
+        "these natural-scale helpers take no score_mean_link, so they would "
+        f"publish ordinary-link numbers from a floor-link posterior: {missing}"
+    )

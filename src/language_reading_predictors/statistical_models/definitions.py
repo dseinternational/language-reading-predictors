@@ -419,6 +419,16 @@ _ALIGNED.append(
     _d("lrpal01d", "aligned", "Aligned per-protocol", Status.ASSOCIATION, "W",
        "cumulative-session dose sensitivity (collider)", base="lrpal01")
 )
+# Phoneme blending is response-link sensitive: each item has three alternatives, so
+# the ordinary inverse-logit mean permits below-chance expected scores, and the
+# al-006 posterior uses that room (2/54 rows, 4.9 % of the mass, #619). The pair
+# releases together or not at all, mirroring lrpitt08/08b, lrplf06/06b and
+# lrpgf06/06f. Scope is the model of record: the dose sensitivity variant is out.
+_ALIGNED.append(
+    _d("lrpal06f", "aligned", "Aligned per-protocol link sensitivity", Status.ROBUSTNESS, "B",
+       "onset-aligned gain under the three-choice guessing-floor score-mean link",
+       base="lrpal06")
+)
 
 # Taught-vocabulary factor models (#224, carried forward on the revised DAG in #247).
 # Added explicitly rather than via ``_FACTOR_OUTCOMES`` so only the stock gain/level
@@ -554,6 +564,15 @@ _CA = [
     _d("lrpca09", "concurrent", "Concurrent associations", Status.ASSOCIATION, "T", "per-wave conditional associations of concurrent skills with receptive grammar (TROG-2)"),
     _d("lrpca10", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "minimal-adjustment concurrent letter sounds -> word reading (#421 Tier 1)"),
     _d("lrpca11", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "letter sounds -> word reading holding nonword decoding fixed (#421 Tier 1)"),
+    # Phoneme blending is response-link sensitive: each item has three alternatives,
+    # so the ordinary inverse-logit mean permits below-chance expected scores, and
+    # the ca-007 posterior uses that room (9.7 % of the mass, #619). The pair
+    # releases together or not at all. Every coefficient stays an association --
+    # the #608 policy binds association and contrast alike, because the natural
+    # scale it is reported on is what the link determines.
+    _d("lrpca07f", "concurrent", "Concurrent associations link sensitivity", Status.ROBUSTNESS, "B",
+       "per-wave conditional associations under the three-choice guessing-floor score-mean link",
+       base="lrpca07"),
 ]
 
 # --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)

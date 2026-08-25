@@ -33,6 +33,31 @@ TreatmentModerator = tuple[str, np.ndarray]
 
 
 @dataclass(frozen=True)
+class AlignedPayload(FittedPayload):
+    """Score-mean link of an onset-aligned fit (#619).
+
+    Carries what the factory *built* rather than what the module declared, so the
+    cohort marginal and its prior pushforward map through the same link the
+    likelihood used. Reading the declared setting instead would let a floor-link
+    posterior publish ordinary-link items.
+    """
+
+    score_mean_link: ScoreMeanLink = "logit"
+
+
+@dataclass(frozen=True)
+class ConcurrentPayload(FittedPayload):
+    """Score-mean link of one wave's concurrent-associations fit (#619).
+
+    Carries what the factory *built*, so every wave's marginals map through the link
+    the likelihood used. The concurrent family fits one model per wave, so the link
+    must reach each sub-fit rather than only the primary.
+    """
+
+    score_mean_link: ScoreMeanLink = "logit"
+
+
+@dataclass(frozen=True)
 class IttPayload(FittedPayload):
     """Realised treatment-moderator design for a single-outcome ITT fit."""
 

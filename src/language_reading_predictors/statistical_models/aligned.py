@@ -33,6 +33,17 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.likelihood import (
+    SCORE_MEAN_LINKS,
+    ScoreMeanLink,
+)
+
+#: The registered phoneme-blending response-link pair for this family (#619, under
+#: the #608 policy). ``lrp-rli-al-006`` fits the ordinary Beta-Binomial
+#: inverse-logit score mean; ``lrp-rli-al-306`` fits the same model with the mean
+#: mapped onto [1/3, 1]. Neither may be released without the other.
+ALIGNED_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-al-006"
+ALIGNED_BLENDING_COMPANION_MODEL_ID = "lrp-rli-al-306"
 
 # The complete, closed set of legacy ``spec.extra`` keys the aligned family
 # understands. Anything else is a typo and must fail before a fit starts.
@@ -42,6 +53,7 @@ _LEGACY_KEYS = frozenset(
         "use_cohort",
         "use_dose",
         "likelihood",
+        "score_mean_link",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -66,6 +78,13 @@ class AlignedModelSettings:
     use_cohort: bool = True
     use_dose: bool = False
     likelihood: str = "beta_binomial"
+    #: Phoneme-blending response link (#619, under the #608 policy). ``"logit"`` is
+    #: the ordinary Beta-Binomial inverse-logit score mean;
+    #: ``"three_choice_guessing_floor"`` maps it onto [1/3, 1] for the ten
+    #: three-alternative forced-choice blending items, whose expected score cannot
+    #: fall below chance. B only, graded only, and released only beside its paired
+    #: opposite-link fit.
+    score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
         if self.ability_covariate is not None and (
@@ -78,6 +97,21 @@ class AlignedModelSettings:
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
+            )
+        if self.score_mean_link not in SCORE_MEAN_LINKS:
+            raise ValueError(
+                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
+                f"got {self.score_mean_link!r}"
+            )
+        # The off-floor branch models a binary indicator, which has no score mean to
+        # map and no chance floor to respect. Checked here so an incoherent pair
+        # fails at declaration, before an output directory is reset. The B-only
+        # check needs ``outcome_symbol``, which lives on the spec, so it is enforced
+        # in ``resolve_aligned_run_plan``.
+        if self.score_mean_link != "logit" and self.likelihood != "beta_binomial":
+            raise ValueError(
+                "score_mean_link applies to the graded Beta-Binomial mean; the "
+                f"{self.likelihood!r} branch has no score mean to map"
             )
 
     @classmethod
@@ -101,6 +135,7 @@ class AlignedModelSettings:
             use_cohort=extra.get("use_cohort", True),
             use_dose=extra.get("use_dose", False),
             likelihood=extra.get("likelihood", "beta_binomial"),
+            score_mean_link=extra.get("score_mean_link", "logit"),
         )
 
 
@@ -116,6 +151,14 @@ class AlignedRunPlan:
     use_dose: bool
     likelihood: str
     off_floor: bool
+    # Phoneme-blending response link and its release pairing (#619).
+    # ``required_link_companion_model_id`` names the opposite-link fit that must be
+    # released beside this one; ``link_sensitivity_required_for_release`` is the
+    # policy flag the release gate reads, so a future B aligned fit outside the
+    # registered pair fails closed rather than publishing unpaired.
+    score_mean_link: str
+    required_link_companion_model_id: str | None
+    link_sensitivity_required_for_release: bool
     # Recorded audit metadata (#394 pillar 4).
     design: str
     estimand: str
@@ -151,6 +194,7 @@ class AlignedRunPlan:
             "use_cohort": self.use_cohort,
             "use_dose": self.use_dose,
             "likelihood": self.likelihood,
+            "score_mean_link": self.score_mean_link,
         }
 
     def coefficient_names(self) -> list[str]:
@@ -177,6 +221,14 @@ class AlignedRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
+        pairing = (
+            " This fit is one half of the mandatory phoneme-blending response-link "
+            f"pair: it must be read and released beside `"
+            f"{self.required_link_companion_model_id}`, which fits the same model "
+            "under the opposite score-mean link (#619)."
+            if self.required_link_companion_model_id
+            else ""
+        )
         return (
             "Note: Generated from the validated onset-aligned run plan; template "
             "drafted by an LLM-based AI tool (Claude Code/Opus 4.8).\n\n"
@@ -199,7 +251,8 @@ class AlignedRunPlan:
             )
             + ". Ability covariate: "
             f"{self.ability_covariate or 'none'}. Cohort contrast: {self.use_cohort}. "
-            f"Cumulative session dose (sensitivity): {self.use_dose}.\n\n"
+            f"Cumulative session dose (sensitivity): {self.use_dose}. "
+            f"Score-mean link: {self.score_mean_link}.{pairing}\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate and posterior-predictive checks pass. The saved "
@@ -251,6 +304,48 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
     settings, source = declared_aligned_settings(spec)
     own = spec.outcome_symbol
     off_floor = settings.likelihood == "bernoulli_offfloor"
+    if settings.score_mean_link == "three_choice_guessing_floor" and own != "B":
+        raise ValueError(
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
+            f"phoneme blending (B), got {own!r}"
+        )
+
+    # The mandatory phoneme-blending link pairing (#619, under the #608 policy).
+    # Scope is the model of record: the dose sensitivity variant (``use_dose``) is a
+    # collider-conditioned diagnostic reported beside the headline, not the fit whose
+    # B card is published, so requiring a floor twin of it would demand a fit that
+    # does not exist -- the same boundary the level family's window comparator and
+    # the gain family's variants draw (#596). Off-floor fits have no score mean.
+    model_of_record = not settings.use_dose
+    link_pair_required = own == "B" and not off_floor and model_of_record
+    link_companion = (
+        (
+            ALIGNED_BLENDING_PRIMARY_MODEL_ID
+            if settings.score_mean_link == "three_choice_guessing_floor"
+            else ALIGNED_BLENDING_COMPANION_MODEL_ID
+        )
+        if link_pair_required
+        else None
+    )
+
+    link_clause = (
+        " The score mean is mapped onto [1/3, 1] by the three-choice guessing floor, "
+        "because each phoneme-blending item has three response alternatives and an "
+        "expected score cannot fall below chance (#619)."
+        if settings.score_mean_link == "three_choice_guessing_floor"
+        else ""
+    )
+    # A B fit outside the pairing says where the paired headline lives rather than
+    # going silent about the link question.
+    if own == "B" and not off_floor and not model_of_record:
+        link_clause += (
+            " This outcome's published blending estimate is the link-paired headline "
+            f"({ALIGNED_BLENDING_PRIMARY_MODEL_ID} + "
+            f"{ALIGNED_BLENDING_COMPANION_MODEL_ID}): phoneme blending is "
+            "response-link sensitive, and this variant carries the ordinary "
+            "inverse-logit score mean alone, so it answers its own sensitivity "
+            "question and not the response-link one (#619)."
+        )
 
     # The design and estimand must describe the fitted likelihood: the off-floor
     # variant is a Bernoulli on the off-floor indicator, not a Beta-Binomial on
@@ -277,7 +372,8 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
             "Per-protocol onset-aligned single-gain ANCOVA: a cross-sectional "
             "Beta-Binomial regression of the aligned post-score on its own onset baseline, "
             "age-at-onset and cognitive ability, optionally with a cohort indicator and "
-            "the cumulative session dose. One row per child, so no child random intercept."
+            "the cumulative session dose. One row per child, so no child random "
+            f"intercept.{link_clause}"
         )
         estimand = (
             "The cohort contrast at the two arms' own onset-aligned endpoints -- a "
@@ -309,6 +405,9 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
         use_dose=settings.use_dose,
         likelihood=settings.likelihood,
         off_floor=off_floor,
+        score_mean_link=settings.score_mean_link,
+        required_link_companion_model_id=link_companion,
+        link_sensitivity_required_for_release=link_pair_required,
         design=design,
         estimand=estimand,
         causal_status=causal_status,
