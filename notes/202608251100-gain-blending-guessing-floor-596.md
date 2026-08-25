@@ -55,15 +55,34 @@ The #608 note called this out as following from the decision rather than being d
 
 Both helpers now take `score_mean_link` and map both counterfactual arms through it before differencing. The pipeline reads the link from the **fitted payload** — what the factory built — rather than from the declared setting, so the summaries cannot drift from the likelihood. `score_mean_link="logit"` delegates to the previous call unchanged, so every other gain model builds and summarises byte-identically.
 
+## What the pair says
+
+`lrp-rli-gf-306` is fitted at reporting tier. It sampled cleanly — 0 divergences, maximum R-hat 1.0012, minimum ESS 7,613 — on the **same 161 rows and 54 children** as LRPGF06 (identical `fitted_data_identity` digest `ad7c861af4c22af5` and identical `data_sha256`), so the comparison isolates the link.
+
+|                               | LRPGF06 (logit) | LRPGF06f (guessing floor) |
+| ----------------------------- | --------------: | ------------------------: |
+| Period-1 effect, items        |           +0.84 |                 **+0.50** |
+| 89 % credible interval, items |  +0.09 to +1.58 |        **−0.06 to +1.04** |
+| P(effect > 0)                 |           0.963 |                     0.923 |
+| P(benefit ≥ δ = 1 item)       |           0.359 |                 **0.071** |
+| P(practically negligible)     |           0.641 |                 **0.929** |
+| `beta_trt`, logit scale       |           +0.39 |                     +0.47 |
+
+**The link changes the finding, not the scale.** The items estimate falls by about 40 %, the 89 % interval crosses zero, and the practical verdict inverts: under the ordinary link there is a 36 % chance of a benefit of at least one item, under the floor link 7 %. The latent coefficient moves the _other_ way (+0.39 to +0.47) — as it must, since the floor link compresses a given latent shift into a smaller response-scale change — which is exactly why a natural-scale headline cannot be read off the wrong link.
+
+This reproduces the pattern the ITT pair showed (+0.99 → +0.49, interval crossing zero, evidence label dropping a rung), on an independent family, likelihood and row set.
+
+**And the floor link fits marginally better.** PSIS-LOO gives `elpd_loo` −324.24 (SE 9.43) for the ordinary link and −321.75 (SE 9.92) for the floor link, a difference of **+2.49 (SE 3.55)** in the floor link's favour, with all 161 Pareto-k below 0.56 in both fits. Comfortably inside noise, but not worse — the same verdict as the ITT pair's +1.09 (SE 2.68). The constraint costs nothing in fit and is mechanically motivated by the test's own design, so on this family too it is the ordinary-link number that needs justifying, not the floored one.
+
+Both halves now pass the release gate and publish together.
+
 ## Verification
 
 - The pair is a genuine pair: both halves build on the same 161 rows and 54 children with **identical free random variables**; only the observed node's link differs.
-- The release gate now withholds the stored `lrp-rli-gf-006-reporting` fit — "the paired `lrp-rli-gf-306` fit is not present beside this one … fit the pair before releasing either side" — while `lrp-rli-gf-106` and `lrp-rli-gf-206` are unaffected, and the four other families' unpaired `B` fits (LRPAL06, LRPCA07, LRPDOSE84, LRPMED87) are unchanged, as scoped.
+- Before `lrp-rli-gf-306` was fitted, the release gate withheld the stored `lrp-rli-gf-006-reporting` fit — "the paired `lrp-rli-gf-306` fit is not present beside this one … fit the pair before releasing either side" — while `lrp-rli-gf-106` and `lrp-rli-gf-206` are unaffected, and the four other families' unpaired `B` fits (LRPAL06, LRPCA07, LRPDOSE84, LRPMED87) are unchanged, as scoped.
 - gf-006's stored plan predates `link_sensitivity_required_for_release`; the gate derives the requirement from the registered ids as well, so a stale stored plan cannot bypass it. Tested.
 - Full suite green.
 
 ## Not done here
 
 The gate's family dispatch is still keyed on `kind`. `aligned`, `concurrent`, `dose_response` and `mediation` still have `B` models — LRPAL06, LRPCA07, LRPDOSE84, LRPMED87 — that publish unpaired, and their families still need `score_mean_link` in settings, run plan and factory. #608's second decision, that every pair should be bound by the content-addressed archive apparatus rather than the two-directory check, is also outstanding: this pair uses the same stored-artefact tier as the level and DiD pairs. Those are the remaining #608 work, not #596's.
-
-Fitting `lrp-rli-gf-306` at reporting tier is a prerequisite for releasing either half.
