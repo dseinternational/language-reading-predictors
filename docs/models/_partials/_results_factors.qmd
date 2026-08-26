@@ -32,7 +32,11 @@ if (
             "`lrp-rli-lf-106` under the same configuration and regenerate the key "
             "findings.\n\n:::"
         )
-    elif _level_link_status.get("ready"):
+    elif _level_link_status.get("required") and _level_link_status.get("ready"):
+        # ``required`` too, not ``ready`` alone: a fit OUTSIDE the pairing (the
+        # two-wave B window comparator lf-206, exempt by the #584 decision-2
+        # boundary) evaluates as ready with "no link pairing" and carries no
+        # cards to render — indexing them crashed its report (2026-08-26 batch).
         _level_link_cards = _level_link_status["cards"]
         print(
             "## Response-link sensitivity\n\n"
