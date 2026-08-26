@@ -4,8 +4,9 @@ updates:
   - package-ecosystem: uv
     directory: /
     schedule:
-      interval: daily
-      time: "05:00"
+      interval: weekly
+      day: "wednesday"
+      time: "03:21"
       timezone: "Europe/London"
     groups:
       python-dependencies:
@@ -23,8 +24,9 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: daily
-      time: "05:00"
+      interval: weekly
+      day: "wednesday"
+      time: "03:43"
       timezone: "Europe/London"
     groups:
       npm-dependencies:
@@ -36,8 +38,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: daily
-      time: "05:00"
+      interval: weekly
+      day: "wednesday"
+      time: "03:31"
       timezone: "Europe/London"
     groups:
       github-actions:
