@@ -127,12 +127,17 @@ elif _kf_missingness_required and not _kf_missingness_ready:
         "regenerate the key findings.\n\n:::"
     )
 elif not _kf_path.exists():
+    # #575 finding 7b: an absent key-findings file is a missing gate-interlocked
+    # artefact, so the scientific result tables are withheld too rather than
+    # rendering beneath a soft notice.
+    _scientific_results_released = False
     print(
-        '::: {.callout-note title="Key findings"}\n\n'
-        "A key-findings summary is not available for this fit (it predates the "
-        "key-findings feature). Re-run `scripts/regenerate_key_findings.py` over "
-        "this output directory to generate one, or read the results section "
-        "below.\n\n:::"
+        '::: {.callout-important title="Findings withheld: no key-findings '
+        'artefact"}\n\n'
+        "This fit has no `key_findings.json`, so its gate-interlocked findings "
+        "cannot be checked and no scientific result tables are released. Re-run "
+        "`scripts/regenerate_key_findings.py` over this output directory, then "
+        "re-render.\n\n:::"
     )
 else:
     with open(_kf_path) as _kf_fh:
@@ -235,13 +240,56 @@ else:
             "key-findings file after obtaining a clean fit.\n\n:::"
         )
     elif _kf_status == "ok" and _kf.get("sentences"):
-        _kf_lines = "\n".join(f"- {s['text']}" for s in _kf["sentences"])
-        print(f'::: {{.callout-tip title="Key findings"}}\n\n{_kf_lines}\n\n:::')
+        # Render-time re-decision (#575 finding 7c): a stored "ok" is only as
+        # current as the evidence it was computed from, and the narrow B /
+        # itt-010 rechecks above covered two models out of the registry. The
+        # publication decision reads only artefacts already in this directory,
+        # so re-deriving it here binds every report to the evidence as it stands
+        # at render time — a psense or sweep file that changed after
+        # key_findings.json was written demotes the stored box instead of
+        # publishing it.
+        from language_reading_predictors.statistical_models.release import (
+            evaluate_publication as _kf_current_publication,
+        )
+
+        try:
+            _kf_current = _kf_current_publication(_KFPath("."), config=_kf_config)
+        except Exception:  # noqa: BLE001 - an unevaluable decision fails closed
+            _kf_current = None
+        if _kf_current is None or not bool(_kf_current.publishable):
+            _scientific_results_released = False
+            _kf_current_reason = (
+                "the publication decision could not be re-derived from this "
+                "directory"
+                if _kf_current is None
+                else (
+                    _kf_current.reason
+                    or f"the current decision is `{_kf_current.status}` at the "
+                    f"{_kf_current.stage} stage"
+                )
+            )
+            print(
+                '::: {.callout-important title="Findings withheld: stored '
+                'findings are stale"}\n\n'
+                "The stored key findings say `ok`, but re-deriving the "
+                f"publication decision against this directory's current evidence "
+                f"does not permit release ({_kf_current_reason}). Regenerate "
+                "`key_findings.json` before interpreting this report.\n\n:::"
+            )
+        else:
+            _kf_lines = "\n".join(f"- {s['text']}" for s in _kf["sentences"])
+            print(f'::: {{.callout-tip title="Key findings"}}\n\n{_kf_lines}\n\n:::')
     else:
+        # #575 finding 7b: an unrecognised or sentence-less status is not a soft
+        # notice — fail closed exactly like the recognised withhold branches.
+        _scientific_results_released = False
         _kf_reason = _kf.get("reason") or "the fit's summary files are missing"
         print(
-            '::: {.callout-note title="Key findings"}\n\n'
-            f"A key-findings summary is not available for this fit ({_kf_reason}). "
-            "See the results section below.\n\n:::"
+            '::: {.callout-important title="Findings withheld: unrecognised '
+            'key-findings status"}\n\n'
+            f"The stored key-findings status is not releasable as written "
+            f"({_kf_reason}; status: `{_kf_status}`), so no scientific result "
+            "tables are released. Regenerate `key_findings.json` over this "
+            "directory, then re-render.\n\n:::"
         )
 ```

@@ -39,6 +39,7 @@ from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    MISSINGNESS_INDICATOR_PAIRS,
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
@@ -63,6 +64,9 @@ _LEGACY_KEYS = frozenset(
         "likelihood",
         "moderation_variant",
         "score_mean_link",
+        "descriptive_skills",
+        "kappa_prior_family",
+        "gamma_own_prior_sigma",
         # Sampler knob, not a model setting: ``target_accept`` is resolved centrally by
         # ``context.make_context`` (CLI override > spec default > preset) and is never
         # read by this family's settings. Listed so a legitimate per-model declaration
@@ -72,6 +76,24 @@ _LEGACY_KEYS = frozenset(
 )
 
 _LIKELIHOODS = frozenset({"beta_binomial", "bernoulli_offfloor"})
+
+#: The closed vocabulary ``adjust_for`` may draw on (#575 finding 11): the
+#: revised-DAG non-measure confounders — hearing status, speech production and
+#: phonological memory — plus their missing-data indicators. Everything else is
+#: either a bounded-count measure (enter it via ``skill_symbols``), the ability
+#: covariate (``ability_covariate``), or a post-treatment variable such as
+#: intervention sessions (``attend``), which is a declared collider that must
+#: never be conditioned on in this family. A typed vocabulary makes that a
+#: resolution-time failure rather than a silently fitted ``gamma_attend``.
+_ALLOWED_ADJUSTERS = frozenset(MISSINGNESS_INDICATOR_PAIRS) | frozenset(
+    MISSINGNESS_INDICATOR_PAIRS.values()
+)
+
+#: Dispersion-prior families for the graded Beta-Binomial likelihood (#575
+#: finding 10a, mirroring the ITT/level/mechanism factories).
+_KAPPA_PRIOR_FAMILIES = frozenset(
+    {"halfnormal_concentration", "halfnormal_inverse_sqrt"}
+)
 
 
 def resolve_active_interactions(
@@ -147,6 +169,23 @@ class GainFactorsModelSettings:
     #: fall below chance. B only, graded only, and released only beside its paired
     #: opposite-link fit.
     score_mean_link: ScoreMeanLink = "logit"
+    #: The subset of ``skill_symbols`` that are **downstream descriptive
+    #: associates** rather than DAG-parent baseline adjusters (#575 finding 9).
+    #: gf-012 declares R/E; gf-013 declares R/E while keeping TR upstream. The
+    #: role changes the recorded adjustment rationale, never the fitted model.
+    descriptive_skills: tuple[str, ...] = ()
+    #: Dispersion prior for the graded Beta-Binomial likelihood (#575 finding
+    #: 10a). ``"halfnormal_concentration"`` is the registered-suite
+    #: ``HalfNormal(50)`` on kappa itself; ``"halfnormal_inverse_sqrt"`` puts the
+    #: half-normal on ``1/sqrt(kappa)`` so the near-Binomial limit is reachable.
+    #: Registered gain models keep the default; the prior-sensitivity sweep
+    #: exercises the alternative.
+    kappa_prior_family: str = "halfnormal_concentration"
+    #: Prior scale for the graded own-baseline slope ``gamma_own ~ Normal(1, s)``
+    #: (#575 finding 10b). The prior's own rationale calls for a 0.25-vs-0.5
+    #: sensitivity; this field is the axis the sweep moves. Registered models
+    #: keep the 0.25 default.
+    gamma_own_prior_sigma: float = 0.25
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -175,6 +214,73 @@ class GainFactorsModelSettings:
                 f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
                 f"got {self.score_mean_link!r}"
             )
+        object.__setattr__(
+            self,
+            "descriptive_skills",
+            _tuple_of_strings(self.descriptive_skills, name="descriptive_skills"),
+        )
+        stray = sorted(set(self.descriptive_skills) - set(self.skill_symbols))
+        if stray:
+            raise ValueError(
+                f"descriptive_skills names {', '.join(stray)}, which is not in "
+                "skill_symbols; the role annotates declared skills only"
+            )
+        if len(self.descriptive_skills) != len(set(self.descriptive_skills)):
+            raise ValueError(
+                f"descriptive_skills contains duplicates: {self.descriptive_skills!r}"
+            )
+        if self.kappa_prior_family not in _KAPPA_PRIOR_FAMILIES:
+            raise ValueError(
+                f"kappa_prior_family must be one of {sorted(_KAPPA_PRIOR_FAMILIES)}, "
+                f"got {self.kappa_prior_family!r}"
+            )
+        if (
+            not isinstance(self.gamma_own_prior_sigma, (int, float))
+            or isinstance(self.gamma_own_prior_sigma, bool)
+            or not self.gamma_own_prior_sigma > 0
+        ):
+            raise ValueError(
+                "gamma_own_prior_sigma must be a positive number, "
+                f"got {self.gamma_own_prior_sigma!r}"
+            )
+        # Adjustment-set hygiene (#575 finding 11, mirroring the level family's
+        # #584 checks and adding the typed vocabulary). The resolver used to
+        # accept any string: ``adjust_for=("attend",)`` loaded cleanly and fitted
+        # a ``gamma_attend`` on the declared post-treatment collider that every
+        # gain report promises is never conditioned on.
+        unknown_adjusters = sorted(set(self.adjust_for) - _ALLOWED_ADJUSTERS)
+        if unknown_adjusters:
+            raise ValueError(
+                f"adjust_for names {', '.join(unknown_adjusters)}, which is not in "
+                "the gain-family confounder vocabulary "
+                f"({', '.join(sorted(_ALLOWED_ADJUSTERS))}). Bounded-count "
+                "measures enter via skill_symbols, the ability covariate via "
+                "ability_covariate, and post-treatment variables (e.g. the "
+                "session-count collider 'attend') must not be conditioned on"
+            )
+        duplicates = sorted({c for c in self.adjust_for if self.adjust_for.count(c) > 1})
+        if duplicates:
+            raise ValueError(
+                f"adjust_for repeats {', '.join(duplicates)}; each adjuster enters "
+                "the linear predictor once"
+            )
+        indicator_bases = {v: k for k, v in MISSINGNESS_INDICATOR_PAIRS.items()}
+        unpaired = sorted(
+            c
+            for c in self.adjust_for
+            if c in indicator_bases and indicator_bases[c] not in self.adjust_for
+        )
+        if unpaired:
+            raise ValueError(
+                f"adjust_for declares missing-indicator(s) {', '.join(unpaired)} "
+                "without the covariate they flag; declare the base term alongside "
+                "each indicator"
+            )
+        if self.ability_covariate is not None and self.ability_covariate in self.adjust_for:
+            raise ValueError(
+                f"ability_covariate {self.ability_covariate!r} also appears in "
+                "adjust_for; the same column cannot carry two coefficients"
+            )
         # The off-floor branch models a binary indicator, which has no score mean to
         # map and no chance floor to respect. Checked here rather than in the factory
         # so an incoherent pair fails at declaration, before an output directory is
@@ -200,6 +306,25 @@ class GainFactorsModelSettings:
                         f"interaction term {term!r} not available; "
                         f"have {sorted(valid_terms)}"
                     )
+        # Interaction-pair hygiene (#575 finding 11). A self-pair builds z**2 while
+        # the marginal reporting applies the linear partner-times-increment formula
+        # (wrong for a square); an exact or reversed duplicate builds two distinct
+        # RV names on an identical product. All three must fail at declaration.
+        seen_pairs: set[frozenset[str]] = set()
+        for a, b in self.interactions:
+            if a == b:
+                raise ValueError(
+                    f"interaction ({a}, {b}) is a self-pair; squared terms are not "
+                    "supported — the marginal reporting assumes a product of two "
+                    "distinct standardised terms"
+                )
+            key = frozenset((a, b))
+            if key in seen_pairs:
+                raise ValueError(
+                    f"interaction ({a}, {b}) duplicates an earlier pair (order is "
+                    "immaterial); each product enters the linear predictor once"
+                )
+            seen_pairs.add(key)
         # #391 finding 3 decision (2026-07-22): the causal headline is interaction-free.
         # Treatment interactions are estimated on all stacked periods — including
         # post-crossover rows with no untreated comparison — so a headline that nets
@@ -266,6 +391,9 @@ class GainFactorsModelSettings:
             likelihood=extra.get("likelihood", "beta_binomial"),
             moderation_variant=extra.get("moderation_variant", False),
             score_mean_link=extra.get("score_mean_link", "logit"),
+            descriptive_skills=extra.get("descriptive_skills", ()),
+            kappa_prior_family=extra.get("kappa_prior_family", "halfnormal_concentration"),
+            gamma_own_prior_sigma=extra.get("gamma_own_prior_sigma", 0.25),
         )
 
 
@@ -292,6 +420,20 @@ class GainFactorsRunPlan:
     score_mean_link: str
     required_link_companion_model_id: str | None
     link_sensitivity_required_for_release: bool
+    # The subset of skill_symbols that are downstream descriptive associates
+    # (#575 finding 9): recorded so the adjustment rationale in config.json and
+    # the recipe cannot mislabel a descriptive associate as a DAG-parent
+    # adjuster.
+    descriptive_skills: tuple[str, ...]
+    # Prior axes (#575 finding 10): the dispersion-prior family and the graded
+    # own-baseline slope scale, both threaded to the factory so the sensitivity
+    # sweep can move them without a parallel code path.
+    kappa_prior_family: str
+    gamma_own_prior_sigma: float
+    # #575 finding 2: the model of record stacks every transition, so shared
+    # parameters borrow from post-crossover rows; the mandatory period-1-only
+    # refit sensitivity quantifies that borrowing for the causal headline.
+    period1_sensitivity_required: bool
     # Covariate loading split by measurement wave (resolved from adjust_for).
     baseline_covariates: tuple[str, ...]
     pre_covariates: tuple[str, ...]
@@ -359,6 +501,8 @@ class GainFactorsRunPlan:
             "treated_only": self.treated_only,
             "likelihood": self.likelihood,
             "score_mean_link": self.score_mean_link,
+            "kappa_prior_family": self.kappa_prior_family,
+            "gamma_own_prior_sigma": self.gamma_own_prior_sigma,
         }
 
     def coefficient_names(
@@ -396,7 +540,11 @@ class GainFactorsRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
-        skills = ", ".join(self.skill_symbols) if self.skill_symbols else "none"
+        upstream = tuple(
+            s for s in self.skill_symbols if s not in self.descriptive_skills
+        )
+        skills = ", ".join(upstream) if upstream else "none"
+        descriptive = ", ".join(self.descriptive_skills)
         adjust = ", ".join(self.adjust_for) if self.adjust_for else "none"
         # Report the interactions the fit contains, and say plainly which declared
         # ones were dropped — a treated-only recipe that listed trt x ability would
@@ -432,9 +580,22 @@ class GainFactorsRunPlan:
             f"## Missing data\n\n{self.missing_data_assumption}\n\n"
             "## Terms\n\n"
             f"Outcome: `{self.outcome_symbol}`. Upstream skill baselines: {skills}. "
+            + (
+                f"Downstream descriptive skill associates (not DAG-parent "
+                f"adjusters): {descriptive}. "
+                if descriptive
+                else ""
+            )
+            + 
             f"Ability covariate: {self.ability_covariate or 'none'}. Requested "
             f"adjustment terms: {adjust}. Interactions: {inter}. "
             f"Score-mean link: {self.score_mean_link}.{pairing}\n\n"
+            "Covariate slopes on time-varying baselines are fitted on the stacked "
+            "panel with a child random intercept, so each single coefficient "
+            "blends within-child and between-child variation (#575 finding 9); "
+            "they describe the fitted model, not specifically whether a child "
+            "gains more after their own skill increases. The pooled-levels family "
+            "carries the explicit Mundlak between/within split of that question.\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate and posterior-predictive checks pass. The saved "
@@ -538,7 +699,14 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         estimand = (
             "Period-1 average marginal effect of random assignment on the "
             "probability of being off the floor at the period end (a risk "
-            "difference), on the fitted available-case sample."
+            "difference), on the fitted available-case sample. This is a "
+            "randomisation-anchored but model-dependent period-stacked estimate: "
+            "the likelihood stacks every transition, so the shared parameters "
+            "(period effects, child intercepts, covariate slopes) borrow "
+            "information from post-crossover rows, and the period-1 restriction "
+            "is applied when averaging the marginal, not in the likelihood "
+            "(#575 finding 2). The mandatory period-1-only refit sensitivity "
+            "quantifies that borrowing."
         )
     else:
         link_clause = (
@@ -567,7 +735,13 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         )
         estimand = (
             "Period-1 average marginal effect of random assignment on the fitted "
-            "available-case sample."
+            "available-case sample. This is a randomisation-anchored but "
+            "model-dependent period-stacked estimate: the likelihood stacks every "
+            "transition, so the shared parameters (period effects, child "
+            "intercepts, covariate slopes) borrow information from post-crossover "
+            "rows, and the period-1 restriction is applied when averaging the "
+            "marginal, not in the likelihood (#575 finding 2). The mandatory "
+            "period-1-only refit sensitivity quantifies that borrowing."
         )
     if settings.treated_only:
         estimand = (
@@ -601,14 +775,36 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         causal_status = (
             "The treatment term is randomised (a period-1 average marginal effect; "
             "the headline specification carries no treatment interactions, #391 "
-            "finding 3 decision); every skill, ability and interaction term is a "
+            "finding 3 decision). The estimate is randomisation-anchored but "
+            "model-dependent: beta_trt is fitted on the full period-stacked "
+            "likelihood, whose shared parameters borrow from post-crossover rows "
+            "(#575 finding 2) — the period-1-only refit sensitivity quantifies "
+            "that borrowing. Every skill, ability and interaction term is a "
             "latent-ability-confounded adjusted association, never a causal effect."
         )
-    analysis_population = (
-        "Available-case children observed at the period-1 randomised transition "
-        "(about 53-54 children). The causal target is this available-case period-1 "
-        "population, not automatically the complete randomised cohort."
-    )
+    if settings.treated_only:
+        # #575 finding 5: a treated-only fit has no causal population — its
+        # association population is every retained on-treatment transition, with
+        # a built-in arm/history imbalance (the immediate arm contributes from
+        # period 1, the wait-list arm only from period 2 onward).
+        analysis_population = (
+            "Every retained on-intervention transition (the treated-only "
+            "association population, not a period-1 causal population): the "
+            "immediate arm contributes from period 1 and the wait-list arm from "
+            "period 2 onward, an arm-by-history imbalance. Realised per-period, "
+            "per-arm row counts are recorded in analysis_support.csv at fit time."
+        )
+    else:
+        analysis_population = (
+            "Available-case children observed at the period-1 randomised "
+            "transition; the fitted likelihood additionally stacks every later "
+            "retained transition. Realised per-period, per-arm row counts are "
+            "recorded in analysis_support.csv at fit time (#575 finding 5); the "
+            "model build fails unless both randomised arms are present in period "
+            "1 after the final analysis mask. The causal target is the "
+            "available-case period-1 population, not automatically the complete "
+            "randomised cohort."
+        )
     missing_data_assumption = (
         "Available-case analysis under ignorable missingness: missing outcomes and "
         "covariates are assumed ignorable given the modelled covariates."
@@ -629,6 +825,13 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
         score_mean_link=settings.score_mean_link,
         required_link_companion_model_id=link_companion,
         link_sensitivity_required_for_release=link_pair_required,
+        descriptive_skills=settings.descriptive_skills,
+        kappa_prior_family=settings.kappa_prior_family,
+        gamma_own_prior_sigma=settings.gamma_own_prior_sigma,
+        # The period-1-only refit sensitivity is bound to the causal headline: a
+        # treated-only or moderation fit publishes no randomised period-1 card,
+        # so the borrowing question it answers does not arise there.
+        period1_sensitivity_required=model_of_record,
         baseline_covariates=baseline_covariates,
         pre_covariates=pre_adj,
         post_covariates=post_adj,

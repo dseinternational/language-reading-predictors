@@ -64,13 +64,16 @@ findings 2+3 respec changed the primaries first). ``joint`` was added in review:
 it publishes a causal headline too, and its ``itt-012`` fit has three prior-attenuated
 outcomes that the box said nothing about.
 
-The floor-grid requirement stays ITT-only. It is bound to the registered six-cell
-grid and to :func:`sensitivity.evaluate_floor_sensitivity`'s provenance machinery,
-neither of which was specified for ``gain_factors``' off-floor models; those are gated
-on their ``beta_trt`` prior dependence alone. Both of them (``gf-005``, ``gf-011``)
-resolve as prior-dominant qualifies on that route today, so nothing is currently
-under-gated — but a *clear* off-floor gain-factor fit would release without the grid
-its ITT counterpart needs, which is a gap to close rather than a decision.
+The ITT six-cell grid itself stays ITT-only — it is bound to the registered ITT
+floor rule and :func:`sensitivity.evaluate_floor_sensitivity`'s provenance
+machinery — but since #575 finding 10d the *policy* is family-uniform:
+``gain_factors``' off-floor fits route through
+:func:`_gain_offfloor_decision`, the same decision shape keyed on their own
+estimand-matched evidence (the family treatment-prior sweep, per-fit
+trace-validated by :func:`_standard_sweep_evidence`). Any non-clean
+power-scaling verdict on the off-floor risk difference — the release-with-note
+prior-data-conflict class included — now requires that evidence before the
+findings box may speak, closing the gap this paragraph used to record.
 
 **Tiering.** The policy applies uniformly across base ITT models, adjusted-robustness
 models and outcomes outside the standard 44-cell sweep. That was the default offered
@@ -762,6 +765,94 @@ def _floor_decision(
     return ReleaseDecision(status="release", **common)
 
 
+def _gain_offfloor_decision(
+    output_dir: str | Path,
+    config: Mapping[str, Any],
+    *,
+    tier: str,
+    tau_class: TauSensitivityClass,
+    prior: float | None,
+    likelihood: float | None,
+    diagnosis: str | None,
+    causal_term: str,
+) -> ReleaseDecision:
+    """The ITT floor rule's policy shape for a gain-family off-floor fit (#575 10d).
+
+    The evidence differs — the family treatment-prior sweep, validated per fit by
+    :func:`_standard_sweep_evidence` (columns, ≥2 prior cells, per-cell
+    convergence, sha256 binding to THIS fit's ``config.json`` and ``trace.nc``,
+    installed cell-trace digests, and sign stability of the published
+    risk-difference column) — but the *requirement* mirrors ``_floor_decision``:
+    any non-clean power-scaling verdict on the off-floor risk difference needs
+    that estimand-matched evidence before the findings box may speak, including
+    the release-with-note prior-data-conflict class, which the graded route
+    releases without a sweep. Before this branch, a clear off-floor gain fit
+    would have released on the graded route with no grid at all — the exact gap
+    the module docstring recorded.
+    """
+    sweep_required = tau_class != "clear"
+    ready, sweep_reason = (
+        _standard_sweep_evidence(
+            output_dir, str(config.get("outcome_symbol") or ""), config=config
+        )
+        if sweep_required
+        else (False, "")
+    )
+    common = {
+        "tau_class": tau_class,
+        "tier": tier,
+        "floor_rule": True,
+        "floor_grid_required": sweep_required,
+        "floor_grid_ready": bool(ready),
+        "prior_sensitivity": prior,
+        "likelihood_sensitivity": likelihood,
+        "diagnosis": diagnosis,
+    }
+    if not sweep_required:
+        return ReleaseDecision(status="release", **common)
+    if not ready and tier in _WITHHOLD_TIERS:
+        return ReleaseDecision(
+            status="withhold",
+            reason=(
+                f"power-scaling on `{causal_term}` is not clean for this "
+                f"off-floor fit and {sweep_reason}"
+            ),
+            evidence=(
+                f"a trace-bound {STANDARD_SENSITIVITY_FILENAME} covering this "
+                "outcome's off-floor risk difference across the treatment-prior "
+                "grid"
+            ),
+            **common,
+        )
+    if tau_class == "prior_data_conflict":
+        return ReleaseDecision(
+            status="release",
+            note=_PRIOR_ATTENUATION_NOTE,
+            reason=(
+                f"power-scaling flags a prior-data conflict on `{causal_term}`, "
+                "but the likelihood moves the posterior too, so the conservative "
+                "prior attenuates the estimate rather than determining it; the "
+                "trace-bound treatment-prior sweep bounds how far"
+            ),
+            **common,
+        )
+    return ReleaseDecision(
+        status="qualify",
+        note=_QUALIFY_NOTE,
+        # The evidence sentence is asserted only when the sweep actually
+        # validated; a non-withhold tier reaches here without one and must not
+        # cite evidence it does not have.
+        evidence=(
+            f"a trace-bound {STANDARD_SENSITIVITY_FILENAME} showing the "
+            "off-floor risk difference keeps its sign across the "
+            "treatment-prior grid"
+        )
+        if ready
+        else None,
+        **common,
+    )
+
+
 def evaluate_release(
     output_dir: str | Path,
     config: Mapping[str, Any] | None = None,
@@ -808,9 +899,12 @@ def evaluate_itt_release(
     )
 
     # ITT-only: the six-cell grid and its provenance machinery are bound to the
-    # registered ITT floor rule. ``gain_factors``' off-floor models take the ordinary
-    # route on ``beta_trt`` — see this module's docstring for why, and for the gap
-    # that leaves if one of them ever comes back clear.
+    # registered ITT floor rule. ``gain_factors``' off-floor models carry the
+    # same *policy shape* on their own estimand-matched evidence — the
+    # trace-bound family treatment-prior sweep — via the branch below (#575
+    # finding 10d closed the documented gap: a non-clean off-floor gain verdict
+    # now requires that evidence even for the release-with-note conflict class,
+    # exactly as the ITT floor rule requires its grid).
     if config.get("kind") == "itt" and bool(plan.get("floor_rule", False)):
         return _floor_decision(
             output_dir,
@@ -820,6 +914,17 @@ def evaluate_itt_release(
             prior=prior,
             likelihood=likelihood,
             diagnosis=diagnosis,
+        )
+    if config.get("kind") == "gain_factors" and bool(plan.get("off_floor", False)):
+        return _gain_offfloor_decision(
+            output_dir,
+            config,
+            tier=tier,
+            tau_class=tau_class,
+            prior=prior,
+            likelihood=likelihood,
+            diagnosis=diagnosis,
+            causal_term=causal_term,
         )
 
     common = {

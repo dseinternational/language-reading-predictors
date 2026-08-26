@@ -148,8 +148,18 @@ def _gf_association_terms(
         return tuple(out)
 
     def _sd_items(sd_logit: float, p: float, n: int) -> float:
-        # Items equivalent of +1 SD of a bounded-count covariate, at its mean proportion.
-        return float(n * (_expit(_logit(p) + sd_logit) - p))
+        # Items equivalent of +1 SD of a bounded-count covariate, at its mean
+        # proportion. The fitted baselines are Haldane logits,
+        # log((y + 0.5) / (n - y + 0.5)), whose implied proportion is
+        # (y + 0.5) / (n + 1) — so the exact inverse maps a proportion change onto
+        # items through n + 1, not n (#575 finding 3).
+        return float((n + 1) * (_expit(_logit(p) + sd_logit) - p))
+
+    def _k_for(n: int) -> int:
+        # Per-measure items increment (#575 finding 3), the concurrent family's
+        # convention: a fixed +5 was a third of the 6-item nonword scale and half
+        # the 10-item blending one.
+        return max(1, round(n / 10))
 
     terms: list[_report.AssociationTerm] = []
     if not off_floor:
@@ -157,7 +167,9 @@ def _gf_association_terms(
         n_own = int(bp.n_trials[own])
         terms.append(
             AT("own", "gamma_own", scales["own"], _ints_for("own"),
-               n_items=n_own, mean_prop=p_own, sd_items=_sd_items(scales["own"], p_own, n_own))
+               n_items=n_own, mean_prop=p_own,
+               sd_items=_sd_items(scales["own"], p_own, n_own),
+               k_items=_k_for(n_own))
         )
     else:
         # The binary off-floor-at-pre indicator association (#391 finding 2
@@ -179,13 +191,27 @@ def _gf_association_terms(
         n_s = int(bp.n_trials[s])
         terms.append(
             AT(s, f"gamma_{s}", scales[s], _ints_for(s),
-               n_items=n_s, mean_prop=p_s, sd_items=_sd_items(scales[s], p_s, n_s))
+               n_items=n_s, mean_prop=p_s,
+               sd_items=_sd_items(scales[s], p_s, n_s),
+               k_items=_k_for(n_s))
         )
     for c in adjust_for:
         if c.endswith("_missing"):
             continue
-        sd_c = float(np.std(np.asarray(bp.covariates[c], dtype=float), ddof=1))
-        terms.append(AT(c, f"gamma_{c}", sd_c, ()))
+        values = np.asarray(bp.covariates[c], dtype=float)
+        if np.isin(values, (0.0, 1.0)).all():
+            # A binary status covariate (hearing: 1 = impaired, 0 = clear) has no
+            # "+1 SD" — a continuous forward shift leaves its support (#575
+            # finding 3). The net-out-and-toggle idiom contrasts the actual
+            # 0 -> 1 switch instead, exactly as the off-floor own indicator does.
+            terms.append(
+                AT(c, f"gamma_{c}", 1.0, (),
+                   perturbation_label=f"{c} toggled 0 to 1",
+                   toggle_vector=values)
+            )
+        else:
+            sd_c = float(np.std(values, ddof=1))
+            terms.append(AT(c, f"gamma_{c}", sd_c, ()))
     return terms
 
 
@@ -217,24 +243,31 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.prepare_kwargs())
     # Re-filter after loading — a constant ``_missing`` indicator is dropped by the
-    # loader and must not be built or reported as adjusted-for.
-    adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
+    # loader and must not be built or reported as adjusted-for. This is the
+    # loader-frame filter only; the factory re-filters on the FINAL analysis mask.
+    loader_adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     ctx.prepared = prepared
     print_header(ctx)
 
     section_header("Build model")
     built = _factories.build_gain_factors_model(
-        prepared, **plan.factory_kwargs(effective_adjustment=adjust_for)
+        prepared, **plan.factory_kwargs(effective_adjustment=loader_adjust_for)
     )
     attach_built(ctx, built)
+    payload = built.require_payload(GainFactorsPayload, family="gain_factors")
     # The score-mean link the factory BUILT, not the one the module declared. Every
     # natural-scale summary below maps through it, so a floor-link posterior cannot
     # publish ordinary-link items (#596). Read at function scope because the
     # association marginals run for the treated-only companions too, which never
     # enter the randomised-contrast block.
-    link = built.require_payload(
-        GainFactorsPayload, family="gain_factors"
-    ).score_mean_link
+    link = payload.score_mean_link
+    # The adjusters the built model ACTUALLY carries (#575 finding 1): the
+    # factory's focal-outcome / treated-only masks can make a loader-varying
+    # indicator constant (gf-005/105/205's erbto_missing), and the factory now
+    # drops such intercept aliases and records them. Everything downstream —
+    # diagnostic vars, coefficient names, the effective-adjustment record, the
+    # association marginals — must describe that model, not the loader frame.
+    adjust_for = payload.effective_adjust_for
 
     render_model_graph(ctx)
 
@@ -290,6 +323,16 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         )
     )
 
+    # Realised per-period, per-arm fitted-row support (#575 finding 5): the
+    # machine-readable record behind the analysis-population prose, and the
+    # evidence that period 1 retained both randomised arms after the final mask
+    # (the factory refuses to build a causal fit otherwise).
+    support_df = pd.DataFrame(
+        payload.period_arm_support,
+        columns=["period", "arm", "n_rows", "n_children"],
+    )
+    save_table(ctx, "analysis_support", support_df)
+
     meta_extra = {
         "loo_elpd": float(ctx.loo.elpd),
         "treated_only": treated_only,
@@ -304,7 +347,21 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             ability_covariate=ability_covariate,
             baseline_symbol=spec.outcome_symbol,
             skill_baselines=skill_symbols,
+            descriptive_skills=plan.descriptive_skills,
         ),
+        # Adjusters removed by the factory's final-mask re-filter (#575 finding
+        # 1) — distinct from the loader-frame constants already inside
+        # dropped_constant, and empty for most fits.
+        "post_mask_dropped_adjusters": list(payload.post_mask_dropped_adjusters),
+        "analysis_support": [
+            {
+                "period": int(period),
+                "arm": arm,
+                "n_rows": int(n_rows),
+                "n_children": int(n_children),
+            }
+            for period, arm, n_rows, n_children in payload.period_arm_support
+        ],
     }
     # Items-scale marginal effect of the treatment term. Skipped when
     # treated_only (the on-intervention indicator is then constant and beta_trt
@@ -324,7 +381,6 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         # fitted treatment interaction (``gamma_int_trt_*``) — so the marginal effect
         # reflects the modelled heterogeneity, not ``beta_trt`` alone. The factory
         # exposes the exact standardised moderator vectors it used.
-        payload = built.require_payload(GainFactorsPayload, family="gain_factors")
         trt_moderators = payload.trt_interaction_moderators
         # Off-floor models are Bernoulli on Pr(post > 0); the "items" scale then
         # collapses to the off-floor risk difference (n_trials = 1).
@@ -467,6 +523,117 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             split=True,
         )
 
+        # --- Period-1-only refit sensitivity (#575 finding 2) ---
+        # The model of record stacks every transition, so beta_trt is fitted on a
+        # likelihood whose shared parameters (period effects, child intercepts,
+        # covariate slopes) borrow from post-crossover rows; the period-1
+        # restriction above is applied only when averaging the marginal. This
+        # refit keeps the identical specification but drops every post-crossover
+        # row from the likelihood, so the comparison quantifies that borrowing
+        # for the causal headline. With each child observed once, the child
+        # intercept is only jointly identified with the overdispersion and leans
+        # on its prior; that is the price of keeping the refit a pure row
+        # restriction rather than a second specification.
+        if plan.period1_sensitivity_required:
+            section_header("Period-1-only refit sensitivity")
+            from dataclasses import replace as _dc_replace
+
+            from language_reading_predictors.statistical_models.preprocessing import (
+                _subset_prepared,
+            )
+            from language_reading_predictors.statistical_models.subfits import (
+                run_subfit,
+            )
+
+            p1_frame = _dc_replace(
+                _subset_prepared(prepared, np.asarray(prepared.phase) == 0),
+                n_phases=1,
+            )
+            p1_built = _factories.build_gain_factors_model(
+                p1_frame,
+                **plan.factory_kwargs(effective_adjustment=loader_adjust_for),
+            )
+            res = run_subfit(
+                ctx,
+                p1_built,
+                label="period1_only",
+                role="sensitivity",
+                trace_filename="trace_period1_only.nc",
+                extra_var_names=["beta_trt"],
+            )
+            p1_payload = p1_built.require_payload(
+                GainFactorsPayload, family="gain_factors"
+            )
+            trt_p1 = (
+                (p1_built.prepared.G == 1) | (p1_built.prepared.phase >= 1)
+            ).astype(float)
+            tme_p1 = _report.treatment_marginal_effect(
+                res.trace,
+                trt=trt_p1,
+                n_trials=n_marg,
+                moderators=p1_payload.trt_interaction_moderators,
+                ci_prob=ctx.reporting.ci_prob,
+                row_mask=None,
+                score_mean_link=link,
+            )
+            _b = ctx.trace.posterior["beta_trt"].values.ravel()
+            _b1 = res.trace.posterior["beta_trt"].values.ravel()
+            _lo_q = (1 - ctx.reporting.ci_prob) / 2
+            _hi_q = 1 - _lo_q
+
+            def _p1_row(
+                fit_label: str,
+                b_draws: np.ndarray,
+                tme_row: dict[str, float],
+                built_x: _factories.BuiltModel[GainFactorsPayload],
+            ) -> dict[str, object]:
+                return {
+                    "fit": fit_label,
+                    "n_rows": int(built_x.prepared.n_obs),
+                    "n_children": int(built_x.prepared.n_children),
+                    "beta_trt_median": float(np.median(b_draws)),
+                    "beta_trt_lo": float(np.quantile(b_draws, _lo_q)),
+                    "beta_trt_hi": float(np.quantile(b_draws, _hi_q)),
+                    "trt_items_median": tme_row["trt_items_median"],
+                    "trt_items_lo": tme_row["trt_items_lo"],
+                    "trt_items_hi": tme_row["trt_items_hi"],
+                    "prob_trt_pos": tme_row["prob_trt_pos"],
+                }
+            p1_df = pd.DataFrame(
+                [
+                    {
+                        **_p1_row("primary_period_stacked", _b, tme, built),
+                        "converged": None,
+                        "max_rhat": None,
+                        "min_ess": None,
+                    },
+                    {
+                        **_p1_row("period1_only", _b1, tme_p1, p1_built),
+                        "converged": res.convergence.get("converged"),
+                        "max_rhat": res.convergence.get("max_rhat"),
+                        "min_ess": res.convergence.get("min_ess"),
+                    },
+                ]
+            )
+            save_table(ctx, "period1_sensitivity", p1_df)
+            meta_extra["period1_sensitivity"] = {
+                "beta_trt_shift": float(np.median(_b1) - np.median(_b)),
+                "items_shift": float(
+                    tme_p1["trt_items_median"] - tme["trt_items_median"]
+                ),
+                "period1_converged": res.convergence.get("converged"),
+            }
+            print_table(
+                metrics_table(
+                    [
+                        {"metric": k, "value": v}
+                        for k, v in meta_extra["period1_sensitivity"].items()
+                    ],
+                    title="Period-1-only refit sensitivity",
+                    columns=["metric", "value"],
+                )
+            )
+
     # --- Per-covariate items-scale association marginals (#310) ---
     # The adjusted-association analogue of the treatment marginal: for each covariate
     # (own baseline, age, cognitive ability, skill baselines, raw-covariate adjusters)
@@ -493,7 +660,10 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         save_table(ctx, "association_marginals", am)
         meta_extra["association_marginals"] = {
             "averaging_population": "all_stacked_rows",
-            "k_items": 5,
+            # Per-measure increments (#575 finding 3): max(1, round(n/10)) per
+            # bounded-count term, capped at fit time to the items the scale has
+            # left; None for the standardised / toggled terms.
+            "k_items": {t.label: t.k_items for t in assoc_terms},
             "terms": [t.label for t in assoc_terms],
         }
         print_table(

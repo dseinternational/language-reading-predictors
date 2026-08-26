@@ -2024,8 +2024,9 @@ def test_association_marginals_sign_and_scale_consistency():
 
 def test_association_marginals_per_k_items_row_for_bounded_count():
     # A bounded-count covariate (n_items + mean_prop set) gets a "+k items" companion
-    # row evaluated at the mean proportion; its Δz maps the items increment into
-    # standardised units and matches the loop reference.
+    # row evaluated at the mean baseline count implied by the Haldane proportion; the
+    # Δz is the Haldane-logit difference of feasible counts (#575 finding 3), and it
+    # matches the loop reference.
     rng = np.random.default_rng(11)
     n_obs, n_trials, n_items, k, main_scale = 8, 30, 40, 5, 1.5
     eta = rng.normal(0.0, 1.0, (1, 300, n_obs))
@@ -2043,12 +2044,71 @@ def test_association_marginals_per_k_items_row_for_bounded_count():
     assert set(df.scale) == {"+1 SD", f"+{k} items"}
     k_row = df[df.scale == f"+{k} items"].iloc[0]
 
-    from scipy.special import logit as _logit
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+    )
 
-    dz = (_logit(p + k / n_items) - _logit(p)) / main_scale
+    y = p * (n_items + 1) - 0.5
+    dz = float(
+        logit_safe(np.asarray([y + k]), n_items)[0]
+        - logit_safe(np.asarray([y]), n_items)[0]
+    ) / main_scale
     ref = _assoc_ame_ref(eta, gamma, main_scale=main_scale, dz=dz)
     assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
     assert k_row["items_median"] == pytest.approx(n_trials * k_row["prob_median"])
+
+
+def test_association_marginals_caps_k_at_the_items_the_scale_has_left():
+    # #575 finding 3, the concrete defect: a fixed "+5 items" on a 6-item scale whose
+    # mean baseline sits near the ceiling used to clip at 1 and manufacture a ~15-logit
+    # shift. The increment must instead cap at the feasible items and label the row
+    # with the capped value.
+    rng = np.random.default_rng(17)
+    n_obs, n_items = 6, 6
+    eta = rng.normal(0.0, 1.0, (1, 200, n_obs))
+    gamma = rng.normal(0.4, 0.2, (1, 200))
+    trace = _trace_named_vec(eta, scalars={"gamma_N": gamma})
+    # Mean count 4.5 of 6 -> Haldane proportion (4.5+0.5)/7; only one whole item fits.
+    p = 5.0 / 7.0
+    term = AssociationTerm(
+        "N", "gamma_N", main_scale=1.2, interactions=(),
+        n_items=n_items, mean_prop=p, k_items=5,
+    )
+    df = association_marginals(trace, terms=[term], n_trials=n_items, ci_prob=0.9)
+    labels = set(df.scale)
+    assert "+1 items" in labels, labels
+    assert not any("+5 items" in s for s in labels)
+
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+    )
+
+    k_row = df[df.scale == "+1 items"].iloc[0]
+    dz = float(
+        logit_safe(np.asarray([5.5]), n_items)[0]
+        - logit_safe(np.asarray([4.5]), n_items)[0]
+    ) / 1.2
+    ref = _assoc_ame_ref(eta, gamma, main_scale=1.2, dz=dz)
+    assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
+    # And the shift is a sane magnitude, not the old clipped-ceiling explosion.
+    assert abs(dz * 1.2) < 2.0
+
+
+def test_association_marginals_omits_the_items_row_at_the_ceiling():
+    # A covariate already at its ceiling has no feasible whole-item increment; the
+    # "+k items" companion row is omitted rather than fabricated.
+    rng = np.random.default_rng(19)
+    n_obs, n_items = 5, 10
+    eta = rng.normal(0.0, 1.0, (1, 150, n_obs))
+    gamma = rng.normal(0.2, 0.1, (1, 150))
+    trace = _trace_named_vec(eta, scalars={"gamma_B": gamma})
+    p = (9.6 + 0.5) / (n_items + 1)  # mean count 9.6 of 10: floor(10 - 9.6) = 0 items left
+    term = AssociationTerm(
+        "B", "gamma_B", main_scale=1.0, interactions=(),
+        n_items=n_items, mean_prop=p, k_items=1,
+    )
+    df = association_marginals(trace, terms=[term], n_trials=n_items, ci_prob=0.9)
+    assert list(df.scale) == ["+1 SD"]
 
 
 def test_association_marginals_nets_interaction_contribution():

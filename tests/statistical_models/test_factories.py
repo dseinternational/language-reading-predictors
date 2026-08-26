@@ -2692,7 +2692,10 @@ def test_gain_factors_adjust_for_covariates(tmp_path):
     """#247: revised-DAG raw-covariate confounders enter as linear ``gamma_{c}`` terms
     alongside the skill baselines, mirroring the mechanism factory's adjust_for path."""
     prep = _prep_all(tmp_path, n_children=20)
-    prep.covariates["hs"] = np.zeros(prep.n_obs)  # binary indicator
+    # Varying on the fitted rows: a CONSTANT adjuster is now dropped by the
+    # factory's final-mask re-filter rather than fitted as an intercept alias
+    # (#575 finding 1) — that path has its own test below.
+    prep.covariates["hs"] = (np.arange(prep.n_obs) % 2).astype(float)  # binary
     prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)  # continuous
     built = build_gain_factors_model(
         prep,
@@ -2702,9 +2705,30 @@ def test_gain_factors_adjust_for_covariates(tmp_path):
     )
     names = {v.name for v in built.model.free_RVs}
     assert {"gamma_R", "gamma_hs", "gamma_erbto"}.issubset(names)
+    assert built.payload.post_mask_dropped_adjusters == ()
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=71)
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+def test_gain_factors_drops_a_constant_adjuster_after_the_final_mask(tmp_path):
+    """#575 finding 1: an adjuster constant on the FINAL fitted rows is an exact
+    intercept alias — dropped, recorded on the payload, and absent from the RVs."""
+    prep = _prep_all(tmp_path, n_children=20)
+    prep.covariates["hs"] = np.zeros(prep.n_obs)  # constant everywhere
+    prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    built = build_gain_factors_model(
+        prep,
+        outcome_symbol="E",
+        skill_symbols=("R",),
+        adjust_for=("hs", "erbto"),
+    )
+    names = {v.name for v in built.model.free_RVs}
+    assert "gamma_hs" not in names
+    assert "gamma_erbto" in names
+    assert built.payload.post_mask_dropped_adjusters == ("hs",)
+    assert built.payload.effective_adjust_for == ("erbto",)
+    assert "hs" in built.prepared.dropped_covariates
 
 
 def test_gain_factors_adjust_for_unknown_covariate_raises(tmp_path):

@@ -44,6 +44,9 @@ SPEC = ModelSpec(
         # gf-010's upstream DAG parent TR (retained as a confounder adjustment) plus the
         # downstream descriptive associates R/E (the review's finding).
         "skill_symbols": ("TR", "R", "E"),
+        # Only R/E carry the descriptive role; TR stays a DAG-parent adjuster
+        # exactly as in gf-010 (#575 finding 9).
+        "descriptive_skills": ("R", "E"),
         "ability_covariate": V.BLOCKS,
         # TE's non-measure confounders (matches gf-010): hearing, speech, phon. memory.
         "adjust_for": (

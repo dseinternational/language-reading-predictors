@@ -40,6 +40,11 @@ SPEC = ModelSpec(
         # The review's finding: broad receptive (and expressive) vocabulary as
         # associates of taught-receptive-vocabulary gains. Adjusted associations.
         "skill_symbols": ("R", "E"),
+        # R/E sit *downstream* of taught vocabulary under the revised DAG
+        # (TR -> RV), so they are descriptive associates, not DAG-parent
+        # adjusters — the role keeps config.json and the recipe from
+        # mislabelling the adjustment rationale (#575 finding 9).
+        "descriptive_skills": ("R", "E"),
         "ability_covariate": V.BLOCKS,
         # TR's non-measure confounders (matches gf-009): hearing + phonological memory.
         "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),

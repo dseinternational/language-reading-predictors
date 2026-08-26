@@ -1757,19 +1757,50 @@ def test_a_ready_pair_does_not_leak_private_card_fields(tmp_path):
 
 @pytest.mark.real_plan_currency
 def test_the_real_currency_checker_passes_a_current_fit():
-    """Exercised against the real resolver, not the stub the fixture installs."""
+    """Exercised against the real resolver, not the stub the fixture installs.
+
+    Originally pinned to ``lrp-rli-gf-306``, which went deliberately plan-stale
+    when #575 changed the gain family's settings ahead of the refit batch — a
+    pinned exemplar turns this test into a canary for whichever family last
+    changed, which is the currency *checker*'s job, not this test's. Instead,
+    walk the pair families' stored reporting fits and require that the checker
+    passes at least one genuinely current real fit (post-batch: all of them).
+    """
     import json as _json
 
     from language_reading_predictors.statistical_models import blending_sensitivity
+    from language_reading_predictors.statistical_models.registry import (
+        discover_models,
+    )
 
-    directory = Path("output/statistical_models/models/lrp-rli-gf-306-reporting")
-    if not (directory / "config.json").is_file():
-        pytest.skip("lrp-rli-gf-306 is not fitted in this checkout")
-    config = _json.loads((directory / "config.json").read_text(encoding="utf-8"))
-    stored = blending_sensitivity._comparable_plan(config["resolved_run_plan"])
-    assert (
-        blending_sensitivity._stale_plan_fields("lrp-rli-gf-306", "gain_factors", stored)
-        == []
+    models_root = Path("output/statistical_models/models")
+    if not models_root.is_dir():
+        pytest.skip("no stored fits in this checkout")
+    checked = 0
+    for model_id, lazy in sorted(discover_models().items()):
+        directory = models_root / f"{model_id}-reporting"
+        if not (directory / "config.json").is_file():
+            continue
+        try:
+            spec = lazy.load().SPEC
+        except Exception:  # noqa: BLE001 - not this test's concern
+            continue
+        if spec.kind not in blending_sensitivity._PLAN_RESOLVERS:
+            continue
+        config = _json.loads((directory / "config.json").read_text(encoding="utf-8"))
+        plan = config.get("resolved_run_plan")
+        if not plan:
+            continue
+        stored = blending_sensitivity._comparable_plan(plan)
+        checked += 1
+        if not blending_sensitivity._stale_plan_fields(model_id, spec.kind, stored):
+            return  # the checker passed a real, current fit
+    if checked == 0:
+        pytest.skip("no pair-family reporting fit with a stored plan is present")
+    pytest.fail(
+        f"none of the {checked} stored pair-family reporting fits is plan-current; "
+        "either every family changed without its refit batch, or the checker "
+        "broke — both need attention"
     )
 
 
