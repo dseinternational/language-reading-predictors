@@ -29,6 +29,7 @@ def effective_adjustment(
     baseline_symbol: str | None = None,
     baseline_symbols: tuple[str, ...] = (),
     skill_baselines: tuple[str, ...] = (),
+    descriptive_skills: tuple[str, ...] = (),
     moderator_symbol: str | None = None,
     moderator_is_covariate: bool = False,
     moderator_interaction: bool = False,
@@ -82,10 +83,18 @@ def effective_adjustment(
     for s in skill_baselines:
         # Upstream-skill DAG-parent adjusters, entered as their period baseline
         # (pre-wave) logit — the ANCOVA lag that precedes that period's treatment.
+        # ``descriptive_skills`` names the declared exceptions (#575 finding 9):
+        # gf-012/gf-013 enter R/E although they sit *downstream* of the outcome
+        # under the revised DAG, purely to describe an association — recording
+        # them as DAG-parent adjusters would misstate the adjustment rationale.
         terms.append(
             {
                 "term": f"{s}_pre",
-                "kind": "measure_baseline",
+                "kind": (
+                    "descriptive_associate"
+                    if s in descriptive_skills
+                    else "measure_baseline"
+                ),
                 "source_column": prepared.column_map.get(s, s),
                 "wave": "pre",
                 "missing_indicator": False,

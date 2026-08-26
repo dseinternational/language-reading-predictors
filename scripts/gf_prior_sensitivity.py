@@ -86,6 +86,17 @@ KAPPA_SIGMA = 50.0
 GAMMA_OWN_SIGMA_GRADED = 0.25
 GAMMA_OWN_SIGMA_OFFFLOOR = 1.0
 
+#: The kappa-axis cells (#575 finding 10a), indexed by the integer passed as the
+#: cell's ``sigma``: the registered concentration prior refitted for a
+#: like-for-like anchor, then the near-Binomial-capable dispersion-scale
+#: parameterisation at the two documented widths (the dispersion sweep's idiom).
+KAPPA_AXIS_CELLS: dict[int, tuple[str, float | None]] = {
+    0: ("halfnormal_concentration", None),
+    1: ("halfnormal_inverse_sqrt", 0.25),
+    2: ("halfnormal_inverse_sqrt", 0.5),
+}
+GAMMA_OWN_AXIS_SIGMAS = (0.25, 0.5)
+
 # Default sweep set: the two fits whose pre-respec release decisions were
 # prior-dominant withholds. Which fits NEED evidence is each refit's own
 # power-scaling diagnosis — pass --models for any other flagged primary.
@@ -172,8 +183,16 @@ def _fit_cell(
     sensitivity_dir: Path,
     primary_reference: PrimaryStandardReference,
     cell_target_accept: float | None = None,
+    axis: str = "tau",
 ) -> dict:
-    """Fit one gain-factor sweep cell and return its standard-schema row."""
+    """Fit one gain-factor sweep cell and return its standard-schema row.
+
+    ``axis`` selects what the cell varies (#575 finding 10): ``"tau"`` (the
+    standard beta_trt prior grid, the release-evidence artefact), ``"kappa"``
+    (``sigma`` indexes :data:`KAPPA_AXIS_CELLS`) or ``"gamma_own"`` (``sigma``
+    is the Normal(1, s) width). Non-tau axes write to their own sweep
+    directories and never enter the standard-schema release artefact.
+    """
     from language_reading_predictors.statistical_models import diagnostics as _diag
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
@@ -187,7 +206,31 @@ def _fit_cell(
     prepared = load_and_prepare(**plan.prepare_kwargs())
     adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     kwargs = plan.factory_kwargs(effective_adjustment=adjust_for)
-    kwargs["trt_prior_sigma"] = sigma
+    # Axis dispatch (#575 finding 10): the tau axis moves the beta_trt prior
+    # scale exactly as before; the kappa axis moves the dispersion-prior family
+    # (the near-Binomial-capable 1/sqrt parameterisation against the registered
+    # HalfNormal(50)); the gamma_own axis runs the prior's own documented
+    # 0.25-vs-0.5 width sensitivity on graded fits.
+    if axis == "tau":
+        kwargs["trt_prior_sigma"] = sigma
+    elif axis == "kappa":
+        if plan.off_floor:
+            raise RuntimeError(
+                f"{model_id}: the kappa axis applies to graded Beta-Binomial "
+                "fits only (an off-floor Bernoulli fit has no dispersion)"
+            )
+        family, kappa_sigma_value = KAPPA_AXIS_CELLS[int(sigma)]
+        kwargs["kappa_prior_family"] = family
+        kwargs["kappa_sigma"] = kappa_sigma_value
+    elif axis == "gamma_own":
+        if plan.off_floor:
+            raise RuntimeError(
+                f"{model_id}: the gamma_own axis applies to graded fits only "
+                "(the off-floor path carries the indicator prior instead)"
+            )
+        kwargs["gamma_own_prior_sigma"] = sigma
+    else:  # pragma: no cover - argparse restricts the choices
+        raise RuntimeError(f"unknown sensitivity axis {axis!r}")
     built = build_gain_factors_model(prepared, **kwargs)
     # Cells adopt the primary's own recorded target_accept (see
     # assert_gf_sampling_contract); --cell-target-accept may only RAISE it —
@@ -255,12 +298,27 @@ def _fit_cell(
         "config": config,
         "outcome": outcome,
         "n_trials": n_trials,
-        "sensitivity_axis": "tau",
-        "tau_sigma": sigma,
+        "sensitivity_axis": axis,
+        "tau_sigma": sigma if axis == "tau" else np.nan,
         "gamma_own_sigma": (
-            GAMMA_OWN_SIGMA_OFFFLOOR if plan.off_floor else GAMMA_OWN_SIGMA_GRADED
+            sigma
+            if axis == "gamma_own"
+            else (
+                GAMMA_OWN_SIGMA_OFFFLOOR if plan.off_floor else GAMMA_OWN_SIGMA_GRADED
+            )
         ),
-        "kappa_sigma": np.nan if plan.off_floor else KAPPA_SIGMA,
+        "kappa_prior_family": kwargs.get(
+            "kappa_prior_family", "halfnormal_concentration"
+        ),
+        "kappa_sigma": (
+            np.nan
+            if plan.off_floor
+            else (
+                kwargs.get("kappa_sigma")
+                if axis == "kappa" and kwargs.get("kappa_sigma") is not None
+                else KAPPA_SIGMA
+            )
+        ),
         "use_precision_terms": True,
         "data_sha256": data_sha256,
         "n": n,
@@ -304,8 +362,9 @@ def _fit_cell(
         "outcome": outcome,
         "model_id": model_id,
         "focal_term": "beta_trt",
-        "sensitivity_axis": "tau",
-        "tau_sigma": sigma,
+        "sensitivity_axis": axis,
+        "tau_sigma": sigma if axis == "tau" else None,
+        "axis_value": sigma,
         "likelihood": plan.likelihood,
         "n_trials": n_trials,
         "data_sha256": data_sha256,
@@ -335,7 +394,7 @@ def _fit_cell(
     semantic = (
         Path("traces")
         / f"gf-{config}"
-        / f"trace_{token}_tau-{sigma_token}.nc"
+        / f"trace_{token}_{axis}-{sigma_token}.nc"
     )
     trace_file, trace_sha256 = persist_sensitivity_trace(
         trace,
@@ -386,6 +445,18 @@ def main() -> None:
         ),
     )
     ap.add_argument(
+        "--axis", choices=("tau", "kappa", "gamma_own"), default="tau",
+        help=(
+            "what the sweep varies (#575 finding 10): 'tau' is the standard "
+            "beta_trt prior grid and release-evidence artefact; 'kappa' fits "
+            "the dispersion-prior-family cells (registered HalfNormal(50) "
+            "anchor, then 1/sqrt(kappa) ~ HalfNormal(0.25)/(0.5)); 'gamma_own' "
+            "runs the documented 0.25-vs-0.5 own-baseline width sensitivity. "
+            "Non-tau axes write to their own sweep directories and cannot be "
+            "attached as release evidence"
+        ),
+    )
+    ap.add_argument(
         "--cell-target-accept", type=float, default=None,
         help=(
             "escalate the cells' target_accept ABOVE the primary's recorded "
@@ -405,8 +476,19 @@ def main() -> None:
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
     models_root = Path(_paths.stat_dir()) / "models"
-    sensitivity_dir = Path(_paths.stat_dir()) / "gf_tau_prior_sensitivity"
+    _axis_dirs = {
+        "tau": "gf_tau_prior_sensitivity",
+        "kappa": "gf_kappa_prior_sensitivity",
+        "gamma_own": "gf_gamma_own_prior_sensitivity",
+    }
+    sensitivity_dir = Path(_paths.stat_dir()) / _axis_dirs[args.axis]
     sensitivity_dir.mkdir(parents=True, exist_ok=True)
+    if args.axis != "tau" and (args.attach or args.reattach):
+        ap.error(
+            "--attach/--reattach apply to the tau axis only: the kappa and "
+            "gamma_own sweeps are reported sensitivity artefacts, not per-fit "
+            "release evidence"
+        )
 
     sampling = _sampling.get_sampling_configuration(args.config, random_seed=args.seed)
     combined_path = sensitivity_dir / f"gf_{STANDARD_SENSITIVITY_FILENAME}"
@@ -449,10 +531,16 @@ def main() -> None:
         assert_gf_sampling_contract(sampling, reference, config=args.config)
         plan = _resolve_plan(model_id)
         model_rows = []
-        for sigma in _grid_for(plan):
+        if args.axis == "tau":
+            grid = tuple(float(v) for v in _grid_for(plan))
+        elif args.axis == "kappa":
+            grid = tuple(float(k) for k in sorted(KAPPA_AXIS_CELLS))
+        else:
+            grid = tuple(float(v) for v in GAMMA_OWN_AXIS_SIGMAS)
+        for sigma in grid:
             print(
                 f"--- {model_id} ({plan.outcome_symbol}, beta_trt): "
-                f"sigma={sigma} ---"
+                f"axis={args.axis} value={sigma} ---"
             )
             row = _fit_cell(
                 model_id,
@@ -462,6 +550,7 @@ def main() -> None:
                 sensitivity_dir=sensitivity_dir,
                 primary_reference=reference,
                 cell_target_accept=args.cell_target_accept,
+                axis=args.axis,
             )
             print(
                 f"    tau_logit_mean={row['tau_logit_mean']:+.3f} "

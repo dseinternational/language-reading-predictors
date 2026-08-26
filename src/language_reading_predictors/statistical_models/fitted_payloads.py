@@ -219,6 +219,18 @@ class GainFactorsPayload(FittedPayload):
 
     trt_interaction_moderators: tuple[TreatmentModerator, ...]
     score_mean_link: str = "logit"
+    #: The adjusters the built model actually carries, after the factory's final
+    #: analysis mask (#575 finding 1). The loader filters constants on its own
+    #: complete frame, but the factory's focal-outcome / treated-only masks can
+    #: make a previously varying indicator constant — an exact intercept alias.
+    #: The pipeline records THESE, not the loader-time set, as the effective
+    #: adjustment, together with what the final mask removed.
+    effective_adjust_for: tuple[str, ...] = ()
+    post_mask_dropped_adjusters: tuple[str, ...] = ()
+    #: Realised per-period, per-arm fitted-row support (#575 finding 5):
+    #: ``(phase, arm_label, n_rows, n_children)`` for every fitted cell, written
+    #: to ``analysis_support.csv`` by the pipeline.
+    period_arm_support: tuple[tuple[int, str, int, int], ...] = ()
 
 
 @dataclass(frozen=True)

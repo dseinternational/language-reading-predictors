@@ -26,7 +26,7 @@ from dse_research_utils.statistics.evidence import (
 )
 from dse_research_utils.statistics.intervals import eti_bands, hdi_1d
 from dse_research_utils.statistics.rope import rope_card
-from scipy.special import expit, logit
+from scipy.special import expit
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
@@ -4305,7 +4305,19 @@ def treatment_marginal_effect(
     hi_q = 1 - lo_q
     prob_lo50, prob_hi50 = band50(ame_prob)
     items_lo50, items_hi50 = band50(ame_items)
+    # Monte-Carlo precision of the probability-scale AME — a *derived* estimand
+    # the convergence gate never sees, so its own ESS/MCSE are reported beside
+    # the estimate exactly as ``tau_summary_itt`` does (Kruschke 2021 BARG step
+    # 2.C; #575 finding 10c).
+    _post = trace.posterior
+    _mc = derived_mc_diagnostics(
+        ame_prob,
+        n_chains=int(_post.sizes["chain"]),
+        n_draws=int(_post.sizes["draw"]),
+        prefix="trt_prob_",
+    )
     return {
+        **_mc,
         "trt_prob_median": float(np.median(ame_prob)),
         "trt_prob_lo": float(np.quantile(ame_prob, lo_q)),
         "trt_prob_hi": float(np.quantile(ame_prob, hi_q)),
@@ -4403,6 +4415,12 @@ class AssociationTerm:
     sd_items: float | None = None
     perturbation_label: str | None = None
     toggle_vector: np.ndarray | None = None
+    #: Per-measure items increment for the bounded-count companion row (#575
+    #: finding 3): ``None`` falls back to :func:`association_marginals`'
+    #: ``k_items`` argument. A fixed suite-wide ``+5`` was a third of a 6-item
+    #: scale and half a 10-item one; per-measure ``max(1, round(n/10))`` matches
+    #: the concurrent family's convention.
+    k_items: int | None = None
 
 
 def association_marginals(
@@ -4468,6 +4486,10 @@ def association_marginals(
     Every row carries ``role = "association"`` — none of these terms is causal, per the
     gain family's documented estimand structure.
     """
+    from language_reading_predictors.statistical_models.preprocessing import (
+        logit_safe,
+    )
+
     posterior = getattr(trace, group)
     eta = (
         posterior[eta_name]
@@ -4522,11 +4544,26 @@ def association_marginals(
             (term.perturbation_label or "+1 SD", 1.0)
         ]
         if term.n_items and term.mean_prop is not None and term.main_scale > 0:
-            eps = 1e-6
-            p = float(np.clip(term.mean_prop, eps, 1 - eps))
-            p_k = float(np.clip(p + k_items / term.n_items, eps, 1 - eps))
-            dz = (logit(p_k) - logit(p)) / term.main_scale
-            perturbations.append((f"+{k_items} items", dz))
+            # The fitted baselines are Haldane logits, log((y+0.5)/(n-y+0.5)),
+            # whose proportion p* = (y+0.5)/(n+1) is affine in the count — so the
+            # mean fitted proportion inverts EXACTLY to the mean baseline count.
+            # The former arithmetic added k/N to p* and clipped at 1, which is
+            # wrong for this transform and, at the ceiling, silently manufactured
+            # a huge logit shift (a "+5 items" row of ~15 logits on the 6-item
+            # nonword scale). The correct increment is the Haldane-logit
+            # difference of feasible counts, with the increment capped at the
+            # items the scale has left — the concurrent family's idiom
+            # (#575 finding 3).
+            n = float(term.n_items)
+            y_mean = float(np.clip(term.mean_prop * (n + 1.0) - 0.5, 0.0, n))
+            k_req = int(term.k_items if term.k_items is not None else k_items)
+            k_eff = min(k_req, int(np.floor(n - y_mean)))
+            if k_eff >= 1:
+                dz = float(
+                    logit_safe(np.asarray([y_mean + k_eff]), int(n))[0]
+                    - logit_safe(np.asarray([y_mean]), int(n))[0]
+                ) / term.main_scale
+                perturbations.append((f"+{k_eff} items", dz))
 
         for scale_label, dz in perturbations:
             # Main-effect shift: γ_c scaled to the requested data increment. Broadcast

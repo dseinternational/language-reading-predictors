@@ -653,7 +653,18 @@ def _draw_distribution_axis(
                 color=_INTERVENTION_COLOR, alpha=0.55, label="immediate intervention")
         med_c = float(np.median(contrast.score_control))
         med_t = float(np.median(contrast.score_intervention))
-        ame_med = float(np.median(contrast.ame_items))
+        # Annotate the NEW-CHILD panel with the new-child effect when the model
+        # integrates a child random intercept — annotating simulated new-child
+        # score distributions with the fitted-sample conditional AME mixed two
+        # populations in one panel (#575 finding 8; the published card remains
+        # the sample-conditional AME in treatment_marginal.csv). Without a child
+        # intercept the two coincide and the conditional draws are the effect.
+        if contrast.ame_prob_new_child.size:
+            ame_med = float(np.median(contrast.ame_items_new_child))
+            ame_label = "average effect (new child)"
+        else:
+            ame_med = float(np.median(contrast.ame_items))
+            ame_label = "average effect"
         ax.axvline(med_c, color=_CONTROL_COLOR, lw=1.5)
         ax.axvline(med_t, color=_INTERVENTION_COLOR, lw=1.5)
         ax.set_xlabel(f"{item_label} — score out of {contrast.n_trials}")
@@ -662,13 +673,25 @@ def _draw_distribution_axis(
         ax.legend(fontsize=8)
         ax.text(
             0.98, 0.98,
-            f"medians: {med_t:.0f} vs {med_c:.0f}\naverage effect ≈ {ame_med:+.1f} items",
+            f"medians: {med_t:.0f} vs {med_c:.0f}\n{ame_label} ≈ {ame_med:+.1f} items",
             transform=ax.transAxes, va="top", ha="right", fontsize=8,
             bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
         )
     else:
         arms = ("wait-list control", "immediate intervention")
-        draws = (contrast.prob_control, contrast.prob_intervention)
+        # Same population discipline for the off-floor bars (#575 finding 8):
+        # when new-child arm probabilities exist (child-RE model), plot those —
+        # the caption speaks about a new typical child — and fall back to the
+        # fitted-sample conditional draws otherwise.
+        if contrast.prob_control_new_child.size:
+            draws = (
+                contrast.prob_control_new_child,
+                contrast.prob_intervention_new_child,
+            )
+            pop_note = "new typical child"
+        else:
+            draws = (contrast.prob_control, contrast.prob_intervention)
+            pop_note = "fitted-sample average"
         colors = (_CONTROL_COLOR, _INTERVENTION_COLOR)
         for x, (label, d, color) in enumerate(zip(arms, draws, colors, strict=True)):
             med = float(np.median(d))
@@ -679,7 +702,10 @@ def _draw_distribution_axis(
         ax.set_xticklabels(arms, fontsize=8)
         ax.set_ylim(0, 1)
         ax.set_ylabel(f"P({event_label})")
-        ax.set_title(f"Probability {event_label} by arm ({outcome_symbol})", fontsize=10)
+        ax.set_title(
+            f"Probability {event_label} by arm ({outcome_symbol}; {pop_note})",
+            fontsize=10,
+        )
 
 
 def _draw_effect_axis(
@@ -688,9 +714,13 @@ def _draw_effect_axis(
     """Right-panel body: items-scale (graded) or percentage-point (floor) effect
     density with the ROPE band and the three ROPE probabilities printed."""
     if contrast.score_control.size:
+        # Deliberately the fitted-sample conditional AME — the quantity the
+        # published card (treatment_marginal.csv) and the ROPE verdict use — and
+        # titled as such, so the panel pair reads as two labelled populations
+        # rather than an unmarked mix (#575 finding 8).
         _effect_density_axis(ax, contrast.ame_items, delta=delta,
                              unit_label="treatment effect (items)", delta_unit=" items")
-        ax.set_title("Items-scale effect with ROPE", fontsize=10)
+        ax.set_title("Items-scale effect with ROPE (fitted-sample average)", fontsize=10)
     else:
         # Percentage-point scale so the ROPE band / triple read "±10 pp".
         _effect_density_axis(

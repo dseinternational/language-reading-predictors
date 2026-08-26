@@ -141,7 +141,30 @@ _mv = bool(_plan_intro.get("moderation_variant", False))
 # (#584 lower-severity 6). Keyed on the plan rather than the family, so it holds
 # for any future plan whose focal term is absent.
 _no_focal = "focal_term" in _plan_intro and not _plan_intro.get("focal_term")
-if _no_focal and not _mv:
+# A treated-only gain companion (gf-101–108) drops the constant treatment term at
+# build time, so it too presents NO causal coefficient — the partial used to fall
+# through to the one-causal-coefficient opening for exactly these fits (#575
+# finding 4).
+_gf_treated_only = bool(_plan_intro.get("treated_only", False))
+if _gf_treated_only:
+    print(
+        "This **treated-only companion** reports **no causal coefficient**. It "
+        "restricts the stacked panel to on-intervention transitions — the "
+        "immediate arm from period 1, the wait-list arm from period 2 onward, an "
+        "arm-by-history imbalance recorded in `analysis_support.csv` — so the "
+        "treatment indicator is constant and is dropped along with any "
+        "randomised contrast. Every coefficient below is an *adjusted "
+        "association* among children while on intervention. Under the revised "
+        "DAG (2026-07-10) each is confounded by latent general ability, which "
+        "the child random intercept does **not** control. Read them as "
+        "*associated with*, never *drives*; the randomised causal headline "
+        "lives in the full-cohort primary this companion varies.\n\n"
+        "_In plain terms:_ this section asks what goes with bigger gains while "
+        "children are receiving the intervention. There is no comparison group "
+        "here, so nothing in it is a cause-and-effect result — the main model "
+        "carries that."
+    )
+elif _no_focal and not _mv:
     print(
         "This model reports **no causal coefficient**. Its group term is pooled "
         "across all four timepoints, so it mixes the randomised window with the "
@@ -176,10 +199,27 @@ elif _mv:
         "cause-and-effect; the main model carries the causal result."
     )
 else:
+    # Gain model of record: the plan requires the period-1-only refit
+    # sensitivity, so the causal opening carries the #575 finding 2 caveat — the
+    # headline is randomisation-anchored but fitted on the period-stacked
+    # likelihood, whose shared parameters borrow from post-crossover rows.
+    _gf_p1 = bool(_plan_intro.get("period1_sensitivity_required", False))
+    _gf_p1_clause = (
+        " The estimate is **randomisation-anchored but model-dependent**: the "
+        "likelihood stacks every transition, so shared parameters (period "
+        "effects, child intercepts, covariate slopes) borrow information from "
+        "post-crossover rows, and the period-1 restriction is applied when "
+        "averaging the marginal, not in the likelihood. The period-1-only refit "
+        "sensitivity below (`period1_sensitivity.csv`) quantifies that "
+        "borrowing."
+        if _gf_p1
+        else ""
+    )
     print(
         "The factor model reports **one** causal coefficient — the randomised "
         "on-intervention / t2 group contrast — alongside a vector of *adjusted "
-        "associations*. Under the revised DAG (2026-07-10) every non-randomised "
+        f"associations*.{_gf_p1_clause} Under the revised DAG (2026-07-10) every "
+        "non-randomised "
         "coefficient is an adjusted association: it is confounded by latent general "
         "ability, and the child random intercept is only a partial, shrunken "
         "stand-in for between-child heterogeneity — **not** a control for that "
@@ -461,21 +501,60 @@ if treatment_marginal is not None:
             f"**{_tm_value(_t.trt_items_median)} {_tm_unit} "
             f"{_tm_band}; "
             f"P(> 0) = {_t.prob_trt_pos:.3f}. The logit-scale `beta_trt` coefficient itself is "
-            f"the on-intervention log-odds contrast, not the marginal available-case modified ITT estimate.\n"
+            f"the on-intervention log-odds contrast, not the marginal available-case modified ITT estimate. "
+            f"The restriction applies to the averaging, not the likelihood: `beta_trt` is fitted on the "
+            f"period-stacked panel, so this is a randomisation-anchored, model-dependent period-stacked "
+            f"estimate (#575 finding 2).\n"
         )
-print(
-    _img(
-        "tau_forest.png",
-        "Posterior of the on-intervention term (forest, reference line at 0) — a model-dependent association in this moderation variant"
-        if _mv
-        else (
-            "Posterior of the t1 balance term and the per-wave arm-gap changes (forest, reference line at 0) — only the t2 change is randomised"
-            if _lf_t1
-            else "Posterior of the causal term (forest, reference line at 0)"
-        ),
+
+# Period-1-only refit sensitivity (#575 finding 2): the same specification with
+# every post-crossover row dropped from the likelihood, quantifying how much the
+# stacked model's shared parameters move the causal headline.
+_p1_sens = _csv("period1_sensitivity.csv")
+if _p1_sens is not None and len(_p1_sens) == 2:
+    _p1_primary = _p1_sens[_p1_sens.fit == "primary_period_stacked"].iloc[0]
+    _p1_only = _p1_sens[_p1_sens.fit == "period1_only"].iloc[0]
+    _p1_conv = None if pd.isna(_p1_only.converged) else bool(_p1_only.converged)
+    _p1_shift = float(_p1_only.trt_items_median) - float(_p1_primary.trt_items_median)
+    print(
+        "\n**Period-1-only refit sensitivity.** Refitting the identical "
+        "specification on the period-1 rows alone (dropping every post-crossover "
+        f"row from the likelihood) gives {_tm_value(_p1_only.trt_items_median)} "
+        f"{_tm_unit} (89% {_tm_value(_p1_only.trt_items_lo)} to "
+        f"{_tm_value(_p1_only.trt_items_hi)}) against the stacked model's "
+        f"{_tm_value(_p1_primary.trt_items_median)} — a shift of "
+        f"{_tm_value(_p1_shift)} on this scale. "
+        + (
+            "The refit passed its own convergence checks. "
+            if _p1_conv
+            else (
+                "The refit did **not** pass its own convergence checks, so read "
+                "the comparison qualitatively. "
+                if _p1_conv is not None
+                else ""
+            )
+        )
+        + "The full comparison, including the logit-scale coefficient, is in "
+        "`period1_sensitivity.csv`; the refit's sampling record is in "
+        "`subfit_provenance.csv`.\n"
     )
-)
-print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
+# Guard the explanatory paragraph on the artefact (#575 finding 4): treated-only
+# gain fits have no focal term and never write this plot, and the paragraph used
+# to render beneath nothing.
+if _has("tau_forest.png"):
+    print(
+        _img(
+            "tau_forest.png",
+            "Posterior of the on-intervention term (forest, reference line at 0) — a model-dependent association in this moderation variant"
+            if _mv
+            else (
+                "Posterior of the t1 balance term and the per-wave arm-gap changes (forest, reference line at 0) — only the t2 change is randomised"
+                if _lf_t1
+                else "Posterior of the causal term (forest, reference line at 0)"
+            ),
+        )
+    )
+    print("\n_How to read the forest plot:_ the marker is the posterior median and the lines its credible intervals (thick = inner 50%, thin = 89%). The dashed line at 0 is no-effect; posterior mass to its right favours benefit, to its left harm; a wider line means more uncertainty.")
 ```
 
 ```{python}
@@ -496,8 +575,20 @@ _rope.T if _rope is not None else None
 ```{python}
 # | echo: false
 # | output: asis
-print(_img("rope_summary.png", "ROPE-anchored posterior effect (items scale)"))
-print("\n_How to read it:_ the posterior effect on the items scale; the shaded band is the region of practical equivalence (ROPE), i.e. effects small enough to count as no practical difference.")
+# Guard on the artefact, and speak the fitted scale (#575 findings 4 and 8): an
+# off-floor fit's "effect" is a risk difference in percentage points, not items,
+# and treated-only fits write no ROPE plot at all.
+_gf_off = bool((config.get("resolved_run_plan") or {}).get("off_floor", False))
+if _has("rope_summary.png"):
+    _rope_scale = (
+        "off-floor risk difference (percentage points)" if _gf_off else "items scale"
+    )
+    print(_img("rope_summary.png", f"ROPE-anchored posterior effect ({_rope_scale})"))
+    print(
+        f"\n_How to read it:_ the posterior effect on the {_rope_scale}; the "
+        "shaded band is the region of practical equivalence (ROPE), i.e. effects "
+        "small enough to count as no practical difference."
+    )
 if _has("rope_benefit_curve.png"):
     print(_img("rope_benefit_curve.png", "P(benefit ≥ δ) as the meaningful threshold δ rises"))
     print("\n_How to read it:_ the probability of a benefit as the meaningful threshold delta rises, so you can see how likely a worthwhile gain is, not just any gain above zero.")
@@ -515,17 +606,32 @@ if _pred is not None:
     _pop = str(_pred.iloc[0].population)
     _status = str(_pred.iloc[0].contrast_status)
     print(_img("predicted_scores.png", "Predicted period-end scores with and without the intervention"))
-    print(
-        f"\n_How to read it:_ the period-end score the model predicts on {outcome_label} "
-        f"for a **{_pop}** — one distribution with the intervention switched on and one with it off, medians "
-        "marked and the items-scale difference annotated. The child random intercept is integrated over its "
-        "population distribution, so this is a *new-child* marginal prediction, not a same-children "
-        "conditional display; the width of each distribution is genuine single-child predictive uncertainty."
-    )
-    if _has("predicted_effect.png"):
-        print(_img("predicted_effect.png", "Items-scale average effect with ROPE"))
+    if _gf_off:
         print(
-            "\n_How to read it:_ the posterior of the items-scale average effect over the period-1 randomised "
+            f"\n_How to read it:_ the probability of being off the floor at the period end on {outcome_label} "
+            f"for a **{_pop}**, by arm — a probability display, not an items count. The child random intercept "
+            "is integrated over its population distribution, so this is a *new-child* marginal prediction, not "
+            "a same-children conditional display."
+        )
+    else:
+        print(
+            f"\n_How to read it:_ the period-end score the model predicts on {outcome_label} "
+            f"for a **{_pop}** — one distribution with the intervention switched on and one with it off, medians "
+            "marked and the new-child average effect annotated. The child random intercept is integrated over its "
+            "population distribution, so this is a *new-child* marginal prediction, not a same-children "
+            "conditional display; the width of each distribution is genuine single-child predictive uncertainty. "
+            "The effect panel beside it deliberately shows the **fitted-sample average** effect — the quantity "
+            "`treatment_marginal.csv` publishes — and is titled as such."
+        )
+    if _has("predicted_effect.png"):
+        _eff_scale = (
+            "off-floor risk difference (percentage points)"
+            if _gf_off
+            else "items-scale average effect"
+        )
+        print(_img("predicted_effect.png", f"{_eff_scale.capitalize()} with ROPE"))
+        print(
+            f"\n_How to read it:_ the posterior of the {_eff_scale} over the period-1 randomised "
             "transition (the same reference rows as `treatment_marginal.csv`), with the ROPE band shaded and "
             "the three probabilities (meaningful benefit / negligible / meaningful harm) printed. "
             f"The contrast is a {_status}; every other coefficient in this family remains an adjusted "

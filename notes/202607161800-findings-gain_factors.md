@@ -1,10 +1,15 @@
 > [!NOTE]
 > Available-case modified ITT terminology updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> Supersession warning added by a LLM-based AI tool (Claude Code/Fable 5).
 
 # Findings — gain_factors family (ANCOVA on each period's gain; a second causal read of the effect)
 
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8). Numbers from the `reporting`-config refit under the median + inner-50% + outer-89% equal-tailed credible-interval standard (2026-07-18; see [the credible-interval standard note](202607172359-credible-interval-standard.md) and [process note](202607161130-full-statistical-refit.md)); reviewed and extended on 2026-07-17 to cover all models in the family. Only the credible-interval brackets changed when we moved from 95% to 89% — medians, direction probabilities, evidence labels and ROPE percentages are unchanged. Preliminary.
+
+> [!WARNING]
+> **Superseded (2026-08-26):** This note describes the retired pre-#391 interaction/floor specification — treatment-by-covariate interactions fitted in the primaries, and `gf-105` without an own-baseline term — and reports pre-#575 results. Since #391 the primaries and treated-only companions fit only the age × ability precision interaction (the treatment-moderation questions live in the `m` variants `gf-201`–`gf-211`), and every off-floor model carries the binary off-floor-at-pre baseline indicator. The current per-model `key_findings.json` files and the model reports under `docs/models/` are the authoritative source; the text below is retained unchanged as a dated historical record.
 
 ## What these models ask
 

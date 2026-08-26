@@ -40,7 +40,23 @@ def _json(name: str):
 
 
 diag_summary = _json("diagnostics_summary.json") or {}
-_scientific_results_released = convergence_gate_clean_passed(diag_summary)
+_convergence_gate_passed = convergence_gate_clean_passed(diag_summary)
+# Scientific output releases only through the ordered publication decision, not
+# from convergence alone (#575 finding 7a). A fit with no readable
+# release_decision.json fails closed; one blocked at the inputs, computation or
+# artifacts stage is withheld. A robustness-stage outcome governs the findings
+# box and headline wording (rendered by _gate_badge/_key_findings), not table
+# visibility — a robustness withhold is a policy verdict on the causal claim,
+# not a failed automatic gate.
+_release_decision = _json("release_decision.json")
+_release_blocked_structurally = _release_decision is None or (
+    not bool(_release_decision.get("publishable", False))
+    and str(_release_decision.get("stage") or "")
+    in ("inputs", "computation", "artifacts")
+)
+_scientific_results_released = (
+    _convergence_gate_passed and not _release_blocked_structurally
+)
 
 # A failed automatic gate withholds scientific result tables while leaving the
 # analysis-set, prior, sampler and predictive diagnostics available for repair.

@@ -30,8 +30,7 @@ predictor models the **log-odds of being off the floor at post** — pooling
 zero→positive movement, staying off the floor, and return-to-floor together —
 **not** the log-odds of "coming off the floor". `beta_trt` is the off-floor
 log-odds of being on intervention, and its items-scale marginal collapses to the
-**off-floor risk difference** (reported with a provisional δ pending education-lead
-sign-off).
+**off-floor risk difference**, reported against the **10 percentage-point δ** signed off by the education lead for the floored outcomes (#144, 2026-07-01).
 
 _Causal labelling (DAG guardrails)._ Only the randomised on-intervention term is causal. Under the revised DAG
 (`dag/dag-language-reading.dagitty`, revised 2026-07-10) the **period-1 average
@@ -51,14 +50,14 @@ conditioned on (collider); SES is excluded (non-DAG / redundant).
 $$
 (P_{\text{post}} > 0) \sim \operatorname{Bernoulli}(\operatorname{expit}(\eta)),\quad
 \eta = \alpha + \alpha_{\text{period}} + \beta_{\text{trt}}\text{OnIntervention}
-  + \gamma_{\text{own}}\operatorname{logit}_*(P_{\text{pre}}) + \gamma_A A_{\text{std}}
+  + \gamma_{\text{own-offfloor}}\,\mathbb{1}[P_{\text{pre}} > 0] + \gamma_A A_{\text{std}}
   + \gamma_{\text{ability}}z(\text{blocks}) + \sum_{s\in\{L,B\}}\gamma_s\operatorname{logit}_*(s_{\text{pre}})
   + \sum_{c}\gamma_c\,z(c)
   + \textstyle\sum\text{interactions} + u_{\text{child}}.
 $$
 
 Here $\sum_{c}\gamma_c\,z(c)$ is the standardised phonological-memory confounder
-(RW = `erbto`), entered with a missing-indicator. No Beta-Binomial concentration
+(RW = `erbto`), entered with a missing-indicator. The own baseline enters as the **binary off-floor-at-pre indicator** $\mathbb{1}[P_{\text{pre}} > 0]$ (`gamma_own_offfloor`, #391 finding 2): the graded pre logit of this heavily-floored measure is a near-degenerate spike, so the indicator is the honest functional form. No Beta-Binomial concentration
 (`kappa`) under the off-floor Bernoulli. Priors follow the shared template in
 `priors.py`.
 

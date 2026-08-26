@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import inspect
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar
 
 import numpy as np
@@ -5213,6 +5213,17 @@ def build_gain_factors_model(
     use_subject_random_intercept: bool = True,
     sigma_child_prior_sigma: float = 0.5,
     trt_prior_sigma: float | None = None,
+    # #575 finding 10a: the dispersion-prior family for the graded likelihood,
+    # mirroring build_itt_model. "halfnormal_concentration" is the registered
+    # HalfNormal(50) on kappa; "halfnormal_inverse_sqrt" puts the half-normal on
+    # 1/sqrt(kappa) so the near-Binomial limit is reachable. kappa_sigma
+    # overrides the chosen family's scale for the sensitivity sweep.
+    kappa_prior_family: str = "halfnormal_concentration",
+    kappa_sigma: float | None = None,
+    # #575 finding 10b: the graded own-baseline slope's prior scale, exposed for
+    # the required 0.25-vs-0.5 sensitivity. Ignored on the off-floor path, which
+    # carries its own indicator prior.
+    gamma_own_prior_sigma: float = 0.25,
 ) -> BuiltModel[GainFactorsPayload]:
     """Gain-factors model (LRPGF): what is associated with how much children gain.
 
@@ -5297,6 +5308,15 @@ def build_gain_factors_model(
             "trt_prior_sigma is meaningless for a treated-only fit: the "
             "treatment indicator is constant and beta_trt is not built"
         )
+    if kappa_prior_family not in ("halfnormal_concentration", "halfnormal_inverse_sqrt"):
+        raise ValueError(
+            "kappa_prior_family must be 'halfnormal_concentration' or "
+            f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
+        )
+    if not gamma_own_prior_sigma > 0:
+        raise ValueError(
+            f"gamma_own_prior_sigma must be positive, got {gamma_own_prior_sigma!r}"
+        )
     own = outcome_symbol
     if own not in prepared.post_counts or own not in prepared.pre_logit:
         raise KeyError(f"Outcome {own!r} needs pre+post scores in prepared data")
@@ -5336,11 +5356,83 @@ def build_gain_factors_model(
         keep = keep & on_intervention
     prepared = _subset(prepared, keep)
 
+    # Re-filter the adjusters on the FINAL fitted rows (#575 finding 1). The
+    # loader removes constants on its complete frame, but the focal-outcome and
+    # treated-only masks above can make a previously varying indicator constant —
+    # an exact intercept alias that is not data-identified, perturbs the prior
+    # geometry and would be falsely recorded as an informative adjuster (the
+    # audit's concrete case: erbto_missing in gf-005/105/205). Dropped names are
+    # recorded on the payload so the effective adjustment set in config.json
+    # describes the model the posterior actually contains.
+    _, _effective_adjust, _post_mask_dropped = filter_informative_covariates(
+        prepared, adjust_for
+    )
+    absent = sorted(set(_post_mask_dropped) - set(prepared.covariates))
+    if absent:
+        # A name that is not even loaded is a caller error, not a masked-away
+        # constant; keep that loud rather than folding it into the record.
+        raise KeyError(
+            f"Adjuster covariate(s) {', '.join(absent)} not loaded in prepared data"
+        )
+    adjust_for = _effective_adjust
+    if _post_mask_dropped:
+        # Reflect the drop on the returned frame too, so ``dropped_constant`` in
+        # the effective-adjustment record (which reads
+        # ``built.prepared.dropped_covariates``) names it without a second
+        # bookkeeping path. Non-adjuster covariates (ability) are untouched.
+        prepared = replace(
+            prepared,
+            covariates={
+                k: v
+                for k, v in prepared.covariates.items()
+                if k not in _post_mask_dropped
+            },
+            covariate_scalers={
+                k: v
+                for k, v in prepared.covariate_scalers.items()
+                if k not in _post_mask_dropped
+            },
+            covariate_time={
+                k: v
+                for k, v in prepared.covariate_time.items()
+                if k not in _post_mask_dropped
+            },
+            dropped_covariates=tuple(
+                dict.fromkeys((*prepared.dropped_covariates, *_post_mask_dropped))
+            ),
+        )
+
     post = prepared.post_counts[own].astype(np.int64)
     trt = ((prepared.G == 1) | (prepared.phase >= 1)).astype(float)
     # In treated_only the treatment indicator is constant -> not identified; drop
     # it and any interaction involving it.
     include_trt = not treated_only
+
+    # #575 finding 5: the randomised headline needs period-1 support in BOTH
+    # arms after the final analysis mask — a one-arm period 1 would leave
+    # beta_trt identified only by post-crossover model structure while the
+    # report still called it randomised. Realised per-period, per-arm support is
+    # recorded on the payload for analysis_support.csv either way.
+    _p1 = prepared.phase == 0
+    if include_trt:
+        n_p1_immediate = int(np.sum(_p1 & (prepared.G == 1)))
+        n_p1_waitlist = int(np.sum(_p1 & (prepared.G == 0)))
+        if n_p1_immediate == 0 or n_p1_waitlist == 0:
+            raise ValueError(
+                "build_gain_factors_model requires both randomised arms in "
+                "period 1 after the final analysis mask; got "
+                f"{n_p1_immediate} immediate and {n_p1_waitlist} wait-list "
+                "period-1 rows"
+            )
+    _support: list[tuple[int, str, int, int]] = []
+    for _phase_value in sorted({int(p) for p in prepared.phase}):
+        for _g_value, _arm in ((1, "immediate"), (0, "waitlist")):
+            _cell = (prepared.phase == _phase_value) & (prepared.G == _g_value)
+            _n_rows = int(np.sum(_cell))
+            if _n_rows == 0:
+                continue
+            _n_children = int(np.unique(prepared.child_idx[_cell]).size)
+            _support.append((_phase_value, _arm, _n_rows, _n_children))
     active_interactions = [
         pair for pair in interactions if include_trt or "trt" not in pair
     ]
@@ -5428,7 +5520,9 @@ def build_gain_factors_model(
         # this same indicator on the off-floor path, so any interaction on ``own``
         # shares its functional form and hierarchy holds by construction.
         if own_pre_d is not None:
-            gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
+            gamma_own = _priors.gamma_own_prior(
+                sigma=gamma_own_prior_sigma
+            ).to_pymc("gamma_own")
             eta = eta + gamma_own * own_pre_d
         else:
             own_ff_d = pm.Data("own_pre_offfloor", term_vecs["own"], dims="obs_id")
@@ -5468,7 +5562,19 @@ def build_gain_factors_model(
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
-            kappa = _scalar_prior("kappa", _priors.kappa_prior)
+            if kappa_prior_family == "halfnormal_inverse_sqrt":
+                # Dispersion-scale parameterisation so the near-Binomial limit
+                # is reachable (#575 finding 10a; same constructor as
+                # build_itt_model and the RLM historical families).
+                kappa = _rlm_dispersion_kappa(
+                    float(_priors.inv_sqrt_kappa_prior().sigma)
+                    if kappa_sigma is None
+                    else kappa_sigma
+                )
+            elif kappa_sigma is not None:
+                kappa = _priors.kappa_prior(sigma=kappa_sigma).to_pymc("kappa")
+            else:
+                kappa = _scalar_prior("kappa", _priors.kappa_prior)
             beta_binomial_from_score_mean_link(
                 "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
                 score_mean_link=score_mean_link,
@@ -5504,6 +5610,9 @@ def build_gain_factors_model(
         payload=GainFactorsPayload(
             trt_interaction_moderators=tuple(trt_moderators),
             score_mean_link=score_mean_link,
+            effective_adjust_for=tuple(adjust_for),
+            post_mask_dropped_adjusters=tuple(_post_mask_dropped),
+            period_arm_support=tuple(_support),
         ),
     )
 
