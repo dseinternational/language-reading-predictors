@@ -646,6 +646,68 @@ def _gate_var_names(
     return names or None
 
 
+def _parse_coordinate_name(name: str) -> tuple[str, tuple[int, ...] | None]:
+    """Split ``"var[0, 1]"`` into ``("var", (0, 1))``; a bare name has no index."""
+    base, sep, rest = name.partition("[")
+    if not sep:
+        return name, None
+    try:
+        index = tuple(int(part) for part in rest.rstrip("]").split(","))
+    except ValueError:
+        return name, None
+    return base, index
+
+
+def split_structurally_constant(posterior, names: Iterable[str]) -> tuple[list[str], list[str]]:
+    """Split unassessable coordinate names into (structural constants, genuine).
+
+    PyMC's ``LKJCorr`` Cholesky factor carries a unit ``[0, 0]`` corner and a
+    zero upper triangle **by construction**, and R-hat / ESS are undefined on a
+    constant, so the dse-research-utils v0.12.0 assessability check (adopted in
+    #617) fails every fit that gates such a matrix — the 2026-08-26 batch's
+    mm-001/002/101/102, lcf-001, rlm-jc-001/002/102 and rlm-mm-001 all failed
+    solely on ``*_corr_chol`` structural entries with every real diagnostic
+    clean.
+
+    The reclassification is deliberately narrower than "constant everywhere":
+    a parameter pinned at a hard bound by a pathological sampler can also be
+    exactly constant, and must keep failing. A coordinate is structural only
+    when its **index proves the constraint** for a correlation-Cholesky
+    factor — a 2-D coordinate ``[i, j]`` that is exactly ``0`` everywhere with
+    ``j > i`` (the upper triangle), or exactly ``1`` everywhere at ``[0, 0]``
+    (the unit corner). Everything else — bare names, other indices, other
+    values, near-constants, chain-divergent constants, non-finite draws,
+    unresolvable names — stays a genuine assessability failure.
+    """
+    structural: list[str] = []
+    genuine: list[str] = []
+    for name in names:
+        base, index = _parse_coordinate_name(name)
+        if index is None or len(index) != 2:
+            genuine.append(name)
+            continue
+        i, j = index
+        try:
+            values = np.asarray(posterior[base].values)
+            # posterior arrays are (chain, draw, *shape)
+            values = values[(slice(None), slice(None), *index)]
+        except Exception:  # noqa: BLE001 - unresolvable name stays genuine
+            genuine.append(name)
+            continue
+        constant_at = (
+            None
+            if not values.size
+            or not np.all(np.isfinite(values))
+            or float(np.ptp(values)) != 0.0
+            else float(values.flat[0])
+        )
+        if (j > i and constant_at == 0.0) or (i == j == 0 and constant_at == 1.0):
+            structural.append(name)
+        else:
+            genuine.append(name)
+    return structural, genuine
+
+
 def write_diagnostics_summary(
     context: StatisticalFitContext,
     *,
@@ -681,12 +743,45 @@ def write_diagnostics_summary(
     ``diagnostics.csv`` (via :func:`summary_diagnostics`) and the prior-overlay.
     """
     gate_names = _gate_var_names(context, var_names)
-    return _shared_write_diagnostics_summary(
+    summary = _shared_write_diagnostics_summary(
         context.trace,
         context.output_dir,
         var_names=gate_names,
         tables=context.tables,
     )
+    return reclassify_structural_constants(
+        summary,
+        context.trace.posterior,
+        path=os.path.join(context.output_dir, "diagnostics_summary.json"),
+    )
+
+
+def reclassify_structural_constants(summary: dict, posterior, *, path=None) -> dict:
+    """Downgrade exactly-constant coordinates from gate failures to a record.
+
+    See :func:`split_structurally_constant`. Applied after the shared writer so
+    the upstream check stays intact for genuine assessability failures; when the
+    verdict changes, the on-disk ``diagnostics_summary.json`` is rewritten to
+    match what this function returns, and the reclassified names are kept under
+    ``structurally_constant_parameters`` so the report can still disclose them.
+    """
+    unassessable = list(summary.get("unassessable_parameters") or [])
+    if not unassessable:
+        return summary
+    structural, genuine = split_structurally_constant(posterior, unassessable)
+    if not structural:
+        return summary
+    summary = dict(summary)
+    summary["structurally_constant_parameters"] = structural
+    summary["unassessable_parameters"] = genuine
+    checks = dict(summary.get("checks") or {})
+    checks["diagnostics_assessable"] = not genuine
+    summary["checks"] = checks
+    summary["passed"] = all(value is True for value in checks.values())
+    if path is not None:
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(summary, handle, indent=1)
+    return summary
 
 
 #: Monte-Carlo tolerance for a derived (post-processed) headline estimand: the
@@ -810,6 +905,7 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         "min_bfmi": None,
         "n_divergences": None,
         "unassessable_parameters": "",
+        "structurally_constant_parameters": "",
     }
     try:
         # Unrounded extraction lives in ``sampling_quality`` — see that module for the
@@ -833,13 +929,19 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         # An unassessable parameter fails the sub-fit gate for the same reason it
         # fails the primary one: the NaN-skipping extrema cannot see it, so
         # ``max_rhat`` / ``min_ess`` would report the healthy parameters alone
-        # (2026-08-22 ITT audit, finding 1).
+        # (2026-08-22 ITT audit, finding 1). Exactly-constant structural
+        # coordinates (an LKJ Cholesky's fixed corner and zeros) are
+        # reclassified rather than failed — see split_structurally_constant.
         # Comma-separated, not a list: this dict is spread into one-row provenance
         # frames (``influence.summarise_influence_refit``,
         # ``subfits.SubfitResult``) where an empty list cannot become a column.
-        result["unassessable_parameters"] = ", ".join(signals.unassessable)
+        _structural, _genuine = split_structurally_constant(
+            trace.posterior, signals.unassessable
+        )
+        result["unassessable_parameters"] = ", ".join(_genuine)
+        result["structurally_constant_parameters"] = ", ".join(_structural)
         result["converged"] = bool(
-            not signals.unassessable
+            not _genuine
             and max_rhat <= RHAT_MAX
             and min_ess >= ESS_THRESHOLD
             and min_bfmi is not None

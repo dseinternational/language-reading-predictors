@@ -997,6 +997,7 @@ def test_subfit_convergence_marks_diagnostic_errors_unchecked(monkeypatch):
         # No scan ran, so nothing is *known* to be unassessable — the whole
         # verdict is ``None``/unchecked, which is the distinction this test pins.
         "unassessable_parameters": "",
+        "structurally_constant_parameters": "",
     }
 
 
@@ -1503,3 +1504,126 @@ def test_reuse_is_refused_against_a_fit_predating_the_bindings(tmp_path, monkeyp
         )
 
         require_reuse_compatibility(context, source)
+
+
+# ---------------------------------------------------------------------------
+# Structural-constant reclassification (2026-08-26 batch)
+# ---------------------------------------------------------------------------
+
+
+def _lkj_style_posterior():
+    """A posterior with an LKJ-style Cholesky: fixed corner/zero, mixing slope."""
+    import numpy as np
+    import xarray as xr
+
+    rng = np.random.default_rng(3)
+    chol = np.zeros((4, 100, 2, 2))
+    chol[:, :, 0, 0] = 1.0  # structural unit corner
+    chol[:, :, 0, 1] = 0.0  # structural upper zero
+    chol[:, :, 1, 0] = rng.normal(0.3, 0.05, (4, 100))  # mixes
+    chol[:, :, 1, 1] = rng.normal(0.9, 0.02, (4, 100))  # mixes
+    stuck = np.zeros((4, 100))
+    stuck[:] = np.arange(4)[:, None] * 0.1  # constant WITHIN chains, differs ACROSS
+    return xr.Dataset(
+        {
+            "measure_corr_chol": (("chain", "draw", "d0", "d1"), chol),
+            "stuck": (("chain", "draw"), stuck),
+        }
+    )
+
+
+def test_split_structurally_constant_separates_lkj_entries_from_stuck_ones():
+    from language_reading_predictors.statistical_models.diagnostics import (
+        split_structurally_constant,
+    )
+
+    posterior = _lkj_style_posterior()
+    structural, genuine = split_structurally_constant(
+        posterior,
+        ["measure_corr_chol[0, 0]", "measure_corr_chol[0, 1]", "stuck", "absent"],
+    )
+    assert structural == ["measure_corr_chol[0, 0]", "measure_corr_chol[0, 1]"]
+    # A parameter constant within chains but different across them is a stuck
+    # sampler, never a structural constant; an unresolvable name fails closed.
+    assert genuine == ["stuck", "absent"]
+
+
+def test_reclassify_structural_constants_flips_the_verdict_and_rewrites(tmp_path):
+    import json
+
+    from language_reading_predictors.statistical_models.diagnostics import (
+        reclassify_structural_constants,
+    )
+
+    posterior = _lkj_style_posterior()
+    summary = {
+        "passed": False,
+        "checks": {"rhat": True, "ess": True, "diagnostics_assessable": False},
+        "unassessable_parameters": [
+            "measure_corr_chol[0, 0]",
+            "measure_corr_chol[0, 1]",
+        ],
+    }
+    path = tmp_path / "diagnostics_summary.json"
+    path.write_text(json.dumps(summary))
+    out = reclassify_structural_constants(summary, posterior, path=str(path))
+    assert out["passed"] is True
+    assert out["checks"]["diagnostics_assessable"] is True
+    assert out["unassessable_parameters"] == []
+    assert out["structurally_constant_parameters"] == [
+        "measure_corr_chol[0, 0]",
+        "measure_corr_chol[0, 1]",
+    ]
+    assert json.loads(path.read_text())["passed"] is True
+
+
+def test_reclassify_keeps_genuine_unassessables_failing(tmp_path):
+    from language_reading_predictors.statistical_models.diagnostics import (
+        reclassify_structural_constants,
+    )
+
+    posterior = _lkj_style_posterior()
+    summary = {
+        "passed": False,
+        "checks": {"rhat": True, "diagnostics_assessable": False},
+        "unassessable_parameters": ["measure_corr_chol[0, 0]", "stuck"],
+    }
+    out = reclassify_structural_constants(summary, posterior, path=None)
+    assert out["passed"] is False
+    assert out["checks"]["diagnostics_assessable"] is False
+    assert out["unassessable_parameters"] == ["stuck"]
+    assert out["structurally_constant_parameters"] == ["measure_corr_chol[0, 0]"]
+
+
+def test_subfit_convergence_reclassifies_structural_constants():
+    import numpy as np
+    import xarray as xr
+
+    from language_reading_predictors.statistical_models.diagnostics import (
+        subfit_convergence,
+    )
+
+    rng = np.random.default_rng(9)
+    chol = np.zeros((4, 200, 2, 2))
+    chol[:, :, 0, 0] = 1.0
+    chol[:, :, 1, 0] = rng.normal(0.3, 0.05, (4, 200))
+    chol[:, :, 1, 1] = rng.normal(0.9, 0.02, (4, 200))
+    post = xr.Dataset(
+        {
+            "measure_corr_chol": (("chain", "draw", "d0", "d1"), chol),
+            "beta": (("chain", "draw"), rng.normal(0, 1, (4, 200))),
+        },
+        coords={"chain": range(4), "draw": range(200)},
+    )
+    ss = xr.Dataset(
+        {
+            "diverging": (("chain", "draw"), np.zeros((4, 200), dtype=bool)),
+            "energy": (("chain", "draw"), rng.normal(size=(4, 200))),
+        },
+        coords={"chain": range(4), "draw": range(200)},
+    )
+    trace = xr.DataTree.from_dict({"posterior": post, "sample_stats": ss})
+    result = subfit_convergence(trace, label="lkj subfit")
+    assert result["converged"] is True
+    assert result["unassessable_parameters"] == ""
+    assert "measure_corr_chol[0, 0]" in result["structurally_constant_parameters"]
