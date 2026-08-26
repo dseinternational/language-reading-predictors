@@ -144,6 +144,23 @@ def test_available_case_keeps_incomplete_subject(tmp_path):
     assert not panel.obs_mask["basread"].all()
 
 
+def test_available_case_duplicate_child_wave_rows_raise(tmp_path):
+    """#631 finding 5: the ``complete_case=False`` path had no duplicate guard,
+    so pivot_table(aggfunc="first") silently collapsed the duplicated row and
+    reweighted that child; the guarded pivot must fail loud."""
+    path = _write_synthetic(tmp_path)
+    df = pd.read_csv(path)
+    dupe = df[(df.subject_id == "S10") & (df.time == 2)]
+    pd.concat([df, dupe], ignore_index=True).to_csv(path, index=False)
+    with pytest.raises(ValueError, match=r"duplicate \(subject_id, time\)"):
+        load_longitudinal_panel(
+            _dataset(path),
+            [RLM_MEASURES["basread"]],
+            waves=(1, 2, 3),
+            complete_case=False,
+        )
+
+
 def test_extension_waves_append_kept_subjects_only(tmp_path):
     # #338: extension waves sit outside the complete-case rule - kept subjects
     # contribute wherever observed, dropped subjects contribute nothing.

@@ -153,6 +153,52 @@ def test_load_wave_panel_rejects_bad_group_codes(tmp_path):
         load_wave_panel(path=bad)
 
 
+def test_load_wave_panel_rejects_duplicate_child_wave_rows(tmp_path):
+    """#631 finding 5: pivot_table(aggfunc="first") silently collapsed a
+    duplicated (subject, wave) row; the guarded pivot must fail loud."""
+    p = _write_panel_csv(tmp_path, n_children=10)
+    df = pd.read_csv(p)
+    dupe = df[(df[V.SUBJECT_ID] == "S002") & (df[V.TIME] == 2)]
+    bad = tmp_path / "rli_dup.csv"
+    pd.concat([df, dupe], ignore_index=True).to_csv(bad, index=False)
+    with pytest.raises(ValueError, match=r"duplicate \(subject_id, time\)"):
+        load_wave_panel(path=bad)
+
+
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [
+        (3.5, "integer counts"),
+        (-2.0, "below the valid lower bound"),
+        (100.0, "above its n_trials ceiling"),
+    ],
+)
+def test_load_wave_panel_rejects_invalid_counts(tmp_path, value, match):
+    """#631 finding 5: fractional, negative and over-ceiling counts previously
+    produced silent NaN logits / invalid likelihoods instead of raising."""
+    p = _write_panel_csv(tmp_path, n_children=10)
+    df = pd.read_csv(p)
+    df.loc[(df[V.SUBJECT_ID] == "S003") & (df[V.TIME] == 2), V.EWRSWR] = value
+    bad = tmp_path / "rli_badcount.csv"
+    df.to_csv(bad, index=False)
+    with pytest.raises(ValueError, match=match):
+        load_wave_panel(path=bad)
+
+
+def test_load_wave_panel_rejects_fractional_group_code(tmp_path):
+    """#631 finding 5: a raw 1.5 must raise, not truncate into the immediate
+    arm via ``astype(int)``. Constant within child so this isolates the raw-code
+    validation, not the within-child constancy check."""
+    p = _write_panel_csv(tmp_path, n_children=10)
+    df = pd.read_csv(p)
+    df[V.GROUP] = df[V.GROUP].astype(float)
+    df.loc[df[V.SUBJECT_ID] == "S005", V.GROUP] = 1.5
+    bad = tmp_path / "rli_fracgroup.csv"
+    df.to_csv(bad, index=False)
+    with pytest.raises(ValueError, match=r"Unexpected group codes.*1\.5"):
+        load_wave_panel(path=bad)
+
+
 def test_load_wave_panel_rejects_group_change_within_child(tmp_path):
     p = _write_panel_csv(tmp_path, n_children=10)
     df = pd.read_csv(p)

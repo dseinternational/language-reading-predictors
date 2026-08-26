@@ -54,10 +54,16 @@ Design (fixed in ``notes/…-persistent-floor-sitters-nonword-spelling.md``):
   person-periods. ``child_idx`` / ``n_children`` are carried on the panel for reporting,
   not consumed by the model.
 
-**Prognostic, not causal.** By t4 both arms are treated, so only the immediate arm's
-first interval is randomised; the treatment hazard shift is read as a prognostic
-association anchored on that window, not a licence to gate-keep (see the note's causal
-caveat, and ``METHODS.md``).
+**What tau is (#631 finding 11).** Under the default randomised window, ``tau`` is a
+model-based, available-case modified-ITT assignment contrast: the covariate-adjusted
+immediate-versus-waitlist off-floor hazard contrast in the randomised first interval
+among children at the outcome floor at t1. It is *not* merely a prognostic
+association — randomisation anchors the first-interval arm comparison — but it is
+qualified throughout: the at-risk set is the baseline at-floor subgroup, children
+without an observed wave-2 outcome contribute no first-interval row (available-case
+selection the design does not repair), baseline covariates are mean-imputed, and the
+hazard-model form is untested. This family releases no causal headline (see the
+note's caveat, and ``METHODS.md``).
 """
 
 from __future__ import annotations
@@ -194,11 +200,14 @@ class SurvivalRunPlan:
         elif self.treatment_window == "randomised":
             treatment = (
                 "The treatment term `tau` enters only the randomised first interval "
-                "(t1 to t2): it is the immediate-versus-waitlist off-floor hazard "
-                "contrast among children at the floor at wave 1, and the "
-                "post-crossover intervals fit their own (both-arms-treated) baseline "
-                "hazards. It is reported as a prognostic association, not a causal "
-                "effect of record."
+                "(t1 to t2): a model-based, available-case modified-ITT assignment "
+                "contrast — the covariate-adjusted immediate-versus-waitlist "
+                "off-floor hazard contrast among children at the floor at wave 1 — "
+                "while the post-crossover intervals fit their own "
+                "(both-arms-treated) baseline hazards. The at-floor-subgroup "
+                "restriction, the observed-wave-2 requirement, the mean-imputed "
+                "baseline covariates and the hazard-model form qualify it, and "
+                "this family releases no causal headline."
             )
         else:
             treatment = (
@@ -226,7 +235,10 @@ class SurvivalRunPlan:
             f"standardised across children. {treatment}\n\n"
             "## Uncertainty and checks\n\n"
             f"The observation node is `{self.observation_node}` and PSIS-LOO uses "
-            f"the `{self.loo_unit}` unit. Interpret the posterior only after the "
+            f"the `{self.loo_unit}` unit — each child's person-period rows are "
+            "summed and left out together, because a later row exists only when "
+            "the earlier event was zero, so leaving out single rows would leak "
+            "the held-out event. Interpret the posterior only after the "
             "zero-divergence convergence gate, posterior-predictive checks and "
             "power-scaling sensitivity diagnostics pass. The saved `config.json` "
             "contains the same resolved run plan in machine-readable form.\n"
@@ -295,12 +307,16 @@ def resolve_survival_run_plan(spec: ModelSpec) -> SurvivalRunPlan:
             "arm contrast."
         )
         causal_status = (
-            "Randomisation-anchored association: tau contrasts the randomised arms "
-            "within the pre-randomisation at-floor subgroup over the first interval "
-            "only, adjusted for baseline covariates. It is reported as a prognostic "
-            "association rather than a causal effect of record — available-case "
-            "censoring and the covariate adjustment are untested assumptions, and "
-            "this family releases no causal headline."
+            "Model-based, available-case modified-ITT randomised-window assignment "
+            "contrast: tau contrasts the randomised arms within the "
+            "pre-randomisation at-floor subgroup over the first interval only, "
+            "adjusted for baseline covariates (#631 finding 11). Randomisation "
+            "identifies the first-interval arm comparison in principle, but the "
+            "fitted estimate is qualified — the baseline-subgroup restriction, "
+            "available-case censoring (children without an observed wave-2 outcome "
+            "contribute no row), mean-imputed covariates and the hazard-model form "
+            "are untested assumptions — and this family releases no causal "
+            "headline."
         )
     else:
         estimand = (
@@ -330,7 +346,12 @@ def resolve_survival_run_plan(spec: ModelSpec) -> SurvivalRunPlan:
         likelihood="bernoulli_discrete_time_hazard",
         observation_node="y_event",
         compute_loo=True,
-        loo_unit="person_period_row",
+        # Child, not person-period row (#631 finding 14): a later row exists only
+        # because the earlier event was zero, so row-level LOO conditions on
+        # information about the held-out factor. The factory persists
+        # ``loo_child_idx`` and the diagnostics aggregate the pointwise log
+        # likelihood within child before PSIS.
+        loo_unit="child",
         focal_term="tau" if settings.use_treatment else None,
         design=(
             "Discrete-time first-off-floor survival model. Children at the outcome "
@@ -591,6 +612,13 @@ def build_survival_model(
     with pm.Model(coords=coords) as model:
         interval_d = pm.Data("interval_idx", panel.interval_idx, dims="obs_id")
         treated_d = pm.Data("treated", panel.treated.astype(float), dims="obs_id")
+        # Row-to-child map for leave-one-CHILD-out PSIS (#631 finding 14): a later
+        # person-period row exists only because the earlier event was zero, so
+        # holding out one row while keeping the child's later rows leaks the
+        # held-out event — the same argument that moved dose_response to the
+        # child unit (#587 finding 4). With no child frailty the child-summed
+        # LOO is an exact marginal leave-one-child-out.
+        pm.Data("loo_child_idx", panel.child_idx.astype(np.int64), dims="obs_id")
         cov_d = {
             name: pm.Data(f"{name}_std", panel.covariates[name], dims="obs_id")
             for name in panel.covariates
@@ -605,7 +633,8 @@ def build_survival_model(
             beta = _priors.predictor_slope_prior().to_pymc(f"beta_{name}")
             eta = eta + beta * cov_d[name]
 
-        # Treatment hazard term (the randomised-anchored, prognostic quantity).
+        # Treatment hazard term (the available-case modified-ITT randomised-window
+        # assignment contrast under the default window; see the module docstring).
         # Under the "randomised" window tau multiplies treated only in the first
         # interval (where treated == G); the pooled comparator keeps the legacy
         # all-interval shift.

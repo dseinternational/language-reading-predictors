@@ -4,9 +4,12 @@
 """LRPDID06 - pooled session-dose association for word reading (W).
 
 This transition-based sensitivity model keeps P1/P2 because sessions are interval
-exposures. It separates randomised arm/history, current treatment presence and
-session intensity, and adjusts both periods for the shared pre-randomisation t1
-outcome and t1 age. Sessions are centred and scaled only among treated rows;
+exposures. It separates randomised arm/history, the saturated arm-by-period cell
+structure and session intensity, and adjusts both periods for the shared
+pre-randomisation t1 outcome and t1 age. Because ``treated = (immediate arm) OR
+(period 2)`` saturates the four-cell design, ``theta_treated`` at the mean treated
+dose is the crossover cell contrast, not an isolated treatment-presence effect.
+Sessions are centred and scaled only among treated rows;
 untreated rows have zero intensity. ``beta_dose`` is therefore an observational
 intensive-margin association per treated-row SD, not an ITT or causal effect.
 """

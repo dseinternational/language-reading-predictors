@@ -166,7 +166,10 @@ if dose_slope_summary is not None:
         ),
         "dose_pooled": ("Pooled session slope (`beta_dose`)", ""),
         "dose_between_child": ("Between-child session slope (`beta_dose_between`)", ""),
-        "on_intervention": ("On-intervention presence term (`theta_treated`)", ""),
+        "on_intervention": (
+            "Crossover cell contrast at the mean treated dose (`theta_treated`)",
+            "",
+        ),
     }
     for _, _row in dose_slope_summary.iterrows():
         _label, _gloss = _dose_labels.get(str(_row.term), (f"`{_row.term}`", ""))
@@ -251,8 +254,8 @@ if _pred is not None:
         f"\n_How to read it:_ the t2 score the model predicts on {outcome_label} "
         f"for a **{_pop}** — one distribution per randomised arm, medians marked and the difference "
         "annotated. This model is a within-child longitudinal (waitlist-crossover) model, and only the "
-        f"t2 arm contrast shown here is randomised: {_status}. The `arm_gap_t3` and `delta_crossover` "
-        "quantities are post-crossover associations and are deliberately not drawn. The "
+        f"t2 arm contrast shown here is a treated-versus-untreated contrast: {_status}. The `arm_gap_t3` and `delta_crossover` "
+        "quantities are the randomised schedule contrast and its change and are deliberately not drawn. The "
         "child random intercept is integrated over its population distribution, so this is a *new-child* "
         "marginal prediction, not a same-children conditional display."
     )

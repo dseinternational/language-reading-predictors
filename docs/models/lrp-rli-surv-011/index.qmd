@@ -35,10 +35,12 @@ is treatment-on, so the later intervals carry no arm contrast and fit their own
 (both-arms-treated) baseline hazards. `G = 2 − group`, so a positive `tau` means the
 intervention arm has the higher first-interval off-floor hazard.
 
-**This is prognostic, not causal.** `tau` is anchored on the randomised first interval
-among children at the floor at t1 (a pre-randomisation subgroup), adjusted for the
-baseline covariates — a description of who comes off the floor and when, not a licence to
-gate-keep, and reported as a prognostic association rather than a causal effect of record.
+**What `tau` is.** A model-based, available-case modified-ITT assignment contrast: the
+covariate-adjusted immediate-versus-waitlist off-floor hazard contrast in the randomised
+first interval among children at the floor at t1 (a pre-randomisation subgroup) — a
+description of who comes off the floor and when, not a licence to gate-keep. The subgroup
+restriction, the observed-wave-2 requirement, mean-imputed baseline covariates and the
+hazard-model form qualify it, and this family releases no causal headline.
 Floor status mostly reflects incomplete letter-sound foundations (the outcome the
 intervention moves most), pointing to continue-and-extend. See the descriptive companion
 note and `METHODS.md`.

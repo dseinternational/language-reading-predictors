@@ -44,6 +44,9 @@ from language_reading_predictors.statistical_models.pipelines.itt import (
     write_analysis_audit,
     write_ppc_calibration,
 )
+from language_reading_predictors.statistical_models.ppc_artifacts import (
+    cell_outcome_labels,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
@@ -115,13 +118,28 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 c, symbol, filename_stem=stem
             )
         write_ppc_calibration(c, built.prepared, joint_outcomes)
-        # Coverage is denominator-agnostic for flattened child × outcome cells;
-        # the per-outcome overlays and calibration remain the figure/table views.
+        # Coverage is denominator-agnostic for flattened child × outcome cells, but
+        # the pooled statistic can still hide one outcome's misfit behind another's
+        # fit (#631 finding 16), so publish per-outcome rows beside it — the pooled
+        # row remains the one the shared coverage sentence reads.
         with guard_optional(
             c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
         ):
             coverage = _report.ppc_interval_coverage(c.trace, node="y_post")
-            save_table(c, "ppc_summary", coverage, required=False)
+            frames = [coverage]
+            labels = cell_outcome_labels(c, "y_post", joint_outcomes)
+            if labels is not None:
+                frames.append(
+                    _report.ppc_interval_coverage_by_group(
+                        c.trace, node="y_post", group_labels=labels
+                    )
+                )
+            save_table(
+                c,
+                "ppc_summary",
+                pd.concat(frames, ignore_index=True) if len(frames) > 1 else coverage,
+                required=False,
+            )
 
     def _write_joint_loo_pit(c: StatisticalFitContext) -> None:
         # The generic LOO-PIT would pool tests with different denominators.

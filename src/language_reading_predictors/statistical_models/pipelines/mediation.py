@@ -177,6 +177,10 @@ def _fit_t3_sensitivity(
         res_t3.trace,
         med_t3,
         ci_prob=ctx.reporting.ci_prob,
+        # Same estimand branch as the primary (#631 finding 9): an interventional
+        # companion's t3 rows must carry IDE/IIE labels, not the natural NDE/NIE
+        # default — the numbers coincide, the schema and interpretation do not.
+        interventional=plan.estimand == "interventional",
         score_mean_link=plan.score_mean_link,
     )
     # Persist the verdict onto the published rows: this sub-fit bypasses the primary
@@ -300,10 +304,15 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     save_table(ctx, "mediation_summary", med_df)
     # Extend the convergence gate to the POST-PROCESSED headline effects (#585
     # finding 8): the all-free-RV gate never sees the g-formula draws.
+    # Pass the exact branch the fit produced (#631 finding 10): the gate now
+    # fails on a requested quantity the summary lacks, so a natural/interventional
+    # union would always fail one branch's three names.
     _diag.gate_derived_estimands(
         ctx,
         med_df,
-        quantities=("total", "NDE", "NIE", "IDE", "IIE"),
+        quantities=(
+            ("total", "IDE", "IIE") if _interventional else ("total", "NDE", "NIE")
+        ),
     )
     # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
     # sweep, so the main NDE/NIE result shows under its own section header rather than

@@ -101,7 +101,7 @@ def test_settings_reject_a_binary_window_the_factory_cannot_fit():
 
 def test_settings_reject_waves_on_a_dose_model():
     """A dose variant never reads ``waves``; declaring one must not be ignored."""
-    with pytest.raises(ValueError, match="never\s+reads"):
+    with pytest.raises(ValueError, match=r"never\s+reads"):
         DiDModelSettings(dose=True, waves=(0, 1))
 
 

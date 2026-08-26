@@ -269,19 +269,34 @@ class EstimatorPipeline:
         )
 
     def permutation_importance_analysis(self) -> None:
-        """Compute group-aware out-of-fold permutation importance.
+        """Compute pooled out-of-fold, subject-block permutation importance.
 
-        For each CV fold, permutation importance is computed on the
-        held-out validation rows using the estimator fitted on the
-        corresponding training rows (reused from :meth:`cross_validate`).
-        Per-fold importance arrays are concatenated, so each feature
-        ends up with ``n_folds * n_repeats`` permutation deltas. This
-        avoids the in-sample optimism that arises when permutation is
-        run against the training set the model has just memorised, and
-        respects the subject-level grouping enforced elsewhere in the
-        pipeline. Scoring is ``neg_root_mean_squared_error`` so the
-        units match the headline CV metric quoted in the report.
+        Per repeat, ONE subject-block permutation is drawn over ALL rows —
+        the children are permuted and each child's rows are remapped to a
+        donor child's values, preserving the longitudinal within-child
+        structure while genuinely mixing values *between* children (see
+        :mod:`language_reading_predictors.models.permutation`). Each fold's
+        already-fitted estimator (reused from :meth:`cross_validate`)
+        predicts its own held-out rows of the permuted matrix, and the
+        importance delta is the rise in the *pooled* out-of-fold RMSE over
+        the unpermuted pooled out-of-fold RMSE, so each feature ends up
+        with ``n_repeats`` deltas.
+
+        This replaces the earlier per-fold sklearn ``permutation_importance``
+        loop: under the project's near-leave-one-subject-out CV a held-out
+        fold contains a single child, so a within-fold permutation left
+        every child-constant predictor (``gender``, ``group``, ``hearing``,
+        …) literally unchanged and mechanically scored it exactly zero
+        (#631 finding 1).
+
+        Note on units: deltas are in held-out **RMSE** units. The models
+        themselves are MAE-tuned (#169), so importance magnitudes are not
+        on the tuning-loss scale; the ranking is what the report reads.
         """
+        from language_reading_predictors.models.permutation import (
+            pooled_permutation_deltas,
+        )
+
         section_header("Permutation importance")
 
         context = self.context
@@ -301,28 +316,21 @@ class EstimatorPipeline:
             )
             raise RuntimeError(msg)
 
-        fold_importances = []
-        for est, val_idx in zip(
-            cv_results["estimator"], cv_results["indices"]["test"], strict=True
-        ):
-            X_val = context.X.iloc[val_idx]
-            y_val = context.y.iloc[val_idx]
-            result = permutation_importance(
-                est,
-                X_val,
-                y_val,
-                n_repeats=n_repeats,
-                random_state=cfg.random_seed,
-                scoring="neg_root_mean_squared_error",
-            )
-            fold_importances.append(result.importances)
+        n_features = len(context.X.columns)
+        deltas = pooled_permutation_deltas(
+            cv_results["estimator"],
+            context.X,
+            context.y.to_numpy(dtype=float),
+            cv_results["indices"]["test"],
+            context.groups,
+            {i: [i] for i in range(n_features)},
+            n_repeats=n_repeats,
+            seed=cfg.random_seed,
+        )
 
-        # ``permutation_importance.importances`` is signed so that a
-        # positive value means score *dropped* when the column was
-        # permuted. With ``neg_root_mean_squared_error`` that means a
-        # positive value indicates the unpermuted column contributed
-        # to lower RMSE — i.e. it was useful.
-        all_importances = np.concatenate(fold_importances, axis=1)
+        # A positive delta means the pooled out-of-fold RMSE rose when the
+        # column was subject-block permuted — i.e. the column was useful.
+        all_importances = np.stack([deltas[i] for i in range(n_features)])
         importances_mean = all_importances.mean(axis=1)
         importances_std = all_importances.std(axis=1)
 
@@ -381,9 +389,12 @@ class EstimatorPipeline:
         )
         ax.invert_yaxis()
         ax.axvline(0.0, color="black", linestyle="--", linewidth=1)
-        ax.set_xlabel("Increase in held-out RMSE when feature is permuted")
+        ax.set_xlabel(
+            "Increase in pooled out-of-fold RMSE when feature is "
+            "subject-block permuted"
+        )
         ax.set_ylabel("Predictor variable")
-        ax.set_title("Out-of-fold permutation importance")
+        ax.set_title("Pooled out-of-fold permutation importance")
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
         save_styled_figure(
@@ -552,11 +563,13 @@ class EstimatorPipeline:
         Reuses the TreeExplainer from :meth:`shap_analysis` to compute the
         ``(n, p, p)`` interaction tensor, then writes:
 
-        - ``shap_interactions.csv`` — mean ``|interaction|`` for every off-diagonal
-          feature pair, ranked (the off-diagonal is symmetric, so each pair sums
-          the ``[i, j]`` and ``[j, i]`` halves);
-        - ``shap_interaction_heatmap.png`` — the off-diagonal mean-``|interaction|``
-          matrix;
+        - ``shap_interactions.csv`` — the **summed symmetric** mean
+          ``|interaction|`` for every off-diagonal feature pair, ranked (each
+          pair's value sums the ``[i, j]`` and ``[j, i]`` halves);
+        - ``shap_interaction_heatmap.png`` — the matching summed-symmetric
+          off-diagonal matrix (``mean_abs + mean_abs.T`` with a zero
+          diagonal), so the heatmap cell for a pair equals the table's value
+          for that pair (#631 finding 20c);
         - ``shap_interaction_<a>__<b>.png`` — SHAP interaction dependence for the
           top interacting pairs.
 
@@ -575,25 +588,13 @@ class EstimatorPipeline:
         inter = np.asarray(explainer.shap_interaction_values(X))  # (n, p, p)
         mean_abs = np.abs(inter).mean(axis=0)  # (p, p)
 
-        rows = [
-            {
-                "feature_a": feats[i],
-                "feature_b": feats[j],
-                "mean_abs_interaction": float(mean_abs[i, j] + mean_abs[j, i]),
-            }
-            for i in range(p)
-            for j in range(i + 1, p)
-        ]
-        inter_df = (
-            pd.DataFrame(rows)
-            .sort_values("mean_abs_interaction", ascending=False)
-            .reset_index(drop=True)
-        )
+        # Table and heatmap share one convention: the summed symmetric
+        # |SHAP interaction| (mean_abs + mean_abs.T, zero diagonal), so the
+        # heatmap cell for a pair equals the CSV row for that pair.
+        inter_df, heat = summed_symmetric_interactions(mean_abs, feats)
         inter_df.to_csv(context.output_dir / "shap_interactions.csv", index=False)
         context.dataframes["shap_interactions"] = inter_df
 
-        heat = mean_abs.copy()
-        np.fill_diagonal(heat, 0.0)
         side = min(0.45 * p + 2.0, 14.0)
         fig, ax = plt.subplots(figsize=(side, side))
         im = ax.imshow(heat, cmap="viridis")
@@ -601,7 +602,7 @@ class EstimatorPipeline:
         ax.set_xticklabels(feats, rotation=90, fontsize=6)
         ax.set_yticks(range(p))
         ax.set_yticklabels(feats, fontsize=6)
-        ax.set_title("Mean |SHAP interaction| (off-diagonal)")
+        ax.set_title("Summed symmetric |SHAP interaction| (off-diagonal)")
         fig.colorbar(im, ax=ax, shrink=0.7)
         save_styled_figure(
             context.output_dir, "shap_interaction_heatmap", fig=fig, close=False
@@ -855,7 +856,7 @@ class EstimatorPipeline:
 
         - ``spearman_matrix.csv`` / ``spearman_heatmap.png``
         - ``distance_corr_matrix.csv`` / ``distance_corr_heatmap.png``
-        - ``distance_corr_dendrogram.png`` (Ward linkage on 1 − dcor)
+        - ``distance_corr_dendrogram.png`` (average linkage on 1 − dcor)
         - ``mutual_info_heatmap.png``
         - ``cluster_table.csv`` — cluster assignments at *cluster_cutoff*
         - ``importance_pairing.csv`` — clusters joined with permutation importance
@@ -908,7 +909,13 @@ class EstimatorPipeline:
         np.fill_diagonal(dcor_dissim, 0.0)
         np.clip(dcor_dissim, 0.0, 1.0, out=dcor_dissim)
         condensed = squareform(dcor_dissim, checks=False)
-        linkage = hierarchy.ward(condensed)
+        # Average linkage, not Ward: Ward is correctly defined only for
+        # Euclidean distances, whereas 1 - dcor is a precomputed non-Euclidean
+        # dissimilarity in general (see the shared
+        # ``dse_research_utils.ml.feature_dependence.distance_corr_dissimilarity_linkage``
+        # helper, which this mirrors on the already-computed matrix; #631
+        # finding 18).
+        linkage = hierarchy.average(condensed)
 
         dendro_h = min(max(3, 0.5 * n), 12)
         dendro_w = min(max(5, 0.4 * n), 10)
@@ -916,12 +923,17 @@ class EstimatorPipeline:
         hierarchy.dendrogram(
             linkage, labels=predictors, orientation="right", ax=ax_dendro
         )
-        ax_dendro.set_title("Distance-correlation dissimilarity (Ward linkage)")
+        ax_dendro.set_title("Distance-correlation dissimilarity (average linkage)")
         ax_dendro.set_xlabel("Dissimilarity (1 \u2212 distance correlation)")
         save_styled_figure(out, "distance_corr_dendrogram", fig=fig_dendro, close=False)
         context.plots["distance_corr_dendrogram"] = fig_dendro
         plt.close(fig_dendro)
 
+        # The 0.4 cut height was calibrated on Ward linkage heights. Under
+        # average linkage merge heights stay within [0, 1] (mean pairwise
+        # dissimilarity), so 0.4 remains a sensible default, but it must be
+        # re-validated via ``scripts/rank_predictors.py``'s
+        # ``cutoff_sensitivity`` when the rankings are regenerated (#631).
         clusters = hierarchy.fcluster(linkage, t=cluster_cutoff, criterion="distance")
         cluster_df = (
             pd.DataFrame({"feature": predictors, "cluster_id": clusters})
@@ -1352,6 +1364,11 @@ class EstimatorPipeline:
             "n_observations": int(len(context.X)),
             "n_predictors": int(len(cfg.predictor_vars)),
             "cv_splits": effective_cv_splits,
+            # The CV metrics below are POST-SELECTION: hyperparameters were
+            # selected (Optuna, scripts/tune_model.py) on the same grouped
+            # folds, so these are internal cross-validation numbers, not
+            # independent generalisation estimates (#631 finding 2).
+            "cv_post_selection": True,
             "cv_mae_mean": float(cv_scores_df["mae"].mean())
             if cv_scores_df is not None
             else None,
@@ -1525,6 +1542,39 @@ class EstimatorPipeline:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+
+def summed_symmetric_interactions(
+    mean_abs: np.ndarray, feats: list[str]
+) -> tuple[pd.DataFrame, np.ndarray]:
+    """Summed symmetric |SHAP interaction| artefacts from a ``(p, p)`` matrix.
+
+    Returns the ranked off-diagonal pair table and the matching heatmap
+    matrix under ONE shared convention: ``heat = mean_abs + mean_abs.T`` with
+    a zero diagonal, so ``heat[i, j]`` equals the table's
+    ``mean_abs_interaction`` for the pair ``(feats[i], feats[j])``. Before
+    #631 finding 20c the CSV stored the summed pair while the heatmap showed
+    the single ``[i, j]`` cell (half the value).
+    """
+    mean_abs = np.asarray(mean_abs, dtype=float)
+    p = mean_abs.shape[0]
+    heat = mean_abs + mean_abs.T
+    np.fill_diagonal(heat, 0.0)
+    rows = [
+        {
+            "feature_a": feats[i],
+            "feature_b": feats[j],
+            "mean_abs_interaction": float(heat[i, j]),
+        }
+        for i in range(p)
+        for j in range(i + 1, p)
+    ]
+    inter_df = (
+        pd.DataFrame(rows)
+        .sort_values("mean_abs_interaction", ascending=False)
+        .reset_index(drop=True)
+    )
+    return inter_df, heat
 
 
 def _in_sample_metrics(eval_df: pd.DataFrame, y_true: pd.Series) -> dict[str, float | None]:

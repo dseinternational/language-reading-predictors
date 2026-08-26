@@ -594,10 +594,12 @@ def _prior_table_overrides(
             # per-wave changes. The prior table is one row per free RV: the balance
             # term is a nuisance quantity (never an effect) and ``d_grp_time`` is a
             # vector whose elements have different interpretation — only
-            # d_grp_time[t2] is the randomised contrast (a difference-in-differences
-            # of adjusted levels); t3/t4 are post-crossover changes. Keep the vector
-            # row conservative and let factor_summary.csv carry the element-level
-            # causal label. ``b_grp_time`` is a Deterministic here (no prior row).
+            # d_grp_time[t2] is the randomised treated-versus-untreated change (a
+            # difference-in-differences of adjusted levels); t3/t4 are randomised
+            # early-start-versus-delayed-start schedule contrasts, so the vector
+            # row takes the DiD family's ``regime`` role (#631 finding 13) and
+            # factor_summary.csv carries the element-level causal label.
+            # ``b_grp_time`` is a Deterministic here (no prior row).
             role["arm_gap_t1"] = "nuisance"
             rationale["arm_gap_t1"] = (
                 "Covariate-adjusted pre-randomisation (t1) immediate-minus-waitlist "
@@ -605,13 +607,14 @@ def _prior_table_overrides(
                 "regularised on the cross-coupling prior and never interpreted as an "
                 "effect (#552; the DiD arm_gap_t1 idiom)."
             )
-            role["d_grp_time"] = "association"
+            role["d_grp_time"] = "regime"
             rationale["d_grp_time"] = (
-                "Change in the adjusted arm gap from t1 to each later wave; only "
-                "d_grp_time[t2] is the randomised t2 contrast (a "
-                "difference-in-differences of adjusted levels), while the vector row "
-                "is documented conservatively because the t3/t4 elements are "
-                "post-crossover associations."
+                "Change in the adjusted arm gap from t1 to each later wave; the t2 "
+                "element is the randomised treated-versus-untreated change (a "
+                "difference-in-differences of adjusted levels), while the t3/t4 "
+                "elements are randomised early-start-versus-delayed-start schedule "
+                "contrasts of assignment — both arms taught by t3, mechanism "
+                "unidentified (#631; the DiD arm_gap_t3 idiom)."
             )
         elif plan.group_by_time:
             # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
@@ -622,9 +625,10 @@ def _prior_table_overrides(
             rationale["b_grp_time"] = (
                 "Level-model group-by-time vector (the free per-timepoint comparator, "
                 "#552); only b_grp_time[1] is the "
-                "randomised t2 contrast, while the vector row is documented "
-                "conservatively because other elements are pre-randomisation or "
-                "post-crossover associations."
+                "randomised treated-versus-untreated t2 contrast, while the vector "
+                "row is documented conservatively because the other elements are a "
+                "pre-randomisation balance quantity and randomised schedule "
+                "contrasts (#631 finding 13)."
             )
     elif spec.kind == "itt":
         plan = getattr(context, "resolved_plan", None)
@@ -797,14 +801,17 @@ def _prior_table_overrides(
                         "between-skill cross-baseline coupling."
                     )
     elif spec.kind == "survival":
-        # The cloglog survival models set causal_status='none' (by t4 both arms are
-        # treated), so ``tau`` is a prognostic association anchored on the immediate
-        # arm's randomised first interval, not a randomised treatment effect.
+        # The survival family releases no causal headline, but tau under the
+        # default randomised window is more than prognostic: it is an
+        # available-case modified-ITT assignment contrast in the randomised first
+        # interval within the baseline at-floor subgroup (#631 finding 11).
         role["tau"] = "association"
         rationale["tau"] = (
-            "Intervention-aligned treatment hazard shift; a prognostic association "
-            "anchored on the immediate arm's randomised first interval, not a "
-            "randomised treatment effect of record (both arms are treated by t4)."
+            "Intervention-aligned treatment hazard shift; a model-based, "
+            "available-case modified-ITT assignment contrast in the randomised "
+            "first interval within the baseline at-floor subgroup, qualified by "
+            "the availability restriction and the hazard-model form; no causal "
+            "headline is released."
         )
 
     # Distal outcomes take the tighter tau prior (issue #141): the factory built

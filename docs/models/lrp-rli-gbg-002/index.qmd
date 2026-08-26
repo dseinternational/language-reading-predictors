@@ -147,14 +147,49 @@ target_desc
 
 ### Cross-validation
 
-Group-aware (`GroupKFold`) cross-validation scores:
+Group-aware (`GroupKFold`, grouped by `subject_id`) cross-validation. These are **post-selection internal cross-validation** metrics: the hyperparameters were selected with Optuna on the same grouped folds (`scripts/tune_model.py`), so the numbers below describe fit under the project's internal evaluation protocol — they are not independent out-of-sample generalisation estimates.
+
+The headline numbers are the **pooled out-of-fold (OOF)** metrics: held-out predictions from every fold are stacked and scored once, with R² computed against each fold's *training-mean* baseline (a constant predictor that never saw the held-out subject's values).
 
 ```{python}
-cv_scores = pd.read_csv("cv_scores.csv")
+#| output: asis
+import json
 
-for col in ["mae", "rmse", "r2", "medae"]:
-    label = col.upper() if col != "r2" else "R²"
-    print(f"{label}: {cv_scores[col].mean():.4f} ± {cv_scores[col].std():.4f}")
+with open("metrics.json") as _f:
+    _metrics = json.load(_f)
+
+_pooled_labels = {
+    "cv_pooled_mae": "MAE",
+    "cv_pooled_rmse": "RMSE",
+    "cv_pooled_r2": "R²",
+    "cv_pooled_medae": "MedAE",
+}
+print("| Pooled OOF metric (post-selection) | Value |")
+print("|:---|---:|")
+for _k, _label in _pooled_labels.items():
+    _v = _metrics.get(_k)
+    print(f"| {_label} | {_v:.4f} |" if _v is not None else f"| {_label} | n/a |")
+```
+
+```{python}
+#| output: asis
+import pandas as pd
+
+cv_scores = pd.read_csv("cv_scores.csv")
+if not bool(_metrics.get("cv_r2_per_fold_reliable", False)):
+    _note = _metrics.get(
+        "cv_r2_note",
+        "Per-fold R² is unstable on the small held-out folds of "
+        "near-leave-one-subject-out CV; use the pooled OOF metrics above.",
+    )
+    print(
+        f"::: {{.callout-warning title=\"Per-fold summaries unreliable\"}}\n"
+        f"{_note}\n:::\n"
+    )
+print("Per-fold mean ± SD (secondary; the pooled OOF metrics above are the headline):\n")
+for _col in ["mae", "rmse", "r2", "medae"]:
+    _label = _col.upper() if _col != "r2" else "R²"
+    print(f"- {_label}: {cv_scores[_col].mean():.4f} ± {cv_scores[_col].std():.4f}")
 ```
 
 ```{python}
@@ -188,15 +223,14 @@ print(f"In-sample MedAE: {medae:.4f}")
 
 ### Permutation importance
 
-Permutation importance measures the decrease in model performance when a single
-feature's values are randomly shuffled. With `GroupKFold` grouped by
-`subject_id`, each fold holds out one child and its timepoints, so the
-distribution is over (folds × repeats).
+Permutation importance measures the increase in **pooled out-of-fold RMSE** when a predictor's association with the outcome is broken by permutation. Because almost every `GroupKFold` fold holds out a single child, permutation is applied globally across all rows as a **subject-block permutation**: per repeat, the children are permuted and each child's rows are remapped to a donor child's values, preserving the longitudinal within-child structure while genuinely mixing values between children — so predictors that are constant within a child are informatively permuted rather than mechanically zeroed (#631). Each fold's already-fitted estimator predicts its own held-out rows, and the predictions are pooled into one out-of-fold RMSE per repeat. Note that importance is measured in held-out RMSE units although the models are MAE-tuned (#169).
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
+
+The box plot summarises the per-repeat increase in pooled out-of-fold RMSE for each predictor (the distribution is over permutation repeats). A positive value means permuting the predictor made held-out predictions worse; a value near zero means the model was insensitive to it.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
@@ -270,15 +304,13 @@ predictor_ranking
 #| output: asis
 from pathlib import Path
 if Path("distance_corr_dendrogram.png").exists():
-    print("![Distance-correlation dendrogram (Ward linkage on 1 - dcor)]"
+    print("![Distance-correlation dendrogram (average linkage on 1 - dcor)]"
           "(distance_corr_dendrogram.png){.lightbox fig-align=\"left\"}")
 ```
 
 ## SHAP interactions
 
-Mean |SHAP interaction| per feature pair — how much each pair's joint effect
-departs from additivity (#116). The heatmap shows the off-diagonal interaction
-matrix; the strongest pairs' interaction-dependence plots follow.
+Summed symmetric |SHAP interaction| per feature pair — the mean |interaction| with the `[i, j]` and `[j, i]` halves summed — showing how much each pair's joint effect departs from additivity (#116). The heatmap shows the same summed symmetric off-diagonal matrix as the table, so a pair's cell equals its table value; the strongest pairs' interaction-dependence plots follow.
 
 ```{python}
 #| echo: false
@@ -296,7 +328,7 @@ shap_interactions
 #| output: asis
 from pathlib import Path
 if Path("shap_interaction_heatmap.png").exists():
-    print("![Mean |SHAP interaction| (off-diagonal)](shap_interaction_heatmap.png)"
+    print("![Summed symmetric |SHAP interaction| (off-diagonal)](shap_interaction_heatmap.png)"
           "{.lightbox fig-align=\"left\"}\n")
 for _p in sorted(Path(".").glob("shap_interaction_*.png")):
     if _p.name != "shap_interaction_heatmap.png":

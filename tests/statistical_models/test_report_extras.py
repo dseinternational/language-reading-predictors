@@ -119,14 +119,22 @@ def test_factor_summary_labels_vector_elements_by_coordinate_and_applies_roles()
         ["arm_gap_t1", "d_grp_time", "b_grp_time", "gamma_A"],
         ci_prob=0.89,
         causal_terms=("d_grp_time[t2]",),
-        role_overrides={"arm_gap_t1": "balance", "b_grp_time": "levels_view"},
+        role_overrides={
+            "arm_gap_t1": "balance",
+            "b_grp_time": "levels_view",
+            # #631 finding 13 (mirroring LevelFactorsRunPlan.factor_summary_roles):
+            # the t3/t4 arm-gap changes are randomised early-start-versus-
+            # delayed-start schedule contrasts, not adjusted associations.
+            "d_grp_time[t3]": "regime",
+            "d_grp_time[t4]": "regime",
+        },
     )
     roles = dict(zip(df["term"], df["role"], strict=True))
     assert roles == {
         "arm_gap_t1": "balance",
         "d_grp_time[t2]": "causal",
-        "d_grp_time[t3]": "association",
-        "d_grp_time[t4]": "association",
+        "d_grp_time[t3]": "regime",
+        "d_grp_time[t4]": "regime",
         "b_grp_time[0]": "levels_view",
         "b_grp_time[1]": "levels_view",
         "b_grp_time[2]": "levels_view",

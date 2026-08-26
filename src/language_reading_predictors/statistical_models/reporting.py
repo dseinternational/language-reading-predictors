@@ -2248,16 +2248,21 @@ def did_summary(
 
     out.update(_summ("beta_period"))
     if dose:
-        # The redesigned dose model separates treatment presence from intensive
-        # session variation. Report the arm and treatment-presence coefficients
-        # whenever the trace carries them so the observational beta_dose is not
-        # presented as though it were the randomized on/off contrast.
+        # The redesigned dose model separates the saturated arm-by-period cell
+        # structure from intensive session variation. Report the arm and cell
+        # coefficients whenever the trace carries them so the observational
+        # beta_dose is not presented as though it were the randomised on/off
+        # contrast. Under that saturated coding (treated = immediate arm OR
+        # period 2) theta_treated at the mean treated dose is the crossover
+        # *cell* contrast, not an isolated treatment-presence effect (#631
+        # finding 12; the resolver in did.py says the same).
         for name in ("beta_group", "theta_treated", "gamma_t1", "beta_dose"):
             if name in posterior:
                 out.update(_summ(name))
         out["dose_interpretation"] = (
             "beta_dose is an observational intensive-margin association; "
-            "theta_treated is the model's treatment-presence term"
+            "theta_treated is the crossover cell contrast at the mean treated "
+            "dose, not an isolated treatment-presence effect"
         )
         return out
 
@@ -4116,11 +4121,13 @@ def factor_summary(
     randomised treatment terms named in ``causal_terms``) or **association** —
     under the locked DAG every non-randomised coefficient is an adjusted
     association confounded by latent general ability and must never be read as
-    "drives". ``role_overrides`` (term or base name -> role) names the two
-    further roles the level family carries under its t1-referenced arm-gap
-    parameterisation (#552): ``balance`` for the pre-randomisation t1 arm gap
-    and ``levels_view`` for the derived per-wave arm gaps, neither of which is
-    an effect nor an ordinary adjusted association.
+    "drives". ``role_overrides`` (term or base name -> role) names the further
+    roles the level family carries under its t1-referenced arm-gap
+    parameterisation (#552): ``balance`` for the pre-randomisation t1 arm gap,
+    ``levels_view`` for the derived per-wave arm gaps, and ``regime`` for the
+    t3/t4 arm-gap changes — randomised early-start-versus-delayed-start
+    treatment-schedule contrasts, not treated-versus-untreated effects and not
+    ordinary adjusted associations (#631 finding 13; the DiD arm_gap_t3 idiom).
 
     A vector coefficient is expanded to one row per element, labelled by the
     element's coordinate value (``b_grp_time[1]`` for the integer ``phase``
@@ -4822,9 +4829,10 @@ def level_t2_marginal_effect(
     """The t2 randomised contrast and its **arm-free standardised** AME (LRPLF, #127).
 
     The level model enters group as a per-timepoint vector because the trial is a
-    waitlist crossover; **only the t2 element is a clean randomised contrast**
-    (later timepoints are post-crossover associations). This isolates that one
-    causal effect on the items scale.
+    waitlist crossover; **only the t2 element is the randomised
+    treated-versus-untreated contrast** (the later timepoints are randomised
+    early-start-versus-delayed-start schedule contrasts, #631 finding 13). This
+    isolates that one causal effect on the items scale.
 
     **The estimand** (#584 finding 1, decided 2026-08-23 —
     ``notes/202608231800-level-factors-584-decisions.md``): the average, over the
@@ -6370,8 +6378,9 @@ def _kf_level_blending_link_sentence(output_dir, config: Mapping) -> str | None:
 
 
 def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]:
-    """Level family: only the t2 group contrast is randomised; later timepoints
-    are post-crossover associations."""
+    """Level family: only the t2 group contrast is the randomised
+    treated-versus-untreated effect; the later timepoints are randomised
+    early-start-versus-delayed-start schedule contrasts (#631 finding 13)."""
     outcome_label = _kf_outcome_label(config)
     rope = _kf_csv_row(output_dir, "rope_summary.csv")
     if rope is None:
@@ -6415,7 +6424,7 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         plan.get("group_by_time", True)
     )
     causal = (
-        "Only this t2 comparison is randomised. "
+        "Only this t2 comparison compares being taught with not yet being taught. "
         + (
             "It is the **change** in the arm difference from the pre-randomisation "
             "baseline (t1) to t2 — a difference-in-differences of adjusted levels — "
@@ -6429,9 +6438,14 @@ def _kf_build_level_factors(output_dir, config: Mapping) -> list[dict[str, str]]
         + "A cause-and-effect reading is "
         "limited to the fitted available-case t2 population and assumes outcome "
         "and required-covariate observation do not depend jointly on arm and "
-        "potential outcomes; group differences at later timepoints — after the "
-        "waiting-list children had crossed over to the intervention — are "
-        "associations."
+        "potential outcomes. Group differences at later timepoints — after the "
+        "waiting-list children had crossed over to the intervention — are still "
+        "set by the original random assignment, but they compare an earlier with "
+        "a later start of the same teaching, both groups having been taught by "
+        "then: they are not treated-versus-untreated effects, and the model "
+        "cannot say why any difference arises (longer teaching, carryover, "
+        "maturation and test ceilings are inseparable). Ability and background "
+        "terms remain adjusted associations."
     )
     # The headline nets out the WHOLE group contribution — balance term, focal
     # contrast and moderation increment — and adds back only the focal contrast
@@ -8317,10 +8331,13 @@ def _kf_build_survival(output_dir, config: Mapping) -> list[dict[str, str]]:
     )
     if window == "randomised":
         causal_text = (
-            "The contrast is anchored on the randomised first interval among "
-            "children at the floor at wave 1; later intervals pool both treated "
-            "arms and carry no arm contrast. It is reported as a prognostic "
-            "association, not a causal effect of record."
+            "The contrast is a model-based, available-case modified-ITT "
+            "assignment contrast in the randomised first interval among children "
+            "at the floor at wave 1; later intervals pool both treated arms and "
+            "carry no arm contrast. The baseline-subgroup restriction, the "
+            "observed-wave-2 requirement, mean-imputed covariates and the "
+            "hazard-model form qualify it, and no causal headline is released "
+            "(#631 finding 11)."
         )
     else:
         causal_text = (

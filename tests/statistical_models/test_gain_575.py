@@ -434,3 +434,89 @@ def test_results_factors_partial_guards_and_labels():
     assert "treated-only companion" in text
     assert "period1_sensitivity.csv" in text
     assert "off-floor risk difference (percentage points)" in text
+
+
+# --- the hearing adjuster's category contrast (#631 finding 4) -----------------
+
+
+@pytest.fixture(scope="module")
+def _built_gf_004_with_hearing():
+    """A fitted GF-004 build whose adjustment set includes hearing (`hs`)."""
+    from language_reading_predictors.statistical_models import factories
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+    )
+
+    plan = _plan_for("lrp-rli-gf-004")
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    adjust = tuple(c for c in plan.adjust_for if c in prepared.covariates)
+    assert "hs" in adjust
+    built = factories.build_gain_factors_model(
+        prepared, **plan.factory_kwargs(effective_adjustment=adjust)
+    )
+    return plan, built, adjust
+
+
+def test_standardised_hearing_never_has_literal_binary_support(
+    _built_gf_004_with_hearing,
+):
+    """The regression pin behind #631 finding 4: the design column is standardised,
+    so testing it for literal {0, 1} could never detect the binary adjuster."""
+    _, built, _ = _built_gf_004_with_hearing
+    values = np.asarray(built.prepared.covariates["hs"], dtype=float)
+    assert not np.isin(values, (0.0, 1.0)).all()
+    # ... while the raw support recovered through the carried scaler is binary.
+    raw = np.asarray(built.prepared.covariate_scalers["hs"].inverse(values), dtype=float)
+    assert np.all(np.isclose(raw, 0.0) | np.isclose(raw, 1.0))
+    assert set(np.unique(np.round(raw, 6))) == {0.0, 1.0}
+
+
+def test_hearing_association_term_is_a_category_contrast_not_a_sd_shift(
+    _built_gf_004_with_hearing,
+):
+    """`hs` must use the net-out-and-toggle idiom on the raw 0/1 indicator, with
+    the eta shift of a raw 0 -> 1 switch (gamma / sd), not a +1 standardised unit."""
+    from language_reading_predictors.statistical_models.pipelines.gain_factors import (
+        _gf_association_terms,
+    )
+
+    plan, built, adjust = _built_gf_004_with_hearing
+    terms = _gf_association_terms(
+        plan, built, adjust_for=adjust, off_floor=False
+    )
+    hs_term = next(t for t in terms if t.label == "hs")
+
+    scaler = built.prepared.covariate_scalers["hs"]
+    values = np.asarray(built.prepared.covariates["hs"], dtype=float)
+    raw = np.asarray(scaler.inverse(values), dtype=float)
+
+    assert hs_term.coef == "gamma_hs"
+    assert hs_term.toggle_vector is not None
+    assert np.allclose(hs_term.toggle_vector, np.isclose(raw, 1.0).astype(float))
+    assert hs_term.main_scale == pytest.approx(1.0 / float(scaler.sd))
+    # The defect published a "+1 SD" forward shift of the standardised column,
+    # whose scale is ~1.0 — materially smaller than the true category contrast.
+    assert hs_term.main_scale > 1.5
+    assert "toggled 0 to 1" in (hs_term.perturbation_label or "")
+
+
+def test_continuous_adjusters_keep_the_sd_shift(_built_gf_004_with_hearing):
+    """The fix must not convert genuinely continuous adjusters to toggles."""
+    from language_reading_predictors.statistical_models.pipelines.gain_factors import (
+        _gf_association_terms,
+    )
+
+    plan, built, adjust = _built_gf_004_with_hearing
+    terms = _gf_association_terms(plan, built, adjust_for=adjust, off_floor=False)
+    labels = {t.label: t for t in terms}
+    continuous = [
+        name
+        for name in adjust
+        if name in labels and name != "hs" and not name.endswith("_missing")
+    ]
+    assert continuous, "expected at least one continuous adjuster in gf-004"
+    for name in continuous:
+        assert labels[name].toggle_vector is None
+        assert labels[name].main_scale == pytest.approx(1.0, abs=0.05)
+    # `_missing` companions stay skipped: a +1 SD shift on them means nothing.
+    assert not any(t.label.endswith("_missing") for t in terms)

@@ -156,11 +156,14 @@ def test_level_factor_prior_role_is_conservative_for_group_time_vector():
         model=None,
     )
     _ctor, role, rationale = _prior_table_overrides(ctx)
-    # #552 default (t1-referenced): the change vector is documented conservatively
-    # (only d_grp_time[t2] is randomised) and the balance term is a nuisance
-    # quantity, never an effect; b_grp_time is a Deterministic with no prior row.
-    assert role["d_grp_time"] == "association"
-    assert "only d_grp_time[t2]" in rationale["d_grp_time"]
+    # #552 default (t1-referenced): the change vector carries the DiD family's
+    # ``regime`` role (#631 finding 13 — t2 is the randomised treated-versus-
+    # untreated change, t3/t4 the randomised schedule contrasts) and the balance
+    # term is a nuisance quantity, never an effect; b_grp_time is a Deterministic
+    # with no prior row.
+    assert role["d_grp_time"] == "regime"
+    assert "treated-versus-untreated change" in rationale["d_grp_time"]
+    assert "schedule contrasts" in rationale["d_grp_time"]
     assert role["arm_gap_t1"] == "nuisance"
     assert "never interpreted as an effect" in rationale["arm_gap_t1"]
     assert "b_grp_time" not in role

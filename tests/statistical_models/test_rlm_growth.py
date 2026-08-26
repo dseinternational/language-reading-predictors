@@ -145,6 +145,40 @@ def test_rlm_growth_loader_applies_baseline_and_trajectory_rules(tmp_path):
     assert len(panel.data_sha256) == 64
 
 
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [(7.5, "integer counts"), (-3.0, "below the valid lower bound")],
+)
+def test_rlm_growth_loader_rejects_invalid_outcome_counts(tmp_path, value, match):
+    """#631 finding 5: only the 0..n_trials range was checked, so a fractional
+    count passed and was silently truncated by the factory's int cast."""
+    path = _write_rlm_panel_csv(tmp_path)
+    frame = pd.read_csv(path)
+    frame.loc[
+        (frame["subject_id"] == "R002") & (frame["time"] == 2), "basread"
+    ] = value
+    frame.to_csv(path, index=False)
+    with pytest.raises(ValueError, match=match):
+        load_rlm_growth_panel(
+            outcomes=("basread",), baseline_covariate="bassim", path=path
+        )
+
+
+def test_rlm_growth_loader_rejects_fractional_baseline(tmp_path):
+    """#631 finding 5: the baseline is a bounded count feeding a Haldane logit,
+    so exact integrality applies to it exactly as to the outcomes."""
+    path = _write_rlm_panel_csv(tmp_path)
+    frame = pd.read_csv(path)
+    frame.loc[
+        (frame["subject_id"] == "R002") & (frame["time"] == 1), "bassim"
+    ] = 7.5
+    frame.to_csv(path, index=False)
+    with pytest.raises(ValueError, match="integer counts"):
+        load_rlm_growth_panel(
+            outcomes=("basread",), baseline_covariate="bassim", path=path
+        )
+
+
 def test_group_adjusted_growth_factory_builds_and_samples_prior(tmp_path):
     panel = load_rlm_growth_panel(
         outcomes=("basread",),

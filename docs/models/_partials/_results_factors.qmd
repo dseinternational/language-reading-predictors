@@ -415,6 +415,34 @@ if (
 ```{python}
 # | echo: false
 # | output: asis
+# Level family (#631 finding 13): the t3/t4 arm-gap changes carry the `regime`
+# role — identified by the original randomisation, but as contrasts of the
+# early-start versus delayed-start treatment schedule, not treated-versus-
+# untreated effects — so they are fenced off from both the causal t2 change and
+# the adjusted-associations callout below. Gated on the role being present.
+if factor_summary is not None and "role" in factor_summary.columns:
+    _regime = factor_summary[factor_summary.role == "regime"]
+    if len(_regime):
+        _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _regime.columns]
+        print("### Randomised schedule contrasts\n")
+        print(
+            "**Post-crossover arm-gap changes (`d_grp_time[t3]`, `d_grp_time[t4]`)** — "
+            "also identified by the original randomisation, but of a different exposure: "
+            "assignment to the early-start versus the delayed-start treatment schedule, "
+            "both arms having been taught by t3. They are read under the same "
+            "available-case and model assumptions as the t2 change, are **not** "
+            "treated-versus-untreated effects, and carry no mechanistic reading — "
+            "duration, carryover, maturation and ceiling effects are inseparable within "
+            "them — so they are reported as randomised schedule contrasts, not as "
+            "adjusted associations.\n"
+        )
+        print(_regime[_cols].to_markdown(index=False))
+        print("")
+```
+
+```{python}
+# | echo: false
+# | output: asis
 # Level family only: the group contribution at t2 is
 # (balance term + focal t2 term + gamma_grp_ability*ability)*G. The card nets ALL of it
 # out of every fitted row and adds back only the focal term (#584 decision 1: the
@@ -715,10 +743,11 @@ if _has("child_fit_panels.png"):
 # | echo: false
 # | output: asis
 # Adjusted associations, clearly fenced (METHODS.md causal-vs-association discipline).
-# The level model's balance term and derived levels view (#552) carry their own roles
-# and are reported in their own block above, not as associations.
+# The level model's balance term, derived levels view (#552) and randomised t3/t4
+# schedule contrasts (role `regime`, #631 finding 13) carry their own roles and are
+# reported in their own blocks above, not as associations.
 if factor_summary is not None and "role" in factor_summary.columns:
-    _assoc = factor_summary[~factor_summary.role.isin(["causal", "balance", "levels_view"])]
+    _assoc = factor_summary[~factor_summary.role.isin(["causal", "balance", "levels_view", "regime"])]
     if len(_assoc):
         _cols = [c for c in ["term", "median", "lo", "hi", "prob_positive"] if c in _assoc.columns]
         print('::: {.callout-important title="Adjusted associations — not causal"}\n')

@@ -28,8 +28,11 @@ detect dose confounding. (An earlier version drew the mediator from the *margina
 population distribution by permuting it across units — a cruder estimand whose
 divergence from LRP59 reflected covariate decoupling, not dose confounding — which
 is corrected in ``mediation.decompose``; #268.) The t3 temporal-ordering
-sensitivity is skipped (a natural-effect construction). ``n ~ 53`` -> wide
-intervals; IDE/IIE remain adjusted associations under stated assumptions.
+sensitivity runs here too (#585 finding 2 — the same fitted model under a
+different label carries the same evidence requirement), its rows labelled
+IDE/IIE, and release requires its trace-backed bundle (#631 finding 9).
+``n ~ 53`` -> wide intervals; IDE/IIE remain adjusted associations under
+stated assumptions.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

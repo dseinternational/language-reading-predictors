@@ -7,9 +7,11 @@
 carrying group×time and ability×time as per-timepoint coefficient vectors. Under
 the default t1-referenced parameterisation (#552) the arm-by-time vector is a
 pre-randomisation balance term ``arm_gap_t1`` plus per-wave changes
-``d_grp_time[t]``; only the t2 change is a clean randomised effect (a
-difference-in-differences of adjusted levels); later timepoints are
-post-crossover and flagged as associations. It takes the revised-DAG exogenous
+``d_grp_time[t]``; only the t2 change is the randomised treated-versus-untreated
+effect (a difference-in-differences of adjusted levels), while the t3/t4 changes
+are randomised early-start-versus-delayed-start schedule contrasts — identified
+by the original randomisation, but not treated-versus-untreated effects and with
+no mechanistic reading (#631). It takes the revised-DAG exogenous
 confounders but no measure-skill adjusters — conditioning a levels model on
 another skill's contemporaneous level would condition on a post-treatment
 mediator of the group×time effect (#247).
@@ -152,10 +154,11 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _diag.run_psense(ctx, var_names=[*_forest_vars, *plan.nuisance_terms])
 
     section_header("Factor summary")
-    # Only the t2 group contrast (plan.causal_terms) is the clean randomised effect;
-    # the other timepoints are post-crossover (see the level-model caveat). Under the
-    # t1 reference the balance term and the derived per-wave levels view carry their
-    # own roles so they are never read as effects or as adjusted associations.
+    # Only the t2 group contrast (plan.causal_terms) is the randomised
+    # treated-versus-untreated effect; the t3/t4 changes are randomised schedule
+    # contrasts (role "regime", #631 finding 13). Under the t1 reference the
+    # balance term and the derived per-wave levels view carry their own roles so
+    # they are never read as effects or as adjusted associations.
     causal = plan.causal_terms
     _lf_coefs = plan.coefficient_names(effective_adjustment=adjust_for)
     fs = _report.factor_summary(

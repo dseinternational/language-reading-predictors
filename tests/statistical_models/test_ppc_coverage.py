@@ -339,3 +339,109 @@ def test_interval_coverage_zero_observations_renders_empty():
     cov = ppc_interval_coverage(_count_trace(rep, [np.nan, np.nan]))
     assert (cov["n_total"] == 0).all()
     assert ppc_coverage_markdown(cov) == ""
+
+
+# --- per-outcome coverage for stacked multi-outcome likelihoods (#631 f.16) ---
+
+
+def _multi_outcome_context(tmp_path, kind, outcomes, cell_outcome, rep, obs):
+    """A minimal fit context whose trace carries a stacked node + its cell map."""
+    from types import SimpleNamespace
+
+    from language_reading_predictors.statistical_models.artifacts import ArtifactLog
+
+    trace = xr.DataTree.from_dict(
+        {
+            "posterior_predictive": xr.Dataset(
+                {"y_obs": (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
+            ),
+            "observed_data": xr.Dataset(
+                {"y_obs": (("obs_id",), np.asarray(obs, dtype=float))}
+            ),
+            "constant_data": xr.Dataset(
+                {
+                    "y_obs_cell_outcome": (
+                        ("obs_id",),
+                        np.asarray(cell_outcome, dtype=int),
+                    )
+                }
+            ),
+        }
+    )
+    return SimpleNamespace(
+        trace=trace,
+        output_dir=str(tmp_path),
+        tables={},
+        artifacts=ArtifactLog(),
+        spec=SimpleNamespace(model_id="lrp-test-001", kind=kind, outcome_symbol=None),
+        resolved_plan=SimpleNamespace(outcomes=outcomes),
+    )
+
+
+def test_multi_outcome_coverage_emits_a_row_per_outcome_beside_the_pooled_row(
+    tmp_path,
+):
+    """One well-fitting outcome must not be able to hide another's misfit: the
+    pooled row alone could report adequate coverage while an outcome sits far
+    outside its own predictive interval."""
+    import pandas as pd
+
+    from language_reading_predictors.statistical_models import ppc_artifacts
+
+    draws = np.linspace(0.0, 10.0, 200).reshape(1, 200, 1)
+    # Outcome W (cells 0-1) sits inside its predictive; outcome L (cells 2-3) is
+    # a point mass far from what was observed.
+    rep = np.concatenate([np.repeat(draws, 2, axis=2), np.full((1, 200, 2), 99.0)], axis=2)
+    obs = [5.0, 5.0, 1.0, 1.0]
+    ctx = _multi_outcome_context(
+        tmp_path, "growth", ("W", "L"), [0, 0, 1, 1], rep, obs
+    )
+
+    ppc_artifacts._save_count_ppc(ctx, "y_obs", None, "growth")
+
+    written = pd.read_csv(tmp_path / "ppc_summary.csv")
+    assert "outcome" in written.columns
+    pooled = written[written["outcome"].isna()]
+    per_outcome = written[written["outcome"].notna()]
+    assert not pooled.empty, "the pooled row the shared sentence reads must survive"
+    assert set(per_outcome["outcome"]) == {"W", "L"}
+    # The misfitting outcome is visible in its own rows.
+    l_rows = per_outcome[per_outcome["outcome"] == "L"]
+    w_rows = per_outcome[per_outcome["outcome"] == "W"]
+    assert (l_rows["coverage"] == 0.0).all()
+    assert (w_rows["coverage"] > 0.0).any()
+
+
+def test_multi_outcome_coverage_falls_back_to_pooled_without_a_cell_map(tmp_path):
+    """No map (or a misaligned one) means no split — never a misaligned split."""
+    import pandas as pd
+
+    from language_reading_predictors.statistical_models import ppc_artifacts
+
+    rep = np.random.default_rng(0).normal(5.0, 1.0, (1, 50, 3))
+    ctx = _multi_outcome_context(
+        tmp_path, "lcsm", ("W", "L"), [0, 0, 1], rep, [5.0, 5.0, 5.0]
+    )
+    del ctx.trace["constant_data"]
+
+    ppc_artifacts._save_count_ppc(ctx, "y_obs", None, "lcsm")
+
+    written = pd.read_csv(tmp_path / "ppc_summary.csv")
+    assert "outcome" not in written.columns or written["outcome"].isna().all()
+
+
+def test_single_outcome_families_keep_the_pooled_only_schema(tmp_path):
+    """The split is scoped to the stacked multi-outcome kinds."""
+    import pandas as pd
+
+    from language_reading_predictors.statistical_models import ppc_artifacts
+
+    rep = np.random.default_rng(1).normal(5.0, 1.0, (1, 50, 3))
+    ctx = _multi_outcome_context(
+        tmp_path, "gain_factors", ("W",), [0, 0, 0], rep, [5.0, 5.0, 5.0]
+    )
+
+    ppc_artifacts._save_count_ppc(ctx, "y_obs", "W", "gain_factors")
+
+    written = pd.read_csv(tmp_path / "ppc_summary.csv")
+    assert "outcome" not in written.columns

@@ -12,6 +12,8 @@ measurement/latent) and writes the calibration and overlay figures. Split out of
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -99,13 +101,65 @@ def save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") ->
         _save_legacy_ppc_overlay(context)
 
 
+def cell_outcome_labels(
+    context: StatisticalFitContext, node: str, outcomes: Sequence[str]
+) -> list[str] | None:
+    """One outcome symbol per flattened cell of ``node``, from the saved cell map.
+
+    ``None`` when no map is present or it does not align, so a per-outcome split
+    is skipped rather than misaligning a measure with another's counts. Reads the
+    map back rather than re-deriving it — a reconstructed index is what silently
+    misaligned the prior-predictive checks before.
+    """
+    cd = getattr(context.trace, "constant_data", None)
+    if cd is None or not outcomes:
+        return None
+    key = next(
+        (k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if k in cd),
+        None,
+    )
+    if key is None:
+        return None
+    index = np.asarray(cd[key].values).ravel().astype(int)
+    if index.size == 0 or int(index.max()) >= len(outcomes):
+        return None
+    return [str(outcomes[i]) for i in index]
+
+
 def _save_count_ppc(
     context: StatisticalFitContext, node: str, symbol: str | None, kind: str
 ) -> None:
     """Count-interval coverage CSV + calibration panel (+ overlay for single-measure)."""
     with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         cov = _report.ppc_interval_coverage(context.trace, node=node)
-        save_table(context, "ppc_summary", cov, required=False)
+        frames = [cov]
+        if kind in _PPC_MULTI_OUTCOME_KINDS:
+            # A stacked multi-outcome node pools measures with different
+            # denominators, floors and ceilings, so one well-fitting outcome can
+            # hide another's misfit (#631 finding 16). Publish per-outcome rows and
+            # keep the pooled row as the summary the shared coverage sentence
+            # reads, exactly as the joint-mechanism family already does.
+            plan = getattr(context, "resolved_plan", None)
+            labels = cell_outcome_labels(
+                context, node, tuple(getattr(plan, "outcomes", ()) or ())
+            )
+            if labels is not None:
+                frames.append(
+                    _report.ppc_interval_coverage_by_group(
+                        context.trace, node=node, group_labels=labels
+                    )
+                )
+            else:
+                rprint(
+                    f"[yellow]PPC per-outcome coverage unavailable for '{kind}' "
+                    "(no aligned cell map); pooled coverage only.[/yellow]"
+                )
+        save_table(
+            context,
+            "ppc_summary",
+            pd.concat(frames, ignore_index=True) if len(frames) > 1 else cov,
+            required=False,
+        )
     with guard_optional(
         context, "PPC calibration figure",
         filename="ppc_calibration.png", kind="figure", verb="skipped",
@@ -302,23 +356,22 @@ def _save_multi_outcome_ppc_overlays(
     the rest are suffixed. Falls back to the pooled overlay only when no map is
     present, since that is a single-measure node reaching here by another route.
     """
-    cd = getattr(context.trace, "constant_data", None)
-    key = next(
-        (k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if cd is not None and k in cd),
-        None,
-    )
     plan = getattr(context, "resolved_plan", None)
     outcomes = [str(o) for o in (getattr(plan, "outcomes", ()) or ())]
-    if key is None or not outcomes:
+    labels = cell_outcome_labels(context, node, outcomes)
+    if labels is None:
         rprint(
             f"[yellow]PPC per-measure overlay unavailable for '{kind}' "
-            f"(cell map={key!r}, outcomes={outcomes or None}); "
+            f"(outcomes={outcomes or None}); "
             "falling back to the pooled overlay.[/yellow]"
         )
         _ppc_overlay_figure(context, node, context.spec.outcome_symbol)
         return
 
-    idx = np.asarray(cd[key].values).ravel().astype(int)
+    label_array = np.asarray(labels)
+    idx = np.array(
+        [outcomes.index(label) for label in label_array], dtype=int
+    )
     for position, sym in enumerate(outcomes):
         if not np.any(idx == position):
             # A declared outcome with no rows in this fit's cell map. Skip rather

@@ -5,8 +5,10 @@
 
 The letter-sound analogue of LRPDID06's word-reading dose association, but with the
 session-dose slope **resolved by period** (#135). The transition model separates
-randomised arm/history, current treatment presence and session intensity, and
-adjusts both periods for the shared pre-randomisation t1 outcome and t1 age.
+randomised arm/history, the saturated arm-by-period cell structure and session
+intensity, and adjusts both periods for the shared pre-randomisation t1 outcome and
+t1 age; under that saturated coding ``theta_treated`` at the mean treated dose is
+the crossover cell contrast, not an isolated treatment-presence effect.
 Treated-row-standardised sessions enter with partial-pooled per-period slopes
 ``beta_dose_phase[p] = mu_dose + sigma_dose * z_p``.
 

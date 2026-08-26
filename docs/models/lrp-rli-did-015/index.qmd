@@ -30,9 +30,10 @@ Grammar is scored in whole marks out of 37, so it needs no rescaling and carries
 
 LRPDID015 models the time 1–3 outcome levels with a saturated arm-by-wave structure and a child
 random intercept. `tau_t2` is the clean randomised t2 contrast and is the quantity to set beside
-the matching ITT fit; `arm_gap_t1` is a baseline-balance quantity, and `arm_gap_t3` and the
-derived crossover contrast are **post-crossover associations** because by t3 both arms have been
-taught. The model does not condition on the treatment-affected t2 score, and the child random
+the matching ITT fit; `arm_gap_t1` is a baseline-balance quantity, and `arm_gap_t3` is a
+**different randomised contrast** — assignment to the early-start rather than the delayed-start
+treatment schedule, because by t3 both arms have been taught — with the derived crossover contrast
+the change between those two randomised regime contrasts, not an identified catch-up. The model does not condition on the treatment-affected t2 score, and the child random
 intercept partially pools stable heterogeneity rather than making each child their own control.
 
 ## Model
