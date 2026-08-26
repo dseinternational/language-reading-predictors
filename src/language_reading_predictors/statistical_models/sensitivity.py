@@ -678,6 +678,12 @@ DID_SENSITIVITY_MODEL_IDS = (
     "lrp-rli-did-007",
     "lrp-rli-did-013",
     "lrp-rli-did-101",
+    # The baseline-allocation prior sensitivity for did-001 (#576 finding 4).
+    # Its softer allocation makes tau_t2 lean harder on its own prior, and the
+    # 2026-08-26 batch's first fit of it came back prior-dominant — so it needs
+    # the same trace-backed treatment-prior evidence the rest of the family
+    # qualifies on, and was unlistable here before that fit existed.
+    "lrp-rli-did-104",
 )
 DID_SENSITIVITY_MU_DOSE_SIGMAS = (0.5, 1.0, 1.5)
 
