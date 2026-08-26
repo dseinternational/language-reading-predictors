@@ -582,8 +582,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             _hi_q = 1 - _lo_q
 
             def _p1_row(
-                fit_label: str, b_draws: np.ndarray, tme_row: dict, built_x
-            ) -> dict:
+                fit_label: str,
+                b_draws: np.ndarray,
+                tme_row: dict[str, float],
+                built_x: _factories.BuiltModel[GainFactorsPayload],
+            ) -> dict[str, object]:
                 return {
                     "fit": fit_label,
                     "n_rows": int(built_x.prepared.n_obs),
