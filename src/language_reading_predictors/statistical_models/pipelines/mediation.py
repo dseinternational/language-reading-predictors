@@ -235,8 +235,12 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     prepared, confounders = _prepare_mediation_data(plan)
     if confounders != plan.effective_confounders:
         plan = plan.with_effective_confounders(confounders)
-        ctx.resolved_plan = plan
-        _report.write_model_recipe(ctx)
+        # The ACTIVE plan drives the factory, summaries and this recipe
+        # rewrite; config.json keeps the RESOLVER's plan so the #623
+        # currency check compares resolution with resolution. The
+        # loader's constant-column removals stay recorded in extra
+        # (2026-08-26 batch).
+        _report.write_model_recipe(ctx, plan=plan)
     ctx.prepared = prepared
 
     print_header(ctx)
@@ -501,8 +505,12 @@ def fit_mediation_period_stacked(
     )
     if confounders != plan.effective_confounders:
         plan = plan.with_effective_confounders(confounders)
-        ctx.resolved_plan = plan
-        _report.write_model_recipe(ctx)
+        # The ACTIVE plan drives the factory, summaries and this recipe
+        # rewrite; config.json keeps the RESOLVER's plan so the #623
+        # currency check compares resolution with resolution. The
+        # loader's constant-column removals stay recorded in extra
+        # (2026-08-26 batch).
+        _report.write_model_recipe(ctx, plan=plan)
 
     print_header(ctx)
 
@@ -722,8 +730,12 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     )
     if confounders != plan.effective_confounders:
         plan = plan.with_effective_confounders(confounders)
-        ctx.resolved_plan = plan
-        _report.write_model_recipe(ctx)
+        # The ACTIVE plan drives the factory, summaries and this recipe
+        # rewrite; config.json keeps the RESOLVER's plan so the #623
+        # currency check compares resolution with resolution. The
+        # loader's constant-column removals stay recorded in extra
+        # (2026-08-26 batch).
+        _report.write_model_recipe(ctx, plan=plan)
     ctx.prepared = prepared
 
     print_header(ctx)

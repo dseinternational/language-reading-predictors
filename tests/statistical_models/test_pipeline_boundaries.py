@@ -820,3 +820,41 @@ def test_no_family_module_samples_a_posterior_of_its_own():
         f"family modules sampling their own posterior: {offenders}; "
         "use subfits.run_subfit (sub-fit) or the shared stages (primary)"
     )
+
+
+def test_resolved_plan_is_assigned_exactly_once_per_entry_point():
+    """``config.json``'s resolved_run_plan must be the RESOLVER's output.
+
+    Three families used to overwrite ``ctx.resolved_plan`` with a
+    loader-filtered copy after data preparation (a deliberate #585-era record
+    of constant-column removals), which made the #623 plan-currency check
+    permanently stale for any fit whose data dropped an indicator — 13 fits in
+    the 2026-08-26 batch, freshly fitted and immediately "stale". The active
+    plan now drives the factory and the recipe prose while the persisted plan
+    stays the resolver's, so any function that assigns ``ctx.resolved_plan``
+    more than once is reintroducing the defect.
+    """
+    import ast
+    from pathlib import Path
+
+    pipelines = Path(__file__).resolve().parents[2] / (
+        "src/language_reading_predictors/statistical_models/pipelines"
+    )
+    offenders: list[str] = []
+    for module in sorted(pipelines.glob("*.py")):
+        tree = ast.parse(module.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            count = 0
+            for stmt in ast.walk(node):
+                if isinstance(stmt, ast.Assign):
+                    for target in stmt.targets:
+                        if (
+                            isinstance(target, ast.Attribute)
+                            and target.attr == "resolved_plan"
+                        ):
+                            count += 1
+            if count > 1:
+                offenders.append(f"{module.name}:{node.name} ({count} assignments)")
+    assert not offenders, offenders

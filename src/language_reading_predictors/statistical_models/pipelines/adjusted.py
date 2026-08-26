@@ -399,8 +399,12 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     if covariates != plan.active_covariates:
         plan = plan.with_active_covariates(covariates)
-        ctx.resolved_plan = plan
-        _report.write_model_recipe(ctx)
+        # The ACTIVE plan drives the factory, summaries and this recipe
+        # rewrite; config.json keeps the RESOLVER's plan so the #623
+        # currency check compares resolution with resolution. The
+        # loader's constant-column removals stay recorded in extra
+        # (2026-08-26 batch).
+        _report.write_model_recipe(ctx, plan=plan)
     # Headline predictor key order: skills, language composite, age, tested covariates.
     headline = list(plan.headline_predictors())
     print_header(ctx)

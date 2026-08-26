@@ -95,8 +95,12 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     if _dropped_structural:
         structural_covs = tuple(c for c in structural_covs if c in prepared.covariates)
         plan = plan.with_active_structural_covariates(structural_covs)
-        ctx.resolved_plan = plan
-        _report.write_model_recipe(ctx)
+        # The ACTIVE plan drives the factory, summaries and this recipe
+        # rewrite; config.json keeps the RESOLVER's plan so the #623
+        # currency check compares resolution with resolution. The
+        # loader's constant-column removals stay recorded in extra
+        # (2026-08-26 batch).
+        _report.write_model_recipe(ctx, plan=plan)
         rprint(
             "[yellow]fit_correlated_factor: dropped constant structural covariate(s) "
             f"{list(_dropped_structural)} (not in prepared.covariates on the fitted "
