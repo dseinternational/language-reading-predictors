@@ -903,8 +903,11 @@ def _fit_joint_mechanism_levels(
     covariates = tuple(c for c in covariates if c in prepared_all.covariates)
     if covariates != plan.active_adjustment:
         plan = plan.with_active_adjustment(covariates)
-        ctx.resolved_plan = plan
-        _report.write_model_recipe(ctx)
+        # The ACTIVE plan drives the factory, summaries and this recipe
+        # rewrite; config.json keeps the RESOLVER's plan so the #623
+        # currency check compares resolution with resolution (2026-08-26
+        # batch; latent here — caught by the pipeline-boundary test).
+        _report.write_model_recipe(ctx, plan=plan)
 
     def _build(sub):
         return _factories.build_joint_mechanism_model(
@@ -1286,8 +1289,11 @@ def _fit_joint_mechanism_transition(
     adjust_for = tuple(c for c in adjust_for if c in prepared.covariates)
     if adjust_for != plan.active_adjustment:
         plan = plan.with_active_adjustment(adjust_for)
-        ctx.resolved_plan = plan
-        _report.write_model_recipe(ctx)
+        # The ACTIVE plan drives the factory, summaries and this recipe
+        # rewrite; config.json keeps the RESOLVER's plan so the #623
+        # currency check compares resolution with resolution (2026-08-26
+        # batch; latent here — caught by the pipeline-boundary test).
+        _report.write_model_recipe(ctx, plan=plan)
 
     print_header(ctx)
 

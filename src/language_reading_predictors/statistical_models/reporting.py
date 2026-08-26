@@ -3883,9 +3883,15 @@ def require_reuse_compatibility(
         )
 
 
-def write_model_recipe(context: StatisticalFitContext) -> str | None:
-    """Write the human-readable recipe generated from a typed run plan, if any."""
-    plan = _resolved_run_plan(context)
+def write_model_recipe(context: StatisticalFitContext, *, plan=None) -> str | None:
+    """Write the human-readable recipe generated from a typed run plan, if any.
+
+    ``plan`` overrides the context's stored plan for the prose only: after data
+    loading a family may drop a constant covariate and re-describe the ACTIVE
+    model here, while ``config.json`` keeps the resolver's own plan so the #623
+    currency check compares resolution with resolution (2026-08-26 batch).
+    """
+    plan = plan if plan is not None else _resolved_run_plan(context)
     if plan is None:
         return None
     os.makedirs(context.output_dir, exist_ok=True)
