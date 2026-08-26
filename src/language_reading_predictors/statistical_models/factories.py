@@ -3318,6 +3318,7 @@ def build_mediation_model(
             route_symbols=tuple(route_symbols),
             mediator_cross_baselines=tuple(mediator_cross_baselines),
             outcome_cross_baselines=tuple(outcome_cross_baselines),
+            score_mean_link=score_mean_link,
         )
     if mediator_kind != "beta_binomial":
         raise ValueError(f"Unknown mediator_kind {mediator_kind!r}")
@@ -3509,7 +3510,8 @@ def _build_route_composite_model(
     route_symbols: tuple[str, ...],
     mediator_cross_baselines=(),
     outcome_cross_baselines=(),
-) -> tuple[BuiltModel[EmptyPayload], MediationData]:
+    score_mean_link: ScoreMeanLink = "logit",
+) -> tuple[BuiltModel[MediationPayload], MediationData]:
     """LRP62 reading-route mediation: a continuous code-based-route composite mediator.
 
     Same ITT-phase joint design and the *same* Beta-Binomial outcome model as
@@ -3522,6 +3524,14 @@ def _build_route_composite_model(
     """
     if not route_symbols:
         raise ValueError("gaussian_composite requires non-empty route_symbols")
+    if score_mean_link != "logit":
+        # The composite route's outcome is word reading, never phoneme blending,
+        # and its outcome mean is built with the plain inverse logit below — a
+        # non-logit link would be silently ignored, so it is rejected instead.
+        raise ValueError(
+            "gaussian_composite supports only the ordinary logit score mean, "
+            f"got {score_mean_link!r}"
+        )
     for s in (outcome_symbol, *route_symbols):
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
@@ -3615,7 +3625,15 @@ def _build_route_composite_model(
         mediator_cross_values=med_cross_values,
         outcome_cross_values=out_cross_values,
     )
-    built = BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
+    # The pipeline reads the fitted score-mean link off the payload for the
+    # g-formula (#619); the composite branch returned EmptyPayload when that
+    # contract landed and so failed at fit time on the first refit (#575 batch,
+    # 2026-08-26). Always "logit" here, by the validation above.
+    built = BuiltModel(
+        model=model,
+        prepared=prepared,
+        payload=MediationPayload(score_mean_link=score_mean_link),
+    )
     return built, med_data
 
 

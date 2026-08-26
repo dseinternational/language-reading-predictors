@@ -1973,10 +1973,36 @@ def test_mediation_factory_builds_gaussian_composite(tmp_path):
     assert {"a_comp", "sigma_M"}.issubset(names)
     assert not {"a_L", "kappa_M"} & names  # the Beta-Binomial mediator leg is absent
     assert med.mediator_kind == "gaussian_composite"
+    # The pipeline reads the fitted score-mean link off the payload for the
+    # g-formula (#619); the composite branch returned EmptyPayload when that
+    # contract landed, so med-062 failed at fit time on the first refit
+    # (2026-08-26 batch). The payload must be a MediationPayload here too.
+    from language_reading_predictors.statistical_models.fitted_payloads import (
+        MediationPayload,
+    )
+
+    payload = built.require_payload(MediationPayload, family="mediation")
+    assert payload.score_mean_link == "logit"
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=4)
     assert pp.prior_predictive["M_post"].shape[-1] == prep.n_obs
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
+
+
+def test_mediation_gaussian_composite_rejects_a_non_logit_link(tmp_path):
+    """The composite outcome mean is built with the plain inverse logit, so a
+    guessing-floor link would be silently ignored — rejected instead."""
+    p = _write_synthetic(tmp_path, n_children=15)
+    prep = load_and_prepare(path=p, phase_mode="itt")
+    with pytest.raises(ValueError, match="ordinary logit"):
+        build_mediation_model(
+            prep,
+            outcome_symbol="W",
+            confounder_symbols=("E", "R"),
+            mediator_kind="gaussian_composite",
+            route_symbols=("L", "B"),
+            score_mean_link="three_choice_guessing_floor",
+        )
 
 
 def test_mediation_data_carries_generic_confounders(tmp_path):
