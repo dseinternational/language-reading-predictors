@@ -449,6 +449,16 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         "n_obs_prepared": prepared.n_obs,
         "leg_contract": _leg_contract(plan, built),
         "mediation": _summary,
+        # The inner g-formula simulation is what separates a reported
+        # decomposition from a reproducible one: the counterfactual cells are
+        # drawn, so the seed and the per-draw replicate count belong in the
+        # fit, not only in the source defaults (#585 section C). The gate on
+        # derived MCSE bounds the resulting error; these two record what
+        # produced it.
+        "simulation": {
+            "seed": _med.G_FORMULA_SEED,
+            "replicates_per_draw": _med.G_FORMULA_REPLICATES,
+        },
     }
     if med_df_t3 is not None:
         _extra_meta["mediation_t3_sensitivity"] = {
@@ -695,6 +705,16 @@ def fit_mediation_period_stacked(
             # ``mediation`` is now the PERIOD-1 headline (#585 finding 5); the
             # all-period average is recorded beside it as an extrapolation.
             "mediation": {r["quantity"]: r for r in med_df.to_dict("records")},
+            # The inner g-formula simulation is what separates a reported
+            # decomposition from a reproducible one: the counterfactual cells are
+            # drawn, so the seed and the per-draw replicate count belong in the
+            # fit, not only in the source defaults (#585 section C). The gate on
+            # derived MCSE bounds the resulting error; these two record what
+            # produced it.
+            "simulation": {
+                "seed": _med.G_FORMULA_SEED,
+                "replicates_per_draw": _med.G_FORMULA_REPLICATES,
+            },
             "mediation_all_periods": {
                 r["quantity"]: r for r in med_df_all.to_dict("records")
             },
@@ -888,6 +908,16 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "mediators": list(mediators),
             "n_trials_W": med_data.n_trials_W,
             "mediation": _summary,
+            # The inner g-formula simulation is what separates a reported
+            # decomposition from a reproducible one: the counterfactual cells are
+            # drawn, so the seed and the per-draw replicate count belong in the
+            # fit, not only in the source defaults (#585 section C). The gate on
+            # derived MCSE bounds the resulting error; these two record what
+            # produced it.
+            "simulation": {
+                "seed": _med.G_FORMULA_SEED,
+                "replicates_per_draw": _med.G_FORMULA_REPLICATES,
+            },
             "mediation_sensitivity": sens_summary.to_dict("records"),
             "named_confounder_calibration": (
                 calibration_df.to_dict("records") if calibration_df is not None else None

@@ -87,6 +87,18 @@ from language_reading_predictors.statistical_models.preprocessing import (
 _TREAT = 1.0  # immediate-intervention arm (G = 1)
 _CTRL = 0.0  # wait-list control arm (G = 0)
 
+#: Inner-simulation settings for every g-formula decomposition in this module.
+#:
+#: The counterfactual cells are simulated, so the reported NDE / NIE / total carry
+#: Monte-Carlo error on top of posterior uncertainty. ``gate_derived_estimands``
+#: already fails a fit whose derived MCSE exceeds 5 % of the reported interval
+#: half-width, but the two numbers that *produce* that error were compile-time
+#: defaults recorded nowhere in the fit (#585 section C). They are named here so
+#: the three ``decompose*`` entry points and the metadata each fit persists cannot
+#: drift apart, and a reader can reproduce a decomposition exactly.
+G_FORMULA_SEED = 47
+G_FORMULA_REPLICATES = 50
+
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-x))
@@ -205,8 +217,8 @@ def decompose(
     med: MediationData,
     *,
     ci_prob: float = 0.95,
-    n_replicates: int = 50,
-    seed: int = 47,
+    n_replicates: int = G_FORMULA_REPLICATES,
+    seed: int = G_FORMULA_SEED,
     interventional: bool = False,
     b_m_shift: float = 0.0,
     score_mean_link: str = "logit",
@@ -543,8 +555,8 @@ def decompose_period_stacked(
     med: PeriodStackedMediationData,
     *,
     ci_prob: float = 0.95,
-    n_replicates: int = 50,
-    seed: int = 47,
+    n_replicates: int = G_FORMULA_REPLICATES,
+    seed: int = G_FORMULA_SEED,
     b_m_shift: float = 0.0,
     row_mask: np.ndarray | None = None,
     score_mean_link: str = "logit",
@@ -693,8 +705,8 @@ def decompose_two_mediator(
     med: TwoMediatorData,
     *,
     hdi_prob: float = 0.95,
-    n_replicates: int = 50,
-    seed: int = 47,
+    n_replicates: int = G_FORMULA_REPLICATES,
+    seed: int = G_FORMULA_SEED,
     order: tuple[str, str] = ("L", "E"),
     b_m_shifts: dict[str, float] | None = None,
     score_mean_link: str = "logit",
