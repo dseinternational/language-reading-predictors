@@ -62,7 +62,7 @@ The original bullet named affected Bayesian families by reading the declared adj
 
 Two of the changed fits, `CA-007` and `CA-307`, are the two halves of a released phoneme-blending link pair, so the pair's published numbers rest on pre-quarantine data on both sides.
 
-The probe is `notes/assets/202608271400-erb-quarantine-impact.py`; re-run it after any loader change. The refits are tracked separately rather than folded into the 2026-08-27 closing pass — see `notes/202608271200-closing-584-588-residuals.md`.
+The probe is `notes/assets/202608271400-erb-quarantine-impact.py`; re-run it after any loader change. The refits are tracked separately rather than folded into the 2026-08-27 closing pass — see #635 and `notes/202608271200-closing-584-588-residuals.md`.
 
 ## Follow-up
 
