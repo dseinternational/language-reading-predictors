@@ -981,8 +981,17 @@ def test_the_recorded_simulation_settings_are_the_ones_the_g_formula_uses():
             "language_reading_predictors.statistical_models.pipelines.mediation"
         )
     )
-    recorded = source.count('"seed": _med.G_FORMULA_SEED')
+    recorded = source.count('"simulation": _simulation_record()')
     assert recorded == 3, (
         "each of the three mediation fit entry points must record the inner "
         f"simulation settings it ran with; found {recorded}"
     )
+
+    from language_reading_predictors.statistical_models.pipelines.mediation import (
+        _simulation_record,
+    )
+
+    assert _simulation_record() == {
+        "seed": med.G_FORMULA_SEED,
+        "replicates_per_draw": med.G_FORMULA_REPLICATES,
+    }
