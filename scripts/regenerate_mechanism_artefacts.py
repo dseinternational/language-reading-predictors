@@ -43,12 +43,15 @@ headline rather than silently restating the old number as a new estimand.
 delegating to ``regenerate_key_findings.py`` rather than duplicating its gate
 interlock.
 
-**What this script deliberately cannot fix.** Four models change their *fitted rows
-or specification* in this batch — mech-063, mech-163 (the ``pre_required`` contract),
-mech-158 (matched to mech-058) and mech-191 (restricted to on-intervention periods).
-Their stored posteriors were sampled on a different analysis frame, so no amount of
-post-processing makes them current: they are reported as ``needs refit`` and skipped,
-and the run exits non-zero so a sweep cannot look clean while leaving them stale.
+**What this script deliberately cannot fix.** A model whose *fitted rows or
+specification* moved has a stored posterior sampled on a different analysis frame, so
+no amount of post-processing makes it current: it is reported as ``needs refit`` and
+skipped, and the run exits non-zero so a sweep cannot look clean while leaving it
+stale. Four models were in that state for #586 — mech-063, mech-163 (the
+``pre_required`` contract), mech-158 (matched to mech-058) and mech-191 (restricted to
+on-intervention periods). All four were refit in the 2026-08-26 full-registry batch,
+so ``NEEDS_REFIT`` is now empty; the rebuilt-row-count check below catches the general
+case without anyone having to remember to maintain a list.
 
 The model is rebuilt from its spec **without sampling** so the prior writers have a
 PyMC graph to read, and the rebuilt frame's row count is checked against the stored
@@ -89,16 +92,19 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import (
 
 _console = Console()
 
-#: Models whose fitted rows or specification changed in #586. Post-processing a
-#: posterior sampled on the old frame would publish current-looking artefacts over a
-#: stale fit, which is worse than leaving the gap visible.
-NEEDS_REFIT: dict[str, str] = {
-    "lrp-rli-mech-063": "pre_required contract (#586 finding 4): 151 -> 155 rows",
-    "lrp-rli-mech-163": "pre_required contract (#586 finding 4): 151 -> 155 rows",
-    "lrp-rli-mech-158": "matched to mech-058 (#586 finding 5): outcomes, HSGP basis, "
-    "lengthscale prior",
-    "lrp-rli-mech-191": "on-intervention restriction (#586 finding 2): 156 -> 128 rows",
-}
+#: Model ids whose stored posterior is known to predate a change to their own fitted
+#: rows or specification, mapped to the reason. Entries here are refused before the
+#: rebuild, ahead of the row-count check, because a hand-known specification change
+#: (a different HSGP basis, say) need not move the row count at all.
+#:
+#: Empty is the correct steady state. It held the four #586 models until the
+#: 2026-08-26 full-registry batch refit them — mech-063/163 now fit 155 rows,
+#: mech-158 128 rows over 44 children and mech-191 128 over 52, each at the batch
+#: commit — and leaving them listed afterwards made the script report four false
+#: "needs refit" rows and exit non-zero over fits that were current (2026-08-27,
+#: closing #586). Add an entry only while a known change is unfitted, and remove it
+#: with the refit.
+NEEDS_REFIT: dict[str, str] = {}
 
 
 def _subdirs(root: Path) -> list[Path]:
