@@ -652,6 +652,32 @@ def test_load_and_prepare_aligned_requires_dose_when_requested(tmp_path):
     assert np.all(np.isfinite(prep.covariates["dose"]))
 
 
+def test_load_and_prepare_aligned_rejects_fractional_group_code(tmp_path):
+    """#631 finding 5: the aligned loader's per-child ``int(...)`` cast truncated
+    a raw 1.5 into the immediate arm; the raw codes must be validated first.
+    Constant within child so this isolates the raw-code validation."""
+    df = _make_synthetic_long(n_children=10, seed=24)
+    df[V.GROUP] = df[V.GROUP].astype(float)
+    df.loc[df[V.SUBJECT_ID] == "S000", V.GROUP] = 1.5
+    p = tmp_path / "rli_aligned_frac.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match=r"invalid group code\(s\).*1\.5"):
+        load_and_prepare_aligned(path=p)
+
+
+def test_load_and_prepare_aligned_rejects_group_flip_within_child(tmp_path):
+    """#631 finding 5: the aligned window (t1->t3 vs t2->t4) is chosen by the
+    child's arm, so a flipped code must fail loud rather than silently pairing
+    the wrong waves. Mirrors the #392 guard in ``load_and_prepare``."""
+    df = _make_synthetic_long(n_children=10, seed=25)
+    orig = int(df.loc[df[V.SUBJECT_ID] == "S000", V.GROUP].iloc[0])
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 3), V.GROUP] = 3 - orig
+    p = tmp_path / "rli_aligned_flip.csv"
+    df.to_csv(p, index=False)
+    with pytest.raises(ValueError, match="not constant"):
+        load_and_prepare_aligned(path=p)
+
+
 # ---------------------------------------------------------------------------
 # #258 review: constant covariates, and the pre/post wave split
 # ---------------------------------------------------------------------------

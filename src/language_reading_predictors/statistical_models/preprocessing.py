@@ -169,6 +169,29 @@ def _data_provenance(path: Path) -> tuple[str, str]:
     return str(resolved), digest.hexdigest()
 
 
+def read_source_csv(path: Path | str) -> pd.DataFrame:
+    """Read the archived long frame and apply the known-bad-cell quarantine.
+
+    Every statistical loader goes through here rather than calling
+    :func:`pandas.read_csv` directly, so a cell quarantined for the
+    gradient-boosting path is quarantined for the Bayesian fits too (#631
+    finding 3). Without this the corrupt ERB word-repetition value still
+    reached every fit adjusting for ``erbto`` — and ``LRP-RLI-PL-005``, where
+    it is the exposure itself. The archived CSV is never modified; the
+    quarantine sets the recorded cells to missing in the loaded frame, and the
+    families' own missing-data contracts take it from there.
+    """
+    from language_reading_predictors.data_utils import (
+        quarantine_known_bad_cells,
+        validate_erb_consistency,
+    )
+
+    frame = pd.read_csv(path)
+    quarantine_known_bad_cells(frame)
+    validate_erb_consistency(frame)
+    return frame
+
+
 #: Missing-indicator hearing-status covariates derived by :func:`add_hearing_status`
 #: (revised DAG 2026-07-10, #244): ``hs`` = impaired (1) vs clear (0, the reference,
 #: with unknown filled to it); ``hs_missing`` = 1 when hearing status is unknown.
@@ -527,7 +550,7 @@ def load_and_prepare(
 
     csv_path = Path(path) if path is not None else _default_data_path()
     data_path, data_sha256 = _data_provenance(csv_path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
     # Fail loud on source-key defects before any pre/post merge (#392): a duplicate
     # (subject_id, time) row is silently double-counted by the autoregressive inner
     # merge (a duplicated key fans into a cartesian product, over-weighting that
@@ -927,7 +950,7 @@ def load_and_prepare_lagged_outcome(
         pre_required=pre_required,
     )
     csv_path = Path(path) if path is not None else _default_data_path()
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
     col = MEASURES[outcome_symbol].column
     later = (
         df.loc[df[V.TIME] == outcome_time, [V.SUBJECT_ID, col]]
@@ -1128,7 +1151,7 @@ def load_and_prepare_aligned(
     outcomes = tuple(outcomes)
     csv_path = Path(path) if path is not None else _default_data_path()
     data_path, data_sha256 = _data_provenance(csv_path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
 
     # Fail loud on a duplicated (subject, time) key — ``pre.iloc[0]`` /
     # ``post.iloc[0]`` below would otherwise silently pick the first row
@@ -1142,6 +1165,25 @@ def load_and_prepare_aligned(
             }
         )
         raise ValueError(f"Duplicate (subject, time) rows in aligned source: {pairs}")
+
+    # #631 finding 5: the per-child ``int(...)`` cast below truncates towards
+    # zero, so validate the raw group codes first, and require within-child
+    # constancy — the aligned window (t1->t3 vs t2->t4) is chosen by the
+    # child's arm, so a flipped code would silently pair the wrong waves.
+    # Mirrors the #392 fail-loud guards in :func:`load_and_prepare`.
+    grp_nonnull = df.dropna(subset=[V.GROUP])
+    _validate_group_codes(
+        grp_nonnull[V.GROUP].to_numpy(dtype=float),
+        (1, 2),
+        "Aligned source has invalid group code(s)",
+    )
+    grp_n = grp_nonnull.groupby(V.SUBJECT_ID)[V.GROUP].nunique()
+    changed = sorted(str(s) for s in grp_n.index[grp_n > 1])
+    if changed:
+        raise ValueError(
+            "Aligned source has subjects whose randomised group is not constant "
+            f"across waves (time-invariant assignment violated): {changed}."
+        )
 
     windows = {1: (1, 3), 2: (2, 4)}  # group -> (onset pre_t, aligned post_t)
     out_cols = [MEASURES[s].column for s in outcomes]
@@ -1437,7 +1479,7 @@ def load_wave_panel(
     """
     csv_path = Path(path) if path is not None else _default_data_path()
     data_path, data_sha256 = _data_provenance(csv_path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
 
     waves = np.sort(df[V.TIME].dropna().unique()).astype(int)
     subject_ids = np.sort(df[V.SUBJECT_ID].unique())
@@ -1445,9 +1487,11 @@ def load_wave_panel(
     n_waves = int(waves.size)
 
     def _pivot(column: str) -> np.ndarray:
-        wide = df.pivot_table(
-            index=V.SUBJECT_ID, columns=V.TIME, values=column, aggfunc="first"
-        ).reindex(index=subject_ids, columns=waves)
+        # Duplicate-key fail-loud pivot (#631 finding 5): pivot_table's
+        # aggfunc="first" silently collapsed a duplicated child-wave row.
+        wide = _pivot_unique(df, V.SUBJECT_ID, V.TIME, column).reindex(
+            index=subject_ids, columns=waves
+        )
         return wide.to_numpy(dtype=float)
 
     counts: dict[str, np.ndarray] = {}
@@ -1458,6 +1502,12 @@ def load_wave_panel(
     for s in outcomes:
         m = MEASURES[s]
         c = _pivot(m.column)
+        # Bounded-count integrity on the observed cells (#631 finding 5): a
+        # fractional, negative or above-ceiling count previously flowed into a
+        # silent NaN logit / invalid likelihood instead of raising.
+        _validate_bounded_counts(
+            c, m.n_trials, f"Wave-panel measure {s!r} ({m.column})"
+        )
         present = ~np.isnan(c)
         lg = np.full_like(c, np.nan)
         lg[present] = logit_safe(c[present], m.n_trials)
@@ -1532,13 +1582,11 @@ def load_wave_panel(
                 f"Group is not constant within child for {inconsistent.tolist()}; "
                 "the randomised arm cannot change across waves."
             )
-        bad = sorted(set(group.astype(int)) - {1, 2})
-        if bad:
-            raise ValueError(
-                f"Unexpected group codes {bad}: the wave panel expects the RLI "
-                "coding 1 = immediate, 2 = waitlist."
-            )
-        group = group.astype(int)
+        # Validate the RAW codes before the int cast (#631 finding 5):
+        # ``astype(int)`` truncates, so a corrupt 1.5 previously became a
+        # valid-looking immediate-arm code. The helper raises on any code
+        # outside the RLI coding 1 = immediate, 2 = waitlist.
+        group = _validate_group_codes(group, (1, 2), "Unexpected group codes")
 
     # Per-wave state covariates, missing-indicator policy (fill to the whole-panel
     # mean + a {col}_missing indicator; see add_missing_indicator_covariates).
@@ -1570,9 +1618,7 @@ def load_wave_panel(
             )
         for col in ("hs", "hs_missing"):
             wide = (
-                hdf.pivot_table(
-                    index=V.SUBJECT_ID, columns=V.TIME, values=col, aggfunc="first"
-                )
+                _pivot_unique(hdf, V.SUBJECT_ID, V.TIME, col)
                 .reindex(index=subject_ids, columns=waves)
                 .to_numpy(dtype=float)
             )
@@ -1634,7 +1680,7 @@ def load_rlm_growth_panel(
     dataset, measures = resolve_dataset("rlm")
     csv_path = Path(path) if path is not None else Path(dataset.path)
     data_path, data_sha256 = _data_provenance(csv_path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
 
     if len(waves) < 2 or tuple(sorted(set(waves))) != waves:
         raise ValueError(
@@ -1718,13 +1764,11 @@ def load_rlm_growth_panel(
     for symbol in outcomes:
         measure = measures[symbol]
         values = outcome_wide[symbol].loc[subject_ids].to_numpy(dtype=float)
-        observed = values[np.isfinite(values)]
-        if observed.size and (
-            float(observed.min()) < 0 or float(observed.max()) > measure.n_trials
-        ):
-            raise ValueError(
-                f"Observed {symbol!r} falls outside 0..{measure.n_trials}."
-            )
+        # #631 finding 5: the previous guard checked the 0..n_trials range only,
+        # so a fractional count passed and was silently truncated downstream.
+        _validate_bounded_counts(
+            values, measure.n_trials, f"Observed RLM growth measure {symbol!r}"
+        )
         present = np.isfinite(values)
         transformed = np.full_like(values, np.nan)
         transformed[present] = logit_safe(values[present], measure.n_trials)
@@ -1737,11 +1781,13 @@ def load_rlm_growth_panel(
 
     baseline_raw = baseline_raw_all.loc[subject_ids].to_numpy(dtype=float)
     baseline_measure = measures[baseline_covariate]
-    if baseline_raw.min() < 0 or baseline_raw.max() > baseline_measure.n_trials:
-        raise ValueError(
-            f"Observed {baseline_covariate!r} falls outside "
-            f"0..{baseline_measure.n_trials}."
-        )
+    # #631 finding 5: integrality alongside the pre-existing bounds check — the
+    # baseline is a bounded count feeding a Haldane logit, like the outcomes.
+    _validate_bounded_counts(
+        baseline_raw,
+        baseline_measure.n_trials,
+        f"Observed RLM growth baseline {baseline_covariate!r}",
+    )
     baseline_input = (
         logit_safe(baseline_raw, baseline_measure.n_trials)
         if baseline_scale == "logit_safe"
@@ -1761,10 +1807,13 @@ def load_rlm_growth_panel(
     age_std, age_scaler = standardise(age_months)
 
     group_wide = _pivot(group_col).loc[subject_ids]
-    group = group_wide.bfill(axis=1).iloc[:, 0].to_numpy(dtype=int)
-    bad_groups = sorted(set(group) - set(dataset.group_labels))
-    if bad_groups:
-        raise ValueError(f"Unknown RLM reading-group code(s): {bad_groups}")
+    # #631 finding 5: validate the raw codes before the int cast —
+    # ``to_numpy(dtype=int)`` truncated a fractional code into a valid cohort.
+    group = _validate_group_codes(
+        group_wide.bfill(axis=1).iloc[:, 0].to_numpy(dtype=float),
+        tuple(dataset.group_labels),
+        "Unknown RLM reading-group code(s)",
+    )
 
     dose = np.zeros_like(age_months)
     missing_baseline = int((~baseline_ok).sum())
@@ -1912,6 +1961,92 @@ def _require_finite_integers(values, source, label: str) -> None:
         )
 
 
+def _validate_bounded_counts(arr, n_trials: int, label: str) -> None:
+    """Validate the non-missing cells of a bounded-count array (#631 finding 5).
+
+    Mirrors the strict :func:`load_and_prepare` guards, which the alternative
+    loaders had skipped: on the finite entries only — ``NaN`` cells stay the
+    loaders' documented missing-data state, exactly as on the strict path —
+    require exact integrality, a lower bound of zero and the measure's
+    ``n_trials`` ceiling. A fractional count would otherwise be silently
+    truncated by a downstream ``int`` cast, and a negative or above-ceiling
+    count produces an invalid likelihood or a silent NaN Haldane logit rather
+    than an error. Raises :class:`ValueError` naming ``label``.
+    """
+    values = np.asarray(arr, dtype=float)
+    finite = values[np.isfinite(values)]
+    if not finite.size:
+        return
+    if np.any(finite != np.rint(finite)):
+        invalid = np.unique(finite[finite != np.rint(finite)])
+        raise ValueError(
+            f"{label} must contain integer counts; found fractional value(s) "
+            f"{invalid.tolist()}"
+        )
+    if finite.min() < 0:
+        raise ValueError(
+            f"{label} has value {finite.min():g} below the valid lower bound 0; "
+            "check the source data."
+        )
+    if finite.max() > n_trials:
+        raise ValueError(
+            f"{label} has value {finite.max():g} above its n_trials ceiling "
+            f"{n_trials}; fix the measure registration or check the source data."
+        )
+
+
+def _validate_group_codes(raw, allowed: Iterable[int], label: str) -> np.ndarray:
+    """Validate raw group codes BEFORE any integer cast (#631 finding 5).
+
+    ``astype(int)`` / ``int(...)`` truncate towards zero, so a corrupt
+    fractional code such as 1.5 would silently become a valid-looking group;
+    validate the raw float values against ``allowed`` first, mirroring the
+    strict :func:`load_and_prepare` group guard. ``label`` starts the error
+    message so call sites keep their established phrasings. Returns the
+    validated codes as ``int64``.
+    """
+    values = np.asarray(raw, dtype=float)
+    allowed_codes = sorted(int(code) for code in allowed)
+    ok = np.isfinite(values) & np.isin(
+        values, tuple(float(code) for code in allowed_codes)
+    )
+    if not ok.all():
+        invalid = np.unique(values[~ok])
+        raise ValueError(
+            f"{label} {invalid.tolist()}: group codes must be exactly "
+            f"{allowed_codes}, validated on the raw values before any integer "
+            "cast."
+        )
+    return values.astype(np.int64)
+
+
+def _pivot_unique(
+    frame: pd.DataFrame, index: str, columns: str, values: str
+) -> pd.DataFrame:
+    """Fail-loud duplicate-key guard, then pivot (#631 finding 5).
+
+    ``pivot_table(aggfunc="first")`` silently collapses a duplicated
+    ``(index, columns)`` key to its first row, dropping the other observation
+    with no trace in the fitted panel. Check the keys first — reusing the #392
+    fail-loud message style from :func:`load_and_prepare` — then pivot on the
+    now-unique keys.
+    """
+    dup = frame.duplicated(subset=[index, columns], keep=False)
+    if dup.any():
+        keys = (
+            frame.loc[dup, [index, columns]]
+            .drop_duplicates()
+            .sort_values([index, columns])
+        )
+        pairs = ", ".join(f"{k}@t{t}" for k, t in keys.itertuples(index=False))
+        raise ValueError(
+            f"Source data has duplicate ({index}, {columns}) rows: {pairs}. "
+            "These would be silently collapsed by the wave pivot; fix the "
+            "source data."
+        )
+    return frame.pivot(index=index, columns=columns, values=values)
+
+
 def load_longitudinal_panel(
     dataset: DatasetSpec,
     measures: Sequence[StudyMeasure],
@@ -1945,7 +2080,7 @@ def load_longitudinal_panel(
             "(complete-case selection, counts and n_trials are all measure-keyed)."
         )
     csv_path = Path(path) if path is not None else Path(dataset.path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
 
     subj, wave_c, grp = dataset.subject_col, dataset.wave_col, dataset.group_col
     label_col = f"{grp}_label"
@@ -1987,9 +2122,11 @@ def load_longitudinal_panel(
     if complete_case:
         keep: pd.Index | None = None
         for m in measures:
-            wide = in_waves.pivot_table(
-                index=subj, columns=wave_c, values=m.column, aggfunc="first"
-            ).reindex(columns=list(waves))
+            # #631 finding 5: duplicate-guarded pivot — pivot_table's
+            # aggfunc="first" silently collapsed a duplicated child-wave row.
+            wide = _pivot_unique(in_waves, subj, wave_c, m.column).reindex(
+                columns=list(waves)
+            )
             complete = wide.dropna(subset=list(waves)).index
             keep = complete if keep is None else keep.intersection(complete)
         panel_df = in_waves[in_waves[subj].isin(keep)].copy()
@@ -2079,9 +2216,12 @@ def load_longitudinal_panel(
     obs_mask: dict[str, np.ndarray] = {}
     n_trials: dict[str, int] = {}
     for m in measures:
-        wide = panel_df.pivot_table(
-            index=subj, columns=wave_c, values=m.symbol, aggfunc="first"
-        ).reindex(index=subject_ids, columns=list(waves))
+        # #631 finding 5: duplicate-guarded pivot — the complete_case=False path
+        # previously had no duplicate check at all, so pivot_table's
+        # aggfunc="first" silently collapsed a duplicated child-wave row.
+        wide = _pivot_unique(panel_df, subj, wave_c, m.symbol).reindex(
+            index=subject_ids, columns=list(waves)
+        )
         arr = wide.to_numpy(dtype=float)
         counts[m.symbol] = arr
         obs_mask[m.symbol] = ~np.isnan(arr)
@@ -2257,7 +2397,13 @@ def _rlm_wave_wide(
             f"Duplicate rows for subjects {dupes} at wave {int(wave)}."
         )
     out = rows.set_index(subj)[[grp, *columns]].copy()
-    out[grp] = out[grp].astype(int)
+    # #631 finding 5: validate the raw codes before the int cast — ``astype(int)``
+    # truncated a fractional code into a valid-looking cohort.
+    out[grp] = _validate_group_codes(
+        out[grp].to_numpy(dtype=float),
+        tuple(dataset.group_labels),
+        f"Unknown RLM reading-group code(s) at wave {int(wave)}",
+    )
     return out
 
 
@@ -2283,7 +2429,7 @@ def load_rlm_concurrent_frames(
 
     dataset, measures = resolve_dataset("rlm")
     csv_path = Path(path) if path is not None else Path(dataset.path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
     requested = tuple(dict.fromkeys((outcome, *predictor_measures)))
     unknown = sorted(set(requested) - set(measures))
     if unknown:
@@ -2429,7 +2575,7 @@ def load_rlm_span_frame(
 
     dataset, measures = resolve_dataset("rlm")
     csv_path = Path(path) if path is not None else Path(dataset.path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
 
     if group_codes is None:
         selected_groups = tuple(sorted(dataset.group_labels))
@@ -2670,7 +2816,7 @@ def load_rlm_wave_battery(
 
     dataset, measures = resolve_dataset("rlm")
     csv_path = Path(path) if path is not None else Path(dataset.path)
-    df = pd.read_csv(csv_path)
+    df = read_source_csv(csv_path)
 
     for sym in measure_symbols:
         if sym not in measures:
@@ -2686,10 +2832,11 @@ def load_rlm_wave_battery(
     for sym in measure_symbols:
         m = measures[sym]
         observed = wide[sym].to_numpy()
-        if len(observed) and float(observed.max()) > m.n_trials:
-            raise ValueError(
-                f"Observed {sym!r} exceeds measure ceiling {m.n_trials}."
-            )
+        # #631 finding 5: the previous guard checked the upper ceiling only, so
+        # a negative or fractional score reached the Haldane logit unnoticed.
+        _validate_bounded_counts(
+            observed, m.n_trials, f"Observed RLM battery measure {sym!r}"
+        )
         z, _ = standardise(logit_safe(observed, m.n_trials))
         indicators[sym] = z
         labels[sym] = m.label

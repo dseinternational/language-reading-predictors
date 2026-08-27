@@ -27,9 +27,14 @@ The single randomised quantity is then the **t2 change** ``d_grp_time[t2]`` -- a
 difference-in-differences of adjusted levels, read as an items- or
 risk-difference average marginal effect at the t2 rows. ``arm_gap_reference="free"``
 keeps the former parameterisation (a free per-timepoint vector whose t2 element
-``b_grp_time[1]`` is the focal raw gap) as an explicit comparator. Either way the
-other waves are post-crossover and every ability / interaction term is a
-latent-ability-confounded **adjusted association**, never a causal effect.
+``b_grp_time[1]`` is the focal raw gap) as an explicit comparator. Either way only
+the t2 change is a treated-versus-untreated effect: the t3/t4 changes are also
+identified by the original randomisation -- contrasts of the early-start versus
+delayed-start treatment schedule, both arms having been taught -- but they are not
+treated-versus-untreated effects and carry no mechanistic reading (duration,
+carryover, maturation and ceilings are inseparable), so they are reported as
+randomised schedule contrasts; every ability / interaction term is a
+latent-ability-confounded **adjusted association**, never a causal effect (#631).
 
 The natural-scale target -- open through #389 finding 1 and #584 finding 1 -- was
 settled on 2026-08-23 (``notes/202608231800-level-factors-584-decisions.md``): the
@@ -102,8 +107,9 @@ LEVEL_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-lf-006"
 LEVEL_BLENDING_COMPANION_MODEL_ID = "lrp-rli-lf-106"
 
 #: Labels of the post-t1 waves whose arm-gap *changes* ``d_grp_time`` carries
-#: (the ``post_phase`` coordinate): t2 is the randomised contrast, t3 / t4 are
-#: post-crossover associations. A two-wave comparator (#584 decision 3) carries
+#: (the ``post_phase`` coordinate): t2 is the randomised treated-versus-untreated
+#: contrast, t3 / t4 the randomised early-start-versus-delayed-start schedule
+#: contrasts (#631). A two-wave comparator (#584 decision 3) carries
 #: only ``("t2",)``; :meth:`LevelFactorsRunPlan.post_phase_labels` derives the
 #: right subset from the declared analysis window.
 POST_PHASE_LABELS: tuple[str, ...] = ("t2", "t3", "t4")
@@ -598,9 +604,24 @@ class LevelFactorsRunPlan:
         ``balance`` role by element label (2026-08-20 review, finding 9).
         ``balance_terms`` itself stays t1-reference-only because its other
         consumers (the forest / psense variable lists) need whole variable
-        names, not indexed elements."""
+        names, not indexed elements.
+
+        Under the t1 reference the post-t2 arm-gap changes take the DiD family's
+        ``regime`` role by element label (#631 finding 13): ``d_grp_time[t3]`` /
+        ``[t4]`` are identified by the original randomisation, but as contrasts
+        of the early-start versus delayed-start treatment schedule — not
+        treated-versus-untreated effects, and not latent-ability-confounded
+        adjusted associations."""
         roles = {t: "balance" for t in self.balance_terms}
         roles.update({t: "levels_view" for t in self.levels_view_terms})
+        if self.t1_referenced:
+            roles.update(
+                {
+                    f"d_grp_time[{label}]": "regime"
+                    for label in self.post_phase_labels
+                    if label != "t2"
+                }
+            )
         if self.group_by_time and not self.t1_referenced:
             roles["b_grp_time[0]"] = "balance"
         return roles
@@ -997,16 +1018,40 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
             "adjusted association."
         )
     else:
+        # #631 finding 13: the t3/t4 sentences are gated on the four-wave window
+        # so a two-wave comparator's plan never names coefficients its posterior
+        # lacks.
         estimand = (
             f"The t2 randomised group contrast -- {contrast_clause} -- "
-            f"{scale_clause}. The other waves are post-crossover; ability and "
-            f"interaction terms are adjusted associations.{review_clause}"
+            f"{scale_clause}."
+            + (
+                " The t3/t4 changes are randomised "
+                "early-start-versus-delayed-start schedule contrasts, not "
+                "treated-versus-untreated effects."
+                if model_of_record_window
+                else ""
+            )
+            + " Ability and interaction terms are adjusted "
+            f"associations.{review_clause}"
         )
         causal_status = (
-            "Only the t2 group term is randomised (a contrast on the available-case "
-            "t2 population); the other timepoints are post-crossover and every "
-            "ability and group x ability term is a latent-ability-confounded "
-            "adjusted association, never a causal effect."
+            "Only the t2 group term is the randomised treated-versus-untreated "
+            "effect (a contrast on the available-case t2 population)."
+            + (
+                " The t3/t4 group terms are also identified by the original "
+                "randomisation -- early-start versus delayed-start "
+                "treatment-schedule contrasts, both arms having been taught, "
+                "under the same available-case and model assumptions; they are "
+                "not treated-versus-untreated effects and carry no mechanistic "
+                "reading (duration, carryover, maturation and ceilings are "
+                "inseparable), so they are reported as randomised schedule "
+                "contrasts, not as adjusted associations."
+                if model_of_record_window
+                else ""
+            )
+            + " Every ability and group x ability term is a "
+            "latent-ability-confounded adjusted association, never a causal "
+            "effect."
             + (
                 " The t1 arm gap is a pre-randomisation balance quantity, reported "
                 "with its own prior and never as an effect."

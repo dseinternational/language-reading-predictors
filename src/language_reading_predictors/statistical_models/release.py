@@ -1271,11 +1271,15 @@ def _mediation_t3_release_failures(
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Fail-closed computation and artefact checks for the mediation t3 fit.
 
-    Natural single-mediator fits without a longitudinal primary estimand always
-    run this temporal-ordering sensitivity.  Its posterior bypasses the primary
-    ``diagnostics_summary.json`` gate, so release requires a checked, converged
-    provenance row, a concordant summary table and the persisted sub-fit trace.
-    Interventional companions and already-longitudinal primaries do not run it.
+    Single-mediator fits without a longitudinal primary estimand always run
+    this temporal-ordering sensitivity — the interventional companions included,
+    since #585 finding 2 made them run the same fit under their own labels
+    (#631 finding 9 closed the release-side exemption that outlived it).  Its
+    posterior bypasses the primary ``diagnostics_summary.json`` gate, so release
+    requires a checked, converged provenance row, a concordant summary table and
+    the persisted sub-fit trace.  Already-longitudinal primaries and the
+    period-stacked entry point (whose ``extra`` carries no estimand) do not run
+    it and stay exempt.
 
     The two returned tuples preserve the release-stage contract. A present but
     failed or unchecked convergence verdict is a computation failure; a missing,
@@ -1288,7 +1292,7 @@ def _mediation_t3_release_failures(
     if not isinstance(extra, Mapping):
         return (), ("config.json (mediation t3 configuration is unreadable)",)
     required = (
-        extra.get("estimand") == "natural"
+        extra.get("estimand") in ("natural", "interventional")
         and extra.get("outcome_time") is None
     )
     if not required:
@@ -1478,6 +1482,199 @@ def _joint_mechanism_wave_release_failures(
         _joint_mechanism_coverage_qualifications(output_dir, diagnostics)
     )
     return tuple(computation), tuple(sorted(set(artefacts))), tuple(qualifications)
+
+
+def _concurrent_published_fit_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Fail-closed convergence check for every fit a concurrent run publishes.
+
+    The concurrent family publishes one adjusted posterior per wave plus a
+    single-skill posterior per wave-by-predictor cell, but only the anchor wave
+    passes through the fit-level gate. The pipeline computed
+    ``all_published_fits_converged`` and nothing ever read it back (#631
+    finding 6), so ``release_decision.json`` could say "ok" while displayed rows
+    carried ``converged=False`` — the same class of defect the #591
+    joint-mechanism remediation closed for its wave sub-fits.
+
+    A missing or column-incomplete ``concurrent_fit_diagnostics.csv`` is an
+    artefact failure; a published row whose verdict failed or was never taken is
+    a computation failure, exactly as the primary gate treats the anchor.
+    """
+    if config.get("kind") != "concurrent":
+        return (), ()
+    diagnostics = _read_csv(output_dir, "concurrent_fit_diagnostics.csv")
+    if diagnostics is None or diagnostics.empty:
+        return (), ("concurrent_fit_diagnostics.csv",)
+    required_columns = ("timepoint", "fit_kind", "predictor", "converged")
+    missing_columns = [c for c in required_columns if c not in diagnostics.columns]
+    if missing_columns:
+        return (
+            (),
+            (
+                "concurrent_fit_diagnostics.csv (no "
+                f"{', '.join(missing_columns)} column)",
+            ),
+        )
+    computation: list[str] = []
+    for _, row in diagnostics.iterrows():
+        if _stored_bool(row.get("converged")) is not True:
+            computation.append(
+                f"concurrent published fit t{str(row['timepoint']).strip()} "
+                f"{str(row['fit_kind']).strip()} {str(row['predictor']).strip()} "
+                "failed or was not convergence-checked"
+            )
+    return tuple(computation), ()
+
+
+def _adjusted_ses_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Fail-closed check for the SES refit an RLI adjusted fit promises.
+
+    The resolved recipe declares the SES complete-case sensitivity as a required
+    check, but the pipeline catches every exception in that leg and continues,
+    recording the failure only as ``extra["ses_error"]`` — which nothing read
+    back, so the fit could publish with the section silently absent (#631
+    finding 7). Scope: the ``ses_error`` key is written (null on success)
+    exactly by the RLI entry point that promises the refit; the Byrne/RLM
+    adjusted fits carry no such key and stay exempt.
+
+    A recorded error or a missing/invalid ``ses_sensitivity.csv`` is an artefact
+    failure; a present summary whose convergence failed or was unchecked is a
+    computation failure — the same boundary the mediation t3 check draws.
+    """
+    if config.get("kind") != "adjusted":
+        return (), ()
+    extra = config.get("extra") or {}
+    if not isinstance(extra, Mapping):
+        return (), ("config.json (adjusted configuration is unreadable)",)
+    if "ses_error" not in extra:
+        return (), ()
+    ses_error = extra.get("ses_error")
+    if ses_error:
+        return (
+            (),
+            (f"ses_sensitivity.csv (SES sensitivity refit failed: {ses_error})",),
+        )
+    summary = _read_csv(output_dir, "ses_sensitivity.csv")
+    if summary is None or summary.empty:
+        return (), ("ses_sensitivity.csv",)
+    if "converged" not in summary.columns:
+        return (), ("ses_sensitivity.csv (no convergence column)",)
+    if not all(
+        _stored_bool(value) is True for value in summary["converged"].tolist()
+    ):
+        return (
+            ("adjusted SES sensitivity convergence failed or was unchecked",),
+            (),
+        )
+    return (), ()
+
+
+def _gain_period1_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """Fail-closed check for the mandatory gain-factors period-1-only refit.
+
+    The recipe declares the period-1-only refit sensitivity mandatory for every
+    model of record (`period1_sensitivity_required`), and the pipeline records
+    its convergence verdict and headline shift — but release evaluation consumed
+    none of it (#631 finding 8), so a fit whose mandatory sensitivity failed or
+    never ran still published. Opt-in on the recorded plan flag, so stored fits
+    predating the field re-decide unchanged (the growth-influence precedent).
+
+    Returns ``(computation, artefacts, robustness)``:
+
+    * **artefacts** — a missing or malformed ``period1_sensitivity.csv`` (it must
+      carry exactly one ``primary_period_stacked`` and one ``period1_only`` row
+      with the headline columns) or a missing persisted sub-fit trace.
+    * **computation** — a ``period1_only`` convergence verdict that failed or was
+      never taken.
+    * **robustness** — material disagreement between the stacked primary and the
+      period-1-only refit. The documented rule (#631 finding 8) mirrors the
+      growth-influence policy: the fit is withheld at the robustness stage when
+      the two ``beta_trt`` posterior medians disagree in sign or the two 89%
+      intervals fail to overlap; anything milder is left to the report's own
+      side-by-side table.
+    """
+    if config.get("kind") != "gain_factors":
+        return (), (), ()
+    plan = config.get("resolved_run_plan") or {}
+    if not isinstance(plan, Mapping) or not plan.get("period1_sensitivity_required"):
+        return (), (), ()
+
+    summary = _read_csv(output_dir, "period1_sensitivity.csv")
+    if summary is None or summary.empty:
+        return (), ("period1_sensitivity.csv",), ()
+    required_columns = (
+        "fit",
+        "beta_trt_median",
+        "beta_trt_lo",
+        "beta_trt_hi",
+        "converged",
+    )
+    missing_columns = [c for c in required_columns if c not in summary.columns]
+    if missing_columns:
+        return (
+            (),
+            (
+                "period1_sensitivity.csv (no "
+                f"{', '.join(missing_columns)} column)",
+            ),
+            (),
+        )
+    fits = summary["fit"].astype(str).str.strip()
+    primary_rows = summary.loc[fits == "primary_period_stacked"]
+    refit_rows = summary.loc[fits == "period1_only"]
+    if len(primary_rows) != 1 or len(refit_rows) != 1:
+        return (
+            (),
+            (
+                "period1_sensitivity.csv (no unique primary_period_stacked / "
+                "period1_only row pair)",
+            ),
+            (),
+        )
+    artefacts: list[str] = []
+    if not (output_dir / "trace_period1_only.nc").is_file():
+        artefacts.append("trace_period1_only.nc")
+
+    computation: list[str] = []
+    refit = refit_rows.iloc[0]
+    if _stored_bool(refit.get("converged")) is not True:
+        computation.append(
+            "the mandatory gain-factors period-1-only refit sensitivity failed "
+            "or was not convergence-checked"
+        )
+
+    robustness: list[str] = []
+    primary = primary_rows.iloc[0]
+    try:
+        medians = (
+            float(primary["beta_trt_median"]),
+            float(refit["beta_trt_median"]),
+        )
+        intervals = (
+            (float(primary["beta_trt_lo"]), float(primary["beta_trt_hi"])),
+            (float(refit["beta_trt_lo"]), float(refit["beta_trt_hi"])),
+        )
+    except (TypeError, ValueError):
+        artefacts.append("period1_sensitivity.csv (non-numeric headline columns)")
+    else:
+        if not all(np.isfinite(v) for v in (*medians, *intervals[0], *intervals[1])):
+            artefacts.append("period1_sensitivity.csv (non-finite headline columns)")
+        else:
+            direction_stable = np.sign(medians[0]) == np.sign(medians[1])
+            overlap = max(intervals[0][0], intervals[1][0]) <= min(
+                intervals[0][1], intervals[1][1]
+            )
+            if not (direction_stable and overlap):
+                robustness.append(
+                    "the period-1-only refit materially disagrees with the "
+                    "stacked primary (beta_trt direction or 89% interval overlap)"
+                )
+    return tuple(computation), tuple(artefacts), tuple(robustness)
 
 
 def _joint_mechanism_coverage_qualifications(
@@ -3676,6 +3873,17 @@ def evaluate_publication(
     itt_missingness_gate_failures, itt_missingness_artifact_failures = (
         _itt_missingness_release_failures(output_dir, config)
     )
+    concurrent_gate_failures, concurrent_artifact_failures = (
+        _concurrent_published_fit_release_failures(output_dir, config)
+    )
+    adjusted_ses_gate_failures, adjusted_ses_artifact_failures = (
+        _adjusted_ses_release_failures(output_dir, config)
+    )
+    (
+        gain_p1_gate_failures,
+        gain_p1_artifact_failures,
+        gain_p1_robustness_failures,
+    ) = _gain_period1_release_failures(output_dir, config)
     (
         jm_wave_gate_failures,
         jm_wave_artifact_failures,
@@ -3705,6 +3913,9 @@ def evaluate_publication(
                 *growth_gate_failures,
                 *itt_missingness_gate_failures,
                 *jm_wave_gate_failures,
+                *concurrent_gate_failures,
+                *adjusted_ses_gate_failures,
+                *gain_p1_gate_failures,
             }
         )
     )
@@ -3728,6 +3939,9 @@ def evaluate_publication(
                 *growth_artifact_failures,
                 *itt_missingness_artifact_failures,
                 *jm_wave_artifact_failures,
+                *concurrent_artifact_failures,
+                *adjusted_ses_artifact_failures,
+                *gain_p1_artifact_failures,
                 *_recorded_required_artifacts(output_dir, artifacts),
             }
         )
@@ -3747,6 +3961,7 @@ def evaluate_publication(
 
     robustness_failures = (
         *growth_robustness_failures,
+        *gain_p1_robustness_failures,
         *_blending_pair_release_failures(output_dir, config),
     )
     if robustness_failures:

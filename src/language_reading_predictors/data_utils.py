@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 
+import warnings
+
 import numpy as np
 import pandas as pd
 
@@ -12,12 +14,120 @@ from language_reading_predictors.data_variables import Categories as cats
 
 DEFAULT_GROUPKFOLD_SPLITS = 5
 
+# Known-corrupt source cells quarantined to missing at load (#631 finding 3).
+# Provenance: notes/202608262120-erb-word-repetition-quarantine-631.md.
+#
+# The t4 ERB word-repetition row for ID_FDCBDCF29AC0BF03 records erbword=28,
+# erbnw=14, erbto=14 — the sole violation of the additivity identity
+# erbto == erbword + erbnw, which holds exactly on the other 201 of 202
+# complete rows, and erbword's maximum on every other row is 18. A word/total
+# transposition (erbword=14, erbto=28) is plausible but cannot be verified from
+# this checkout, so per the #631 decision rule the affected cells are recorded
+# as missing pending source-archive verification — never guessed. erbnw=14 is
+# consistent under both readings and is kept. The child's t3 row repeats the
+# corrupt value through the derived erbword/erbto ``_next`` and ``_gain``
+# columns, so those cells are quarantined with it.
+#
+# Each entry is (subject_id, time, columns-to-set-missing). This list is the
+# single sanctioned bypass of :func:`validate_erb_consistency`.
+KNOWN_BAD_CELLS: tuple[tuple[str, int, tuple[str, ...]], ...] = (
+    ("ID_FDCBDCF29AC0BF03", 4, (vars.ERBWORD, vars.ERBTO)),
+    (
+        "ID_FDCBDCF29AC0BF03",
+        3,
+        (vars.ERBWORD_NEXT, vars.ERBWORD_GAIN, vars.ERBTO_NEXT, vars.ERBTO_GAIN),
+    ),
+)
+
+
+def quarantine_known_bad_cells(df: pd.DataFrame) -> None:
+    """Set the :data:`KNOWN_BAD_CELLS` entries to missing, in place.
+
+    Emits a single warning naming the quarantined cells and the provenance note
+    (notes/202608262120-erb-word-repetition-quarantine-631.md) so no analysis
+    consumes the corrupt values silently.
+    """
+    quarantined: list[str] = []
+    for subject, time, columns in KNOWN_BAD_CELLS:
+        row_mask = (df[vars.SUBJECT_ID] == subject) & (df[vars.TIME] == time)
+        for col in columns:
+            if col not in df.columns:
+                continue
+            hit = row_mask & df[col].notna()
+            if hit.any():
+                df.loc[hit, col] = pd.NA
+                quarantined.append(f"{col}@t{time}")
+    if quarantined:
+        warnings.warn(
+            "quarantined known-bad cell(s) to missing pending "
+            f"source-archive verification (#631 finding 3): {', '.join(quarantined)} "
+            f"for {KNOWN_BAD_CELLS[0][0]}. See "
+            "notes/202608262120-erb-word-repetition-quarantine-631.md.",
+            stacklevel=3,
+        )
+
+
+def validate_erb_consistency(df: pd.DataFrame) -> None:
+    """Fail loud on any NEW ERB word/nonword-repetition inconsistency.
+
+    On rows where all three ERB columns are present, require the additivity
+    identity ``erbword + erbnw == erbto``, non-negative values, and the
+    observed-maximum soft caps ``erbword <= 18``, ``erbnw <= 18``,
+    ``erbto <= 36`` (the caps are observed maxima pending documentation of the
+    ERB test ceilings — not confirmed denominators). :data:`KNOWN_BAD_CELLS` is
+    the single sanctioned bypass: cells named there are set to missing by the
+    quarantine before this check runs, and any surviving violation raises,
+    naming the subject and time.
+    """
+    cols = (vars.ERBWORD, vars.ERBNW, vars.ERBTO)
+    if any(c not in df.columns for c in cols):
+        return
+    word, nw, total = (
+        pd.to_numeric(df[c], errors="coerce").astype("float64") for c in cols
+    )
+    present = word.notna() & nw.notna() & total.notna()
+    violates = present & (
+        (word + nw != total)
+        | (word < 0)
+        | (nw < 0)
+        | (total < 0)
+        | (word > 18)
+        | (nw > 18)
+        | (total > 36)
+    )
+    known = {(subject, time) for subject, time, _ in KNOWN_BAD_CELLS}
+    is_known = pd.Series(
+        [
+            (subject, time) in known
+            for subject, time in zip(
+                df[vars.SUBJECT_ID], df[vars.TIME], strict=True
+            )
+        ],
+        index=df.index,
+    )
+    new_violations = violates & ~is_known
+    if new_violations.any():
+        rows = df.loc[new_violations, [vars.SUBJECT_ID, vars.TIME]]
+        pairs = ", ".join(f"{s}@t{t}" for s, t in rows.itertuples(index=False))
+        raise ValueError(
+            "ERB word/nonword repetition inconsistency (erbword + erbnw != "
+            "erbto, a negative value, or a value above the observed-maximum "
+            f"caps 18/18/36) at: {pairs}. Verify the cell(s) against the source "
+            "archive; the single sanctioned bypass is data_utils.KNOWN_BAD_CELLS "
+            "(see notes/202608262120-erb-word-repetition-quarantine-631.md)."
+        )
+
 
 def load_data() -> pd.DataFrame:
     data_path = (
         Path(__file__).resolve().parent.parent.parent / "data" / "rli_data_long.csv"
     )
     df = pd.read_csv(data_path).convert_dtypes()
+    # Known-corrupt cells go to missing before any dtype/derivation step, and the
+    # ERB integrity check then guards against any new violation slipping in
+    # (#631 finding 3; notes/202608262120-erb-word-repetition-quarantine-631.md).
+    quarantine_known_bad_cells(df)
+    validate_erb_consistency(df)
     configure_data_types(df)
     add_intervention_schema(df)
     _broadcast_baseline_blocks(df)

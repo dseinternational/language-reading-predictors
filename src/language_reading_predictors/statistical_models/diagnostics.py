@@ -221,7 +221,7 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
     """
     constant = getattr(trace, "constant_data", None)
     log_likelihood = getattr(trace, "log_likelihood", None)
-    if constant is None or log_likelihood is None or "y_post" not in log_likelihood:
+    if constant is None or log_likelihood is None:
         return None
     if "loo_child_idx" in constant:
         map_name = "loo_child_idx"
@@ -231,7 +231,23 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
         aggregation = "sum over observed outcomes"
     else:
         return None
-    ll = log_likelihood["y_post"]
+    node = "y_post" if "y_post" in log_likelihood else None
+    if node is None and map_name == "loo_child_idx":
+        # The explicit map is not tied to the ``y_post`` node name: the survival
+        # family persists it against ``y_event`` (#631 finding 14). Accept the
+        # unique single-observation-dimension likelihood variable whose length
+        # matches the map; anything ambiguous falls back to row-level LOO.
+        n_rows = int(np.asarray(constant[map_name].values).ravel().size)
+        candidates = []
+        for name, var in log_likelihood.data_vars.items():
+            obs_dims = [d for d in var.dims if d not in {"chain", "draw"}]
+            if len(obs_dims) == 1 and var.sizes[obs_dims[0]] == n_rows:
+                candidates.append(name)
+        if len(candidates) == 1:
+            node = candidates[0]
+    if node is None:
+        return None
+    ll = log_likelihood[node]
     unit_dims = [d for d in ll.dims if d not in {"chain", "draw"}]
     if len(unit_dims) != 1:
         raise ValueError(
@@ -815,6 +831,11 @@ def gate_derived_estimands(
     deliberately NOT gated — it is a ratio that is unstable by construction
     whenever the total effect can cross zero, and the reports already say so.
 
+    Callers must pass the exact quantities the fit produced (#631 finding 10):
+    a requested name the summary lacks, or one it carries more than once, is a
+    failure in its own right, so an empty or truncated summary can never record
+    a passing check.
+
     Failures are written into ``diagnostics_summary.json`` under ``checks`` and
     flip ``passed``; ``reporting.convergence_gate_failures`` fails closed on any
     non-``True`` check, so the release gate picks this up without further wiring.
@@ -826,13 +847,16 @@ def gate_derived_estimands(
     with open(path, encoding="utf-8") as handle:
         payload = json.load(handle)
 
+    quantities = tuple(quantities)
     wanted = set(quantities)
     failures: list[str] = []
     records: list[dict] = []
+    seen: dict[str, int] = {}
     for row in summary.to_dict("records"):
         name = row.get("quantity")
         if name not in wanted:
             continue
+        seen[name] = seen.get(name, 0) + 1
         ess_bulk = float(row.get("ess_bulk", float("nan")) or float("nan"))
         ess_tail = float(row.get("ess_tail", float("nan")) or float("nan"))
         mcse = float(row.get("mcse_median", float("nan")) or float("nan"))
@@ -858,6 +882,14 @@ def gate_derived_estimands(
         )
         if not ok:
             failures.append(name)
+
+    # The scan above only sees rows that exist: without these two checks an
+    # empty or truncated summary passes vacuously (#631 finding 10).
+    for name in quantities:
+        if seen.get(name, 0) == 0:
+            failures.append(f"{name} (missing)")
+        elif seen[name] > 1:
+            failures.append(f"{name} (duplicated)")
 
     payload.setdefault("checks", {})[label] = not failures
     payload[f"{label}_detail"] = records

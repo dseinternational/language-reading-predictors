@@ -26,8 +26,10 @@ a genuine location check — this fit's intercept was *not* told where the data
 are, which is exactly the limitation #481's note records for the anchored fits.
 
 Same reading rules as LRPDID01: ``tau_t2`` is the clean randomised t2 contrast;
-``arm_gap_t1`` is a baseline-balance quantity; ``arm_gap_t3`` and the crossover
-contrast are post-crossover associations.
+``arm_gap_t1`` is a baseline-balance quantity; ``arm_gap_t3`` is the randomised
+early-start-versus-delayed-start schedule contrast and ``delta_crossover`` the
+change between the two randomised regime contrasts, neither of them
+mechanism-identified.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -44,7 +46,7 @@ SPEC = ModelSpec(
     family="did",
     design="waitlist-crossover arm-by-wave levels",
     estimand_type="mixed",
-    causal_status="t2 randomised; post-crossover contrasts associational",
+    causal_status="t2 randomised; t3 a randomised treatment-schedule contrast",
     extra={
         # Identical to LRPDID01 in every respect except the intercept prior.
         "outcomes": ("W",),

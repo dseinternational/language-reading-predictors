@@ -273,8 +273,13 @@ arm-by-time vector is centred on the timepoint-1 arm gap (#552): `arm_gap_t1` is
 covariate-adjusted pre-randomisation balance quantity (reported, never an effect) and
 `d_grp_time[t]` the change in that gap at each later wave, with the per-wave levels view
 `b_grp_time[t]` kept as a derived quantity. Only the t2 change `d_grp_time[t2]` — a
-difference-in-differences of adjusted levels — is a clean randomised effect; later
-timepoints are post-crossover and flagged as associations. `arm_gap_reference="free"`
+difference-in-differences of adjusted levels — is the randomised treated-versus-untreated
+effect. The t3/t4 changes are also identified by the original randomisation — contrasts of
+the early-start versus delayed-start treatment schedule, both arms having been taught —
+under the same available-case and model assumptions; they are not treated-versus-untreated
+effects and carry no mechanistic reading (duration, carryover, maturation and ceilings are
+inseparable), so they are reported as randomised schedule contrasts (role `regime`), not as
+adjusted associations. `arm_gap_reference="free"`
 retains the pre-#552 free per-timepoint vector (focal `b_grp_time[1]`) as an explicit
 comparator. Each outcome carries the same revised-DAG exogenous confounders
 (`adjust_for`: hearing/speech/phonological memory) as its gain-factor sibling, but **no**
@@ -302,30 +307,30 @@ Dose variants retain the P1/P2 transition frame, adjust for randomised arm, the 
 
 The current design decision is `notes/202607151800-did-arm-wave-redesign.md`; it supersedes the historical restricted-model decision in `notes/202606260702-did-crossover-design.md`. The 2026-08-24 review remediation is `notes/202608241100-did-t2-estimand-signoff.md` and `notes/202608241130-did-family-576-remediation.md`.
 
-| Model             | Outcome | Purpose                                                                                                                                                        |
-| ----------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `lrp-rli-did-001` | `W`     | Arm-by-wave word-reading sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                     |
-| `lrp-rli-did-002` | `L`     | Arm-by-wave letter-sound sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                     |
-| `lrp-rli-did-003` | `B`     | Arm-by-wave phoneme-blending sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                 |
-| `lrp-rli-did-004` | `TE`    | Arm-by-wave taught-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                     |
-| `lrp-rli-did-005` | `R`     | Arm-by-wave receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                             |
-| `lrp-rli-did-006` | `W`     | P1/P2 transition model with separate treatment-presence and pooled observational session-dose terms                                                            |
-| `lrp-rli-did-007` | `L`     | P1/P2 transition model with observational period-resolved session-dose slopes; `lrp-rli-did-107` is its pooled comparator                                      |
-| `lrp-rli-did-008` | `TR`    | Arm-by-wave taught-receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                      |
-| `lrp-rli-did-009` | `E`     | Arm-by-wave standardised-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                               |
-| `lrp-rli-did-010` | `F`     | Arm-by-wave basic-concepts sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                   |
-| `lrp-rli-did-011` | `P`     | Arm-by-wave phonetic-spelling sensitivity on period-end off-floor prevalence                                                                                   |
-| `lrp-rli-did-012` | `N`     | Arm-by-wave nonword-reading sensitivity on period-end off-floor prevalence                                                                                     |
-| `lrp-rli-did-013` | `W`     | Exploratory waitlist-t3 catch-up heterogeneity; the variance component conflates response, maturation, history and noise                                       |
-| `lrp-rli-did-014` | `EI`    | Arm-by-wave APT expressive-information sensitivity (doubled half-mark scale); randomised t2 contrast plus post-crossover contrasts                             |
-| `lrp-rli-did-015` | `EG`    | Arm-by-wave APT expressive-grammar sensitivity; randomised t2 contrast plus post-crossover contrasts                                                           |
-| `lrp-rli-did-101` | `W`     | Independent-prior intercept sensitivity for `lrp-rli-did-001`: the empirical-Bayes t1 anchor replaced with a free zero-centred intercept (#390 P1 condition 1) |
-| `lrp-rli-did-102` | `L`     | Wide-`tau_t2` prior sensitivity for `lrp-rli-did-002`: the causal contrast's prior widened from the tier Normal(0, 0.5) to Normal(0, 1) (#382 rec 3)           |
-| `lrp-rli-did-103` | `B`     | Mandatory response-link twin of `lrp-rli-did-003`: the three-choice guessing-floor score mean `1/3 + 2/3·logit⁻¹(η)`; neither fit releases alone (#576)        |
-| `lrp-rli-did-104` | `W`     | Baseline-allocation prior sensitivity for `lrp-rli-did-001`: `arm_gap_t1` 0.3 → 1.0 and `sigma_child` 0.5 → 1.0, with `tau_t2` held at its tier prior (#576)   |
-| `lrp-rli-did-105` | `F`     | Dispersion-prior sensitivity for `lrp-rli-did-010` at a **low** (18-item) denominator: `1/√κ ~ HalfNormal(0.25)` instead of `κ ~ HalfNormal(50)` (#576)        |
-| `lrp-rli-did-106` | `R`     | Dispersion-prior sensitivity for `lrp-rli-did-005` at a **high** (170-item) denominator, where the concentration prior floors over-dispersion at ≈5.9× (#576)  |
-| `lrp-rli-did-107` | `L`     | Pooled-dose LOO comparator for `lrp-rli-did-007`: one session slope instead of two period-resolved ones                                                        |
+| Model             | Outcome | Purpose                                                                                                                                                                                                                               |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `lrp-rli-did-001` | `W`     | Arm-by-wave word-reading sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                                            |
+| `lrp-rli-did-002` | `L`     | Arm-by-wave letter-sound sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                                            |
+| `lrp-rli-did-003` | `B`     | Arm-by-wave phoneme-blending sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                                        |
+| `lrp-rli-did-004` | `TE`    | Arm-by-wave taught-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                            |
+| `lrp-rli-did-005` | `R`     | Arm-by-wave receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                                    |
+| `lrp-rli-did-006` | `W`     | P1/P2 transition model with the saturated arm-by-period cell structure (`theta_treated` the crossover cell contrast at the mean treated dose, not an isolated treatment-presence effect) and a pooled observational session-dose term |
+| `lrp-rli-did-007` | `L`     | P1/P2 transition model with observational period-resolved session-dose slopes; `lrp-rli-did-107` is its pooled comparator                                                                                                             |
+| `lrp-rli-did-008` | `TR`    | Arm-by-wave taught-receptive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                             |
+| `lrp-rli-did-009` | `E`     | Arm-by-wave standardised-expressive-vocabulary sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                      |
+| `lrp-rli-did-010` | `F`     | Arm-by-wave basic-concepts sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                                          |
+| `lrp-rli-did-011` | `P`     | Arm-by-wave phonetic-spelling sensitivity on period-end off-floor prevalence                                                                                                                                                          |
+| `lrp-rli-did-012` | `N`     | Arm-by-wave nonword-reading sensitivity on period-end off-floor prevalence                                                                                                                                                            |
+| `lrp-rli-did-013` | `W`     | Exploratory waitlist-t3 catch-up heterogeneity; the variance component conflates response, maturation, history and noise                                                                                                              |
+| `lrp-rli-did-014` | `EI`    | Arm-by-wave APT expressive-information sensitivity (doubled half-mark scale); randomised t2 contrast plus post-crossover contrasts                                                                                                    |
+| `lrp-rli-did-015` | `EG`    | Arm-by-wave APT expressive-grammar sensitivity; randomised t2 contrast plus post-crossover contrasts                                                                                                                                  |
+| `lrp-rli-did-101` | `W`     | Independent-prior intercept sensitivity for `lrp-rli-did-001`: the empirical-Bayes t1 anchor replaced with a free zero-centred intercept (#390 P1 condition 1)                                                                        |
+| `lrp-rli-did-102` | `L`     | Wide-`tau_t2` prior sensitivity for `lrp-rli-did-002`: the causal contrast's prior widened from the tier Normal(0, 0.5) to Normal(0, 1) (#382 rec 3)                                                                                  |
+| `lrp-rli-did-103` | `B`     | Mandatory response-link twin of `lrp-rli-did-003`: the three-choice guessing-floor score mean `1/3 + 2/3·logit⁻¹(η)`; neither fit releases alone (#576)                                                                               |
+| `lrp-rli-did-104` | `W`     | Baseline-allocation prior sensitivity for `lrp-rli-did-001`: `arm_gap_t1` 0.3 → 1.0 and `sigma_child` 0.5 → 1.0, with `tau_t2` held at its tier prior (#576)                                                                          |
+| `lrp-rli-did-105` | `F`     | Dispersion-prior sensitivity for `lrp-rli-did-010` at a **low** (18-item) denominator: `1/√κ ~ HalfNormal(0.25)` instead of `κ ~ HalfNormal(50)` (#576)                                                                               |
+| `lrp-rli-did-106` | `R`     | Dispersion-prior sensitivity for `lrp-rli-did-005` at a **high** (170-item) denominator, where the concentration prior floors over-dispersion at ≈5.9× (#576)                                                                         |
+| `lrp-rli-did-107` | `L`     | Pooled-dose LOO comparator for `lrp-rli-did-007`: one session slope instead of two period-resolved ones                                                                                                                               |
 
 ### Aligned per-protocol — `lrp-rli-al-001–lrp-rli-al-008` (+ `lrp-rli-al-101`, `lrp-rli-al-306`) (`kind="aligned"`)
 
@@ -467,9 +472,10 @@ baselines was prior-mediated — remains available as the explicit
 | `lrp-rli-surv-009` | `survival` | `P`     | time-to-off-floor hazard, phonetic spelling (base `itt-009`) |
 | `lrp-rli-surv-011` | `survival` | `N`     | time-to-off-floor hazard, nonword reading (base `itt-011`)   |
 
-**Prognostic, not causal.** `tau` is anchored on the randomised first interval among children
-at the floor at t1 and is reported as a prognostic association, not a randomised effect of
-record; concurrent letter sounds are excluded as a treatment-affected mediator. Descriptive companion:
+**What `tau` is.** A model-based, available-case modified-ITT randomised-window assignment
+contrast among children at the floor at t1, qualified by the subgroup restriction, the
+observed-wave-2 requirement and the hazard-model form; no causal headline is released.
+Concurrent letter sounds are excluded as a treatment-affected mediator. Descriptive companion:
 `notes/…-persistent-floor-sitters-nonword-spelling.md` + `scripts/descriptive/floor_sitters.py`.
 
 ### Concurrent conditional associations — `lrp-rli-ca` (`kind="concurrent"`)

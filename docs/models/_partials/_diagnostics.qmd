@@ -24,22 +24,43 @@ diag if diag is not None else "No diagnostics table."
 ```{python}
 # | echo: false
 # | output: asis
-# Pareto-k is load-bearing at n ≈ 33–54 (one influential observation can drive
-# elpd); rank and ESS-evolution check mixing. The pointwise LOO unit and the
-# conditional-vs-marginal reading depend on the family (issue #270 item 4): the
-# stacked random-intercept families score one child×wave/phase/period row *given that
-# child's own intercept*, not one whole child under new-child prediction.
-_RE_KINDS = {
+# Pareto-k is load-bearing at n ≈ 33–54 (one influential unit can drive elpd);
+# rank and ESS-evolution check mixing. The pointwise LOO unit and the
+# conditional-vs-marginal reading depend on the family (issue #270 item 4; #631
+# finding 19): the unit is read from the resolved run plan's ``loo_unit`` where
+# the stored fit records one, with a corrected kind list as the fallback for
+# stored fits predating run plans. dose_response (#587) and survival (#631
+# finding 14) aggregate the pointwise log likelihood by child before PSIS, so
+# their unit is one whole child; block_exposure and pooled_levels score
+# row-level; horseshoe is split — the cross-sectional gain variants carry one
+# row per child, while the level variants (``gain`` False) stack waves under a
+# subject random intercept and score row-level.
+_kind = str(config.get("kind", ""))
+_plan_loo = config.get("resolved_run_plan") or {}
+# Families whose row-level LOO sits under a per-child random intercept: the
+# conditional (within-child, one-row-out) reading applies to these.
+_RE_ROW_KINDS = {
     "mechanism",
     "gain_factors",
     "level_factors",
     "did",
-    "dose_response",
     "lcsm",
     "growth",
     "historical_growth",
+    "block_exposure",
+    "pooled_levels",
 }
-_is_re = config.get("kind") in _RE_KINDS
+_is_horseshoe_levels = _kind == "horseshoe" and (
+    (config.get("effective_model_settings") or {}).get("gain") is False
+)
+_loo_unit_name = str(_plan_loo.get("loo_unit") or "")
+if not _loo_unit_name:
+    _loo_unit_name = (
+        "observation_row"
+        if (_kind in _RE_ROW_KINDS or _is_horseshoe_levels)
+        else "child"
+    )
+_is_re = _loo_unit_name != "child" and (_kind in _RE_ROW_KINDS or _is_horseshoe_levels)
 _supports_child_influence = config.get("kind") in {"itt", "joint"}
 _supports_historical_growth_influence = config.get("kind") == "historical_growth"
 _model_id = str(config.get("model_id", ""))
@@ -49,7 +70,25 @@ _report_config = (
     if _model_id and _report_dir_name.startswith(f"{_model_id}-")
     else "reporting"
 )
-_pareto_unit = "one observation (a child × wave/phase/period row)" if _is_re else "one child"
+if _loo_unit_name == "child":
+    if _kind == "survival":
+        # No random intercept here, so the conditional-LOO caveat does not apply:
+        # rows are summed by child because a later person-period row exists only
+        # when the earlier event was zero.
+        _pareto_unit = (
+            "one child (all of that child's person-period rows left out together)"
+        )
+    elif _kind == "dose_response":
+        _pareto_unit = (
+            "one child (all of that child's transition rows left out together)"
+        )
+    else:
+        _pareto_unit = "one child"
+else:
+    _pareto_unit = {
+        "person_period_row": "one person-period row",
+        "observed_measure_wave_cell": "one observed measure × wave cell",
+    }.get(_loo_unit_name, "one observation (a child × wave/phase/period row)")
 _loo_caveat = (
     " Because this family carries a per-child random intercept, PSIS-LOO here is "
     "**conditional** (within-child, one-row-out): elpd scores predicting a held-out "
@@ -315,9 +354,11 @@ if _ppc_cov is not None and len(_ppc_cov):
 # Distribution overlay: a relabelled black-line/blue-band density for single-measure
 # count families (#318); the off-floor rate-by-cell figure for floor-rule families;
 # and, for the joint model, one per-outcome histogram selected via the saved cell map
-# (so tests with different denominators are never pooled — #271 item 2). Absent for
-# the other multi-outcome-flattened families (growth/lcsm), where the quantitative
-# calibration tables below are the appropriate view.
+# (so tests with different denominators are never pooled — #271 item 2). The other
+# multi-outcome-flattened families (growth/lcsm) publish one measure-suffixed overlay
+# per outcome through the suffixed-panel loop below, alongside the quantitative
+# calibration tables (#631 finding 19 — an earlier comment here wrongly called their
+# overlays absent).
 _ppc_is_offfloor = (
     _ppc_cov is not None
     and len(_ppc_cov)

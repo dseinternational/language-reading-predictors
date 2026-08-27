@@ -44,8 +44,8 @@ comparator fits only the two waves where it is: the arm coefficient is the
 covariate-adjusted gap at t1 (`arm_gap_t1`, a pre-randomisation *balance* quantity,
 never an effect) plus the change in that gap at t2 (`d_grp_time[t2]`; #552), which
 is the clean randomised contrast, labelled *causal* in the table below. The
-post-crossover waves are not in this fit, so there are no t3/t4 changes to read as
-cohort/timing associations — and nothing for the t2 change to borrow from them. SES
+post-crossover waves are not in this fit, so there are no t3/t4 schedule contrasts
+to read — and nothing for the t2 change to borrow from them. SES
 is excluded (non-DAG / redundant).
 
 **DAG factor set:** group $\times$ time · age (per timepoint) · cognitive ability

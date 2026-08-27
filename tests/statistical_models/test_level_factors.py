@@ -511,6 +511,11 @@ def test_plan_owns_coefficient_names_and_diag_vars():
     assert plan.factor_summary_roles() == {
         "arm_gap_t1": "balance",
         "b_grp_time": "levels_view",
+        # #631 finding 13: the post-t2 arm-gap changes are randomised
+        # early-start-versus-delayed-start schedule contrasts (the DiD `regime`
+        # role), not adjusted associations.
+        "d_grp_time[t3]": "regime",
+        "d_grp_time[t4]": "regime",
     }
 
 

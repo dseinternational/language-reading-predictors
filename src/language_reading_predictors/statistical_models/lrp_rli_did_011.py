@@ -7,7 +7,10 @@ The Bernoulli outcome is whether each child is off the floor at t1, t2 and t3.
 This is prevalence, ``Pr(score > 0)``, not the ITT floor-exit estimand
 ``Pr(post > 0 | pre = 0)``. ``tau_t2`` is the clean randomised t2 arm contrast in
 off-floor log-odds; its standardised marginal is a risk difference. The t3 arm gap
-and the derived waitlist catch-up contrast are post-crossover associations.
+is also identified by the original randomisation, but of a different exposure --
+assignment to the early-start versus delayed-start treatment schedule (both arms
+treated by t3) -- and the derived ``delta_crossover`` is the change between those
+two randomised regime contrasts, never an identified catch-up.
 
 The model deliberately does not condition on a period-start score: the immediate
 arm's t2 score is treatment-affected before P2. Modelling the t1 prevalence directly
@@ -28,7 +31,7 @@ SPEC = ModelSpec(
     family="did",
     design="waitlist-crossover arm-by-wave prevalence levels",
     estimand_type="mixed",
-    causal_status="t2 randomised; post-crossover contrasts associational",
+    causal_status="t2 randomised; t3 a randomised treatment-schedule contrast",
     extra={
         "outcomes": ("P",),
         "waves": (0, 1, 2),

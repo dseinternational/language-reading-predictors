@@ -8,12 +8,14 @@ Uses ``GroupKFold`` CV grouped by ``subject_id`` to match the fit pipeline —
 both the grouping and (by default) the fold count, which is taken from the
 model's own ``cv_splits`` so the tuned ``n_estimators`` is calibrated against
 the same train-fold size the production fit uses (pass ``--cv-splits`` to
-override). Selected hyperparameters therefore reflect honest generalisation.
-Each trial's CV loop carves an inner ``GroupShuffleSplit`` slice out of the training fold
-for early stopping — the outer val fold is never shown to
-``early_stopping`` — so ``best_iteration_`` and the fold RMSE are
-independent. The mean best iteration across folds is saved as the tuned
-``n_estimators``.
+override). Because hyperparameters are *selected* on these same grouped folds,
+the fit pipeline's later CV scores on them are post-selection internal
+cross-validation metrics, not independent generalisation estimates (#631
+finding 2). Each trial's CV loop carves an inner ``GroupShuffleSplit`` slice
+out of the training fold for early stopping — the outer val fold is never
+shown to ``early_stopping`` — so ``best_iteration_`` and the fold score are
+not contaminated by the early-stopping choice. The mean best iteration across
+folds is saved as the tuned ``n_estimators``.
 
 Writes results to ``output/tuning/{model_id}/``:
 
@@ -265,8 +267,9 @@ def tune(
     early_stopping_rounds: int,
     max_n_estimators: int,
     early_stopping_fraction: float,
-    scoring: str = "rmse",
-    lgbm_objective: str = "regression",
+    # MAE defaults mirror the #169 batch policy — see the CLI defaults below.
+    scoring: str = "mae",
+    lgbm_objective: str = "mae",
     target_transform: str | None = None,
     alpha: float | None = None,
 ) -> None:
@@ -386,7 +389,13 @@ def tune(
         "target_transform": target_transform,
         f"cv_{scoring}_mean": float(best.value),
         f"cv_{scoring}_std": float(best.user_attrs.get(cv_std_key, float("nan"))),
+        # ``n_trials`` records the trials actually run; ``timeout`` records
+        # the requested study cap (None = uncapped) so the batch
+        # orchestrator's completeness check can tell a timeout-shortened
+        # study apart from one tuned under a smaller trial budget (#631
+        # finding 20b).
         "n_trials": len(study.trials),
+        "timeout": timeout,
         "seed": seed,
         "cv_splits": cv_splits,
         "params": best_full_params,
@@ -504,20 +513,25 @@ def main() -> None:
             "at the outer val fold."
         ),
     )
+    # Defaults match the reviewed #169 batch policy (scripts/tune_models_batch.py):
+    # MAE scoring with the MAE LightGBM objective. #169 adopted MAE everywhere,
+    # so a bare standalone run no longer silently tunes under a different
+    # (RMSE/squared-error) policy than the batch (#631 finding 20d).
     parser.add_argument(
         "--scoring",
         type=str,
-        default="rmse",
+        default="mae",
         choices=list(_SCORING_FUNCS.keys()),
-        help="Scoring metric to optimise (default: rmse).",
+        help="Scoring metric to optimise (default: mae — the #169 batch policy).",
     )
     parser.add_argument(
         "--lgbm-objective",
         type=str,
-        default="regression",
+        default="mae",
         help=(
-            "LightGBM objective function. Use 'regression' (squared error) "
-            "for RMSE tuning, 'mae' for MAE tuning. Default: regression."
+            "LightGBM objective function. Use 'mae' for MAE tuning (the #169 "
+            "policy), 'regression' (squared error) for RMSE tuning. "
+            "Default: mae."
         ),
     )
     parser.add_argument(

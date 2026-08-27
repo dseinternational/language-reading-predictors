@@ -198,16 +198,24 @@ def _gf_association_terms(
     for c in adjust_for:
         if c.endswith("_missing"):
             continue
+        # The design column is the loader-standardised vector, so binariness must
+        # be judged on the RAW support recovered through the carried scaler: the
+        # standardised values of a 0/1 covariate are never literally {0, 1}, which
+        # left the #575-finding-3 toggle branch unreachable and published hearing
+        # as an uninterpretable "+1 SD" forward shift (#631 finding 4).
         values = np.asarray(bp.covariates[c], dtype=float)
-        if np.isin(values, (0.0, 1.0)).all():
+        raw = np.asarray(bp.covariate_scalers[c].inverse(values), dtype=float)
+        if np.all(np.isclose(raw, 0.0) | np.isclose(raw, 1.0)):
             # A binary status covariate (hearing: 1 = impaired, 0 = clear) has no
             # "+1 SD" — a continuous forward shift leaves its support (#575
             # finding 3). The net-out-and-toggle idiom contrasts the actual
             # 0 -> 1 switch instead, exactly as the off-floor own indicator does.
+            # eta carries gamma_c * (x - mean) / sd, so a raw 0 -> 1 switch shifts
+            # eta by gamma_c / sd and the toggle vector must be the raw indicator.
             terms.append(
-                AT(c, f"gamma_{c}", 1.0, (),
+                AT(c, f"gamma_{c}", 1.0 / float(bp.covariate_scalers[c].sd), (),
                    perturbation_label=f"{c} toggled 0 to 1",
-                   toggle_vector=values)
+                   toggle_vector=np.isclose(raw, 1.0).astype(float))
             )
         else:
             sd_c = float(np.std(values, ddof=1))

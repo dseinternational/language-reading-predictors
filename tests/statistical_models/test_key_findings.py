@@ -152,6 +152,20 @@ def _setup_dir(
                 },
             ],
         )
+    if kind == "concurrent":
+        # Every concurrent fit writes this table, and release requires a converged
+        # verdict for each published wave / single-skill sub-fit (#631 finding 6),
+        # so a fixture standing in for a complete stored fit has to carry it.
+        _write_csv(
+            d,
+            "concurrent_fit_diagnostics.csv",
+            {
+                "timepoint": 1,
+                "fit_kind": "adjusted",
+                "predictor": "all",
+                "converged": True,
+            },
+        )
     if _release.gate_applies(_read_json(d, "config.json")):
         _write_psense(d, term=_release.causal_term_for(_read_json(d, "config.json")))
     return d
@@ -1161,8 +1175,11 @@ def test_level_factors_golden_sentences(tmp_path):
     assert payload["status"] == "ok"
     texts = [s["text"] for s in payload["sentences"]]
     assert "at the end of the randomised period (t2)" in texts[0]
-    assert "Only this t2 comparison is randomised" in texts[3]
+    assert "Only this t2 comparison compares being taught" in texts[3]
     assert "crossed over" in texts[3]
+    # #631 finding 13: the later timepoints are randomised schedule contrasts,
+    # not associations — the box must not deny their randomised status.
+    assert "not treated-versus-untreated effects" in texts[3]
     # No psense_summary.csv → no caution bullet (base case is four sentences).
     assert [s["kind"] for s in payload["sentences"]] == [
         "headline", "confidence", "rope", "causal"
@@ -1254,7 +1271,7 @@ def test_level_factors_free_plan_keeps_the_plain_causal_sentence(tmp_path):
     payload = generate_key_findings(d)
     causal = next(s for s in payload["sentences"] if s["kind"] == "causal")
     assert "difference-in-differences" not in causal["text"]
-    assert "Only this t2 comparison is randomised" in causal["text"]
+    assert "Only this t2 comparison compares being taught" in causal["text"]
 
 
 def test_level_factors_omits_the_ability_caveat_without_the_term(tmp_path):
@@ -1314,10 +1331,12 @@ def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
     assert "arm-free standardised" in text
     assert "notes/202608231800-level-factors-584-decisions.md" in text
     # #552: the partial reads the focal term from the persisted plan rather than
-    # hard-coding b_grp_time[1], and fences the balance / levels-view roles off
-    # from the adjusted-associations table.
+    # hard-coding b_grp_time[1], and fences the balance / levels-view / regime
+    # roles (the t3/t4 randomised schedule contrasts, #631 finding 13) off from
+    # the adjusted-associations table.
     assert '_plan.get("focal_term")' in text
-    assert '["causal", "balance", "levels_view"]' in text
+    assert '["causal", "balance", "levels_view", "regime"]' in text
+    assert "### Randomised schedule contrasts" in text
 
 
 def test_results_factors_partial_renders_off_floor_marginal_in_percentage_points():
@@ -1515,7 +1534,8 @@ def test_did_period_varying_dose_companion_is_recognised(tmp_path):
             "theta_treated_median": 0.2,
             "dose_interpretation": (
                 "beta_dose is an observational intensive-margin association; "
-                "theta_treated is the model's treatment-presence term"
+                "theta_treated is the crossover cell contrast at the mean "
+                "treated dose, not an isolated treatment-presence effect"
             ),
         },
     )
@@ -1566,7 +1586,10 @@ def _write_joint_mechanism_wave_bundle(
                 for outcome in ("all", "W", "N")
             ],
         )
-        (d / psense_file).write_text(",prior,likelihood,diagnosis\nbeta_mech[W],0.01,0.02,✓\n")
+        # Explicit UTF-8: the tick is unwritable under Windows' cp1252 default.
+        (d / psense_file).write_text(
+            ",prior,likelihood,diagnosis\nbeta_mech[W],0.01,0.02,✓\n", encoding="utf-8"
+        )
         rows.append(
             {
                 "wave": wave,

@@ -13,8 +13,11 @@ outcome and rows, so the PSIS-LOO comparison between them in
 ``compare_statistical_models.py`` is a clean test of whether the letter-sound
 dose-gain slope varies by period (#135).
 
-The model separates randomised arm/history, treatment presence and session
-intensity; both periods adjust for the shared pre-randomisation t1 outcome and age.
+The model separates randomised arm/history, the saturated arm-by-period cell
+structure and session intensity; both periods adjust for the shared
+pre-randomisation t1 outcome and age. Under that saturated coding
+``theta_treated`` at the mean treated dose is the crossover cell contrast, not an
+isolated treatment-presence effect.
 The session slope is an observational intensive-margin association, potentially
 confounded by general ability and attendance selection. Cumulative sessions are
 not conditioned on.

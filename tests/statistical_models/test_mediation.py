@@ -19,6 +19,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
+import pytest
 import xarray as xr
 
 from language_reading_predictors.statistical_models.factories import (
@@ -211,12 +212,17 @@ def test_decompose_offfloor_outcome(tmp_path):
     assert bool(df["off_floor"].iloc[0]) is True
 
 
-def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch):
+@pytest.mark.parametrize("estimand", ["natural", "interventional"])
+def test_t3_sensitivity_preserves_offfloor_outcome_kind(
+    tmp_path, monkeypatch, estimand
+):
     """The temporal sensitivity must rebuild the primary outcome likelihood.
 
     MED-086 uses a Bernoulli off-floor outcome. Dropping ``outcome_kind`` from
     the t3 rebuild silently changed that sensitivity to a graded Beta-Binomial
     model, so it was not the identical later-outcome fit its contract promises.
+    The estimand branch must survive too (#631 finding 9): an interventional
+    companion's t3 rows carry IDE/IIE labels, never the natural default.
     """
     from language_reading_predictors.statistical_models import mediation as med
     from language_reading_predictors.statistical_models.pipelines import (
@@ -250,6 +256,7 @@ def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch):
     def _decompose(trace_arg, med_data, **kwargs):
         assert trace_arg is trace
         captured["med_data"] = med_data
+        captured["decompose_kwargs"] = kwargs
         return pd.DataFrame([{"quantity": "NIE"}])
 
     monkeypatch.setattr(pipeline, "run_subfit", _run_subfit)

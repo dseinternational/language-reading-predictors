@@ -6,8 +6,10 @@
 ``fit_survival`` fits a person-period discrete-time hazard for the *time* a
 floored outcome (P or N) takes to come off the floor, generalising the
 single-transition off-floor estimand of the ITT floor rule to all four waves.
-Treatment enters as an intervention-aligned hazard shift. Both arms are treated
-by t4, so the estimand is prognostic rather than a clean randomised contrast.
+Treatment enters as an intervention-aligned hazard shift. Under the default
+randomised window, tau is a model-based, available-case modified-ITT assignment
+contrast in the first interval within the baseline at-floor subgroup (#631
+finding 11); the family still releases no causal headline.
 
 This is the reference adoption of the shared primary-fit lifecycle: its
 mid-section is one :func:`stages.SharedFitStages.run_primary_fit` call driven by a
@@ -138,7 +140,9 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     Fits a person-period discrete-time hazard for the *time* to come off the floor,
     generalising the single-transition off-floor estimand of the LRPITT09/11 floor
     rule to all four waves. Treatment enters as an intervention-aligned hazard shift;
-    the estimand is prognostic (both arms are treated by t4).
+    under the default randomised window tau is an available-case modified-ITT
+    assignment contrast in the first interval within the baseline at-floor
+    subgroup (#631 finding 11), and the family releases no causal headline.
     """
     require_spec(spec, "survival", outcome=True)
 
@@ -205,7 +209,8 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     save_table(ctx, "survival_summary", summary)
     tau_reading = (
-        "tau = randomised interval-1 arm contrast; reported as prognostic"
+        "tau = available-case modified-ITT interval-1 assignment contrast "
+        "(at-floor subgroup)"
         if plan.treatment_window == "randomised"
         else "pooled tau is prior-mediated beyond interval 1; prognostic"
     )

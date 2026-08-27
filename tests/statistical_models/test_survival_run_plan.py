@@ -129,7 +129,7 @@ def test_default_legacy_plan_preserves_execution_contract():
     )
     assert plan.observation_node == "y_event"
     assert plan.compute_loo is True
-    assert plan.loo_unit == "person_period_row"
+    assert plan.loo_unit == "child"
     assert plan.focal_term == "tau"
 
 
@@ -215,7 +215,7 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     assert "validated survival run plan" in text
     assert "interval-specific probability of first moving above the floor" in text
     assert "Hazard link: `logit`" in text
-    assert "person_period_row" in text
+    assert "`child` unit" in text
     assert "zero-divergence convergence gate" in text
 
 

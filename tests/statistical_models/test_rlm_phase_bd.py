@@ -127,6 +127,37 @@ def test_wave_battery_complete_case(tmp_path):
         assert abs(float(np.mean(z))) < 1e-8, k
 
 
+@pytest.mark.parametrize(
+    ("value", "match"),
+    [(-4.0, "below the valid lower bound"), (3.5, "integer counts")],
+)
+def test_wave_battery_rejects_negative_and_fractional_scores(tmp_path, value, match):
+    """#631 finding 5: only the upper ceiling was checked, so a negative or
+    fractional score reached the Haldane logit unnoticed."""
+    path = _write_battery_csv(tmp_path)
+    df = pd.read_csv(path)
+    df["bpvs"] = df["bpvs"].astype(float)
+    df.loc[(df.subject_id == "S20") & (df.time == 3), "bpvs"] = value
+    df.to_csv(path, index=False)
+    with pytest.raises(ValueError, match=match):
+        load_rlm_wave_battery(wave=3, path=path)
+
+
+def test_rlm_wave_wide_rejects_fractional_group_code(tmp_path):
+    """#631 finding 5: ``astype(int)`` truncated a raw 1.5 into a valid-looking
+    cohort before the unknown-code check could see it; the shared wide-frame
+    loader must validate the raw codes first (exercised via the battery)."""
+    path = _write_battery_csv(tmp_path)
+    df = pd.read_csv(path)
+    df["readgrp"] = df["readgrp"].astype(float)
+    df.loc[df.subject_id == "S20", "readgrp"] = 1.5
+    df.to_csv(path, index=False)
+    with pytest.raises(
+        ValueError, match=r"reading-group code\(s\) at wave 3.*1\.5"
+    ):
+        load_rlm_wave_battery(wave=3, path=path)
+
+
 def test_build_rlm_adjusted_and_horseshoe(tmp_path):
     path = _write_battery_csv(tmp_path)
     frame = load_rlm_span_frame(path=path)

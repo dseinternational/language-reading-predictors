@@ -13,9 +13,13 @@ finding 1): every person-period row after the wait-list crossover is
 treatment-on, so the later intervals carry no arm contrast and fit their own
 both-arms-treated baseline hazards.
 
-Prognostic, not causal: tau is anchored on the randomised first interval among
-children at the floor at t1 and is reported as a prognostic association, not a
-randomised effect of record (see METHODS.md and the descriptive note).
+What tau is (#631 finding 11): a model-based, available-case modified-ITT
+randomised-window assignment contrast — the covariate-adjusted
+immediate-versus-waitlist off-floor hazard contrast in the randomised first
+interval among children at the floor at t1. The baseline-subgroup restriction,
+the observed-wave-2 availability requirement, mean-imputed covariates and the
+hazard-model form qualify it, and this family releases no causal headline (see
+METHODS.md and the descriptive note).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec

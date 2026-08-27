@@ -29,8 +29,10 @@ recommendation 3's scope note, the dose model LRPDID07 has **no** ``tau_t2``
 wide scale, assigned no causal status), so no dose companion exists.
 
 Same reading rules as LRPDID02: ``tau_t2`` is the clean randomised t2 contrast;
-``arm_gap_t1`` is a baseline-balance quantity; ``arm_gap_t3`` and the crossover
-contrast are post-crossover associations.
+``arm_gap_t1`` is a baseline-balance quantity; ``arm_gap_t3`` is the randomised
+early-start-versus-delayed-start schedule contrast and ``delta_crossover`` the
+change between the two randomised regime contrasts, neither of them
+mechanism-identified.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
@@ -47,7 +49,7 @@ SPEC = ModelSpec(
     family="did",
     design="waitlist-crossover arm-by-wave levels",
     estimand_type="mixed",
-    causal_status="t2 randomised; post-crossover contrasts associational",
+    causal_status="t2 randomised; t3 a randomised treatment-schedule contrast",
     extra={
         # Identical to LRPDID02 in every respect except tau_t2_prior_sigma.
         "outcomes": ("L",),

@@ -21,6 +21,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.factories import (
     build_adjusted_model,
     build_aligned_model,
+    build_block_exposure_model,
     build_concurrent_model,
     build_correlated_factor_model,
     build_did_model,
@@ -3472,3 +3473,36 @@ def test_an_unknown_dispersion_prior_family_is_rejected(tmp_path):
             use_age_linear=True, use_own_baseline=True,
             kappa_prior_family="lognormal",
         )
+
+
+def test_block_exposure_factory_identifies_its_intercepts(tmp_path):
+    """#631 finding 17: a free global intercept beside a free per-phase vector left
+    only their sums in the likelihood, so the split was decided by the priors. The
+    phase vector is now an exact zero-sum deviation over the OBSERVED phases only —
+    a full-width vector would keep the ridge, because block-2 outcomes are absent
+    at t1 and that data-free element could absorb the compensating shift."""
+    prep = _prep_levels(tmp_path, n_children=20)
+    prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
+    # Mirror the registered design: no block-2 outcome observed at t1.
+    prep.post_counts["W"] = np.where(
+        prep.phase == 0, np.nan, prep.post_counts["W"]
+    )
+
+    built = build_block_exposure_model(
+        prep, outcome_symbol="W", ability_covariate="blocks"
+    )
+
+    names = {v.name for v in built.model.free_RVs}
+    assert {"alpha", "alpha_time", "delta"}.issubset(names)
+    # The coord carries the observed phases only, and each has fitted rows.
+    phases = list(built.model.coords["phase"])
+    assert phases == [1, 2, 3]
+    assert set(np.asarray(built.prepared.phase).tolist()) == set(phases)
+
+    with built.model:
+        pp = pm.sample_prior_predictive(draws=50, random_seed=57)
+    assert pp.prior["alpha_time"].shape[-1] == len(phases)
+    np.testing.assert_allclose(
+        pp.prior["alpha_time"].values.sum(axis=-1), 0.0, atol=1e-10
+    )
+    assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs

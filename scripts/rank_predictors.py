@@ -55,11 +55,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from dse_research_utils.ml.importance import (
-    grouped_permutation_importance as _grouped_perm_deltas,
-)
 from scipy.cluster import hierarchy
-from scipy.spatial.distance import squareform
 
 from language_reading_predictors import model_ids
 from language_reading_predictors import paths as _paths
@@ -70,8 +66,13 @@ from language_reading_predictors.models.cluster_ranking import (
     cluster_ranking_table,
 )
 from language_reading_predictors.models.common import RunConfig
+from language_reading_predictors.models.permutation import (
+    pooled_permutation_deltas as _pooled_perm_deltas,
+)
 from language_reading_predictors.models.registry import MODELS
-from language_reading_predictors.stats_utils import distance_corr_matrix
+from language_reading_predictors.stats_utils import (
+    distance_corr_dissimilarity_linkage,
+)
 
 
 def _ranking_root() -> Path:
@@ -196,10 +197,16 @@ def run_stages(cfg, run, *, cluster_cutoff=0.4, do_cluster=True, do_shap=True, d
 
 # ── cluster-level (grouped) permutation importance ─────────────────────────────
 def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
-    """Joint/grouped out-of-fold permutation importance, one block per cluster.
+    """Joint/grouped pooled out-of-fold permutation importance, one block per cluster.
 
-    Thin wrapper over :func:`_grouped_perm_deltas` (the pure, unit-tested core) that
-    pulls the per-fold estimators, held-out indices and design matrix off the pipeline.
+    Thin wrapper over :func:`_pooled_perm_deltas`
+    (``language_reading_predictors.models.permutation.pooled_permutation_deltas``,
+    the pure, unit-tested core) that pulls the per-fold estimators, held-out
+    indices, design matrix and subject groups off the pipeline. Per repeat, one
+    subject-block permutation over ALL rows permutes the whole cluster jointly,
+    and the delta is the rise in the pooled out-of-fold RMSE — so
+    child-constant predictors are genuinely permuted rather than mechanically
+    zeroed under the near-leave-one-subject-out folds (#631 finding 1).
     """
     ctx = pipe.context
     cfg = ctx.config
@@ -211,9 +218,9 @@ def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
         for c in cluster_ids
     }
 
-    deltas = _grouped_perm_deltas(
-        cv["estimator"], ctx.X, ctx.y, cv["indices"]["test"], cluster_cols,
-        n_repeats=n_repeats, seed=cfg.random_seed,
+    deltas = _pooled_perm_deltas(
+        cv["estimator"], ctx.X, ctx.y, cv["indices"]["test"], ctx.groups,
+        cluster_cols, n_repeats=n_repeats, seed=cfg.random_seed,
     )
 
     rows = []
@@ -233,21 +240,28 @@ def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
 
 
 # ── cluster cut-height sensitivity ──────────────────────────────────────────────
-def ward_linkage(X):
-    """Replicate the linkage ``feature_selection_diagnostics`` builds (dcor on mean-filled X)."""
+def average_linkage(X):
+    """Replicate the linkage ``feature_selection_diagnostics`` builds (dcor on
+    mean-filled X, average linkage via the shared
+    ``distance_corr_dissimilarity_linkage`` helper). Average, not Ward: Ward is
+    correctly defined only for Euclidean distances, whereas 1 - dcor is a
+    precomputed non-Euclidean dissimilarity in general (#631 finding 18).
+    """
     Xf = X.replace({pd.NA: np.nan}).astype("float64")
     Xf = Xf.fillna(Xf.mean())
-    dcm = distance_corr_matrix(Xf)
-    dissim = 1.0 - dcm
-    np.fill_diagonal(dissim, 0.0)
-    np.clip(dissim, 0.0, 1.0, out=dissim)
-    return hierarchy.ward(squareform(dissim, checks=False))
+    _dissim, _condensed, linkage = distance_corr_dissimilarity_linkage(Xf)
+    return linkage
 
 
 def cutoff_sensitivity(X, target, cutoffs=(0.2, 0.3, 0.4, 0.5, 0.6)):
     """How cluster membership moves with the dendrogram cut height (the #116 trade-off:
-    the 0.70 *delete* threshold becomes a cut-height *grouping* choice)."""
-    Z = ward_linkage(X)
+    the 0.70 *delete* threshold becomes a cut-height *grouping* choice).
+
+    The 0.4 default cut height was calibrated on Ward linkage heights; under
+    average linkage heights stay within [0, 1], so 0.4 is retained but must be
+    re-validated with this sensitivity table when rankings are regenerated (#631).
+    """
+    Z = average_linkage(X)
     feats = list(X.columns)
     vocab_markers = ["b1exto", "eowpvt", "aptinfo", "rowpvt", "b1reto", "aptgram"]
     siblings = SAME_SKILL_SIBLINGS.get(target, [])

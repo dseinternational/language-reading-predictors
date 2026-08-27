@@ -137,3 +137,29 @@ if _has("child_fit_panels.png"):
         "shown on purpose; the rest are a seeded random draw."
     )
 ```
+
+### Predictive coverage by outcome
+
+```{python}
+# | echo: false
+# | output: asis
+# Per-outcome predictive coverage (#631 finding 16). This family stacks several
+# measures into one likelihood node, so the shared coverage sentence weights them
+# by their observed cell counts and a well-fitted large-denominator outcome can
+# hide a badly-fitted small one. The pooled value stays as the secondary summary.
+_mo_cov = _csv("ppc_summary.csv")
+if _mo_cov is not None and "outcome" in _mo_cov.columns:
+    _mo_by_outcome = _mo_cov[_mo_cov["outcome"].notna()]
+    if len(_mo_by_outcome):
+        _mo_cols = [
+            c
+            for c in ["outcome", "level_pct", "n_inside", "n_total", "coverage"]
+            if c in _mo_by_outcome.columns
+        ]
+        print(_mo_by_outcome[_mo_cols].to_markdown(index=False))
+        print(
+            "\n_Read each outcome's row against its own nominal level._ The pooled "
+            "sentence in the technical section weights the outcomes by their "
+            "observed cell counts, so it is the secondary view.\n"
+        )
+```

@@ -1627,3 +1627,84 @@ def test_subfit_convergence_reclassifies_structural_constants():
     assert result["converged"] is True
     assert result["unassessable_parameters"] == ""
     assert "measure_corr_chol[0, 0]" in result["structurally_constant_parameters"]
+
+
+# --- the derived-estimand gate must fail on names the summary lacks (#631 f.10)
+
+
+def _derived_gate_ctx(tmp_path):
+    (tmp_path / "diagnostics_summary.json").write_text(
+        json.dumps({"checks": {"rhat": True}, "passed": True})
+    )
+    return SimpleNamespace(output_dir=str(tmp_path), tables={})
+
+
+def _derived_row(name: str) -> dict:
+    return {
+        "quantity": name,
+        "ess_bulk": 4000.0,
+        "ess_tail": 4000.0,
+        "mcse_median": 0.001,
+        "prob_lo": -1.0,
+        "prob_hi": 1.0,
+    }
+
+
+@pytest.mark.parametrize(
+    "quantities",
+    [("total", "NDE", "NIE"), ("total", "IDE", "IIE")],
+    ids=["natural", "interventional"],
+)
+def test_derived_gate_passes_a_complete_branch_summary(tmp_path, quantities):
+    ctx = _derived_gate_ctx(tmp_path)
+    summary = pd.DataFrame([_derived_row(name) for name in quantities])
+    payload = diag.gate_derived_estimands(ctx, summary, quantities=quantities)
+    assert payload["checks"]["derived_estimands"] is True
+    assert payload["passed"] is True
+
+
+def test_derived_gate_fails_an_empty_summary(tmp_path):
+    ctx = _derived_gate_ctx(tmp_path)
+    payload = diag.gate_derived_estimands(
+        ctx, pd.DataFrame(columns=["quantity"]), quantities=("total", "NDE", "NIE")
+    )
+    assert payload["checks"]["derived_estimands"] is False
+    assert payload["passed"] is False
+    assert payload["derived_estimands_failing"] == [
+        "total (missing)",
+        "NDE (missing)",
+        "NIE (missing)",
+    ]
+
+
+def test_derived_gate_fails_a_partial_summary_naming_the_missing(tmp_path):
+    ctx = _derived_gate_ctx(tmp_path)
+    summary = pd.DataFrame([_derived_row("total")])
+    payload = diag.gate_derived_estimands(
+        ctx, summary, quantities=("total", "NDE", "NIE")
+    )
+    assert payload["passed"] is False
+    assert payload["derived_estimands_failing"] == ["NDE (missing)", "NIE (missing)"]
+
+
+def test_derived_gate_fails_a_duplicated_quantity(tmp_path):
+    ctx = _derived_gate_ctx(tmp_path)
+    summary = pd.DataFrame(
+        [_derived_row("total"), _derived_row("total"), _derived_row("NDE"), _derived_row("NIE")]
+    )
+    payload = diag.gate_derived_estimands(
+        ctx, summary, quantities=("total", "NDE", "NIE")
+    )
+    assert payload["passed"] is False
+    assert payload["derived_estimands_failing"] == ["total (duplicated)"]
+
+
+def test_derived_gate_still_fails_a_present_row_below_the_ess_floor(tmp_path):
+    ctx = _derived_gate_ctx(tmp_path)
+    rows = [_derived_row("total"), _derived_row("NDE"), _derived_row("NIE")]
+    rows[1]["ess_bulk"] = 12.0
+    payload = diag.gate_derived_estimands(
+        ctx, pd.DataFrame(rows), quantities=("total", "NDE", "NIE")
+    )
+    assert payload["passed"] is False
+    assert payload["derived_estimands_failing"] == ["NDE"]

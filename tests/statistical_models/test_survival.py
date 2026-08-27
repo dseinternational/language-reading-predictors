@@ -115,6 +115,51 @@ def test_treatment_window_controls_where_tau_enters_eta():
         build_survival_model(p, treatment_window="all")
 
 
+def test_survival_model_carries_the_child_loo_map():
+    """#631 finding 14: the factory persists the row-to-child map so PSIS-LOO
+    aggregates each child's person-period rows before leaving them out —
+    row-level LOO would leak the held-out event through the later rows."""
+    from language_reading_predictors.statistical_models.survival import (
+        build_survival_model,
+    )
+
+    p = prepare_survival("N", df=_fixture())
+    built = build_survival_model(p)
+    assert "loo_child_idx" in built.model.named_vars
+    values = built.model["loo_child_idx"].get_value()
+    assert values.shape == (p.n_obs,)
+    assert np.array_equal(np.asarray(values), p.child_idx)
+
+
+def test_child_aggregation_recognises_the_survival_likelihood_node():
+    """The aggregator must not be tied to the ``y_post`` node name: survival's
+    likelihood is ``y_event`` (#631 finding 14)."""
+    import xarray as xr
+
+    from language_reading_predictors.statistical_models.diagnostics import (
+        _joint_log_likelihood_by_child,
+    )
+
+    rng = np.random.default_rng(3)
+    rows_to_child = np.array([0, 0, 1, 1, 1, 2], dtype=np.int64)
+    ll = rng.normal(size=(2, 5, rows_to_child.size))
+    trace = xr.DataTree.from_dict(
+        {
+            "log_likelihood": xr.Dataset(
+                {"y_event": (("chain", "draw", "obs_id"), ll)}
+            ),
+            "constant_data": xr.Dataset(
+                {"loo_child_idx": (("obs_id",), rows_to_child)}
+            ),
+        }
+    )
+    aggregated = _joint_log_likelihood_by_child(trace)
+    assert aggregated is not None
+    assert aggregated.sizes["loo_child"] == 3
+    expected_child0 = ll[..., :2].sum(axis=-1)
+    assert np.allclose(aggregated.values[..., 0], expected_child0)
+
+
 def test_prepare_survival_rejects_duplicate_rows_and_bad_group_codes():
     """Source-integrity fail-loud, matching the shared loaders (finding 5)."""
     dup = pd.concat([_fixture(), _fixture().iloc[[0]]], ignore_index=True)

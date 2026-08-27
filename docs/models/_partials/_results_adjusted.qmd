@@ -96,10 +96,29 @@ if transition_slopes is not None:
 # file so the Byrne reports do not carry a how-to-read paragraph under a "no
 # table" line (2026-08-22 review, finding 7).
 ses_sensitivity = _csv("ses_sensitivity.csv")
+_ses_extra = config.get("extra") or {}
 if ses_sensitivity is not None:
     print("#### SES complete-case refit (RLI only)\n")
     display(ses_sensitivity)
     print("\n_How to read the table:_ it refits the headline model on the children with parental-education data, with SES added as a covariate; a predictor whose estimate stays put is not merely standing in for SES. `n_children` is the complete-case count.")
+elif "ses_error" in _ses_extra:
+    # An RLI fit promised the refit (the key is written, null on success); a
+    # missing table here is a recorded failure, never a silent omission (#631
+    # finding 7). The release gate withholds this fit; explain why in place.
+    print("#### SES complete-case refit (RLI only)\n")
+    print("::: {.callout-warning}\n")
+    print(
+        "**SES sensitivity suppressed.** The promised SES complete-case refit "
+        "did not produce its table"
+        + (
+            f" (recorded failure: `{_ses_extra['ses_error']}`)"
+            if _ses_extra.get("ses_error")
+            else ""
+        )
+        + ", so this fit fails its release gate until the refit is repaired "
+        "and rerun."
+    )
+    print("\n:::")
 ```
 
 ### Influence

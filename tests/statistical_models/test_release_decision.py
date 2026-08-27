@@ -717,12 +717,243 @@ def test_natural_mediation_t3_artifact_failure_does_not_misstate_sampling(
     assert any(artifact.name in item for item in decision.missing_artifacts)
 
 
-def test_mediation_t3_gate_does_not_apply_to_interventional_companion(tmp_path):
-    d = _fit_dir(tmp_path, kind="mediation")
+def _interventional_mediation_fit_dir(tmp_path: Path) -> Path:
+    """Interventional-companion bundle with a clean, trace-backed t3 sub-fit."""
+    d = _natural_mediation_fit_dir(tmp_path)
     config = json.loads((d / "config.json").read_text())
     config["extra"] = {"estimand": "interventional"}
     (d / "config.json").write_text(json.dumps(config))
+    (d / "mediation_summary_t3.csv").write_text(
+        "quantity,converged,trace_file\n"
+        f"IIE,True,{MEDIATION_T3_TRACE_FILENAME}\n"
+    )
+    return d
+
+
+def test_mediation_t3_gate_applies_to_interventional_companion(tmp_path):
+    """#631 finding 9: the companions run the t3 fit (#585), so release requires it."""
+    assert evaluate_publication(_interventional_mediation_fit_dir(tmp_path)).publishable
+
+
+def test_interventional_companion_without_t3_bundle_cannot_publish(tmp_path):
+    d = _interventional_mediation_fit_dir(tmp_path)
+    (d / "mediation_summary_t3.csv").unlink()
+    (d / "subfit_provenance.csv").unlink()
+    (d / MEDIATION_T3_TRACE_FILENAME).unlink()
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
+    assert not decision.publishable
+
+
+def test_mediation_t3_gate_does_not_apply_to_period_stacked_fit(tmp_path):
+    """The period-stacked entry point fits no t3 by design; its extra has no estimand."""
+    d = _fit_dir(tmp_path, kind="mediation")
+    config = json.loads((d / "config.json").read_text())
+    config["extra"] = {"headline_period": 1}
+    (d / "config.json").write_text(json.dumps(config))
     assert evaluate_publication(d).publishable
+
+
+def _concurrent_published_fit_dir(
+    tmp_path: Path, *, bivariate_converged: object = True
+) -> Path:
+    """Minimal concurrent bundle whose published fits all converged (#631 f.6)."""
+    d = _fit_dir(tmp_path, kind="concurrent")
+    pd.DataFrame(
+        [
+            {"timepoint": 2, "fit_kind": "adjusted", "predictor": "all", "converged": True},
+            {
+                "timepoint": 2,
+                "fit_kind": "bivariate",
+                "predictor": "L",
+                "converged": bivariate_converged,
+            },
+            {"timepoint": 3, "fit_kind": "adjusted", "predictor": "all", "converged": True},
+        ]
+    ).to_csv(d / "concurrent_fit_diagnostics.csv", index=False)
+    return d
+
+
+def test_a_complete_concurrent_published_fit_bundle_publishes(tmp_path):
+    assert evaluate_publication(_concurrent_published_fit_dir(tmp_path)).publishable
+
+
+@pytest.mark.parametrize("verdict", [False, ""], ids=["failed", "unchecked"])
+def test_a_failed_or_unchecked_concurrent_subfit_withholds(tmp_path, verdict):
+    """A passing anchor cannot certify a displayed wave/single-skill sub-fit."""
+    d = _concurrent_published_fit_dir(tmp_path, bivariate_converged=verdict)
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("gate_failed", "computation")
+    assert not decision.publishable
+    assert any(
+        "concurrent published fit t2 bivariate L" in check
+        for check in decision.failing_checks
+    )
+
+
+def test_a_concurrent_fit_without_its_diagnostics_table_cannot_publish(tmp_path):
+    d = _concurrent_published_fit_dir(tmp_path)
+    (d / "concurrent_fit_diagnostics.csv").unlink()
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
+    assert not decision.publishable
+    assert "concurrent_fit_diagnostics.csv" in decision.missing_artifacts
+
+
+def _rli_adjusted_fit_dir(tmp_path: Path, *, ses_error: str | None = None) -> Path:
+    """Minimal RLI adjusted bundle with the promised SES refit (#631 f.7)."""
+    d = _fit_dir(tmp_path, kind="adjusted")
+    config = json.loads((d / "config.json").read_text())
+    config["extra"] = {"ses_error": ses_error}
+    (d / "config.json").write_text(json.dumps(config))
+    pd.DataFrame(
+        [{"predictor": "L", "n_children": 40, "median": 0.2, "converged": True}]
+    ).to_csv(d / "ses_sensitivity.csv", index=False)
+    return d
+
+
+def test_a_clean_adjusted_ses_refit_publishes(tmp_path):
+    assert evaluate_publication(_rli_adjusted_fit_dir(tmp_path)).publishable
+
+
+def test_a_recorded_ses_error_withholds_at_the_artifacts_stage(tmp_path):
+    d = _rli_adjusted_fit_dir(tmp_path, ses_error="KeyError: 'ses'")
+    (d / "ses_sensitivity.csv").unlink()
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
+    assert not decision.publishable
+    assert any("KeyError: 'ses'" in item for item in decision.missing_artifacts)
+
+
+def test_a_silently_absent_ses_table_withholds_even_without_an_error(tmp_path):
+    d = _rli_adjusted_fit_dir(tmp_path)
+    (d / "ses_sensitivity.csv").unlink()
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
+    assert "ses_sensitivity.csv" in decision.missing_artifacts
+
+
+def test_a_non_converged_ses_refit_withholds_at_the_computation_stage(tmp_path):
+    d = _rli_adjusted_fit_dir(tmp_path)
+    pd.DataFrame(
+        [{"predictor": "L", "n_children": 40, "median": 0.2, "converged": False}]
+    ).to_csv(d / "ses_sensitivity.csv", index=False)
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("gate_failed", "computation")
+    assert any("SES sensitivity" in check for check in decision.failing_checks)
+
+
+def test_the_ses_gate_does_not_apply_to_rlm_adjusted_fits(tmp_path):
+    """The Byrne/RLM entry points write no ses_error key and promise no refit."""
+    d = _fit_dir(tmp_path, kind="adjusted")
+    config = json.loads((d / "config.json").read_text())
+    config["extra"] = {"design": "between_child"}
+    (d / "config.json").write_text(json.dumps(config))
+    assert evaluate_publication(d).publishable
+
+
+def _gain_period1_fit_dir(
+    tmp_path: Path,
+    *,
+    required: bool = True,
+    refit_median: float = 0.35,
+    refit_interval: tuple[float, float] = (0.02, 0.72),
+    refit_converged: object = True,
+) -> Path:
+    """Minimal gain-factors bundle with the mandatory period-1 refit (#631 f.8)."""
+    d = _fit_dir(tmp_path, kind="gain_factors")
+    config = json.loads((d / "config.json").read_text())
+    config["resolved_run_plan"] = {"period1_sensitivity_required": required}
+    (d / "config.json").write_text(json.dumps(config))
+    # The family's pre-existing robustness gate reads beta_trt's power-scaling
+    # diagnosis; supply a clean row so these tests exercise the period-1 stage.
+    pd.DataFrame(
+        [{"prior": 0.01, "likelihood": 0.02, "diagnosis": "✓"}], index=["beta_trt"]
+    ).to_csv(d / "psense_summary.csv")
+    pd.DataFrame(
+        [
+            {
+                "fit": "primary_period_stacked",
+                "beta_trt_median": 0.4,
+                "beta_trt_lo": 0.1,
+                "beta_trt_hi": 0.7,
+                "converged": None,
+            },
+            {
+                "fit": "period1_only",
+                "beta_trt_median": refit_median,
+                "beta_trt_lo": refit_interval[0],
+                "beta_trt_hi": refit_interval[1],
+                "converged": refit_converged,
+            },
+        ]
+    ).to_csv(d / "period1_sensitivity.csv", index=False)
+    (d / "trace_period1_only.nc").write_bytes(b"trace fixture")
+    return d
+
+
+def test_a_complete_gain_period1_sensitivity_publishes(tmp_path):
+    assert evaluate_publication(_gain_period1_fit_dir(tmp_path)).publishable
+
+
+@pytest.mark.parametrize("artifact", ["period1_sensitivity.csv", "trace_period1_only.nc"])
+def test_a_missing_gain_period1_artifact_withholds(tmp_path, artifact):
+    d = _gain_period1_fit_dir(tmp_path)
+    (d / artifact).unlink()
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
+    assert artifact in decision.missing_artifacts
+
+
+@pytest.mark.parametrize("verdict", [False, ""])
+def test_a_non_converged_gain_period1_refit_withholds(tmp_path, verdict):
+    d = _gain_period1_fit_dir(tmp_path, refit_converged=verdict)
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("gate_failed", "computation")
+    assert any("period-1-only refit" in check for check in decision.failing_checks)
+
+
+@pytest.mark.parametrize(
+    ("median", "interval"),
+    [(-0.35, (-0.9, -0.05)), (0.35, (0.9, 1.4))],
+    ids=["direction-flip", "no-interval-overlap"],
+)
+def test_a_disagreeing_gain_period1_refit_withholds_at_robustness(
+    tmp_path, median, interval
+):
+    """The documented rule: a sign flip or non-overlapping 89% intervals withhold."""
+    d = _gain_period1_fit_dir(
+        tmp_path, refit_median=median, refit_interval=interval
+    )
+
+    decision = evaluate_publication(d)
+    assert (decision.status, decision.stage) == ("robustness_unresolved", "robustness")
+    assert "materially disagrees" in decision.reason
+
+
+def test_the_gain_period1_gate_does_not_apply_to_variants_or_legacy_plans(tmp_path):
+    """Treated-only / moderation variants declare the flag False; pre-flag stored
+    fits carry no plan at all and must re-decide exactly as before."""
+    variant = _gain_period1_fit_dir(tmp_path / "variant", required=False)
+    (variant / "period1_sensitivity.csv").unlink()
+    (variant / "trace_period1_only.nc").unlink()
+    assert evaluate_publication(variant).publishable
+
+    legacy = _gain_period1_fit_dir(tmp_path / "legacy")
+    config = json.loads((legacy / "config.json").read_text())
+    config.pop("resolved_run_plan")
+    (legacy / "config.json").write_text(json.dumps(config))
+    (legacy / "period1_sensitivity.csv").unlink()
+    (legacy / "trace_period1_only.nc").unlink()
+    assert evaluate_publication(legacy).publishable
 
 def test_clean_growth_influence_bundle_allows_release(tmp_path):
     assert evaluate_publication(_growth_influence_fit_dir(tmp_path)).publishable
@@ -1583,7 +1814,7 @@ def _tau_summary(directory: Path, widths: tuple[float, float]) -> None:
     pd.DataFrame(
         [
             {"outcome": name, "ame_prob_lo": -0.5 * width, "ame_prob_hi": 0.5 * width}
-            for name, width in zip(("TE", "UE"), widths)
+            for name, width in zip(("TE", "UE"), widths, strict=True)
         ]
     ).to_csv(directory / "tau_summary.csv", index=False)
 
@@ -2451,7 +2682,11 @@ def _joint_mechanism_levels_fit_dir(
                 for outcome in ("all", "W", "N")
             ]
         ).to_csv(d / ppc_file, index=False)
-        (d / psense_file).write_text(",prior,likelihood,diagnosis\nbeta_mech,0.01,0.02,✓\n")
+        # Explicit UTF-8: the tick is unwritable under Windows' cp1252 default,
+        # which failed this whole fixture on a Windows checkout.
+        (d / psense_file).write_text(
+            ",prior,likelihood,diagnosis\nbeta_mech,0.01,0.02,✓\n", encoding="utf-8"
+        )
         rows.append(
             {
                 "wave": wave,

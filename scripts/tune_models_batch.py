@@ -105,8 +105,20 @@ def _git_commit() -> str:
         return "unknown"
 
 
-def _is_complete(model_id: str, scoring: str, objective: str) -> bool:
-    """A model is complete if its best_params.json exists and matches the policy."""
+def _is_complete(
+    model_id: str, scoring: str, objective: str, seed: int, n_trials: int
+) -> bool:
+    """A model is complete if its best_params.json exists and matches the policy.
+
+    Only treat as complete if it was tuned under the SAME policy we'd re-run,
+    so a leftover tune under a different policy doesn't masquerade as done:
+    scoring, LightGBM objective and seed must match exactly, and the recorded
+    trial count must reach the requested budget. A study with fewer recorded
+    trials is tolerated only when it recorded a study ``timeout`` — i.e. it was
+    deliberately time-capped, not tuned under a smaller trial budget (#631
+    finding 20b). Older ``best_params.json`` files predate the persisted
+    ``timeout`` key, so a short study without one re-tunes.
+    """
     bp = _paths.gb_tuning_dir() / model_id / "best_params.json"
     if not bp.is_file():
         return False
@@ -114,11 +126,16 @@ def _is_complete(model_id: str, scoring: str, objective: str) -> bool:
         data = json.loads(bp.read_text())
     except (json.JSONDecodeError, OSError):
         return False
-    # Only treat as complete if it was tuned under the SAME policy we'd re-run,
-    # so a leftover RMSE tune doesn't masquerade as a done MAE retune.
     if data.get("scoring") != scoring:
         return False
     if data.get("params", {}).get("objective") != objective:
+        return False
+    if data.get("seed") != seed:
+        return False
+    recorded_trials = data.get("n_trials")
+    if not isinstance(recorded_trials, int):
+        return False
+    if recorded_trials < n_trials and data.get("timeout") is None:
         return False
     return True
 
@@ -197,7 +214,9 @@ def main() -> None:
     if args.dry_run:
         print("DRY RUN — planned actions:")
         for m in models:
-            done = _is_complete(m, args.scoring, args.lgbm_objective)
+            done = _is_complete(
+                m, args.scoring, args.lgbm_objective, args.seed, args.n_trials
+            )
             action = "SKIP (complete)" if (done and not args.force) else "TUNE"
             print(f"  [{action:15s}] {m}")
             if action == "TUNE":
@@ -233,7 +252,9 @@ def main() -> None:
     succeeded: list[str] = []
 
     for i, model_id in enumerate(models, 1):
-        if not args.force and _is_complete(model_id, args.scoring, args.lgbm_objective):
+        if not args.force and _is_complete(
+            model_id, args.scoring, args.lgbm_objective, args.seed, args.n_trials
+        ):
             print(f"[{i}/{len(models)}] {model_id}: SKIP (already complete)")
             skipped.append(model_id)
             manifest["models"].setdefault(model_id, {})["status"] = "skipped_complete"

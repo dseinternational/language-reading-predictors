@@ -3,25 +3,62 @@
 ```{python}
 # | echo: false
 # | output: asis
-_RE_KINDS_LOO = {
+# The LOO unit is read from the resolved run plan's ``loo_unit`` where the stored
+# fit records one, with a corrected kind list as the fallback for stored fits
+# predating run plans (#631 finding 19; keep in sync with _diagnostics.qmd).
+# dose_response (#587) and survival (#631 finding 14) aggregate the pointwise log
+# likelihood by child before PSIS; block_exposure and pooled_levels score
+# row-level; horseshoe is split by its ``gain`` setting.
+_RE_ROW_KINDS_LOO = {
     "mechanism",
     "gain_factors",
     "level_factors",
     "did",
-    "dose_response",
     "lcsm",
     "growth",
     "historical_growth",
+    "block_exposure",
+    "pooled_levels",
 }
+_kind_loo = str(config.get("kind", ""))
+_plan_loo = config.get("resolved_run_plan") or {}
+_is_horseshoe_levels_loo = _kind_loo == "horseshoe" and (
+    (config.get("effective_model_settings") or {}).get("gain") is False
+)
+_loo_unit_name = str(_plan_loo.get("loo_unit") or "")
+if not _loo_unit_name:
+    _loo_unit_name = (
+        "observation_row"
+        if (_kind_loo in _RE_ROW_KINDS_LOO or _is_horseshoe_levels_loo)
+        else "child"
+    )
 if _has("loo.txt"):
     print("```\n" + open(_here / "loo.txt").read() + "\n```")
-    if config.get("kind") in _RE_KINDS_LOO:
+    if _loo_unit_name != "child" and (
+        _kind_loo in _RE_ROW_KINDS_LOO or _is_horseshoe_levels_loo
+    ):
         print(
             "\n_Note:_ this family carries a per-child random intercept, so its "
             "PSIS-LOO is **conditional** (within-child, one-row-out) — elpd predicts a "
             "held-out child × phase/period row given that child's own fitted intercept, "
             "not a new child. It is comparable only against models with the same "
             "grouping on the same rows (as the nested interaction/dose comparators are)."
+        )
+    elif _kind_loo == "survival" and _loo_unit_name == "child":
+        # No random intercept in this family, so the conditional-LOO caveat above
+        # does not apply.
+        print(
+            "\n_Note:_ this fit's PSIS-LOO is **child-level**: each child's "
+            "person-period rows are summed and left out together, because a later "
+            "row exists only when the earlier event was zero — so elpd scores "
+            "predicting a whole unseen child's event history."
+        )
+    elif _kind_loo == "dose_response" and _loo_unit_name == "child":
+        print(
+            "\n_Note:_ this fit's PSIS-LOO is **child-level** (#587): each child's "
+            "transition rows are summed and left out together, because a held-out "
+            "t2/t3 score is retained as the next transition's own baseline — so "
+            "elpd scores predicting a child the model has not seen."
         )
 else:
     # Prefer the fit's OWN recorded reason over a generic example naming another

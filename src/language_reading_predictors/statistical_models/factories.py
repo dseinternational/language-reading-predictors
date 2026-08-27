@@ -2557,8 +2557,11 @@ def build_did_model(
 
     Binary models use the t1--t3 levels frame.  They estimate the arm gap at
     every wave separately: ``tau_t2`` is the clean randomised t2 contrast,
-    ``arm_gap_t3`` is the post-crossover 40-week-vs-20-week association, and
-    ``delta_crossover = tau_t2 - arm_gap_t3`` is waitlist catch-up.  This avoids
+    ``arm_gap_t3`` is also identified by the original randomisation, but of a
+    different exposure -- assignment to the early-start versus delayed-start
+    treatment schedule (both arms treated by t3) -- and ``delta_crossover =
+    tau_t2 - arm_gap_t3`` is the change between those two randomised regime
+    contrasts, never an identified catch-up.  This avoids
     the legacy restriction that forced those distinct quantities to equal one
     common-current-treatment coefficient.  The t2 period-start outcome is never
     conditioned on because it is treatment-affected in the immediate arm.
@@ -2569,9 +2572,12 @@ def build_did_model(
     t1-referenced ``d_grp_time[t2]``, #552, is the gap-change estimand).
 
     Dose variants retain P1/P2 transition rows because sessions are interval
-    exposures.  They retain an explicit treatment-presence term, adjust for
-    randomised arm plus the shared t1 outcome and age, and enter sessions centred
-    and scaled among treated rows.  Dose coefficients remain observational.
+    exposures.  Because ``treated = (immediate arm) OR (period 2)`` saturates the
+    arm-by-period cell design, their ``theta_treated`` at the mean treated dose is
+    the crossover *cell* contrast, not an isolated treatment-presence effect.
+    They adjust for randomised arm plus the shared t1 outcome and age, and enter
+    sessions centred and scaled among treated rows.  Dose coefficients remain
+    observational.
     """
     own = outcome_symbol
     if own not in prepared.post_counts:
@@ -5753,7 +5759,9 @@ def build_level_factors_model(
     ``post_phase`` = ``t2``/``t3``/``t4``) on the outcome-tier tau prior. The
     randomised contrast is the **t2 change** ``d_grp_time[t2]`` — a
     difference-in-differences of adjusted levels; ``d_grp_time[t3]`` / ``[t4]``
-    are post-crossover associations. ``b_grp_time`` is kept as a Deterministic so
+    are randomised early-start-versus-delayed-start schedule contrasts, not
+    treated-versus-untreated effects and carrying no mechanistic reading (#631
+    finding 13). ``b_grp_time`` is kept as a Deterministic so
     the per-wave levels view (and the pre-#552 raw t2 gap, for the side-by-side
     comparison) is still in the trace. ``arm_gap_reference="free"`` keeps the
     former free ``b_grp_time`` vector as an explicit comparator.
@@ -6110,13 +6118,23 @@ def build_block_exposure_model(
     ).astype(float)
     ability = prepared.covariates[ability_covariate] if ability_covariate is not None else None
 
+    # Only the phases this fit actually observes get a wave intercept (#631
+    # finding 17). Block-2 outcomes are absent at t1, so those rows self-drop and
+    # a full-width phase vector would carry an element the likelihood never sees —
+    # which leaves a translation ridge even under a zero-sum constraint, because
+    # the data-free element can absorb the compensating shift.
+    observed_phases = np.unique(np.asarray(prepared.phase).astype(np.int64))
+    phase_position = {int(p): i for i, p in enumerate(observed_phases)}
+    phase_idx = np.array(
+        [phase_position[int(p)] for p in np.asarray(prepared.phase)], dtype=np.int64
+    )
     coords = {
         "obs_id": np.arange(prepared.n_obs),
-        "phase": np.arange(prepared.n_phases),
+        "phase": observed_phases,
         "child": np.arange(prepared.n_children),
     }
     with pm.Model(coords=coords) as model:
-        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        phase_d = pm.Data("phase_idx", phase_idx, dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         exposed_d = pm.Data("exposed", exposed, dims="obs_id")
         adjust_d = {
@@ -6124,13 +6142,18 @@ def build_block_exposure_model(
             for c in adjust_for
         }
 
-        # Own-baseline-free level model: the per-timepoint ``alpha_time`` carries the
-        # absolute level at each wave, leaving ``alpha`` a small zero-centred offset
-        # (matches build_level_factors_model).
+        # Own-baseline-free level model. A free ``alpha`` beside a free per-phase
+        # ``alpha_time`` left only their sums in the likelihood, so the split
+        # between them was decided by the priors rather than the data (#631
+        # finding 17) — the same translation ridge #389 finding 2 removed from
+        # build_level_factors_model. ``alpha`` now carries the absolute level
+        # (this family has no untreated t1 wave to anchor on, unlike the level
+        # factors) and ``alpha_time`` is an exact zero-sum deviation vector over
+        # the observed phases, so both are identified.
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
-        alpha_time = pm.Normal("alpha_time", mu=0.0, sigma=0.5, dims="phase")
+        alpha_time = pm.ZeroSumNormal("alpha_time", sigma=0.5, dims="phase")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 
