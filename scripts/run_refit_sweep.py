@@ -351,10 +351,60 @@ def main(argv: Sequence[str] | None = None) -> int:
     _print("")
     _print(f"Sweep finished in {_format_duration(time.monotonic() - sweep_started)}: "
            f"{len(to_run) - len(failures)} ok, {len(failures)} failed.")
+    for line in _stale_by_ordering(args.kind, to_run, args.config):
+        _print(line)
     if failures:
         _print("Failed: " + ", ".join(failures))
         return 1
     return 0
+
+
+def _stale_by_ordering(
+    kind: str, ran: Sequence[str], config: str
+) -> list[str]:
+    """Warn about a fit whose release qualification names a model fitted after it.
+
+    A release decision is written once, at fit time, from whatever its companions
+    looked like *then*. So a sweep that fits a parent before its registered
+    companion leaves the parent permanently qualified against a companion that now
+    exists — the decision is stale, not wrong-at-the-time, and nothing revisits it.
+
+    This bit ``lrp-rlm-jc-002`` twice: the 2026-08-26 batch fitted it 2m20s before
+    ``lrp-rlm-jc-102``, and the 2026-08-27 tail did the same at 24/25 and 25/25
+    (notes/202608271200-closing-584-588-residuals.md). Both times the parent
+    published "its own release decision withholds publication" about a companion
+    that was fitted, converged and publishable.
+
+    Detection rather than repair: ``regenerate_key_findings.py`` already
+    re-evaluates the decision and rewrites both files, so the fix is one command
+    and naming it is more useful than silently re-running it here.
+    """
+    if kind != "statistical":
+        return []
+    ran_set = set(ran)
+    flagged: list[str] = []
+    for model_id in ran:
+        directory = _fit_dir(kind, model_id, config)
+        try:
+            with open(directory / "release_decision.json") as handle:
+                qualification = str(json.load(handle).get(
+                    "publication_qualification"
+                ) or "")
+        except (OSError, json.JSONDecodeError):
+            continue
+        named = sorted(o for o in ran_set if o != model_id and o in qualification)
+        if named:
+            flagged.append(f"  {model_id} qualified against {', '.join(named)}")
+    if not flagged:
+        return []
+    return [
+        "",
+        "Release decisions possibly stale by fit order — each of these was decided "
+        "before a model this sweep fitted afterwards:",
+        *flagged,
+        "Re-derive them with: "
+        f"python scripts/regenerate_key_findings.py <model-id>-{config}",
+    ]
 
 
 def _iter_journal(path: Path) -> Iterable[dict[str, object]]:

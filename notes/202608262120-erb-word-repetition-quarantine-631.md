@@ -32,10 +32,37 @@ Everything below consumed the corrupt values before this change and needs refitt
 
 - **Gradient-boosting models (all)**: `erbword`, `erbnw` and `erbto` (and their `_gain`/`_next` derivatives) sit in the default predictor sets, so the corrupt t4/t3 cells entered every GB fit's predictor matrix. Fits through `load_data()` now see the quarantined cells as missing (LightGBM handles NaN natively), so post-change GB refits will differ marginally from stored ones.
 - **GB models with ERB targets**: LRP-RLI-GBL-018 / LRP-RLI-GBG-018 and LRP-RLI-GBL-019 / LRP-RLI-GBG-019 model the ERB measures directly, so the corrupt cells were target rows, not just predictor cells.
-- **Bayesian fits adjusting for `erbto` at t4** (the `rw` phonological-memory adjuster; stored fits carry the corrupt `erbto = 14`, and refits now see it as missing): the `gain_factors` suite LRP-RLI-GF-001–013 (period-3 rows, where t4 is the post wave), the `concurrent` family LRP-RLI-CA-001–009 and CA-307, the `block_exposure` family LRP-RLI-BX-001–004 and BX-103, the adjusted LRP-RLI-ADJ-065, and the `lcsm` / `growth` / `long_corr_factor` wave panels wherever `erbto` enters as a per-wave covariate.
-- **`pooled_levels` PL-005** (and its PL-006 comparator), where `erbto` is the exposure itself rather than an adjuster.
+- **Bayesian fits whose prepared analysis frame changes** (the `rw` phonological-memory adjuster and the `erbto` exposure; stored fits carry the corrupt values, and refits now see them as missing). The list is enumerated below rather than reasoned about — see the 2026-08-27 correction.
 
 The distortion is one cell in ~200, entering mostly as a mean-filled standardised covariate, so no stored headline is expected to move materially — but none of these fits should be republished on the stored artefacts once the cell's true value is known.
+
+### Correction, 2026-08-27 — the Bayesian list, measured
+
+> [!NOTE]
+> Added by a LLM-based AI tool (Claude Code/Opus 5).
+
+The original bullet named affected Bayesian families by reading the declared adjustment sets. That is wrong in both directions, because a declared confounder only bites when the affected wave is inside the model's window _and_ the affected child is inside its fitted rows. The list below is measured instead: every registered model's plan was resolved and its analysis frame prepared twice — once with `KNOWN_BAD_CELLS` applied and once with the quarantine and its validator neutralised — and the prepared arrays compared.
+
+**Changed (45 RLI models).** Their stored posteriors are not reproducible from current code:
+
+| Family           | Models                                                               |
+| ---------------- | -------------------------------------------------------------------- |
+| `block_exposure` | BX-001–004, BX-103                                                   |
+| `concurrent`     | CA-001–009, CA-307                                                   |
+| `gain_factors`   | GF-005, GF-105, GF-205                                               |
+| `level_factors`  | LF-002, 003, 006, 009, 010, 106, 202, 203, 206, 209, 210             |
+| `mechanism`      | MECH-056, 057, 088, 089, 090, 102, 104, 156, 157, 188, 189, 190, 204 |
+| `pooled_levels`  | PL-003, PL-004, PL-005                                               |
+
+**Where the original bullet was wrong.** It claimed the whole `gain_factors` suite GF-001–013; only the three off-floor `P` models change, and GF-001–004 and 006–013 resolve no ERB covariate at all. It omitted `level_factors` (eleven fits) and `mechanism` (thirteen) entirely, and both are affected. It named `growth` and `long_corr_factor`, neither of which changes. `PL-006` does not change while `PL-003`/`PL-004` do. Two direct refits confirm the negative side: `med-059` and `med-060` — the latter carrying `erbto` in its effective confounder set — both reproduce their pre-quarantine posteriors byte-for-byte, with unchanged fitted-row digests.
+
+**Not measured (16 RLI models).** Their loaders take arguments the harness did not supply, so they are neither confirmed changed nor confirmed clean: ADJ-065, LCSM-067/081/082/091/181, MED-076/092/176/276, MM-001/002/101/102, SURV-009/011.
+
+**Out of scope.** All 25 RLM (Byrne) fits read a different archive, which this quarantine does not touch.
+
+Two of the changed fits, `CA-007` and `CA-307`, are the two halves of a released phoneme-blending link pair, so the pair's published numbers rest on pre-quarantine data on both sides.
+
+The probe is `notes/assets/202608271400-erb-quarantine-impact.py`; re-run it after any loader change. The refits are tracked separately rather than folded into the 2026-08-27 closing pass — see #635 and `notes/202608271200-closing-584-588-residuals.md`.
 
 ## Follow-up
 

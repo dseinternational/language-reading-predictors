@@ -1897,6 +1897,20 @@ class LongitudinalPanel:
     extension_waves: tuple[int, ...] = ()
     """Waves appended outside the complete-case rule: kept subjects contribute
     where observed (an attrition-selected tail, e.g. the Byrne w4/w5 extension)."""
+    data_path: str = ""
+    """Absolute path of the source CSV used to construct the panel."""
+    data_sha256: str = ""
+    """SHA-256 digest of the source CSV.
+
+    :class:`PreparedData` and :class:`WavePanel` have always carried this, and
+    ``reporting.write_run_metadata`` reads it off whatever container the pipeline
+    attached, so a panel without it wrote ``data_sha256: null`` into every
+    ``config.json`` built from it — the whole ``historical_growth`` and
+    ``historical_joint`` families. That is not merely thin provenance: the
+    historical-joint prior-companion binding requires the checksum **on both
+    fits** and fails closed when either is absent, so a check meant to prove two
+    fits read the same data could never pass for the only study it governs
+    (2026-08-27, closing #588)."""
 
     @property
     def all_waves(self) -> tuple[int, ...]:
@@ -2080,6 +2094,7 @@ def load_longitudinal_panel(
             "(complete-case selection, counts and n_trials are all measure-keyed)."
         )
     csv_path = Path(path) if path is not None else Path(dataset.path)
+    data_path, data_sha256 = _data_provenance(csv_path)
     df = read_source_csv(csv_path)
 
     subj, wave_c, grp = dataset.subject_col, dataset.wave_col, dataset.group_col
@@ -2243,6 +2258,8 @@ def load_longitudinal_panel(
         dropped_subjects=n_subjects_before - len(subject_ids),
         group_label_col=label_col,
         extension_waves=extension_waves,
+        data_path=data_path,
+        data_sha256=data_sha256,
     )
 
 

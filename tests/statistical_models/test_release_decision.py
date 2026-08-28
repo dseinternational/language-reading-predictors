@@ -2381,6 +2381,61 @@ def test_the_between_child_fit_is_out_of_scope(tmp_path):
     assert evaluate_publication(d).publication_qualification == ""
 
 
+def test_every_prior_binding_field_is_one_the_real_pipeline_records():
+    """The binding must be *satisfiable*, not merely correct on fabricated input.
+
+    Every fixture above hands both fits a ``data_sha256``, so the whole suite
+    passed while the production loader for this family recorded none:
+    ``LongitudinalPanel`` had no provenance fields, ``write_run_metadata`` read
+    ``None`` off it, and the checksum arm of the binding therefore failed closed
+    on every real pair. A fail-closed check that can never open is not a strict
+    check, it is a broken one -- ``lrp-rlm-jc-002`` published a qualification
+    saying its sensitivity was not release-ready when the sensitivity was fitted,
+    converged and publishable (2026-08-27, closing #588).
+
+    So assert against the real loader rather than a fixture: build the panel the
+    ``historical_joint`` pipeline builds, take the plan the module resolves, and
+    require every binding reader to find a value.
+    """
+    from language_reading_predictors.statistical_models.datasets import resolve_dataset
+    from language_reading_predictors.statistical_models.historical_joint import (
+        resolve_historical_joint_run_plan,
+    )
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_longitudinal_panel,
+    )
+    from language_reading_predictors.statistical_models.registry import discover_models
+    from language_reading_predictors.statistical_models.release import (
+        _HISTORICAL_JOINT_PRIOR_BINDING,
+    )
+
+    spec = discover_models()["lrp-rlm-jc-002"].load().SPEC
+    plan = resolve_historical_joint_run_plan(spec)
+    dataset, measures = resolve_dataset(spec.study_id)
+    panel = load_longitudinal_panel(
+        dataset,
+        [measures[symbol] for symbol in plan.measures],
+        waves=tuple(plan.waves),
+        extension_waves=tuple(plan.extension_waves),
+    )
+    # The two config fields the binding reads off the fitted container, exactly as
+    # ``reporting.write_run_metadata`` sources them.
+    config = {
+        "data_sha256": getattr(panel, "data_sha256", None),
+        "fitted_subject_identity": {"sha256": "row-digest-stands-in"},
+        "resolved_run_plan": plan.as_dict(),
+    }
+    unrecordable = [
+        description
+        for description, reader in _HISTORICAL_JOINT_PRIOR_BINDING
+        if reader(config) is None
+    ]
+    assert not unrecordable, (
+        "the historical-joint prior-companion binding requires field(s) the real "
+        f"pipeline never records, so it can never open: {unrecordable}"
+    )
+
+
 # ---------------------------------------------------------------------------
 # 2026-08-23 joint audit, finding 12: the phoneme-blending response-link policy's
 # scope in a joint fit.

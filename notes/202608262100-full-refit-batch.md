@@ -20,7 +20,7 @@ The standing decision of 2026-08-25 was that every statistical refit implied by 
 
 - Release decisions: **263 of 269 publishable** (`ok` at the robustness stage). The six withheld are exactly the #338 Byrne/RLM ports blocked at the **inputs** stage by the unresolved `basspel`/`woco`/`basnum` score bounds — the release contract working as designed, resolvable only by external documentation.
 - All eight phoneme-blending link pairs (#608/#619) are fully publishable on both halves: itt-008/108, gf-006/306, lf-006/106, did-003/103, al-006/306, ca-007/307, dose-084/384, med-087/387.
-- The #623 plan-currency check and provenance are registry-clean after the #630 tail (verified by the post-batch inventory).
+- The #623 plan-currency check passes for all eight gated link pairs. It is **not** registry-clean: the #630 tail never ran (the execution record above says it stopped at 0/15), so thirteen fits still store the loader-filtered plan and two carry provenance blemishes. An earlier revision of this bullet claimed the opposite; that claim was wrong and is corrected here. The tail was run on 2026-08-27 — see `notes/202608271200-closing-584-588-residuals.md`.
 
 ## What moved scientifically
 
@@ -35,3 +35,16 @@ The per-model record is `notes/202608262100-refit-batch-movement-record.md`. The
 7. **mech-301 (the new Mundlak split)** is a standing caveat for the letter-sounds→word-reading mechanism story: the within-child slope alone is inconclusive (+0.35 items, 89 % −1.15 to +1.82).
 
 `notes/202608182200-findings-by-question.md` has been updated in place against the fresh artefacts; the 2026-08-18 per-family findings series otherwise remains the narrative record of the pre-batch fits and should be read with the movement record beside it.
+
+## Addendum, 2026-08-27 — what this batch left undone
+
+> [!NOTE]
+> Added by a LLM-based AI tool (Claude Code/Opus 5).
+
+Two actions this note's movement record already listed as open, plus one it did not:
+
+1. **`scripts/compare_statistical_models.py` was never re-run.** Every artefact in `output/statistical_models/comparison/` still dated from 2026-08-20/23 and reported superseded numbers — `mediation_family.csv` gave med-059's total as 2.061 where the refit gives 2.319 — and the per-fit copies of the mechanism LOO comparison, which the batch's directory resets removed, were never rewritten.
+2. **`lrp-rlm-jc-002`'s stale qualification could not be fixed by re-evaluation.** The movement record correctly noted that jc-002 still called the now-publishable jc-102 withheld, but re-evaluating only moved the complaint: the binding also requires `data_sha256` on both fits, and `LongitudinalPanel` recorded none, so it could never open.
+3. **The #630 tail.** Thirteen plan-stale fits plus `med-276` (dirty tree) and `med-387` (off-main commit).
+
+All three are closed in the 2026-08-27 pass.
