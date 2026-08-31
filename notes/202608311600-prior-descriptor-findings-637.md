@@ -50,3 +50,25 @@ The migration is half done by variable count. Of 147 distinct free-variable name
 That half cannot be finished by the same mechanism alone: two of those variables — the HSGP basis coefficients `f_A__g_unit_hsgp_coeffs` and `f_mech__g_unit_hsgp_coeffs` — are created **inside `dse_research_utils`**, which this repository cannot annotate at the creation site. So "attach the meaning where the variable is created" cannot be an absolute rule; a small explicit declaration table is needed for externally-created variables however far the migration goes.
 
 The remaining ~50 in-repo inline sites are all in `factories.py`, which #637 stage 3 splits by family. Declaring them is cheaper after that split than before it, and doing it first would collide with it.
+
+## Finding 1 resolved — 2026-08-31
+
+`lrp-rli-jm-001-reporting`'s prior table was regenerated in place with `scripts/regenerate_priors_table.py`, and the report re-rendered. **No resampling**: the prior table is a property of the model's structure, so the script rebuilds the model from the fit's own recorded plan — including the artefact-hosting wave `config.json` names — checks the rebuilt free-variable set against the stored table, and only then writes.
+
+One line changed:
+
+```
+- beta_mech,"Normal(0, 0.3)",association,"Linear-mechanism slope beta_mech ~ Normal(0, 1).",beta_mech
++ beta_mech,"Normal(0, 0.3)",association,"Standardised predictor slope ~ Normal(0, 0.3) by default.",predictor_slope
+```
+
+`distribution` and `role` were already right. `prior_beta_mech.png` / `.svg` were deleted — they plot `Normal(0, 1)`, a density this model does not use — and the two matching `untracked` rows were pruned from `artifact_manifest.json`. Every one of the 24 recorded manifest rows is byte-identical, nothing else in the directory changed, and the re-rendered `index.html` now shows the corrected rationale and the `predictor_slope` panel.
+
+Two things the regeneration deliberately does **not** do, each because the first attempt did and it was wrong:
+
+- **It does not redraw the panels that were already correct.** `emit_priors` redraws every panel, and a panel redrawn now is laid out by today's matplotlib: same density, different canvas dimensions, four unrelated figures diverging from the rest of the corpus for no reason.
+- **It does not rescan the manifest.** A published fit directory also holds a rendered `index.html` and its Quarto asset tree, written after the fit. A full rescan folds those in, turning the fit's own record of what it wrote into a listing of what happens to be in the directory.
+
+The `-dev` companion directory was refitted rather than patched. A dev-tier fit is cheap, and refitting produces the corrected row **by construction** — from the descriptor recorded when the model is built — rather than by rewriting a stored table. Its `beta_mech` row, and the whole parameter/role/panel table, came out identical to the regenerated reporting one, which is an independent check that the regeneration wrote what a genuine fit would have written. Its convergence verdict is unchanged (`gate_failed` on R-hat and ESS, as before and as expected at dev tier).
+
+A related defect surfaced while doing this and is fixed in the same change: `priors.used_prior_keys` still resolved each variable's panel through the name map while `priors_table` resolved it from the recorded descriptor. The two now share one `described_prior_row`, so a row and the figure beside it cannot name different densities.

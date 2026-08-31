@@ -1542,8 +1542,9 @@ def used_prior_keys(
 ) -> list[str]:
     """Constructor keys with a panel to render for ``model`` (for panel pruning).
 
-    Derived from :func:`prior_info_for_rv` so a panel reached only via the RV-
-    distribution fallback — e.g. the ``gamma_cross`` panel behind an inline
+    Derived from :func:`described_prior_row` — the same resolution the published
+    table uses, so a variable's row and its panel cannot name different densities
+    (#637). A panel reached only via the RV-distribution fallback — e.g. the ``gamma_cross`` panel behind an inline
     Normal(0, 0.3) coupling like ``b_R``, or an HSGP ``eta_main`` / ``ell``
     amplitude/lengthscale — is not dropped (issue #141). A deterministic listed
     in :data:`_REPARAMETERISED_DETERMINISTICS` whose source RV the model
@@ -1559,9 +1560,9 @@ def used_prior_keys(
         source = _REPARAMETERISED_DETERMINISTICS.get(base)
         if source and rv.name in determ_names and source in free_names:
             continue
-        panel = prior_info_for_rv(rv.name, rv=rv, ctor_overrides=ctor_overrides)[
-            "panel"
-        ]
+        panel = described_prior_row(
+            model, rv, ctor_overrides=ctor_overrides
+        )["panel"]
         if panel and panel in ALL_PRIORS and panel not in keys:
             keys.append(panel)
     return keys
@@ -1595,43 +1596,82 @@ def priors_table(
     thing at creation through ``to_pymc(role=..., rationale=...)``, which is
     recorded as ``provenance="call-site"``.
     """
+    rows = [
+        described_prior_row(
+            model,
+            rv,
+            ctor_overrides=ctor_overrides,
+            role_overrides=role_overrides,
+            rationale_overrides=rationale_overrides,
+        )
+        for rv in model.free_RVs
+    ]
+    return pd.DataFrame(
+        rows, columns=["parameter", "distribution", "role", "rationale", "panel"]
+    )
+
+
+def described_prior_row(
+    model,
+    rv,
+    *,
+    ctor_overrides: dict[str, str] | None = None,
+    role_overrides: dict[str, str] | None = None,
+    rationale_overrides: dict[str, str] | None = None,
+) -> dict[str, str]:
+    """The published row for one variable — descriptor first, then inference.
+
+    The single answer to "what does this prior mean here", used by both
+    :func:`priors_table` and :func:`used_prior_keys`. They resolved it separately
+    until #637, so a variable could be *described* from its recorded descriptor
+    while its prior-PDF **panel** was still chosen by the name map — the table
+    naming one density and the figure beside it plotting another.
+    """
     recorded = descriptors_for(model)
     role_overrides = role_overrides or {}
     rationale_overrides = rationale_overrides or {}
     ctor_overrides = ctor_overrides or {}
-    rows = []
-    for rv in model.free_RVs:
-        base = rv.name.split("[")[0]
-        descriptor = recorded.get(rv.name)
-        if descriptor is not None and base not in ctor_overrides:
-            row = descriptor.as_row()
-            if base in role_overrides:
-                row["role"] = role_overrides[base]
-            # An outcome-anchored prior is described by its anchor, ahead of every
-            # other route (#390 P1): the constructor's docstring describes the
-            # zero-centred prior this one is not, and the empirical-Bayes sentence
-            # is the disclosure that it was built from the observed outcomes.
-            override_rationale = (
-                rationale_overrides.get(rv.name)
-                or rationale_overrides.get(base)
-                or empirical_bayes_rationale(base, row["distribution"])
-                or None
-            )
-            if override_rationale is not None:
-                row["rationale"] = override_rationale
-            rows.append(row)
-            continue
-        rows.append(
-            prior_info_for_rv(
-                rv.name,
-                rv=rv,
-                ctor_overrides=ctor_overrides or None,
-                role_overrides=role_overrides or None,
-                rationale_overrides=rationale_overrides or None,
-            )
+    base = rv.name.split("[")[0]
+    descriptor = recorded.get(rv.name)
+    if descriptor is not None and base not in ctor_overrides:
+        row = descriptor.as_row()
+        if base in role_overrides:
+            row["role"] = role_overrides[base]
+        # An outcome-anchored prior is described by its anchor, ahead of every
+        # other route (#390 P1): the constructor's docstring describes the
+        # zero-centred prior this one is not, and the empirical-Bayes sentence
+        # is the disclosure that it was built from the observed outcomes.
+        override_rationale = (
+            rationale_overrides.get(rv.name)
+            or rationale_overrides.get(base)
+            or empirical_bayes_rationale(base, row["distribution"])
+            or None
         )
-    return pd.DataFrame(
-        rows, columns=["parameter", "distribution", "role", "rationale", "panel"]
+        if override_rationale is not None:
+            row["rationale"] = override_rationale
+        return row
+    return _unrecorded_prior_row(
+        rv,
+        ctor_overrides=ctor_overrides,
+        role_overrides=role_overrides,
+        rationale_overrides=rationale_overrides,
+    )
+
+
+def _unrecorded_prior_row(
+    rv,
+    *,
+    ctor_overrides: dict[str, str],
+    role_overrides: dict[str, str],
+    rationale_overrides: dict[str, str],
+) -> dict[str, str]:
+    """The name-and-scale inference, for a variable with no recorded descriptor."""
+    return prior_info_for_rv(
+        rv.name,
+        rv=rv,
+        ctor_overrides=ctor_overrides or None,
+        role_overrides=role_overrides or None,
+        rationale_overrides=rationale_overrides or None,
     )
 
 
