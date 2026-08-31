@@ -35,6 +35,7 @@ from __future__ import annotations
 from dse_research_utils.statistics.evidence import (  # noqa: F401
     evidence_label,
     favoured_direction,
+    odds_string,
 )
 from dse_research_utils.statistics.intervals import eti_bands  # noqa: F401
 from dse_research_utils.statistics.rope import rope_card  # noqa: F401

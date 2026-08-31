@@ -11,7 +11,9 @@ alone is what let the validator drift from the repository until #607.
 
 from __future__ import annotations
 
+import ast
 import base64
+import importlib
 import importlib.util
 import json
 import os
@@ -443,3 +445,67 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
     assert "0.456" in html
     assert "0.789" in html
     assert "0.654" in html
+
+
+# --- Report-template import contract (#641 facade regression) -----------------
+#
+# The #641 reporting split left ``statistical_models.reporting`` as a re-export
+# facade. It kept ``evidence_label`` and ``favoured_direction`` but dropped
+# ``odds_string``, which five result partials import — so every ``itt``, ``did``,
+# ``block_exposure``, ``gain_factors`` and ``level_factors`` report failed to
+# render while the Python suite stayed green, because nothing in the suite
+# imports that name *through the facade*. The check below is deliberately
+# derived from the real ``docs/models`` tree rather than a fixture list: a name
+# a template imports is part of the package's public surface, and dropping it is
+# a break whether or not any Python module still uses it.
+
+
+def _template_package_imports() -> list[tuple[Path, str]]:
+    """Every ``from language_reading_predictors...`` statement in the templates."""
+    statements: list[tuple[Path, str]] = []
+    for qmd in sorted((REPO / "docs/models").rglob("*.qmd")):
+        lines = qmd.read_text(encoding="utf-8").splitlines()
+        index = 0
+        while index < len(lines):
+            stripped = lines[index].strip()
+            if stripped.startswith("from language_reading_predictors"):
+                block = [stripped]
+                depth = stripped.count("(") - stripped.count(")")
+                while depth > 0 and index + 1 < len(lines):
+                    index += 1
+                    block.append(lines[index].strip())
+                    depth += lines[index].count("(") - lines[index].count(")")
+                statements.append((qmd, " ".join(block)))
+            index += 1
+    return statements
+
+
+def test_every_name_the_report_templates_import_is_importable():
+    """A template import that no longer resolves breaks the render, not the suite."""
+    statements = _template_package_imports()
+    assert statements, "expected the report templates to import from the package"
+
+    missing: list[str] = []
+    for qmd, statement in statements:
+        try:
+            tree = ast.parse(statement)
+        except SyntaxError:  # pragma: no cover - a malformed template line
+            missing.append(f"{qmd.relative_to(REPO)}: unparseable import {statement!r}")
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or node.module is None:
+                continue
+            try:
+                module = importlib.import_module(node.module)
+            except ImportError as error:
+                missing.append(f"{qmd.relative_to(REPO)}: {node.module} ({error})")
+                continue
+            for alias in node.names:
+                if not hasattr(module, alias.name):
+                    missing.append(
+                        f"{qmd.relative_to(REPO)}: "
+                        f"{node.module} has no {alias.name!r}"
+                    )
+    assert not missing, "report templates import names the package does not provide:\n" + "\n".join(
+        sorted(set(missing))
+    )
