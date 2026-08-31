@@ -13,7 +13,10 @@ The fixed ``tau_t2`` remains the clean randomised t2 arm contrast. The heterogen
 component is exploratory and cannot identify individual causal responders.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.did import (
     DiDModelSettings,
 )
@@ -38,5 +41,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_did(SPEC, config=config)

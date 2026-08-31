@@ -38,7 +38,10 @@ shared defaults are used here and the prior-predictive check will flag any
 miscalibration.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.historical_growth import (
     HistoricalGrowthModelSettings,
 )
@@ -76,5 +79,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_historical_growth(SPEC, config=config)

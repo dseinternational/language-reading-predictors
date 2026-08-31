@@ -30,7 +30,10 @@ interval. The registered dependence-aware companion is lrp-rli-itt-216 (#551):
 the same fit with the block on, derived from this SPEC.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.joint import (
     JointContrastSettings,
     JointModelSettings,
@@ -92,5 +95,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_joint(SPEC, config=config)

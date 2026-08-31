@@ -50,7 +50,7 @@ def build_growth_model(
     re_slope_prior_sigma: float = 0.5,
     loading_prior_sigma: float = 0.5,
     kappa_prior_sigma: float = 50.0,
-) -> BuiltModel[EmptyPayload]:
+) -> BuiltModel[EmptyPayload, WavePanel]:
     """Joint multivariate latent growth-curve model (LRP69/70) on the logit scale.
 
     Characterises each measure's within-child trajectory across the waves and asks

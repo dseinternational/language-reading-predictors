@@ -33,7 +33,10 @@ here orders them, and the same-wave skill adjusters are contemporaneous,
 possibly post-treatment, levels (Table-2 fallacy applies).
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.pipelines.pooled_levels import (
     fit_pooled_levels,
 )
@@ -60,5 +63,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_pooled_levels(SPEC, config=config)

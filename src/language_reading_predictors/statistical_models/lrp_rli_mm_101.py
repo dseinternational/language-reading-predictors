@@ -43,7 +43,10 @@ Same caveats as LRPMM01: a **measurement / triangulation** model, not causal. Pe
 ID-2 every factor->gain slope is a latent-ability-confounded **adjusted association**.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.corr_factor import (
     CorrFactorModelSettings,
 )
@@ -76,5 +79,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_correlated_factor(SPEC, config=config)

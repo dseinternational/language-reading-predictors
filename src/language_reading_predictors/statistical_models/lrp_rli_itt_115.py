@@ -13,7 +13,10 @@ the marginal not-taught effect against a substantively defined negligible-effect
 threshold.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.joint import (
     JointContrastSettings,
     JointModelSettings,
@@ -89,5 +92,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_joint(SPEC, config=config)

@@ -48,7 +48,10 @@ mediator-outcome confounding; ``n ~ 53`` means **wide** intervals. All language
 stays associational / under stated assumptions.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationMultiModelSettings,
 )
@@ -75,5 +78,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation_multi(SPEC, config=config)

@@ -584,7 +584,7 @@ def build_survival_model(
     hazard_link: str = "cloglog",
     use_treatment: bool = True,
     treatment_window: str = "randomised",
-) -> BuiltModel[EmptyPayload]:
+) -> BuiltModel[EmptyPayload, SurvivalPanel]:
     """Discrete-time off-floor hazard model on a :class:`SurvivalPanel`.
 
     ``hazard_link`` is ``"cloglog"`` (grouped proportional hazards, the default /

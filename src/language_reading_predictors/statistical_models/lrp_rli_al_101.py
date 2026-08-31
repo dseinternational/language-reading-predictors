@@ -17,7 +17,10 @@ term is non-randomised and every coefficient is an association.
 """
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.aligned import (
     AlignedModelSettings,
 )
@@ -36,5 +39,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_aligned(SPEC, config=config)

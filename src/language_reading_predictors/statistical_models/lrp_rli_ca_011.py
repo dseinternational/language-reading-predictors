@@ -26,7 +26,10 @@ with the adjusted-association caveat.
 from language_reading_predictors.statistical_models.concurrent import (
     ConcurrentModelSettings,
 )
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.pipelines.concurrent import fit_concurrent
 
 SPEC = ModelSpec(
@@ -49,5 +52,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_concurrent(SPEC, config=config)

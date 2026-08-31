@@ -71,7 +71,7 @@ def build_historical_growth_model(
     # the answer the data prefer for most of these measures. See
     # ``priors.inv_sqrt_kappa_prior`` for the calibration.
     dispersion_prior_sigma: float = 0.25,
-) -> BuiltModel[EmptyPayload]:
+) -> BuiltModel[EmptyPayload, LongitudinalPanel]:
     """Descriptive group-by-wave growth model for a historical cohort.
 
     Beta-Binomial on a bounded count with a population level per **supported
@@ -272,7 +272,7 @@ def build_rlm_joint_growth_model(
     within_correlation: bool = False,
     sigma_within_prior_sigma: float = 0.5,
     within_lkj_eta: float = 2.0,
-) -> BuiltModel[EmptyPayload]:
+) -> BuiltModel[EmptyPayload, LongitudinalPanel]:
     """Byrne joint correlated group-by-wave growth models (#338/#409).
 
     The multivariate extension of :func:`build_historical_growth_model`: each

@@ -20,7 +20,10 @@ not-taught): a positive value supports a larger intervention effect on directly
 taught words. The receptive companion is LRPITT15b.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.joint import (
     JointContrastSettings,
     JointModelSettings,
@@ -101,5 +104,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_joint(SPEC, config=config)

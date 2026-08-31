@@ -317,7 +317,7 @@ def build_sensitivity_model(
     *,
     measure: str,
     variant: SensitivityVariant,
-) -> BuiltModel[EmptyPayload]:
+) -> BuiltModel[EmptyPayload, LongitudinalPanel]:
     """Build one pre-specified sensitivity variant."""
 
     if variant.likelihood == "negative_binomial":

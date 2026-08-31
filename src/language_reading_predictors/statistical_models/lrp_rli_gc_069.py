@@ -40,7 +40,10 @@ Exploratory at n~54: intervals are wide. The deliverable is the *direction* and
 rough magnitude of ``gamma_k`` per measure, framed as an adjusted association.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.growth import (
     GrowthModelSettings,
 )
@@ -56,7 +59,7 @@ SPEC = ModelSpec(
     outcome_symbol=None,
     model_settings=GrowthModelSettings(
         # Verbal / reading measures whose trajectories are characterised.
-        outcomes=["R", "E", "T", "W", "L"],
+        outcomes=("R", "E", "T", "W", "L"),
         # Time-invariant baseline covariate entering as a predictor of shape.
         baseline_covariate="blocks",
         # Core model: no shared growth-tempo factor (see LRP70 for that layer).
@@ -70,5 +73,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_growth(SPEC, config=config)

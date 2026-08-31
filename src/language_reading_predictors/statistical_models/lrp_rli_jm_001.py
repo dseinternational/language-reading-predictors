@@ -92,7 +92,10 @@ Companion: ``jm-002`` re-reports the Tier-1 Delta on the phase-stacked ANCOVA
 parameterisation that ``mech-096`` / ``mech-101`` use.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.joint_mechanism import (
     JointMechanismModelSettings,
 )
@@ -131,5 +134,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_joint_mechanism(SPEC, config=config)

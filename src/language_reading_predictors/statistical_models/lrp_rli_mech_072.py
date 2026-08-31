@@ -55,7 +55,10 @@ floor + n~54 may keep it suggestive.
 the PSIS-LOO comparison that isolates the interaction's predictive value.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismModelSettings,
 )
@@ -73,7 +76,7 @@ SPEC = ModelSpec(
     adjustment=["G", "A", "N_pre"],
     model_settings=MechanismModelSettings(
         adjust_baseline_symbol="N",
-        outcomes=["L", "B", "N"],
+        outcomes=("L", "B", "N"),
         adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
         moderator_symbol="B",
         linear_mechanism=True,
@@ -84,5 +87,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mechanism(SPEC, config=config)

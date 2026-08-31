@@ -25,7 +25,10 @@ measurement-invariance assumption stated, not tested, at this n. Descriptive
 associations only; nothing causal exists in this cohort.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.corr_factor import (
     CorrFactorModelSettings,
 )
@@ -76,5 +79,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_corr_factor(SPEC, config=config)

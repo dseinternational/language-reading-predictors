@@ -78,8 +78,14 @@ scale.
 """
 
 from dataclasses import replace
+from language_reading_predictors.statistical_models.joint import (
+    JointModelSettings,
+)
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.lrp_rli_itt_115 import (
     SPEC as _PARENT,
 )
@@ -89,6 +95,19 @@ from language_reading_predictors.statistical_models.pipelines.joint import fit_j
 # it: ``replace`` on the parent's frozen settings guarantees the outcomes, precision
 # terms, LOO unit and contrast metadata cannot drift apart (#551).
 _PARENT_SETTINGS = _PARENT.model_settings
+# Not an ``assert``: this companion is defined by reusing its parent's
+# settings object, and ``-O`` would remove the one check that the parent
+# still declares them typed (#637).
+if not isinstance(_PARENT_SETTINGS, JointModelSettings):
+    raise TypeError(
+        f"{_PARENT.model_id} must declare JointModelSettings for this companion to "
+        f"reuse; got {type(_PARENT_SETTINGS).__name__}"
+    )
+_PARENT_CONTRAST = _PARENT_SETTINGS.contrast
+if _PARENT_CONTRAST is None:
+    raise ValueError(
+        f"{_PARENT.model_id} declares no contrast for this companion to reuse"
+    )
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-315",
     kind="joint",
@@ -102,7 +121,7 @@ SPEC = ModelSpec(
         use_residual_correlation=True,
         joint_structure="residual_correlated",
         contrast=replace(
-            _PARENT_SETTINGS.contrast,
+            _PARENT_CONTRAST,
             # This fit IS the dependence model, so it must not name a companion
             # (resolve_joint_run_plan rejects a correlated fit that does).
             dependence_companion=None,
@@ -126,5 +145,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_joint(SPEC, config=config)

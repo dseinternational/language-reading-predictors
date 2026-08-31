@@ -142,7 +142,7 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 - All source files include SPDX license headers: `# SPDX-License-Identifier: AGPL-3.0-or-later`
 - Spell checking uses British English (`en-GB`) configured in `.cspell.config.yaml` with a custom allow list at `config/spellcheck/allow-en.txt`.
 - The Quarto report (`docs/report/`) uses `execute: freeze: true` — computational output is cached, not re-run on render.
-- Build system is Hatch (`pyproject.toml`). Version is read from `src/language_reading_predictors/__init__.py`.
+- Build system is Hatch (`pyproject.toml`). Version is read from `src/language_reading_predictors/__init__.py`. `uv run mypy` type-checks the **whole** package (479 files) under strict flags, not a hand-maintained file list (#637 stage 4); the modules that are not yet clean are named in one `ignore_errors` exemption list in `pyproject.toml`, and `tests/test_type_coverage.py` fails if an entry has become clean or if a module fails without being named — so the list can only shrink.
 
 ## Interpreting & reporting results
 

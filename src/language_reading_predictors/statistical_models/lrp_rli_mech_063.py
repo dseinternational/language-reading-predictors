@@ -35,7 +35,10 @@ Adjustment set = the LRP58 L -> W set {G, A, W_pre, HS, IS, SP}; N enters additi
 its main effect + interaction. target_accept 0.999 per LRP58/LRP93.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismModelSettings,
 )
@@ -80,5 +83,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mechanism(SPEC, config=config)

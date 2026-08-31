@@ -33,7 +33,10 @@ from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.block_exposure import (
     BlockExposureModelSettings,
 )
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.pipelines.block_exposure import fit_block_exposure
 
 SPEC = ModelSpec(
@@ -56,5 +59,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_block_exposure(SPEC, config=config)

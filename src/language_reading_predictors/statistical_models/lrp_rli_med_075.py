@@ -46,7 +46,10 @@ every quantity is an adjusted association / decomposition under stated assumptio
 never a causal route; ``n ~ 53`` -> wide intervals.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationMultiModelSettings,
 )
@@ -73,5 +76,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation_multi(SPEC, config=config)

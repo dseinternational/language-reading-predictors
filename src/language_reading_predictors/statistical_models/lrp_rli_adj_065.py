@@ -93,7 +93,12 @@ from typing import TYPE_CHECKING
 from language_reading_predictors.statistical_models.environment import DOCS_DIR
 
 if TYPE_CHECKING:
-    from language_reading_predictors.statistical_models.context import ModelSpec
+    import graphviz
+
+    from language_reading_predictors.statistical_models.context import (
+        ModelSpec,
+        StatisticalFitContext,
+    )
 
 # ---------------------------------------------------------------------------
 # Step 1 - causal DAG (the review gate, rendered before fitting)
@@ -186,7 +191,7 @@ _EDGE_PROPS: dict[tuple[str, str], dict[str, str]] = {
 }
 
 
-def causal_dag():
+def causal_dag() -> "graphviz.Digraph":
     """Return the LRP65 causal DAG as a ``graphviz.Digraph``.
 
     Latent general ability ``g`` (dashed circle) drives the correlated baselines;
@@ -287,7 +292,7 @@ def get_spec() -> "ModelSpec":
     )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     # Lazy import: ``fit_adjusted`` is added in Step 2, after the DAG review.
     from language_reading_predictors.statistical_models.pipelines.adjusted import fit_adjusted
 

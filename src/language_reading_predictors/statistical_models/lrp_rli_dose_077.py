@@ -85,7 +85,10 @@ intervals, not a strong predictor. Group is coded ``G = 2 - group``
 #117 sign convention.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.dose_response import (
     DoseResponseModelSettings,
 )
@@ -121,5 +124,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_dose_response(SPEC, config=config)

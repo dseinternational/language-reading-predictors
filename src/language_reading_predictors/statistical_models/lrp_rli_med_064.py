@@ -66,7 +66,10 @@ mediator-outcome confounding (Hejazi, Rudolph, van der Laan & Diaz 2022, A5,
 doi:10.1093/biostatistics/kxac002), which latent GA violates here.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationMultiModelSettings,
     NamedConfounderCalibration,
@@ -103,5 +106,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation_multi(SPEC, config=config)

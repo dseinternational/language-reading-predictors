@@ -33,7 +33,10 @@ deliverable and the factor is reported as not estimable at this sample size (as 
 RI-CLPM companion was for LRP67).
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.growth import (
     GrowthModelSettings,
 )
@@ -49,7 +52,7 @@ SPEC = ModelSpec(
     ),
     outcome_symbol=None,
     model_settings=GrowthModelSettings(
-        outcomes=["R", "E", "T", "W", "L"],
+        outcomes=("R", "E", "T", "W", "L"),
         baseline_covariate="blocks",
         # Factor layer: add the rank-1 shared growth-tempo factor G_i.
         use_shared_factor=True,
@@ -62,5 +65,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_growth(SPEC, config=config)

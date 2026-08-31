@@ -27,7 +27,10 @@ should be revisited rather than the individual result reinterpreted.
 Reading rules are LRPDID10's; the dispersion prior changes no term's causal status.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.did import DiDModelSettings
 from language_reading_predictors.statistical_models.pipelines.did import fit_did
 
@@ -55,5 +58,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_did(SPEC, config=config)

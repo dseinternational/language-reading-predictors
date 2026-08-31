@@ -36,7 +36,10 @@ direction. Independent-core (no shared growth-tempo factor); a factor companion
 could follow, as LRP70 does for LRP69.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.growth import (
     GrowthModelSettings,
 )
@@ -52,7 +55,7 @@ SPEC = ModelSpec(
     ),
     outcome_symbol=None,
     model_settings=GrowthModelSettings(
-        outcomes=["R", "E", "T", "W", "L"],
+        outcomes=("R", "E", "T", "W", "L"),
         baseline_covariate="blocks",
         use_shared_factor=False,
         # LRP85 layer: baseline-age main effect + age0 x ability interaction on the slope.
@@ -66,5 +69,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_growth(SPEC, config=config)

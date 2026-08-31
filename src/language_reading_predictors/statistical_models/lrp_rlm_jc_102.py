@@ -33,8 +33,14 @@ convergence gate, the parent's prior-robustness claim is preliminary.
 
 from dataclasses import replace
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.lrp_rlm_jc_002 import SPEC as _PARENT
+from language_reading_predictors.statistical_models.historical_joint import (
+    HistoricalJointModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.historical_joint import (
     fit_rlm_joint_growth,
 )
@@ -42,6 +48,16 @@ from language_reading_predictors.statistical_models.pipelines.historical_joint i
 # ``replace`` on the parent's frozen settings guarantees the measures, waves,
 # window, likelihood and every other prior cannot drift apart from the fit this
 # exists to check: the only difference is the within-scale prior.
+_PARENT_SETTINGS = _PARENT.model_settings
+# Not an ``assert``: this companion is defined by reusing its parent's
+# settings object, and ``-O`` would remove the one check that the parent
+# still declares them typed (#637).
+if not isinstance(_PARENT_SETTINGS, HistoricalJointModelSettings):
+    raise TypeError(
+        f"{_PARENT.model_id} must declare HistoricalJointModelSettings for this "
+        f"companion to reuse; got {type(_PARENT_SETTINGS).__name__}"
+    )
+
 SPEC = ModelSpec(
     model_id="lrp-rlm-jc-102",
     kind="historical_joint",
@@ -58,11 +74,11 @@ SPEC = ModelSpec(
     dataset_ref="rlm:reading_language_memory_data_long",
     audit_baseline="complete_case_summary",
     model_settings=replace(
-        _PARENT.model_settings,
+        _PARENT_SETTINGS,
         sigma_within_prior_sigma=1.0,
     ),
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_joint_growth(SPEC, config=config)

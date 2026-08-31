@@ -19,7 +19,10 @@ correlation is off by default (prior-dominated at 8 outcomes, worse at 10; keep 
 flag for a sensitivity fit). Sign convention: positive tau => intervention helps.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.joint import JointModelSettings
 from language_reading_predictors.statistical_models.pipelines.joint import fit_joint
 
@@ -56,5 +59,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_joint(SPEC, config=config)

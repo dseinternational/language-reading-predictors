@@ -37,6 +37,9 @@ from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
 from language_reading_predictors.statistical_models.pipelines.mediation import fit_mediation
+from language_reading_predictors.statistical_models.context import (
+    StatisticalFitContext,
+)
 
 PARENT_SETTINGS = PARENT_SPEC.model_settings
 # Not an ``assert``: this companion is defined by reusing its parent's settings
@@ -64,5 +67,5 @@ SPEC = replace(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation(SPEC, config=config)

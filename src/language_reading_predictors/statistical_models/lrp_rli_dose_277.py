@@ -29,7 +29,10 @@ association like every other slope in the family. Winning this comparison would 
 a pooled slope predicts a held-out child better — nothing about causation.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.dose_response import (
     DoseResponseModelSettings,
 )
@@ -53,5 +56,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_dose_response(SPEC, config=config)

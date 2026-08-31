@@ -25,7 +25,10 @@ Everything is descriptive. ``readgrp`` is an observational cohort factor;
 within-child temporal co-movement does not identify direction or causation.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.historical_joint import (
     HistoricalJointModelSettings,
 )
@@ -60,5 +63,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_joint_growth(SPEC, config=config)
