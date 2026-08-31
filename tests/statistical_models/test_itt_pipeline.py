@@ -150,6 +150,7 @@ def fast_pipeline(monkeypatch, tmp_path):
             tables={},
             resolved_plan=None,
             output_dir=str(out),
+            lifecycle_stages=[],
         )
 
     def sample_and_loo(ctx, *, compute_loo=True):
@@ -276,6 +277,17 @@ def fast_pipeline(monkeypatch, tmp_path):
             if plan.post_extended_audit is not None:
                 plan.post_extended_audit(ctx)
             save_trace(ctx)
+            # The runner-owned after-trace slot (#637 stage 4). This fake stands
+            # in for the real lifecycle, so it has to honour the same slots — a
+            # stand-in that quietly skips one turns a lifecycle regression into a
+            # passing test.
+            if plan.after_trace_audit is not None:
+                plan.after_trace_audit(ctx)
+            if plan.psense_timing != "skip":
+                itt_pipeline._diag.run_psense(
+                    ctx,
+                    var_names=list(plan.psense_vars or plan.diagnostic_vars),
+                )
             return gate or {}
 
     monkeypatch.setattr(joint_pipeline, "shared_stages", lambda: _FastSharedStages())

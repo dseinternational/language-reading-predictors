@@ -39,7 +39,14 @@ from language_reading_predictors.statistical_models.mediation_settings import (
 from language_reading_predictors.statistical_models.pipelines.mediation import fit_mediation
 
 PARENT_SETTINGS = PARENT_SPEC.model_settings
-assert isinstance(PARENT_SETTINGS, MediationModelSettings)
+# Not an ``assert``: this companion is defined by reusing its parent's settings
+# object, and ``-O`` would remove the one check that the parent still declares
+# them typed (#637 stage 4).
+if not isinstance(PARENT_SETTINGS, MediationModelSettings):
+    raise TypeError(
+        f"{PARENT_SPEC.model_id} must declare MediationModelSettings for this "
+        f"companion to reuse; got {type(PARENT_SETTINGS).__name__}"
+    )
 
 SPEC = replace(
     PARENT_SPEC,

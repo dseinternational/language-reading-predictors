@@ -37,6 +37,7 @@ from dse_research_utils.statistics.evidence import (  # noqa: F401
     favoured_direction,
 )
 from dse_research_utils.statistics.intervals import eti_bands  # noqa: F401
+from dse_research_utils.statistics.rope import rope_card  # noqa: F401
 from language_reading_predictors.statistical_models.convergence import (  # noqa: F401
     _KF_BFMI_MIN,
     _KF_CHECK_LABELS,

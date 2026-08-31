@@ -105,19 +105,26 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
             plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
                 c, sym, node=plan.observation_node
             ),
-            psense_timing="family_tail",
+            # The family's established post-trace order — overlay, forest, then
+            # power scaling — now declared to the runner rather than performed
+            # after it (#637 stage 4). Same figures, same order, one owner.
+            psense_timing="after_trace",
+            psense_vars=(plan.focal_term,),
+            after_trace_audit=lambda c: (
+                _diag.save_prior_posterior_plot(c, var_names=diag_vars),
+                save_forest_plot(
+                    c, [plan.focal_term], name="delta_forest.png",
+                    title=(
+                        "Block-active exposure effect "
+                        "(forest, reference line at 0)"
+                    ),
+                ),
+            )
+            and None,
             extended_term=plan.focal_term,
             compute_loo=plan.compute_loo,
         ),
     )
-    # Preserve the family's established post-trace order: overlay, forest, then
-    # power scaling. The plan opts out of the standard pre-PPC sensitivity slot.
-    _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
-    save_forest_plot(
-        ctx, [plan.focal_term], name="delta_forest.png",
-        title="Block-active exposure effect (forest, reference line at 0)",
-    )
-    _diag.run_psense(ctx, var_names=[plan.focal_term])
 
     section_header("Factor summary")
     # No randomised contrast: block-active exposure is an association (parallel trends),

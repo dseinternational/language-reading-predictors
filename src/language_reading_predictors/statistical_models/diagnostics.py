@@ -77,6 +77,9 @@ from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
     save_styled_figure,
 )
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 # Convergence-gate thresholds (issue #125 Area 3; Vehtari et al. 2021 for R-hat)
 # and the per-chain BFMI helper are now owned by the shared package and
@@ -1593,7 +1596,7 @@ def _predictive_values_for_outcome(
     cell_idx, target = _joint_cell_outcome_index(context, outcome_symbol, node=node)
     if cell_idx is None:
         return values, outcome_symbol
-    assert target is not None
+    target = require_value(target, "the joint outcome's cell index target")
     if cell_idx.size != values.shape[-1]:
         raise ValueError("joint predictive cell map does not align with predictive draws")
     return values[..., cell_idx == target], outcome_symbol
@@ -1961,7 +1964,7 @@ def _joint_outcome_predictive_tree(
     cell_idx, target = _joint_cell_outcome_index(context, outcome_symbol)
     if cell_idx is None:
         raise ValueError("joint LOO-PIT requires y_post_cell_outcome constant data")
-    assert target is not None
+    target = require_value(target, "the joint outcome's cell index target")
     keep = cell_idx == target
     if not np.any(keep):
         raise ValueError(f"joint outcome {outcome_symbol!r} has no predictive cells")

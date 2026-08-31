@@ -37,6 +37,9 @@ import pandas as pd
 
 from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models import reporting as _report
+from language_reading_predictors.statistical_models.family_registry import (
+    FAMILIES as _FAMILIES,
+)
 from language_reading_predictors.statistical_models.sensitivity import sha256_file
 
 BLENDING_SENSITIVITY_FILENAME = "blending_link_sensitivity.csv"
@@ -1380,14 +1383,13 @@ _PLAN_PROSE_FIELDS: tuple[str, ...] = (
 #: amended). There is no central resolver registry in the package, so this map is
 #: the one place the seven stored-artefact families' resolvers are named together;
 #: ``test_blending_sensitivity`` asserts it covers every gated family.
+#: Derived, not maintained (#637 stage 4). Every family has a resolver in
+#: :data:`family_registry.FAMILIES`, so the currency check below works for any
+#: gated family rather than for the seven someone remembered to list. The gates
+#: themselves are still declared per family; only this lookup is derived.
 _PLAN_RESOLVERS: dict[str, tuple[str, str]] = {
-    "aligned": ("aligned", "resolve_aligned_run_plan"),
-    "concurrent": ("concurrent", "resolve_concurrent_run_plan"),
-    "did": ("did", "resolve_did_run_plan"),
-    "dose_response": ("dose_response", "resolve_dose_response_run_plan"),
-    "gain_factors": ("gain_factors", "resolve_gain_factors_run_plan"),
-    "level_factors": ("level_factors", "resolve_level_factors_run_plan"),
-    "mediation": ("mediation_settings", "resolve_mediation_run_plan"),
+    kind: (descriptor.settings_module, descriptor.resolver_name)
+    for kind, descriptor in _FAMILIES.items()
 }
 
 
