@@ -29,6 +29,9 @@ the negative-control forest is like-for-like. GA is unblockable; the slope is an
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -38,15 +41,15 @@ SPEC = ModelSpec(
     outcome_symbol="R",
     mechanism_symbol="L",
     adjustment=["G", "A", "R_pre"],
-    extra={
-        "adjust_baseline_symbol": "R",
-        "outcomes": ("R", "L"),
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "linear_mechanism": True,
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-    },
+    model_settings=MechanismModelSettings(
+        adjust_baseline_symbol="R",
+        outcomes=("R", "L"),
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        linear_mechanism=True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+    ),
 )
 
 

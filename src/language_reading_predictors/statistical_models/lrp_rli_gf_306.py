@@ -46,6 +46,9 @@ Recorded here so the assumption is visible rather than implied.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.gain_factors import (
+    GainFactorsModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.gain_factors import fit_gain_factors
 
 SPEC = ModelSpec(
@@ -58,10 +61,10 @@ SPEC = ModelSpec(
     outcome_symbol="B",
     # Deliberately a one-key diff from lrp-rli-gf-006's declaration, in the same
     # style, so a reader can verify by eye that the pair differs only in the link.
-    extra={
-        "skill_symbols": ("L", "E", "TE"),
-        "ability_covariate": V.BLOCKS,
-        "adjust_for": (
+    model_settings=GainFactorsModelSettings(
+        skill_symbols=("L", "E", "TE"),
+        ability_covariate=V.BLOCKS,
+        adjust_for=(
             "hs",
             "hs_missing",
             "deapp_c",
@@ -69,10 +72,10 @@ SPEC = ModelSpec(
             "erbto",
             "erbto_missing",
         ),
-        "interactions": (("age", "ability"),),
-        "treated_only": False,
-        "score_mean_link": "three_choice_guessing_floor",
-    },
+        interactions=(("age", "ability"),),
+        treated_only=False,
+        score_mean_link="three_choice_guessing_floor",
+    ),
 )
 
 

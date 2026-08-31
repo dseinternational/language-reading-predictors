@@ -33,6 +33,9 @@ ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -43,19 +46,19 @@ SPEC = ModelSpec(
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
     # Age GP off (age enters linearly), subject random intercept on.
-    extra={
-        "outcomes": ("W", "L"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
         # A few boundary divergences survive at the reporting preset's 0.95 on an
         # otherwise-healthy posterior (R-hat 1.0, min ESS ~2400). Lift target_accept
         # for smaller steps near the boundary — the same legitimate response the
         # mm-001 fit uses, touching no adjusters. The HSGP mechanism curve is kept
         # (unlike LRP56/57, the letter-sound mechanism converges as a curve).
-        "target_accept": 0.999,
+    target_accept=0.999,
+    model_settings=MechanismModelSettings(
+        outcomes=("W", "L"),
+        adjust_baseline_symbol="W",
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # Thin-support HSGP reparameterisation (#430/#434 lever, adopted #438). The
         # default basis (m=10) with ell ~ InverseGamma(5, 5) leaves this curve's
         # geometry marginal at n = 54: the primary fit is borderline and, more to the
@@ -70,9 +73,9 @@ SPEC = ModelSpec(
         # from 0 to 10 divergences (that pair was retired in #438), so the shared
         # defaults stay as they are. See
         # notes/202607251500-mech-hsgp-reparameterisation.md.
-        "mech_hsgp_m": 6,
-        "mech_lengthscale_tight": True,
-    },
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
+    ),
 )
 
 

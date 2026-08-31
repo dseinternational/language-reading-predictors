@@ -50,6 +50,9 @@ never a causal effect.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -62,29 +65,29 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
-    extra={
-        # Identical to LRP58 ...
-        "outcomes": ("W", "L"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-        # ... except that the imputed rows are dropped, so HS and SP are observed.
-        "require_observed": ("hs", "deapp_c"),
         # Matches LRP58: HSGP curve kept, target_accept lifted for boundary steps. A
         # few boundary divergences remain (the HSGP geometry LRP58 also shows);
         # disclosed in the report rather than removed by dropping the curve.
-        "target_accept": 0.999,
+    target_accept=0.999,
+    model_settings=MechanismModelSettings(
+        # Identical to LRP58 ...
+        outcomes=("W", "L"),
+        adjust_baseline_symbol="W",
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+        # ... except that the imputed rows are dropped, so HS and SP are observed.
+        require_observed=("hs", "deapp_c"),
         # Matches LRP58's thin-support HSGP reparameterisation. Omitting these left
         # the comparator on the shared defaults (m=10, ell ~ InverseGamma(5, 5)), so
         # it differed from its own baseline in functional form as well as in
         # missing-data policy and could not isolate the imputation question
         # (#586 finding 5). Kept in lockstep by
         # tests/statistical_models/test_mechanism_run_plan.py.
-        "mech_hsgp_m": 6,
-        "mech_lengthscale_tight": True,
-    },
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
+    ),
 )
 
 

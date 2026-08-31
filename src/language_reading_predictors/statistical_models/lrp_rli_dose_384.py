@@ -61,13 +61,11 @@ SPEC = ModelSpec(
         outcomes=("B",),
         score_mean_link="three_choice_guessing_floor",
     ),
-    extra={
         # Matched to lrp-rli-dose-084 so the pair differs only in the link: the same
         # period-varying dose geometry needs the same sampler setting, and a
         # companion that quietly sampled at a different target_accept would confound
         # the link comparison with a sampling-quality one.
-        "target_accept": 0.97,
-    },
+    target_accept=0.97,
 )
 
 

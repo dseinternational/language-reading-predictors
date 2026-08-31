@@ -69,13 +69,11 @@ SPEC = ModelSpec(
         ),
         focal_slope_sigma=1.0,
     ),
-    extra={
         # Identical to LRPMM02 in every respect except focal_slope_sigma.
         # The single free variable: the focal beta_code prior moves from the
         # association-scale N(0, 0.3) to the primary-mechanism N(0, 1); beta_G
         # deliberately stays at the association scale (recommendation 1).
-        "target_accept": 0.999,
-    },
+    target_accept=0.999,
 )
 
 

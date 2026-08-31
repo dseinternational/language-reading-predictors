@@ -139,6 +139,11 @@ KIND_MODULES = {"mediation_multi": "mediation"}
 # provenance. Runtime pipelines and artefact logic consume resolved plans instead.
 # This is deliberately function-granular: adding a read anywhere else requires an
 # explicit architectural decision rather than quietly growing the seam again.
+#
+# Since #637 stage 2 no *registered* spec carries an ``extra`` key at all — the
+# adapters below are reached only by an archived configuration or their own tests
+# — so these are the paths that keep translating a declaration nothing in the
+# registry now makes.
 SPEC_EXTRA_BOUNDARY_FUNCTIONS = {
     ("adjusted.py", "declared_adjusted_settings"),
     ("adjusted.py", "resolve_adjusted_run_plan"),
@@ -149,6 +154,10 @@ SPEC_EXTRA_BOUNDARY_FUNCTIONS = {
     ("corr_factor.py", "declared_corr_factor_settings"),
     ("corr_factor.py", "resolve_corr_factor_run_plan"),
     ("did.py", "declared_did_settings"),
+    # The registry-wide check that ``extra`` is empty (#637 stage 2). It reads
+    # ``spec.extra`` in order to *forbid* it, which is the one read that makes the
+    # rest of this boundary enforceable rather than conventional.
+    ("family_settings.py", "registered_settings_failures"),
     ("dose_response.py", "declared_dose_response_settings"),
     ("gain_factors.py", "declared_gain_factors_settings"),
     ("growth.py", "declared_growth_settings"),

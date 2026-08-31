@@ -68,12 +68,10 @@ SPEC = ModelSpec(
             ("grammar", ("F", "T")),
         ),
     ),
-    extra={
         # Small-n latent geometry: even fully marginalised a few boundary divergences
         # can survive at the tier-default target_accept, so lift it (as mm-001 does at
         # 0.999) to clear the strict zero-divergence gate.
-        "target_accept": 0.999,
-    },
+    target_accept=0.999,
 )
 
 

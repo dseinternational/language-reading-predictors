@@ -50,7 +50,6 @@ SPEC = ModelSpec(
         slab_scale=2.0,
         slab_df=4.0,
     ),
-    extra={
         # The horseshoe's global-local funnel needs smaller steps than the
         # tier defaults. 0.99 cleared the gate under the HalfNormal(50)
         # concentration prior; with the dispersion-scale prior the Byrne
@@ -59,8 +58,7 @@ SPEC = ModelSpec(
         # sporadic funnel divergences, not a boundary pile-up), and the
         # horseshoe ranking is zero-divergence-only, so this model takes the
         # 0.999 its TROG sibling lrp-rlm-hs-003 already uses.
-        "target_accept": 0.999,
-    },
+    target_accept=0.999,
 )
 
 

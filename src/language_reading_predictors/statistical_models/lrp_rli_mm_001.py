@@ -54,7 +54,6 @@ SPEC = ModelSpec(
         structural_covariates=("blocks",),
         use_age=True,
     ),
-    extra={
         # Small-n latent-factor geometry. Two independent things were needed:
         #
         # 1. The factory MARGINALISES the factor scores out of the measurement
@@ -73,8 +72,7 @@ SPEC = ModelSpec(
         # in LRPMM101 as the geometry-sensitivity companion; on the earlier
         # (rejected, settled) 0.6/0.5 recalibration ablation see
         # notes/202607101638-mm-001-convergence-reparameterisation.md.
-        "target_accept": 0.999,
-    },
+    target_accept=0.999,
 )
 
 

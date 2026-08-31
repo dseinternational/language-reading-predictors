@@ -53,6 +53,9 @@ attenuates the slope toward zero.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -68,26 +71,26 @@ SPEC = ModelSpec(
     # Age enters as a linear gamma_A term; the subject random intercept handles the
     # non-independent rows (up to 3 phases x 53 children) and proxies the
     # time-invariant part of latent ability.
-    extra={
+    model_settings=MechanismModelSettings(
         # Only the outcome (W) is a bounded-count measure here; the exposure is the
         # erbto covariate, so the measure complete-case mask is W alone.
-        "outcomes": ("W",),
-        "adjust_baseline_symbol": "W",
+        outcomes=("W",),
+        adjust_baseline_symbol="W",
         # HS is RW's only measured parent under the revised DAG; SP/RW-adjusters
         # from LRP88/89 do not apply (SP is not a parent of RW, and erbto IS the
         # exposure).
-        "adjust_for": ("hs", "hs_missing"),
+        adjust_for=("hs", "hs_missing"),
         # The exposure must be genuinely observed - drop the mean-imputed rows
         # rather than carrying an imputed exposure with a missingness flag.
-        "require_observed": ("erbto",),
+        require_observed=("erbto",),
         # Route (b) of #311: standardised-covariate exposure (no fabricated
         # denominator for the ERB total). Requires the linear mechanism.
-        "mechanism_is_covariate": True,
-        "linear_mechanism": True,
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-    },
+        mechanism_is_covariate=True,
+        linear_mechanism=True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+    ),
 )
 
 

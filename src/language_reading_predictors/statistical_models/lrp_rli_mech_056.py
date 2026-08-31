@@ -20,6 +20,9 @@ part, so f^R stays an adjusted association, not a causal effect.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -32,16 +35,16 @@ SPEC = ModelSpec(
     # Age enters as a linear gamma_A term (A is a declared confounder). The subject
     # random intercept (on by default) handles the 157 non-independent rows (up to 3
     # phases × 53 children) and proxies the time-invariant part of latent ability.
-    extra={
+    model_settings=MechanismModelSettings(
         # Load the exposure (R), outcome (W) and the TR measure confounder — TR is a
         # concurrent parent of R_post and W_post, so it enters at its *post* score
         # (not baseline); the complete-case mask ignores unused measures.
-        "outcomes": ("W", "R", "TR"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": ("hs", "hs_missing", "erbto", "erbto_missing"),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
+        outcomes=("W", "R", "TR"),
+        adjust_baseline_symbol="W",
+        adjust_for=("hs", "hs_missing", "erbto", "erbto_missing"),
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # LINEAR mechanism, not the HSGP curve. At reporting tier the nonparametric
         # f_mech(R) curve does not converge here (~300 divergences on an otherwise
         # healthy posterior — R-hat 1.0, min ESS ~2600 — and raising target_accept
@@ -54,8 +57,8 @@ SPEC = ModelSpec(
         # recovering the curve would need a reparameterised GP and is left as
         # follow-up. LRP58 (L -> W) keeps its HSGP curve — only the vocabulary-
         # predictor mechanisms show this pathology.
-        "linear_mechanism": True,
-    },
+        linear_mechanism=True,
+    ),
 )
 
 

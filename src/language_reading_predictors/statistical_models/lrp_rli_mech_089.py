@@ -52,6 +52,9 @@ the LINEAR TE -> W adjusted association (a single slope, not a shape).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -61,26 +64,26 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="TE",
     adjustment=["G", "A", "TR", "W_pre"],
-    extra={
+    model_settings=MechanismModelSettings(
         # Load the exposure (TE), outcome (W) and the TR measure confounder - TR is
         # a concurrent parent of TE_post and W_post, so it enters at its *post*
         # score (not baseline); the complete-case mask is W + TE + TR.
-        "outcomes": ("W", "TE", "TR"),
-        "adjust_baseline_symbol": "W",
+        outcomes=("W", "TE", "TR"),
+        adjust_baseline_symbol="W",
         # attend (IS) added 2026-07-17 (reversing #309): IS -> TE and IS -> WR make it
         # a genuine confounder; the IG -> IS <- GA collider path it could open is
         # closed at the always-conditioned arm G. See the review note in notes/.
-        "adjust_for": (
+        adjust_for=(
             "hs", "hs_missing", "attend", "erbto", "erbto_missing",
             "deapp_c", "deapp_c_missing",
         ),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # LINEAR mechanism, not the HSGP curve - the vocabulary-predictor precedent
         # (see LRP56/57). The estimand is the LINEAR TE -> W adjusted association.
-        "linear_mechanism": True,
-    },
+        linear_mechanism=True,
+    ),
 )
 
 

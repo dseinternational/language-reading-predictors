@@ -45,11 +45,9 @@ SPEC = ModelSpec(
         slab_scale=2.0,
         slab_df=4.0,
     ),
-    extra={
         # The horseshoe's global-local funnel needs smaller steps than the
         # tier defaults, matching the RLI horseshoe fits.
-        "target_accept": 0.99,
-    },
+    target_accept=0.99,
 )
 
 

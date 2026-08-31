@@ -43,9 +43,7 @@ SPEC = ModelSpec(
         delta=0.1,
         gb_reference="lrp-rli-gbl-009",
     ),
-    extra={
-        "target_accept": 0.99,
-    },
+    target_accept=0.99,
 )
 
 

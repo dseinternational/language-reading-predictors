@@ -37,6 +37,9 @@ could follow, as LRP70 does for LRP69.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.growth import (
+    GrowthModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.growth import fit_growth
 
 SPEC = ModelSpec(
@@ -48,13 +51,13 @@ SPEC = ModelSpec(
         "predict separately?"
     ),
     outcome_symbol=None,
-    extra={
-        "outcomes": ["R", "E", "T", "W", "L"],
-        "baseline_covariate": "blocks",
-        "use_shared_factor": False,
+    model_settings=GrowthModelSettings(
+        outcomes=["R", "E", "T", "W", "L"],
+        baseline_covariate="blocks",
+        use_shared_factor=False,
         # LRP85 layer: baseline-age main effect + age0 x ability interaction on the slope.
-        "age_ability_interaction": True,
-    },
+        age_ability_interaction=True,
+    ),
     study_id="rli",
     family="growth",
     design="observational_longitudinal",

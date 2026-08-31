@@ -33,6 +33,9 @@ mechanism-identified.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.did import (
+    DiDModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.did import fit_did
 
 SPEC = ModelSpec(
@@ -47,17 +50,17 @@ SPEC = ModelSpec(
     design="waitlist-crossover arm-by-wave levels",
     estimand_type="mixed",
     causal_status="t2 randomised; t3 a randomised treatment-schedule contrast",
-    extra={
+    model_settings=DiDModelSettings(
         # Identical to LRPDID01 in every respect except the intercept prior.
-        "outcomes": ("W",),
-        "waves": (0, 1, 2),
-        "use_child_re": True,
-        "use_age": True,
-        "dose": False,
+        outcomes=("W",),
+        waves=(0, 1, 2),
+        use_child_re=True,
+        use_age=True,
+        dose=False,
         # #390 P1 condition 1: replace the empirical-Bayes pooled-t1 anchor
         # with the free zero-centred tier-scale intercept.
-        "use_intercept_anchor": False,
-    },
+        use_intercept_anchor=False,
+    ),
 )
 
 

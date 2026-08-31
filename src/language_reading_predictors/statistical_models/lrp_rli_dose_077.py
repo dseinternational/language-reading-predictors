@@ -107,7 +107,6 @@ SPEC = ModelSpec(
         use_subject_random_intercept=True,
         outcomes=("W",),
     ),
-    extra={
         # The between-period dose-slope scale is a funnel: only three phase slopes
         # inform ``sigma_dose``, so NUTS occasionally shoots into its upper tail.
         # ``beta_dose_phase`` is already non-centred, so the remaining lever is the
@@ -118,8 +117,7 @@ SPEC = ModelSpec(
         # from the registry rather than only from a CLI override —
         # notes/202608050649-reporting-refit-predictive-checks.md and
         # notes/202608232100-dose-response-587-remediation.md.
-        "target_accept": 0.995,
-    },
+    target_accept=0.995,
 )
 
 

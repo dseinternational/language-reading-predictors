@@ -58,7 +58,6 @@ SPEC = ModelSpec(
         comm_alpha=2.0,
         comm_beta=2.0,
     ),
-    extra={
         # Communality parameterisation (#409 item B, the gate rescue): the free
         # parameter is each indicator's communality c ~ Beta(comm_alpha, comm_beta),
         # with lambda = sqrt(c) and sigma = sqrt(1 - c) so lambda**2 + sigma**2 = 1
@@ -73,8 +72,7 @@ SPEC = ModelSpec(
         # remain covariance and latent-structure headlines, so any future fit must
         # also clear the zero-divergence policy before release. A higher-order or
         # single-general-factor model remains the preferred structural investigation.
-        "target_accept": 0.99,
-    },
+    target_accept=0.99,
 )
 
 

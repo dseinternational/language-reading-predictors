@@ -68,6 +68,9 @@ above until the model is refitted.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -77,27 +80,27 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="attend",
     adjustment=["G", "A", "W_pre"],
-    extra={
+        # target_accept 0.999 per LRP58 (the setting that stabilises the L->W curve).
+    target_accept=0.999,
+    model_settings=MechanismModelSettings(
         # Only the outcome (W) is a bounded-count measure; the exposure is the
         # attend covariate, so the measure complete-case mask is W alone.
-        "outcomes": ("W",),
-        "adjust_baseline_symbol": "W",
+        outcomes=("W",),
+        adjust_baseline_symbol="W",
         # IS's parents are {A, GA, IG}; A + G(=IG) block every observable backdoor,
         # so no hearing/speech/measure adjusters are required (they are not parents
         # of IS). Matches dose-077.
-        "adjust_for": (),
+        adjust_for=(),
         # Continuous-covariate exposure with the HSGP curve ON: the steepest
         # interval is reported in raw sessions, not a bounded count.
-        "mechanism_is_covariate": True,
+        mechanism_is_covariate=True,
         # On-intervention periods only (#586 finding 2). Without it the frame kept
         # 28 zero-session rows, 25 of them the entire period-1 waitlist arm, so the
         # low end of the curve was an arm/period contrast rather than a dose one.
-        "exposure_positive_only": True,
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-        # target_accept 0.999 per LRP58 (the setting that stabilises the L->W curve).
-        "target_accept": 0.999,
+        exposure_positive_only=True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # Thin-support HSGP reparameterisation (#438 / notes/202607251500-mech-hsgp-
         # reparameterisation.md): basis count 6 (from the shared default 10) and the
         # tighter InverseGamma(8, 8) lengthscale prior. Adopted here because this fit
@@ -105,9 +108,9 @@ SPEC = ModelSpec(
         # zero-divergence-only under notes/202608021625-divergence-qualification-policy.md
         # — the geometry has to be fixed, not waived. Per-model opt-in, not a default:
         # the same lever regressed mech-173 from 0 to 10 divergences.
-        "mech_hsgp_m": 6,
-        "mech_lengthscale_tight": True,
-    },
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
+    ),
 )
 
 

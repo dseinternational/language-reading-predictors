@@ -26,6 +26,9 @@ of which is fitted here. **Residual confounding by GA remains**, and f^E is an
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -36,23 +39,23 @@ SPEC = ModelSpec(
     mechanism_symbol="E",
     adjustment=["G", "A", "TR", "TE", "R", "W_pre"],
     # Age GP off (age enters linearly), subject random intercept on.
-    extra={
-        "outcomes": ("W", "E", "R", "TR", "TE"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": (
+    model_settings=MechanismModelSettings(
+        outcomes=("W", "E", "R", "TR", "TE"),
+        adjust_baseline_symbol="W",
+        adjust_for=(
             "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
         ),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # LINEAR mechanism, not the HSGP curve — see the matching note in LRP56. The
         # nonparametric f_mech(E) curve does not converge at reporting tier (~200
         # divergences, unmoved by target_accept 0.99); the DAG-required adjusters
         # are kept and the mechanism enters linearly instead, which converges
         # cleanly (0 divergences), per the #258 review. The estimand is the LINEAR
         # E -> W adjusted association.
-        "linear_mechanism": True,
-    },
+        linear_mechanism=True,
+    ),
 )
 
 

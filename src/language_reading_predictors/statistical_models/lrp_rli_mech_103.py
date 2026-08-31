@@ -25,6 +25,9 @@ latent-GA-confounded **adjusted association**, never causal.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -34,22 +37,22 @@ SPEC = ModelSpec(
     outcome_symbol="N",
     mechanism_symbol="deapp_c",
     adjustment=["G", "A", "N_pre"],
-    extra={
+    model_settings=MechanismModelSettings(
         # Only the outcome (N) is a bounded-count measure; the exposure is the deapp_c
         # covariate, so the measure complete-case mask is N alone.
-        "outcomes": ("N",),
-        "adjust_baseline_symbol": "N",
+        outcomes=("N",),
+        adjust_baseline_symbol="N",
         # SP's measured parents (age via gamma_A + hearing) confound the SP -> N backdoor.
-        "adjust_for": ("hs", "hs_missing"),
+        adjust_for=("hs", "hs_missing"),
         # The exposure must be genuinely observed - drop mean-imputed rows.
-        "require_observed": ("deapp_c",),
+        require_observed=("deapp_c",),
         # Standardised-covariate exposure; linear (floored N outcome).
-        "mechanism_is_covariate": True,
-        "linear_mechanism": True,
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-    },
+        mechanism_is_covariate=True,
+        linear_mechanism=True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+    ),
 )
 
 

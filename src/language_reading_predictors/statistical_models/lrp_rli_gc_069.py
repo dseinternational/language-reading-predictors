@@ -41,6 +41,9 @@ rough magnitude of ``gamma_k`` per measure, framed as an adjusted association.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.growth import (
+    GrowthModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.growth import fit_growth
 
 SPEC = ModelSpec(
@@ -51,14 +54,14 @@ SPEC = ModelSpec(
         "predict verbal/reading trajectory shape? (independent-core)"
     ),
     outcome_symbol=None,
-    extra={
+    model_settings=GrowthModelSettings(
         # Verbal / reading measures whose trajectories are characterised.
-        "outcomes": ["R", "E", "T", "W", "L"],
+        outcomes=["R", "E", "T", "W", "L"],
         # Time-invariant baseline covariate entering as a predictor of shape.
-        "baseline_covariate": "blocks",
+        baseline_covariate="blocks",
         # Core model: no shared growth-tempo factor (see LRP70 for that layer).
-        "use_shared_factor": False,
-    },
+        use_shared_factor=False,
+    ),
     study_id="rli",
     family="growth",
     design="observational_longitudinal",

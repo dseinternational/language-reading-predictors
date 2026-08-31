@@ -33,6 +33,9 @@ remains here.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.gain_factors import (
+    GainFactorsModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.gain_factors import fit_gain_factors
 
 SPEC = ModelSpec(
@@ -40,21 +43,21 @@ SPEC = ModelSpec(
     kind="gain_factors",
     title="Factors associated with gains in taught expressive vocabulary (TE), with broad vocabulary associates",
     outcome_symbol="TE",
-    extra={
+    model_settings=GainFactorsModelSettings(
         # gf-010's upstream DAG parent TR (retained as a confounder adjustment) plus the
         # downstream descriptive associates R/E (the review's finding).
-        "skill_symbols": ("TR", "R", "E"),
+        skill_symbols=("TR", "R", "E"),
         # Only R/E carry the descriptive role; TR stays a DAG-parent adjuster
         # exactly as in gf-010 (#575 finding 9).
-        "descriptive_skills": ("R", "E"),
-        "ability_covariate": V.BLOCKS,
+        descriptive_skills=("R", "E"),
+        ability_covariate=V.BLOCKS,
         # TE's non-measure confounders (matches gf-010): hearing, speech, phon. memory.
-        "adjust_for": (
+        adjust_for=(
             "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"
         ),
-        "interactions": (("age", "ability"),),
-        "treated_only": False,
-    },
+        interactions=(("age", "ability"),),
+        treated_only=False,
+    ),
 )
 
 
