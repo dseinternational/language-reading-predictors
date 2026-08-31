@@ -35,7 +35,10 @@ IDE/IIE, and release requires its trace-backed bundle (#631 finding 9).
 stated assumptions.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
@@ -60,5 +63,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation(SPEC, config=config)

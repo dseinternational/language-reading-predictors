@@ -27,7 +27,10 @@ LRPGF06.
 """
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.gain_factors import (
     GainFactorsModelSettings,
 )
@@ -48,5 +51,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_gain_factors(SPEC, config=config)

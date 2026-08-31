@@ -25,7 +25,10 @@ Association only: exposure and outcome are measured at the same wave, and the
 skill adjuster is a contemporaneous, possibly post-treatment, level.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.pipelines.pooled_levels import (
     fit_pooled_levels,
 )
@@ -50,5 +53,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_pooled_levels(SPEC, config=config)

@@ -49,7 +49,10 @@ the recanting witness appears explicitly as ``LS_2 <- IS_1 -> PA_2``, blockable
 only at treatment descendants — MED-187 plus #324 remain the right response.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
@@ -81,5 +84,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation(SPEC, config=config)

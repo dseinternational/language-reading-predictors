@@ -63,7 +63,10 @@ leave-one-cell-out and are labelled as such. Outcome missingness is assumed igno
 given the fitted terms, with no MNAR sensitivity registered.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.joint_mechanism import (
     JointMechanismModelSettings,
 )
@@ -99,5 +102,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_joint_mechanism(SPEC, config=config)

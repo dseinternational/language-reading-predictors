@@ -39,7 +39,10 @@ is not LOO-worse than the no-reverse-coupling comparator **LCSM-181**; weaker
 patterns are reported as-is.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipelines.lcsm import fit_lcsm
 
@@ -81,5 +84,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_lcsm(SPEC, config=config)

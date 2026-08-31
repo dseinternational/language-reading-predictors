@@ -19,7 +19,10 @@ is latent and unadjustable - the child random intercept proxies its time-invaria
 part, so f^R stays an adjusted association, not a causal effect.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismModelSettings,
 )
@@ -62,5 +65,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mechanism(SPEC, config=config)

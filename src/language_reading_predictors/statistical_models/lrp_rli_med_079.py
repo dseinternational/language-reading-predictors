@@ -34,7 +34,10 @@ Design mirrors LRP59 exactly, swapping the mediator L -> T: phase 0 only, mediat
 {G, A, E, R, W_pre, T_t1}. All ID-2 caveats apply; nothing here is a causal route.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
@@ -54,5 +57,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation(SPEC, config=config)

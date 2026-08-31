@@ -45,7 +45,10 @@ the invariance relaxation (configural / AR-across-wave, by LOO) are follow-ups.
 See ``notes/202607142330-lrp313-longitudinal-corr-factor.md``.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.long_corr_factor import (
     LongCorrFactorModelSettings,
 )
@@ -75,5 +78,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_longitudinal_corr_factor(SPEC, config=config)

@@ -35,7 +35,10 @@ a t1-referenced gap change, as the level family did in #552.
 Reading rules are LRPDID01's, and no term here is a new causal quantity.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.did import DiDModelSettings
 from language_reading_predictors.statistical_models.pipelines.did import fit_did
 
@@ -64,5 +67,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_did(SPEC, config=config)

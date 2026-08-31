@@ -58,7 +58,7 @@ def build_longitudinal_corr_factor_model(
     factor_mean_sigma: float = 1.0,
     trait_share_a: float = 1.5,
     trait_share_b: float = 1.5,
-) -> BuiltModel[LongCorrFactorPayload]:
+) -> BuiltModel[LongCorrFactorPayload, WavePanel]:
     """Longitudinal correlated-domain-factor measurement model (LRP-RLI-LCF-001, #313).
 
     The four-wave extension of the cross-sectional ``corr_factor`` CFA (``mm-001``):

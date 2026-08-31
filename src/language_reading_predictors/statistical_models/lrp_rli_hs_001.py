@@ -25,7 +25,10 @@ taught/not-taught vocabulary (unconfirmed denominators, #144) are left out of th
 pilot. Params are weakly-informative priors, not tuned. n ~ 54; intervals are wide.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.horseshoe import (
     HorseshoeModelSettings,
 )
@@ -55,5 +58,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_horseshoe(SPEC, config=config)

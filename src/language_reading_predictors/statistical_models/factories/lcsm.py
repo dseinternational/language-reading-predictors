@@ -51,7 +51,7 @@ def build_lcsm_model(
     sigma_proc_prior_sigma: float = 0.5,
     sigma_init_prior_sigma: float = 1.0,
     kappa_prior_sigma: float = 50.0,
-) -> BuiltModel[EmptyPayload]:
+) -> BuiltModel[EmptyPayload, WavePanel]:
     """Full coupled latent change-score model (LRP67 + the lagged suite) on the logit scale.
 
     A latent logit true-score ``x_m[i, t]`` is modelled for each measure ``m``

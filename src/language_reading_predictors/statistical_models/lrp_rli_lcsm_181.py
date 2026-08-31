@@ -12,7 +12,10 @@ the pre-specified "does the reverse edge earn its place predictively" readout
 (design: ``notes/202607141030-time-lagged-model-designs.md``).
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipelines.lcsm import fit_lcsm
 
@@ -47,5 +50,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_lcsm(SPEC, config=config)

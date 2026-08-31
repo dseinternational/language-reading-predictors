@@ -39,7 +39,10 @@ n ~ 53 — not an identified natural effect. The link fixes the response scale; 
 does not touch any of that.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
@@ -68,5 +71,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation(SPEC, config=config)

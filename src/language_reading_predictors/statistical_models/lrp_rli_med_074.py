@@ -41,7 +41,10 @@ STRONG CAVEATS specific to this model:
   a causal route.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
 )
@@ -66,5 +69,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mediation(SPEC, config=config)

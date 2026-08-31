@@ -26,7 +26,10 @@ adjusted posteriors largely determined by their priors.
 (their conditional slopes would mostly re-express the baseline).
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.adjusted import (
     AdjustedModelSettings,
 )
@@ -57,5 +60,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_adjusted(SPEC, config=config)

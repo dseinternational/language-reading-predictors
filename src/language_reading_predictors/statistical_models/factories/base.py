@@ -33,9 +33,7 @@ from language_reading_predictors.statistical_models.measures import (
     is_distal,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
-    LongitudinalPanel,
     PreparedData,
-    WavePanel,
     standardise,
 )
 
@@ -233,14 +231,29 @@ def _standardise_child_baseline(
 
 PayloadT = TypeVar("PayloadT", bound=FittedPayload, covariant=True)
 
+#: The prepared-data shape a family fits on. Defaulted to :class:`PreparedData`,
+#: which is what all but the panel families use, so an existing
+#: ``BuiltModel[SomePayload]`` annotation keeps its meaning (#637 stage 4).
+#:
+#: Without this the attribute was typed as the union of all three shapes, and a
+#: pipeline reading ``built.prepared.pre_counts`` — perfectly well-defined for the
+#: shape its own factory returns — produced two type errors per access. That one
+#: union accounted for 343 of the 1,080 errors keeping the family pipelines out of
+#: strict type checking.
+#: Deliberately unbounded: the survival family fits its own ``SurvivalPanel``,
+#: which lives in a module that imports this one, so naming every shape here
+#: would close a cycle. The default carries the common case, and each factory's
+#: return annotation states the shape it actually builds on.
+PreparedT = TypeVar("PreparedT", default=PreparedData, covariant=True)
+
 
 RequiredPayloadT = TypeVar("RequiredPayloadT", bound=FittedPayload)
 
 
 @dataclass
-class BuiltModel(Generic[PayloadT]):
+class BuiltModel(Generic[PayloadT, PreparedT]):
     model: pm.Model
-    prepared: PreparedData | WavePanel | LongitudinalPanel
+    prepared: PreparedT
     """The (possibly row-subset) prepared data that the model was built on.
 
     Factories may drop rows with missing post-scores or missing confounder

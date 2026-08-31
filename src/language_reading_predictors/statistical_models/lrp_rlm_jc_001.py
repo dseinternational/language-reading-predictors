@@ -33,7 +33,10 @@ direction - the reciprocal question is Phase C's lagged model, gated on the
 lagged Byrne DAG.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.historical_joint import (
     HistoricalJointModelSettings,
 )
@@ -75,5 +78,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_joint_growth(SPEC, config=config)

@@ -20,7 +20,10 @@ post-hoc, exploratory floor-rule analysis; this prevalence model complements it
 rather than estimating the same quantity.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.did import (
     DiDModelSettings,
 )
@@ -46,5 +49,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_did(SPEC, config=config)

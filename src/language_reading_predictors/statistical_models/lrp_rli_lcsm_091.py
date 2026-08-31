@@ -55,7 +55,10 @@ landed after it was written (#250, ``notes/202607141030-time-lagged-model-design
   ambiguous, occasion-correlated and regression-to-the-mean-prone.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipelines.lcsm import fit_lcsm
 
@@ -84,5 +87,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_lcsm(SPEC, config=config)

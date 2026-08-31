@@ -36,7 +36,10 @@ and ``beta_G`` is an adjusted-association covariate, not the available-case
 modified ITT estimate.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.corr_factor import (
     CorrFactorModelSettings,
 )
@@ -77,5 +80,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_correlated_factor(SPEC, config=config)

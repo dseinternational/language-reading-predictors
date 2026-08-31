@@ -23,7 +23,10 @@ effect (#586 finding 10); this baseline shares that estimand, so the nested LOO 
 ``notes/202607172000-adjustment-set-review-full-suite.md``.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismModelSettings,
 )
@@ -69,5 +72,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mechanism(SPEC, config=config)

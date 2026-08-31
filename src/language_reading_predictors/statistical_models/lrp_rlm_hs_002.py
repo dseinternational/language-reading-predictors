@@ -16,7 +16,10 @@ adjusted model, not a causal or selection-free estimate. There is no Byrne
 gradient-boosting comparison.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.horseshoe import (
     HorseshoeModelSettings,
 )
@@ -62,5 +65,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_horseshoe(SPEC, config=config)

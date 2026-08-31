@@ -8,7 +8,10 @@ subset, the matched comparator that isolates the SES adjustment in LRPITT13b
 (sample held fixed). Sign convention: positive tau => intervention helps.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.lrp_rli_itt_013 import SES_ADJUSTERS
 from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
@@ -26,5 +29,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_itt(SPEC, config=config)

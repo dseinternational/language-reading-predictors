@@ -22,7 +22,10 @@ hazard-model form qualify it, and this family releases no causal headline (see
 METHODS.md and the descriptive note).
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.pipelines.survival import fit_survival
 from language_reading_predictors.statistical_models.survival import (
     SurvivalModelSettings,
@@ -45,5 +48,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_survival(SPEC, config=config)

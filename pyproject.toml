@@ -71,6 +71,7 @@ packages = ["src/language_reading_predictors"]
 [tool.pytest.ini_options]
 markers = [
     "real_plan_currency: exercise the real run-plan currency checker, not the stub the module's autouse fixture installs",
+    "slow: runs a whole-package type check; a few seconds each, kept out of the fast inner loop",
 ]
 testpaths = ["tests"]
 addopts = "-q"
@@ -89,44 +90,14 @@ select = ["E4", "E7", "E9", "F", "B905", "RUF012"]
 # ITT/DiD/LCF runtime paths migrated under #521.
 [tool.mypy]
 python_version = "3.14"
-files = [
-  "src/language_reading_predictors/statistical_models/adjusted.py",
-  "src/language_reading_predictors/statistical_models/aligned.py",
-  "src/language_reading_predictors/statistical_models/block_exposure.py",
-  "src/language_reading_predictors/statistical_models/concurrent.py",
-  "src/language_reading_predictors/statistical_models/corr_factor.py",
-  "src/language_reading_predictors/statistical_models/did.py",
-  "src/language_reading_predictors/statistical_models/documentation.py",
-  "src/language_reading_predictors/statistical_models/dose_response.py",
-  "src/language_reading_predictors/statistical_models/fitted_payloads.py",
-  "src/language_reading_predictors/statistical_models/gain_factors.py",
-  "src/language_reading_predictors/statistical_models/growth.py",
-  "src/language_reading_predictors/statistical_models/historical_growth.py",
-  "src/language_reading_predictors/statistical_models/historical_joint.py",
-  "src/language_reading_predictors/statistical_models/horseshoe.py",
-  "src/language_reading_predictors/statistical_models/itt.py",
-  "src/language_reading_predictors/statistical_models/joint.py",
-  "src/language_reading_predictors/statistical_models/joint_mechanism.py",
-  "src/language_reading_predictors/statistical_models/lcf_inference.py",
-  "src/language_reading_predictors/statistical_models/lcf_summaries.py",
-  "src/language_reading_predictors/statistical_models/level_factors.py",
-  "src/language_reading_predictors/statistical_models/lcsm.py",
-  "src/language_reading_predictors/statistical_models/long_corr_factor.py",
-  "src/language_reading_predictors/statistical_models/loo_refit.py",
-  "src/language_reading_predictors/statistical_models/mechanism.py",
-  "src/language_reading_predictors/statistical_models/mediation_settings.py",
-  "src/language_reading_predictors/statistical_models/output_transaction.py",
-  "src/language_reading_predictors/statistical_models/pipelines/aligned.py",
-  "src/language_reading_predictors/statistical_models/pipelines/did.py",
-  "src/language_reading_predictors/statistical_models/pipelines/gain_factors.py",
-  "src/language_reading_predictors/statistical_models/pipelines/itt.py",
-  "src/language_reading_predictors/statistical_models/pipelines/joint.py",
-  "src/language_reading_predictors/statistical_models/pipelines/long_corr_factor.py",
-  "src/language_reading_predictors/statistical_models/provenance.py",
-  "src/language_reading_predictors/statistical_models/stages.py",
-  "src/language_reading_predictors/statistical_models/subfits.py",
-  "src/language_reading_predictors/statistical_models/survival.py"
-]
+# Opt-out, not opt-in (#637 stage 4). This was a hand-maintained list of 36
+# files, so a new module went unchecked until someone remembered to add it —
+# and with ``follow_imports = "skip"`` even a listed file was checked against
+# ``Any`` for everything it imported, which is why the pipelines named below
+# report errors they never used to. The whole package is checked now, and the
+# modules that are not yet clean are named in the exemption list at the
+# bottom, which can only shrink.
+files = ["src/language_reading_predictors"]
 check_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_defs = true
@@ -136,3 +107,122 @@ no_implicit_optional = true
 show_error_codes = true
 warn_redundant_casts = true
 warn_unused_ignores = true
+
+# Registered model modules are checked like everything else. Their settings are
+# where a mistyped declaration lives, and checking them caught five specs passing
+# a list where the family declares a tuple, and four companions narrowing a
+# parent's settings without checking the type they narrowed to.
+
+# Not yet type-checked. Temporary and explicit, as #637 asks: each entry is a
+# module whose bodies still fail the strict flags above, and removing one is a
+# self-contained piece of work. `test_type_coverage` runs mypy with these
+# disabled and fails if an entry has become clean, so an exemption cannot
+# outlive the work it stands for, and a newly-failing module cannot be
+# tolerated without being named.
+#
+# 97 modules, 935 errors, at the time of writing. The profile says what
+# finishing them takes: ~300 `arg-type` and ~230 `no-untyped-def`, so mostly
+# annotating function signatures, plus ~195 `union-attr` that would mostly fall
+# to giving `StatisticalFitContext.prepared` the same treatment `BuiltModel`
+# just had.
+[[tool.mypy.overrides]]
+module = [
+  "language_reading_predictors.data_utils",
+  "language_reading_predictors.model_ids",
+  "language_reading_predictors.models.base_model",
+  "language_reading_predictors.models.base_pipeline",
+  "language_reading_predictors.models.cluster_ranking",
+  "language_reading_predictors.models.common",
+  "language_reading_predictors.models.lgbm_log_pipeline",
+  "language_reading_predictors.models.lgbm_pipeline",
+  "language_reading_predictors.models.lgbm_signed_log_pipeline",
+  "language_reading_predictors.models.permutation",
+  "language_reading_predictors.plot_utils",
+  "language_reading_predictors.statistical_models.adjusted",
+  "language_reading_predictors.statistical_models.adjustment",
+  "language_reading_predictors.statistical_models.arm_overlap",
+  "language_reading_predictors.statistical_models.blending_sensitivity",
+  "language_reading_predictors.statistical_models.concurrent",
+  "language_reading_predictors.statistical_models.context",
+  "language_reading_predictors.statistical_models.corr_factor",
+  "language_reading_predictors.statistical_models.definitions",
+  "language_reading_predictors.statistical_models.diagnostics",
+  "language_reading_predictors.statistical_models.effect_plots",
+  "language_reading_predictors.statistical_models.estimands",
+  "language_reading_predictors.statistical_models.factories.adjusted",
+  "language_reading_predictors.statistical_models.factories.aligned",
+  "language_reading_predictors.statistical_models.factories.base",
+  "language_reading_predictors.statistical_models.factories.block_exposure",
+  "language_reading_predictors.statistical_models.factories.concurrent",
+  "language_reading_predictors.statistical_models.factories.corr_factor",
+  "language_reading_predictors.statistical_models.factories.did",
+  "language_reading_predictors.statistical_models.factories.dose_response",
+  "language_reading_predictors.statistical_models.factories.gain_factors",
+  "language_reading_predictors.statistical_models.factories.historical",
+  "language_reading_predictors.statistical_models.factories.horseshoe",
+  "language_reading_predictors.statistical_models.factories.itt",
+  "language_reading_predictors.statistical_models.factories.joint",
+  "language_reading_predictors.statistical_models.factories.joint_mechanism",
+  "language_reading_predictors.statistical_models.factories.level_factors",
+  "language_reading_predictors.statistical_models.factories.long_corr_factor",
+  "language_reading_predictors.statistical_models.factories.mechanism",
+  "language_reading_predictors.statistical_models.factories.mediation",
+  "language_reading_predictors.statistical_models.figure_artifacts",
+  "language_reading_predictors.statistical_models.growth",
+  "language_reading_predictors.statistical_models.historical",
+  "language_reading_predictors.statistical_models.horseshoe",
+  "language_reading_predictors.statistical_models.influence",
+  "language_reading_predictors.statistical_models.itt",
+  "language_reading_predictors.statistical_models.itt_missingness",
+  "language_reading_predictors.statistical_models.key_findings",
+  "language_reading_predictors.statistical_models.lcf_summaries",
+  "language_reading_predictors.statistical_models.mechanism",
+  "language_reading_predictors.statistical_models.mechanism_items",
+  "language_reading_predictors.statistical_models.mediation",
+  "language_reading_predictors.statistical_models.mediation_calibration",
+  "language_reading_predictors.statistical_models.pipelines.adjusted",
+  "language_reading_predictors.statistical_models.pipelines.aligned",
+  "language_reading_predictors.statistical_models.pipelines.block_exposure",
+  "language_reading_predictors.statistical_models.pipelines.concurrent",
+  "language_reading_predictors.statistical_models.pipelines.corr_factor",
+  "language_reading_predictors.statistical_models.pipelines.did",
+  "language_reading_predictors.statistical_models.pipelines.dose_response",
+  "language_reading_predictors.statistical_models.pipelines.gain_factors",
+  "language_reading_predictors.statistical_models.pipelines.growth",
+  "language_reading_predictors.statistical_models.pipelines.historical_growth",
+  "language_reading_predictors.statistical_models.pipelines.historical_joint",
+  "language_reading_predictors.statistical_models.pipelines.horseshoe",
+  "language_reading_predictors.statistical_models.pipelines.itt",
+  "language_reading_predictors.statistical_models.pipelines.joint",
+  "language_reading_predictors.statistical_models.pipelines.joint_mechanism",
+  "language_reading_predictors.statistical_models.pipelines.lcsm",
+  "language_reading_predictors.statistical_models.pipelines.level_factors",
+  "language_reading_predictors.statistical_models.pipelines.long_corr_factor",
+  "language_reading_predictors.statistical_models.pipelines.mechanism",
+  "language_reading_predictors.statistical_models.pipelines.mediation",
+  "language_reading_predictors.statistical_models.pipelines.pooled_levels",
+  "language_reading_predictors.statistical_models.pipelines.survival",
+  "language_reading_predictors.statistical_models.pooled_levels",
+  "language_reading_predictors.statistical_models.pooled_moderation",
+  "language_reading_predictors.statistical_models.ppc_artifacts",
+  "language_reading_predictors.statistical_models.ppc_audit",
+  "language_reading_predictors.statistical_models.predicted_scores",
+  "language_reading_predictors.statistical_models.predictive_checks",
+  "language_reading_predictors.statistical_models.preprocessing",
+  "language_reading_predictors.statistical_models.prior_artifacts",
+  "language_reading_predictors.statistical_models.priors",
+  "language_reading_predictors.statistical_models.publication",
+  "language_reading_predictors.statistical_models.release.dependence",
+  "language_reading_predictors.statistical_models.release.family_checks",
+  "language_reading_predictors.statistical_models.release.publication",
+  "language_reading_predictors.statistical_models.release.robustness",
+  "language_reading_predictors.statistical_models.rlm_denominator_sensitivity",
+  "language_reading_predictors.statistical_models.rlm_lcsm_feasibility",
+  "language_reading_predictors.statistical_models.run_metadata",
+  "language_reading_predictors.statistical_models.runtime",
+  "language_reading_predictors.statistical_models.sensitivity",
+  "language_reading_predictors.statistical_models.settings_validation",
+  "language_reading_predictors.statistical_models.survival",
+  "language_reading_predictors.statistical_models.trajectory_plots",
+]
+ignore_errors = true

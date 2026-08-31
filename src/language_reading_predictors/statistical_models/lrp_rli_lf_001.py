@@ -38,7 +38,10 @@ comparator.
 """
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.level_factors import (
     LevelFactorsModelSettings,
 )
@@ -60,5 +63,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_level_factors(SPEC, config=config)

@@ -25,7 +25,10 @@ the repeated-measures structure the subject random intercept needs. Params are
 weakly-informative priors, not tuned.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.horseshoe import (
     HorseshoeModelSettings,
 )
@@ -49,5 +52,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_horseshoe(SPEC, config=config)

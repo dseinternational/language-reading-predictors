@@ -23,7 +23,10 @@ levels frame to one row per child and destroy the repeated-measures structure th
 subject random intercept needs). Weakly-informative priors, not tuned.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.horseshoe import (
     HorseshoeModelSettings,
 )
@@ -47,5 +50,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_horseshoe(SPEC, config=config)

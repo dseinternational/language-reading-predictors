@@ -14,7 +14,10 @@ conditioning on the treatment-affected t2 period-start score while retaining
 baseline balance.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.did import (
     DiDModelSettings,
 )
@@ -39,5 +42,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_did(SPEC, config=config)

@@ -15,7 +15,10 @@ causal. Latent general ability remains incompletely measured, and the reading-ma
 group was selected on the outcome itself.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.growth import GrowthModelSettings
 from language_reading_predictors.statistical_models.pipelines.growth import fit_growth
 
@@ -47,6 +50,6 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     """Fit the registered Byrne reading-trajectory model."""
     return fit_growth(SPEC, config=config)

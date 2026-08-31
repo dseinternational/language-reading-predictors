@@ -28,7 +28,10 @@ E*.
 See the companion note and ``docs/models/lrp-rli-mech-071/index.qmd``.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismModelSettings,
 )
@@ -79,5 +82,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mechanism(SPEC, config=config)

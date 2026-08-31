@@ -18,7 +18,10 @@ Association only, and weaker than the mechanism family on temporal grounds:
 exposure and outcome are measured at the same wave, so nothing here orders them.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.pooled_levels import (
     PooledLevelsModelSettings,
 )
@@ -41,5 +44,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_pooled_levels(SPEC, config=config)

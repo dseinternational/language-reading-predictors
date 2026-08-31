@@ -17,7 +17,10 @@ the trial's short TROG-2 administration, 8 constructs x 4 items = 32, item-score
 tau means the intervention raises the outcome.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 
@@ -33,5 +36,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_itt(SPEC, config=config)

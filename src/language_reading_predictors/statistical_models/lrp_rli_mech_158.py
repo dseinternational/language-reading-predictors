@@ -49,7 +49,10 @@ random intercept does not stand in for it, so ``f^L`` is an **adjusted associati
 never a causal effect.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismModelSettings,
 )
@@ -91,5 +94,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mechanism(SPEC, config=config)

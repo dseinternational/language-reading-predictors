@@ -14,7 +14,10 @@ untreated rows have zero intensity. ``beta_dose`` is therefore an observational
 intensive-margin association per treated-row SD, not an ITT or causal effect.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.did import (
     DiDModelSettings,
 )
@@ -39,5 +42,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_did(SPEC, config=config)

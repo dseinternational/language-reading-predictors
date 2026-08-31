@@ -36,7 +36,10 @@ its prior pushforward — takes the link, so the "check" cannot end up comparing
 quantities on different scales.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.dose_response import (
     DoseResponseModelSettings,
 )
@@ -69,5 +72,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_dose_response(SPEC, config=config)

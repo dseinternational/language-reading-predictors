@@ -15,7 +15,10 @@ stands against the adjusted model's mutually-adjusted slopes instead. Not
 causal; a which-predictors-carry-signal read only.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.horseshoe import (
     HorseshoeModelSettings,
 )
@@ -51,5 +54,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_horseshoe(SPEC, config=config)

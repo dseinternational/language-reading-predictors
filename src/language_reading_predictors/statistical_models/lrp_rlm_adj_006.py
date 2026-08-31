@@ -19,7 +19,10 @@ the longitudinal ordering nor the random intercept supplies causal identificatio
 from language_reading_predictors.statistical_models.adjusted import (
     AdjustedModelSettings,
 )
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.pipelines.adjusted import (
     fit_rlm_adjusted,
 )
@@ -52,5 +55,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_rlm_adjusted(SPEC, config=config)

@@ -22,7 +22,10 @@ ASSOCIATION, not a causal effect. The corresponding randomised-arm result is an
 available-case modified ITT estimate in the ITT suite.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismModelSettings,
 )
@@ -57,5 +60,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_mechanism(SPEC, config=config)

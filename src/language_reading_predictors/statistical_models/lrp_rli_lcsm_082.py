@@ -33,7 +33,10 @@ diagnostics gate. The mild late blending ceiling (14-21% at 10/10 by t3-t4)
 is absorbed by the Beta-Binomial.
 """
 
-from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
+    StatisticalFitContext,
+)
 from language_reading_predictors.statistical_models.lcsm import LcsmModelSettings
 from language_reading_predictors.statistical_models.pipelines.lcsm import fit_lcsm
 
@@ -70,5 +73,5 @@ SPEC = ModelSpec(
 )
 
 
-def fit(config: str = "dev"):
+def fit(config: str = "dev") -> StatisticalFitContext:
     return fit_lcsm(SPEC, config=config)
