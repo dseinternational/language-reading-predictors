@@ -1834,7 +1834,24 @@ def test_the_real_currency_checker_catches_a_stale_stored_plan():
 
 @pytest.mark.real_plan_currency
 def test_the_currency_checker_fails_closed_for_a_family_with_no_resolver():
+    """A check that cannot run must refuse, not pass silently.
+
+    The kind here is deliberately fictional. Since #637 stage 4 the resolver
+    lookup is derived from the family descriptors, so *every* registered family
+    has one — including ``pooled_levels``, which this test used to name because
+    it was missing from a hand-maintained seven-entry subset. That was a
+    bookkeeping gap rather than a scientific one; the fail-closed behaviour it
+    exercised is still required for a kind the package does not describe.
+    """
     from language_reading_predictors.statistical_models import blending_sensitivity
 
     with pytest.raises(ValueError, match="no registered run-plan resolver"):
-        blending_sensitivity._stale_plan_fields("lrp-rli-pl-001", "pooled_levels", {})
+        blending_sensitivity._stale_plan_fields("lrp-rli-xx-001", "not_a_family", {})
+
+
+def test_the_currency_checker_now_covers_every_registered_family():
+    """The subset is gone: a gated family cannot be absent from the lookup."""
+    from language_reading_predictors.statistical_models import blending_sensitivity
+    from language_reading_predictors.statistical_models import definitions
+
+    assert set(blending_sensitivity._PLAN_RESOLVERS) == set(definitions.KINDS)

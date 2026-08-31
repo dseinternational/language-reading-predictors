@@ -95,6 +95,11 @@ def emit_itt_extras(
 ) -> None:
     """Area 1/4 extras for an ITT-style fit (issue #125).
 
+    Power scaling is **not** run here: it is the primary-fit runner's
+    ``after_trace`` slot, so the lifecycle can order it and enforce that it runs
+    exactly once (#637 stage 4). The published order is unchanged — these figures
+    still precede it.
+
     Writes ``prior_pushforward.csv`` (the estimand-scale prior check), the causal
     forest, the prior-vs-posterior overlay, and power-scaling sensitivity. Reads
     the persisted ``prior`` group (on ``ctx.prior_samples``) and the full trace,
@@ -119,7 +124,6 @@ def emit_itt_extras(
         save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
     save_forest_plot(ctx, [term])
     _diag.save_prior_posterior_plot(ctx, var_names=overlay_vars)
-    _diag.run_psense(ctx, var_names=[term])
 
 
 def itt_diag_vars(
@@ -212,20 +216,10 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     def _plot_prior_after_gate(c: StatisticalFitContext, _gate: dict) -> None:
         _diag.save_prior_predictive_plot(c, spec.outcome_symbol)
 
-    shared_stages().run_primary_fit(
-        ctx,
-        PrimaryFitPlan(
-            diagnostic_vars=diag_vars,
-            post_ppc_audit=_write_itt_ppc,
-            post_gate_audit=_plot_prior_after_gate,
-            psense_timing="family_tail",
-            extended_term="tau",
-        ),
-    )
-
     # Area 1/4 extras that read the attached prior group or the full trace:
     # the prior pushforward to the items scale (estimand-scale prior check), the
-    # tau forest, the prior-vs-posterior overlay, and power-scaling sensitivity.
+    # tau forest and the prior-vs-posterior overlay, written after the trace and
+    # before power scaling — an order the runner now owns (#637 stage 4).
     # Net out the full per-row treatment contribution: the age-varying ``tau_i``
     # is picked up automatically by the AME core; a linear tau moderator adds
     # ``gamma_tau_int·z_M`` (Part B). Latent today — no registered ITT spec sets
@@ -234,11 +228,23 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     tau_moderators = payload.tau_interaction_moderators
     score_mean_link = payload.score_mean_link
     n_trials_own = int(built.prepared.n_trials[spec.outcome_symbol])
-    emit_itt_extras(
-        ctx, built, n_trials=n_trials_own,
-        overlay_vars=list(diag_vars),
-        moderators=tau_moderators,
-        score_mean_link=score_mean_link,
+
+    shared_stages().run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=diag_vars,
+            post_ppc_audit=_write_itt_ppc,
+            post_gate_audit=_plot_prior_after_gate,
+            psense_timing="after_trace",
+            psense_vars=("tau",),
+            after_trace_audit=lambda c: emit_itt_extras(
+                c, built, n_trials=n_trials_own,
+                overlay_vars=list(diag_vars),
+                moderators=tau_moderators,
+                score_mean_link=score_mean_link,
+            ),
+            extended_term="tau",
+        ),
     )
 
     # Treatment-effect summary on both scales.
@@ -555,16 +561,16 @@ def fit_itt_floor_rule(
                 c, spec.outcome_symbol or "W"
             ),
             post_ppc_audit=_write_floor_ppc,
-            psense_timing="family_tail",
+            psense_timing="after_trace",
+            psense_vars=("tau",),
+            # Off-floor estimand is a risk difference (Pr off-floor), so the items
+            # scale is n_trials = 1; no age-varying term in the floor-rule model.
+            after_trace_audit=lambda c: emit_itt_extras(
+                c, built, n_trials=1, varying_term="",
+                overlay_vars=list(diag_vars),
+            ),
             extended_term="tau",
         ),
-    )
-
-    # Off-floor estimand is a risk difference (Pr off-floor), so the items scale is
-    # n_trials = 1; no age-varying term in the floor-rule model.
-    emit_itt_extras(
-        ctx, built, n_trials=1, varying_term="",
-        overlay_vars=list(diag_vars),
     )
 
     section_header(

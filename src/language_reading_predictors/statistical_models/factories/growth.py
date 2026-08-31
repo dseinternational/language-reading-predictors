@@ -30,6 +30,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
 )
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 def build_growth_model(
     panel: WavePanel,
@@ -143,11 +146,11 @@ def build_growth_model(
     group_values: np.ndarray | None = None
     group_idx: np.ndarray | None = None
     if adjust_for_group:
-        assert panel.group is not None
-        group_values = np.asarray(sorted(set(panel.group.astype(int))), dtype=int)
+        panel_group = require_value(panel.group, "panel.group")
+        group_values = np.asarray(sorted(set(panel_group.astype(int))), dtype=int)
         group_lookup = {int(code): index for index, code in enumerate(group_values)}
         group_idx = np.asarray(
-            [group_lookup[int(code)] for code in panel.group], dtype=np.int64
+            [group_lookup[int(code)] for code in panel_group], dtype=np.int64
         )
         intercept_anchor = np.array(
             [

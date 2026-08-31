@@ -31,6 +31,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
 )
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 def _map_panel_rows(values, index: dict, *, what: str) -> np.ndarray:
     """Map tidy-row keys to dense model indices, refusing keys the panel lacks.
@@ -479,7 +482,7 @@ def build_rlm_joint_growth_model(
                     dims="obs",
                 )
             else:
-                assert kappa is not None
+                kappa = require_value(kappa, "the dispersion concentration")
                 kappa_obs = kappa[mi, group_idx]
                 pm.BetaBinomial(
                     f"score_{m}",

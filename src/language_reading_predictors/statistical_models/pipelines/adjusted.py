@@ -69,6 +69,9 @@ from language_reading_predictors.statistical_models.runtime import (
 )
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 
 # Human-readable labels for the LRP65 predictor keys (for tables / forest plot).
@@ -372,8 +375,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     if plan.port != "rli":
         raise ValueError(f"{spec.model_id}: RLM settings require fit_rlm_adjusted")
     outcome = plan.outcome_symbol
-    post_time = plan.post_time
-    assert post_time is not None
+    post_time = require_value(plan.post_time, "post_time")
     lang_symbols = plan.language_composite_symbols
     ses_covs = list(plan.ses_covariates)
     sigma0 = plan.predictor_slope_sigma
@@ -787,8 +789,7 @@ def _fit_rlm_transition_adjusted(
     )
 
     outcome = plan.outcome_symbol
-    waves = plan.transition_waves
-    assert waves is not None
+    waves = require_value(plan.transition_waves, "transition_waves")
     sigma0 = plan.predictor_slope_sigma
     prior_sens = list(plan.prior_sensitivity_sigmas)
     ctx = make_context(spec, config, ci_prob=0.89)
@@ -1061,9 +1062,8 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     if plan.transition_waves is not None:
         return _fit_rlm_transition_adjusted(spec, plan, config)
     outcome = plan.outcome_symbol
-    pre_wave = plan.pre_wave
-    post_wave = plan.post_wave
-    assert pre_wave is not None and post_wave is not None
+    pre_wave = require_value(plan.pre_wave, "pre_wave")
+    post_wave = require_value(plan.post_wave, "post_wave")
     sigma0 = plan.predictor_slope_sigma
     prior_sens = list(plan.prior_sensitivity_sigmas)
 

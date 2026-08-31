@@ -137,21 +137,26 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
                 c, spec.outcome_symbol, node=obs_node
             ),
-            psense_timing="family_tail",
+            # The family's established post-trace order — overlay, forest, then
+            # power scaling — declared to the runner rather than performed after
+            # it (#637 stage 4). Same figures, same order, one owner.
+            psense_timing="after_trace",
+            after_trace_audit=lambda c: (
+                _diag.save_prior_posterior_plot(c, var_names=_lf_diag),
+                save_forest_plot(c, _forest_vars),
+            )
+            and None,
+            # Power scaling covers the focal arm terms **and** the free nuisance
+            # scales (#584 finding 6): the stored suite flags ``sigma_child`` in
+            # every fit and ``kappa`` in most graded ones, and an audit that scans
+            # only the arm terms establishes focal-term behaviour rather than
+            # prior/likelihood robustness. The gate and the key-findings box still
+            # read the focal row only, so a nuisance conflict is disclosed in the
+            # psense table without silently blocking release.
+            psense_vars=(*_forest_vars, *plan.nuisance_terms),
             extended_term=_causal_lf,
         ),
     )
-    # Preserve the family's established post-trace order: overlay, forest, then
-    # power scaling. The plan opts out of the standard pre-PPC sensitivity slot.
-    _diag.save_prior_posterior_plot(ctx, var_names=_lf_diag)
-    save_forest_plot(ctx, _forest_vars)
-    # Power scaling covers the focal arm terms **and** the free nuisance scales
-    # (#584 finding 6): the stored suite flags ``sigma_child`` in every fit and
-    # ``kappa`` in most graded ones, and an audit that scans only the arm terms
-    # establishes focal-term behaviour rather than prior/likelihood robustness. The
-    # gate and the key-findings box still read the focal row only, so a nuisance
-    # conflict is disclosed in the psense table without silently blocking release.
-    _diag.run_psense(ctx, var_names=[*_forest_vars, *plan.nuisance_terms])
 
     section_header("Factor summary")
     # Only the t2 group contrast (plan.causal_terms) is the randomised

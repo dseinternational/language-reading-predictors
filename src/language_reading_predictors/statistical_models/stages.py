@@ -101,15 +101,29 @@ class PrimaryFitPlan:
     """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
 
     psense_timing: Literal[
-        "before_ppc", "after_ppc", "before_trace", "family_tail"
+        "before_ppc", "after_ppc", "before_trace", "after_trace", "skip"
     ] = "before_ppc"
-    """Where power scaling runs relative to PPC, or in the explicit family tail.
+    """Where power scaling runs, or ``"skip"`` for a fit that reports none.
 
-    A few established families persist their trace and write diagnostic figures
-    before power scaling. They declare ``family_tail`` and retain that late
-    sensitivity block explicitly after
-    :meth:`SharedFitStages.run_primary_fit`, so lifecycle adoption cannot
-    silently reorder their published artefacts.
+    ``after_trace`` is the slot the established late families use: they persist
+    the trace and write their prior-vs-posterior overlay and forest first, and
+    power-scale last. That used to be ``"family_tail"``, which did **nothing**
+    inside the runner — six pipelines called ``run_psense`` themselves afterwards,
+    so the runner could neither order the stage nor enforce that it ran exactly
+    once (#637 stage 4). The figures those families wrote first are now the
+    :attr:`after_trace_audit` hook, and the published order is unchanged.
+
+    ``skip`` is for a fit with nothing to power-scale — a treated-only gain-factor
+    variant has no focal term — and is declared rather than achieved by omission,
+    so ``psense_summary.csv``'s absence is a stated decision.
+    """
+
+    after_trace_audit: ContextHook | None = None
+    """Family figures that must follow trace persistence, before power scaling.
+
+    The established late families' overlay and forest. Owned by the runner so the
+    order of the tail is part of the lifecycle rather than a comment in six
+    pipelines asking the next editor not to move anything.
     """
 
     prepare_psense: ContextHook | None = None
@@ -192,6 +206,11 @@ class SharedFitStages:
 
         diag_vars = list(plan.diagnostic_vars)
 
+        def _record(stage: str) -> None:
+            ctx.lifecycle_stages.append(stage)
+
+        ctx.lifecycle_stages.clear()
+        _record("prior_predictive")
         section_header("Prior predictive")
         if plan.prior_predictive_var_names is None:
             _diag.run_prior_predictive(ctx, draws=plan.prior_predictive_draws)
@@ -204,24 +223,35 @@ class SharedFitStages:
         if plan.plot_prior_predictive is not None:
             plan.plot_prior_predictive(ctx)
 
+        _record("sample_and_loo")
         self.sample_and_loo(ctx, compute_loo=plan.compute_loo)
         if plan.post_sampling_audit is not None:
             plan.post_sampling_audit(ctx)
 
+        _record("summary_diagnostics")
         section_header(plan.summary_header)
         _diag.summary_diagnostics(ctx, var_names=diag_vars)
 
         def _run_psense() -> None:
+            # Exactly once, whichever slot: the runner records the stage and the
+            # branches below are mutually exclusive by construction (#637 stage 4).
+            if "power_scaling" in ctx.lifecycle_stages:
+                raise RuntimeError(
+                    "power-scaling sensitivity ran twice in one primary fit; "
+                    f"stages so far: {ctx.lifecycle_stages}"
+                )
             if plan.prepare_psense is not None:
                 plan.prepare_psense(ctx)
             psense_vars = (
                 list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
             )
+            _record("power_scaling")
             _diag.run_psense(ctx, var_names=psense_vars)
 
         if plan.psense_timing == "before_ppc":
             _run_psense()
 
+        _record("posterior_predictive")
         if plan.custom_posterior_predictive is None:
             self.posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
         else:
@@ -232,11 +262,13 @@ class SharedFitStages:
         if plan.psense_timing == "after_ppc":
             _run_psense()
 
+        _record("convergence_gate")
         section_header(plan.extended_header)
         gate = _diag.write_diagnostics_summary(ctx, var_names=diag_vars)
         if plan.post_gate_audit is not None:
             plan.post_gate_audit(ctx, gate)
         if plan.run_extended:
+            _record("extended_diagnostics")
             _diag.run_extended_diagnostics(
                 ctx,
                 causal_term=plan.extended_term,
@@ -251,7 +283,18 @@ class SharedFitStages:
         if plan.psense_timing == "before_trace":
             _run_psense()
         if plan.save_trace:
+            _record("save_trace")
             _diag.save_trace(ctx)
+        if plan.after_trace_audit is not None:
+            _record("after_trace_audit")
+            plan.after_trace_audit(ctx)
+        if plan.psense_timing == "after_trace":
+            _run_psense()
+        if plan.psense_timing != "skip" and "power_scaling" not in ctx.lifecycle_stages:
+            raise RuntimeError(
+                f"psense_timing={plan.psense_timing!r} named a slot that never ran; "
+                f"stages: {ctx.lifecycle_stages}"
+            )
         return gate
 
     def write_metadata(

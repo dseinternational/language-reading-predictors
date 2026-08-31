@@ -80,6 +80,9 @@ from language_reading_predictors.statistical_models.runtime import (
 )
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 from language_reading_predictors.statistical_models.subfits import run_subfit
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 
 #: Terms reported for both designs, in report order. ``rho_outcome`` is emitted by
@@ -740,9 +743,11 @@ def _jm_wave_eligibility(
     inherits ``prepared.dropped_rows`` from the four-timepoint panel unchanged, so the
     stored figure is neither the panel's nor this wave's (metadata gap 3).
     """
-    assert plan.min_wave_rows is not None
-    assert plan.min_wave_outcome_rows is not None
-    assert plan.min_wave_overlap_rows is not None
+    # Narrowed here rather than asserted: each is used further down through
+    # ``plan``, and ``assert`` would have vanished under ``-O`` (#637 stage 4).
+    require_value(plan.min_wave_rows, "min_wave_rows")
+    require_value(plan.min_wave_outcome_rows, "min_wave_outcome_rows")
+    require_value(plan.min_wave_overlap_rows, "min_wave_overlap_rows")
     usable = ~np.isnan(sub.post_counts[plan.mechanism_symbol])
     observed = {s: ~np.isnan(sub.post_counts[s]) for s in outcome_symbols}
     any_outcome = np.zeros(sub.n_obs, dtype=bool)
@@ -890,8 +895,10 @@ def _fit_joint_mechanism_levels(
     # the two conditional slopes comparable in construction; it does not make them
     # nested (see the run plan's comparator_equivalence).
     covariates = plan.declared_adjustment
-    predictor_slope_sigma = plan.predictor_slope_sigma
-    assert predictor_slope_sigma is not None
+    predictor_slope_sigma = require_value(
+        plan.predictor_slope_sigma,
+        "predictor_slope_sigma (the levels design's slope prior)",
+    )
 
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan

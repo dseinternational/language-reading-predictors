@@ -56,6 +56,9 @@ from language_reading_predictors.statistical_models.runtime import (
     write_run_metadata,
 )
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 
 def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
@@ -80,8 +83,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
 
     section_header("Prepare data")
     domains = plan.domain_mapping()
-    outcome = plan.outcome_symbol
-    assert outcome is not None
+    outcome = require_value(plan.outcome_symbol, "outcome_symbol")
     structural_covs = plan.structural_covariates
     prepared = load_and_prepare(**plan.rli_prepare_kwargs())
     ctx.prepared = prepared

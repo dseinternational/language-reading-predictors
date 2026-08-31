@@ -108,7 +108,7 @@ def test_attach_stage_sets_the_built_contract_before_priors():
 def test_sampling_stage_keeps_sampling_loo_reporting_order(monkeypatch):
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
     monkeypatch.setattr(
         stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
@@ -143,7 +143,7 @@ def test_sample_and_loo_skips_the_loo_block_when_disabled(monkeypatch):
     refactor that centralises the lifecycle must preserve this genuine difference."""
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
     monkeypatch.setattr(
         stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
@@ -165,7 +165,7 @@ def test_posterior_predictive_defaults_to_the_y_post_node(monkeypatch):
     node as) ``y_post`` — the default observation node for the count families."""
     sampled = []
     saved = []
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     monkeypatch.setattr(stages, "section_header", lambda _title: None)
     monkeypatch.setattr(
         stages._diag,
@@ -193,7 +193,7 @@ def test_posterior_predictive_defaults_to_the_y_post_node(monkeypatch):
 def test_posterior_predictive_uses_the_last_requested_node(monkeypatch):
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     sampled = []
     saved = []
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
@@ -230,7 +230,7 @@ def test_run_primary_fit_owns_the_invariant_sequence(monkeypatch):
     """
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     _patch_primary_fit_diag(monkeypatch, events)
 
     plan = PrimaryFitPlan(
@@ -270,7 +270,7 @@ def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
     the plan expresses each difference without changing the shared order."""
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     _patch_primary_fit_diag(monkeypatch, events)
 
     plan = PrimaryFitPlan(
@@ -301,42 +301,111 @@ def test_run_primary_fit_honours_the_genuine_family_differences(monkeypatch):
     ]
 
 
-def test_run_primary_fit_can_leave_late_psense_to_the_family(monkeypatch):
-    """Late-sensitivity families must reach trace persistence without power scaling.
+def test_run_primary_fit_owns_the_late_families_post_trace_order(monkeypatch):
+    """Overlay and forest after the trace, then power scaling — inside the runner.
 
-    Their family pipeline then writes its established post-trace overlay and
-    forest before calling ``run_psense``. This opt-out preserves that artefact
-    order while the invariant lifecycle moves to the shared runner.
+    Six families used to declare ``psense_timing="family_tail"``, which did
+    nothing, and call ``run_psense`` themselves afterwards. The runner could
+    neither order the stage nor know it had happened, so the only check available
+    was reading the six pipelines' source for the right call order (#637 stage 4).
     """
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     _patch_primary_fit_diag(monkeypatch, events)
 
     runner.run_primary_fit(
         ctx,
         PrimaryFitPlan(
             diagnostic_vars=("alpha", "tau"),
-            psense_timing="family_tail",
-            prepare_psense=lambda _ctx: events.append("must_not_prepare_psense"),
+            psense_timing="after_trace",
+            psense_vars=("tau",),
+            prepare_psense=lambda _ctx: events.append("prepare_psense"),
+            after_trace_audit=lambda _ctx: events.append("overlay_and_forest"),
             extended_term="tau",
+        ),
+    )
+
+    assert events[-5:] == [
+        "extended[tau,loo_pit=True,fallback=('alpha', 'tau')]",
+        "save_trace",
+        "overlay_and_forest",
+        "prepare_psense",
+        "psense['tau']",
+    ]
+    assert ctx.lifecycle_stages[-3:] == [
+        "save_trace",
+        "after_trace_audit",
+        "power_scaling",
+    ]
+
+
+def test_a_fit_with_nothing_to_power_scale_declares_it(monkeypatch):
+    """``skip`` is a declaration, not an omission.
+
+    A treated-only gain-factor variant has no focal term. Saying so means the
+    absence of ``psense_summary.csv`` is a stated decision rather than a slot
+    nobody happened to fill.
+    """
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace(lifecycle_stages=[])
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    runner.run_primary_fit(
+        ctx,
+        PrimaryFitPlan(
+            diagnostic_vars=("alpha",),
+            psense_timing="skip",
+            prepare_psense=lambda _ctx: events.append("must_not_prepare_psense"),
         ),
     )
 
     assert "must_not_prepare_psense" not in events
     assert not any(event.startswith("psense") for event in events)
-    assert events[-3:] == [
-        "gate['alpha', 'tau']",
-        "extended[tau,loo_pit=True,fallback=('alpha', 'tau')]",
-        "save_trace",
-    ]
+    assert "power_scaling" not in ctx.lifecycle_stages
+
+
+def test_power_scaling_runs_exactly_once_and_the_runner_knows_it(monkeypatch):
+    """The property the escape hatch made uncheckable."""
+    import pytest
+
+    events = []
+    runner = _stage_runner(events)
+    ctx = SimpleNamespace(lifecycle_stages=[])
+    _patch_primary_fit_diag(monkeypatch, events)
+
+    for timing in ("before_ppc", "after_ppc", "before_trace", "after_trace"):
+        runner.run_primary_fit(
+            ctx,
+            PrimaryFitPlan(diagnostic_vars=("alpha",), psense_timing=timing),
+        )
+        assert ctx.lifecycle_stages.count("power_scaling") == 1, timing
+        assert [e for e in events if e.startswith("psense")] == ["psense['alpha']"]
+        events.clear()
+
+    # A family hook that reaches for power scaling itself is refused rather than
+    # silently producing a second, differently-scoped sensitivity table.
+    def _second_psense(_ctx):
+        runner_psense = stages._diag.run_psense
+        runner_psense(_ctx, var_names=["alpha"])
+
+    with pytest.raises(RuntimeError, match="ran twice"):
+        runner.run_primary_fit(
+            ctx,
+            PrimaryFitPlan(
+                diagnostic_vars=("alpha",),
+                psense_timing="after_trace",
+                after_trace_audit=lambda c: c.lifecycle_stages.append("power_scaling"),
+            ),
+        )
 
 
 def test_run_primary_fit_can_run_psense_after_ppc_and_return_the_gate(monkeypatch):
     """Adjusted RLI retains PPC-before-psense and consumes the one gate record."""
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     _patch_primary_fit_diag(monkeypatch, events)
     gate = {"passed": True, "checks": {"rhat": True}}
     monkeypatch.setattr(
@@ -364,7 +433,7 @@ def test_run_primary_fit_runs_post_ppc_audit_before_the_gate(monkeypatch):
     """DiD cell calibration is part of PPC and must precede the convergence gate."""
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     _patch_primary_fit_diag(monkeypatch, events)
 
     runner.run_primary_fit(
@@ -372,7 +441,8 @@ def test_run_primary_fit_runs_post_ppc_audit_before_the_gate(monkeypatch):
         PrimaryFitPlan(
             diagnostic_vars=("alpha",),
             post_ppc_audit=lambda _ctx: events.append("post_ppc_audit"),
-            psense_timing="family_tail",
+            # This test is about the audit's slot, not about sensitivity.
+            psense_timing="skip",
         ),
     )
 
@@ -385,7 +455,7 @@ def test_run_primary_fit_orders_exceptional_phase_hooks(monkeypatch):
     """Custom prior, stitched LOO, PPC and diagnostics stay in named phase slots."""
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     _patch_primary_fit_diag(monkeypatch, events)
 
     runner.run_primary_fit(
@@ -431,7 +501,7 @@ def test_run_primary_fit_supports_termless_extended_diagnostics(monkeypatch):
     """Associational families run the extended block without a focal term."""
     events = []
     runner = _stage_runner(events)
-    ctx = SimpleNamespace()
+    ctx = SimpleNamespace(lifecycle_stages=[])
     _patch_primary_fit_diag(monkeypatch, events)
 
     runner.run_primary_fit(

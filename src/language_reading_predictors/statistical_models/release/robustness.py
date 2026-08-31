@@ -34,6 +34,9 @@ from language_reading_predictors.statistical_models.release.base import (
     _read_csv,
     _read_json,
 )
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 #: How far the declared joint contrast's direction probability may move between a
 #: factorised parent and its LKJ residual-correlation companion before the pairing
@@ -288,7 +291,7 @@ def classify_tau_sensitivity(
                 rank = _CLASS_SEVERITY.index(cls)
                 if worst is None or rank < _CLASS_SEVERITY.index(worst[0]):
                     worst = (cls, label, (prior, likelihood, diagnosis))
-            assert worst is not None
+            worst = require_value(worst, "the worst-classified sweep row")
             cls, label, (prior, likelihood, diagnosis) = worst
             suffix = f" (driven by {label})" if cls != "clear" else ""
             return cls, prior, likelihood, (diagnosis or "") + suffix or None

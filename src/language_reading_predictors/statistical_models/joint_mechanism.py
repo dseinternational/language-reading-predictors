@@ -42,6 +42,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from language_reading_predictors.statistical_models.settings_validation import (
     require_declared_booleans,
 )
+from language_reading_predictors.statistical_models.invariants import (
+    require_value,
+)
 
 __all__ = [
     "JointMechanismModelSettings",
@@ -239,8 +242,10 @@ class JointMechanismRunPlan:
             "include_group": self.include_group,
         }
         if self.design == "levels":
-            assert self.predictor_slope_sigma is not None
-            kwargs["predictor_slope_sigma"] = self.predictor_slope_sigma
+            kwargs["predictor_slope_sigma"] = require_value(
+                self.predictor_slope_sigma,
+                "predictor_slope_sigma (the levels design's slope prior)",
+            )
         return kwargs
 
     def diagnostic_vars(self, available_names: set[str]) -> list[str]:

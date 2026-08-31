@@ -297,16 +297,20 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
                 c, spec.outcome_symbol, node=obs_node
             ),
-            psense_timing="family_tail",
+            # The family's established post-trace order — overlay, optional
+            # forest, then optional power scaling — declared to the runner
+            # (#637 stage 4). A treated-only fit has no focal term, so it
+            # declares ``skip`` rather than reaching the slot and doing nothing.
+            psense_timing="after_trace" if _focal_gf is not None else "skip",
+            psense_vars=(_focal_gf,) if _focal_gf is not None else None,
+            after_trace_audit=lambda c: (
+                _diag.save_prior_posterior_plot(c, var_names=_gf_diag),
+                save_forest_plot(c, [_focal_gf]) if _focal_gf is not None else None,
+            )
+            and None,
             extended_term=_focal_gf,
         ),
     )
-    # Preserve the family's established post-trace order: overlay, optional
-    # forest, then optional power scaling. Treated-only fits have no focal term.
-    _diag.save_prior_posterior_plot(ctx, var_names=_gf_diag)
-    if _focal_gf is not None:
-        save_forest_plot(ctx, [_focal_gf])
-        _diag.run_psense(ctx, var_names=[_focal_gf])
 
     section_header("Factor summary")
     # A moderation variant's beta_trt is NOT flagged causal: its interaction-aware

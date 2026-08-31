@@ -302,3 +302,65 @@ def test_the_post_phase_labels_constant_has_one_definition():
     assert level_factors.POST_PHASE_LABELS is definitions.POST_PHASE_LABELS
     source = (PACKAGE / "level_factors.py").read_text(encoding="utf-8")
     assert "POST_PHASE_LABELS: tuple[str, ...] = (" not in source
+
+
+# ---------------------------------------------------------------------------
+# Facade completeness, over attribute access as well as imports
+# ---------------------------------------------------------------------------
+
+#: The three split hubs, each kept as a temporary re-export facade.
+FACADES = ("reporting", "factories", "release")
+
+
+def _facade_attributes_reached() -> dict[str, set[str]]:
+    """Every ``<facade>.<name>`` this repository reaches, by facade.
+
+    Import statements are only half the surface. The families reach these
+    modules as ``_report.rope_card(...)``, ``_factories.build_itt_model(...)``,
+    ``_release.gate_applies(...)`` — attribute access on an aliased module, which
+    no import-based check sees.
+
+    That gap was not hypothetical: the #637 stage 3a split re-exported the names
+    ``reporting`` *defined* and three of the third-party names it re-exported,
+    but missed ``rope_card``. Every level-factors fit then died at its ROPE card,
+    and the whole test suite passed, because no test exercises that line.
+    """
+    repository = PACKAGE.parents[2]
+    reached: dict[str, set[str]] = {name: set() for name in FACADES}
+    for path in sorted(repository.glob("src/**/*.py")) + sorted(
+        repository.glob("scripts/**/*.py")
+    ):
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:  # pragma: no cover - a syntax error fails elsewhere
+            continue
+        aliases: dict[str, str] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and SM in node.module:
+                for alias in node.names:
+                    if alias.name in reached:
+                        aliases[alias.asname or alias.name] = alias.name
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    tail = alias.name.split(".")[-1]
+                    if tail in reached and SM in alias.name:
+                        aliases[alias.asname or tail] = tail
+        if not aliases:
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                facade = aliases.get(node.value.id)
+                if facade is not None:
+                    reached[facade].add(node.attr)
+    return reached
+
+
+@pytest.mark.parametrize("facade", FACADES)
+def test_every_attribute_reached_on_a_facade_resolves(facade):
+    import importlib
+
+    module = importlib.import_module(f"{SM}.{facade}")
+    reached = _facade_attributes_reached()[facade]
+    assert reached, f"no attribute access on {facade} found — the scan is broken"
+    unresolved = sorted(name for name in reached if not hasattr(module, name))
+    assert unresolved == [], unresolved

@@ -405,15 +405,18 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 c, spec.outcome_symbol or "W"
             ),
             post_ppc_audit=_write_did_cell_ppc,
-            psense_timing="family_tail",
+            # Overlay first, then power scaling: the family's established
+            # post-trace order, now owned by the runner (#637 stage 4).
+            psense_timing="after_trace",
+            psense_vars=tuple(plan.psense_terms),
+            after_trace_audit=lambda c: _diag.save_prior_posterior_plot(
+                c, var_names=_did_diag
+            ),
             extended_term=_did_effect,
         ),
     )
     did_cell_ppc = ctx.tables["did_cell_ppc"]
     _within_child_ppc = ctx.tables.get("did_within_child_ppc")
-    # Preserve the existing post-trace diagnostic tail.
-    _diag.save_prior_posterior_plot(ctx, var_names=_did_diag)
-    _diag.run_psense(ctx, var_names=list(plan.psense_terms))
     if not dose:
         with guard_optional(
             ctx, "DiD prior pushforward",

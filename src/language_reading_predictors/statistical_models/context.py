@@ -208,6 +208,14 @@ class StatisticalFitContext:
     """Validated family run plan resolved before data loading."""
     output_transaction: OutputTransaction | None = None
     """Hidden staging directory promoted only after every fit stage succeeds."""
+    lifecycle_stages: list[str] = field(default_factory=list)
+    """Stages :meth:`SharedFitStages.run_primary_fit` actually ran, in order.
+
+    The lifecycle's own record of itself (#637 stage 4). Before this, the only way
+    to check that a family ran power scaling once, in the declared slot, was to
+    read its source — and six families ran it *outside* the runner entirely, so
+    there was nothing to read but a convention.
+    """
 
     @property
     def output_dir(self) -> str:

@@ -23,6 +23,9 @@ import pathlib
 import pytest
 
 from language_reading_predictors.statistical_models import definitions
+from language_reading_predictors.statistical_models.family_registry import (
+    FAMILIES,
+)
 
 PACKAGE = pathlib.Path(definitions.__file__).parent
 RETIRED_FACADE = "language_reading_predictors.statistical_models.pipeline"
@@ -51,35 +54,20 @@ SHARED_MODULES = (
 # the outlier, with three fit functions and a data-preparation helper used by a
 # maintenance script; adjusted, correlated-factor and horseshoe families also
 # carry Byrne (RLM) cohort entry points under the same ``ModelSpec.kind``.
-FAMILY_ENTRY_POINTS: dict[str, tuple[str, ...]] = {
-    "adjusted": ("fit_adjusted", "fit_rlm_adjusted"),
-    "aligned": ("fit_aligned",),
-    "block_exposure": ("fit_block_exposure",),
-    "concurrent": ("fit_concurrent",),
-    "corr_factor": ("fit_correlated_factor", "fit_rlm_corr_factor"),
-    "did": ("fit_did",),
-    "dose_response": ("fit_dose_response",),
-    "gain_factors": ("fit_gain_factors",),
-    "growth": ("fit_growth",),
-    "historical_growth": ("fit_historical_growth",),
-    "historical_joint": ("fit_rlm_joint_growth",),
-    "horseshoe": ("fit_horseshoe", "fit_rlm_horseshoe"),
-    "itt": ("fit_itt",),
-    "joint": ("fit_joint",),
-    "joint_mechanism": ("fit_joint_mechanism",),
-    "lcsm": ("fit_lcsm",),
-    "level_factors": ("fit_level_factors",),
-    "long_corr_factor": ("fit_longitudinal_corr_factor",),
-    "mechanism": ("fit_mechanism",),
-    "pooled_levels": ("fit_pooled_levels",),
-    "mediation": (
-        "fit_mediation",
-        "fit_mediation_multi",
-        "fit_mediation_period_stacked",
-        "prepare_mediation_data",
-    ),
-    "survival": ("fit_survival",),
-}
+# Derived from the family descriptors (#637 stage 4) rather than restated here.
+# Keyed by the **module** under ``pipelines/``, not by kind: ``mediation`` and
+# ``mediation_multi`` are distinct kinds that share one module, so their entry
+# points merge. ``prepare_mediation_data`` is a maintenance-script helper rather
+# than a fit entry point and is added here, where that distinction lives.
+FAMILY_ENTRY_POINTS: dict[str, tuple[str, ...]] = {}
+for _descriptor in FAMILIES.values():
+    FAMILY_ENTRY_POINTS.setdefault(_descriptor.pipeline_module, ())
+    FAMILY_ENTRY_POINTS[_descriptor.pipeline_module] += tuple(
+        entry
+        for entry in _descriptor.entry_points
+        if entry not in FAMILY_ENTRY_POINTS[_descriptor.pipeline_module]
+    )
+FAMILY_ENTRY_POINTS["mediation"] += ("prepare_mediation_data",)
 
 DIRECT_ENTRY_POINTS = sorted(
     (family, entry) for family, entries in FAMILY_ENTRY_POINTS.items() for entry in entries
@@ -480,90 +468,8 @@ def test_runtime_does_not_offer_partial_primary_lifecycle_escape_hatches():
     assert "run_ppc" not in functions
 
 
-@pytest.mark.parametrize(
-    "family,entry",
-    [
-        ("block_exposure", "fit_block_exposure"),
-        ("gain_factors", "fit_gain_factors"),
-        ("level_factors", "fit_level_factors"),
-    ],
-)
-def test_late_psense_families_preserve_their_post_trace_artifact_order(family, entry):
-    """The overlay and forest still precede these families' late power scaling.
-
-    ``run_primary_fit`` ends with trace persistence for ``family_tail`` psense;
-    this structural characterisation pins the explicit family tail that follows.
-    """
-    path = PACKAGE / "pipelines" / f"{family}.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == entry
-    )
-    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
-    primary_plan = next(
-        call
-        for call in calls
-        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
-    )
-    psense_timing = next(
-        keyword.value
-        for keyword in primary_plan.keywords
-        if keyword.arg == "psense_timing"
-    )
-    assert isinstance(psense_timing, ast.Constant)
-    assert psense_timing.value == "family_tail"
-
-    def _line(attribute: str) -> int:
-        return next(
-            call.lineno
-            for call in calls
-            if (
-                isinstance(call.func, ast.Attribute) and call.func.attr == attribute
-            )
-            or (isinstance(call.func, ast.Name) and call.func.id == attribute)
-        )
-
-    assert _line("run_primary_fit") < _line("save_prior_posterior_plot")
-    assert _line("save_prior_posterior_plot") < _line("save_forest_plot")
-    assert _line("save_forest_plot") < _line("run_psense")
 
 
-def test_did_preserves_cell_ppc_and_post_trace_sensitivity_order():
-    """DiD's stratified PPC is pre-gate; its power scaling stays post-trace."""
-    path = PACKAGE / "pipelines" / "did.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == "fit_did"
-    )
-    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
-    primary_plan = next(
-        call
-        for call in calls
-        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
-    )
-    keywords = {keyword.arg: keyword.value for keyword in primary_plan.keywords}
-
-    assert isinstance(keywords["post_ppc_audit"], ast.Name)
-    assert keywords["post_ppc_audit"].id == "_write_did_cell_ppc"
-    assert isinstance(keywords["psense_timing"], ast.Constant)
-    assert keywords["psense_timing"].value == "family_tail"
-
-    def _line(attribute: str) -> int:
-        return next(
-            call.lineno
-            for call in calls
-            if (
-                isinstance(call.func, ast.Attribute) and call.func.attr == attribute
-            )
-        )
-
-    assert _line("run_primary_fit") < _line("save_prior_posterior_plot")
-    assert _line("save_prior_posterior_plot") < _line("run_psense")
 
 
 @pytest.mark.parametrize(
@@ -626,42 +532,6 @@ def test_adjusted_fits_consume_the_gate_and_preserve_psense_timing(
     assert gate_assignment.lineno < clean_pass.lineno < overlay.lineno
 
 
-def test_joint_declares_multi_outcome_ppc_loo_pit_and_family_tail():
-    """Joint ITT keeps its per-outcome PPC/LOO-PIT and post-trace sensitivity."""
-    path = PACKAGE / "pipelines" / "joint.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    function = next(
-        node
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        and node.name == "fit_joint"
-    )
-    calls = [node for node in ast.walk(function) if isinstance(node, ast.Call)]
-    primary_plan = next(
-        call
-        for call in calls
-        if isinstance(call.func, ast.Name) and call.func.id == "PrimaryFitPlan"
-    )
-    keywords = {keyword.arg: keyword.value for keyword in primary_plan.keywords}
-
-    assert isinstance(keywords["custom_posterior_predictive"], ast.Name)
-    assert keywords["custom_posterior_predictive"].id == "_run_joint_ppc"
-    assert isinstance(keywords["post_extended_audit"], ast.Name)
-    assert keywords["post_extended_audit"].id == "_write_joint_loo_pit"
-    assert isinstance(keywords["include_loo_pit"], ast.Constant)
-    assert keywords["include_loo_pit"].value is False
-    assert isinstance(keywords["psense_timing"], ast.Constant)
-    assert keywords["psense_timing"].value == "family_tail"
-
-    def _line(attribute: str) -> int:
-        return next(
-            call.lineno
-            for call in calls
-            if isinstance(call.func, ast.Attribute) and call.func.attr == attribute
-        )
-
-    assert _line("run_primary_fit") < _line("save_prior_posterior_plot")
-    assert _line("save_prior_posterior_plot") < _line("run_psense")
 
 
 def test_longitudinal_factor_declares_stitched_loo_and_pre_trace_sensitivity():
@@ -727,46 +597,6 @@ def test_concurrent_declares_anchor_interleave_and_gate_audit():
     assert keywords["extended_header"].value == "Extended diagnostics (primary wave)"
 
 
-def test_itt_paths_preserve_prior_plot_ppc_audit_and_late_sensitivity():
-    """Ordinary and floor ITT keep their distinct prior/PPC phase contracts."""
-    path = PACKAGE / "pipelines" / "itt.py"
-    tree = ast.parse(path.read_text(encoding="utf-8"))
-    functions = {
-        node.name: node
-        for node in tree.body
-        if isinstance(node, ast.FunctionDef)
-    }
-
-    ordinary_call = next(
-        node
-        for node in ast.walk(functions["fit_itt"])
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "PrimaryFitPlan"
-    )
-    ordinary = {keyword.arg: keyword.value for keyword in ordinary_call.keywords}
-    assert isinstance(ordinary["post_ppc_audit"], ast.Name)
-    assert ordinary["post_ppc_audit"].id == "_write_itt_ppc"
-    assert isinstance(ordinary["post_gate_audit"], ast.Name)
-    assert ordinary["post_gate_audit"].id == "_plot_prior_after_gate"
-    assert isinstance(ordinary["psense_timing"], ast.Constant)
-    assert ordinary["psense_timing"].value == "family_tail"
-
-    floor_call = next(
-        node
-        for node in ast.walk(functions["fit_itt_floor_rule"])
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "PrimaryFitPlan"
-    )
-    floor = {keyword.arg: keyword.value for keyword in floor_call.keywords}
-    assert isinstance(floor["ppc_var_names"], ast.Tuple)
-    assert [item.value for item in floor["ppc_var_names"].elts] == ["y_offfloor"]
-    assert isinstance(floor["plot_prior_predictive"], ast.Lambda)
-    assert isinstance(floor["post_ppc_audit"], ast.Name)
-    assert floor["post_ppc_audit"].id == "_write_floor_ppc"
-    assert isinstance(floor["psense_timing"], ast.Constant)
-    assert floor["psense_timing"].value == "family_tail"
 
 
 def test_joint_mechanism_declares_per_outcome_predictive_diagnostics():
@@ -870,3 +700,69 @@ def test_resolved_plan_is_assigned_exactly_once_per_entry_point():
             if count > 1:
                 offenders.append(f"{module.name}:{node.name} ({count} assignments)")
     assert not offenders, offenders
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle stage order, observed rather than read (#637 stage 4)
+# ---------------------------------------------------------------------------
+
+#: Families whose established artefact order is overlay/forest after the trace,
+#: then power scaling. They used to declare ``psense_timing="family_tail"`` — a
+#: value the runner ignored — and call ``run_psense`` themselves afterwards, so
+#: the only available check was an AST reading of each pipeline's call order.
+#: They now declare ``after_trace`` and the runner performs it, which is what the
+#: tests below observe.
+LATE_SENSITIVITY_FAMILIES = (
+    "block_exposure",
+    "did",
+    "gain_factors",
+    "itt",
+    "joint",
+    "level_factors",
+)
+
+
+def test_no_family_reaches_for_power_scaling_outside_the_runner():
+    """The escape hatch is gone; nothing may reinstate it by calling directly.
+
+    A dependency-style guard, not a source-order one: it reads *who calls what*,
+    which is the contract, rather than which line precedes which.
+    """
+    offenders = []
+    for path in sorted((PACKAGE / "pipelines").glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "run_psense"
+            ):
+                offenders.append(f"{path.name}:{node.lineno}")
+    assert offenders == [], offenders
+
+
+def test_the_retired_family_tail_timing_is_not_declared_anywhere():
+    for path in sorted((PACKAGE / "pipelines").glob("*.py")):
+        assert "family_tail" not in path.read_text(encoding="utf-8"), path.name
+
+
+@pytest.mark.parametrize("family", LATE_SENSITIVITY_FAMILIES)
+def test_late_sensitivity_families_declare_the_runner_owned_slot(family):
+    """Every ``PrimaryFitPlan`` in these pipelines power-scales after the trace.
+
+    ``gain_factors`` is the one conditional case: a treated-only variant has no
+    focal term and declares ``skip``, which is why the assertion admits it.
+    """
+    tree = ast.parse((PACKAGE / "pipelines" / f"{family}.py").read_text(encoding="utf-8"))
+    timings = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)):
+            continue
+        if node.func.id != "PrimaryFitPlan":
+            continue
+        for keyword in node.keywords:
+            if keyword.arg == "psense_timing":
+                timings.append(ast.unparse(keyword.value))
+    assert timings, f"{family} declares no psense_timing"
+    for timing in timings:
+        assert "after_trace" in timing or "skip" in timing, (family, timing)

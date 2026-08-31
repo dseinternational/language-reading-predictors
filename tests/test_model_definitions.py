@@ -84,11 +84,32 @@ def test_base_references_resolve() -> None:
             )
 
 
+#: Third-party packages the modelling stack needs but a documentation-only or
+#: DAG-only environment may not have. A ``ModuleNotFoundError`` naming one of
+#: these is the environment, and the cross-check below skips; **anything else** is
+#: a defect in a model module and must fail (#637 stage 4). The blanket
+#: ``except Exception`` this replaces skipped on a mistyped setting, a rejected
+#: cross-field combination or a broken import as readily as on a missing wheel,
+#: so the registry cross-check could be silently absent for months.
+OPTIONAL_MODELLING_DEPENDENCIES = frozenset(
+    {
+        "arviz",
+        "arviz_stats",
+        "nutpie",
+        "preliz",
+        "pymc",
+        "pytensor",
+        "xarray",
+    }
+)
+
+
 def _fit_models() -> dict:
     """The authoritative ``MODELS`` dict from the fit script (id -> module)."""
     path = _PKG_DIR.parents[2] / "scripts" / "fit_statistical_model.py"
     spec = importlib.util.spec_from_file_location("_fit_statistical_model", path)
-    assert spec and spec.loader
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load the fit script from {path}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.MODELS
@@ -114,8 +135,11 @@ def test_registry_agrees_with_specs() -> None:
     ``study_id == "rlm"``), which are out of the register's scope and excluded."""
     try:
         fit = _fit_models()
-    except Exception as exc:  # pragma: no cover - environment dependent
-        pytest.skip(f"model modules not importable here ({type(exc).__name__}: {exc})")
+    except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
+        root = (exc.name or "").split(".")[0]
+        if root not in OPTIONAL_MODELLING_DEPENDENCIES:
+            raise
+        pytest.skip(f"optional modelling dependency {root!r} is not installed")
 
     rli = {
         mid: mod
