@@ -353,7 +353,13 @@ def build_gain_factors_model(
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
-        alpha_phase = pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase")
+        alpha_phase = _priors.declare(
+                          pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase"),
+                          role="nuisance",
+                          rationale=(
+                              "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
+                          ),
+                      )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
 
         eta = alpha + alpha_phase[phase_d] + gamma_A * A_std_d

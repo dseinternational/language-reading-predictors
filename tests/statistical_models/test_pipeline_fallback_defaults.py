@@ -102,7 +102,9 @@ def test_default_of_raises_on_unknown_param():
 
 def test_shared_constructor_scales_reconciled():
     # The other half of the reconciliation lives in the shared constructors.
-    assert priors.prior_info_for_rv("gamma_own")["distribution"] == "Normal(1, 0.25)"
+    # Read from the constructor itself, which is where the scale is declared —
+    # there is no longer a name-keyed table to ask (#637).
+    assert priors._dist_from_doc(priors.gamma_own_prior) == "Normal(1, 0.25)"
     assert default_of(priors.predictor_slope_prior, "sigma") == 0.3
     assert priors.ALPHA_SIGMA_PROXIMAL == 1.5
     assert priors.ALPHA_SIGMA_DISTAL == 1.0

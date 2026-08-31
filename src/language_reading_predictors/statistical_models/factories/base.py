@@ -113,8 +113,19 @@ def _add_child_random_intercept(
     dose-response, DiD, gain-factors and level-factors factories so the random-
     intercept parameterisation cannot drift between them.
     """
-    sigma_child = pm.HalfNormal("sigma_child", sigma=sigma_prior_sigma)
-    u_child_raw = pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child")
+    sigma_child = _priors.declare(
+        pm.HalfNormal("sigma_child", sigma=sigma_prior_sigma),
+        role="nuisance",
+        rationale="Child random-intercept SD sigma_child ~ HalfNormal(0.5).",
+    )
+    u_child_raw = _priors.declare(
+        pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child"),
+        role="nuisance",
+        rationale=(
+            "Non-centred standard-normal per-child offsets (Normal(0, 1)); scaled "
+            "by sigma_child to form the child random intercept u_child."
+        ),
+    )
     u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
     return eta + u_child[child_idx]
 
@@ -302,9 +313,38 @@ def _bivariate_lkj_residual(
         sd_dist=pm.HalfNormal.dist(sd_sigma),
         compute_corr=True,
     )
+    # ``LKJCholeskyCov`` returns the factor, the correlation and the scales — none
+    # of which is the packed variable the model samples — so the declaration names
+    # it instead of holding it.
+    block_label = (
+        "per-observation (within-wave) residual"
+        if row_dim == "obs_id"
+        else f"per-{row_dim} intercept"
+    )
+    _priors.declare(
+        f"{name}_chol",
+        role="nuisance",
+        rationale=(
+            f"Packed Cholesky factor of the bivariate {block_label} covariance "
+            "across the two jointly fitted outcomes "
+            f"(LKJCholeskyCov({n_outcomes}, {lkj_eta:g}, HalfNormal(0, {sd_sigma:g}))): "
+            "an LKJ correlation prior with HalfNormal per-outcome scales baked into "
+            "chol. A dependence model for the identified cross-outcome contrasts — "
+            "reported through the sigma deterministics and rho_outcome — not an "
+            "effect."
+        ),
+    )
     pm.Deterministic(f"{name}_corr", corr, dims=("outcome", "outcome2"))
     pm.Deterministic(f"sigma_{name}", sigmas, dims="outcome")
-    z_raw = pm.Normal(f"{name}_z", mu=0.0, sigma=1.0, dims=(row_dim, "outcome"))
+    z_raw = _priors.declare(
+        pm.Normal(f"{name}_z", mu=0.0, sigma=1.0, dims=(row_dim, "outcome")),
+        role="nuisance",
+        rationale=(
+            f"Non-centred standard-normal per-{row_dim.replace('obs_id', 'observation')}, "
+            "per-outcome offsets (Normal(0, 1)); scaled by the block's Cholesky "
+            "factor to form the correlated offsets u = z @ chol.T."
+        ),
+    )
     # u_i = chol @ z_i  =>  rowwise U = Z @ chol.T.
     u = pm.Deterministic(f"{name}", pt.dot(z_raw, chol.T), dims=(row_dim, "outcome"))
     return u, corr, sigmas
@@ -395,7 +435,16 @@ def _rlm_group_nuisance(frame, eta):
             (frame.group_code == code).astype(float),
             dims="obs_id",
         )
-        beta_g = pm.Normal(f"beta_group_nuisance_{slug}", mu=0.0, sigma=1.0)
+        beta_g = _priors.declare(
+            pm.Normal(f"beta_group_nuisance_{slug}", mu=0.0, sigma=1.0),
+            role="nuisance",
+            rationale=(
+                "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) "
+                "held outside the horseshoe / adjustment set to absorb cohort "
+                "composition (reference = largest group); never a ranked predictor "
+                "slope or a group-effect estimate."
+            ),
+        )
         eta = eta + beta_g * d
     return eta
 

@@ -154,7 +154,17 @@ def build_aligned_model(
             # (2026-08-21 aligned review, finding 6). The intercept stays
             # tiered via _alpha_sigma_for because its item-scale argument is
             # about the level, not the contrast.
-            beta_cohort = _priors.tau_prior().to_pymc("beta_cohort")
+            beta_cohort = _priors.tau_prior().to_pymc(
+                "beta_cohort",
+                role="association",
+                rationale=(
+                    "Per-protocol cohort contrast (immediate versus wait-list at "
+                    "aligned endpoints) carried on the treatment prior "
+                    "tau ~ Normal(0, 0.5). NOT randomised: confounded by "
+                    "age-at-onset and cohort timing, so no term in this family is "
+                    "flagged causal."
+                ),
+            )
             eta = eta + beta_cohort * cohort_d
         if ability_covariate is not None:
             ability_d = pm.Data(

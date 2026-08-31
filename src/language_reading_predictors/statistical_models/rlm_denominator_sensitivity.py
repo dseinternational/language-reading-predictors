@@ -34,6 +34,7 @@ from language_reading_predictors.statistical_models.rlm_sensitivity_contract imp
     DENOMINATOR_FACTORS,
     MAX_MEDIAN_RANGE_FRACTION,
 )
+from language_reading_predictors.statistical_models import priors as _priors
 
 SensitivityLikelihood = Literal["beta_binomial", "negative_binomial"]
 
@@ -216,18 +217,42 @@ def build_negative_binomial_historical_growth_model(
         ]
 
     with pm.Model(coords=coords) as model:
-        eta_cell = pm.Normal(
-            "eta_cell",
-            mu=eta_prior_mu,
-            sigma=eta_prior_sigma,
-            dims="cell",
-        )
-        sigma_subject = pm.HalfNormal(
-            "sigma_subject",
-            sigma=sigma_subject_prior_sigma,
-            dims="group",
-        )
-        z_subject = pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject")
+        eta_cell = _priors.declare(
+                       pm.Normal(
+                                   "eta_cell",
+                                   mu=eta_prior_mu,
+                                   sigma=eta_prior_sigma,
+                                   dims="cell",
+                               ),
+                       role="nuisance",
+                       rationale=(
+                           "Group-by-wave population level per cell/measure on the logit scale "
+                           "(Normal(0, 1.5)); the fitted cells (mean_items) and growth "
+                           "intervals are deterministics of it — descriptive, not a treatment "
+                           "effect."
+                       ),
+                   )
+        sigma_subject = _priors.declare(
+                            pm.HalfNormal(
+                                        "sigma_subject",
+                                        sigma=sigma_subject_prior_sigma,
+                                        dims="group",
+                                    ),
+                            role="nuisance",
+                            rationale=(
+                                "Group-indexed between-subject random-intercept SD (HalfNormal(1)); "
+                                "between-child heterogeneity that differs by cohort group."
+                            ),
+                        )
+        z_subject = _priors.declare(
+                        pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject"),
+                        role="nuisance",
+                        rationale=(
+                            "Non-centred standard-normal per-subject offsets (Normal(0, 1)); "
+                            "group-centred and scaled by sigma_subject to form the subject "
+                            "random effects."
+                        ),
+                    )
         z_group_mean = pm.math.stack(
             [
                 z_subject[index["subject_group"] == group].mean()

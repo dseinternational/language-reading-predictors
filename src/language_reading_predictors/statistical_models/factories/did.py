@@ -311,9 +311,16 @@ def build_did_model(
                     "beta_dose_phase",
                     mu_dose
                     + sigma_dose
-                    * pm.Normal(
-                        "beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"
-                    ),
+                    * _priors.declare(
+                          pm.Normal(
+                                                  "beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"
+                                              ),
+                          role="nuisance",
+                          rationale=(
+                              "Standard-normal non-centred period-dose offset; scaled by "
+                              "sigma_dose."
+                          ),
+                      ),
                     dims="dose_phase",
                 )
                 eta_full = eta_base + beta_dose_phase[dose_phase_idx] * dose_d
@@ -517,9 +524,16 @@ def build_did_model(
             v_delta = pm.Deterministic(
                 "v_delta",
                 sigma_delta
-                * pm.Normal(
-                    "v_delta_raw", 0.0, 1.0, dims="waitlist_child"
-                ),
+                * _priors.declare(
+                      pm.Normal(
+                                          "v_delta_raw", 0.0, 1.0, dims="waitlist_child"
+                                      ),
+                      role="nuisance",
+                      rationale=(
+                          "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
+                          "scaled by sigma_delta to form the waitlist t3 random deviation."
+                      ),
+                  ),
                 dims="waitlist_child",
             )
             pm.Deterministic(

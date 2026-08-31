@@ -274,7 +274,16 @@ def build_correlated_factor_model(
         # The environment's ``LKJCorr`` returns the CHOLESKY FACTOR L, not R, so
         # R = L @ L.T. A single-domain model has no free correlation at all.
         if D > 1:
-            factor_chol = pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta)
+            factor_chol = _priors.declare(
+                              pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta),
+                              role="association",
+                              rationale=(
+                                  "LKJ prior on the Cholesky factor of the cross-domain factor "
+                                  "correlation (LKJCorr(eta)); R = chol @ chol.T is the reported "
+                                  "between-domain correlation this measurement model exists to "
+                                  "estimate."
+                              ),
+                          )
             corr = pm.Deterministic(
                 "factor_corr", factor_chol @ factor_chol.T, dims=("domain", "domain_b")
             )
@@ -313,9 +322,23 @@ def build_correlated_factor_model(
         # (lambda_load / sigma_indicator / communality) are unchanged in both
         # modes; only which of them is the free RV differs.
         if loading_prior == "communality":
-            comm = pm.Beta(
-                "communality", alpha=comm_alpha, beta=comm_beta, dims="indicator"
-            )
+            comm = _priors.declare(
+                       pm.Beta(
+                                       "communality", alpha=comm_alpha, beta=comm_beta, dims="indicator"
+                                   ),
+                       role="association",
+                       rationale=(
+                           "Indicator communality (Beta(2, 2)); the share of a standardised "
+                           "test's variance explained by its domain factor, with the loading / "
+                           "residual pair derived from c under the family's unit-variance "
+                           "budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally "
+                           "standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) "
+                           "in the longitudinal CFA (V the spread of the fitted wave means, so "
+                           "the POOLED indicator variance is exactly 1). Either way the "
+                           "loading-residual ridge is removed and Heywood configurations have "
+                           "zero prior mass."
+                       ),
+                   )
             lam = pm.Deterministic("lambda_load", pt.sqrt(comm), dims="indicator")
             sigma_ind = pm.Deterministic(
                 "sigma_indicator", pt.sqrt(1.0 - comm), dims="indicator"
@@ -404,7 +427,15 @@ def build_correlated_factor_model(
         W = V @ A  # (D, J)
         L_V = pt.linalg.cholesky(V)
         cond_mean = Z_d @ W.T  # (n, D)
-        z_factor = pm.Normal("factor_z", 0.0, 1.0, dims=("obs_id", "domain"))
+        z_factor = _priors.declare(
+                       pm.Normal("factor_z", 0.0, 1.0, dims=("obs_id", "domain")),
+                       role="nuisance",
+                       rationale=(
+                           "Non-centred standard-normal per-observation, per-domain factor "
+                           "scores (Normal(0, 1)); the latent domain scores the loadings map "
+                           "onto each standardised indicator."
+                       ),
+                   )
         factors = pm.Deterministic(
             "factors", cond_mean + z_factor @ L_V.T, dims=("obs_id", "domain")
         )
@@ -422,15 +453,29 @@ def build_correlated_factor_model(
             predictor_slope_sigma if focal_slope_sigma is None else focal_slope_sigma
         )
         if structural_factors is None:
-            beta_factor = pm.Normal(
-                "beta_factor", 0.0, _focal_sigma, dims="domain"
-            )
+            beta_factor = _priors.declare(
+                              pm.Normal(
+                                              "beta_factor", 0.0, _focal_sigma, dims="domain"
+                                          ),
+                              role="association",
+                              panel="predictor_slope",
+                              rationale=(
+                                  "Standardised predictor slope ~ Normal(0, 0.3) by default."
+                              ),
+                          )
             struct = pm.math.dot(factors, beta_factor)
         else:
             _sidx = [domain_names.index(d) for d in structural_factors]
-            beta_factor = pm.Normal(
-                "beta_factor", 0.0, _focal_sigma, dims="struct_domain"
-            )
+            beta_factor = _priors.declare(
+                              pm.Normal(
+                                              "beta_factor", 0.0, _focal_sigma, dims="struct_domain"
+                                          ),
+                              role="association",
+                              panel="predictor_slope",
+                              rationale=(
+                                  "Standardised predictor slope ~ Normal(0, 0.3) by default."
+                              ),
+                          )
             struct = pm.math.dot(factors[:, _sidx], beta_factor)
         eta = alpha + gamma_own * own_pre_d + struct
 
@@ -587,7 +632,16 @@ def build_rlm_corr_factor_model(
         # The environment's ``LKJCorr`` returns the CHOLESKY FACTOR L, not R, so
         # R = L @ L.T. A single-domain model has no free correlation at all.
         if D > 1:
-            factor_chol = pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta)
+            factor_chol = _priors.declare(
+                              pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta),
+                              role="association",
+                              rationale=(
+                                  "LKJ prior on the Cholesky factor of the cross-domain factor "
+                                  "correlation (LKJCorr(eta)); R = chol @ chol.T is the reported "
+                                  "between-domain correlation this measurement model exists to "
+                                  "estimate."
+                              ),
+                          )
             corr = pm.Deterministic(
                 "factor_corr", factor_chol @ factor_chol.T, dims=("domain", "domain_b")
             )
@@ -607,9 +661,23 @@ def build_rlm_corr_factor_model(
         # lambda**2 + sigma**2 = 1 exactly. This enforces the unit variance the
         # standardised indicators imply and removes the over-parameterised
         # lambda-sigma ridge / Heywood corner that gate-failed the free build.
-        comm_free = pm.Beta(
-            "communality_free", alpha=comm_alpha, beta=comm_beta, dims="free_indicator"
-        )
+        comm_free = _priors.declare(
+                        pm.Beta(
+                                    "communality_free", alpha=comm_alpha, beta=comm_beta, dims="free_indicator"
+                                ),
+                        role="association",
+                        rationale=(
+                            "Indicator communality (Beta(2, 2)); the share of a standardised "
+                            "test's variance explained by its domain factor, with the loading / "
+                            "residual pair derived from c under the family's unit-variance "
+                            "budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally "
+                            "standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) "
+                            "in the longitudinal CFA (V the spread of the fitted wave means, so "
+                            "the POOLED indicator variance is exactly 1). Either way the "
+                            "loading-residual ridge is removed and Heywood configurations have "
+                            "zero prior mass."
+                        ),
+                    )
         lam_free = pm.Deterministic(
             "lambda_free", pt.sqrt(comm_free), dims="free_indicator"
         )

@@ -31,6 +31,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
     _LCF_DOMAINS,
 )
+from language_reading_predictors.statistical_models import priors as _priors
 
 def build_longitudinal_corr_factor_model(
     panel: WavePanel,
@@ -253,9 +254,17 @@ def build_longitudinal_corr_factor_model(
         # depend on the wave-mean spread, so the means must exist before the
         # measurement parameters. (Declaration order has no statistical effect;
         # the legacy mode shares the ordering for a stable node layout.)
-        factor_mean = pm.ZeroSumNormal(
-            "factor_mean", sigma=factor_mean_sigma, dims=("domain", "wave")
-        )
+        factor_mean = _priors.declare(
+                          pm.ZeroSumNormal(
+                                      "factor_mean", sigma=factor_mean_sigma, dims=("domain", "wave")
+                                  ),
+                          role="nuisance",
+                          rationale=(
+                              "Exact-zero-sum domain-by-wave mean deviations (ZeroSumNormal(1, "
+                              "<constant>)); represents wave shifts after pooled indicator "
+                              "standardisation."
+                          ),
+                      )
 
         # --- Measurement parameters (wave-invariant loadings + residuals) ---
         # Loading / residual parameterisation (#383 follow-up; see the docstring).
@@ -268,9 +277,23 @@ def build_longitudinal_corr_factor_model(
         # communality = c exact. The node names (lambda_load / sigma_indicator /
         # communality) are unchanged in both modes; only which is free differs.
         if loading_prior == "communality":
-            comm = pm.Beta(
-                "communality", alpha=comm_alpha, beta=comm_beta, dims="indicator"
-            )
+            comm = _priors.declare(
+                       pm.Beta(
+                                       "communality", alpha=comm_alpha, beta=comm_beta, dims="indicator"
+                                   ),
+                       role="association",
+                       rationale=(
+                           "Indicator communality (Beta(2, 2)); the share of a standardised "
+                           "test's variance explained by its domain factor, with the loading / "
+                           "residual pair derived from c under the family's unit-variance "
+                           "budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally "
+                           "standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) "
+                           "in the longitudinal CFA (V the spread of the fitted wave means, so "
+                           "the POOLED indicator variance is exactly 1). Either way the "
+                           "loading-residual ridge is removed and Heywood configurations have "
+                           "zero prior mass."
+                       ),
+                   )
             _W = pt.as_tensor_variable(wave_weights)  # (J, T)
             _m_ind = factor_mean[domain_of_idx, :]  # (J, T) domain means per indicator
             _mbar = pt.sum(_W * _m_ind, axis=1, keepdims=True)  # (J, 1)
@@ -307,13 +330,36 @@ def build_longitudinal_corr_factor_model(
         # ``sd_dist`` per matrix, since only the correlation enters the model, and
         # those pollute the convergence gate). Five matrices: one trait + one state
         # per wave.
-        pi = pm.Beta("trait_share", alpha=trait_share_a, beta=trait_share_b, dims="domain")
-        L_trait = pm.LKJCorr("trait_corr_chol", n=D, eta=lkj_eta)
+        pi = _priors.declare(
+                 pm.Beta("trait_share", alpha=trait_share_a, beta=trait_share_b, dims="domain"),
+                 role="nuisance",
+                 rationale=(
+                     "Domain-specific stable-trait variance share (Beta(1.5, 1.5)); "
+                     "governs same-domain persistence across waves."
+                 ),
+             )
+        L_trait = _priors.declare(
+                      pm.LKJCorr("trait_corr_chol", n=D, eta=lkj_eta),
+                      role="association",
+                      rationale=(
+                          "LKJ prior on the shared trait-component correlation "
+                          "(LKJCorrRV(<constant>, 2)); trait-share weighting carries it into "
+                          "every within-wave matrix."
+                      ),
+                  )
         corr_trait = L_trait @ L_trait.T
         pm.Deterministic("trait_corr", corr_trait, dims=("domain", "domain_b"))
         corr_state = []
         for t in range(T):
-            L_s = pm.LKJCorr(f"state_corr_chol_w{waves[t]}", n=D, eta=lkj_eta)
+            L_s = _priors.declare(
+                      pm.LKJCorr(f"state_corr_chol_w{waves[t]}", n=D, eta=lkj_eta),
+                      role="association",
+                      rationale=(
+                          "LKJ prior on one wave's state-component correlation "
+                          "(LKJCorrRV(<constant>, 2)); together with the shared trait "
+                          "component it induces that wave's reported factor correlation."
+                      ),
+                  )
             corr_state.append(L_s @ L_s.T)
 
         sqrt_pi = pt.sqrt(pi)

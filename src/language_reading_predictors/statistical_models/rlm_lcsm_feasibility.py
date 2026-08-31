@@ -42,6 +42,7 @@ from language_reading_predictors.statistical_models.datasets import (
 from language_reading_predictors.statistical_models.likelihood import (
     beta_binomial_from_logit,
 )
+from language_reading_predictors.statistical_models import priors as _priors
 
 CandidateScope = Literal["ds", "three_group"]
 
@@ -464,7 +465,14 @@ def build_rlm_lcsm_recovery_model(
             1.0,
             dims=("child", "trans", "outcome"),
         )
-        kappa = pm.HalfNormal("kappa", 50.0, dims="outcome")
+        kappa = _priors.declare(
+                    pm.HalfNormal("kappa", 50.0, dims="outcome"),
+                    role="nuisance",
+                    panel="kappa",
+                    rationale=(
+                        "Beta-binomial concentration kappa ~ HalfNormal(50)."
+                    ),
+                )
 
         states: list[pt.TensorVariable] = [
             mu_initial[group] + z_initial @ initial_cholesky.T

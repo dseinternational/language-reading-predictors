@@ -22,6 +22,7 @@ from __future__ import annotations
 import warnings
 
 import pymc as pm
+import pytest
 
 from language_reading_predictors.statistical_models import priors as P
 
@@ -154,24 +155,32 @@ def test_the_table_describes_a_variable_from_its_descriptor():
     assert "Treatment effect" in row["rationale"]
 
 
-def test_an_undescribed_variable_still_falls_back_to_inference():
-    """The inline half of the model graph is not migrated yet, and must still report.
+def test_an_undeclared_variable_stops_the_fit():
+    """No inference remains to fall back to (#637).
 
-    Kept explicit so the remaining gap is visible rather than silent: a variable
-    built by a bare ``pm.*`` call, or by the shared HSGP builder inside
-    ``dse_research_utils``, has no descriptor and is still classified from its
-    name and scale.
+    An earlier revision of this test asserted the opposite — that an undescribed
+    variable was still classified from its name and scale — because the inline
+    half of the model graph had not been migrated. It has been, so the fallback is
+    gone and an undeclared prior is a defect the fit reports rather than a gap the
+    table papers over.
     """
 
     def build():
-        pm.HalfNormal("sigma_child", sigma=0.5)
+        pm.HalfNormal("an_undeclared_scale", sigma=0.5)
         pm.Binomial("y", n=5, p=0.5, observed=[1, 2, 3])
 
     model = _model(build)
-    assert "sigma_child" not in P.descriptors_for(model)
-    row = P.priors_table(model).iloc[0]
-    assert row["parameter"] == "sigma_child"
-    assert row["role"] == "nuisance"
+    assert "an_undeclared_scale" not in P.descriptors_for(model)
+    with pytest.raises(ValueError, match="has no prior descriptor"):
+        P.priors_table(model)
+
+
+def test_a_variable_created_outside_this_package_is_declared_by_name():
+    """The one thing "declare where it is created" cannot reach."""
+    assert set(P.EXTERNAL_PRIORS) == {"__g_unit_hsgp_coeffs"}
+    role, rationale = P.EXTERNAL_PRIORS["__g_unit_hsgp_coeffs"]
+    assert role == "gp"
+    assert "dse_research_utils" in rationale
 
 
 def test_an_explicit_override_still_outranks_a_descriptor():
