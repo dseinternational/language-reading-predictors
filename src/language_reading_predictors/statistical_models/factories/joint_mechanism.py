@@ -349,9 +349,15 @@ def build_joint_mechanism_model(
             phase_d = pm.Data(
                 "phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
             )
-            alpha_phase = pm.Normal(
-                "alpha_phase", mu=0.0, sigma=0.5, dims=("phase", "outcome")
-            )
+            alpha_phase = _priors.declare(
+                              pm.Normal(
+                                              "alpha_phase", mu=0.0, sigma=0.5, dims=("phase", "outcome")
+                                          ),
+                              role="nuisance",
+                              rationale=(
+                                  "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
+                              ),
+                          )
             eta = eta + gamma_own[None, :] * pre_logit_d + alpha_phase[phase_d]
 
         if include_group or "G" in confounder_symbols:
@@ -364,11 +370,30 @@ def build_joint_mechanism_model(
             # mechanism family carries. Named per design so no consumer reads one
             # as the other.
             if design == "levels":
-                beta_G = pm.Normal(
-                    "beta_group_nuisance", mu=0.0, sigma=1.0, dims="outcome"
-                )
+                beta_G = _priors.declare(
+                             pm.Normal(
+                                                 "beta_group_nuisance", mu=0.0, sigma=1.0, dims="outcome"
+                                             ),
+                             role="nuisance",
+                             rationale=(
+                                 "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) "
+                                 "held outside the horseshoe / adjustment set to absorb cohort "
+                                 "composition (reference = largest group); never a ranked predictor "
+                                 "slope or a group-effect estimate."
+                             ),
+                         )
             else:
-                beta_G = _priors.tau_prior().to_pymc("beta_G", dims="outcome")
+                beta_G = _priors.tau_prior().to_pymc(
+                    "beta_G",
+                    dims="outcome",
+                    role="association",
+                    rationale=(
+                        "Randomised arm entered as an adjusted-association "
+                        "covariate on the treatment prior tau ~ Normal(0, 0.5); "
+                        "this design's deliverable is the conditional slope and "
+                        "its ratio, not an arm effect."
+                    ),
+                )
             eta = eta + beta_G[None, :] * pt.shape_padright(G_d)
 
         if "A" in confounder_symbols:

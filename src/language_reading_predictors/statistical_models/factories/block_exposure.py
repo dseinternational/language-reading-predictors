@@ -175,7 +175,16 @@ def build_block_exposure_model(
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
-        alpha_time = pm.ZeroSumNormal("alpha_time", sigma=0.5, dims="phase")
+        alpha_time = _priors.declare(
+                         pm.ZeroSumNormal("alpha_time", sigma=0.5, dims="phase"),
+                         role="nuisance",
+                         rationale=(
+                             "Per-timepoint intercept deviations: in the level family an exact "
+                             "zero-sum wave-deviation vector around the anchored mean level "
+                             "(#389 finding 2); in the block-exposure family a free per-wave "
+                             "offset."
+                         ),
+                     )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 

@@ -168,7 +168,16 @@ def build_concurrent_model(
             # (not the regularising association prior) — it is not an association we
             # report, just a composition control. The report flags it as such.
             g_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
-            beta_group = pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0)
+            beta_group = _priors.declare(
+                             pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0),
+                             role="nuisance",
+                             rationale=(
+                                 "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) "
+                                 "held outside the horseshoe / adjustment set to absorb cohort "
+                                 "composition (reference = largest group); never a ranked predictor "
+                                 "slope or a group-effect estimate."
+                             ),
+                         )
             eta = eta + beta_group * g_d
 
         # Trait covariates (e.g. non-verbal ability, hearing, speech, phonological

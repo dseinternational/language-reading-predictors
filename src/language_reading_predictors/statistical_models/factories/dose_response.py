@@ -287,9 +287,17 @@ def build_dose_response_model(
         # three unconstrained phase indicators is a rank-3 design in four columns, so
         # the nuisance split was prior-identified only. Period 1 is the reference and
         # the later periods carry free deviations from it.
-        alpha_phase_free = pm.Normal(
-            "alpha_phase_free", mu=0.0, sigma=0.5, dims="phase_later"
-        )
+        alpha_phase_free = _priors.declare(
+                               pm.Normal(
+                                           "alpha_phase_free", mu=0.0, sigma=0.5, dims="phase_later"
+                                       ),
+                               role="nuisance",
+                               rationale=(
+                                   "Reference-coded period intercept deviations from period 1 "
+                                   "(alpha_phase[1] = 0 exactly), so the intercept design has full "
+                                   "rank."
+                               ),
+                           )
         alpha_phase = pm.Deterministic(
             "alpha_phase",
             pt.concatenate([pt.zeros(1), alpha_phase_free]),
@@ -335,9 +343,16 @@ def build_dose_response_model(
         if period_varying_dose:
             mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
             sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
-            beta_dose_phase_raw = pm.Normal(
-                "beta_dose_phase_raw", mu=0.0, sigma=1.0, dims="phase"
-            )
+            beta_dose_phase_raw = _priors.declare(
+                                      pm.Normal(
+                                                      "beta_dose_phase_raw", mu=0.0, sigma=1.0, dims="phase"
+                                                  ),
+                                      role="nuisance",
+                                      rationale=(
+                                          "Standard-normal non-centred period-dose offset; scaled by "
+                                          "sigma_dose."
+                                      ),
+                                  )
             beta_dose_phase = pm.Deterministic(
                 "beta_dose_phase", mu_dose + sigma_dose * beta_dose_phase_raw, dims="phase"
             )

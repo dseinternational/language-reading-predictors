@@ -54,7 +54,14 @@ def _build_horseshoe_betas(
     c2 = _priors.horseshoe_slab_prior(slab_scale, slab_df).to_pymc("hs_c2")
     lam = _priors.horseshoe_local_prior().to_pymc("hs_lambda", dims="predictor")
     lam_tilde = pt.sqrt(c2 * lam**2 / (c2 + tau**2 * lam**2))
-    z = pm.Normal("hs_z", mu=0.0, sigma=1.0, dims="predictor")
+    z = _priors.declare(
+            pm.Normal("hs_z", mu=0.0, sigma=1.0, dims="predictor"),
+            role="nuisance",
+            rationale=(
+                "Standard-normal non-centred horseshoe coefficient offset; scaled "
+                "by tau * lambda_tilde to give beta (LRPHS)."
+            ),
+        )
     return pm.Deterministic("beta", tau * lam_tilde * z, dims="predictor")
 
 

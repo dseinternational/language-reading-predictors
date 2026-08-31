@@ -72,3 +72,13 @@ Two things the regeneration deliberately does **not** do, each because the first
 The `-dev` companion directory was refitted rather than patched. A dev-tier fit is cheap, and refitting produces the corrected row **by construction** — from the descriptor recorded when the model is built — rather than by rewriting a stored table. Its `beta_mech` row, and the whole parameter/role/panel table, came out identical to the regenerated reporting one, which is an independent check that the regeneration wrote what a genuine fit would have written. Its convergence verdict is unchanged (`gate_failed` on R-hat and ESS, as before and as expected at dev tier).
 
 A related defect surfaced while doing this and is fixed in the same change: `priors.used_prior_keys` still resolved each variable's panel through the name map while `priors_table` resolved it from the recorded descriptor. The two now share one `described_prior_row`, so a row and the figure beside it cannot name different densities.
+
+## Finding 4 (2026-08-31) — the mediation legs call age an association, everywhere else calls it precision
+
+Surfaced while finishing the inline half of the migration. Every family treats a linear age coupling as a **precision** covariate: it sharpens the reported quantity without licensing a causal reading of its own, and `priors.gamma_age_prior` declares that role. The mediation family's prior-table override sets `a_A` and `b_A` to **association** instead.
+
+Both readings are defensible — age in a g-formula leg is a conditioning variable like any other, and calling it an association is not wrong — but the two cannot both be the house position, and today the difference is invisible: it lives in a per-family override table rather than beside either variable.
+
+Nothing published changes either way; the override wins, as it did before. Recorded here because the descriptor work is what made the disagreement legible, and because resolving it is a scientific decision rather than a refactor.
+
+A related, smaller case was resolved rather than recorded: the growth family's `delta` and `gamma` are the baseline-ability couplings on the starting level and the growth rate, and its `gamma_age` / `gamma_int` the baseline-age main effect and interaction. All four were being declared from constructors whose docstrings describe other quantities — `delta` from the treatment prior, the `gamma`s from the cross-baseline coupling — with the family override correcting the published text. They now declare the family's own reviewed meaning where they are created, so the override is redundant for them rather than load-bearing.

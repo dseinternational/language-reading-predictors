@@ -178,6 +178,11 @@ class PriorSpec:
         return f"PriorSpec({self.constructor!r}, {self.distribution!r})"
 
 
+def _role_of(constructor) -> str:
+    """The scientific role a named constructor declares."""
+    return getattr(constructor, "prior_role", "nuisance")
+
+
 def named_prior(key: str, *, role: str, panel: str | None = None):
     """Declare a constructor's key, scientific role and panel beside its body.
 
@@ -217,7 +222,17 @@ def declare(variable, *, role: str, rationale: str, constructor: str = "inline",
     the LKJ blocks, the measurement loadings, the bespoke per-family scales. Used
     inline: ``_priors.declare(pm.Normal("u_child_raw", 0, 1, dims="child"),
     role="nuisance", rationale="...")``.
+
+    ``variable`` may be the **name** of a registered variable instead of the
+    variable itself, for the constructors that do not return the free random
+    variable they register: ``pm.LKJCholeskyCov`` hands back the Cholesky factor,
+    the correlation matrix and the scales, none of which is the packed variable
+    the model samples.
     """
+    if isinstance(variable, str):
+        import pymc as pm
+
+        variable = pm.modelcontext(None).named_vars[variable]
     _record(
         PriorDescriptor(
             parameter=variable.name,
@@ -829,171 +844,7 @@ _ROLE_BY_CTOR: dict[str, str] = {
     "hs_c2": "nuisance",
 }
 
-# Map a registered PyMC RV name to the shared-prior constructor that built it.
-# Several RVs share one constructor (``tau_prior`` backs every randomised effect
-# term; ``gamma_cross_prior`` backs every adjusted coupling), so role assignment
-# is by constructor, not RV name. Names not listed fall back by prefix.
-_RV_TO_CTOR: dict[str, str] = {
-    "alpha": "alpha",
-    "alpha_offset": "alpha",
-    "tau": "tau",
-    "beta_G": "tau",
-    "beta_period": "tau",
-    "delta": "tau",
-    "tau_t2": "tau",
-    "arm_gap_t1": "gamma_cross",
-    "arm_gap_t3": "tau",
-    "theta_treated": "tau",
-    "beta_group": "gamma_cross",
-    # ``beta_dose`` is built from ``beta_mech_prior`` (Normal(0, 1)) in both the
-    # dose-response and DiD-dose factories — it is a dose slope (association), not a
-    # tau-scaled randomised effect. Map it to ``beta_mech`` so the prior table is
-    # correct by default rather than relying on the per-family override (the "tau"
-    # entry was a leftover from when the slope reused tau_prior).
-    "beta_dose": "beta_mech",
-    "beta_trt": "tau",
-    "b_grp_time": "tau",
-    # #552: the level family's t1-referenced arm-gap *changes* (t2 randomised,
-    # t3/t4 post-crossover) carry the tau prior; the balance term ``arm_gap_t1``
-    # shares the DiD entry above (gamma_cross).
-    "d_grp_time": "tau",
-    "beta_grp": "tau",
-    "a_G": "tau",
-    "b_G": "tau",
-    "gamma_own": "gamma_own",
-    "gamma_own_offfloor": "gamma_own_offfloor",
-    "gamma_t1": "gamma_own",
-    "a_L": "gamma_own",
-    "a_comp": "gamma_own",
-    "b_W": "gamma_own",
-    "gamma_A": "gamma_age",
-    "kappa": "kappa",
-    "kappa_M": "kappa",
-    "kappa_Y": "kappa",
-    "inv_sqrt_kappa": "inv_sqrt_kappa",
-    "beta_mech": "beta_mech",
-    "mu_dose": "beta_mech",
-    # #603/#604 mechanism sensitivities. The Mundlak split and the shared mean of
-    # the partially-pooled per-period slopes all reuse ``beta_mech_prior``
-    # (Normal(0, 1)); without these entries the ``beta_`` prefix would route them
-    # to ``predictor_slope`` and the table would misreport their scale.
-    "beta_between": "beta_mech",
-    "beta_within": "beta_mech",
-    "mu_mech": "beta_mech",
-    "sigma_dose": "sigma_dose",
-    "sigma_mech_phase": "sigma_mech_phase",
-    "sigma_delta": "sigma_delta",
-    "b_M": "b_path",
-    # Two-mediator (mediation_multi / LRP64) mediator -> outcome b-paths. Without
-    # these explicit entries they fall through the ``b_`` prefix to gamma_cross
-    # and the prior table would misreport their Normal(0, 1) scale as Normal(0, 0.3).
-    "b_L": "b_path",
-    "b_E": "b_path",
-    "b_B": "b_path",  # LRP66 blending mediator -> reading b-path (same Normal(0, 1))
-    "sigma_M": "sigma_mediator",
-    "eta_main": "eta_main",
-    "eta_tau": "eta_tau",
-    "ell": "ell",
-    "eta_partial_pool": "eta_partial_pool",
-    # Regularized-horseshoe shrinkage hyperparameters (LRPHS, #116 Phase E). The
-    # coefficient vector ``beta`` is a Deterministic (tau * lambda_tilde * hs_z),
-    # not a free RV, so it is not a table row; ``hs_z`` is documented inline below.
-    "hs_tau": "hs_tau",
-    "hs_lambda": "hs_lambda",
-    "hs_c2": "hs_c2",
-}
 
-# Inline priors created directly in the factories (not via a named constructor),
-# so they would be invisible to a SHARED_PRIORS-only table. Documented here.
-_INLINE_PRIORS: dict[str, dict[str, str]] = {
-    "alpha_phase": {
-        "role": "nuisance",
-        "distribution": "Normal(0, 0.5)",
-        "rationale": "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5).",
-    },
-    "alpha_phase_free": {
-        # The dose family's reference coding (#587 finding 11). A grand intercept
-        # plus an unconstrained indicator for *every* phase is a rank-deficient
-        # design: proper priors keep the posterior proper, but the global/phase
-        # split is then prior-identified rather than likelihood-identified, which
-        # adds posterior correlation and sampling cost for no inferential gain.
-        # Only the later-period deviations are free; period 1 is pinned at zero.
-        "role": "nuisance",
-        "distribution": "Normal(0, 0.5)",
-        "rationale": (
-            "Reference-coded period intercept deviations from period 1 "
-            "(alpha_phase[1] = 0 exactly), so the intercept design has full rank."
-        ),
-    },
-    "alpha_time": {
-        # The distribution is preferred from the built RV (see prior_info_for_rv):
-        # the level family fits an exact zero-sum wave-deviation vector
-        # (ZeroSumNormal(0.75), #389 finding 2) while the block-exposure family
-        # keeps the free Normal(0, 0.5) offsets, so a single recorded string
-        # would misreport one of them. The string below is the no-RV fallback.
-        "role": "nuisance",
-        "distribution": "Normal(0, 0.5)",
-        "rationale": (
-            "Per-timepoint intercept deviations: in the level family an exact "
-            "zero-sum wave-deviation vector around the anchored mean level "
-            "(#389 finding 2); in the block-exposure family a free per-wave "
-            "offset."
-        ),
-    },
-    "sigma_child": {
-        "role": "nuisance",
-        "distribution": "HalfNormal(0.5)",
-        "rationale": "Child random-intercept SD sigma_child ~ HalfNormal(0.5).",
-    },
-    "alpha_transition": {
-        # The stacked Byrne transition ANCOVA's per-transition intercept vector
-        # (build_rlm_transition_adjusted_model). Intercept-class nuisance: it
-        # absorbs the mean developmental trajectory so the pooled slopes compare
-        # children within a transition. Published as role='other' with a generic
-        # rationale until the 2026-08-22 adjusted-family review (finding 8).
-        "role": "nuisance",
-        "distribution": "Normal(0, 1.5)",
-        "rationale": (
-            "Per-transition intercept alpha_transition ~ Normal(0, 1.5), the "
-            "proximal-tier intercept scale, one free element per annual "
-            "transition; absorbs the mean trajectory between waves and is never "
-            "a reported association."
-        ),
-    },
-    "beta_dose_phase_raw": {
-        "role": "nuisance",
-        "distribution": "Normal(0, 1)",
-        "rationale": (
-            "Standard-normal non-centred period-dose offset; scaled by sigma_dose."
-        ),
-    },
-    "beta_mech_phase_raw": {
-        "role": "nuisance",
-        "distribution": "Normal(0, 1)",
-        "rationale": (
-            "Standard-normal non-centred per-period mechanism-slope offset; scaled "
-            "by sigma_mech_phase and centred on mu_mech (#604)."
-        ),
-    },
-    "beta_group_nuisance": {
-        "role": "nuisance",
-        "distribution": "Normal(0, 1)",
-        "rationale": (
-            "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) held "
-            "outside the horseshoe / adjustment set to absorb cohort composition "
-            "(reference = largest group); never a ranked predictor slope or a "
-            "group-effect estimate."
-        ),
-    },
-    "hs_z": {
-        "role": "nuisance",
-        "distribution": "Normal(0, 1)",
-        "rationale": (
-            "Standard-normal non-centred horseshoe coefficient offset; scaled by "
-            "tau * lambda_tilde to give beta (LRPHS)."
-        ),
-    },
-}
 
 
 def _first_docline(ctor) -> str:
@@ -1008,41 +859,6 @@ def _dist_from_doc(ctor) -> str:
     return m.group(1) if m else ""
 
 
-def _ctor_key_for_rv(
-    rv_name: str,
-    *,
-    ctor_overrides: dict[str, str] | None = None,
-) -> str | None:
-    """Constructor key backing an RV, by exact name, HSGP suffix, then prefix."""
-    base = rv_name.split("[")[0]
-    if base in _INLINE_PRIORS:
-        return None
-    if ctor_overrides is not None and base in ctor_overrides:
-        return ctor_overrides[base]
-    if base in _RV_TO_CTOR:
-        return _RV_TO_CTOR[base]
-    # HSGP amplitude / lengthscale RVs are named ``{term}__eta`` / ``{term}__ell``
-    # by the dse_research_utils HSGP builder (build_hsgp_1d / build_tau_modifier).
-    # They carry the shared eta / ell priors but never matched a constructor key,
-    # so the GP amplitude (HalfNormal(0.3)) and lengthscale (InverseGamma(3, 1))
-    # priors were silently absent from priors_table / the report panels (#141).
-    if base.endswith("__eta"):
-        return "eta_tau" if base.startswith("g_tau") else "eta_main"
-    if base.endswith("__ell"):
-        return "ell"
-    # LRP65-style adjusted predictor slopes are named beta_{predictor}. Exact
-    # beta_* entries above win first (beta_G, beta_trt, beta_period, ...).
-    if base.startswith("beta_"):
-        return "predictor_slope"
-    # gamma_* couplings share the weakly-informative cross prior. (The ``b_`` /
-    # ``a_`` prefix was DROPPED here: it over-matched bespoke inline priors such
-    # as the LCSM ``a_change`` / ``b_self``, mislabelling their Normal(0, 1.5) /
-    # Normal(0, 0.5) as gamma_cross's Normal(0, 0.3). Genuine b_ / a_ cross
-    # couplings are captured by :func:`_classify_fallback` via the RV's own
-    # distribution, so their gamma_cross panel and role are preserved.)
-    if base.startswith("gamma"):
-        return "gamma_cross"
-    return None
 
 
 def _normalise_dist_str(s: str) -> str:
@@ -1083,299 +899,8 @@ def _dist_from_rv(rv) -> str | None:
     return _normalise_dist_str(s.strip())
 
 
-def _classify_fallback(rv_name: str, distribution: str | None) -> tuple[str, str]:
-    """(role, panel) for an RV with no shared-constructor mapping.
-
-    Covers the bespoke inline priors of the LCSM / correlated-factor / two-mediator
-    / joint-LKJ families and the non-centred offsets, so no *actively-used* prior
-    is reported with role ``other`` (issue #141, "cannot silently omit"). The
-    distribution has already been read off the RV, so a Normal(0, 0.3) coupling is
-    routed to the ``gamma_cross`` panel/role by its actual scale rather than by a
-    name prefix (which would misfire on e.g. ``a_change``). Returns ``("other",
-    "")`` only for a genuinely unrecognised RV — the guard test then fails, which
-    is the intended signal to document the new prior here.
-    """
-    base = rv_name.split("[")[0]
-    # HSGP basis weights (Normal(0, 1) unit coefficients) — a GP nuisance.
-    if base.endswith("hsgp_coeffs") or base.endswith("_coeffs"):
-        return ("gp", "")
-    # Non-centred standard-normal offsets (paired with a scale prior that carries
-    # the meaning): child / factor / process / initial-latent z's and *_raw.
-    if (
-        base.endswith("_raw")
-        or base.startswith(("u_z", "z1_", "zproc_", "factor_z"))
-        # The joint-mechanism LKJ blocks' non-centred offsets (per-observation
-        # residual / per-child intercept).
-        or base in {"u_resid_z", "u_child_z"}
-    ):
-        return ("nuisance", "")
-    # Correlation / covariance priors (joint LKJ residual, factor covariance,
-    # the joint-mechanism dependence blocks).
-    if base.startswith(("u_chol", "u_corr", "factor_cov", "chol")) or base in {
-        "u_resid_chol",
-        "u_child_chol",
-    }:
-        return ("nuisance", "")
-    # LCF trait/state correlation components jointly induce the headline
-    # within-wave factor correlations, and the RLM joint-growth Cholesky induces
-    # the headline between-child cross-measure correlation — association parameters
-    # rather than unreported covariance plumbing.
-    if (
-        base
-        in {
-            "trait_corr_chol",
-            "measure_corr_chol",
-            # The RLM joint-growth within-child block's Cholesky induces
-            # ``within_corr``, the headline estimand of lrp-rlm-jc-002 — an
-            # association, exactly like its between-child sibling above. It was
-            # dropping to role='other' with an empty rationale, published in the
-            # report's own priors table (2026-08-21 review, finding 7).
-            "within_corr_chol",
-            "factor_corr_chol",
-        }
-        or base.startswith("state_corr_chol_w")
-    ):
-        return ("association", "")
-    # RLM historical-growth / joint-growth bespoke offsets and level grid: the
-    # per-subject non-centred offsets ``z_subject``, the per-row within-child
-    # offsets ``z_within`` and the group-by-wave population level grid
-    # ``eta_cell`` are intercept-class nuisances (the reported cells/intervals are
-    # deterministics of ``eta_cell``, and the reported correlations are carried by
-    # the Cholesky blocks above), not skill couplings.
-    if base in {"z_subject", "eta_cell", "z_within"}:
-        return ("nuisance", "")
-    # Latent growth-curve (LRP69/70/85) random-effect offsets and the shared
-    # growth-tempo factor scores: non-centred standard normals whose meaning is
-    # carried by their SD / loading, so they are nuisances. (The reported tempo
-    # quantity is the ``loading``, documented in the growth override.)
-    if base in {"z_intercept", "z_slope", "G_tempo"}:
-        return ("nuisance", "")
-    # The stable-trait variance share and exact-zero-sum factor means organise the
-    # longitudinal measurement structure but are not themselves skill couplings.
-    if base in {"trait_share", "factor_mean"}:
-        return ("nuisance", "")
-    # Scales / dispersions / random-effect SDs.
-    if base.startswith(("sigma", "kappa", "tau_")) or base == "sigma1":
-        return ("nuisance", "")
-    # Measurement loadings (correlated-factor CFA).
-    if base.startswith(("lambda", "load")):
-        return ("association", "")
-    # Communality parameterisation (RLM mm-001, #409 item B): the free parameter is
-    # each indicator's communality c ~ Beta, with the loading sqrt(c) and residual
-    # sqrt(1 - c) derived. It IS the reported communality — an association, like the
-    # loading it defines — carried on its own inline Beta prior (no shared ctor).
-    if base.startswith("communality"):
-        return ("association", "")
-    # Latent-mean anchors and per-leg intercepts (…0, mu1, a_change).
-    if base in {"mu1", "a_change"} or re.search(r"0$", base):
-        return ("nuisance", "")
-    # Age couplings are a precision covariate (named …_A / d_age in these models).
-    # Checked before the Normal(0, 0.3) signature below: age shares the
-    # cross-coupling scale but is a precision term, not an association.
-    if base == "d_age" or re.search(r"_A$", base):
-        return ("precision", "")
-    # Own-baseline couplings reuse the gamma_own signature (Normal(1, 0.25)) — a
-    # precision term (e.g. the mediator legs' aL_L / aE_E autoregression). The SD
-    # was tightened from 0.5 to 0.25 (Finding 2); keep this signature in step.
-    if distribution == "Normal(1, 0.25)":
-        return ("precision", "gamma_own")
-    # Own-measure self-feedback (…_self): the change-score recursion's own AR(1) lag
-    # (phi = 1 + b_self), the LCSM analogue of gamma_own's own-baseline
-    # autoregression (already precision) — an own-dynamics structural term, not one
-    # of the reported adjusted cross-couplings (g_par). "precision" is defined
-    # relative to tau; this descriptive LCSM has none, so here it denotes an
-    # own-dynamics term that supports, but is not, a reported coupling (#384 review,
-    # Frank). Checked before the coupling-shaped catch-all below.
-    if base.endswith("_self"):
-        return ("precision", "")
-    # Everything else that is coupling-shaped is an adjusted association; route to
-    # the gamma_cross panel when it shares that prior's scale.
-    if distribution == "Normal(0, 0.3)":
-        return ("association", "gamma_cross")
-    if base.startswith(("g_", "b_", "a_", "aL", "aE", "aB", "d_")):
-        return ("association", "")
-    # Latent growth-curve per-measure mean growth rate (``beta``, the slope on
-    # standardised age; Normal(0, 0.5)). Keyed to the growth scale so the concurrent
-    # family's Normal(0, 0.3) ``beta`` (a focal skill coefficient) keeps its
-    # gamma_cross route, AND a future inline ``beta`` at any other scale still falls
-    # through to ``other`` and trips the completeness guard. Labelled an association
-    # (a descriptive maturational trend) pending review — see the growth-family note
-    # in #384/#393.
-    if base == "beta" and distribution == "Normal(0, 0.5)":
-        return ("association", "")
-    return ("other", "")
 
 
-def _fallback_rationale(rv_name: str, distribution: str | None) -> str:
-    """Rationale for bespoke inline priors classified from their fitted RV."""
-    base = rv_name.split("[")[0]
-    fitted = distribution or "the fitted prior"
-    if base.startswith(("lambda", "load")):
-        return (
-            f"Positive indicator loading ({fitted}); maps each standardised test "
-            "to its unit-variance domain factor."
-        )
-    if base.startswith("communality"):
-        return (
-            f"Indicator communality ({fitted}); the share of a standardised test's "
-            "variance explained by its domain factor, with the loading / residual "
-            "pair derived from c under the family's unit-variance budget: "
-            "lambda**2 + sigma**2 = 1 exactly for cross-sectionally standardised "
-            "indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) in the "
-            "longitudinal CFA (V the spread of the fitted wave means, so the "
-            "POOLED indicator variance is exactly 1). Either way the "
-            "loading-residual ridge is removed and Heywood configurations have "
-            "zero prior mass."
-        )
-    if base == "sigma_indicator":
-        return (
-            f"Indicator-specific residual scale ({fitted}); separates test-specific "
-            "variation from the domain factor."
-        )
-    if base == "trait_share":
-        return (
-            f"Domain-specific stable-trait variance share ({fitted}); governs "
-            "same-domain persistence across waves."
-        )
-    if base == "trait_corr_chol":
-        return (
-            f"LKJ prior on the shared trait-component correlation ({fitted}); "
-            "trait-share weighting carries it into every within-wave matrix."
-        )
-    if base.startswith("state_corr_chol_w"):
-        return (
-            f"LKJ prior on one wave's state-component correlation ({fitted}); "
-            "together with the shared trait component it induces that wave's "
-            "reported factor correlation."
-        )
-    if base == "factor_mean":
-        return (
-            f"Exact-zero-sum domain-by-wave mean deviations ({fitted}); represents "
-            "wave shifts after pooled indicator standardisation."
-        )
-    if base.endswith("_self"):
-        return (
-            f"Within-measure self-feedback of the change-score recursion (level "
-            f"AR(1): phi = 1 + b_self; {fitted}); centred at -0.3 (phi ~ 0.7) so "
-            "trajectories mean-revert rather than random-walk — a precision "
-            "own-dynamics term (the LCSM analogue of the own-baseline gamma_own), not "
-            "one of the reported cross-skill couplings. This descriptive LCSM has no "
-            "randomised effect, so 'precision' here means an own-dynamics term that "
-            "supports, but is not, a reported coupling."
-        )
-    if base == "z_subject":
-        return (
-            f"Non-centred standard-normal per-subject offsets ({fitted}); "
-            "group-centred and scaled by sigma_subject to form the subject random "
-            "effects."
-        )
-    if base == "eta_cell":
-        return (
-            f"Group-by-wave population level per cell/measure on the logit scale "
-            f"({fitted}); the fitted cells (mean_items) and growth intervals are "
-            "deterministics of it — descriptive, not a treatment effect."
-        )
-    if base == "sigma_subject":
-        return (
-            f"Group-indexed between-subject random-intercept SD ({fitted}); "
-            "between-child heterogeneity that differs by cohort group."
-        )
-    if base == "measure_corr_chol":
-        return (
-            f"LKJ(eta=2) prior on the Cholesky factor of the between-child "
-            f"cross-measure correlation ({fitted}); R = chol @ chol.T is the headline "
-            "reading-language-memory coupling estimand."
-        )
-    if base == "within_corr_chol":
-        return (
-            f"LKJ prior on the Cholesky factor of the WITHIN-child cross-measure "
-            f"correlation of wave-specific departures ({fitted}); "
-            "within_corr = chol @ chol.T is the headline estimand of the "
-            "within-child companion. Interpretable only for a measure pair whose "
-            "residual scales are resolvable."
-        )
-    if base == "z_within":
-        return (
-            f"Non-centred standard-normal per-row, per-measure within-child offsets "
-            f"({fitted}); correlated through within_corr_chol, double-centred within "
-            "child and within group-by-wave cell, and scaled by sigma_within."
-        )
-    if base == "sigma_within":
-        return (
-            f"Scale of the wave-specific within-child departure on the logit scale "
-            f"({fitted}). This model's likelihood is Binomial rather than "
-            "Beta-Binomial, so this term carries ALL extra-Binomial variance — true "
-            "within-child fluctuation and measurement noise together — and the "
-            "double sum-to-zero centring makes the realised departure SD smaller "
-            "than this parameter."
-        )
-    if base in {"z_intercept", "z_slope"}:
-        which = "intercept" if base == "z_intercept" else "slope"
-        return (
-            f"Non-centred standard-normal per-child, per-measure {which} offsets "
-            f"({fitted}); scaled by the random-{which} SD to form the child-by-measure "
-            f"growth {which}s."
-        )
-    if base == "G_tempo":
-        return (
-            f"Shared child-level growth-tempo factor scores ({fitted}); a rank-1 "
-            "latent 'faster growth on every measure' tempo whose reported quantity is "
-            "the per-measure loading, not the scores themselves."
-        )
-    # The joint ITT family's per-child LKJ residual-correlation block (#551): the
-    # packed Cholesky factor of the residual covariance and its non-centred
-    # standard-normal offsets. Both are dependence plumbing for the paired contrast's
-    # uncertainty, never effects; the reported quantities are the deterministics
-    # ``sigma_outcome`` and ``u_corr_pair``.
-    if base == "u_chol":
-        return (
-            f"Packed Cholesky factor of the within-child residual covariance across "
-            f"the jointly fitted outcomes ({fitted}): an LKJ(eta = 4) correlation "
-            "prior, weakly favouring small correlations, with HalfNormal(0.5) "
-            "per-outcome residual SDs. A dependence model for the paired contrast's "
-            "uncertainty — reported through sigma_outcome and u_corr_pair — not an "
-            "effect."
-        )
-    if base == "u_z":
-        return (
-            f"Non-centred standard-normal per-child, per-outcome residual offsets "
-            f"({fitted}); scaled by the Cholesky factor u_chol to form the "
-            "within-child residual offsets u = z @ chol.T."
-        )
-    # The joint-mechanism family's bivariate LKJ dependence blocks: the levels
-    # design's per-observation residual block and the transition design's
-    # per-child intercept block. Dependence plumbing, never effects; the reported
-    # quantities are the deterministics sigma_u_resid / sigma_u_child,
-    # rho_outcome and (levels only) the conditional slope built from them.
-    if base in {"u_resid_chol", "u_child_chol"}:
-        block = (
-            "per-observation (within-wave) residual"
-            if base == "u_resid_chol"
-            else "per-child intercept"
-        )
-        return (
-            f"Packed Cholesky factor of the bivariate {block} covariance across "
-            f"the two jointly fitted outcomes ({fitted}): an LKJ correlation "
-            "prior with HalfNormal per-outcome scales baked into chol. A "
-            "dependence model for the identified cross-outcome contrasts — "
-            "reported through the sigma deterministics and rho_outcome — not an "
-            "effect."
-        )
-    if base in {"u_resid_z", "u_child_z"}:
-        unit = "observation" if base == "u_resid_z" else "child"
-        return (
-            f"Non-centred standard-normal per-{unit}, per-outcome offsets "
-            f"({fitted}); scaled by the block's Cholesky factor to form the "
-            "correlated offsets u = z @ chol.T."
-        )
-    # Growth-curve per-measure mean growth rate (Normal(0, 0.5)); keyed to the scale
-    # so the concurrent family's Normal(0, 0.3) focal ``beta`` is not described here.
-    if base == "beta" and distribution == "Normal(0, 0.5)":
-        return (
-            "Per-measure population mean growth rate (slope on standardised age); a "
-            "descriptive maturational trend, not a causal or adjusted-coupling term."
-        )
-    return ""
 
 
 # --- Empirical-Bayes anchors (#390 P1) --------------------------------------------
@@ -1436,91 +961,6 @@ def empirical_bayes_rationale(base: str, distribution: str | None) -> str:
     return f"{_EMPIRICAL_BAYES_ANCHORS[base]} {EMPIRICAL_BAYES_SENTENCE}"
 
 
-def prior_info_for_rv(
-    rv_name: str,
-    *,
-    rv=None,
-    ctor_overrides: dict[str, str] | None = None,
-    role_overrides: dict[str, str] | None = None,
-    rationale_overrides: dict[str, str] | None = None,
-) -> dict[str, str]:
-    """``{parameter, distribution, role, rationale, panel}`` for a registered RV.
-
-    ``panel`` is the basename (without ``prior_`` / extension) of the prior-PDF
-    panel for this parameter, or ``""`` for inline / bespoke priors that have no
-    panel — the report maps a table row to ``prior_{panel}.png``.
-
-    Pass the built PyMC variable as ``rv`` (``priors_table`` does) so bespoke
-    inline priors — LCSM, correlated-factor, two-mediator, joint-LKJ — are
-    documented from their *actual* distribution rather than dropped to
-    ``(model prior)`` or mislabelled by a name prefix (issue #141).
-    """
-    base = rv_name.split("[")[0]
-    rationale_overrides = rationale_overrides or {}
-    rationale = rationale_overrides.get(rv_name, rationale_overrides.get(base))
-    # An outcome-anchored prior is described by its anchor (#390 P1). Applied before
-    # every other route because the alternatives are wrong for it, not merely thinner:
-    # the constructor docstring describes the zero-centred prior this one is not.
-    if rationale is None:
-        rationale = (
-            empirical_bayes_rationale(base, _dist_from_rv(rv) if rv is not None else None)
-            or None
-        )
-    # The RLM cohort group-nuisance dummies are slug-suffixed
-    # (``beta_group_nuisance_down_syndrome`` / ``_reading_matched``), so the exact
-    # ``_INLINE_PRIORS`` match below misses and the ``beta_`` prefix would route
-    # them to ``predictor_slope`` (association) — mislabelling a non-interpretable
-    # cohort dummy as a ranked predictor slope. Match the family by prefix here.
-    if base.startswith("beta_group_nuisance"):
-        info = dict(_INLINE_PRIORS["beta_group_nuisance"])
-        # Prefer the built RV's own distribution over the recorded default, as
-        # the inline route below does: the joint-mechanism levels design briefly
-        # built this term from tau_prior (Normal(0, 0.5)) while this record's
-        # hard-coded Normal(0, 1) was published unchallenged (2026-08-21
-        # joint-mechanism review, finding 5).
-        derived = _dist_from_rv(rv) if rv is not None else None
-        if derived:
-            info["distribution"] = derived
-        if rationale is not None:
-            info = {**info, "rationale": rationale}
-        return {"parameter": rv_name, **info, "panel": ""}
-    if base in _INLINE_PRIORS:
-        info = dict(_INLINE_PRIORS[base])
-        # Prefer the built RV's own distribution over the recorded default, for
-        # the same reason the constructor route does below: an inline prior can
-        # be re-parameterised per family (the level family's ``alpha_time`` is a
-        # ZeroSumNormal since #389 finding 2 while block exposure keeps the free
-        # Normal), and the recorded string would misreport whichever family it
-        # does not match.
-        derived = _dist_from_rv(rv) if rv is not None else None
-        if derived:
-            info["distribution"] = derived
-        if rationale is not None:
-            info = {**info, "rationale": rationale}
-        return {"parameter": rv_name, **info, "panel": ""}
-    key = _ctor_key_for_rv(rv_name, ctor_overrides=ctor_overrides)
-    if key is None:
-        distribution = _dist_from_rv(rv) or "(model prior)"
-        role, panel = _classify_fallback(rv_name, distribution)
-        return {
-            "parameter": rv_name,
-            "distribution": distribution,
-            "role": (role_overrides or {}).get(base, role),
-            "rationale": rationale or _fallback_rationale(rv_name, distribution),
-            "panel": panel,
-        }
-    ctor = ALL_PRIORS[key]
-    # Prefer the built RV's own scale over the constructor docstring: a
-    # constructor may be called with a non-default ``sigma`` (the distal-tier tau,
-    # or a prior-sensitivity fit), so the docstring's default would misreport it.
-    # Falls back to the docstring for the name-only path (no RV).
-    return {
-        "parameter": rv_name,
-        "distribution": _dist_from_rv(rv) or _dist_from_doc(ctor),
-        "role": (role_overrides or {}).get(base, _ROLE_BY_CTOR[key]),
-        "rationale": rationale or _first_docline(ctor),
-        "panel": key,
-    }
 
 
 #: Deterministics that merely re-express a sampled parameter on another scale,
@@ -1560,9 +1000,16 @@ def used_prior_keys(
         source = _REPARAMETERISED_DETERMINISTICS.get(base)
         if source and rv.name in determ_names and source in free_names:
             continue
-        panel = described_prior_row(
-            model, rv, ctor_overrides=ctor_overrides
-        )["panel"]
+        try:
+            panel = described_prior_row(
+                model, rv, ctor_overrides=ctor_overrides
+            )["panel"]
+        except ValueError:
+            # A deterministic has no prior of its own, so it names no panel. Only
+            # free variables are required to be described; this loop also walks the
+            # deterministics because a few of them *are* the reported quantity and
+            # historically pulled in their source prior's panel.
+            continue
         if panel and panel in ALL_PRIORS and panel not in keys:
             keys.append(panel)
     return keys
@@ -1658,6 +1105,27 @@ def described_prior_row(
     )
 
 
+#: Variables this package cannot annotate where they are created, because they are
+#: created somewhere else. The shared HSGP builder in ``dse_research_utils`` names
+#: its basis weights ``{term}__g_unit_hsgp_coeffs``; nothing in this repository
+#: calls ``pm.Normal`` for them, so there is no site to declare at.
+#:
+#: This is the one thing #637's "attach prior meaning when each random variable is
+#: created" cannot be absolute about, and it is a small, explicit, closed table —
+#: not an inference. A variable that is neither recorded at creation nor listed
+#: here raises rather than being guessed at.
+EXTERNAL_PRIORS: dict[str, tuple[str, str]] = {
+    "__g_unit_hsgp_coeffs": (
+        "gp",
+        "Unit-scale HSGP basis weights (Normal(0, 1)); the reduced-rank "
+        "Gaussian-process coefficients the amplitude and lengthscale priors scale "
+        "into the fitted curve. Created by the shared builder in "
+        "dse_research_utils, so this package declares them here rather than at "
+        "their creation site.",
+    ),
+}
+
+
 def _unrecorded_prior_row(
     rv,
     *,
@@ -1665,13 +1133,49 @@ def _unrecorded_prior_row(
     role_overrides: dict[str, str],
     rationale_overrides: dict[str, str],
 ) -> dict[str, str]:
-    """The name-and-scale inference, for a variable with no recorded descriptor."""
-    return prior_info_for_rv(
-        rv.name,
-        rv=rv,
-        ctor_overrides=ctor_overrides or None,
-        role_overrides=role_overrides or None,
-        rationale_overrides=rationale_overrides or None,
+    """The row for a variable with no recorded descriptor.
+
+    There are only two ways to reach this. Either the variable is one this package
+    cannot annotate at its creation site — :data:`EXTERNAL_PRIORS` — or nobody has
+    said what its prior means, in which case the fit stops.
+
+    Failing here is the point (#637). What this replaces inferred a published role
+    and rationale from the variable's name, its name prefix, its name suffix and
+    its rendered distribution string, so an undeclared variable was silently given
+    a meaning, and renaming one could change what the report said it meant.
+    """
+    base = rv.name.split("[")[0]
+    key = ctor_overrides.get(base)
+    if key is not None and key in ALL_PRIORS:
+        # A family declaring "describe this variable from *that* constructor". The
+        # descriptor route makes most of these redundant, but the ones that remain
+        # are a deliberate per-family correction, so they still win.
+        constructor = ALL_PRIORS[key]
+        return {
+            "parameter": rv.name,
+            "distribution": _dist_from_rv(rv) or _dist_from_doc(constructor),
+            "role": role_overrides.get(base, _role_of(constructor)),
+            "rationale": rationale_overrides.get(rv.name)
+            or rationale_overrides.get(base)
+            or _first_docline(constructor),
+            "panel": key,
+        }
+    for suffix, (role, rationale) in EXTERNAL_PRIORS.items():
+        if base.endswith(suffix):
+            return {
+                "parameter": rv.name,
+                "distribution": _dist_from_rv(rv) or "(model prior)",
+                "role": role_overrides.get(base, role),
+                "rationale": rationale_overrides.get(rv.name)
+                or rationale_overrides.get(base)
+                or rationale,
+                "panel": "",
+            }
+    raise ValueError(
+        f"{rv.name!r} has no prior descriptor. Declare what its prior means where "
+        "it is created — `_priors.declare(pm.Normal(...), role=..., rationale=...)` "
+        "for an inline prior, or a named constructor's `.to_pymc(...)` — or, if it "
+        "is created outside this package, add it to priors.EXTERNAL_PRIORS."
     )
 
 

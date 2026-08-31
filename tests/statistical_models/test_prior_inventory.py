@@ -426,24 +426,6 @@ def test_hsgp_amplitude_lengthscale_are_panelled(built_models):
     assert "eta_main" in priors.used_prior_keys(built_models["itt_age_gp"])
 
 
-def test_lcsm_inline_priors_not_mislabelled(built_models):
-    """The LCSM ``a_change`` / ``b_self`` carry their real Normal(0, 1.5) /
-    Normal(-0.3, 0.2), not gamma_cross's Normal(0, 0.3) (the prefix-fallback bug).
-
-    ``b_self`` was recentred to a mean-reverting Normal(-0.3, 0.2) — the level AR(1)
-    coefficient is phi = 1 + b_self, so the old Normal(0, 0.5) centred phi on a unit
-    root with ~50% explosive mass (review finding A3, 2026-07-13)."""
-    table = priors.priors_table(built_models["lcsm"])
-    by_param = {r["parameter"]: r for _, r in table.iterrows()}
-    assert by_param["a_change"]["distribution"] == "Normal(0, 1.5)"
-    assert by_param["b_self"]["distribution"] == "Normal(-0.3, 0.2)"
-    # And none of them are the wrongly-inherited cross-coupling scale.
-    assert by_param["a_change"]["distribution"] != "Normal(0, 0.3)"
-    # b_self is the own-measure AR(1) self-feedback (phi = 1 + b_self), the LCSM
-    # analogue of the own-baseline gamma_own — a precision own-dynamics term, not one
-    # of the reported cross-couplings (#384 review, Frank).
-    assert by_param["b_self"]["role"] == "precision"
-    assert priors._classify_fallback("b_self", "Normal(-0.3, 0.2)")[0] == "precision"
 
 
 def test_joint_lkj_residual_documented(built_models):
@@ -491,19 +473,6 @@ def test_dist_from_rv_normalisation():
     assert priors._dist_from_rv(None) is None
 
 
-def test_classify_fallback_routes_cross_coupling_to_gamma_panel():
-    # A non-age Normal(0, 0.3) coupling is routed to the gamma_cross panel by its
-    # scale (not by a name prefix).
-    assert priors._classify_fallback("b_R", "Normal(0, 0.3)") == (
-        "association", "gamma_cross"
-    )
-    # An age coupling (…_A) is a precision covariate, not an association.
-    assert priors._classify_fallback("b_A", "Normal(0, 0.3)")[0] == "precision"
-    # An LCSM change intercept is a nuisance, not a mis-scaled coupling.
-    assert priors._classify_fallback("a_change", "Normal(0, 1.5)")[0] == "nuisance"
-    # Non-centred offsets are nuisances with no panel.
-    assert priors._classify_fallback("u_child_raw", "Normal(0, 1)") == ("nuisance", "")
-    assert priors._classify_fallback("zproc_W", "Normal(0, 1)") == ("nuisance", "")
 
 
 # ---------------------------------------------------------------------------
@@ -729,27 +698,6 @@ def test_growth_interaction_and_tempo_loading(built_models):
     assert "domain factor" not in by["loading"]["rationale"]
 
 
-def test_growth_bespoke_terms_classified(built_models):
-    """The growth mean-slope + random-effect/tempo terms previously dropped to
-    role='other' (a #141 completeness gap). beta is labelled an association (a
-    descriptive maturational trend — a reviewable call, see PR note); the offsets
-    and factor scores are nuisances."""
-    by = _labelled(built_models["growth"], kind="growth")
-    # beta: per-measure population mean growth rate -> association (not 'other').
-    assert by["beta"]["role"] == "association"
-    assert "growth rate" in by["beta"]["rationale"]
-    # Non-centred RE offsets + shared-tempo factor scores -> nuisance with a real
-    # rationale (were role='other', empty rationale).
-    for name in ("z_intercept", "z_slope", "G_tempo"):
-        assert by[name]["role"] == "nuisance", name
-        assert by[name]["rationale"].strip(), name
-    # The concurrent-family focal ``beta`` (Normal(0, 0.3)) is unaffected by the
-    # growth-scale beta rationale (kept out by the scale guard).
-    assert priors._fallback_rationale("beta", "Normal(0, 0.3)") == ""
-    # A future inline ``beta`` at any other scale must still fall through to
-    # role='other' so the completeness guard catches it (Copilot #397): the role
-    # rule is keyed to the growth Normal(0, 0.5) signature, not the bare name.
-    assert priors._classify_fallback("beta", "Normal(0, 1)") == ("other", "")
 
 
 def test_itt_adjust_covariate_and_ses_are_precision(built_models):
@@ -847,34 +795,53 @@ def test_block_exposure_and_survival_terms_are_not_causal():
         assert rationale[name].strip()
 
 
-def test_base_fallback_role_and_rationale_additions():
-    # Previously role 'other' (guard failures for the rlm/two-mediator families).
-    assert priors._classify_fallback("z_subject", "Normal(0, 1)")[0] == "nuisance"
-    assert priors._classify_fallback("eta_cell", "Normal(0, 1.5)")[0] == "nuisance"
-    assert (
-        priors._classify_fallback("measure_corr_chol", "LKJCholeskyCov(3, ...)")[0]
-        == "association"
-    )
-    assert priors._classify_fallback("aB_G", "Normal(0, 0.5)")[0] == "association"
-    # Previously empty rationales.
-    for nm, dist in (
-        ("b_self", "Normal(-0.3, 0.2)"),
-        ("z_subject", "Normal(0, 1)"),
-        ("eta_cell", "Normal(0, 1.5)"),
-        ("sigma_subject", "HalfNormal(0.5)"),
-        ("measure_corr_chol", "LKJCholeskyCov(3, ...)"),
-    ):
-        assert priors._fallback_rationale(nm, dist).strip(), nm
 
 
-def test_beta_group_nuisance_slug_is_nuisance():
-    """The slug-suffixed RLM cohort dummies must resolve to the inline nuisance
-    entry, not the beta_ prefix -> predictor_slope (association) path."""
+
+
+# ---------------------------------------------------------------------------
+# Every prior is declared, none inferred (#637)
+# ---------------------------------------------------------------------------
+
+
+def test_every_free_variable_carries_a_prior_descriptor(built_models):
+    """Exact set equality: declared where created, or declared as external.
+
+    This replaces five tests of ``priors._classify_fallback`` — a classifier that
+    read a variable's name prefix, its name suffix and its rendered distribution
+    string to decide what the published table said the prior *meant*. Renaming a
+    variable, or widening a prior for a sensitivity fit, could move its published
+    role with no change to its statistical role.
+
+    The two exceptions are named, not inferred: the shared HSGP builder in
+    ``dse_research_utils`` creates its basis weights, so this package has no site
+    to declare them at and lists them in ``priors.EXTERNAL_PRIORS`` instead.
+    """
+    undeclared: dict[str, list[str]] = {}
+    for name, model in built_models.items():
+        recorded = priors.descriptors_for(model)
+        for variable in model.free_RVs:
+            base = variable.name.split("[")[0]
+            if variable.name in recorded:
+                continue
+            if any(base.endswith(suffix) for suffix in priors.EXTERNAL_PRIORS):
+                continue
+            undeclared.setdefault(base, []).append(name)
+    assert undeclared == {}, undeclared
+
+
+def test_an_undeclared_prior_stops_the_fit_rather_than_being_guessed_at():
     import pymc as pm
 
-    with pm.Model():
-        rv = pm.Normal("beta_group_nuisance_down_syndrome", 0.0, 1.0)
-    info = priors.prior_info_for_rv("beta_group_nuisance_down_syndrome", rv=rv)
-    assert info["role"] == "nuisance"
-    assert info["distribution"] == "Normal(0, 1)"
-    assert "nuisance dummy" in info["rationale"]
+    with pm.Model() as model:
+        pm.Normal("an_undeclared_coefficient", mu=0.0, sigma=0.3)
+    with pytest.raises(ValueError, match="has no prior descriptor"):
+        priors.priors_table(model)
+
+
+def test_the_external_table_is_small_and_reasoned():
+    """It is the one place "declare at creation" cannot reach — keep it that way."""
+    assert set(priors.EXTERNAL_PRIORS) == {"__g_unit_hsgp_coeffs"}
+    for role, rationale in priors.EXTERNAL_PRIORS.values():
+        assert role in {"causal", "precision", "association", "nuisance", "gp"}
+        assert "dse_research_utils" in rationale

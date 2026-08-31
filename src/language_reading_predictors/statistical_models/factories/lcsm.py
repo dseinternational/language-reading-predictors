@@ -30,6 +30,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
 )
+from language_reading_predictors.statistical_models import priors as _priors
 
 def build_lcsm_model(
     panel: WavePanel,
@@ -255,15 +256,40 @@ def build_lcsm_model(
             cov_data[name] = pm.Data(f"cov_{name}", cov_arrays[name], dims=dims)
 
         # Structural parameters (time-invariant, pooled over transitions).
-        mu1 = pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome")
-        sigma1 = pm.HalfNormal("sigma1", sigma=sigma_init_prior_sigma, dims="outcome")
+        mu1 = _priors.declare(
+                  pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome"),
+                  role="nuisance",
+                  rationale=(
+                      "Initial latent level, its mean anchored on the observed wave-1 "
+                      "mean logit per outcome. Empirical Bayes: the prior mean is "
+                      "computed from the same observed outcomes that enter the "
+                      "likelihood, so this prior is not independent of the data and the "
+                      "reported prior-predictive distribution is partly data-informed."
+                  ),
+              )
+        sigma1 = _priors.declare(
+                     pm.HalfNormal("sigma1", sigma=sigma_init_prior_sigma, dims="outcome"),
+                     role="nuisance",
+                     rationale=(
+                         "SD of the initial latent level (HalfNormal(1)); the between-child "
+                         "spread at wave 1 that ``z1`` scales."
+                     ),
+                 )
         if arm_window_intercepts:
-            a_change = pm.Normal(
-                "a_change",
-                mu=0.0,
-                sigma=intercept_prior_sigma,
-                dims=("arm", "trans", "outcome"),
-            )
+            a_change = _priors.declare(
+                           pm.Normal(
+                                           "a_change",
+                                           mu=0.0,
+                                           sigma=intercept_prior_sigma,
+                                           dims=("arm", "trans", "outcome"),
+                                       ),
+                           role="nuisance",
+                           rationale=(
+                               "Per-measure change-score intercept (Normal(0, 1.5)); the mean "
+                               "annual change each measure makes before any coupling term, "
+                               "absorbed rather than reported."
+                           ),
+                       )
             # Window-1 randomised contrast on the latent change scale
             # (immediate - waitlist), the built-in ITT-suite consistency check.
             pm.Deterministic(
@@ -272,9 +298,17 @@ def build_lcsm_model(
                 dims="outcome",
             )
         else:
-            a_change = pm.Normal(
-                "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
-            )
+            a_change = _priors.declare(
+                           pm.Normal(
+                                           "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
+                                       ),
+                           role="nuisance",
+                           rationale=(
+                               "Per-measure change-score intercept (Normal(0, 1.5)); the mean "
+                               "annual change each measure makes before any coupling term, "
+                               "absorbed rather than reported."
+                           ),
+                       )
         # Self-feedback of the proportional change-score recursion: the level AR(1)
         # coefficient is phi = 1 + b_self, so the old ``mu=0`` centred phi on a unit
         # root (random walk) with ~50% prior mass on explosive phi > 1. A
@@ -284,10 +318,31 @@ def build_lcsm_model(
         # taming the heavy-tailed geometry that drives divergences at n~54 (review
         # finding A3, 2026-07-13). Still weakly-informative — the data can pull b_self
         # back toward 0 given signal.
-        b_self = pm.Normal(
-            "b_self", mu=self_prior_mu, sigma=self_prior_sigma, dims="outcome"
-        )
-        d_age = pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome")
+        b_self = _priors.declare(
+                     pm.Normal(
+                                 "b_self", mu=self_prior_mu, sigma=self_prior_sigma, dims="outcome"
+                             ),
+                     role="precision",
+                     rationale=(
+                         "Within-measure self-feedback of the change-score recursion (level "
+                         "AR(1): phi = 1 + b_self; Normal(-0.3, 0.2)); centred at -0.3 (phi "
+                         "~ 0.7) so trajectories mean-revert rather than random-walk — a "
+                         "precision own-dynamics term (the LCSM analogue of the own-baseline "
+                         "gamma_own), not one of the reported cross-skill couplings. This "
+                         "descriptive LCSM has no randomised effect, so 'precision' here "
+                         "means an own-dynamics term that supports, but is not, a reported "
+                         "coupling."
+                     ),
+                 )
+        d_age = _priors.declare(
+                    pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome"),
+                    role="precision",
+                    rationale=(
+                        "Linear age coupling on the change score (Normal(0, 0.3)); a "
+                        "precision covariate that sharpens the reported couplings without "
+                        "licensing a causal reading of its own."
+                    ),
+                )
         # Headline cross-couplings (prior source level -> target change). With a
         # single target the parameters keep LRP67's ``g_{src}`` names; with
         # multiple targets the target joins the name (``g_{src}_{tgt}``).
@@ -296,8 +351,16 @@ def build_lcsm_model(
         for tgt, srcs in couplings.items():
             for src in srcs:
                 pname = f"g_{src}" if single_target else f"g_{src}_{tgt}"
-                g_par[(src, tgt)] = pm.Normal(
-                    pname, mu=0.0, sigma=coupling_prior_sigma
+                g_par[(src, tgt)] = _priors.declare(
+                    pm.Normal(pname, mu=0.0, sigma=coupling_prior_sigma),
+                    role="association",
+                    panel="gamma_cross",
+                    rationale=(
+                        "Cross-measure coupling of the change-score recursion: the "
+                        "effect of one measure's level on another's subsequent "
+                        "change (Normal(0, 0.3)). An adjusted association, and the "
+                        "quantity this family reports."
+                    ),
                 )
         # Lagged change-on-change couplings (prior source *change* -> target
         # change; #229 spec 2). Same naming rule and regularising scale as the
@@ -316,21 +379,50 @@ def build_lcsm_model(
             name: pm.Normal(f"b_{name}", mu=0.0, sigma=covariate_prior_sigma)
             for name in covariate_block
         }
-        kappa = pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome")
+        kappa = _priors.declare(
+                    pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome"),
+                    role="nuisance",
+                    panel="kappa",
+                    rationale=(
+                        "Beta-binomial concentration kappa ~ HalfNormal(50)."
+                    ),
+                )
 
         sigma_proc: dict[str, pt.TensorVariable] = {}
         zproc: dict[str, pt.TensorVariable] = {}
         if use_process_noise:
             if shared_process_noise:
-                sp = pm.HalfNormal("sigma_proc", sigma=sigma_proc_prior_sigma)
+                sp = _priors.declare(
+                         pm.HalfNormal("sigma_proc", sigma=sigma_proc_prior_sigma),
+                         role="nuisance",
+                         rationale=(
+                             "Process-noise SD of the latent change score (HalfNormal(0.5)); the "
+                             "wave-to-wave innovation the ``zproc`` offsets scale."
+                         ),
+                     )
                 sigma_proc = {s: sp for s in OUT}
             else:
-                spv = pm.HalfNormal(
-                    "sigma_proc", sigma=sigma_proc_prior_sigma, dims="outcome"
-                )
+                spv = _priors.declare(
+                          pm.HalfNormal(
+                                              "sigma_proc", sigma=sigma_proc_prior_sigma, dims="outcome"
+                                          ),
+                          role="nuisance",
+                          rationale=(
+                              "Process-noise SD of the latent change score (HalfNormal(0.5)); the "
+                              "wave-to-wave innovation the ``zproc`` offsets scale."
+                          ),
+                      )
                 sigma_proc = {s: spv[jidx[s]] for s in OUT}
             zproc = {
-                s: pm.Normal(f"zproc_{s}", 0.0, 1.0, dims=("child", "trans"))
+                s: _priors.declare(
+                       pm.Normal(f"zproc_{s}", 0.0, 1.0, dims=("child", "trans")),
+                       role="nuisance",
+                       rationale=(
+                           "Non-centred standard-normal per-child, per-transition offsets "
+                           "(Normal(0, 1)); scaled by sigma_proc to form the latent process "
+                           "noise."
+                       ),
+                   )
                 for s in OUT
             }
 
@@ -343,7 +435,14 @@ def build_lcsm_model(
         # Initial latent (wave index 0), non-centred.
         x: dict[str, list[pt.TensorVariable]] = {}
         for s in OUT:
-            z1 = pm.Normal(f"z1_{s}", 0.0, 1.0, dims="child")
+            z1 = _priors.declare(
+                     pm.Normal(f"z1_{s}", 0.0, 1.0, dims="child"),
+                     role="nuisance",
+                     rationale=(
+                         "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
+                         "scaled by sigma1 to form each child's initial latent level."
+                     ),
+                 )
             x[s] = [
                 pm.Deterministic(
                     f"x1_{s}", mu1[jidx[s]] + sigma1[jidx[s]] * z1, dims="child"

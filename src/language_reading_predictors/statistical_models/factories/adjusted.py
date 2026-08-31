@@ -241,9 +241,18 @@ def build_rlm_transition_adjusted_model(
         own_pre_d = pm.Data(
             "own_pre_logit", frame.pre_logit[outcome], dims="obs_id"
         )
-        alpha_transition = pm.Normal(
-            "alpha_transition", mu=0.0, sigma=1.5, dims="transition"
-        )
+        alpha_transition = _priors.declare(
+                               pm.Normal(
+                                           "alpha_transition", mu=0.0, sigma=1.5, dims="transition"
+                                       ),
+                               role="nuisance",
+                               rationale=(
+                                   "Per-transition intercept alpha_transition ~ Normal(0, 1.5), the "
+                                   "proximal-tier intercept scale, one free element per annual "
+                                   "transition; absorbs the mean trajectory between waves and is never "
+                                   "a reported association."
+                               ),
+                           )
         gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
             "gamma_own"
         )
@@ -255,12 +264,19 @@ def build_rlm_transition_adjusted_model(
                 np.column_stack([frame.predictors[key] for key in keys]),
                 dims=("obs_id", "predictor"),
             )
-            beta_transition = pm.Normal(
-                "beta_transition",
-                mu=0.0,
-                sigma=predictor_slope_sigma,
-                dims=("transition", "predictor"),
-            )
+            beta_transition = _priors.declare(
+                                  pm.Normal(
+                                                  "beta_transition",
+                                                  mu=0.0,
+                                                  sigma=predictor_slope_sigma,
+                                                  dims=("transition", "predictor"),
+                                              ),
+                                  role="association",
+                                  panel="predictor_slope",
+                                  rationale=(
+                                      "Standardised predictor slope ~ Normal(0, 0.3) by default."
+                                  ),
+                              )
             eta_fixed = eta_fixed + pt.sum(
                 X * beta_transition[phase_d], axis=1
             )

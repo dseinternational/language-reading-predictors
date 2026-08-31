@@ -485,9 +485,15 @@ def build_mechanism_model(
         alpha = _priors.alpha_prior(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha")
-        alpha_phase = pm.Normal(
-            "alpha_phase", mu=0.0, sigma=0.5, dims="phase"
-        )
+        alpha_phase = _priors.declare(
+                          pm.Normal(
+                                      "alpha_phase", mu=0.0, sigma=0.5, dims="phase"
+                                  ),
+                          role="nuisance",
+                          rationale=(
+                              "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
+                          ),
+                      )
         beta_G = _priors.tau_prior().to_pymc("beta_G")
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 

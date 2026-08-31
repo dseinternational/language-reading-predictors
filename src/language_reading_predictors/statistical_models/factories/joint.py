@@ -242,6 +242,21 @@ def build_joint_model(
                 sd_dist=pm.HalfNormal.dist(0.5),
                 compute_corr=True,
             )
+            # Declared by name: the call returns the factor, the correlation and
+            # the scales, none of which is the packed variable the model samples.
+            _priors.declare(
+                "u_chol",
+                role="nuisance",
+                rationale=(
+                    "Packed Cholesky factor of the within-child residual covariance "
+                    "across the jointly fitted outcomes (LKJCholeskyCov(2, 4, "
+                    "HalfNormal(0, 0.5))): an LKJ(eta = 4) correlation prior, weakly "
+                    "favouring small correlations, with HalfNormal(0.5) per-outcome "
+                    "residual SDs. A dependence model for the paired contrast's "
+                    "uncertainty — reported through sigma_outcome and u_corr_pair — "
+                    "not an effect."
+                ),
+            )
             # u_corr is outcome × outcome (not outcome × baseline) — use
             # the dedicated ``outcome2`` coord to label the second axis.
             pm.Deterministic("u_corr", corr, dims=("outcome", "outcome2"))
@@ -250,9 +265,17 @@ def build_joint_model(
             pm.Deterministic(
                 "u_corr_pair", corr[pair_i, pair_j], dims="outcome_pair"
             )
-            z_raw = pm.Normal(
-                "u_z", mu=0.0, sigma=1.0, dims=("obs_id", "outcome")
-            )
+            z_raw = _priors.declare(
+                        pm.Normal(
+                                        "u_z", mu=0.0, sigma=1.0, dims=("obs_id", "outcome")
+                                    ),
+                        role="nuisance",
+                        rationale=(
+                            "Non-centred standard-normal per-child, per-outcome residual "
+                            "offsets (Normal(0, 1)); scaled by the Cholesky factor u_chol to "
+                            "form the within-child residual offsets u = z @ chol.T."
+                        ),
+                    )
             # u_i = chol @ z_i ⇒ rowwise U = Z @ chol.T.
             u = pm.Deterministic(
                 "u", pt.dot(z_raw, chol.T), dims=("obs_id", "outcome")

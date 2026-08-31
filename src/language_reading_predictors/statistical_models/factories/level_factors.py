@@ -313,9 +313,18 @@ def build_level_factors_model(
             sigma=_alpha_sigma_for(outcome_symbol)
         ).to_pymc("alpha_offset")
         alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
-        alpha_time = pm.ZeroSumNormal(
-            "alpha_time", sigma=alpha_time_prior_sigma, dims="phase"
-        )
+        alpha_time = _priors.declare(
+                         pm.ZeroSumNormal(
+                                     "alpha_time", sigma=alpha_time_prior_sigma, dims="phase"
+                                 ),
+                         role="nuisance",
+                         rationale=(
+                             "Per-timepoint intercept deviations: in the level family an exact "
+                             "zero-sum wave-deviation vector around the anchored mean level "
+                             "(#389 finding 2); in the block-exposure family a free per-wave "
+                             "offset."
+                         ),
+                     )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 

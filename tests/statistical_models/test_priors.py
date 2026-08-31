@@ -14,57 +14,79 @@ def _rv(name: str) -> SimpleNamespace:
     return SimpleNamespace(name=name)
 
 
-def test_prior_info_roles_and_distribution():
-    assert priors.prior_info_for_rv("tau")["role"] == "causal"
-    assert priors.prior_info_for_rv("beta_trt")["role"] == "causal"  # tau-backed
-    assert priors.prior_info_for_rv("b_grp_time")["role"] == "causal"
-    # #552: the level family's t1-referenced arm-gap changes share the tau
-    # constructor; the balance term is a nuisance association on gamma_cross.
-    assert priors.prior_info_for_rv("d_grp_time")["role"] == "causal"
-    assert priors.prior_info_for_rv("arm_gap_t1")["role"] == "association"
-    assert priors.prior_info_for_rv("gamma_own")["role"] == "precision"
-    assert priors.prior_info_for_rv("gamma_A")["role"] == "precision"
-    assert priors.prior_info_for_rv("alpha")["role"] == "nuisance"
-    assert priors.prior_info_for_rv("kappa")["role"] == "nuisance"
-    assert priors.prior_info_for_rv("gamma_cross")["role"] == "association"
-    # Unlisted gamma_*/b_*/a_* fall back to the cross (association) prior.
-    assert priors.prior_info_for_rv("gamma_grp_ability")["role"] == "association"
-    assert priors.prior_info_for_rv("b_M")["role"] == "association"
-    # Inline priors are captured (they have no constructor).
-    assert priors.prior_info_for_rv("sigma_child")["role"] == "nuisance"
-    assert priors.prior_info_for_rv("alpha_phase")["role"] == "nuisance"
-    # Distribution is extracted from the constructor docstring (source of truth).
-    assert priors.prior_info_for_rv("tau")["distribution"] == "Normal(0, 0.5)"
-    assert priors.prior_info_for_rv("kappa")["distribution"] == "HalfNormal(50)"
+def _described(*names: str, deterministics: tuple[str, ...] = ()) -> SimpleNamespace:
+    """A stub model whose variables carry the descriptors a real build records.
 
-
-def test_prior_info_context_overrides():
-    info = priors.prior_info_for_rv(
-        "beta_dose",
-        ctor_overrides={"beta_dose": "beta_mech"},
-        role_overrides={"beta_dose": "association"},
+    Since #637 a variable's published role and rationale come from the descriptor
+    recorded when it was created, not from its name — so a stub model that carries
+    no descriptors is not a model with unnamed priors, it is a model whose priors
+    were never declared, and ``priors_table`` says so rather than guessing.
+    """
+    recorded = {}
+    for name in names:
+        if name in _INLINE_STUBS:
+            role, panel = _INLINE_STUBS[name]
+            recorded[name] = priors.PriorDescriptor(
+                parameter=name,
+                constructor="inline",
+                distribution="Normal(0, 1)",
+                role=role,
+                rationale=f"Inline prior for {name}.",
+                panel=panel,
+                provenance="inline",
+            )
+            continue
+        key = _CONSTRUCTOR_FOR[name]
+        constructor = priors.ALL_PRIORS[key]
+        recorded[name] = priors.PriorDescriptor(
+            parameter=name,
+            constructor=key,
+            distribution=priors._dist_from_doc(constructor),
+            role=constructor.prior_role,
+            rationale=priors._first_docline(constructor),
+            panel=key,
+            provenance="constructor",
+        )
+    model = SimpleNamespace(
+        free_RVs=[_rv(name) for name in names],
+        deterministics=[_rv(name) for name in deterministics],
     )
-    assert info["role"] == "association"
-    assert info["panel"] == "beta_mech"
-    assert info["distribution"] == "Normal(0, 1)"
-
-    sigma = priors.prior_info_for_rv("sigma_dose")
-    assert sigma["role"] == "nuisance"
-    assert sigma["panel"] == "sigma_dose"
-    assert sigma["distribution"] == "HalfNormal(0.5)"
+    model._dse_prior_descriptors = recorded
+    return model
 
 
-def test_prior_info_panel_mapping():
-    assert priors.prior_info_for_rv("gamma_A")["panel"] == "gamma_age"
-    assert priors.prior_info_for_rv("tau")["panel"] == "tau"
-    # Inline priors have no panel file.
-    assert priors.prior_info_for_rv("sigma_child")["panel"] == ""
+#: Stub variables declared inline rather than through a named constructor:
+#: ``(role, panel)``, as their ``declare`` call records.
+_INLINE_STUBS = {
+    "beta_dose_phase_raw": ("nuisance", ""),
+    "beta_group_nuisance": ("nuisance", ""),
+    "beta_L": ("association", "predictor_slope"),
+    "b_grp_time": ("causal", "tau"),
+}
+
+#: Which constructor built each stub variable, as a real factory would record.
+_CONSTRUCTOR_FOR = {
+    "alpha": "alpha",
+    "tau": "tau",
+    "gamma_own": "gamma_own",
+    "gamma_A": "gamma_age",
+    "kappa": "kappa",
+    "mu_dose": "beta_mech",
+    "sigma_dose": "sigma_dose",
+    "beta_dose": "beta_mech",
+    "beta_dose_phase_raw": "beta_mech",
+}
+
+
+
+
+
+
 
 
 def test_used_prior_keys_prunes_unused():
-    model = SimpleNamespace(
-        free_RVs=[_rv("alpha"), _rv("tau"), _rv("gamma_own"), _rv("gamma_A"), _rv("kappa")],
-        deterministics=[_rv("eta")],
+    model = _described(
+        "alpha", "tau", "gamma_own", "gamma_A", "kappa", deterministics=("eta",)
     )
     keys = priors.used_prior_keys(model)
     assert set(keys) == {"alpha", "tau", "gamma_own", "gamma_age", "kappa"}
@@ -75,27 +97,22 @@ def test_used_prior_keys_prunes_unused():
 
 
 def test_used_prior_keys_skips_inline_noncentred_offsets():
-    model = SimpleNamespace(
-        free_RVs=[
-            _rv("mu_dose"),
-            _rv("sigma_dose"),
-            _rv("beta_dose_phase_raw"),
-        ],
-        deterministics=[_rv("beta_dose_phase")],
+    model = _described(
+        "mu_dose", "sigma_dose", "beta_dose_phase_raw",
+        deterministics=("beta_dose_phase",),
     )
     keys = priors.used_prior_keys(
         model,
         ctor_overrides={"mu_dose": "tau", "beta_dose_phase": "tau"},
     )
     assert keys == ["tau", "sigma_dose"]
-    assert priors.prior_info_for_rv("beta_dose_phase_raw")["panel"] == ""
+    # The non-centred offset names no panel: its meaning is carried by the scale
+    # it is multiplied by, and its declaration says so.
+    assert priors.described_prior_row(model, _rv("beta_dose_phase_raw"))["panel"] == ""
 
 
 def test_priors_table_columns_and_rows():
-    model = SimpleNamespace(
-        free_RVs=[_rv("alpha"), _rv("tau"), _rv("gamma_own"), _rv("gamma_A"), _rv("kappa")],
-        deterministics=[],
-    )
+    model = _described("alpha", "tau", "gamma_own", "gamma_A", "kappa")
     df = priors.priors_table(model)
     assert list(df.columns) == ["parameter", "distribution", "role", "rationale", "panel"]
     assert set(df["parameter"]) == {"alpha", "tau", "gamma_own", "gamma_A", "kappa"}
@@ -106,10 +123,7 @@ def test_priors_table_columns_and_rows():
 
 
 def test_priors_table_applies_context_overrides():
-    model = SimpleNamespace(
-        free_RVs=[_rv("alpha"), _rv("beta_dose"), _rv("mu_dose"), _rv("sigma_dose")],
-        deterministics=[],
-    )
+    model = _described("alpha", "beta_dose", "mu_dose", "sigma_dose")
     df = priors.priors_table(
         model,
         ctor_overrides={"beta_dose": "beta_mech", "mu_dose": "beta_mech"},
@@ -123,10 +137,7 @@ def test_priors_table_applies_context_overrides():
 
 
 def test_concurrent_group_term_is_documented_as_nuisance():
-    model = SimpleNamespace(
-        free_RVs=[_rv("beta_L"), _rv("beta_group_nuisance")],
-        deterministics=[],
-    )
+    model = _described("beta_L", "beta_group_nuisance")
     by_param = priors.priors_table(model).set_index("parameter")
     assert by_param.loc["beta_L", "role"] == "association"
     assert by_param.loc["beta_group_nuisance", "role"] == "nuisance"
@@ -239,7 +250,7 @@ def test_gain_factor_moderation_variant_demotes_beta_trt_role():
 
 
 def test_priors_table_applies_rationale_overrides():
-    model = SimpleNamespace(free_RVs=[_rv("b_grp_time")], deterministics=[])
+    model = _described("b_grp_time")
     df = priors.priors_table(
         model,
         role_overrides={"b_grp_time": "association"},
@@ -286,13 +297,21 @@ def test_anchored_intercept_row_replaces_the_zero_centred_docstring():
     import pymc as pm
 
     with pm.Model() as anchored:
-        pm.Normal("alpha", mu=np.array([0.3, -0.2]), sigma=1.5, shape=2)
+        priors.declare(
+            pm.Normal("alpha", mu=np.array([0.3, -0.2]), sigma=1.5, shape=2),
+            role="nuisance",
+            rationale="Intercept alpha ~ Normal(0, 1.5).",
+        )
     row = priors.priors_table(anchored).iloc[0]
     assert "<constant>" in row["distribution"]
     assert priors.EMPIRICAL_BAYES_SENTENCE in row["rationale"]
     assert "Normal(0, 1.5)" not in row["rationale"]
 
     with pm.Model() as free:
-        pm.Normal("alpha", mu=0.0, sigma=1.5)
+        priors.declare(
+            pm.Normal("alpha", mu=0.0, sigma=1.5),
+            role="nuisance",
+            rationale="Intercept alpha ~ Normal(0, 1.5).",
+        )
     free_row = priors.priors_table(free).iloc[0]
     assert priors.EMPIRICAL_BAYES_SENTENCE not in free_row["rationale"]
