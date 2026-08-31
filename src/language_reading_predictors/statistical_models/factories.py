@@ -67,7 +67,7 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
     MechanismDesign,
     MechanismPayload,
 )
-from language_reading_predictors.statistical_models.level_factors import (
+from language_reading_predictors.statistical_models.definitions import (
     POST_PHASE_LABELS,
 )
 from language_reading_predictors.statistical_models.mechanism_design import (
@@ -88,6 +88,7 @@ from language_reading_predictors.statistical_models.measures import (
     is_distal,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    _subset,
     LongitudinalPanel,
     PreparedData,
     Standardiser,
@@ -5194,57 +5195,6 @@ def build_correlated_factor_model(
 # ---------------------------------------------------------------------------
 
 
-def _subset(
-    prepared: PreparedData, keep: np.ndarray, *, reason: str = "factory_stage"
-) -> PreparedData:
-    """Return a copy of ``prepared`` restricted to rows where ``keep`` is True.
-
-    Built with :func:`dataclasses.replace` so every row-indexed field is
-    bound to a freshly-sliced array and the per-row dicts are rebuilt.
-    Scalars and per-symbol metadata (``column_map``, ``n_trials``,
-    ``age_scaler``, ``covariate_scalers``) are intentionally aliased
-    from the parent — they do not depend on the row set.
-
-    ``reason`` labels *why* these rows leave the analysis so the drop is
-    attributable rather than folded into one opaque count (#390 P3). It is
-    accumulated into :attr:`PreparedData.dropped_by_reason`, whose values always
-    sum to :attr:`PreparedData.dropped_rows`. The default ``"factory_stage"``
-    covers the usual missing-data / not-in-design keep-masks; a caller that
-    excludes rows for a distinct reason (e.g. a design restriction) passes its own
-    label.
-    """
-    if bool(keep.all()):
-        return prepared
-    from dataclasses import replace
-
-    subject_ids = prepared.subject_ids[keep]
-    # Re-index children so child_idx is dense 0..n_children-1.
-    _, child_idx = np.unique(subject_ids, return_inverse=True)
-    child_idx = child_idx.astype(np.int64)
-
-    n_dropped = int((~keep).sum())
-    by_reason = dict(prepared.dropped_by_reason)
-    by_reason[reason] = by_reason.get(reason, 0) + n_dropped
-
-    phase = prepared.phase[keep]
-    return replace(
-        prepared,
-        subject_ids=subject_ids,
-        child_idx=child_idx,
-        phase=phase,
-        G=prepared.G[keep],
-        A_months=prepared.A_months[keep],
-        A_std=prepared.A_std[keep],
-        pre_logit={s: v[keep] for s, v in prepared.pre_logit.items()},
-        pre_counts={s: v[keep] for s, v in prepared.pre_counts.items()},
-        post_counts={s: v[keep] for s, v in prepared.post_counts.items()},
-        covariates={s: v[keep] for s, v in prepared.covariates.items()},
-        n_obs=int(keep.sum()),
-        n_children=int(len(np.unique(child_idx))),
-        n_phases=int(phase.max()) + 1 if phase.size else 0,
-        dropped_rows=prepared.dropped_rows + n_dropped,
-        dropped_by_reason=by_reason,
-    )
 
 
 # ---------------------------------------------------------------------------

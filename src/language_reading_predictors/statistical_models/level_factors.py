@@ -67,6 +67,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.definitions import (
+    POST_PHASE_LABELS,
+)
 from language_reading_predictors.statistical_models.settings_validation import (
     require_declared_booleans,
 )
@@ -108,14 +111,6 @@ ARM_GAP_REFERENCES = frozenset({"t1", "free"})
 #: outcome a plan fits — rather than being restated by each consumer.
 LEVEL_BLENDING_PRIMARY_MODEL_ID = "lrp-rli-lf-006"
 LEVEL_BLENDING_COMPANION_MODEL_ID = "lrp-rli-lf-106"
-
-#: Labels of the post-t1 waves whose arm-gap *changes* ``d_grp_time`` carries
-#: (the ``post_phase`` coordinate): t2 is the randomised treated-versus-untreated
-#: contrast, t3 / t4 the randomised early-start-versus-delayed-start schedule
-#: contrasts (#631). A two-wave comparator (#584 decision 3) carries
-#: only ``("t2",)``; :meth:`LevelFactorsRunPlan.post_phase_labels` derives the
-#: right subset from the declared analysis window.
-POST_PHASE_LABELS: tuple[str, ...] = ("t2", "t3", "t4")
 
 #: Every wave of the levels panel, in order. The declared analysis window is a
 #: contiguous **prefix** of this: the t1-centred parameterisation measures every
@@ -639,7 +634,9 @@ class LevelFactorsRunPlan:
         """
         if len(self.waves) == len(WAVE_LABELS):
             return prepared
-        from language_reading_predictors.statistical_models.factories import _subset
+        from language_reading_predictors.statistical_models.preprocessing import (
+            _subset,
+        )
 
         keep = np.asarray(prepared.phase) < len(self.waves)
         return _subset(prepared, keep, reason="outside_declared_analysis_window")

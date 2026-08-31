@@ -92,6 +92,9 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Any, Literal, Mapping
 
+from language_reading_predictors.statistical_models.convergence import (
+    convergence_gate_failures,
+)
 import numpy as np
 import pandas as pd
 
@@ -3868,13 +3871,6 @@ def evaluate_publication(
             config=config,
             **qualification,
         )
-
-    # Local import: ``reporting`` reaches this module through its own function-local
-    # import of ``release``, and the gate reader lives beside the badge and banner
-    # that render the same verdict.
-    from language_reading_predictors.statistical_models.reporting import (
-        convergence_gate_failures,
-    )
 
     failing = convergence_gate_failures(diag)
     if failing:

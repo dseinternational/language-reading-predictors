@@ -177,10 +177,13 @@ SPEC_EXTRA_BOUNDARY_FUNCTIONS = {
     ("mechanism.py", "declared_mechanism_settings"),
     ("mediation_settings.py", "declared_mediation_multi_settings"),
     ("mediation_settings.py", "declared_mediation_settings"),
-    ("reporting.py", "_historical_growth_run_plan"),
-    ("reporting.py", "_mediation_run_plan"),
-    ("reporting.py", "_reuse_compatibility_contract"),
-    ("reporting.py", "write_run_metadata"),
+    # The fit's own record of itself, split out of ``reporting.py`` by #637
+    # stage 3. Same four functions, same reason: they persist and compare what a
+    # spec *declared*, which is the one place the legacy dict still has to be read.
+    ("run_metadata.py", "_historical_growth_run_plan"),
+    ("run_metadata.py", "_mediation_run_plan"),
+    ("run_metadata.py", "_reuse_compatibility_contract"),
+    ("run_metadata.py", "write_run_metadata"),
     ("survival.py", "declared_survival_settings"),
 }
 
