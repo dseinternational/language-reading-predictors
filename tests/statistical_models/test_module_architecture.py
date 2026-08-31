@@ -95,7 +95,59 @@ def test_the_package_has_no_module_level_import_cycle():
 
 
 def test_factories_no_longer_imports_level_factor_policy():
-    assert "level_factors" not in _module_imports(PACKAGE / "factories.py")
+    """Checked over the whole package: ``factories`` is twenty modules since 3b."""
+    for path in sorted((PACKAGE / "factories").glob("*.py")):
+        assert "level_factors" not in _module_imports(path), path.name
+
+
+#: ``factories.py`` split by family (#637 stage 3b). ``base`` holds what more than
+#: one family needs; every other module is one family's construction code.
+FACTORY_MODULES = (
+    "base", "itt", "joint", "joint_mechanism", "mechanism", "dose_response", "did",
+    "mediation", "adjusted", "concurrent", "horseshoe", "corr_factor",
+    "gain_factors", "level_factors", "block_exposure", "aligned", "lcsm", "growth",
+    "long_corr_factor", "historical",
+)
+
+
+def test_every_factory_family_module_exists():
+    present = {p.stem for p in (PACKAGE / "factories").glob("*.py")} - {"__init__"}
+    assert present == set(FACTORY_MODULES), present ^ set(FACTORY_MODULES)
+
+
+def test_no_factory_family_module_imports_a_sibling():
+    """The point of the split: a star topology around ``base``, not a mesh.
+
+    Two helpers moved into ``base`` to make it true — the bivariate LKJ residual
+    block the joint-mechanism design reuses from the joint family, and the
+    adjusted-predictor resolver the horseshoe family reuses from the adjusted one.
+    """
+    siblings = {f"factories.{m}" for m in FACTORY_MODULES} - {"factories.base"}
+    offenders = []
+    for name in FACTORY_MODULES:
+        imported = _module_imports(PACKAGE / "factories" / f"{name}.py")
+        crossed = {f"factories.{i.split('.')[-1]}" for i in imported if i.startswith("factories.")}
+        for other in sorted(crossed & siblings - {f"factories.{name}"}):
+            offenders.append(f"{name} -> {other}")
+    assert offenders == [], offenders
+
+
+def test_the_factories_facade_defines_nothing_of_its_own():
+    tree = ast.parse((PACKAGE / "factories" / "__init__.py").read_text(encoding="utf-8"))
+    defined = [
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
+    assert defined == [], defined
+
+
+def test_no_factory_module_is_still_hub_sized():
+    largest = max(
+        (len((PACKAGE / "factories" / f"{m}.py").read_text(encoding="utf-8").splitlines()), m)
+        for m in FACTORY_MODULES
+    )
+    assert largest[0] < 1400, largest
 
 
 def test_reporting_and_release_no_longer_import_each_other():
