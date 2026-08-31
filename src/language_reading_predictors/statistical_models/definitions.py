@@ -59,6 +59,21 @@ OUTCOMES: dict[str, str] = {
 #: Outcomes that take the post-hoc reanalysis floor rule (a binary off-floor estimand).
 FLOORED: frozenset[str] = frozenset({"P", "N"})
 
+
+#: Labels of the post-t1 waves whose arm-gap *changes* ``d_grp_time`` carries
+#: (the ``post_phase`` coordinate): t2 is the randomised treated-versus-untreated
+#: contrast, t3 / t4 the randomised early-start-versus-delayed-start schedule
+#: contrasts (#631). A two-wave comparator (#584 decision 3) carries only
+#: ``("t2",)``; :meth:`level_factors.LevelFactorsRunPlan.post_phase_labels`
+#: derives the right subset from the declared analysis window.
+#:
+#: Declared here rather than in ``level_factors`` because ``factories`` needs it
+#: too, and importing the level family's policy module to get a tuple of three
+#: strings closed a cycle: ``level_factors`` reaches back into ``factories`` for
+#: its row-subset helper (#637 stage 3). ``level_factors`` re-exports it, so its
+#: own readers are unaffected.
+POST_PHASE_LABELS: tuple[str, ...] = ("t2", "t3", "t4")
+
 #: Valid model kinds (the statistical-model families).
 KINDS: frozenset[str] = frozenset(
     {
