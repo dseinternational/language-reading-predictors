@@ -29,6 +29,9 @@ import pandas as pd
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import resolve_dataset
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "HistoricalGrowthModelSettings",
@@ -168,6 +171,7 @@ class HistoricalGrowthModelSettings:
     rather than on the concentration, and how 0.25 was calibrated."""
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(self, "measure", _non_empty_string(self.measure, name="measure"))
         object.__setattr__(self, "waves", _wave_tuple(self.waves, name="waves"))
         if len(self.waves) < 2:

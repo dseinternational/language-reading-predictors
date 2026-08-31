@@ -11,6 +11,9 @@ from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "AdjustedModelSettings",
@@ -136,6 +139,7 @@ class AdjustedModelSettings:
     variance into the partial slopes the family reports."""
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         if self.design is not None and (
             not isinstance(self.design, str) or not self.design
         ):
@@ -152,12 +156,6 @@ class AdjustedModelSettings:
                 name,
                 _optional_symbols(getattr(self, name), name=name),
             )
-        if not isinstance(self.use_age_predictor, bool):
-            raise TypeError("use_age_predictor must be a boolean")
-        if not isinstance(self.require_confirmed_inputs, bool):
-            raise TypeError("require_confirmed_inputs must be a boolean")
-        if not isinstance(self.per_transition_sensitivity, bool):
-            raise TypeError("per_transition_sensitivity must be a boolean")
         for name in (
             "post_time",
             "pre_wave",

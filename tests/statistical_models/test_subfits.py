@@ -11,7 +11,6 @@ test that does sample uses a two-parameter toy model.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 from types import SimpleNamespace
 
@@ -24,7 +23,7 @@ import pytest
 from language_reading_predictors.statistical_models.artifacts import ArtifactLog
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.reporting import (
-    _reuse_compatibility_contract,
+    write_run_metadata,
 )
 from language_reading_predictors.statistical_models.subfits import (
     PROVENANCE_COLUMNS,
@@ -105,13 +104,10 @@ def _write_reuse_contract(
         kind="historical_growth",
         title="sub-fit reuse contract",
     )
-    primary_trace = source / "trace.nc"
-    primary_trace.write_bytes(b"primary trace")
-    config = {
-        **_reuse_compatibility_contract(ctx),
-        "trace_sha256": hashlib.sha256(primary_trace.read_bytes()).hexdigest(),
-    }
-    (source / "config.json").write_text(json.dumps(config))
+    # Written by the real metadata writer, so the reuse contract stored beside a
+    # sub-fit is the one a real publication would carry (#637 stage 1).
+    (source / "trace.nc").write_bytes(b"primary trace")
+    write_run_metadata(SimpleNamespace(**{**vars(ctx), "output_dir": str(source)}))
 
     subfit_trace = source / trace_filename
     data = describe_fitted_data(built)

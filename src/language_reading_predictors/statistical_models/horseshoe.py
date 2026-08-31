@@ -11,6 +11,9 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "HorseshoeModelSettings",
@@ -44,14 +47,6 @@ _FAMILY_KEYS = frozenset(
 )
 _GLOBAL_KEYS = frozenset({"target_accept"})
 _LEGACY_KEYS = _FAMILY_KEYS | _GLOBAL_KEYS
-
-
-def _optional_bool(value: Any, *, name: str) -> bool | None:
-    if value is None:
-        return None
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a boolean or None, got {value!r}")
-    return value
 
 
 def _optional_string(value: Any, *, name: str) -> str | None:
@@ -115,7 +110,7 @@ class HorseshoeModelSettings:
     require_confirmed_inputs: bool = False
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "gain", _optional_bool(self.gain, name="gain"))
+        require_declared_booleans(self)
         for name in (
             "predictors",
             "language_composite_symbols",
@@ -149,13 +144,6 @@ class HorseshoeModelSettings:
             "gb_reference",
             _optional_string(self.gb_reference, name="gb_reference"),
         )
-        object.__setattr__(
-            self,
-            "use_age_predictor",
-            _optional_bool(self.use_age_predictor, name="use_age_predictor"),
-        )
-        if not isinstance(self.require_confirmed_inputs, bool):
-            raise TypeError("require_confirmed_inputs must be a boolean")
 
     @classmethod
     def from_legacy_extra(

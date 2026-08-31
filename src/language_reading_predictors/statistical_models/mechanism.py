@@ -33,7 +33,9 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
 )
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.itt import KAPPA_PRIOR_FAMILIES
+from language_reading_predictors.statistical_models.mechanism_design import (
+    validate_mechanism_design,
+)
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES, MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
@@ -41,6 +43,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
     load_and_prepare,
     split_covariates_by_wave,
+)
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
 )
 
 __all__ = [
@@ -229,6 +234,7 @@ class MechanismModelSettings:
     kappa_sigma: float | None = None
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         if self.outcomes is not None:
             object.__setattr__(
                 self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes")
@@ -249,26 +255,6 @@ class MechanismModelSettings:
             not isinstance(self.moderator_symbol, str) or not self.moderator_symbol
         ):
             raise TypeError("moderator_symbol must be a non-empty string or None")
-        for flag in (
-            "use_age_gp",
-            "phase_specific_mechanism",
-            "use_subject_random_intercept",
-            "moderator_is_covariate",
-            "include_interaction",
-            "linear_mechanism",
-            "mechanism_is_covariate",
-            "mechanism_at_pre",
-            "mech_lengthscale_tight",
-            "decompose_between_within",
-            "phase_varying_slope",
-        ):
-            if not isinstance(getattr(self, flag), bool):
-                raise TypeError(f"{flag} must be bool")
-        if self.kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
-            raise ValueError(
-                "kappa_prior_family must be one of "
-                f"{sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
-            )
         if self.kappa_sigma is not None:
             if isinstance(self.kappa_sigma, bool) or not isinstance(
                 self.kappa_sigma, (int, float)
@@ -277,66 +263,23 @@ class MechanismModelSettings:
             if not self.kappa_sigma > 0:
                 raise ValueError("kappa_sigma must be a positive number or None")
             object.__setattr__(self, "kappa_sigma", float(self.kappa_sigma))
-        if self.moderator_is_covariate and self.moderator_symbol is None:
-            raise ValueError("moderator_is_covariate requires moderator_symbol")
-        basis = self.mech_hsgp_m
-        if basis is not None:
-            if isinstance(basis, bool) or not isinstance(basis, int):
-                raise TypeError("mech_hsgp_m must be a positive integer or None")
-            if basis < 1:
-                raise ValueError("mech_hsgp_m must be a positive integer or None")
-        if self.linear_mechanism and (
-            self.mech_hsgp_m is not None or self.mech_lengthscale_tight
-        ):
-            raise ValueError(
-                "linear_mechanism cannot declare HSGP basis or lengthscale settings"
-            )
-        if self.linear_mechanism and self.phase_specific_mechanism:
-            raise ValueError(
-                "linear_mechanism cannot be combined with "
-                "phase_specific_mechanism; the factory's linear branch would "
-                "silently ignore the phase-specific declaration"
-            )
-        # #603 / #604: both sensitivities restructure the single linear slope. On an
-        # HSGP design there is no scalar to split or vary, so the declaration could
-        # only be honoured by building a different model than the one declared.
-        if self.decompose_between_within and not self.linear_mechanism:
-            raise ValueError(
-                "decompose_between_within requires linear_mechanism=True: a "
-                "between/within split of a nonparametric curve is a separate "
-                "design question, not a reparameterisation of this one"
-            )
-        if self.phase_varying_slope and not self.linear_mechanism:
-            raise ValueError(
-                "phase_varying_slope requires linear_mechanism=True; a per-period "
-                "HSGP curve is phase_specific_mechanism, which this family cannot "
-                "report"
-            )
-        if self.phase_varying_slope and self.phase_specific_mechanism:
-            raise ValueError(
-                "phase_varying_slope and phase_specific_mechanism are mutually "
-                "exclusive: the first varies one linear slope by period, the "
-                "second builds a separate curve per period"
-            )
-        # Neither sensitivity carries the moderation terms. ``gamma_int`` multiplies
-        # the *undecomposed* standardised exposure, so a moderated split fit would
-        # report a between/within decomposition beside an interaction built on the
-        # blend it exists to reject; a moderated period-varying fit would likewise
-        # vary the main slope by period while its interaction stayed pooled. Both are
-        # coherent designs, but neither is this one, and the report would describe
-        # the wrong model.
-        if self.moderator_symbol is not None and (
-            self.decompose_between_within or self.phase_varying_slope
-        ):
-            which = (
-                "decompose_between_within"
-                if self.decompose_between_within
-                else "phase_varying_slope"
-            )
-            raise ValueError(
-                f"{which} cannot be combined with moderator_symbol: the "
-                "interaction term would still be built on the pooled exposure"
-            )
+        # The cross-field design rules live in one place shared with the factory
+        # (#637 stage 1). They had drifted in both directions: the settings alone
+        # rejected linear+phase-specific, the factory alone rejected
+        # ``mechanism_at_pre`` beside a covariate exposure.
+        validate_mechanism_design(
+            linear_mechanism=self.linear_mechanism,
+            phase_specific_mechanism=self.phase_specific_mechanism,
+            phase_varying_slope=self.phase_varying_slope,
+            decompose_between_within=self.decompose_between_within,
+            mechanism_is_covariate=self.mechanism_is_covariate,
+            mechanism_at_pre=self.mechanism_at_pre,
+            moderator_symbol=self.moderator_symbol,
+            moderator_is_covariate=self.moderator_is_covariate,
+            mech_hsgp_m=self.mech_hsgp_m,
+            hsgp_lengthscale_declared=self.mech_lengthscale_tight,
+            kappa_prior_family=self.kappa_prior_family,
+        )
         object.__setattr__(
             self,
             "items_ref_quantiles",
@@ -790,11 +733,6 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
             f"{spec.model_id}: adjustment must declare exactly the fitted "
             f"autoregressive baseline {expected_baseline!r}; got "
             f"{declared_baselines!r}"
-        )
-    if settings.mechanism_at_pre and settings.mechanism_is_covariate:
-        raise ValueError(
-            f"{spec.model_id}: mechanism_at_pre is incompatible with "
-            "mechanism_is_covariate"
         )
     if settings.mechanism_is_covariate and spec.mechanism_symbol in settings.adjust_for:
         raise ValueError(

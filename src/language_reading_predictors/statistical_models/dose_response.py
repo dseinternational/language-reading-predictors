@@ -21,6 +21,9 @@ from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
 )
 from language_reading_predictors.statistical_models.measures import MEASURES
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 #: The registered phoneme-blending response-link pair for this family (#619, under
 #: the #608 policy). ``lrp-rli-dose-084`` fits the ordinary Beta-Binomial
@@ -95,12 +98,6 @@ def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
     return out
 
 
-def _boolean(value: Any, *, name: str) -> bool:
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a boolean, got {value!r}")
-    return value
-
-
 @dataclass(frozen=True, slots=True)
 class DoseResponseModelSettings:
     """Immutable declaration for one dose-response model."""
@@ -126,6 +123,7 @@ class DoseResponseModelSettings:
     score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self,
             "adjust_baseline_symbol",
@@ -169,14 +167,6 @@ class DoseResponseModelSettings:
                 f"got {self.score_mean_link!r}"
             )
         object.__setattr__(self, "ability_baseline_wave", wave)
-        for name in (
-            "period_varying_dose",
-            "use_subject_random_intercept",
-            "decompose_between_within",
-            "adjust_group",
-            "adjust_age",
-        ):
-            object.__setattr__(self, name, _boolean(getattr(self, name), name=name))
 
     @classmethod
     def from_legacy_extra(

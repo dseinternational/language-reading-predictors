@@ -54,6 +54,9 @@ from typing import Any
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.itt import KAPPA_PRIOR_FAMILIES
 from language_reading_predictors.statistical_models.likelihood import SCORE_MEAN_LINKS
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 #: The registered phoneme-blending response-link pair for this family (#576
 #: finding 2): the ordinary-logit primary and its one-in-three guessing-floor
@@ -246,21 +249,12 @@ class DiDModelSettings:
     kappa_prior_sigma: float | None = None
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes")
         )
         object.__setattr__(self, "waves", _tuple_of_ints(self.waves, name="waves"))
         object.__setattr__(self, "periods", _tuple_of_ints(self.periods, name="periods"))
-        for flag in (
-            "dose",
-            "period_varying_dose",
-            "use_child_re",
-            "use_age",
-            "use_varying_delta",
-            "use_intercept_anchor",
-        ):
-            if not isinstance(getattr(self, flag), bool):
-                raise TypeError(f"{flag} must be bool")
         if not self.use_intercept_anchor and self.dose:
             raise ValueError(
                 "use_intercept_anchor=False is the arm-by-wave independent-prior "

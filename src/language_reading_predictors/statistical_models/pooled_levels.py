@@ -82,6 +82,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
     standardise,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 _ALLOWED_KEYS = frozenset(
     {
@@ -158,6 +161,7 @@ class PooledLevelsModelSettings:
     skill_symbols: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(self, "adjust_for", _tuple_of_strings(self.adjust_for, name="adjust_for"))
         object.__setattr__(
             self, "require_observed", _tuple_of_strings(self.require_observed, name="require_observed")
@@ -165,8 +169,6 @@ class PooledLevelsModelSettings:
         object.__setattr__(
             self, "skill_symbols", _tuple_of_strings(self.skill_symbols, name="skill_symbols")
         )
-        if not isinstance(self.mechanism_is_covariate, bool):
-            raise TypeError("mechanism_is_covariate must be bool")
         if len(set(self.skill_symbols)) != len(self.skill_symbols):
             raise ValueError("skill_symbols must not repeat")
         object.__setattr__(self, "waves", tuple(int(w) for w in self.waves))

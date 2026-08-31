@@ -26,6 +26,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "BlockExposureModelSettings",
@@ -76,6 +79,7 @@ class BlockExposureModelSettings:
     delta_prior_sigma: float | None = None
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         if self.ability_covariate is not None and (
             not isinstance(self.ability_covariate, str) or not self.ability_covariate
         ):
@@ -93,8 +97,6 @@ class BlockExposureModelSettings:
                 name="drop_ceiling_violations",
             ),
         )
-        if not isinstance(self.use_child_re, bool):
-            raise TypeError("use_child_re must be a boolean")
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, "

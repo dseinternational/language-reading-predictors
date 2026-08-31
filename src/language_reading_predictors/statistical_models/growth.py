@@ -30,6 +30,9 @@ import numpy as np
 import pandas as pd
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 # The complete, closed set of legacy ``spec.extra`` keys the growth family
 # understands. Anything else is a typo and must fail before a fit starts.
@@ -86,6 +89,7 @@ class GrowthModelSettings:
     observation_influence_sensitivity: bool = False
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes")
         )
@@ -114,15 +118,6 @@ class GrowthModelSettings:
             or self.min_outcome_waves < 1
         ):
             raise TypeError("min_outcome_waves must be a positive integer")
-        for flag in (
-            "use_shared_factor",
-            "use_random_slope",
-            "age_ability_interaction",
-            "adjust_for_group",
-            "observation_influence_sensitivity",
-        ):
-            if not isinstance(getattr(self, flag), bool):
-                raise TypeError(f"{flag} must be bool")
 
     @classmethod
     def from_legacy_extra(

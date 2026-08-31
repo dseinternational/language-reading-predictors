@@ -37,6 +37,9 @@ from language_reading_predictors.statistical_models.likelihood import (
     SCORE_MEAN_LINKS,
     ScoreMeanLink,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 #: The registered phoneme-blending response-link pair for this family (#619, under
 #: the #608 policy). ``lrp-rli-al-006`` fits the ordinary Beta-Binomial
@@ -87,13 +90,11 @@ class AlignedModelSettings:
     score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         if self.ability_covariate is not None and (
             not isinstance(self.ability_covariate, str) or not self.ability_covariate
         ):
             raise TypeError("ability_covariate must be a non-empty string or None")
-        for flag in ("use_cohort", "use_dose"):
-            if not isinstance(getattr(self, flag), bool):
-                raise TypeError(f"{flag} must be bool")
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"

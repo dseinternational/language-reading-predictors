@@ -29,6 +29,9 @@ from language_reading_predictors.statistical_models.historical_growth import (
     check_declared_waves,
     check_extension_after_core,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "HISTORICAL_JOINT_PRIOR_COMPANIONS",
@@ -129,6 +132,7 @@ class HistoricalJointModelSettings:
     within_lkj_eta: float = 2.0
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(self, "measures", _tuple_of_strings(self.measures, name="measures"))
         if len(self.measures) < 2:
             raise ValueError("historical_joint measures must contain at least two measures")
@@ -153,11 +157,6 @@ class HistoricalJointModelSettings:
             "within_lkj_eta",
         ):
             object.__setattr__(self, name, _positive_float(getattr(self, name), name=name))
-        if not isinstance(self.within_correlation, bool):
-            raise TypeError(
-                "within_correlation must be a boolean, got "
-                f"{self.within_correlation!r}"
-            )
         if self.within_correlation and self.extension_waves:
             raise ValueError(
                 "within_correlation requires a balanced complete-case window; "

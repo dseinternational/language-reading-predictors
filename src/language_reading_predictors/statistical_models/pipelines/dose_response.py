@@ -45,6 +45,8 @@ from language_reading_predictors.statistical_models.preprocessing import (
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
     pushforward_outcome_label,
+    PriorEvidenceUnavailable,
+    require_prior_evidence,
     write_prior_pushforward,
 )
 from language_reading_predictors.statistical_models.publication import (
@@ -636,20 +638,12 @@ def write_dose_slope_summary(
     focal = focal_term_name
     source = getattr(ctx, "prior_samples", None) or ctx.trace
     try:
-        prior_group = source.prior
-        prior_items = dose_marginal_draws(
-            prior_group,
-            phase_idx=phase_idx,
-            delta_std=contrast_std,
-            n_trials=n_trials,
-            period_varying=period_varying,
-            row_mask=marginal_row_mask,
-            score_mean_link=score_mean_link,
+        prior_group = require_prior_evidence(
+            source,
+            terms=(focal, "eta"),
+            what="the dose-marginal prior check",
         )
-        prior_logit = (
-            prior_group[focal].stack(sample=("chain", "draw")).values.ravel()
-        )
-    except Exception as exc:  # noqa: BLE001 - an absent prior group must stay legible
+    except PriorEvidenceUnavailable as exc:
         pushforward_rows = [
             _report.unavailable_pushforward(
                 estimand=focal,
@@ -662,6 +656,21 @@ def write_dose_slope_summary(
             )
         ]
     else:
+        # Past the availability check the transform must succeed or fail the fit
+        # (#637 stage 1) — it is the same function, rows and denominator the
+        # posterior marginal above uses.
+        prior_items = dose_marginal_draws(
+            prior_group,
+            phase_idx=phase_idx,
+            delta_std=contrast_std,
+            n_trials=n_trials,
+            period_varying=period_varying,
+            row_mask=marginal_row_mask,
+            score_mean_link=score_mean_link,
+        )
+        prior_logit = (
+            prior_group[focal].stack(sample=("chain", "draw")).values.ravel()
+        )
         pushforward_rows = [
             _report.labelled_pushforward(
                 _report.pushforward_values(

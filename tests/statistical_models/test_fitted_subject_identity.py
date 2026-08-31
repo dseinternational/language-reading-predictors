@@ -15,7 +15,7 @@ import pytest
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.reporting import (
-    _reuse_compatibility_contract,
+    REUSE_CONTRACT_KEY,
     fitted_subject_identity,
     require_reuse_compatibility,
     write_run_metadata,
@@ -93,15 +93,16 @@ def _reuse_context(tmp_path):
 
 
 def _compatible_publication(tmp_path, context):
+    """A prior publication written by the real metadata writer (#637 stage 1).
+
+    This fixture used to serialise ``_reuse_compatibility_contract`` straight into
+    ``config.json``, which hid the fact that ``write_run_metadata`` did not persist
+    every bound field: the round trip a real reuse performs could not pass.
+    """
     source = tmp_path / "published"
-    source.mkdir()
-    trace = source / "trace.nc"
-    trace.write_bytes(b"persisted trace")
-    config = {
-        **_reuse_compatibility_contract(context),
-        "trace_sha256": hashlib.sha256(trace.read_bytes()).hexdigest(),
-    }
-    (source / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    source.mkdir(exist_ok=True)
+    (source / "trace.nc").write_bytes(b"persisted trace")
+    write_run_metadata(SimpleNamespace(**{**vars(context), "output_dir": str(source)}))
     return source
 
 
@@ -193,7 +194,7 @@ def test_reuse_contract_rejects_prior_config_data_or_tier_drift(
     source = _compatible_publication(tmp_path, context)
     config_path = source / "config.json"
     config = json.loads(config_path.read_text())
-    config[field] = replacement
+    config[REUSE_CONTRACT_KEY][field] = replacement
     config_path.write_text(json.dumps(config))
 
     with pytest.raises(ValueError, match=field):
@@ -204,9 +205,13 @@ def test_reuse_contract_rejects_recipe_or_trace_mutation(tmp_path):
     context = _reuse_context(tmp_path)
     current_recipe = tmp_path / "current" / "model_recipe.md"
     current_recipe.write_text("registered recipe\n")
-    source = _compatible_publication(tmp_path, context)
-    prior_recipe = source / "model_recipe.md"
+    # Both recipes must exist *before* the publication is written: the contract
+    # records the recipe filename only when the file is beside the fit, and the
+    # real writer computes it as it writes.
+    prior_recipe = tmp_path / "published" / "model_recipe.md"
+    prior_recipe.parent.mkdir(parents=True, exist_ok=True)
     prior_recipe.write_text("registered recipe\n")
+    source = _compatible_publication(tmp_path, context)
 
     require_reuse_compatibility(context, source)
 

@@ -67,6 +67,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 # The complete, closed set of legacy ``spec.extra`` keys the level-factor family
 # understands. Anything else is a typo and must fail before a fit starts.
@@ -184,6 +187,7 @@ class LevelFactorsModelSettings:
     waves: tuple[str, ...] = WAVE_LABELS
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self, "adjust_for", _tuple_of_strings(self.adjust_for, name="adjust_for")
         )
@@ -191,9 +195,6 @@ class LevelFactorsModelSettings:
             not isinstance(self.ability_covariate, str) or not self.ability_covariate
         ):
             raise TypeError("ability_covariate must be a non-empty string or None")
-        for flag in ("group_by_time", "ability_by_time", "group_ability"):
-            if not isinstance(getattr(self, flag), bool):
-                raise TypeError(f"{flag} must be bool")
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"

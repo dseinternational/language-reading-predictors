@@ -2582,13 +2582,70 @@ def test_fit_time_evaluation_does_not_require_the_manifest(tmp_path):
 
     ``stages`` calls ``evaluate_publication(..., artifacts=ctx.artifacts)`` and
     only then writes ``artifact_manifest.json``, so requiring the file on the
-    fit-time path would withhold every fit.
+    fit-time path would withhold every fit. The manifest is the *only* exemption:
+    the core floor below applies to both paths.
     """
-    d = _fit_dir(tmp_path, core_artifacts=False)
+    d = _fit_dir(tmp_path)
     log = ArtifactLog()
     evaluation = evaluate_publication(d, artifacts=log)
     assert evaluation.status == "ok"
     assert evaluation.publishable is True
+
+
+def test_fit_time_evaluation_still_requires_the_core_inventory(tmp_path):
+    """The floor is a property of the directory, not of who is asking (#637).
+
+    A fit whose posterior and shared tables are absent published during the fit
+    and came back ``artifacts_incomplete`` when the same directory was re-decided
+    at render time.
+    """
+    d = _fit_dir(tmp_path, core_artifacts=False)
+    evaluation = evaluate_publication(d, artifacts=ArtifactLog())
+    assert evaluation.publishable is False
+    assert evaluation.stage == "artifacts"
+    assert "trace.nc" in evaluation.missing_artifacts
+    # The manifest stays exempt on this path — it has not been written yet.
+    assert not any(
+        "artifact_manifest.json" in m for m in evaluation.missing_artifacts
+    )
+
+
+@pytest.mark.parametrize("core_artifacts", [True, False])
+def test_live_and_stored_release_decisions_agree_across_manifest_writing(
+    tmp_path, core_artifacts
+):
+    """The same directory must decide the same either side of ``write_manifest``.
+
+    ``stages.finalize_report`` evaluates with the live log and *then* writes
+    ``artifact_manifest.json``; ``_key_findings.qmd`` and
+    ``scripts/regenerate_key_findings.py`` re-decide the stored directory later.
+    Those two answers were allowed to differ (#637 stage 1).
+    """
+    from language_reading_predictors.statistical_models.artifacts import write_manifest
+
+    d = _fit_dir(tmp_path, core_artifacts=core_artifacts)
+    ctx = _ctx(d)
+    for name in ("trace", "diagnostics", "priors_table"):
+        filename = "trace.nc" if name == "trace" else f"{name}.csv"
+        ctx.artifacts.record(
+            ArtifactRecord(
+                name=name,
+                filename=filename,
+                kind="table",
+                required=True,
+                status="written",
+            )
+        )
+
+    live = evaluate_publication(d, artifacts=ctx.artifacts)
+    write_manifest(ctx)
+    stored = evaluate_publication(d)
+
+    assert live.status == stored.status
+    assert live.stage == stored.stage
+    assert live.publishable is stored.publishable
+    assert set(live.missing_artifacts) == set(stored.missing_artifacts)
+    assert live.publishable is core_artifacts
 
 
 # ---------------------------------------------------------------------------

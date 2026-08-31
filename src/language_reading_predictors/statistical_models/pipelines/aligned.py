@@ -43,6 +43,8 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare_aligned,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
+    PriorEvidenceUnavailable,
+    require_prior_evidence,
     write_prior_pushforward,
 )
 from language_reading_predictors.statistical_models.publication import (
@@ -149,6 +151,24 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # one-unit marginal — the same transform ``treatment_marginal_effect``
         # above runs on the posterior.
         try:
+            require_prior_evidence(
+                ctx.prior_samples,
+                terms=("beta_cohort", "eta"),
+                what="the cohort-contrast prior check",
+            )
+        except PriorEvidenceUnavailable as exc:
+            rows = [
+                _report.unavailable_pushforward(
+                    estimand="beta_cohort",
+                    estimand_label="the per-protocol cohort contrast",
+                    role="association",
+                    reason=str(exc),
+                )
+            ]
+        else:
+            # No broad handler (#637 stage 1): past the availability check, a
+            # failure here is a defect in the transform, not missing evidence, and
+            # must fail the fit rather than be recorded as "check unavailable".
             pf = _report.prior_pushforward(
                 ctx.prior_samples, G=cohort, n_trials=n_marg,
                 term="beta_cohort", varying_term="", ci_prob=ctx.reporting.ci_prob,
@@ -163,15 +183,6 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                         "randomised effect)"
                     ),
                     role="association",
-                )
-            ]
-        except Exception as exc:  # noqa: BLE001 - absence must stay legible
-            rows = [
-                _report.unavailable_pushforward(
-                    estimand="beta_cohort",
-                    estimand_label="the per-protocol cohort contrast",
-                    role="association",
-                    reason=str(exc),
                 )
             ]
         write_prior_pushforward(ctx, rows)

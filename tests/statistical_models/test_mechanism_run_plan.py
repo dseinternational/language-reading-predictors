@@ -303,12 +303,6 @@ def test_complete_case_adjuster_auto_loads_filter_indicator_without_fitting_it()
     [
         (
             M.MechanismModelSettings(
-                mechanism_is_covariate=True, mechanism_at_pre=True
-            ),
-            "mechanism_at_pre is incompatible",
-        ),
-        (
-            M.MechanismModelSettings(
                 mechanism_is_covariate=True, adjust_for=("L",)
             ),
             "must not also appear in adjust_for",
@@ -330,6 +324,158 @@ def test_complete_case_adjuster_auto_loads_filter_indicator_without_fitting_it()
 def test_resolve_rejects_cross_field_contradictions(settings, match):
     with pytest.raises(ValueError, match=match):
         M.resolve_mechanism_run_plan(_spec(settings=settings))
+
+
+# ---------------------------------------------------------------------------
+# One shared design validator for settings and factory (#637 stage 1)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def mechanism_prepared(tmp_path_factory):
+    """Synthetic all-phase rows, enough to build a real mechanism model."""
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+    )
+
+    from .test_factories import _write_synthetic
+
+    path = _write_synthetic(tmp_path_factory.mktemp("mech_design"))
+    return load_and_prepare(path=path, phase_mode="all")
+
+
+#: Every well-typed mechanism design the family cannot build as declared, with
+#: the settings keyword and the direct-factory keyword for each. The two entry
+#: points must reject each one identically: the settings alone used to refuse
+#: ``linear_mechanism`` beside ``phase_specific_mechanism`` (the factory built the
+#: linear branch and dropped the request), and the factory alone used to refuse
+#: ``mechanism_at_pre`` beside a covariate exposure (the settings let it through to
+#: fail after the output directory had been reset and the data loaded).
+INVALID_MECHANISM_DESIGNS: tuple[tuple[str, dict, dict, str], ...] = (
+    (
+        "linear_with_phase_specific",
+        {"linear_mechanism": True, "phase_specific_mechanism": True},
+        {"linear_mechanism": True, "phase_specific_mechanism": True},
+        "linear_mechanism cannot be combined with phase_specific_mechanism",
+    ),
+    (
+        "at_pre_with_covariate_exposure",
+        {"mechanism_at_pre": True, "mechanism_is_covariate": True},
+        {"mechanism_at_pre": True, "mechanism_is_covariate": True},
+        "mechanism_at_pre is incompatible with mechanism_is_covariate",
+    ),
+    (
+        "linear_with_hsgp_basis",
+        {"linear_mechanism": True, "mech_hsgp_m": 6},
+        {"linear_mechanism": True, "mech_hsgp_m": 6},
+        "linear_mechanism cannot declare HSGP basis or lengthscale settings",
+    ),
+    (
+        "linear_with_lengthscale",
+        {"linear_mechanism": True, "mech_lengthscale_tight": True},
+        {"linear_mechanism": True, "mech_lengthscale_prior": "tight"},
+        "linear_mechanism cannot declare HSGP basis or lengthscale settings",
+    ),
+    (
+        "between_within_without_linear",
+        {"decompose_between_within": True},
+        {"decompose_between_within": True},
+        "decompose_between_within requires linear_mechanism=True",
+    ),
+    (
+        "phase_varying_without_linear",
+        {"phase_varying_slope": True},
+        {"phase_varying_slope": True},
+        "phase_varying_slope requires linear_mechanism=True",
+    ),
+    (
+        "phase_varying_with_phase_specific",
+        {
+            "linear_mechanism": True,
+            "phase_varying_slope": True,
+            "phase_specific_mechanism": True,
+        },
+        {
+            "linear_mechanism": True,
+            "phase_varying_slope": True,
+            "phase_specific_mechanism": True,
+        },
+        # The dedicated "mutually exclusive" message below it in the validator is
+        # unreachable: reaching it needs ``linear_mechanism=True``, which this
+        # earlier rule already refuses beside per-period curves. What matters here
+        # is that both entry points refuse the combination for the same reason.
+        "linear_mechanism cannot be combined with phase_specific_mechanism",
+    ),
+    (
+        "moderated_between_within",
+        {
+            "linear_mechanism": True,
+            "decompose_between_within": True,
+            "moderator_symbol": "erbto",
+        },
+        {
+            "linear_mechanism": True,
+            "decompose_between_within": True,
+            "moderator_symbol": "erbto",
+        },
+        "cannot be combined with moderator_symbol",
+    ),
+    (
+        "moderator_covariate_without_symbol",
+        {"moderator_is_covariate": True},
+        {"moderator_is_covariate": True},
+        "moderator_is_covariate requires moderator_symbol",
+    ),
+    (
+        "non_positive_basis",
+        {"mech_hsgp_m": 0},
+        {"mech_hsgp_m": 0},
+        "mech_hsgp_m must be a positive",
+    ),
+    (
+        "unknown_kappa_family",
+        {"kappa_prior_family": "cauchy"},
+        {"kappa_prior_family": "cauchy"},
+        "kappa_prior_family must be one of",
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("settings_kwargs", "match"),
+    [(case[1], case[3]) for case in INVALID_MECHANISM_DESIGNS],
+    ids=[case[0] for case in INVALID_MECHANISM_DESIGNS],
+)
+def test_settings_reject_every_invalid_mechanism_design(settings_kwargs, match):
+    with pytest.raises(ValueError, match=match):
+        M.MechanismModelSettings(**settings_kwargs)
+
+
+@pytest.mark.parametrize(
+    ("factory_kwargs", "match"),
+    [(case[2], case[3]) for case in INVALID_MECHANISM_DESIGNS],
+    ids=[case[0] for case in INVALID_MECHANISM_DESIGNS],
+)
+def test_the_direct_factory_rejects_every_invalid_mechanism_design(
+    factory_kwargs, match, mechanism_prepared
+):
+    """Identical rejection, whichever entry point declares the design."""
+    from language_reading_predictors.statistical_models import priors
+    from language_reading_predictors.statistical_models.factories import (
+        build_mechanism_model,
+    )
+
+    kwargs = dict(factory_kwargs)
+    if kwargs.get("mech_lengthscale_prior") == "tight":
+        kwargs["mech_lengthscale_prior"] = priors.ell_prior_mech_tight()
+    with pytest.raises(ValueError, match=match):
+        build_mechanism_model(
+            mechanism_prepared,
+            mechanism_symbol="L",
+            outcome_symbol="W",
+            confounder_symbols=("G", "A"),
+            **kwargs,
+        )
 
 
 @pytest.mark.parametrize(
@@ -921,3 +1067,82 @@ def test_main_effect_only_companion_records_no_interaction():
     kinds = [t["kind"] for t in record["fitted"]]
     assert kinds.count("moderator_main_effect") == 1
     assert "moderator_interaction" not in kinds
+
+#: The exposure terms each valid mechanism design must build, and the ones it must
+#: not. The silent-fallback defect this stage repairs was invisible precisely
+#: because nobody asserted the node set: ``linear_mechanism`` beside
+#: ``phase_specific_mechanism`` produced a model carrying one pooled ``beta_mech``
+#: and no per-phase curve, which is a different model from the declared one.
+VALID_MECHANISM_DESIGNS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]], ...] = (
+    (
+        "hsgp_curve",
+        {},
+        ("f_mech__ell", "f_mech__eta", "f_mech__g_unit_hsgp_coeffs"),
+        ("beta_mech", "beta_between", "beta_within", "beta_mech_phase_raw"),
+    ),
+    (
+        "phase_specific_curves",
+        {"phase_specific_mechanism": True},
+        (
+            "f_mech_phase0__eta",
+            "f_mech_phase1__eta",
+            "f_mech_phase2__eta",
+        ),
+        ("beta_mech", "f_mech__eta"),
+    ),
+    (
+        "linear_slope",
+        {"linear_mechanism": True},
+        ("beta_mech",),
+        ("f_mech__eta", "beta_between", "beta_within", "beta_mech_phase_raw"),
+    ),
+    (
+        "linear_between_within",
+        {"linear_mechanism": True, "decompose_between_within": True},
+        ("beta_between", "beta_within"),
+        ("beta_mech", "f_mech__eta", "beta_mech_phase_raw"),
+    ),
+    (
+        "linear_phase_varying",
+        {"linear_mechanism": True, "phase_varying_slope": True},
+        ("mu_mech", "sigma_mech_phase", "beta_mech_phase_raw"),
+        ("beta_mech", "f_mech__eta", "beta_between"),
+    ),
+    (
+        "linear_between_within_phase_varying",
+        {
+            "linear_mechanism": True,
+            "decompose_between_within": True,
+            "phase_varying_slope": True,
+        },
+        ("beta_between", "mu_mech", "sigma_mech_phase", "beta_mech_phase_raw"),
+        ("beta_mech", "beta_within", "f_mech__eta"),
+    ),
+)
+
+
+@pytest.mark.parametrize(
+    ("factory_kwargs", "expected", "forbidden"),
+    [(case[1], case[2], case[3]) for case in VALID_MECHANISM_DESIGNS],
+    ids=[case[0] for case in VALID_MECHANISM_DESIGNS],
+)
+def test_every_valid_mechanism_design_builds_the_terms_it_declares(
+    factory_kwargs, expected, forbidden, mechanism_prepared
+):
+    from language_reading_predictors.statistical_models.factories import (
+        build_mechanism_model,
+    )
+
+    built = build_mechanism_model(
+        mechanism_prepared,
+        mechanism_symbol="L",
+        outcome_symbol="W",
+        confounder_symbols=("G", "A"),
+        **factory_kwargs,
+    )
+    names = {variable.name for variable in built.model.free_RVs}
+    assert set(expected) <= names, sorted(set(expected) - names)
+    assert not set(forbidden) & names, sorted(set(forbidden) & names)
+    # Common to every design: the phase intercepts, the outcome baseline, the
+    # child random intercept and the Beta-Binomial concentration.
+    assert {"alpha", "alpha_phase", "gamma_own", "kappa", "sigma_child"} <= names

@@ -52,6 +52,8 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
 from language_reading_predictors.statistical_models.prior_artifacts import (
+    PriorEvidenceUnavailable,
+    require_prior_evidence,
     write_prior_pushforward,
 )
 from language_reading_predictors.statistical_models.publication import (
@@ -842,25 +844,29 @@ def _write_mechanism_prior_pushforward(
     and its implied curve range is what says whether a flat fitted curve is
     evidence of no dose-response or an artefact of the prior.
 
-    Never raises: this rides on the items-curve writer, and a prior check that
-    could abort the fitted curve it accompanies would trade a bigger deliverable
-    for a smaller one.
+    Raises only for a defect (#637 stage 1). Absent prior evidence — no persisted
+    prior group — is recorded as an ``unavailable`` row, because that is an honest
+    absence; a resolution failure, a mismatched exposure vector or an unregistered
+    outcome is not, and the previous blanket handler turned all three into a table
+    reading "check unavailable" that release accepted on presence alone.
     """
     from language_reading_predictors.statistical_models.measures import MEASURES
     from language_reading_predictors.statistical_models.mechanism_items import (
         mechanism_items_curve,
     )
 
-    label = "the mechanism dose-response contrast"
+    n_trials = MEASURES[outcome].n_trials
+    q_lo = int(round(100 * ref_quantiles[0]))
+    q_hi = int(round(100 * ref_quantiles[1]))
+    label = (
+        f"the predicted difference on {MEASURES[outcome].label} between the "
+        f"{q_hi}th and {q_lo}th percentile of {exposure_label}"
+    )
+    source = getattr(ctx, "prior_samples", None) or ctx.trace
     try:
-        n_trials = MEASURES[outcome].n_trials
-        q_lo = int(round(100 * ref_quantiles[0]))
-        q_hi = int(round(100 * ref_quantiles[1]))
-        label = (
-            f"the predicted difference on {MEASURES[outcome].label} between the "
-            f"{q_hi}th and {q_lo}th percentile of {exposure_label}"
+        require_prior_evidence(
+            source, terms=("eta",), what="the mechanism-curve prior check"
         )
-        source = getattr(ctx, "prior_samples", None) or ctx.trace
         _, worked = mechanism_items_curve(
             source,
             x_exposure=x_exposure,
@@ -891,7 +897,11 @@ def _write_mechanism_prior_pushforward(
                 role="association",
             )
         ]
-    except Exception as exc:  # noqa: BLE001 - absence must stay legible
+    except PriorEvidenceUnavailable as exc:
+        # Narrow by design (#637 stage 1). ``mechanism_items_curve`` resolves the
+        # exposure term the model actually built, so a KeyError or a mismatched
+        # exposure vector past this point is a defect in the curve, not absent
+        # prior evidence, and must fail the fit.
         rows = [
             _report.unavailable_pushforward(
                 estimand="mechanism_curve",

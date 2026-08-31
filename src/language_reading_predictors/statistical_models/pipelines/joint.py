@@ -51,6 +51,8 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
+    PriorEvidenceUnavailable,
+    require_prior_evidence,
     write_prior_pushforward,
 )
 from language_reading_predictors.statistical_models.publication import (
@@ -241,14 +243,12 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # cannot describe it; the rows run through ``_joint_ame_draws``, the same core
     # the posterior marginals above use.
     try:
-        pf_rows = _report.joint_prior_pushforward(
+        require_prior_evidence(
             ctx.prior_samples,
-            outcomes=outcomes,
-            G=built.prepared.G,
-            n_trials=built.prepared.n_trials,
-            ci_prob=ctx.reporting.ci_prob,
+            terms=("tau", "eta"),
+            what="the per-outcome treatment-effect prior check",
         )
-    except Exception as exc:  # noqa: BLE001 - absence must stay legible
+    except PriorEvidenceUnavailable as exc:
         pf_rows = [
             _report.unavailable_pushforward(
                 estimand="tau",
@@ -257,6 +257,16 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 reason=str(exc),
             )
         ]
+    else:
+        # Narrow by design (#637 stage 1): a wrong outcome dimension or a missing
+        # denominator is a defect, not absent prior evidence.
+        pf_rows = _report.joint_prior_pushforward(
+            ctx.prior_samples,
+            outcomes=outcomes,
+            G=built.prepared.G,
+            n_trials=built.prepared.n_trials,
+            ci_prob=ctx.reporting.ci_prob,
+        )
     write_prior_pushforward(ctx, pf_rows)
 
     contrast = _report.tau_contrast_matrix(
