@@ -70,6 +70,9 @@ from language_reading_predictors.statistical_models.fitted_payloads import (
 from language_reading_predictors.statistical_models.level_factors import (
     POST_PHASE_LABELS,
 )
+from language_reading_predictors.statistical_models.mechanism_design import (
+    validate_mechanism_design,
+)
 from language_reading_predictors.statistical_models.likelihood import (
     SCORE_MEAN_LINKS,
     ScoreMeanLink,
@@ -1664,9 +1667,12 @@ def build_mechanism_model(
     chance floor ≈ 3.3, ~19% at ceiling), where a smaller basis and a lengthscale prior
     with a thinner short-lengthscale tail smooth the boundary geometry that otherwise
     diverges even at target_accept 0.999. Applies to both the standard and the
-    ``phase_specific_mechanism`` ``f_mech`` builds; ``linear_mechanism`` ignores them
-    (no HSGP is built). Only ``None`` selects the default — a non-positive
-    ``mech_hsgp_m`` raises rather than falling back silently.
+    ``phase_specific_mechanism`` ``f_mech`` builds; ``linear_mechanism`` builds no
+    HSGP at all and so **rejects** them rather than ignoring them (#637 stage 1 —
+    the settings layer had always refused that combination, and a factory that
+    accepted it built a different model than the one declared). Only ``None``
+    selects the default — a non-positive ``mech_hsgp_m`` raises rather than falling
+    back silently.
     """
     # Materialise once: ``confounder_symbols`` is iterated several times below
     # (keep-mask, coefficient loop, the "A in confounders" check, and the
@@ -1677,47 +1683,25 @@ def build_mechanism_model(
     adjust_for = tuple(adjust_for)
     if prepared.phase_mode != "all":
         raise ValueError("Mechanism factory requires phase_mode='all'")
-    if mechanism_at_pre and mechanism_is_covariate:
-        raise ValueError(
-            "mechanism_at_pre is incompatible with mechanism_is_covariate: a "
-            "standardised covariate exposure has no separate period-start score."
-        )
-    # The thin-support knobs below are resolved with ``is None``, not ``or``, so a
-    # spec that mistypes a falsy value is not silently read as "use the shared
-    # default". ``mech_hsgp_m=0`` is a misconfiguration, not a request for
-    # ``_MECH_HSGP_M`` — fail on it here rather than downstream in the HSGP build.
-    if mech_hsgp_m is not None and mech_hsgp_m < 1:
-        raise ValueError(
-            "mech_hsgp_m must be a positive HSGP basis count (or None for the "
-            f"shared default {_MECH_HSGP_M}); got {mech_hsgp_m!r}."
-        )
-    # The two #603/#604 sensitivities restructure the *linear* exposure term. On the
-    # HSGP path there is no scalar slope to split or vary, and silently ignoring the
-    # request would publish a report describing a model that was never fitted. The
-    # run plan rejects these combinations before any I/O; this is the factory-level
-    # backstop for a direct caller.
-    if decompose_between_within and not linear_mechanism:
-        raise ValueError(
-            "decompose_between_within requires linear_mechanism=True: a "
-            "between/within split of a nonparametric curve is a different design, "
-            "not a reparameterisation of this one."
-        )
-    if phase_varying_slope and not linear_mechanism:
-        raise ValueError(
-            "phase_varying_slope requires linear_mechanism=True; per-phase HSGP "
-            "curves are phase_specific_mechanism, which the pipeline cannot report."
-        )
-    if phase_varying_slope and phase_specific_mechanism:
-        raise ValueError(
-            "phase_varying_slope and phase_specific_mechanism are mutually "
-            "exclusive: the first varies one linear slope by period, the second "
-            "builds a separate curve per period."
-        )
-    if kappa_prior_family not in ("halfnormal_concentration", "halfnormal_inverse_sqrt"):
-        raise ValueError(
-            "kappa_prior_family must be 'halfnormal_concentration' or "
-            f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
-        )
+    # One design validator, shared with ``MechanismModelSettings`` (#637 stage 1).
+    # The two lists had drifted apart in both directions, and the direct entry
+    # point's gap was the damaging one: ``linear_mechanism`` with
+    # ``phase_specific_mechanism`` selected the linear branch below, built one
+    # pooled ``beta_mech`` and dropped the per-period request without a word.
+    validate_mechanism_design(
+        linear_mechanism=linear_mechanism,
+        phase_specific_mechanism=phase_specific_mechanism,
+        phase_varying_slope=phase_varying_slope,
+        decompose_between_within=decompose_between_within,
+        mechanism_is_covariate=mechanism_is_covariate,
+        mechanism_at_pre=mechanism_at_pre,
+        moderator_symbol=moderator_symbol,
+        moderator_is_covariate=moderator_is_covariate,
+        mech_hsgp_m=mech_hsgp_m,
+        hsgp_lengthscale_declared=mech_lengthscale_prior is not None,
+        kappa_prior_family=kappa_prior_family,
+        default_hsgp_m=_MECH_HSGP_M,
+    )
     if mechanism_is_covariate:
         # A covariate exposure may enter EITHER linearly (a single ``beta_mech``
         # slope) OR as a nonparametric HSGP curve (``linear_mechanism=False``). The

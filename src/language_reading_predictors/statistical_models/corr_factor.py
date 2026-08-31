@@ -11,6 +11,9 @@ from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "CorrFactorModelSettings",
@@ -104,14 +107,6 @@ def _domains(value: Any) -> DomainItems:
     return tuple(out)
 
 
-def _optional_bool(value: Any, *, name: str) -> bool | None:
-    if value is None:
-        return None
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a boolean or None, got {value!r}")
-    return value
-
-
 def _positive_float(value: Any, *, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(f"{name} must be a number, got {value!r}")
@@ -171,18 +166,13 @@ class CorrFactorModelSettings:
     single_indicator_reliability: float | None = None
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(self, "domains", _domains(self.domains))
         for name in ("structural_covariates", "structural_factors"):
             object.__setattr__(
                 self,
                 name,
                 _optional_tuple_of_strings(getattr(self, name), name=name),
-            )
-        for name in ("use_group", "use_age"):
-            object.__setattr__(
-                self,
-                name,
-                _optional_bool(getattr(self, name), name=name),
             )
         for name in ("post_time", "wave"):
             object.__setattr__(

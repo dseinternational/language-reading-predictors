@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,7 +20,10 @@ from dse_research_utils.statistics import sampling_quality as sampling_quality_m
 from language_reading_predictors.statistical_models import diagnostics as diag
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.reporting import (
+    REUSE_CONTRACT_KEY,
     _reuse_compatibility_contract,
+    require_reuse_compatibility,
+    write_run_metadata,
 )
 
 
@@ -66,12 +68,19 @@ def _primary_reuse_context(tmp_path):
     )
     trace_path = source / "trace.nc"
     trace_path.write_bytes(b"persisted posterior bytes")
-    config = {
-        **_reuse_compatibility_contract(context),
-        "trace_sha256": hashlib.sha256(trace_path.read_bytes()).hexdigest(),
-    }
-    (source / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    # Publish through the real writer (#637 stage 1). The fixture used to
+    # serialise ``_reuse_compatibility_contract`` straight into ``config.json``,
+    # which is why nothing noticed that ``write_run_metadata`` never persisted
+    # ``model_design_identity``: the reader was only ever shown a config the
+    # writer could not have produced.
+    write_run_metadata(replace_namespace(context, output_dir=str(source)))
     return context, source
+
+
+def replace_namespace(context: SimpleNamespace, **overrides) -> SimpleNamespace:
+    """A copy of a namespace fit context with selected attributes replaced."""
+
+    return SimpleNamespace(**{**vars(context), **overrides})
 
 
 def test_reuse_trace_never_falls_back_to_fresh_sampling(tmp_path, monkeypatch):
@@ -87,6 +96,68 @@ def test_reuse_trace_never_falls_back_to_fresh_sampling(tmp_path, monkeypatch):
         diag.sample_posterior(context)
 
 
+def test_metadata_written_by_a_normal_fit_passes_reuse_validation(tmp_path):
+    """The writer-to-reader round trip, with nothing changed in between.
+
+    ``_REUSE_CONFIG_FIELDS`` named ``model_design_identity`` and
+    ``_reuse_compatibility_contract`` computed it, but ``write_run_metadata``
+    persisted only ``fitted_data_identity`` — so an unchanged round trip failed
+    with a field the fit had never had the chance to record (#637 stage 1).
+    """
+    context, source = _primary_reuse_context(tmp_path)
+    stored = json.loads((source / "config.json").read_text(encoding="utf-8"))
+    assert stored[REUSE_CONTRACT_KEY]["model_design_identity"]["structure_sha256"]
+
+    require_reuse_compatibility(context, source)
+
+
+def test_the_documented_field_list_matches_the_serialised_contract(tmp_path):
+    """The doc list and the contract cannot drift apart unnoticed."""
+    from language_reading_predictors.statistical_models.reporting import (
+        _REUSE_CONFIG_FIELDS,
+    )
+
+    context, _source = _primary_reuse_context(tmp_path)
+    contract = _reuse_compatibility_contract(context)
+    assert set(_REUSE_CONFIG_FIELDS) == set(contract) - {"schema_version"}
+
+
+def test_reuse_is_refused_when_the_contract_schema_version_moves(tmp_path):
+    context, source = _primary_reuse_context(tmp_path)
+    config_path = source / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config[REUSE_CONTRACT_KEY]["schema_version"] = 0
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="schema_version"):
+        require_reuse_compatibility(context, source)
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "config_name",
+        "data_sha256",
+        "n_obs",
+        "fitted_data_identity",
+        "model_design_identity",
+        "environment_lock_sha256",
+        "resolved_run_plan",
+        "sampling",
+    ],
+)
+def test_reuse_still_fails_closed_on_every_bound_contract_field(tmp_path, field):
+    """Data, executable design, environment and plan identity all still bind."""
+    context, source = _primary_reuse_context(tmp_path)
+    config_path = source / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config[REUSE_CONTRACT_KEY][field] = "drifted"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=field):
+        require_reuse_compatibility(context, source)
+
+
 @pytest.mark.parametrize("field", ["config_name", "trace_sha256"])
 def test_primary_reuse_rejects_contract_or_trace_hash_drift_before_loading(
     tmp_path, monkeypatch, field
@@ -94,7 +165,10 @@ def test_primary_reuse_rejects_contract_or_trace_hash_drift_before_loading(
     context, source = _primary_reuse_context(tmp_path)
     config_path = source / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config[field] = "dev" if field == "config_name" else "0" * 64
+    if field == "trace_sha256":
+        config[field] = "0" * 64
+    else:
+        config[REUSE_CONTRACT_KEY][field] = "dev"
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
@@ -1493,16 +1567,23 @@ def test_reuse_is_refused_against_a_fit_predating_the_bindings(tmp_path, monkeyp
     context, source = _primary_reuse_context(tmp_path)
     config_path = source / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    config.pop("model_design_identity", None)
-    config.pop("environment_lock_sha256", None)
+    config[REUSE_CONTRACT_KEY].pop("model_design_identity", None)
+    config[REUSE_CONTRACT_KEY].pop("environment_lock_sha256", None)
     config_path.write_text(json.dumps(config), encoding="utf-8")
 
     with pytest.raises(ValueError, match="model_design_identity"):
-        _reuse_compatibility_contract  # imported at module scope
-        from language_reading_predictors.statistical_models.reporting import (
-            require_reuse_compatibility,
-        )
+        require_reuse_compatibility(context, source)
 
+
+def test_reuse_is_refused_against_a_fit_predating_the_serialised_contract(tmp_path):
+    """A config carrying only the historical top-level subset is refused."""
+    context, source = _primary_reuse_context(tmp_path)
+    config_path = source / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config.pop(REUSE_CONTRACT_KEY)
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=REUSE_CONTRACT_KEY):
         require_reuse_compatibility(context, source)
 
 

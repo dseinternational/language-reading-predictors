@@ -11,6 +11,9 @@ from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "LongCorrFactorModelSettings",
@@ -114,6 +117,7 @@ class LongCorrFactorModelSettings:
     trait_share_b: float = 1.5
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(self, "domains", _domains(self.domains))
         if self.loading_prior not in {"communality", "free"}:
             raise ValueError(

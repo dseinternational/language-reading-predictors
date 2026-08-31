@@ -3656,6 +3656,23 @@ def _resolved_run_plan(context: StatisticalFitContext):
     return None
 
 
+#: Version of the serialised reuse contract. Bumped when the *set* of bound
+#: fields changes, so a stored fit written under an older contract is refused by
+#: version rather than silently compared over whichever fields both happen to
+#: carry.
+_REUSE_CONTRACT_SCHEMA_VERSION = 1
+
+#: ``config.json`` key holding the whole serialised contract. The contract is
+#: written and compared as one value (#637 stage 1): the previous arrangement
+#: computed the contract, persisted a hand-picked subset of its fields at the top
+#: level and then compared the full field list, so ``model_design_identity`` — in
+#: the list, never written — made every writer-to-reader round trip fail.
+REUSE_CONTRACT_KEY = "reuse_contract"
+
+#: The bound fields, for documentation and for the test that holds this list and
+#: :func:`_reuse_compatibility_contract` to the same set. It is deliberately *not*
+#: what the comparison iterates: that reads the stored and current contract values
+#: themselves, so a field can never be compared without having been persisted.
 _REUSE_CONFIG_FIELDS = (
     "model_id",
     "kind",
@@ -3778,13 +3795,20 @@ def _model_design_identity(context: StatisticalFitContext) -> dict[str, Any]:
 def _reuse_compatibility_contract(
     context: StatisticalFitContext,
 ) -> dict[str, Any]:
-    """Current scientific-fit contract that a reused posterior must match."""
+    """Current scientific-fit contract that a reused posterior must match.
+
+    One serialisable value. :func:`write_run_metadata` persists exactly this
+    mapping under :data:`REUSE_CONTRACT_KEY` and
+    :func:`require_reuse_compatibility` compares exactly this mapping against it,
+    so the writer and the reader cannot disagree about which fields are bound.
+    """
 
     spec = context.spec
     plan = _resolved_run_plan(context)
     resolved_plan = plan.as_dict() if plan is not None else None
     recipe_path = Path(context.output_dir) / "model_recipe.md"
     return {
+        "schema_version": _REUSE_CONTRACT_SCHEMA_VERSION,
         "model_id": spec.model_id,
         "kind": spec.kind,
         "outcome_symbol": spec.outcome_symbol,
@@ -3857,10 +3881,32 @@ def require_reuse_compatibility(
         raise ValueError(
             "reuse-trace cannot verify the current fitted rows and observations"
         )
+
+    stored = previous.get(REUSE_CONTRACT_KEY)
+    if not isinstance(stored, Mapping):
+        # Fail closed. A stored fit written before the contract was serialised as
+        # one value carries only the historical top-level subset, so the fields it
+        # never recorded could not be compared at all — the reading those
+        # posteriors were never checked under.
+        raise ValueError(
+            "reuse-trace compatibility check failed for the prior publication: "
+            f"{REUSE_CONTRACT_KEY} (the prior config.json predates the serialised "
+            "reuse contract)"
+        )
+    if stored.get("schema_version") != current.get("schema_version"):
+        raise ValueError(
+            "reuse-trace compatibility check failed for the prior publication: "
+            f"{REUSE_CONTRACT_KEY} schema_version "
+            f"({stored.get('schema_version')!r} stored, "
+            f"{current.get('schema_version')!r} current)"
+        )
+    # Compare the *values*, not a separately maintained field list: every key
+    # either side carries is bound, so a contract field cannot be checked without
+    # having been persisted, nor persisted without being checked.
     mismatched = [
         field
-        for field in _REUSE_CONFIG_FIELDS
-        if _json_safe(previous.get(field)) != _json_safe(current.get(field))
+        for field in sorted({*stored, *current} - {"schema_version"})
+        if _json_safe(stored.get(field)) != _json_safe(current.get(field))
     ]
 
     recipe_name = current.get("model_recipe_file")
@@ -4042,6 +4088,12 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         # match without writing raw subject identifiers to the artefact bundle.
         "fitted_subject_identity": fitted_subject_identity(context.prepared),
         "fitted_data_identity": reuse_contract["fitted_data_identity"],
+        # The whole trace-reuse contract, serialised once as the value
+        # ``require_reuse_compatibility`` compares (#637 stage 1). The top-level
+        # fields above are the published consumer surface — the release evaluator
+        # and the blending-pair gates read ``fitted_data_identity`` from there —
+        # and are deliberately left alone; this block is what binds reuse.
+        REUSE_CONTRACT_KEY: _json_safe(reuse_contract),
         "ci_prob": context.reporting.ci_prob,
         # Persist the named sampling preset independently of its numeric settings.
         # ``dev`` and ``test`` can occasionally clear the numerical convergence

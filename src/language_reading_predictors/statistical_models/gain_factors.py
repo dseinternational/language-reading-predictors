@@ -43,6 +43,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 #: The registered phoneme-blending response-link pair for this family (#596).
 #: ``lrp-rli-gf-006`` fits the ordinary Beta-Binomial inverse-logit score mean;
@@ -188,6 +191,7 @@ class GainFactorsModelSettings:
     gamma_own_prior_sigma: float = 0.25
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self, "skill_symbols", _tuple_of_strings(self.skill_symbols, name="skill_symbols")
         )
@@ -201,10 +205,6 @@ class GainFactorsModelSettings:
             not isinstance(self.ability_covariate, str) or not self.ability_covariate
         ):
             raise TypeError("ability_covariate must be a non-empty string or None")
-        if not isinstance(self.treated_only, bool):
-            raise TypeError("treated_only must be bool")
-        if not isinstance(self.moderation_variant, bool):
-            raise TypeError("moderation_variant must be bool")
         if self.likelihood not in _LIKELIHOODS:
             raise ValueError(
                 f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"

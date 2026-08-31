@@ -30,6 +30,9 @@ from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 if TYPE_CHECKING:
     from language_reading_predictors.statistical_models.context import (
@@ -170,6 +173,7 @@ class IttModelSettings:
     missingness_sensitivity: bool = False
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         for name in ("outcomes", "cross_symbols", "pre_required"):
             value = getattr(self, name)
             if value is not None:
@@ -180,20 +184,6 @@ class IttModelSettings:
                 name,
                 _tuple_of_strings(getattr(self, name), name=name),
             )
-        for name in (
-            "drop_missing_pre",
-            "use_age_gp",
-            "use_own_baseline_gp",
-            "use_varying_tau",
-            "use_age_linear",
-            "use_own_baseline",
-            "tau_moderator_is_covariate",
-            "tau_moderator_interaction",
-            "floor_rule",
-            "missingness_sensitivity",
-        ):
-            if not isinstance(getattr(self, name), bool):
-                raise TypeError(f"{name} must be bool")
         for name in ("tau_sigma", "alpha_sigma", "gamma_own_sigma", "kappa_sigma"):
             value = getattr(self, name)
             if value is not None and (

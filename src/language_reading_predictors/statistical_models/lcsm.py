@@ -23,6 +23,9 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 CouplingItems = tuple[tuple[str, tuple[str, ...]], ...]
 
@@ -130,6 +133,7 @@ class LcsmModelSettings:
     shared_process_noise: bool = False
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self,
             "outcomes",
@@ -165,13 +169,6 @@ class LcsmModelSettings:
             "coupling_prior_sigma",
             _positive_float(self.coupling_prior_sigma, name="coupling_prior_sigma"),
         )
-        for name in (
-            "arm_window_intercepts",
-            "use_process_noise",
-            "shared_process_noise",
-        ):
-            if not isinstance(getattr(self, name), bool):
-                raise TypeError(f"{name} must be a boolean")
 
     @classmethod
     def from_legacy_extra(

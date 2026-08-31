@@ -19,6 +19,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     split_confounders_by_timing,
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 #: The registered phoneme-blending response-link pair for this family (#619, under
 #: the #608 policy). ``lrp-rli-med-087`` fits the ordinary Beta-Binomial
@@ -82,12 +85,6 @@ def _optional_symbols(value: Any, *, name: str) -> tuple[str, ...] | None:
     return None if value is None else _symbols(value, name=name)
 
 
-def _bool(value: Any, *, name: str) -> bool:
-    if not isinstance(value, bool):
-        raise TypeError(f"{name} must be a boolean, got {value!r}")
-    return value
-
-
 @dataclass(frozen=True, slots=True)
 class NamedConfounderCalibration:
     """Observed benchmark loaded for calibration but excluded from the fit."""
@@ -144,6 +141,7 @@ class MediationModelSettings:
     score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self,
             "outcomes",
@@ -154,8 +152,6 @@ class MediationModelSettings:
             "route_symbols",
             _symbols(self.route_symbols, name="route_symbols"),
         )
-        _bool(self.drop_missing_pre, name="drop_missing_pre")
-        _bool(self.period_stacked, name="period_stacked")
         if self.outcome_time is not None:
             if isinstance(self.outcome_time, bool) or not isinstance(self.outcome_time, int):
                 raise TypeError("outcome_time must be an integer or None")
@@ -227,6 +223,7 @@ class MediationMultiModelSettings:
     named_confounder_calibration: NamedConfounderCalibration | None = None
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self,
             "mediators",
@@ -243,8 +240,6 @@ class MediationMultiModelSettings:
             "named_confounder_calibration",
             NamedConfounderCalibration.from_value(self.named_confounder_calibration),
         )
-        _bool(self.chain, name="chain")
-        _bool(self.second_mediator_offfloor, name="second_mediator_offfloor")
 
     @classmethod
     def from_legacy_extra(

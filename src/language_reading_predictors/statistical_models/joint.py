@@ -24,6 +24,9 @@ from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES, MEASURES
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "JOINT_DEPENDENCE_COMPANIONS",
@@ -201,19 +204,11 @@ class JointModelSettings:
     contrast: JointContrastSettings | None = None
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         if self.outcomes is not None:
             object.__setattr__(self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes"))
             if not self.outcomes:
                 raise ValueError("outcomes must list at least one measure")
-        for flag in (
-            "use_age_gp",
-            "partial_pool_age_gp",
-            "use_residual_correlation",
-            "use_cross_baselines",
-            "use_age_linear",
-        ):
-            if not isinstance(getattr(self, flag), bool):
-                raise TypeError(f"{flag} must be bool")
         if self.use_age_gp and self.use_age_linear:
             raise ValueError("use_age_gp and use_age_linear are mutually exclusive")
         if self.joint_structure is not None and (not isinstance(self.joint_structure, str) or not self.joint_structure):

@@ -39,6 +39,9 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.preprocessing import (
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 __all__ = [
     "JointMechanismModelSettings",
@@ -101,6 +104,7 @@ class JointMechanismModelSettings:
     predictor_slope_sigma: float | None = None
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         if self.design not in _DESIGNS:
             raise ValueError(
                 f"design must be 'levels' or 'transition', got {self.design!r}"
@@ -117,8 +121,6 @@ class JointMechanismModelSettings:
                 name,
                 _tuple_of_strings(getattr(self, name), name=name),
             )
-        if not isinstance(self.include_group, bool):
-            raise TypeError("include_group must be a boolean")
         object.__setattr__(
             self,
             "predictor_slope_sigma",

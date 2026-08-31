@@ -43,6 +43,9 @@ from language_reading_predictors.statistical_models.likelihood import (
 from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 #: The registered phoneme-blending response-link pair for this family (#619, under
 #: the #608 policy). ``lrp-rli-ca-007`` fits the ordinary Beta-Binomial
@@ -133,6 +136,7 @@ class ConcurrentModelSettings:
     score_mean_link: ScoreMeanLink = "logit"
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         object.__setattr__(
             self,
             "predictor_symbols",
@@ -146,9 +150,6 @@ class ConcurrentModelSettings:
             "require_observed",
             _tuple_of_strings(self.require_observed, name="require_observed"),
         )
-        for flag in ("include_age", "include_group"):
-            if not isinstance(getattr(self, flag), bool):
-                raise TypeError(f"{flag} must be bool")
         sigma = self.predictor_slope_sigma
         if sigma is not None:
             # bool is an int subclass but is never a valid slope scale.

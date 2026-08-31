@@ -1225,22 +1225,37 @@ def _recorded_required_artifacts(
     missing artefact, and :func:`_core_artifact_failures` is applied underneath so
     a manifest that under-declares cannot wave through a directory with no trace
     or no headline table.
+
+    Both paths are seeded with that same floor (#637 stage 1), so the live and
+    stored decisions differ **only** by the manifest requirement the live path
+    cannot yet meet. The two therefore agree either side of
+    ``artifacts.write_manifest``, which is what
+    ``test_release_decision`` now asserts directly.
     """
     records = getattr(artifacts, "records", None)
     if records is not None:
-        # Fit-time: the live log is the authority and the manifest does not exist
-        # yet (finalisation writes it *after* this decision).
+        # Fit-time: the live log is the authority on what *this run* declared, and
+        # the manifest does not exist yet (finalisation writes it *after* this
+        # decision) — so the manifest, and only the manifest, is exempt here.
+        #
+        # The core floor is not (#637 stage 1). Seeding both paths with it is what
+        # makes the two evaluations agree: before this, a directory with clean
+        # diagnostics, an empty live log and no ``trace.nc`` published during the
+        # fit and came back ``artifacts_incomplete`` the moment the same directory
+        # was re-decided at render time. The floor is a property of the directory,
+        # not of who is asking.
+        missing = _core_artifact_failures(output_dir)
         declared = [
             (rec.filename, rec.status, bool(rec.required)) for rec in records.values()
         ]
-        missing = [
+        missing.extend(
             filename
             for filename, status, required in declared
             if required
             and status in ("written", "missing")
             and not os.path.exists(output_dir / filename)
-        ]
-        return tuple(sorted(missing))
+        )
+        return tuple(sorted(set(missing)))
 
     missing = _core_artifact_failures(output_dir)
     manifest, error = _read_json(output_dir / "artifact_manifest.json")
@@ -3502,6 +3517,41 @@ def _historical_joint_prior_sensitivity(output_dir: Path) -> str:
     )
 
 
+def _prior_evidence_qualifications(output_dir: Path) -> list[str]:
+    """Name the estimands whose prior check could not be computed (#637 stage 1).
+
+    **The policy, stated once.** An ``unavailable`` row in ``prior_pushforward.csv``
+    *qualifies* a release; it does not withhold one. The estimand-scale prior check
+    is evidence **about the prior**, not a scientific result: the posterior, its
+    convergence gate, ``priors_table.csv``, the prior-vs-posterior overlay and
+    ``psense_summary.csv`` are all unaffected by its absence, and withholding on it
+    would take out every fit whose family legitimately has no contrast to push a
+    prior through. What the absence does cost is a reader's ability to judge, on the
+    reported scale, how much of the answer the prior supplied — so it must be
+    stated, not left to a column nobody reads.
+
+    Before #637 this could not be stated honestly anyway: four families caught every
+    exception around the pushforward, so an ``unavailable`` row could mean either an
+    honest absence or a ``KeyError``. Now only the first can produce one, and the
+    qualification means what it says.
+
+    Reads the stored table, so the same qualification is reproduced when a fit
+    directory is re-decided at render time.
+    """
+    table = _read_csv(output_dir, "prior_pushforward.csv")
+    if table is None or "status" not in table.columns:
+        return []
+    rows = table[table["status"].astype(str) == "unavailable"]
+    if rows.empty:
+        return []
+    estimands = ", ".join(dict.fromkeys(str(value) for value in rows["estimand"]))
+    return [
+        "the estimand-scale prior check is unavailable for "
+        f"{estimands}, so this fit's prior influence on the reported scale is "
+        "unquantified"
+    ]
+
+
 def _historical_joint_prior_companion_qualifications(
     output_dir: Path, config: Mapping[str, Any]
 ) -> list[str]:
@@ -3758,7 +3808,10 @@ def evaluate_publication(
        beside it releases with a dependence-unchecked qualifier attached
        (:func:`_joint_dependence_companion_note`). The saved
        sampling-preset name also distinguishes publication-grade ``rep-lite`` /
-       ``reporting`` fits from local ``dev`` / ``test`` diagnostics.
+       ``reporting`` fits from local ``dev`` / ``test`` diagnostics. An estimand-
+       scale prior check the fit could not compute attaches a named qualification
+       rather than withholding — see :func:`_prior_evidence_qualifications` for
+       why (#637 stage 1).
 
     Reads only artefacts already in ``output_dir``, so a stored fit can be
     re-decided without refitting — the contract ``evaluate_release`` and
@@ -3896,13 +3949,17 @@ def evaluate_publication(
     hj_prior_qualifications = _historical_joint_prior_companion_qualifications(
         output_dir, config
     )
-    if jm_wave_qualifications or hj_prior_qualifications:
+    # Unavailable estimand-scale prior evidence qualifies rather than withholds
+    # (#637 stage 1); :func:`_prior_evidence_qualifications` states why.
+    prior_evidence_qualifications = _prior_evidence_qualifications(output_dir)
+    if jm_wave_qualifications or hj_prior_qualifications or prior_evidence_qualifications:
         qualification["publication_qualification"] = "; ".join(
             part
             for part in (
                 qualification["publication_qualification"],
                 *jm_wave_qualifications,
                 *hj_prior_qualifications,
+                *prior_evidence_qualifications,
             )
             if part
         )

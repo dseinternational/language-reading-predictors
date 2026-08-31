@@ -90,6 +90,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
     Standardiser,
     standardise,
 )
+from language_reading_predictors.statistical_models.settings_validation import (
+    require_declared_booleans,
+)
 
 # The family-owned settings formerly read directly from ``ModelSpec.extra`` in
 # ``pipelines/survival.py``.  ``target_accept`` remains a centrally resolved sampler
@@ -122,10 +125,9 @@ class SurvivalModelSettings:
     treatment_window: Literal["randomised", "pooled"] = "randomised"
 
     def __post_init__(self) -> None:
+        require_declared_booleans(self)
         if self.hazard_link not in _HAZARD_LINKS:
             raise ValueError("hazard_link must be 'cloglog' or 'logit'")
-        if not isinstance(self.use_treatment, bool):
-            raise TypeError("use_treatment must be a boolean")
         if self.treatment_window not in _TREATMENT_WINDOWS:
             raise ValueError("treatment_window must be 'randomised' or 'pooled'")
 

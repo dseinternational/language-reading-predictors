@@ -582,10 +582,11 @@ def test_phase_varying_slope_is_partially_pooled_and_linear_only(tmp_path):
 def test_phase_varying_slope_is_rejected_with_phase_specific_curves(tmp_path):
     """A per-period *slope* must not be confusable with a per-period *curve*.
 
-    In declared settings the linear-only rule fires first (a phase-specific curve is
-    never linear), so the mutual-exclusion rule is exercised where it is reachable:
-    the factory, which a direct caller can reach with both flags and
-    ``linear_mechanism=True``.
+    Both entry points now share one design validator (#637 stage 1), so they refuse
+    the combination for the same stated reason. Without ``linear_mechanism`` there
+    is no scalar slope to vary at all; with it, a phase-specific curve is not a
+    linear design. The factory used to reach neither rule and quietly built the
+    pooled linear slope instead.
     """
     from language_reading_predictors.statistical_models.factories import (
         build_mechanism_model,
@@ -600,18 +601,36 @@ def test_phase_varying_slope_is_rejected_with_phase_specific_curves(tmp_path):
             phase_varying_slope=True,
             phase_specific_mechanism=True,
         )
-
-    prepared = load_and_prepare(path=_synthetic_frame(tmp_path), phase_mode="all")
-    with pytest.raises(ValueError, match="mutually exclusive"):
-        build_mechanism_model(
-            prepared,
-            mechanism_symbol="L",
-            outcome_symbol="W",
-            confounder_symbols=(),
+    with pytest.raises(ValueError, match="linear_mechanism cannot be combined"):
+        MechanismModelSettings(
             linear_mechanism=True,
             phase_varying_slope=True,
             phase_specific_mechanism=True,
         )
+
+    prepared = load_and_prepare(path=_synthetic_frame(tmp_path), phase_mode="all")
+    for kwargs, match in (
+        (
+            {"phase_varying_slope": True, "phase_specific_mechanism": True},
+            "phase_varying_slope requires",
+        ),
+        (
+            {
+                "linear_mechanism": True,
+                "phase_varying_slope": True,
+                "phase_specific_mechanism": True,
+            },
+            "linear_mechanism cannot be combined",
+        ),
+    ):
+        with pytest.raises(ValueError, match=match):
+            build_mechanism_model(
+                prepared,
+                mechanism_symbol="L",
+                outcome_symbol="W",
+                confounder_symbols=(),
+                **kwargs,
+            )
 
 
 def test_phase_varying_contribution_uses_each_row_s_own_period():

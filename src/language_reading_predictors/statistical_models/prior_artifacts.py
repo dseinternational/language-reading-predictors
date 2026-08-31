@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping, Sequence
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -896,10 +897,12 @@ def growth_contrast_pushforward_rows(
 
     source = getattr(ctx, "prior_samples", None) or ctx.trace
     try:
-        prior_growth = _hist.growth_summary(
-            source, panel, measure, fitted_var=fitted_var, group="prior"
+        require_prior_evidence(
+            source,
+            terms=(fitted_var,),
+            what="the total-growth contrast prior check",
         )
-    except Exception as exc:  # noqa: BLE001 - absence must stay legible
+    except PriorEvidenceUnavailable as exc:
         return [
             _report.unavailable_pushforward(
                 estimand=f"{prefix}total_growth",
@@ -908,6 +911,11 @@ def growth_contrast_pushforward_rows(
                 reason=str(exc),
             )
         ]
+    # Narrow by design (#637 stage 1): past the availability check a failure in
+    # ``growth_summary`` is a defect in the summary, not absent prior evidence.
+    prior_growth = _hist.growth_summary(
+        source, panel, measure, fitted_var=fitted_var, group="prior"
+    )
     contrasts = prior_growth[
         prior_growth["quantity"].astype(str).str.startswith("total_growth")
     ]
@@ -970,6 +978,47 @@ def write_indicator_prior_check(
     )
 
 
+class PriorEvidenceUnavailable(LookupError):
+    """The prior evidence a pushforward needs is not present in this fit.
+
+    The **only** condition that may produce an ``unavailable`` row (#637 stage 1).
+    Four families caught every ``Exception`` while pushing their prior through the
+    reported estimand, so a ``KeyError``, a wrong dimension or a schema defect
+    became a valid ``prior_pushforward.csv`` recording "check unavailable" — and
+    the release stage checks the file's presence, not its row status, so a
+    programming error read on the rendered page exactly like an honest absence.
+
+    Raise this for the two things that genuinely are absences: a fit with no
+    persisted ``prior`` group, and a prior group that does not carry the term the
+    check is about. Everything else is a defect and must fail the run.
+    """
+
+
+def require_prior_evidence(
+    source: Any, *, terms: Sequence[str] = (), what: str = "this prior check"
+) -> Any:
+    """Return the ``prior`` group, or raise :class:`PriorEvidenceUnavailable`.
+
+    ``source`` is a fit's ``prior_samples`` or its trace. ``terms`` names the
+    variables the caller is about to read; naming them here is what lets the call
+    site catch only the narrow exception and let a genuine ``KeyError`` deeper in
+    the transform fail the fit.
+    """
+
+    group = getattr(source, "prior", None) if source is not None else None
+    if group is None:
+        raise PriorEvidenceUnavailable(
+            f"{what} needs this fit's prior group, which was not sampled or persisted"
+        )
+    missing = [name for name in terms if name not in group]
+    if missing:
+        raise PriorEvidenceUnavailable(
+            f"{what} needs {', '.join(missing)} in the prior group, "
+            "which this fit does not carry"
+        )
+    return group
+
+
 def at_mean_pushforward_rows(
     ctx: StatisticalFitContext,
     terms: Sequence[tuple[str, str]],
@@ -997,33 +1046,40 @@ def at_mean_pushforward_rows(
     from scipy.special import expit
 
     source = getattr(ctx, "prior_samples", None) or ctx.trace
-    prior = source.prior
-
-    def draws(name: str) -> np.ndarray:
-        return prior[name].stack(sample=("chain", "draw")).values.ravel()
-
     rows: list[dict[str, object]] = []
     try:
-        base_eta = draws(intercept) + draws(own_slope) * float(own_pre_logit_mean)
-    except Exception as exc:  # noqa: BLE001 - an absent base term must stay legible
+        prior = require_prior_evidence(
+            source,
+            terms=(intercept, own_slope),
+            what="the at-the-mean prior check",
+        )
+    except PriorEvidenceUnavailable as exc:
         return [
             _report.unavailable_pushforward(
                 estimand=term,
                 estimand_label=label,
                 role=role,
-                reason=f"at-mean base term unavailable: {exc}",
+                reason=str(exc),
             )
             for term, label in terms
         ]
+
+    def draws(name: str) -> np.ndarray:
+        return prior[name].stack(sample=("chain", "draw")).values.ravel()
+
+    base_eta = draws(intercept) + draws(own_slope) * float(own_pre_logit_mean)
     base_items = float(n_trials) * expit(base_eta)
     for term, label in terms:
         try:
+            require_prior_evidence(
+                source, terms=(term,), what=f"the prior check on {term}"
+            )
             beta = draws(term)
             items = float(n_trials) * expit(base_eta + beta) - base_items
             values = _report.pushforward_values(
                 beta, items, n_trials=n_trials, ci_prob=ctx.reporting.ci_prob
             )
-        except Exception as exc:  # noqa: BLE001
+        except PriorEvidenceUnavailable as exc:
             rows.append(
                 _report.unavailable_pushforward(
                     estimand=term, estimand_label=label, role=role, reason=str(exc)
@@ -1155,6 +1211,11 @@ def marginal_pushforward_rows(
         index = entry[2] if len(entry) > 2 else None
         named = term if not index else f"{term}[{'/'.join(map(str, index.values()))}]"
         try:
+            require_prior_evidence(
+                source,
+                terms=(term, eta_name),
+                what=f"the prior check on {named}",
+            )
             values = _report.marginal_prior_pushforward(
                 source,
                 term=term,
@@ -1166,7 +1227,7 @@ def marginal_pushforward_rows(
                 term_index=index,
                 score_mean_link=score_mean_link,
             )
-        except Exception as exc:  # noqa: BLE001 - an absent term must stay legible
+        except PriorEvidenceUnavailable as exc:
             rows.append(
                 _report.unavailable_pushforward(
                     estimand=named,
