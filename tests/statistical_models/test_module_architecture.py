@@ -150,11 +150,68 @@ def test_no_factory_module_is_still_hub_sized():
     assert largest[0] < 1400, largest
 
 
+#: ``release.py`` split by responsibility (#637 stage 3c), in decision order.
+RELEASE_MODULES = (
+    "base", "robustness", "blending", "family_checks", "dependence", "publication",
+)
+
+#: Which release modules each one may read. Each check reads ``base``; only
+#: ``publication`` reads the checks; the checks do not read each other.
+RELEASE_ALLOWED = {
+    "base": set(),
+    "robustness": {"base"},
+    "blending": {"base", "robustness"},
+    "family_checks": {"base", "robustness"},
+    "dependence": {"base", "robustness"},
+    "publication": {"base", "robustness", "blending", "family_checks", "dependence"},
+}
+
+
 def test_reporting_and_release_no_longer_import_each_other():
     assert "release" not in _module_imports(PACKAGE / "reporting.py")
-    assert "reporting" not in _module_imports(PACKAGE / "release.py")
+    for path in sorted((PACKAGE / "release").glob("*.py")):
+        assert "reporting" not in _module_imports(path), path.name
     # ``release`` reaches the gate at its owner, not through a hub.
-    assert "convergence" in _module_imports(PACKAGE / "release.py")
+    assert "convergence" in _module_imports(PACKAGE / "release" / "publication.py")
+
+
+def test_every_release_module_exists():
+    present = {p.stem for p in (PACKAGE / "release").glob("*.py")} - {"__init__"}
+    assert present == set(RELEASE_MODULES), present ^ set(RELEASE_MODULES)
+
+
+def test_the_release_modules_form_the_declared_one_way_graph():
+    """The decision reads the checks; the checks do not read the decision.
+
+    Before the split the shared readers lived beside the decision, so every check
+    imported the module that imported it — the cycle was invisible only because
+    they were all one file.
+    """
+    offenders = []
+    for name in RELEASE_MODULES:
+        imported = _module_imports(PACKAGE / "release" / f"{name}.py")
+        crossed = {i.split(".")[-1] for i in imported if i.startswith("release.")}
+        for other in sorted(crossed - RELEASE_ALLOWED[name] - {name}):
+            offenders.append(f"{name} -> {other}")
+    assert offenders == [], offenders
+
+
+def test_the_release_facade_defines_nothing_of_its_own():
+    tree = ast.parse((PACKAGE / "release" / "__init__.py").read_text(encoding="utf-8"))
+    defined = [
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
+    assert defined == [], defined
+
+
+def test_no_release_module_is_still_hub_sized():
+    largest = max(
+        (len((PACKAGE / "release" / f"{m}.py").read_text(encoding="utf-8").splitlines()), m)
+        for m in RELEASE_MODULES
+    )
+    assert largest[0] < 1500, largest
 
 
 @pytest.mark.parametrize("module", SPLIT_MODULES)

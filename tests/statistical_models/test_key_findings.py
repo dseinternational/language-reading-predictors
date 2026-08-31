@@ -3464,7 +3464,9 @@ def test_each_family_reads_its_own_causal_term():
 def test_a_release_gate_that_cannot_be_evaluated_fails_closed(tmp_path, monkeypatch):
     """A gate that cannot be evaluated must withhold, not silently ungate — the
     alternative reinstates the defect precisely when something unexpected is wrong."""
-    from language_reading_predictors.statistical_models import release as release_mod
+    # Patched at its point of use: ``_robustness_decision`` lives in
+    # ``release.publication`` since #637 stage 3c and holds its own binding.
+    from language_reading_predictors.statistical_models.release import publication
 
     d = _setup_dir(tmp_path, "itt")
     _write_csv(d, "rope_summary.csv", _rope_row())
@@ -3472,7 +3474,7 @@ def test_a_release_gate_that_cannot_be_evaluated_fails_closed(tmp_path, monkeypa
     def _boom(*_args, **_kwargs):
         raise RuntimeError("evidence store unreachable")
 
-    monkeypatch.setattr(release_mod, "evaluate_release", _boom)
+    monkeypatch.setattr(publication, "evaluate_release", _boom)
     payload = generate_key_findings(d)
     assert payload["status"] == "robustness_unresolved"
     assert "could not be evaluated" in payload["reason"]
