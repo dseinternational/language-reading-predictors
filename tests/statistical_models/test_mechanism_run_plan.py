@@ -637,7 +637,11 @@ def test_registered_branch_contracts_reach_loader_factory_and_diagnostics(
 
     if expected.get("mech_lengthscale_tight"):
         prior = factory["mech_lengthscale_prior"]
-        assert type(prior).__name__ == "InverseGamma"
+        # A named constructor now returns a ``PriorSpec`` — the distribution plus
+        # what it means — so the check reaches through to the wrapped preliz
+        # distribution and also pins the constructor identity it records (#637).
+        assert prior.constructor == "ell_mech_tight"
+        assert type(prior.distribution).__name__ == "InverseGamma"
         assert tuple(float(value) for value in prior.params) == (8.0, 8.0)
     else:
         assert factory["mech_lengthscale_prior"] is None

@@ -12,10 +12,13 @@ for the Quarto report.
 
 from __future__ import annotations
 
+import functools
 import math
 
 import os
 import re
+from dataclasses import dataclass
+from typing import Any, Callable
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -25,6 +28,219 @@ from preliz.distributions.distributions import Continuous
 from language_reading_predictors.statistical_models.plotting import (
     save_styled_figure,
 )
+
+
+# ---------------------------------------------------------------------------
+# Prior meaning, attached where the random variable is created (#637 stage 2)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class PriorDescriptor:
+    """What one fitted random variable's prior *is*, recorded when it is created.
+
+    Before this existed, the published role and rationale of a parameter were
+    **inferred** — from the variable's name, its name prefix or suffix, and in
+    several branches from its *rendered distribution string* (``distribution ==
+    "Normal(0, 0.3)"`` routed a coefficient to the association role). Renaming a
+    variable, or changing a prior's scale for a sensitivity fit, could therefore
+    move what the report said the parameter *means* without any change to its
+    statistical role. Measured across 36 representative models covering every
+    family, 104 of 147 distinct free-variable names reached their published role
+    that way.
+
+    A descriptor is created at the point the variable is: either by the named
+    constructor that built it (``provenance="constructor"``), by a call site that
+    declared a different scientific role for a reused constructor
+    (``"call-site"``), or by an explicit :func:`declare` beside an inline
+    ``pm.*`` call (``"inline"``).
+    """
+
+    #: Registered PyMC variable name.
+    parameter: str
+    #: Named constructor key (a :data:`ALL_PRIORS` key), or ``"inline"``.
+    constructor: str
+    #: Distribution as registered, read off the built variable.
+    distribution: str
+    #: ``causal`` / ``precision`` / ``association`` / ``nuisance`` / ``gp``.
+    role: str
+    #: One sentence for the published priors table.
+    rationale: str
+    #: Shared prior-PDF panel key, or ``""`` for a prior with no panel.
+    panel: str
+    #: Where the meaning came from: ``constructor`` / ``call-site`` / ``inline``.
+    provenance: str
+
+    def as_row(self) -> dict[str, str]:
+        """The ``priors_table.csv`` row for this parameter."""
+        return {
+            "parameter": self.parameter,
+            "distribution": self.distribution,
+            "role": self.role,
+            "rationale": self.rationale,
+            "panel": self.panel,
+        }
+
+
+#: Attribute the descriptors are recorded under on the active ``pm.Model``.
+_DESCRIPTOR_ATTR = "_dse_prior_descriptors"
+
+
+def descriptors_for(model) -> dict[str, PriorDescriptor]:
+    """Descriptors recorded while ``model`` was built, keyed by variable name."""
+
+    return dict(getattr(model, _DESCRIPTOR_ATTR, {}) or {})
+
+
+def _record(descriptor: PriorDescriptor) -> None:
+    """Attach ``descriptor`` to the model currently being built, if any.
+
+    Silently does nothing outside a model context, so a constructor can still be
+    called for a prior-PDF panel or a plot without a model open.
+    """
+    import pymc as pm
+
+    try:
+        model = pm.modelcontext(None)
+    except TypeError:
+        return
+    recorded = getattr(model, _DESCRIPTOR_ATTR, None)
+    if recorded is None:
+        recorded = {}
+        setattr(model, _DESCRIPTOR_ATTR, recorded)
+    recorded[descriptor.parameter] = descriptor
+
+
+class PriorSpec:
+    """A named prior: the ``preliz`` distribution plus what it means.
+
+    Returned by every constructor in this module in place of the bare ``preliz``
+    distribution, so that ``.to_pymc(name)`` can record a :class:`PriorDescriptor`
+    without a single call site changing. Every other attribute delegates to the
+    wrapped distribution, so ``plot_pdf`` and the rest of the ``preliz`` surface
+    are unaffected.
+    """
+
+    __slots__ = ("distribution", "constructor", "role", "rationale", "panel")
+
+    def __init__(
+        self,
+        distribution: Continuous,
+        *,
+        constructor: str,
+        role: str,
+        rationale: str,
+        panel: str,
+    ) -> None:
+        object.__setattr__(self, "distribution", distribution)
+        object.__setattr__(self, "constructor", constructor)
+        object.__setattr__(self, "role", role)
+        object.__setattr__(self, "rationale", rationale)
+        object.__setattr__(self, "panel", panel)
+
+    def to_pymc(
+        self,
+        name: str,
+        *,
+        role: str | None = None,
+        rationale: str | None = None,
+        **kwargs: Any,
+    ):
+        """Register the variable and record what its prior means.
+
+        ``role`` / ``rationale`` let a call site declare a scientific meaning that
+        differs from the constructor's own. That happens when a family reuses a
+        constructor for a different quantity — the dose family's ``beta_arm_late``
+        is built from the treatment-effect prior but is an adjusted association,
+        not the randomised effect. Those corrections previously lived in a second
+        per-family override table read at artefact-writing time, far from the
+        model code that knew the answer.
+        """
+        variable = self.distribution.to_pymc(name, **kwargs)
+        _record(
+            PriorDescriptor(
+                parameter=name,
+                constructor=self.constructor,
+                distribution=_dist_from_rv(variable) or _dist_from_spec(self),
+                role=role if role is not None else self.role,
+                rationale=rationale if rationale is not None else self.rationale,
+                panel=self.panel,
+                provenance="constructor" if role is None and rationale is None
+                else "call-site",
+            )
+        )
+        return variable
+
+    def __getattr__(self, item: str) -> Any:
+        return getattr(self.distribution, item)
+
+    def __repr__(self) -> str:  # pragma: no cover - debugging aid
+        return f"PriorSpec({self.constructor!r}, {self.distribution!r})"
+
+
+def named_prior(key: str, *, role: str, panel: str | None = None):
+    """Declare a constructor's key, scientific role and panel beside its body.
+
+    The role was previously held in a separate ``_ROLE_BY_CTOR`` table and reached
+    only through a name map; declaring it here means a constructor cannot exist
+    without one, and a variable built from it cannot be published under a role
+    nobody chose. ``panel`` defaults to ``key`` — the shared prior-PDF panel is
+    named after the constructor — and is ``""`` for a prior with no panel.
+    """
+
+    def wrap(function: Callable[..., Continuous]) -> Callable[..., PriorSpec]:
+        rationale = (function.__doc__ or "").strip().split("\n")[0].strip()
+
+        @functools.wraps(function)
+        def build(*args: Any, **kwargs: Any) -> PriorSpec:
+            return PriorSpec(
+                function(*args, **kwargs),
+                constructor=key,
+                role=role,
+                rationale=rationale,
+                panel=key if panel is None else panel,
+            )
+
+        build.prior_key = key  # type: ignore[attr-defined]
+        build.prior_role = role  # type: ignore[attr-defined]
+        return build
+
+    return wrap
+
+
+def declare(variable, *, role: str, rationale: str, constructor: str = "inline",
+            panel: str = ""):
+    """Record what an inline ``pm.*`` prior means, and return the variable.
+
+    The counterpart to :meth:`PriorSpec.to_pymc` for the priors a factory builds
+    directly rather than through a named constructor — the non-centred offsets,
+    the LKJ blocks, the measurement loadings, the bespoke per-family scales. Used
+    inline: ``_priors.declare(pm.Normal("u_child_raw", 0, 1, dims="child"),
+    role="nuisance", rationale="...")``.
+    """
+    _record(
+        PriorDescriptor(
+            parameter=variable.name,
+            constructor=constructor,
+            distribution=_dist_from_rv(variable) or "(model prior)",
+            role=role,
+            rationale=rationale,
+            panel=panel,
+            provenance="inline",
+        )
+    )
+    return variable
+
+
+def _dist_from_spec(spec: PriorSpec) -> str:
+    """Fallback distribution string for a spec whose variable cannot be read.
+
+    The constructor's own first docstring line documents its distribution
+    (``"Intercept alpha ~ Normal(0, 1.5)."``); ``_dist_from_rv`` is preferred
+    because a constructor may be called with a non-default scale.
+    """
+    match = re.search(r"~\s*([A-Za-z]+\([^)]*\))", spec.rationale)
+    return match.group(1) if match else "(model prior)"
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +272,8 @@ ALPHA_SIGMA_PROXIMAL: float = 1.5
 ALPHA_SIGMA_DISTAL: float = 1.0
 
 
-def alpha_prior(sigma: float = ALPHA_SIGMA_PROXIMAL) -> Continuous:
+@named_prior("alpha", role="nuisance")
+def alpha_prior(sigma: float = ALPHA_SIGMA_PROXIMAL) -> PriorSpec:
     """Intercept alpha ~ Normal(0, 1.5).
 
     (Parametrised by ``sigma`` for the outcome tier and for prior-sensitivity
@@ -68,7 +285,8 @@ def alpha_prior(sigma: float = ALPHA_SIGMA_PROXIMAL) -> Continuous:
     return pz.Normal(mu=0.0, sigma=sigma)
 
 
-def alpha_prior_distal() -> Continuous:
+@named_prior("alpha_distal", role="nuisance")
+def alpha_prior_distal() -> PriorSpec:
     """Distal-tier intercept alpha ~ Normal(0, 1.0)."""
     return alpha_prior(sigma=ALPHA_SIGMA_DISTAL)
 
@@ -82,7 +300,8 @@ TAU_SIGMA_PROXIMAL: float = 0.5
 TAU_SIGMA_DISTAL: float = 0.3
 
 
-def tau_prior(sigma: float = TAU_SIGMA_PROXIMAL) -> Continuous:
+@named_prior("tau", role="causal")
+def tau_prior(sigma: float = TAU_SIGMA_PROXIMAL) -> PriorSpec:
     """Treatment effect tau ~ Normal(0, 0.5).
 
     (Parametrised by ``sigma`` for the outcome tier and for prior-sensitivity
@@ -94,12 +313,14 @@ def tau_prior(sigma: float = TAU_SIGMA_PROXIMAL) -> Continuous:
     return pz.Normal(mu=0.0, sigma=sigma)
 
 
-def tau_prior_distal() -> Continuous:
+@named_prior("tau_distal", role="causal")
+def tau_prior_distal() -> PriorSpec:
     """Distal-tier treatment effect tau ~ Normal(0, 0.3)."""
     return tau_prior(sigma=TAU_SIGMA_DISTAL)
 
 
-def gamma_own_prior(sigma: float = 0.25) -> Continuous:
+@named_prior("gamma_own", role="precision")
+def gamma_own_prior(sigma: float = 0.25) -> PriorSpec:
     """Own-baseline coupling defaults to gamma_own ~ Normal(1, 0.25).
 
     Centred at 1 (post-logit tracks pre-logit 1:1 — no regression to the mean
@@ -119,7 +340,8 @@ def gamma_own_prior(sigma: float = 0.25) -> Continuous:
     return pz.Normal(mu=1.0, sigma=sigma)
 
 
-def gamma_cross_prior(sigma: float = 0.3) -> Continuous:
+@named_prior("gamma_cross", role="association")
+def gamma_cross_prior(sigma: float = 0.3) -> PriorSpec:
     """Cross-baseline coupling gamma_k ~ Normal(0, 0.3).
 
     (Parametrised by ``sigma`` for prior-sensitivity fits — the level-factor
@@ -131,7 +353,8 @@ def gamma_cross_prior(sigma: float = 0.3) -> Continuous:
     return pz.Normal(mu=0.0, sigma=sigma)
 
 
-def gamma_own_offfloor_prior() -> Continuous:
+@named_prior("gamma_own_offfloor", role="precision")
+def gamma_own_offfloor_prior() -> PriorSpec:
     """Binary off-floor-at-pre baseline contrast gamma_own_offfloor ~ Normal(0, 1).
 
     The off-floor (Bernoulli) gain models drop the graded ``gamma_own`` term — its
@@ -154,7 +377,8 @@ def gamma_own_offfloor_prior() -> Continuous:
     return pz.Normal(mu=0.0, sigma=1.0)
 
 
-def gamma_age_prior() -> Continuous:
+@named_prior("gamma_age", role="precision")
+def gamma_age_prior() -> PriorSpec:
     """Linear age main-effect coupling gamma_A ~ Normal(0, 0.3).
 
     Used by the LRPITT suite (``build_itt_model(use_age_linear=True)``) for the
@@ -203,7 +427,8 @@ def residual_correlation_prior_sd(
     return float(1.0 / math.sqrt(2.0 * a + 1.0))
 
 
-def kappa_prior(sigma: float = 50.0) -> Continuous:
+@named_prior("kappa", role="nuisance")
+def kappa_prior(sigma: float = 50.0) -> PriorSpec:
     """Beta-binomial concentration kappa ~ HalfNormal(50).
 
     (Parametrised by ``sigma`` so the dispersion prior can be anchored once
@@ -222,7 +447,8 @@ def kappa_prior(sigma: float = 50.0) -> Continuous:
     return pz.HalfNormal(sigma=sigma)
 
 
-def inv_sqrt_kappa_prior(sigma: float = 0.25) -> Continuous:
+@named_prior("inv_sqrt_kappa", role="nuisance")
+def inv_sqrt_kappa_prior(sigma: float = 0.25) -> PriorSpec:
     """Beta-binomial dispersion 1/sqrt(kappa) ~ HalfNormal(0.25).
 
     The RLM historical families' replacement for a HalfNormal directly on the
@@ -261,7 +487,8 @@ def inv_sqrt_kappa_prior(sigma: float = 0.25) -> Continuous:
     return pz.HalfNormal(sigma=sigma)
 
 
-def beta_mech_prior(sigma: float = 1.0) -> Continuous:
+@named_prior("beta_mech", role="association")
+def beta_mech_prior(sigma: float = 1.0) -> PriorSpec:
     """Linear-mechanism slope beta_mech ~ Normal(0, 1).
 
     Used by ``build_mechanism_model(linear_mechanism=True)`` in place of the
@@ -283,7 +510,8 @@ def beta_mech_prior(sigma: float = 1.0) -> Continuous:
     return pz.Normal(mu=0.0, sigma=sigma)
 
 
-def sigma_dose_phase_prior() -> Continuous:
+@named_prior("sigma_dose", role="nuisance")
+def sigma_dose_phase_prior() -> PriorSpec:
     """Between-period SD of the dose slope sigma_dose ~ HalfNormal(0.5).
 
     Used by ``build_dose_response_model(period_varying_dose=True)`` for the
@@ -297,7 +525,8 @@ def sigma_dose_phase_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.5)
 
 
-def sigma_mech_phase_prior() -> Continuous:
+@named_prior("sigma_mech_phase", role="nuisance")
+def sigma_mech_phase_prior() -> PriorSpec:
     """Between-period SD of the mechanism slope sigma_mech_phase ~ HalfNormal(0.5).
 
     Used by ``build_mechanism_model(phase_varying_slope=True)`` for the
@@ -315,7 +544,8 @@ def sigma_mech_phase_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.5)
 
 
-def sigma_delta_prior() -> Continuous:
+@named_prior("sigma_delta", role="nuisance")
+def sigma_delta_prior() -> PriorSpec:
     """Between-waitlist-child catch-up SD sigma_delta ~ HalfNormal(0.5).
 
     Used only by exploratory ``build_did_model(use_varying_delta=True)``. The random
@@ -329,7 +559,8 @@ def sigma_delta_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.5)
 
 
-def b_path_prior(sigma: float = 1.0) -> Continuous:
+@named_prior("b_path", role="association")
+def b_path_prior(sigma: float = 1.0) -> PriorSpec:
     """Mediator -> outcome slope (b-path) ~ Normal(0, 1).
 
     Used by the LRP59 mediation outcome model for ``b_M``, the coefficient on the
@@ -346,7 +577,8 @@ def b_path_prior(sigma: float = 1.0) -> Continuous:
     return pz.Normal(mu=0.0, sigma=sigma)
 
 
-def sigma_mediator_prior() -> Continuous:
+@named_prior("sigma_mediator", role="nuisance")
+def sigma_mediator_prior() -> PriorSpec:
     """Gaussian-mediator residual SD sigma_M ~ HalfNormal(1.0).
 
     Used by the LRP62 reading-route model, where the mediator is a continuous
@@ -358,7 +590,8 @@ def sigma_mediator_prior() -> Continuous:
     return pz.HalfNormal(sigma=1.0)
 
 
-def eta_main_prior() -> Continuous:
+@named_prior("eta_main", role="gp")
+def eta_main_prior() -> PriorSpec:
     """GP amplitude (main effect) eta ~ HalfNormal(0.3).
 
     Tightened from HalfNormal(1.0) after LRP52 showed the GP amplitudes had
@@ -371,17 +604,20 @@ def eta_main_prior() -> Continuous:
     return pz.HalfNormal(sigma=0.3)
 
 
-def eta_tau_prior() -> Continuous:
+@named_prior("eta_tau", role="gp")
+def eta_tau_prior() -> PriorSpec:
     """GP amplitude (tau modifier) eta_tau ~ HalfNormal(0.3) - deliberately tight."""
     return pz.HalfNormal(sigma=0.3)
 
 
-def ell_prior() -> Continuous:
+@named_prior("ell", role="gp")
+def ell_prior() -> PriorSpec:
     """GP lengthscale ell ~ InverseGamma(3, 1) on standardised inputs."""
     return pz.InverseGamma(alpha=3.0, beta=1.0)
 
 
-def ell_prior_mech() -> Continuous:
+@named_prior("ell_mech", role="gp")
+def ell_prior_mech() -> PriorSpec:
     """Mechanism-curve GP lengthscale ell ~ InverseGamma(5, 5) (issue #265).
 
     On standardised inputs the default ``ell_prior`` (``InverseGamma(3, 1)``, mode
@@ -396,7 +632,8 @@ def ell_prior_mech() -> Continuous:
     return pz.InverseGamma(alpha=5.0, beta=5.0)
 
 
-def ell_prior_mech_tight() -> Continuous:
+@named_prior("ell_mech_tight", role="gp")
+def ell_prior_mech_tight() -> PriorSpec:
     """Thin-support mechanism-curve GP lengthscale ell ~ InverseGamma(8, 8) (issue #430).
 
     For a mechanism exposure whose support is too thin to inform the default
@@ -415,12 +652,14 @@ def ell_prior_mech_tight() -> Continuous:
     return pz.InverseGamma(alpha=8.0, beta=8.0)
 
 
-def eta_partial_pool_prior() -> Continuous:
+@named_prior("eta_partial_pool", role="gp")
+def eta_partial_pool_prior() -> PriorSpec:
     """Joint-model outcome-specific age-GP amplitude ~ HalfNormal(0.3)."""
     return pz.HalfNormal(sigma=0.3)
 
 
-def predictor_slope_prior(sigma: float = 0.3) -> Continuous:
+@named_prior("predictor_slope", role="association")
+def predictor_slope_prior(sigma: float = 0.3) -> PriorSpec:
     """Standardised predictor slope ~ Normal(0, 0.3) by default.
 
     (Parametrised by ``sigma``; the prior table reports this default scale — the
@@ -458,7 +697,8 @@ def predictor_slope_prior(sigma: float = 0.3) -> Continuous:
 # non-centred coefficients are assembled in ``factories._build_horseshoe_betas``.
 
 
-def horseshoe_tau_prior(tau0: float = 0.1) -> Continuous:
+@named_prior("hs_tau", role="nuisance")
+def horseshoe_tau_prior(tau0: float = 0.1) -> PriorSpec:
     """Horseshoe global shrinkage tau ~ HalfCauchy(0.1) by default.
 
     (Parametrised by ``tau0``; the table reports the default scale.) The global
@@ -475,7 +715,8 @@ def horseshoe_tau_prior(tau0: float = 0.1) -> Continuous:
     return pz.HalfCauchy(beta=tau0)
 
 
-def horseshoe_local_prior() -> Continuous:
+@named_prior("hs_lambda", role="nuisance")
+def horseshoe_local_prior() -> PriorSpec:
     """Horseshoe per-predictor local shrinkage lambda ~ HalfCauchy(1).
 
     The heavy Cauchy tail lets a genuinely large coefficient escape the global
@@ -485,7 +726,8 @@ def horseshoe_local_prior() -> Continuous:
     return pz.HalfCauchy(beta=1.0)
 
 
-def horseshoe_slab_prior(slab_scale: float = 2.0, slab_df: float = 4.0) -> Continuous:
+@named_prior("hs_c2", role="nuisance")
+def horseshoe_slab_prior(slab_scale: float = 2.0, slab_df: float = 4.0) -> PriorSpec:
     """Regularized-horseshoe slab c^2 ~ InverseGamma(2, 8) by default.
 
     (``InverseGamma(slab_df/2, slab_df*slab_scale^2/2)``; defaults slab_scale=2,
@@ -1339,17 +1581,55 @@ def priors_table(
     and captures the inline ``alpha_phase`` / ``alpha_time`` / ``sigma_child``
     priors a SHARED_PRIORS-only table would miss. Columns: ``parameter``,
     ``distribution``, ``role``, ``rationale``.
+
+    A variable whose prior recorded a :class:`PriorDescriptor` when it was created
+    is described **from that descriptor** (#637 stage 2). Only a variable with no
+    descriptor falls through to :func:`prior_info_for_rv`'s name-and-scale
+    inference — today that is the inline ``pm.*`` half of the model graph, and the
+    variables the shared HSGP builder creates inside ``dse_research_utils``, which
+    this package cannot annotate at their creation site.
+
+    The explicit overrides still win over a recorded descriptor, because a family
+    that reuses a constructor for a different scientific quantity declares that in
+    ``prior_artifacts._prior_table_overrides``; a call site can now say the same
+    thing at creation through ``to_pymc(role=..., rationale=...)``, which is
+    recorded as ``provenance="call-site"``.
     """
-    rows = [
-        prior_info_for_rv(
-            rv.name,
-            rv=rv,
-            ctor_overrides=ctor_overrides,
-            role_overrides=role_overrides,
-            rationale_overrides=rationale_overrides,
+    recorded = descriptors_for(model)
+    role_overrides = role_overrides or {}
+    rationale_overrides = rationale_overrides or {}
+    ctor_overrides = ctor_overrides or {}
+    rows = []
+    for rv in model.free_RVs:
+        base = rv.name.split("[")[0]
+        descriptor = recorded.get(rv.name)
+        if descriptor is not None and base not in ctor_overrides:
+            row = descriptor.as_row()
+            if base in role_overrides:
+                row["role"] = role_overrides[base]
+            # An outcome-anchored prior is described by its anchor, ahead of every
+            # other route (#390 P1): the constructor's docstring describes the
+            # zero-centred prior this one is not, and the empirical-Bayes sentence
+            # is the disclosure that it was built from the observed outcomes.
+            override_rationale = (
+                rationale_overrides.get(rv.name)
+                or rationale_overrides.get(base)
+                or empirical_bayes_rationale(base, row["distribution"])
+                or None
+            )
+            if override_rationale is not None:
+                row["rationale"] = override_rationale
+            rows.append(row)
+            continue
+        rows.append(
+            prior_info_for_rv(
+                rv.name,
+                rv=rv,
+                ctor_overrides=ctor_overrides or None,
+                role_overrides=role_overrides or None,
+                rationale_overrides=rationale_overrides or None,
+            )
         )
-        for rv in model.free_RVs
-    ]
     return pd.DataFrame(
         rows, columns=["parameter", "distribution", "role", "rationale", "panel"]
     )

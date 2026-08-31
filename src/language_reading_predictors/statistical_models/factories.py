@@ -298,6 +298,18 @@ class BuiltModel(Generic[PayloadT]):
     payload: PayloadT
     """Typed family payload containing non-RV values realised by the factory."""
 
+    @property
+    def prior_descriptors(self) -> dict[str, "_priors.PriorDescriptor"]:
+        """What each of this model's priors means, recorded as it was created.
+
+        Carried beside the typed payload (#637 stage 2) rather than reconstructed
+        from variable names downstream. Covers every variable built through a named
+        constructor; a variable built by a bare ``pm.*`` call, or by the shared
+        HSGP builder inside ``dse_research_utils``, is absent until it declares
+        itself through :func:`priors.declare`.
+        """
+        return _priors.descriptors_for(self.model)
+
     def require_payload(
         self,
         payload_type: type[RequiredPayloadT],
@@ -1978,7 +1990,7 @@ def build_mechanism_model(
             "A" in confounder_symbols and not use_age_gp and not age_is_moderator
         )
         if age_linear_added:
-            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A")
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
             eta = eta + gamma_A * A_std_d
 
         # Invariant: every declared confounder must reach ``eta``. ``G`` is in
@@ -2419,7 +2431,7 @@ def build_dose_response_model(
             beta_arm_late = _priors.gamma_cross_prior().to_pymc("beta_arm_late")
             eta = eta + beta_arm_late * G_d * late_d
         if adjust_age:
-            gamma_A = _priors.gamma_cross_prior().to_pymc("gamma_A")
+            gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
             eta = eta + gamma_A * A_std_d
 
         if use_subject_random_intercept:
@@ -3185,14 +3197,23 @@ def _build_outcome_leg(
     off_floor = outcome_kind == "bernoulli_offfloor"
     cross_values = dict(cross_values or {})
     b0 = _priors.alpha_prior().to_pymc("b0")
-    b_G = _priors.tau_prior().to_pymc("b_G")
+    b_G = _priors.tau_prior().to_pymc(
+        "b_G",
+        role="association",
+        rationale=(
+            "Randomised-arm coefficient in one g-formula leg, carried on the "
+            "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
+            "this family's causal deliverables are the NDE/NIE decomposition "
+            "the legs compose, not a single leg's coefficient."
+        ),
+    )
     b_M = _priors.b_path_prior().to_pymc("b_M")
     b_GM = _priors.gamma_cross_prior().to_pymc("b_GM")
     if not off_floor:
         # Own-baseline coefficient — created before b_A so the graded path's free-RV
         # order (and therefore its sampling) is byte-identical to the original.
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
-    b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+    b_A = _priors.gamma_age_prior().to_pymc("b_A")
     if off_floor:
         # #585 finding 4: the off-floor outcome leg no longer drops its own
         # baseline outright. The graded Normal(1, 0.25) autoregressive prior still
@@ -3395,9 +3416,18 @@ def build_mediation_model(
 
         # --- Mediator model: logit(mediator_t2) ---
         a0 = _priors.alpha_prior().to_pymc("a0")
-        a_G = _priors.tau_prior().to_pymc("a_G")
+        a_G = _priors.tau_prior().to_pymc(
+            "a_G",
+            role="association",
+            rationale=(
+                "Randomised-arm coefficient in one g-formula leg, carried on the "
+                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
+                "this family's causal deliverables are the NDE/NIE decomposition "
+                "the legs compose, not a single leg's coefficient."
+            ),
+        )
         a_L = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
-        a_A = _priors.gamma_cross_prior().to_pymc("a_A")
+        a_A = _priors.gamma_age_prior().to_pymc("a_A")
         mu_M = a0 + a_G * G_d + a_L * L1_d + a_A * A_d
         for s in confounder_symbols:
             a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
@@ -3575,9 +3605,18 @@ def _build_route_composite_model(
 
         # --- Mediator model: standardised route composite ~ Normal ---
         a0 = _priors.alpha_prior().to_pymc("a0")
-        a_G = _priors.tau_prior().to_pymc("a_G")
+        a_G = _priors.tau_prior().to_pymc(
+            "a_G",
+            role="association",
+            rationale=(
+                "Randomised-arm coefficient in one g-formula leg, carried on the "
+                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
+                "this family's causal deliverables are the NDE/NIE decomposition "
+                "the legs compose, not a single leg's coefficient."
+            ),
+        )
         a_comp = _priors.gamma_own_prior().to_pymc("a_comp")
-        a_A = _priors.gamma_cross_prior().to_pymc("a_A")
+        a_A = _priors.gamma_age_prior().to_pymc("a_A")
         mu_M = a0 + a_G * G_d + a_comp * Mpre_d + a_A * A_d
         for s in confounder_symbols:
             a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
@@ -3812,9 +3851,18 @@ def build_two_mediator_model(
 
         # --- Mediator L (letter-sound) ---
         aL0 = _priors.alpha_prior().to_pymc("aL0")
-        aL_G = _priors.tau_prior().to_pymc("aL_G")
+        aL_G = _priors.tau_prior().to_pymc(
+            "aL_G",
+            role="association",
+            rationale=(
+                "Randomised-arm coefficient in one g-formula leg, carried on the "
+                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
+                "this family's causal deliverables are the NDE/NIE decomposition "
+                "the legs compose, not a single leg's coefficient."
+            ),
+        )
         aL_L = _priors.gamma_own_prior().to_pymc("aL_L")
-        aL_A = _priors.gamma_cross_prior().to_pymc("aL_A")
+        aL_A = _priors.gamma_age_prior().to_pymc("aL_A")
         mu_L = aL0 + aL_G * G_d + aL_L * L1_d + aL_A * A_d
         for s in confounder_symbols:
             aL_c = _priors.gamma_cross_prior().to_pymc(f"aL_{s}")
@@ -3833,7 +3881,16 @@ def build_two_mediator_model(
         # --- Mediator 2 (``mE``; expressive vocabulary in LRP64, blending in LRP66;
         #     off-floor nonword decoding N in med-081) ---
         aE0 = _priors.alpha_prior().to_pymc(f"a{mE}0")
-        aE_G = _priors.tau_prior().to_pymc(f"a{mE}_G")
+        aE_G = _priors.tau_prior().to_pymc(
+            f"a{mE}_G",
+            role="association",
+            rationale=(
+                "Randomised-arm coefficient in one g-formula leg, carried on the "
+                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
+                "this family's causal deliverables are the NDE/NIE decomposition "
+                "the legs compose, not a single leg's coefficient."
+            ),
+        )
         if second_mediator_offfloor:
             # Off-floor mediator: the graded Normal(1, 0.25) autoregressive prior does
             # not transfer to a binary leg, but the baseline is not dropped either
@@ -3841,11 +3898,11 @@ def build_two_mediator_model(
             # contrast, so the complete-case rule and the likelihood agree.
             aE_off = _priors.gamma_own_offfloor_prior().to_pymc(f"a{mE}_own_offfloor")
             aE_off_d = pm.Data(f"{mE}_pre_offfloor", E1_off, dims="obs_id")
-            aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
+            aE_A = _priors.gamma_age_prior().to_pymc(f"a{mE}_A")
             mu_E = aE0 + aE_G * G_d + aE_off * aE_off_d + aE_A * A_d
         else:
             aE_E = _priors.gamma_own_prior().to_pymc(f"a{mE}_{mE}")
-            aE_A = _priors.gamma_cross_prior().to_pymc(f"a{mE}_A")
+            aE_A = _priors.gamma_age_prior().to_pymc(f"a{mE}_A")
             mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
         for s in confounder_symbols:
             aE_c = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{s}")
@@ -3880,13 +3937,22 @@ def build_two_mediator_model(
 
         # --- Outcome W ---
         b0 = _priors.alpha_prior().to_pymc("b0")
-        b_G = _priors.tau_prior().to_pymc("b_G")
+        b_G = _priors.tau_prior().to_pymc(
+        "b_G",
+        role="association",
+        rationale=(
+            "Randomised-arm coefficient in one g-formula leg, carried on the "
+            "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
+            "this family's causal deliverables are the NDE/NIE decomposition "
+            "the legs compose, not a single leg's coefficient."
+        ),
+    )
         b_L = _priors.b_path_prior().to_pymc("b_L")
         b_E = _priors.b_path_prior().to_pymc(f"b_{mE}")
         b_GL = _priors.gamma_cross_prior().to_pymc("b_GL")
         b_GE = _priors.gamma_cross_prior().to_pymc(f"b_G{mE}")
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
-        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+        b_A = _priors.gamma_age_prior().to_pymc("b_A")
         eta_Y = (
             b0
             + b_G * G_d
@@ -4111,7 +4177,7 @@ def build_period_stacked_mediation_model(
         a_phase = pm.Normal("a_phase", mu=0.0, sigma=0.5, dims="phase")
         a_trt = _priors.tau_prior().to_pymc("a_trt")
         a_M = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
-        a_A = _priors.gamma_cross_prior().to_pymc("a_A")
+        a_A = _priors.gamma_age_prior().to_pymc("a_A")
         mu_M = a0 + a_phase[phase_d] + a_trt * trt_d + a_M * L1_d + a_A * A_d
         for s in confounder_symbols:
             a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
@@ -4136,7 +4202,7 @@ def build_period_stacked_mediation_model(
         b_M = _priors.b_path_prior().to_pymc("b_M")
         b_trtM = _priors.gamma_cross_prior().to_pymc("b_trtM")
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
-        b_A = _priors.gamma_cross_prior().to_pymc("b_A")
+        b_A = _priors.gamma_age_prior().to_pymc("b_A")
         eta_Y = (
             b0
             + b_phase[phase_d]
