@@ -31,6 +31,10 @@ from language_reading_predictors.statistical_models import (
 )
 from language_reading_predictors.statistical_models import release as release_module
 from language_reading_predictors.statistical_models.release import (
+    family_checks as release_family_checks,
+    robustness as release_robustness,
+)
+from language_reading_predictors.statistical_models.release import (
     GROWTH_INFLUENCE_TRACE_FILENAME,
     MEDIATION_T3_TRACE_FILENAME,
     RELEASE_DECISION_FILENAME,
@@ -1184,8 +1188,11 @@ def test_raw_missingness_thresholds_override_a_stored_true_verdict(
         surfaces=("summary", "provenance", "subfit"),
         converged=True,
     )
+    # Patch where the name is *used*: since #637 stage 3c the ITT missingness
+    # check lives in ``release.family_checks``, which holds its own binding, so
+    # patching the facade would not intercept the call.
     monkeypatch.setattr(
-        release_module,
+        release_family_checks,
         "_missingness_trace_diagnostics",
         lambda _path, **_kwargs: (raw, None),
     )
@@ -1614,11 +1621,12 @@ def _floor_fit_dir(
 
 
 def _ready_grid(monkeypatch) -> None:
+    # The floor branch lives in ``release.robustness`` since #637 stage 3c.
     monkeypatch.setattr(
-        release_module, "load_primary_floor_reference", lambda *a, **k: object()
+        release_robustness, "load_primary_floor_reference", lambda *a, **k: object()
     )
     monkeypatch.setattr(
-        release_module, "evaluate_floor_sensitivity", lambda *a, **k: {"ready": True}
+        release_robustness, "evaluate_floor_sensitivity", lambda *a, **k: {"ready": True}
     )
 
 

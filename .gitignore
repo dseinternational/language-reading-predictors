@@ -111,6 +111,10 @@ x86/
 [Aa]rm64/
 Debug/
 Release/
+# ...but not the Python package of that name. macOS is case-insensitive, so the
+# Visual Studio build-output pattern above silently swallowed the whole
+# `release/` package when #637 stage 3c created it.
+!src/language_reading_predictors/statistical_models/release/
 
 # VS Code
 .vscode/
