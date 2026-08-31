@@ -81,6 +81,10 @@ def _write_synthetic(tmp_path, n_children: int = 24, seed: int = 7):
                 V.MUMEDUPOST16: int(rng.integers(0, 8)),
                 V.DADEDUPOST16: int(rng.integers(0, 8)),
                 V.AGEBOOKS: int(rng.integers(0, 48)),
+                # Hearing feeds add_hearing_status -> hs/hs_missing, the adjuster
+                # block the registered lcsm specs condition on (#229).
+                V.HEARING: int(rng.integers(0, 2)),
+                V.EARINF: int(rng.integers(0, 2)),
             }
             if t == 1:
                 row[V.BLOCKS] = blocks
@@ -193,8 +197,23 @@ def _representative_models(tmp_path) -> dict[str, object]:
         structural_covariates=("blocks",),
     ).model
 
-    panel = load_wave_panel(path=p, outcomes=("W", "L", "E"))
-    models["lcsm"] = build_lcsm_model(panel).model
+    panel = load_wave_panel(
+        path=p, outcomes=("W", "L", "E"), include_hearing=True
+    )
+    # Exercise the optional blocks the registered lcsm specs actually use, not
+    # just the bare default shape: lcsm-081/082/181 carry a covariate_block
+    # (the measured backdoor adjusters) and lcsm-091 a lagged_change_couplings
+    # block. Both create their own inline priors, and building only the default
+    # shape here is what let two of them ship undeclared — the fit fails closed
+    # on the missing descriptor, so a fixture that skips the block turns a broken
+    # model into a green test.
+    models["lcsm"] = build_lcsm_model(
+        panel,
+        lagged_change_couplings={"W": ("L", "E")},
+        arm_window_intercepts=True,  # the factory's own design rule for the h terms
+        covariate_block=("hs", "hs_missing"),
+        covariate_targets=("W",),
+    ).model
 
     lcf_panel = load_wave_panel(
         path=p, outcomes=("R", "E", "TR", "TE", "L", "B", "F", "T")

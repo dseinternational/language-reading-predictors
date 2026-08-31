@@ -370,13 +370,34 @@ def build_lcsm_model(
         for tgt, srcs in lagged_change_couplings.items():
             for src in srcs:
                 pname = f"h_{src}" if single_lag_target else f"h_{src}_{tgt}"
-                h_par[(src, tgt)] = pm.Normal(
-                    pname, mu=0.0, sigma=coupling_prior_sigma
+                h_par[(src, tgt)] = _priors.declare(
+                    pm.Normal(pname, mu=0.0, sigma=coupling_prior_sigma),
+                    role="association",
+                    panel="gamma_cross",
+                    rationale=(
+                        "Lagged change-on-change coupling of the change-score "
+                        "recursion: the effect of one measure's prior change on "
+                        "another's subsequent change (Normal(0, 0.3), the same "
+                        "regularising scale as the level couplings). An adjusted "
+                        "association, reported beside them (#229 spec 2)."
+                    ),
                 )
         # Adjuster-covariate slopes, shared across the covariate_targets
         # equations (the parameter-sparing default at n~54).
         b_cov = {
-            name: pm.Normal(f"b_{name}", mu=0.0, sigma=covariate_prior_sigma)
+            name: _priors.declare(
+                pm.Normal(f"b_{name}", mu=0.0, sigma=covariate_prior_sigma),
+                role="precision",
+                rationale=(
+                    "Adjuster-covariate slope on the change score (Normal(0, 0.3)), "
+                    "shared across the covariate_targets equations. One of the "
+                    "measured confounders the family conditions on to complete its "
+                    "backdoor set (hearing, prior-wave phonological memory and "
+                    "speech production, each with its missing indicator); it "
+                    "sharpens the reported couplings without licensing a causal "
+                    "reading of its own."
+                ),
+            )
             for name in covariate_block
         }
         kappa = _priors.declare(
