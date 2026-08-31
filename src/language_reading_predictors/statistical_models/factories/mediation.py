@@ -1162,7 +1162,15 @@ def build_period_stacked_mediation_model(
 
         # --- Mediator leg: logit(M_post) over all stacked periods ---
         a0 = _priors.alpha_prior().to_pymc("a0")
-        a_phase = pm.Normal("a_phase", mu=0.0, sigma=0.5, dims="phase")
+        a_phase = _priors.declare(
+            pm.Normal("a_phase", mu=0.0, sigma=0.5, dims="phase"),
+            role="association",
+            rationale=(
+                "Per-phase intercept/period offset on the mediator leg "
+                "(Normal(0, 0.5)); an age/maturation/period association, not a "
+                "cross-baseline skill coupling and not a mediator a-path."
+            ),
+        )
         a_trt = _priors.tau_prior().to_pymc("a_trt")
         a_M = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
         a_A = _priors.gamma_age_prior().to_pymc("a_A")
@@ -1171,8 +1179,24 @@ def build_period_stacked_mediation_model(
             a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
             mu_M = mu_M + a_c * conf_d[s]
         mu_M = _add_cross_baselines(mu_M, mediator_cross_baselines, med_cross_values)
-        sigma_child_M = pm.HalfNormal("sigma_child_M", sigma=sigma_child_prior_sigma)
-        u_child_M_raw = pm.Normal("u_child_M_raw", mu=0.0, sigma=1.0, dims="child")
+        sigma_child_M = _priors.declare(
+            pm.HalfNormal("sigma_child_M", sigma=sigma_child_prior_sigma),
+            role="nuisance",
+            rationale=(
+                "Between-child SD of the mediator leg's random intercept "
+                "(HalfNormal); partially pools stable child heterogeneity across "
+                "the stacked periods."
+            ),
+        )
+        u_child_M_raw = _priors.declare(
+            pm.Normal("u_child_M_raw", mu=0.0, sigma=1.0, dims="child"),
+            role="nuisance",
+            rationale=(
+                "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
+                "scaled by sigma_child_M to form the mediator leg's child random "
+                "intercept u_child_M."
+            ),
+        )
         u_child_M = pm.Deterministic(
             "u_child_M", sigma_child_M * u_child_M_raw, dims="child"
         )
@@ -1185,7 +1209,15 @@ def build_period_stacked_mediation_model(
 
         # --- Outcome leg: logit(W_post) over all stacked periods ---
         b0 = _priors.alpha_prior().to_pymc("b0")
-        b_phase = pm.Normal("b_phase", mu=0.0, sigma=0.5, dims="phase")
+        b_phase = _priors.declare(
+            pm.Normal("b_phase", mu=0.0, sigma=0.5, dims="phase"),
+            role="association",
+            rationale=(
+                "Per-phase intercept/period offset on the outcome leg "
+                "(Normal(0, 0.5)); an age/maturation/period association, not a "
+                "cross-baseline skill coupling."
+            ),
+        )
         b_trt = _priors.tau_prior().to_pymc("b_trt")
         b_M = _priors.b_path_prior().to_pymc("b_M")
         b_trtM = _priors.gamma_cross_prior().to_pymc("b_trtM")
@@ -1204,8 +1236,24 @@ def build_period_stacked_mediation_model(
             b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
             eta_Y = eta_Y + b_c * conf_d[s]
         eta_Y = _add_cross_baselines(eta_Y, outcome_cross_baselines, out_cross_values)
-        sigma_child_Y = pm.HalfNormal("sigma_child_Y", sigma=sigma_child_prior_sigma)
-        u_child_Y_raw = pm.Normal("u_child_Y_raw", mu=0.0, sigma=1.0, dims="child")
+        sigma_child_Y = _priors.declare(
+            pm.HalfNormal("sigma_child_Y", sigma=sigma_child_prior_sigma),
+            role="nuisance",
+            rationale=(
+                "Between-child SD of the outcome leg's random intercept "
+                "(HalfNormal); partially pools stable child heterogeneity across "
+                "the stacked periods."
+            ),
+        )
+        u_child_Y_raw = _priors.declare(
+            pm.Normal("u_child_Y_raw", mu=0.0, sigma=1.0, dims="child"),
+            role="nuisance",
+            rationale=(
+                "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
+                "scaled by sigma_child_Y to form the outcome leg's child random "
+                "intercept u_child_Y."
+            ),
+        )
         u_child_Y = pm.Deterministic(
             "u_child_Y", sigma_child_Y * u_child_Y_raw, dims="child"
         )

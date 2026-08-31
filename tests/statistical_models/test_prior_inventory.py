@@ -44,6 +44,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_rlm_horseshoe_model,
     build_rlm_joint_growth_model,
     build_rlm_transition_adjusted_model,
+    build_period_stacked_mediation_model,
     build_two_mediator_model,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
@@ -145,6 +146,13 @@ def _representative_models(tmp_path) -> dict[str, object]:
         confounder_symbols=("G", "A"), mech_hsgp_m=6,
         mech_lengthscale_prior=priors.ell_prior_mech_tight(),
     ).model
+    # The partially-pooled per-period slope (#604), taken by mech-302/303. Its
+    # non-centred offset is created inline, so a fixture without this opt-in
+    # never builds it.
+    models["mechanism_phase_varying"] = build_mechanism_model(
+        allp, mechanism_symbol="L", outcome_symbol="W",
+        confounder_symbols=("G", "A"), linear_mechanism=True, phase_varying_slope=True,
+    ).model
     models["mechanism_covariate"] = build_mechanism_model(
         load_and_prepare(
             path=p, phase_mode="all", outcomes=("W",), covariates=("attend",)
@@ -174,6 +182,11 @@ def _representative_models(tmp_path) -> dict[str, object]:
     models["mediation_gaussian"] = build_mediation_model(
         itt, outcome_symbol="W", confounder_symbols=("E", "R"),
         mediator_kind="gaussian_composite", route_symbols=("L", "B"),
+    )[0].model
+    # The period-stacked joint mediator+outcome model (MED-092, #229): both legs
+    # create per-phase offsets and a per-leg child random intercept inline.
+    models["mediation_period_stacked"] = build_period_stacked_mediation_model(
+        allp, mediator_symbol="L", outcome_symbol="W"
     )[0].model
     models["mediation_multi"] = build_two_mediator_model(
         itt, outcome_symbol="W", mediator_symbols=("L", "E"), confounder_symbols=("R",)
