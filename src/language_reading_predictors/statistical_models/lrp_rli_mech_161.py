@@ -24,6 +24,9 @@ effect (#586 finding 10); this baseline shares that estimand, so the nested LOO 
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -36,16 +39,16 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
-    extra={
-        "outcomes": ("W", "L", "B"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-        "moderator_symbol": "B",
-        "include_interaction": False,
-        "target_accept": 0.999,
+    target_accept=0.999,
+    model_settings=MechanismModelSettings(
+        outcomes=("W", "L", "B"),
+        adjust_baseline_symbol="W",
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+        moderator_symbol="B",
+        include_interaction=False,
         # Thin-support HSGP reparameterisation (#430/#434 lever, adopted #438). The
         # default basis (m=10) with ell ~ InverseGamma(5, 5) leaves this curve's
         # geometry marginal at n = 54: the primary fit is borderline and, more to the
@@ -60,9 +63,9 @@ SPEC = ModelSpec(
         # from 0 to 10 divergences (that pair was retired in #438), so the shared
         # defaults stay as they are. See
         # notes/202607251500-mech-hsgp-reparameterisation.md.
-        "mech_hsgp_m": 6,
-        "mech_lengthscale_tight": True,
-    },
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
+    ),
 )
 
 

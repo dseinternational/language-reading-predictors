@@ -18,6 +18,9 @@ term is non-randomised and every coefficient is an association.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.aligned import (
+    AlignedModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.aligned import fit_aligned
 
 SPEC = ModelSpec(
@@ -25,11 +28,11 @@ SPEC = ModelSpec(
     kind="aligned",
     title="Aligned-40-week dose sensitivity variant for word reading (W)",
     outcome_symbol="W",
-    extra={
-        "ability_covariate": V.BLOCKS,
-        "use_cohort": True,
-        "use_dose": True,
-    },
+    model_settings=AlignedModelSettings(
+        ability_covariate=V.BLOCKS,
+        use_cohort=True,
+        use_dose=True,
+    ),
 )
 
 

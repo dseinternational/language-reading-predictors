@@ -329,10 +329,15 @@ def test_registered_specs_are_typed_and_match_legacy_contracts():
 
     for spec in (RLI_001, RLI_002, RLI_101, RLI_102, RLM_001):
         assert isinstance(spec.model_settings, C.CorrFactorModelSettings)
-        assert set(spec.extra) == {"target_accept"}
+        # #637 stage 2: the sampler knob moved to the first-class
+        # ``ModelSpec.target_accept``, so a registered spec carries no ``extra``
+        # at all. The legacy adapter still accepts it, which is what the
+        # comparison below exercises.
+        assert spec.extra == {}
+        assert spec.target_accept is not None
         typed = C.resolve_corr_factor_run_plan(spec)
         legacy_extra = asdict(spec.model_settings)
-        legacy_extra["target_accept"] = spec.extra["target_accept"]
+        legacy_extra["target_accept"] = spec.target_accept
         legacy = C.resolve_corr_factor_run_plan(
             ModelSpec(
                 model_id=spec.model_id,

@@ -50,12 +50,10 @@ SPEC = ModelSpec(
         slab_scale=2.0,
         slab_df=4.0,
     ),
-    extra={
         # The horseshoe's global-local funnel needs smaller steps than the
         # tier defaults. The rep-lite fit diverged at 0.99 and cleared the
         # zero-divergence gate at 0.999.
-        "target_accept": 0.999,
-    },
+    target_accept=0.999,
 )
 
 

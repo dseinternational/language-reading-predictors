@@ -215,7 +215,9 @@ def test_registered_spec_is_typed_and_matches_legacy_contract():
     from language_reading_predictors.statistical_models.lrp_rli_lcf_001 import SPEC
 
     assert isinstance(SPEC.model_settings, L.LongCorrFactorModelSettings)
-    assert set(SPEC.extra) == {"target_accept"}
+    # #637 stage 2: the sampler knob is a first-class ``ModelSpec`` field now.
+    assert SPEC.extra == {}
+    assert SPEC.target_accept is not None
     typed = L.resolve_long_corr_factor_run_plan(SPEC)
     legacy = L.resolve_long_corr_factor_run_plan(
         ModelSpec(
@@ -226,7 +228,7 @@ def test_registered_spec_is_typed_and_matches_legacy_contract():
             study_id=SPEC.study_id,
             extra={
                 "domains": typed.domain_mapping(),
-                "target_accept": SPEC.extra["target_accept"],
+                "target_accept": SPEC.target_accept,
             },
         )
     )

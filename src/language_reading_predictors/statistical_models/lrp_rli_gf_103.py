@@ -27,6 +27,9 @@ LRPGF03.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.gain_factors import (
+    GainFactorsModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.gain_factors import fit_gain_factors
 
 SPEC = ModelSpec(
@@ -34,13 +37,13 @@ SPEC = ModelSpec(
     kind="gain_factors",
     title="Factors associated with gains in expressive vocabulary (E), treated-only (gains while on intervention)",
     outcome_symbol="E",
-    extra={
-        "skill_symbols": ("R", "TR", "TE"),
-        "ability_covariate": V.BLOCKS,
-        "adjust_for": ("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
-        "interactions": (("age", "ability"),),
-        "treated_only": True,
-    },
+    model_settings=GainFactorsModelSettings(
+        skill_symbols=("R", "TR", "TE"),
+        ability_covariate=V.BLOCKS,
+        adjust_for=("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
+        interactions=(("age", "ability"),),
+        treated_only=True,
+    ),
 )
 
 

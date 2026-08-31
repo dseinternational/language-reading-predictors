@@ -41,6 +41,9 @@ available-case modified ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -50,27 +53,27 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="B",
     adjustment=["G", "A", "L", "TE", "E", "W_pre"],
-    extra={
-        "outcomes": ("W", "B", "L", "TE", "E"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": (
+        # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
+    target_accept=0.999,
+    model_settings=MechanismModelSettings(
+        outcomes=("W", "B", "L", "TE", "E"),
+        adjust_baseline_symbol="W",
+        adjust_for=(
             "hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing",
             "erbto", "erbto_missing",
         ),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-        # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
-        "target_accept": 0.999,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # Thin-support HSGP reparameterisation (#430). Blending is a 10-item task with
         # a chance floor ~3.3 and ~19% at ceiling, so the shared f_mech defaults
         # (m=10, ell InverseGamma(5,5)) leave a wiggly, weakly-identified curve that
         # diverged 31 times at reporting tier. Fewer basis functions + a tighter
         # lengthscale (InverseGamma(8,8), short-tail thinned, mode ~unchanged) clear
         # the boundary geometry (0 divergences) without forcing the curve flat.
-        "mech_hsgp_m": 6,
-        "mech_lengthscale_tight": True,
-    },
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
+    ),
 )
 
 

@@ -29,6 +29,9 @@ remains here.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.gain_factors import (
+    GainFactorsModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.gain_factors import fit_gain_factors
 
 SPEC = ModelSpec(
@@ -36,13 +39,13 @@ SPEC = ModelSpec(
     kind="gain_factors",
     title="Factors associated with gains in TROG receptive grammar (T)",
     outcome_symbol="T",
-    extra={
-        "skill_symbols": ("R", "TR"),
-        "ability_covariate": V.BLOCKS,
-        "adjust_for": (),
-        "interactions": (("age", "ability"),),
-        "treated_only": False,
-    },
+    model_settings=GainFactorsModelSettings(
+        skill_symbols=("R", "TR"),
+        ability_covariate=V.BLOCKS,
+        adjust_for=(),
+        interactions=(("age", "ability"),),
+        treated_only=False,
+    ),
 )
 
 

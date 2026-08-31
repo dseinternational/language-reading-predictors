@@ -67,14 +67,12 @@ SPEC = ModelSpec(
         use_age=True,
         loading_prior="free",
     ),
-    extra={
         # The legacy geometry at its knob DEFAULTS (HalfNormal(1) pair): LRPMM01
         # uses the factory-default communality parameterisation, so this companion
         # varies only the geometry, not the knob values.
         # Matched to LRPMM01 so the loading-prior geometry is the ONLY difference
         # between the fits.
-        "target_accept": 0.999,
-    },
+    target_accept=0.999,
 )
 
 

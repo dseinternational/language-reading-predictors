@@ -22,6 +22,9 @@ panel. GA unblockable; adjusted association only.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -31,15 +34,15 @@ SPEC = ModelSpec(
     outcome_symbol="F",
     mechanism_symbol="L",
     adjustment=["G", "A", "F_pre"],
-    extra={
-        "adjust_baseline_symbol": "F",
-        "outcomes": ("F", "L"),
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "linear_mechanism": True,
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-    },
+    model_settings=MechanismModelSettings(
+        adjust_baseline_symbol="F",
+        outcomes=("F", "L"),
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        linear_mechanism=True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+    ),
 )
 
 

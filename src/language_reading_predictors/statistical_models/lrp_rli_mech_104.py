@@ -37,6 +37,9 @@ companion for the nested PSIS-LOO test; the within-child check
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -49,20 +52,20 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
-    extra={
-        "outcomes": ("W", "L"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "moderator_symbol": "erbto",
-        "moderator_is_covariate": True,
+    model_settings=MechanismModelSettings(
+        outcomes=("W", "L"),
+        adjust_baseline_symbol="W",
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        moderator_symbol="erbto",
+        moderator_is_covariate=True,
         # Drop the mean-imputed erbto rows: do not moderate by an average-filled
         # effect modifier (loads erbto_missing for the loader's filter).
-        "require_observed": ("erbto",),
-        "include_interaction": True,
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-    },
+        require_observed=("erbto",),
+        include_interaction=True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+    ),
 )
 
 

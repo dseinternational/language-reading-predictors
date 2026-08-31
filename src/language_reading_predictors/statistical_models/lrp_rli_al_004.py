@@ -13,6 +13,9 @@ no coefficient is a clean treatment effect -- all are associations.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.aligned import (
+    AlignedModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.aligned import fit_aligned
 
 SPEC = ModelSpec(
@@ -20,11 +23,11 @@ SPEC = ModelSpec(
     kind="aligned",
     title="Aligned-40-week per-protocol gain for letter-sound knowledge (L)",
     outcome_symbol="L",
-    extra={
-        "ability_covariate": V.BLOCKS,
-        "use_cohort": True,
-        "use_dose": False,
-    },
+    model_settings=AlignedModelSettings(
+        ability_covariate=V.BLOCKS,
+        use_cohort=True,
+        use_dose=False,
+    ),
 )
 
 

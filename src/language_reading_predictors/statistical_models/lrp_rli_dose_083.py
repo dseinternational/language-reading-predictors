@@ -52,12 +52,10 @@ SPEC = ModelSpec(
         use_subject_random_intercept=True,
         outcomes=("L",),
     ),
-    extra={
         # Same period-varying dose geometry as LRP77: 3 divergences at the reporting
         # preset's 0.95, 0 at 0.99 (R-hat 1.002, min ESS 3,960). See
         # notes/202608050649-reporting-refit-predictive-checks.md.
-        "target_accept": 0.99,
-    },
+    target_accept=0.99,
 )
 
 

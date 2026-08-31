@@ -23,6 +23,9 @@ available-case modified ITT estimate in the ITT suite.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -32,17 +35,17 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="E",
     adjustment=["G", "A", "TR", "TE", "R", "W_pre"],
-    extra={
-        "outcomes": ("W", "E", "R", "TR", "TE"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": (
+        # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
+    target_accept=0.999,
+    model_settings=MechanismModelSettings(
+        outcomes=("W", "E", "R", "TR", "TE"),
+        adjust_baseline_symbol="W",
+        adjust_for=(
             "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
         ),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-        # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
-        "target_accept": 0.999,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # Thin-support HSGP reparameterisation (#438 / notes/202607251500-mech-hsgp-
         # reparameterisation.md): basis count 6 (from the shared default 10) and the
         # tighter InverseGamma(8, 8) lengthscale prior. Adopted here because this fit
@@ -50,9 +53,9 @@ SPEC = ModelSpec(
         # zero-divergence-only under notes/202608021625-divergence-qualification-policy.md
         # — the geometry has to be fixed, not waived. Per-model opt-in, not a default:
         # the same lever regressed mech-173 from 0 to 10 divergences.
-        "mech_hsgp_m": 6,
-        "mech_lengthscale_tight": True,
-    },
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
+    ),
 )
 
 

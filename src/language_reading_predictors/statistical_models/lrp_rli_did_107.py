@@ -24,6 +24,9 @@ not conditioned on.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.did import (
+    DiDModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.did import fit_did
 
 SPEC = ModelSpec(
@@ -38,14 +41,14 @@ SPEC = ModelSpec(
     design="waitlist-crossover transition dose intensive margin",
     estimand_type="association",
     causal_status="none for session-dose coefficient",
-    extra={
-        "outcomes": ("L",),
-        "periods": (0, 1),
-        "use_child_re": True,
-        "use_age": True,
-        "dose": True,
-        "period_varying_dose": False,
-    },
+    model_settings=DiDModelSettings(
+        outcomes=("L",),
+        periods=(0, 1),
+        use_child_re=True,
+        use_age=True,
+        dose=True,
+        period_varying_dose=False,
+    ),
 )
 
 

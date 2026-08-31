@@ -39,6 +39,9 @@ the outcome level is carried by ``gamma_own``), so there is nothing to remap.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.aligned import (
+    AlignedModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.aligned import fit_aligned
 
 SPEC = ModelSpec(
@@ -51,12 +54,12 @@ SPEC = ModelSpec(
     outcome_symbol="B",
     # Deliberately a one-key diff from lrp-rli-al-006's declaration, in the same
     # style, so a reader can verify by eye that the pair differs only in the link.
-    extra={
-        "ability_covariate": V.BLOCKS,
-        "use_cohort": True,
-        "use_dose": False,
-        "score_mean_link": "three_choice_guessing_floor",
-    },
+    model_settings=AlignedModelSettings(
+        ability_covariate=V.BLOCKS,
+        use_cohort=True,
+        use_dose=False,
+        score_mean_link="three_choice_guessing_floor",
+    ),
 )
 
 

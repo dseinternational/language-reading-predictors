@@ -34,6 +34,9 @@ RI-CLPM companion was for LRP67).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.growth import (
+    GrowthModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.growth import fit_growth
 
 SPEC = ModelSpec(
@@ -45,12 +48,12 @@ SPEC = ModelSpec(
         "non-verbal ability predict the common tempo?"
     ),
     outcome_symbol=None,
-    extra={
-        "outcomes": ["R", "E", "T", "W", "L"],
-        "baseline_covariate": "blocks",
+    model_settings=GrowthModelSettings(
+        outcomes=["R", "E", "T", "W", "L"],
+        baseline_covariate="blocks",
         # Factor layer: add the rank-1 shared growth-tempo factor G_i.
-        "use_shared_factor": True,
-    },
+        use_shared_factor=True,
+    ),
     study_id="rli",
     family="growth",
     design="observational_longitudinal",

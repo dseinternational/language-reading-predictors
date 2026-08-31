@@ -27,6 +27,9 @@ unblockable; ``beta_mech`` is an **adjusted association**, not a causal effect.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -36,15 +39,15 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
-    extra={
-        "adjust_baseline_symbol": "W",
-        "outcomes": ("W", "L"),
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "linear_mechanism": True,
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-    },
+    model_settings=MechanismModelSettings(
+        adjust_baseline_symbol="W",
+        outcomes=("W", "L"),
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        linear_mechanism=True,
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+    ),
 )
 
 

@@ -19,6 +19,9 @@ exposure and outcome are measured at the same wave, so nothing here orders them.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.pooled_levels import (
+    PooledLevelsModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.pooled_levels import (
     fit_pooled_levels,
 )
@@ -29,12 +32,12 @@ SPEC = ModelSpec(
     title="Wave-pooled level association: letter-sound knowledge (L) -> word reading (W)",
     outcome_symbol="W",
     mechanism_symbol="L",
-    extra={
-        "adjust_for": ("hs", "hs_missing", "deapp_c", "deapp_c_missing"),
-        "ability_covariate": "blocks",
-        "use_wave_intercepts": True,
-        "use_subject_random_intercept": True,
-    },
+    model_settings=PooledLevelsModelSettings(
+        adjust_for=("hs", "hs_missing", "deapp_c", "deapp_c_missing"),
+        ability_covariate="blocks",
+        use_wave_intercepts=True,
+        use_subject_random_intercept=True,
+    ),
 )
 
 

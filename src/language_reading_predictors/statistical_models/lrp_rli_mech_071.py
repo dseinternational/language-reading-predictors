@@ -29,6 +29,9 @@ See the companion note and ``docs/models/lrp-rli-mech-071/index.qmd``.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -43,19 +46,19 @@ SPEC = ModelSpec(
     adjustment=["G", "A", "W_pre"],
     # Same flags as LRP58 plus the moderator. Age GP off (age enters linearly),
     # subject random intercept on.
-    extra={
-        "outcomes": ("W", "L", "E"),
-        "adjust_baseline_symbol": "W",
-        "adjust_for": ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
-        "moderator_symbol": "E",
         # Boundary divergences remain at 0.95 (R-hat 1.0, min ESS ~2400); lift
         # target_accept for smaller steps, as LRP58 does. The wave fix (#258) already
         # took this from ~90 divergences (R-hat 1.2, ESS ~9) to ~14, so the residual
         # is a boundary-step issue, not the interaction geometry the review feared.
-        "target_accept": 0.999,
+    target_accept=0.999,
+    model_settings=MechanismModelSettings(
+        outcomes=("W", "L", "E"),
+        adjust_baseline_symbol="W",
+        adjust_for=("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"),
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
+        moderator_symbol="E",
         # Thin-support HSGP reparameterisation (#430/#434 lever, adopted #438). The
         # default basis (m=10) with ell ~ InverseGamma(5, 5) leaves this curve's
         # geometry marginal at n = 54: the primary fit is borderline and, more to the
@@ -70,9 +73,9 @@ SPEC = ModelSpec(
         # from 0 to 10 divergences (that pair was retired in #438), so the shared
         # defaults stay as they are. See
         # notes/202607251500-mech-hsgp-reparameterisation.md.
-        "mech_hsgp_m": 6,
-        "mech_lengthscale_tight": True,
-    },
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
+    ),
 )
 
 

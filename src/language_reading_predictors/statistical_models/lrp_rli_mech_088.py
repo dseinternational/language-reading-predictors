@@ -54,6 +54,9 @@ association (a single slope, not a shape).
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.mechanism import (
+    MechanismModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.mechanism import fit_mechanism
 
 SPEC = ModelSpec(
@@ -66,24 +69,24 @@ SPEC = ModelSpec(
     # Age enters as a linear gamma_A term; the subject random intercept handles the
     # non-independent rows (up to 3 phases x 53 children) and proxies the
     # time-invariant part of latent ability.
-    extra={
+    model_settings=MechanismModelSettings(
         # Load the exposure (TR) and outcome (W); TR has no measure confounder, so
         # the complete-case mask is W + TR only.
-        "outcomes": ("W", "TR"),
-        "adjust_baseline_symbol": "W",
+        outcomes=("W", "TR"),
+        adjust_baseline_symbol="W",
         # attend (IS) added 2026-07-17 (reversing #309): IS -> TR and IS -> WR make it
         # a genuine confounder; the IG -> IS <- GA collider path it could open is
         # closed at the always-conditioned arm G. See the review note in notes/.
-        "adjust_for": ("hs", "hs_missing", "attend", "erbto", "erbto_missing"),
-        "use_age_gp": False,
-        "phase_specific_mechanism": False,
-        "use_subject_random_intercept": True,
+        adjust_for=("hs", "hs_missing", "attend", "erbto", "erbto_missing"),
+        use_age_gp=False,
+        phase_specific_mechanism=False,
+        use_subject_random_intercept=True,
         # LINEAR mechanism, not the HSGP curve - the vocabulary-predictor precedent
         # (see LRP56/57): the nonparametric curve does not converge on vocabulary
         # exposures at reporting tier, and DAG-required adjusters are not dropped to
         # buy convergence. The estimand is the LINEAR TR -> W adjusted association.
-        "linear_mechanism": True,
-    },
+        linear_mechanism=True,
+    ),
 )
 
 

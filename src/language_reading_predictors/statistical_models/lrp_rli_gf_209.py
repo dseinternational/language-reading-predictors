@@ -19,6 +19,9 @@ settle them.
 
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.gain_factors import (
+    GainFactorsModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.gain_factors import fit_gain_factors
 
 SPEC = ModelSpec(
@@ -26,14 +29,14 @@ SPEC = ModelSpec(
     kind="gain_factors",
     title="Treatment-moderation variant: gains in taught receptive vocabulary (TR)",
     outcome_symbol="TR",
-    extra={
-        "skill_symbols": (),
-        "ability_covariate": V.BLOCKS,
-        "adjust_for": ('hs', 'hs_missing', 'erbto', 'erbto_missing'),
-        "interactions": (("trt", "ability"), ("trt", "own"), ("age", "ability")),
-        "treated_only": False,
-        "moderation_variant": True,
-    },
+    model_settings=GainFactorsModelSettings(
+        skill_symbols=(),
+        ability_covariate=V.BLOCKS,
+        adjust_for=('hs', 'hs_missing', 'erbto', 'erbto_missing'),
+        interactions=(("trt", "ability"), ("trt", "own"), ("age", "ability")),
+        treated_only=False,
+        moderation_variant=True,
+    ),
 )
 
 

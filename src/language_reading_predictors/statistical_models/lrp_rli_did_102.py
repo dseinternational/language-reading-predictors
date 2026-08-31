@@ -36,6 +36,9 @@ mechanism-identified.
 """
 
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.did import (
+    DiDModelSettings,
+)
 from language_reading_predictors.statistical_models.pipelines.did import fit_did
 
 SPEC = ModelSpec(
@@ -50,17 +53,17 @@ SPEC = ModelSpec(
     design="waitlist-crossover arm-by-wave levels",
     estimand_type="mixed",
     causal_status="t2 randomised; t3 a randomised treatment-schedule contrast",
-    extra={
+    model_settings=DiDModelSettings(
         # Identical to LRPDID02 in every respect except tau_t2_prior_sigma.
-        "outcomes": ("L",),
-        "waves": (0, 1, 2),
-        "use_child_re": True,
-        "use_age": True,
-        "dose": False,
+        outcomes=("L",),
+        waves=(0, 1, 2),
+        use_child_re=True,
+        use_age=True,
+        dose=False,
         # The single free variable (#382 rec 3): the causal contrast's prior
         # widens from the proximal-tier Normal(0, 0.5) to Normal(0, 1).
-        "tau_t2_prior_sigma": 1.0,
-    },
+        tau_t2_prior_sigma=1.0,
+    ),
 )
 
 

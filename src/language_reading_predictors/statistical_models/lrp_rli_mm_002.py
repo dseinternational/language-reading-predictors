@@ -84,7 +84,6 @@ SPEC = ModelSpec(
             "erbto_missing",
         ),
     ),
-    extra={
         # mech-058 set on the span frame PLUS RW: G (use_group), age (use_age), own W
         # baseline (gamma_own), hearing + speech, and phonological memory (erbto).
         # RW is added because the exposure is a code factor on L AND B, and blending
@@ -93,8 +92,7 @@ SPEC = ModelSpec(
         # No `blocks` (mech-058 does not adjust for ability); no `attend` (the t1 code
         # exposure precedes sessions, so IS is not a confounder here — see docstring).
         # Same small-n latent-factor geometry fix as LRPMM01.
-        "target_accept": 0.999,
-    },
+    target_accept=0.999,
 )
 
 
