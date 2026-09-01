@@ -663,7 +663,11 @@ def _jm_primary_fit_plan(
         would withhold the validation from the design that most needs it.
         """
         result = write_new_child_validation(c, new_child_plan)
-        if result is not None and result.reliable:
+        if result is None or result.reliable:
+            # ``None`` is the expected-absence case — no child map, no posterior — and
+            # the refits would want exactly the same inputs, so falling through would
+            # turn one recorded absence into a crash. A reliable estimate needs no
+            # fallback. Only a fit that *ran* and was refused gets the refit route.
             return
         # Importance sampling could not carry the declared target for this fit, so the
         # refit route does. Both designs land here in practice: the levels residual

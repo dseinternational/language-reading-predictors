@@ -632,7 +632,7 @@ def write_child_kfold(
     ctx: StatisticalFitContext,
     plan: NewChildPlan,
     kfold: KFoldPlan,
-    rebuild: Callable[[Sequence[int]], Any],
+    rebuild: Callable[[Sequence[int], Sequence[int]], Any],
 ) -> KFoldValidation | None:
     """Run grouped K-fold and persist its summary, per-child and PIT tables.
 
