@@ -122,6 +122,9 @@ PREDICTION_TARGETS = (PREDICTION_TARGET_NEW_CHILD, "new_occasion_known_child")
 #: object does not expose one.
 DEFAULT_GOOD_K = 0.7
 
+#: Draw budget that never thins, used where the integral needs only one pass.
+_NO_THINNING = 1 << 62
+
 
 class NewChildEvidenceUnavailable(LookupError):
     """Expected absence of the inputs new-child validation needs.
@@ -490,7 +493,17 @@ def run_new_child_validation(
     maps, n_children = child_row_maps(ctx, nodes)
     latents = verify_child_latents(model, plan)
 
-    thinned = _thin_posterior(posterior, plan.max_posterior_draws)
+    # Thinning buys nothing when there is no latent to integrate: the loop below runs
+    # once, so the full posterior costs a single log-likelihood pass. It also costs
+    # something real. The Pareto shape estimate is a tail quantity, so a thinned run
+    # reports a *different* k for what is, in that case, literally the same estimator
+    # as the fit's stored conditional PSIS-LOO — 0.769 against 0.701 for
+    # ``lrp-rli-itt-012``, two numbers for one quantity in one report. The identity
+    # this module claims for a latent-free design has to hold in the artefacts.
+    thinned = _thin_posterior(
+        posterior,
+        plan.max_posterior_draws if plan.latent_vars else _NO_THINNING,
+    )
     draws_used = int(thinned.sizes["chain"]) * int(thinned.sizes["draw"])
     without_latents = thinned.drop_vars([n for n in latents if n in thinned])
     density_model = log_density_model(model)

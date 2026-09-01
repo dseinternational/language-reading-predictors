@@ -627,3 +627,82 @@ def test_the_half_split_error_is_not_a_number_when_a_half_is_empty():
 
     value = _half_split_error([np.zeros((1, 1, 2)), None], [1, 0], ("z",))
     assert math.isnan(value)
+
+
+def _toy_trace(n_chain: int, n_draw: int, with_latent: bool) -> xr.DataTree:
+    """A trace shaped like the toy model's, with enough draws to be worth thinning."""
+    rng = np.random.default_rng(7)
+    variables = {
+        "alpha": (("chain", "draw", "outcome"), rng.normal(size=(n_chain, n_draw, 1)))
+    }
+    if with_latent:
+        variables["u_z"] = (
+            ("chain", "draw", "obs_id", "outcome"),
+            rng.normal(size=(n_chain, n_draw, 4, 1)),
+        )
+    tree = xr.DataTree()
+    tree["posterior"] = xr.DataTree(
+        xr.Dataset(variables, coords={"outcome": ["A"], "obs_id": np.arange(4)})
+    )
+    tree["observed_data"] = xr.DataTree(
+        xr.Dataset({"y_post": ("obs_id", np.array([3, 4, 5, 6]))})
+    )
+    tree["constant_data"] = xr.DataTree(
+        xr.Dataset({"loo_child_idx": ("obs_id", np.arange(4))})
+    )
+    return tree
+
+
+def test_a_latent_free_design_uses_the_whole_posterior():
+    """No latent means one pass, so thinning would only cost precision.
+
+    It costs something specific: the Pareto shape estimate is a tail quantity, so a
+    thinned run reported a *different* k for what is, with no latent, literally the
+    same estimator as the fit's stored conditional PSIS-LOO — 0.769 against 0.701 on
+    `lrp-rli-itt-012`, two numbers for one quantity in one report. The identity this
+    module claims for such a design has to hold in the artefacts, not only in prose.
+    """
+    from language_reading_predictors.statistical_models.new_child_predictive import (
+        run_new_child_validation,
+    )
+
+    ctx = types.SimpleNamespace(
+        model=_toy_model(with_child_latent=False),
+        trace=_toy_trace(2, 500, with_latent=False),
+        prepared=None,
+        resolved_plan=None,
+        output_dir="/tmp",
+    )
+    plan = NewChildPlan(
+        child_dims=("obs_id",),
+        latent_vars=(),
+        observed_nodes=("y_post",),
+        max_posterior_draws=100,  # would thin 1000 draws to ~100 if it applied
+    )
+    result = run_new_child_validation(ctx, plan)
+    assert result.posterior_draws_used == 1000
+    assert result.latent_mc_error == 0.0
+
+
+def test_a_design_with_a_latent_still_respects_the_draw_budget():
+    """The budget is real where the integral repeats: passes x draws is the cost."""
+    from language_reading_predictors.statistical_models.new_child_predictive import (
+        run_new_child_validation,
+    )
+
+    ctx = types.SimpleNamespace(
+        model=_toy_model(with_child_latent=True),
+        trace=_toy_trace(2, 500, with_latent=True),
+        prepared=None,
+        resolved_plan=None,
+        output_dir="/tmp",
+    )
+    plan = NewChildPlan(
+        child_dims=("obs_id",),
+        latent_vars=("u_z",),
+        observed_nodes=("y_post",),
+        n_latent_draws=2,
+        max_posterior_draws=200,
+    )
+    result = run_new_child_validation(ctx, plan)
+    assert result.posterior_draws_used < 1000
