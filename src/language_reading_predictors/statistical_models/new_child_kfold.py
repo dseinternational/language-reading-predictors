@@ -78,6 +78,7 @@ from language_reading_predictors.statistical_models.new_child_predictive import 
 __all__ = [
     "KFoldPlan",
     "KFoldValidation",
+    "mask_prepared_children",
     "run_child_kfold",
     "subset_panel_children",
     "write_child_kfold",
@@ -123,6 +124,50 @@ def subset_panel_children(panel: Any, child_indices: Sequence[int]) -> Any:
             for symbol, values in panel.obs_mask.items()
         },
     )
+
+
+def mask_prepared_children(
+    prepared: Any, held_out: Sequence[int], outcome_symbols: Sequence[str]
+) -> Any:
+    """A copy of ``prepared`` with the held-out children's **outcome counts** removed.
+
+    The other way to hold a child out is to drop its rows, which is what
+    :func:`subset_panel_children` does for the historical joint-growth panel. That is
+    safe there because its factory reads the panel as given. It is **not** safe for a
+    family whose factory re-standardises a predictor on the rows it receives: the
+    joint-mechanism builder standardises its exposure inside
+    ``build_joint_mechanism_model``, so a fold fitted on 80% of the children would
+    estimate ``beta_mech`` per *fold* standard deviation. Transplanting that into the
+    full model would score held-out children against a coefficient on a different
+    scale — the alignment failure :mod:`loo_refit` exists to refuse.
+
+    Masking keeps every row, so the standardisation, the coordinates and every shape
+    are identical to the full fit, and the coefficients mean the same thing. The
+    factory already drops ``NaN`` outcome cells from the likelihood (the per-outcome
+    observation mask it builds for outcome-specific missingness), so a masked child
+    contributes no likelihood term and its latent is informed by its prior alone —
+    which is exactly the new-child latent this module re-draws anyway.
+
+    Predictors are deliberately **not** masked. The declared target is a new child *at
+    its observed covariates*, so the exposure and adjusters stay in place; only what
+    the model would be scored against is withheld.
+    """
+    import dataclasses
+
+    held = set(int(index) for index in held_out)
+    if not held:
+        return prepared
+    child_idx = np.asarray(prepared.child_idx, dtype=int)
+    if child_idx.size and (max(held) >= int(child_idx.max()) + 1 or min(held) < 0):
+        raise ValueError("held-out child index outside the prepared child range")
+    drop = np.isin(child_idx, list(held))
+    post_counts = {}
+    for symbol, values in prepared.post_counts.items():
+        arr = np.asarray(values, dtype=float).copy()
+        if symbol in set(outcome_symbols):
+            arr[drop] = np.nan
+        post_counts[symbol] = arr
+    return dataclasses.replace(prepared, post_counts=post_counts)
 
 
 @dataclass(frozen=True, slots=True)
@@ -301,13 +346,17 @@ def run_child_kfold(
     ctx: StatisticalFitContext,
     plan: NewChildPlan,
     kfold: KFoldPlan,
-    rebuild: Callable[[Sequence[int]], Any],
+    rebuild: Callable[[Sequence[int], Sequence[int]], Any],
 ) -> KFoldValidation:
     """Refit once per fold and score each fold's held-out children.
 
-    ``rebuild`` receives the **training** child indices, in the full model's own child
-    ordering, and returns a ``BuiltModel`` for those children alone — the family's own
-    loader and factory, so the refit is the same model by construction.
+    ``rebuild`` receives ``(training, held_out)`` child indices in the full model's own
+    child ordering and returns a ``BuiltModel`` that has not seen the held-out
+    children's outcomes — built through the family's own loader and factory, so the
+    refit is the same model by construction. A family withholds them whichever way its
+    factory allows: dropping their rows (:func:`subset_panel_children`) or masking
+    their outcome counts (:func:`mask_prepared_children`), which is what a factory that
+    re-standardises on the rows it receives requires.
     """
     from language_reading_predictors.statistical_models.diagnostics import (
         log_density_model,
@@ -341,7 +390,7 @@ def run_child_kfold(
         if held_out.size == 0:  # pragma: no cover - only with more folds than children
             continue
         try:
-            built = rebuild(training.tolist())
+            built = rebuild(training.tolist(), held_out.tolist())
         except Exception as exc:  # noqa: BLE001 - a refused fold is reported, not fatal
             refused[fold] = f"rebuild failed: {exc}"
             rprint(f"[yellow]K-fold {fold}: {refused[fold]}[/yellow]")

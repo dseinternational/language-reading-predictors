@@ -706,3 +706,98 @@ def test_a_design_with_a_latent_still_respects_the_draw_budget():
     )
     result = run_new_child_validation(ctx, plan)
     assert result.posterior_draws_used < 1000
+
+
+# --------------------------------------------------------------------------------
+# Holding a child out of a factory that re-standardises
+# --------------------------------------------------------------------------------
+
+
+class _FakePrepared:
+    """Enough of ``PreparedData`` for the masking helper, as a real dataclass."""
+
+    def __init__(self):
+        import dataclasses
+
+        @dataclasses.dataclass
+        class P:
+            child_idx: np.ndarray
+            post_counts: dict
+            n_obs: int
+            n_children: int
+
+        self.cls = P
+        self.value = P(
+            child_idx=np.array([0, 0, 1, 1, 2, 2]),
+            post_counts={
+                "W": np.array([1.0, 2, 3, 4, 5, 6]),
+                "N": np.array([1.0, 1, 2, 2, 3, 3]),
+                "L": np.array([9.0, 9, 8, 8, 7, 7]),
+            },
+            n_obs=6,
+            n_children=3,
+        )
+
+
+def test_masking_removes_only_the_held_out_children_s_outcomes():
+    """A held-out child keeps its rows and its predictors, and loses its outcomes.
+
+    Dropping its rows instead would be wrong for this family: the joint-mechanism
+    factory re-standardises its exposure on the rows it receives, so a fold fitted on
+    a subset would estimate `beta_mech` per *fold* standard deviation and the
+    transplant would compare two different scales.
+    """
+    from language_reading_predictors.statistical_models.new_child_kfold import (
+        mask_prepared_children,
+    )
+
+    prepared = _FakePrepared().value
+    masked = mask_prepared_children(prepared, [1], ("W", "N"))
+
+    assert masked.n_obs == prepared.n_obs
+    assert masked.n_children == prepared.n_children
+    for symbol in ("W", "N"):
+        values = masked.post_counts[symbol]
+        assert np.isnan(values[[2, 3]]).all(), symbol
+        assert np.isfinite(values[[0, 1, 4, 5]]).all(), symbol
+    # The exposure is a predictor, not something the child is scored on.
+    np.testing.assert_array_equal(masked.post_counts["L"], prepared.post_counts["L"])
+
+
+def test_masking_does_not_mutate_the_original():
+    """A fold must not quietly consume the next fold's data."""
+    from language_reading_predictors.statistical_models.new_child_kfold import (
+        mask_prepared_children,
+    )
+
+    prepared = _FakePrepared().value
+    before = prepared.post_counts["W"].copy()
+    mask_prepared_children(prepared, [0, 2], ("W", "N"))
+    np.testing.assert_array_equal(prepared.post_counts["W"], before)
+
+
+def test_masking_nothing_is_a_no_op():
+    from language_reading_predictors.statistical_models.new_child_kfold import (
+        mask_prepared_children,
+    )
+
+    prepared = _FakePrepared().value
+    assert mask_prepared_children(prepared, [], ("W", "N")) is prepared
+
+
+def test_masking_refuses_a_child_index_outside_the_range():
+    from language_reading_predictors.statistical_models.new_child_kfold import (
+        mask_prepared_children,
+    )
+
+    with pytest.raises(ValueError, match="outside the prepared child range"):
+        mask_prepared_children(_FakePrepared().value, [9], ("W",))
+
+
+def test_both_joint_mechanism_designs_declare_a_kfold_plan():
+    """The refit route is what lets this family publish an ELPD at all (#626)."""
+    for model_id in ("lrp-rli-jm-001", "lrp-rli-jm-002"):
+        plan = _plan_for(model_id)
+        kfold = plan.kfold_plan()
+        assert kfold.n_folds >= 2
+        assert kfold.stratify is True

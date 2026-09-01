@@ -58,6 +58,11 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
+from language_reading_predictors.statistical_models.new_child_kfold import (
+    KFoldPlan,
+    mask_prepared_children,
+    write_child_kfold,
+)
 from language_reading_predictors.statistical_models.new_child_predictive import (
     NewChildPlan,
     write_new_child_validation,
@@ -561,6 +566,8 @@ def _jm_primary_fit_plan(
     diag_vars: list[str],
     psense_vars: list[str],
     new_child_plan: NewChildPlan,
+    kfold_plan: KFoldPlan,
+    run_plan: _joint_mechanism.JointMechanismRunPlan,
     marginal_ppc: bool = False,
     compute_loo: bool = True,
 ) -> PrimaryFitPlan:
@@ -654,7 +661,27 @@ def _jm_primary_fit_plan(
         it is precisely what this integrates away, so gating this on ``compute_loo``
         would withhold the validation from the design that most needs it.
         """
-        write_new_child_validation(c, new_child_plan)
+        result = write_new_child_validation(c, new_child_plan)
+        if result is not None and result.reliable:
+            return
+        # Importance sampling could not carry the declared target for this fit, so the
+        # refit route does. Both designs land here in practice: the levels residual
+        # *is* the child effect, and the transition design's child intercept leaves
+        # ratios too heavy-tailed to smooth. Held-out children keep their rows and
+        # lose only their outcome counts — this factory re-standardises its exposure
+        # on the rows it receives, so dropping rows would change what ``beta_mech``
+        # means per standard deviation and the transplant would be comparing scales.
+        write_child_kfold(
+            c,
+            new_child_plan,
+            kfold_plan,
+            lambda _training, held_out: _factories.build_joint_mechanism_model(
+                mask_prepared_children(
+                    c.prepared, held_out, run_plan.outcome_symbols
+                ),
+                **run_plan.factory_kwargs(),
+            ),
+        )
 
     def _density_groups_for_psense(c: StatisticalFitContext) -> None:
         # The levels design computes no PSIS-LOO (the saturated per-child residual
@@ -1040,6 +1067,8 @@ def _fit_joint_mechanism_levels(
                     diag_vars=diag_vars,
                     psense_vars=psense_vars,
                     new_child_plan=plan.new_child_plan(),
+                    kfold_plan=plan.kfold_plan(),
+                    run_plan=plan,
                     # One latent residual per child over two cells: conditional
                     # coverage is structurally 1.00, so publish the new-child view.
                     marginal_ppc=True,
@@ -1352,6 +1381,8 @@ def _fit_joint_mechanism_transition(
             diag_vars=diag_vars,
             psense_vars=psense_vars,
             new_child_plan=plan.new_child_plan(),
+            kfold_plan=plan.kfold_plan(),
+            run_plan=plan,
             compute_loo=plan.compute_loo,
         ),
     )

@@ -155,7 +155,9 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             c,
             plan.new_child_plan(),
             plan.kfold_plan(),
-            lambda training: _factories.build_rlm_joint_growth_model(
+            # This family's builder reads the panel as given, so a fold can simply
+            # drop the held-out children's rows.
+            lambda training, _held_out: _factories.build_rlm_joint_growth_model(
                 subset_panel_children(panel, training),
                 **plan.factory_kwargs(),
             ),
