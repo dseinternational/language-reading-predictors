@@ -391,9 +391,10 @@ if _design == "transition":
         "transitions and both outcomes before importance sampling, so it is genuinely "
         "leave-one-child-out. Do not read the plots as the calibration companion to "
         "that number: neither answers 'how well would this model predict a **new** "
-        "child', which would additionally require the omitted child's random effect to "
-        "be redrawn from the population distribution rather than kept at its "
-        "full-data posterior value.\n"
+        "child', which additionally requires the omitted child's random effect to be "
+        "redrawn from the population distribution rather than kept at its full-data "
+        "posterior value. That redraw is exactly what the new-child section below "
+        "performs, and its ELPD and PIT are the pair that does answer it (#626).\n"
     )
 ```
 
@@ -486,3 +487,5 @@ print(
     "on that assumption.\n"
 )
 ```
+
+{{< include _partials/_new_child_validation.qmd >}}

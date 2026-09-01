@@ -123,18 +123,21 @@ for _m in _jc_measures:
 
 _No PSIS-LOO for this model._ Not because several likelihood nodes make it
 undefined — they share an observation coordinate, so their conditional
-log-likelihood contributions can be summed per child-wave row — but because no
-prediction target has been defined and implemented for this family
-(2026-08-23 joint audit, finding 8). Row-level validation predicts *another
-occasion for an already observed child* and, in `jc-002`, must handle the
-held-out occasion's own latent departure; child-level validation predicts *a new
-child* and must integrate the stable and within-child latent effects under an
-explicit treatment of the sample-dependent centring constraints. An exploratory
-post-hoc probe of older stored traces gave maximum Pareto-$k$ around 0.92/1.21 at
-the child-wave unit and 1.64/1.63 at the child unit, so naive conditional PSIS
-was unreliable there too; those traces predate the current priors and their ELPD
-and LOO-PIT are **not** current diagnostics and are not published. Until a
-target-specific implementation (grouped child-level K-fold or exact refits with
-held-out child effects integrated) exists, the posterior-predictive checks below
-are the fit diagnostics. The per-measure `lrp-rlm-hg-*` models carry LOO for their
-own single-measure fits.
+log-likelihood contributions can be summed per child-wave row — but because
+importance sampling cannot answer this family's declared question (#626). That
+question is now stated rather than left open: the out-of-sample target is **a new
+child** in a replicate cohort, which means the held-out child's stable (and, in
+`jc-002`, wave-specific) latent departures have to be integrated out. Doing so
+makes the leave-one-child-out importance ratios far too heavy-tailed to smooth —
+a direct probe of the current fits put the largest Pareto-$k$ in the *tens*, with
+the estimate still drifting by hundreds of nats as the number of latent draws
+rose — and #626 is explicit that naive PSIS is not published where Pareto-$k$ is
+unacceptable.
+
+The declared target is therefore estimated by **grouped child-level K-fold
+refits** instead, reported in the new-child section below, and the same refits
+supply a calibration diagnostic whose holdout unit is genuinely the child. The
+posterior-predictive checks remain the within-sample fit diagnostics. The
+per-measure `lrp-rlm-hg-*` models carry LOO for their own single-measure fits.
+
+{{< include _partials/_new_child_validation.qmd >}}

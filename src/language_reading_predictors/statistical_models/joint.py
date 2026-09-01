@@ -24,6 +24,11 @@ from typing import Any
 
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.measures import ITT_OUTCOMES, MEASURES
+from language_reading_predictors.statistical_models.new_child_predictive import (
+    PREDICTION_TARGET_NEW_CHILD,
+    PREDICTION_TARGETS,
+    NewChildPlan,
+)
 from language_reading_predictors.statistical_models.settings_validation import (
     require_declared_booleans,
 )
@@ -64,6 +69,7 @@ _LEGACY_KEYS = frozenset(
         "use_age_linear",
         "joint_structure",
         "loo_unit",
+        "prediction_target",
         "difference",
         "difference_metadata",
         # Global sampler setting resolved by ``make_context``, not this family.
@@ -201,6 +207,13 @@ class JointModelSettings:
     use_age_linear: bool = False
     joint_structure: str | None = None
     loo_unit: str = "child"
+    prediction_target: str = PREDICTION_TARGET_NEW_CHILD
+    """Out-of-sample target the fit's cross-validation answers (#626).
+
+    ``loo_unit`` says what is held out; this says what the held-out unit *is a draw
+    of*. The pair was implicit before #626, and the gap is what let a child-aggregated
+    PSIS-LOO computed on a posterior that still held the child's own residual be read
+    as leave-one-child-out generalisation."""
     contrast: JointContrastSettings | None = None
 
     def __post_init__(self) -> None:
@@ -215,6 +228,11 @@ class JointModelSettings:
             raise TypeError("joint_structure must be a non-empty string or None")
         if self.loo_unit != "child":
             raise ValueError("joint loo_unit must be 'child'")
+        if self.prediction_target not in PREDICTION_TARGETS:
+            raise ValueError(
+                "joint prediction_target must be one of "
+                f"{', '.join(PREDICTION_TARGETS)}; got {self.prediction_target!r}"
+            )
         if self.contrast is not None and not isinstance(self.contrast, JointContrastSettings):
             raise TypeError("contrast must be JointContrastSettings or None")
 
@@ -236,6 +254,9 @@ class JointModelSettings:
             use_age_linear=extra.get("use_age_linear", False),
             joint_structure=extra.get("joint_structure"),
             loo_unit=extra.get("loo_unit", "child"),
+            prediction_target=extra.get(
+                "prediction_target", PREDICTION_TARGET_NEW_CHILD
+            ),
             contrast=JointContrastSettings.from_legacy(
                 extra.get("difference"),
                 extra.get("difference_metadata"),
@@ -261,6 +282,7 @@ class JointRunPlan:
     use_age_linear: bool
     joint_structure: str
     loo_unit: str
+    prediction_target: str
     contrast: JointContrastSettings | None
     design: str
     estimand: str
@@ -319,6 +341,27 @@ class JointRunPlan:
             variables.extend(["sigma_outcome", "u_corr_pair"])
         return variables
 
+    def new_child_plan(self) -> NewChildPlan:
+        """The declared out-of-sample target, as the validation engine consumes it.
+
+        ``u_z`` is the only child-indexed free variable this family builds, and it
+        exists only when the LKJ residual block is on. With the block off there is no
+        child-level latent at all, so the child-aggregated PSIS-LOO the fit already
+        computes *is* the new-child quantity — an identity the validation records
+        rather than an exemption it grants (``verify_child_latents`` still refuses if
+        the model grew a child-indexed variable nobody declared).
+        """
+        return NewChildPlan(
+            prediction_target=self.prediction_target,
+            # ``cell`` is listed alongside ``obs_id`` although nothing is indexed by it
+            # today: a flattened child-outcome cell is *nested within* a child, so a
+            # future row-level random effect would need re-drawing for a new child too,
+            # and naming the dimension is what makes leaving it undeclared fail.
+            child_dims=("obs_id", "cell"),
+            latent_vars=("u_z",) if self.use_residual_correlation else (),
+            observed_nodes=(self.observation_node,),
+        )
+
     @property
     def psense_vars(self) -> list[str]:
         """Variables power-scaling covers: the causal ``tau`` vector, plus the
@@ -352,7 +395,8 @@ class JointRunPlan:
             f"Outcomes: {outcomes}. Likelihood: {self.likelihood} "
             f"(`{self.observation_node}`). Own baselines: true. Cross-baselines: "
             f"{self.use_cross_baselines}. Age term: {age}. Residual dependence: "
-            f"{self.joint_structure}. LOO unit: {self.loo_unit}.\n\n"
+            f"{self.joint_structure}. LOO unit: {self.loo_unit}. Out-of-sample "
+            f"prediction target: {self.prediction_target} (#626).\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports posterior distributions. Interpret them only after the "
             "convergence gate, posterior-predictive checks and child-level PSIS-LOO "
@@ -534,6 +578,7 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
         use_age_linear=settings.use_age_linear,
         joint_structure=expected_structure,
         loo_unit=settings.loo_unit,
+        prediction_target=settings.prediction_target,
         contrast=settings.contrast,
         design=design,
         estimand=estimand,

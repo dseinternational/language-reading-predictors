@@ -41,6 +41,10 @@ from language_reading_predictors.statistical_models.context import (
 from language_reading_predictors.statistical_models.historical_joint import (
     resolve_historical_joint_run_plan,
 )
+from language_reading_predictors.statistical_models.new_child_kfold import (
+    subset_panel_children,
+    write_child_kfold,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
 )
@@ -139,23 +143,46 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 filename_stem=f"prior_predictive_check_{symbol.lower()}",
             )
 
+    def _validate_new_child(c: StatisticalFitContext) -> None:
+        """Grouped child-level K-fold against the declared new-child target (#626).
+
+        Each fold rebuilds the panel with its training children only and refits
+        through this family's own factory, so the refit is the same model. The
+        held-out children are then scored with their latent departures drawn from
+        the population, which is what an unseen child means here.
+        """
+        write_child_kfold(
+            c,
+            plan.new_child_plan(),
+            plan.kfold_plan(),
+            lambda training: _factories.build_rlm_joint_growth_model(
+                subset_panel_children(panel, training),
+                **plan.factory_kwargs(),
+            ),
+        )
+
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
             diagnostic_vars=tuple(diag_vars),
             ppc_var_names=plan.observation_nodes,
+            after_trace_audit=_validate_new_child,
             plot_prior_predictive=_plot_prior_predictive,
             prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
                 c, strict=False
             ),
             compute_loo=plan.compute_loo,
-            # LOO-PIT is a pointwise PSIS-LOO quantity, and this family has no
-            # defined and implemented prediction target for it. The log-likelihood group exists only as a side
-            # effect of preparing power scaling, so without this the report used
-            # to publish a LOO-PIT calibration figure — with its reading guidance
-            # — for a model whose own results section says there is no PSIS-LOO,
-            # and with no Pareto-k companion to say whether the importance
-            # weights behind it were reliable (2026-08-21 review, finding 9).
+            # LOO-PIT is a pointwise PSIS-LOO quantity, and this family does not
+            # compute PSIS-LOO: its declared target is a new child, whose
+            # leave-one-child-out importance ratios are far too heavy-tailed to
+            # smooth (#626). The log-likelihood group exists only as a side effect
+            # of preparing power scaling, so without this the report used to
+            # publish a LOO-PIT calibration figure — with its reading guidance —
+            # for a model whose own results section says there is no PSIS-LOO, and
+            # with no Pareto-k companion to say whether the importance weights
+            # behind it were reliable (2026-08-21 review, finding 9). The
+            # calibration diagnostic the family *does* publish now comes from the
+            # K-fold refits above, where there are no importance weights at all.
             include_loo_pit=False,
         ),
     )
