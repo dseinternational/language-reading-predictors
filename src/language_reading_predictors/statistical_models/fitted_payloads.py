@@ -102,6 +102,17 @@ class JointMechanismPayload(FittedPayload):
     mechanism_symbol: str
     contrast: tuple[str, str]
     adjust_for: tuple[str, ...]
+    exposure_scale: tuple[float, float] | None = None
+    """``(mean, sd)`` the exposure logit was standardised on, for replay by a refit.
+
+    The same need :class:`MechanismDesign` records for the mechanism family's exact
+    LOO refits, arriving here for cross-validation folds (#626). The factory filters
+    to rows with an observed outcome before standardising, so a fold that has withheld
+    children derives this from a different row set — across the five ``jm-002`` folds
+    the SD moves by up to 4.2% and the mean by up to 0.2 logits. Replaying the full
+    fit's value keeps ``beta_mech`` per full-data standard deviation and ``alpha`` on
+    one centring, which is what makes a fold's predictions spliceable at all.
+    """
 
 
 @dataclass(frozen=True)

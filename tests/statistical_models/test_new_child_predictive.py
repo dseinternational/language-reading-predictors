@@ -801,3 +801,76 @@ def test_both_joint_mechanism_designs_declare_a_kfold_plan():
         kfold = plan.kfold_plan()
         assert kfold.n_folds >= 2
         assert kfold.stratify is True
+
+
+def test_a_fold_replays_the_full_fit_s_exposure_scale():
+    """A fold must not re-derive the standardisation it is spliced back into.
+
+    The joint-mechanism factory filters to rows with an observed outcome and *then*
+    standardises its exposure, so a fold that has withheld children derives the scale
+    from a different row set: across the five `jm-002` folds the SD moves by up to
+    4.2% and the mean by up to 0.2 logits. `beta_mech` would then be per *fold*
+    standard deviation and `alpha` on a different centring, and the transplant would
+    score held-out children against quantities that do not mean what the full fit's
+    mean. `_transplant` cannot catch it — what changes is a scale, not a shape.
+
+    The tell is unit variance: a fold that re-derived the scale has sd exactly 1, and
+    one replaying the full fit's scale does not.
+    """
+    import importlib
+
+    from language_reading_predictors.statistical_models import factories as _factories
+    from language_reading_predictors.statistical_models.new_child_kfold import (
+        mask_prepared_children,
+    )
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+    )
+
+    spec = importlib.import_module(
+        "language_reading_predictors.statistical_models.lrp_rli_jm_002"
+    ).SPEC
+    plan = descriptor_for(spec.kind).resolver()(spec)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    full = _factories.build_joint_mechanism_model(prepared, **plan.factory_kwargs())
+    scale = full.payload.exposure_scale
+    assert scale is not None and scale[1] > 0
+
+    held_out = list(range(0, prepared.n_children, 5))
+    masked = mask_prepared_children(prepared, held_out, plan.outcome_symbols)
+
+    frozen = _factories.build_joint_mechanism_model(
+        masked, exposure_scale=scale, **plan.factory_kwargs()
+    )
+    rederived = _factories.build_joint_mechanism_model(masked, **plan.factory_kwargs())
+
+    z_frozen = np.asarray(frozen.model["z_mech_logit"].get_value())
+    z_rederived = np.asarray(rederived.model["z_mech_logit"].get_value())
+
+    # Re-deriving always yields unit variance on the fold's own rows — the symptom.
+    assert z_rederived.std(ddof=1) == pytest.approx(1.0, abs=1e-6)
+    assert z_rederived.mean() == pytest.approx(0.0, abs=1e-6)
+    # Replaying does not, because the fold's rows are not the full fit's rows.
+    assert abs(z_frozen.std(ddof=1) - 1.0) > 1e-3
+    assert frozen.payload.exposure_scale == scale
+
+
+def test_the_factory_refuses_a_degenerate_exposure_scale():
+    """A zero or non-finite scale would divide the exposure into nonsense."""
+    import importlib
+
+    from language_reading_predictors.statistical_models import factories as _factories
+    from language_reading_predictors.statistical_models.preprocessing import (
+        load_and_prepare,
+    )
+
+    spec = importlib.import_module(
+        "language_reading_predictors.statistical_models.lrp_rli_jm_002"
+    ).SPEC
+    plan = descriptor_for(spec.kind).resolver()(spec)
+    prepared = load_and_prepare(**plan.prepare_kwargs())
+    for bad in ((0.0, 0.0), (0.0, float("nan")), (float("inf"), 1.0)):
+        with pytest.raises(ValueError, match="exposure_scale"):
+            _factories.build_joint_mechanism_model(
+                prepared, exposure_scale=bad, **plan.factory_kwargs()
+            )

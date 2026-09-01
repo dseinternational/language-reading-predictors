@@ -568,6 +568,7 @@ def _jm_primary_fit_plan(
     new_child_plan: NewChildPlan,
     kfold_plan: KFoldPlan,
     run_plan: _joint_mechanism.JointMechanismRunPlan,
+    exposure_scale: tuple[float, float] | None,
     marginal_ppc: bool = False,
     compute_loo: bool = True,
 ) -> PrimaryFitPlan:
@@ -679,6 +680,7 @@ def _jm_primary_fit_plan(
                 mask_prepared_children(
                     c.prepared, held_out, run_plan.outcome_symbols
                 ),
+                exposure_scale=exposure_scale,
                 **run_plan.factory_kwargs(),
             ),
         )
@@ -1069,6 +1071,7 @@ def _fit_joint_mechanism_levels(
                     new_child_plan=plan.new_child_plan(),
                     kfold_plan=plan.kfold_plan(),
                     run_plan=plan,
+                    exposure_scale=wave_built[primary_wave].payload.exposure_scale,
                     # One latent residual per child over two cells: conditional
                     # coverage is structurally 1.00, so publish the new-child view.
                     marginal_ppc=True,
@@ -1383,6 +1386,7 @@ def _fit_joint_mechanism_transition(
             new_child_plan=plan.new_child_plan(),
             kfold_plan=plan.kfold_plan(),
             run_plan=plan,
+            exposure_scale=built.payload.exposure_scale,
             compute_loo=plan.compute_loo,
         ),
     )
