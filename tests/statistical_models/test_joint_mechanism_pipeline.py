@@ -26,6 +26,9 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from language_reading_predictors.statistical_models.new_child_predictive import (
+    NewChildPlan,
+)
 from language_reading_predictors.statistical_models.lrp_rli_jm_001 import SPEC as JM001
 from language_reading_predictors.statistical_models.lrp_rli_jm_002 import SPEC as JM002
 from language_reading_predictors.statistical_models.joint_mechanism import (
@@ -50,6 +53,12 @@ from language_reading_predictors.statistical_models.pipelines.joint_mechanism im
 )
 
 _OUTCOMES = ("W", "N")
+#: The family's declared out-of-sample target (#626), as the levels design resolves it.
+_NEW_CHILD_PLAN = NewChildPlan(
+    child_dims=("obs_id",),
+    latent_vars=("u_resid_z",),
+    observed_nodes=("y_post",),
+)
 _CONTRAST = ("N", "W")
 
 
@@ -469,7 +478,7 @@ def _artefact_ctx(tmp_path, trace) -> SimpleNamespace:
 def _silent_diagnostics(monkeypatch):
     """Stub the plotting/sampling stages so the artefact contract can be checked
     without a fit, recording the calls the review asked to be reinstated."""
-    calls: dict[str, list] = {"loo_pit": []}
+    calls: dict[str, list] = {"loo_pit": [], "new_child": []}
     for name in (
         "summary_diagnostics",
         "sample_posterior_predictive",
@@ -484,6 +493,13 @@ def _silent_diagnostics(monkeypatch):
         "save_joint_loo_pit_plot",
         lambda ctx, symbol, **k: calls["loo_pit"].append((symbol, k.get("posterior_var"))),
     )
+    # The new-child validation samples the real model (#626); these tests check the
+    # artefact contract against a stub trace, so record the call instead of running it.
+    monkeypatch.setattr(
+        _jm_pipeline,
+        "write_new_child_validation",
+        lambda ctx, plan: calls["new_child"].append(plan),
+    )
     return calls
 
 
@@ -497,6 +513,7 @@ def test_primary_plan_declares_psense_and_writes_custom_diagnostics(
         outcome_symbols=_OUTCOMES,
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech", "delta_ls_decoding"],
+        new_child_plan=_NEW_CHILD_PLAN,
     )
     assert plan.custom_posterior_predictive is not None
     assert plan.post_extended_audit is not None
@@ -527,6 +544,7 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
         outcome_symbols=_OUTCOMES,
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech"],
+        new_child_plan=_NEW_CHILD_PLAN,
         compute_loo=False,
     )
     assert plan.compute_loo is False
@@ -534,6 +552,7 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
     assert plan.post_sampling_audit is not None
 
     calls: list = []
+    validated: list = []
 
     class _Diag:
         @staticmethod
@@ -541,22 +560,34 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
             calls.append(strict)
 
     real = _jm_pipeline._diag
+    real_validate = _jm_pipeline.write_new_child_validation
     try:
         _jm_pipeline._diag = _Diag
+        # The new-child validation samples the real model (#626), so record the call.
+        # It runs in **both** designs, unlike the PSIS artefacts above: the saturated
+        # per-child residual that rules out conditional LOO here is exactly what the
+        # validation integrates away, so gating it on ``compute_loo`` would withhold
+        # it from the one design that most needs it.
+        _jm_pipeline.write_new_child_validation = lambda ctx, p: validated.append(p)
         plan.post_sampling_audit(SimpleNamespace())
     finally:
         _jm_pipeline._diag = real
+        _jm_pipeline.write_new_child_validation = real_validate
     assert calls == [False]
+    assert validated == [_NEW_CHILD_PLAN]
 
     with_loo = _jm_primary_fit_plan(
         outcome_symbols=_OUTCOMES,
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech"],
+        new_child_plan=_NEW_CHILD_PLAN,
         compute_loo=True,
     )
     assert with_loo.compute_loo is True
     assert with_loo.post_extended_audit is not None
-    assert with_loo.post_sampling_audit is None
+    # Not ``None`` any more: the new-child validation runs here too, and the density
+    # groups it would otherwise attach are already attached by the LOO step.
+    assert with_loo.post_sampling_audit is not None
 
 
 def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagnostics):
@@ -570,6 +601,7 @@ def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagno
         outcome_symbols=_OUTCOMES,
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech"],
+        new_child_plan=_NEW_CHILD_PLAN,
         marginal_ppc=True,
     )
     assert plan.custom_posterior_predictive is not None

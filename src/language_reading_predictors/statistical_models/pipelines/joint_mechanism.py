@@ -58,6 +58,10 @@ from language_reading_predictors.statistical_models.context import (
     make_context,
 )
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
+from language_reading_predictors.statistical_models.new_child_predictive import (
+    NewChildPlan,
+    write_new_child_validation,
+)
 from language_reading_predictors.statistical_models.preprocessing import (
     _subset_prepared,
     load_and_prepare,
@@ -556,6 +560,7 @@ def _jm_primary_fit_plan(
     outcome_symbols: tuple[str, ...],
     diag_vars: list[str],
     psense_vars: list[str],
+    new_child_plan: NewChildPlan,
     marginal_ppc: bool = False,
     compute_loo: bool = True,
 ) -> PrimaryFitPlan:
@@ -637,6 +642,20 @@ def _jm_primary_fit_plan(
                 posterior_var="beta_mech",
             )
 
+    def _validate_new_child(c: StatisticalFitContext) -> None:
+        """The validation that *does* match the declared child unit (#626).
+
+        The child's own dependence-block residual is integrated out rather than left
+        at its fitted value, so the ELPD and the PIT beside it answer the new-child
+        question the ``loo_unit="child"`` declaration has always claimed.
+
+        Run for **both** designs, unlike the LOO-PIT above. The levels design's
+        saturated per-child residual is why it computes no conditional PSIS-LOO — and
+        it is precisely what this integrates away, so gating this on ``compute_loo``
+        would withhold the validation from the design that most needs it.
+        """
+        write_new_child_validation(c, new_child_plan)
+
     def _density_groups_for_psense(c: StatisticalFitContext) -> None:
         # The levels design computes no PSIS-LOO (the saturated per-child residual
         # makes it fail its Pareto-k diagnostics en masse; see the run plan), but
@@ -645,10 +664,20 @@ def _jm_primary_fit_plan(
         # no-LOO mediation families take (#381).
         _diag.compute_log_likelihood_and_prior(c, strict=False)
 
+    def _post_sampling(c: StatisticalFitContext) -> None:
+        """Attach psense's density groups where LOO did not, then validate.
+
+        Both designs validate. Only the levels design needs the groups attached
+        directly, because it is the one that computes no PSIS-LOO.
+        """
+        if not compute_loo:
+            _density_groups_for_psense(c)
+        _validate_new_child(c)
+
     return PrimaryFitPlan(
         diagnostic_vars=tuple(diag_vars),
         plot_prior_predictive=_plot_prior,
-        post_sampling_audit=None if compute_loo else _density_groups_for_psense,
+        post_sampling_audit=_post_sampling,
         custom_posterior_predictive=_run_ppc,
         psense_vars=tuple(psense_vars),
         extended_term="delta_ls_decoding",
@@ -1010,6 +1039,7 @@ def _fit_joint_mechanism_levels(
                     outcome_symbols=outcome_symbols,
                     diag_vars=diag_vars,
                     psense_vars=psense_vars,
+                    new_child_plan=plan.new_child_plan(),
                     # One latent residual per child over two cells: conditional
                     # coverage is structurally 1.00, so publish the new-child view.
                     marginal_ppc=True,
@@ -1321,6 +1351,7 @@ def _fit_joint_mechanism_transition(
             outcome_symbols=outcome_symbols,
             diag_vars=diag_vars,
             psense_vars=psense_vars,
+            new_child_plan=plan.new_child_plan(),
             compute_loo=plan.compute_loo,
         ),
     )

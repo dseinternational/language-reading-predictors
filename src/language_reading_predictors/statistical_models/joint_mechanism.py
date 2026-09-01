@@ -39,6 +39,11 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.preprocessing import (
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.new_child_predictive import (
+    PREDICTION_TARGET_NEW_CHILD,
+    PREDICTION_TARGETS,
+    NewChildPlan,
+)
 from language_reading_predictors.statistical_models.settings_validation import (
     require_declared_booleans,
 )
@@ -66,6 +71,7 @@ _FAMILY_KEYS = frozenset(
         "covariates",
         "adjust_for",
         "predictor_slope_sigma",
+        "prediction_target",
     }
 )
 _LEGACY_KEYS = _FAMILY_KEYS | _GLOBAL_KEYS
@@ -105,9 +111,20 @@ class JointMechanismModelSettings:
     covariates: tuple[str, ...] = ()
     adjust_for: tuple[str, ...] = ()
     predictor_slope_sigma: float | None = None
+    prediction_target: str = PREDICTION_TARGET_NEW_CHILD
+    """Out-of-sample target the fit's cross-validation answers (#626).
+
+    Both designs carry a child-level dependence block, so the child-aggregated
+    PSIS-LOO alone is conditional on the held-out child's own residual; the declared
+    target is what the matching validation integrates that residual out for."""
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
+        if self.prediction_target not in PREDICTION_TARGETS:
+            raise ValueError(
+                "joint-mechanism prediction_target must be one of "
+                f"{', '.join(PREDICTION_TARGETS)}; got {self.prediction_target!r}"
+            )
         if self.design not in _DESIGNS:
             raise ValueError(
                 f"design must be 'levels' or 'transition', got {self.design!r}"
@@ -181,6 +198,7 @@ class JointMechanismRunPlan:
     observation_node: str
     compute_loo: bool
     loo_unit: str
+    prediction_target: str
     min_wave_rows: int | None
     min_wave_outcome_rows: int | None
     min_wave_overlap_rows: int | None
@@ -211,6 +229,27 @@ class JointMechanismRunPlan:
     def fits_group_nuisance(self) -> bool:
         """Whether the model includes its design-specific group term."""
         return self.include_group or "G" in self.confounder_symbols
+
+    def new_child_plan(self) -> NewChildPlan:
+        """The declared out-of-sample target, as the validation engine consumes it.
+
+        The dependence block sits on the observation row in the ``levels`` design
+        (one row per child, so the residual *is* the child effect) and on the child
+        in ``transition``; either way the non-centred ``*_z`` offsets are the free
+        variable a new child gets a fresh draw of.
+        """
+        latent = "u_resid_z" if self.design == "levels" else "u_child_z"
+        # In ``levels`` one row *is* one child. In ``transition`` the three rows sit
+        # inside the child, so both dimensions are declared: an effect on either would
+        # have to be re-drawn for an unseen child, and naming them is what makes
+        # leaving one undeclared fail rather than pass silently.
+        dims = ("obs_id",) if self.design == "levels" else ("child", "obs_id")
+        return NewChildPlan(
+            prediction_target=self.prediction_target,
+            child_dims=dims,
+            latent_vars=(latent,),
+            observed_nodes=(self.observation_node,),
+        )
 
     def prepare_kwargs(self) -> dict[str, Any]:
         """Arguments for ``load_and_prepare`` from the resolved plan."""
@@ -538,6 +577,7 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         observation_node="y_post",
         compute_loo=compute_loo,
         loo_unit="child",
+        prediction_target=settings.prediction_target,
         min_wave_rows=min_wave_rows,
         min_wave_outcome_rows=min_wave_outcome_rows,
         min_wave_overlap_rows=min_wave_overlap_rows,

@@ -69,6 +69,13 @@ _GATE_VISIBLE_DIAGNOSTIC_CSV = frozenset(
         "did_cell_ppc.csv",
         "did_within_child_ppc.csv",
         "joint_mechanism_fit_diagnostics.csv",
+        # The new-child influence and calibration tables are diagnostics in the same
+        # sense ``pareto_k.csv`` is, and a failed gate is exactly when a reader needs
+        # them. The two ELPD summaries beside them (``new_child_loo.csv`` /
+        # ``new_child_kfold.csv``) stay withheld: those carry an estimate (#626).
+        "new_child_kfold_pit.csv",
+        "new_child_pareto_k.csv",
+        "new_child_pit.csv",
         "pareto_k.csv",
         "posterior_predictive_calibration.csv",
         "posterior_predictive_shape_calibration.csv",
@@ -108,6 +115,11 @@ _GATE_VISIBLE_DIAGNOSTIC_IMG = frozenset(
 )
 _GATE_VISIBLE_DIAGNOSTIC_IMG_PREFIXES = (
     "loo_pit_",
+    # The new-child and K-fold PIT figures are calibration diagnostics in exactly the
+    # sense ``loo_pit_`` is, so they stay visible after a failed gate for the same
+    # reason: predictive material is what a repair is diagnosed from (#626).
+    "new_child_pit_",
+    "new_child_kfold_pit_",
     "posterior_predictive_check_",
     "ppc_calibration_",
     "prior_predictive_check_",

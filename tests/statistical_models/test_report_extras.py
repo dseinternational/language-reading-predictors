@@ -618,5 +618,12 @@ def test_the_historical_joint_report_states_which_scale_the_rule_uses():
     assert "lenient" in results
     assert "registered wider-prior companion is part of the result" in results
     # The retired reason must not come back: multiple likelihood nodes are not the
-    # obstacle (2026-08-23 joint audit, finding 8).
-    assert "no\nprediction target has been defined" in results
+    # obstacle (2026-08-23 joint audit, finding 8) ...
+    assert "several likelihood nodes make it\nundefined" in results
+    assert "they share an observation coordinate" in results
+    # ... and neither may the reason that replaced it, which said no target had been
+    # defined. One is declared now, and #626 names both what it is and why this family
+    # estimates it by refits rather than by importance sampling.
+    assert "prediction target has been defined" not in results
+    assert "the out-of-sample target is **a new\nchild**" in results
+    assert "grouped child-level K-fold\nrefits" in results

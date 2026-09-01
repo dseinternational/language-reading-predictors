@@ -63,6 +63,7 @@ SubfitRole = Literal[
     "bivariate",
     "prior_sweep",
     "wave",
+    "cross_validation",
 ]
 """What a sub-fit is for, so the provenance table groups by purpose.
 
@@ -70,7 +71,9 @@ SubfitRole = Literal[
 ``sensitivity`` a refit that varies an analysis choice (rows, timing);
 ``bivariate`` an unadjusted single-predictor refit; ``prior_sweep`` the same
 model at another prior width; ``wave`` a non-anchor timepoint of a multi-wave
-family.
+family; ``cross_validation`` one fold of a grouped child-level K-fold, refitted
+on the training children so the held-out ones can be scored without importance
+weights (#626).
 """
 
 ConvergenceScope = Literal["free_rvs", "all"]

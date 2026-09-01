@@ -327,7 +327,9 @@ not a whole child: the same child's other outcome stays in the posterior, so the
 assess conditional prediction of a held-out cell for an otherwise observed child.
 The fit's stored PSIS-LOO — the ELPD and Pareto-$k$ in the technical section —
 uses the declared **child** unit. The two answer different questions; do not read
-one as validating the other (2026-08-23 joint audit, finding 6).
+one as validating the other (2026-08-23 joint audit, finding 6). The calibration
+diagnostic that *does* match the child unit is in the new-child section below
+(#626); this callout's plots are retained as the conditional view.
 
 :::
 
@@ -389,3 +391,5 @@ ITT-vs-joint forest is produced by `scripts/compare_statistical_models.py`
 print(_img("itt_vs_joint_forest.png", "ITT vs joint τ consistency"))
 print("\n_How to read the ITT-vs-joint forest:_ each outcome has two markers with credible-interval bars — the joint model's estimate (circle) and the matching single-outcome available-case modified ITT estimate (square, offset just below it). The dashed line at 0 is no-effect. The two markers for an outcome should land close together; that agreement is the consistency check. A large gap flags an outcome where the joint and single-outcome estimates disagree. A dagger (†) marks heavily-floored outcomes, whose graded effect shown here is not their post-hoc exploratory off-floor headline.")
 ```
+
+{{< include _partials/_new_child_validation.qmd >}}

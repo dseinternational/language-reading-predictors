@@ -40,6 +40,9 @@ from language_reading_predictors.statistical_models.figure_artifacts import (
     save_forest_plot,
 )
 from language_reading_predictors.statistical_models.fitted_payloads import JointPayload
+from language_reading_predictors.statistical_models.new_child_predictive import (
+    write_new_child_validation,
+)
 from language_reading_predictors.statistical_models.pipelines.itt import (
     write_analysis_audit,
     write_ppc_calibration,
@@ -148,6 +151,11 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         for index, symbol in enumerate(joint_outcomes):
             stem = "loo_pit" if index == 0 else f"loo_pit_{symbol.lower()}"
             _diag.save_joint_loo_pit_plot(c, symbol, filename_stem=stem)
+        # ... and those plots hold out one *cell*. The declared prediction target is a
+        # new child, so the validation that matches it runs here too (#626): the same
+        # child unit as the stored PSIS-LOO, with the child's own residual integrated
+        # out rather than left at its fitted value.
+        write_new_child_validation(c, plan.new_child_plan())
 
     shared_stages().run_primary_fit(
         ctx,

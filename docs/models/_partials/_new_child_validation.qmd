@@ -1,0 +1,183 @@
+### Out-of-sample prediction: a new child
+
+```{python}
+# | echo: false
+# | output: asis
+# The declared out-of-sample target and whichever estimator the fit could use (#626).
+# Two tables can appear here and they are alternatives, not a pair: `new_child_loo.csv`
+# is the importance-sampling route, `new_child_kfold.csv` the refit route a family takes
+# when the first one's diagnostics refuse it.
+_nc_plan = (config.get("resolved_run_plan") or {})
+_nc_target = _nc_plan.get("prediction_target")
+_nc = _csv("new_child_loo.csv")
+_nc_kfold = _csv("new_child_kfold.csv")
+_nc_pit = _csv("new_child_pit.csv")
+_nc_kfold_pit = _csv("new_child_kfold_pit.csv")
+
+if _nc_target:
+    print(
+        "This fit's cross-validation answers one declared question: how well the model "
+        f"predicts **a child it has never seen** (`prediction_target: {_nc_target}`), "
+        "in a replicate cohort of the same size and group composition and at the "
+        "observed covariate values. Children are the sampling unit here; the waves are "
+        "a fixed design rather than a sample of occasions.\n"
+    )
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _nc is not None and not _nc.empty and "status" in _nc.columns:
+    print(
+        "New-child validation was not available for this fit: "
+        f"{_nc.iloc[0].get('reason', 'no reason recorded')}.\n"
+    )
+elif _nc is not None and not _nc.empty:
+    _row = _nc.iloc[0]
+    _latents = str(_row.get("latents_redrawn", "(none)"))
+    if _latents == "(none)":
+        print(
+            "This model carries **no child-level latent**, so a held-out child's own "
+            "random effect cannot leak into its own prediction: the child-aggregated "
+            "PSIS-LOO reported in the technical section already *is* the new-child "
+            "quantity. That is an identity of this design, not an exemption — a "
+            "child-indexed variable added later and left undeclared fails the fit.\n"
+        )
+    else:
+        print(
+            f"The child-level latent `{_latents}` is **integrated out** rather than "
+            "left at its fitted value: for each posterior draw it is re-drawn from its "
+            "population distribution and the child's likelihood averaged over those "
+            "draws, so nothing the held-out child taught the model about itself is "
+            "carried into its own prediction.\n"
+        )
+    if bool(_row.get("reliable")):
+        print(
+            f"\nExpected log predictive density for a new child: "
+            f"**{float(_row['elpd']):.1f}** (standard error {float(_row['elpd_se']):.1f}) "
+            f"over {int(_row['n_children'])} children. Every Pareto-$k$ is at or below "
+            f"the reliability threshold ({float(_row['good_k_threshold']):.2f}), and the "
+            "latent integral's half-split error is small beside that standard error.\n"
+        )
+    else:
+        _why = []
+        if int(_row.get("n_unreliable", 0)) > 0:
+            _why.append(
+                f"{int(_row['n_unreliable'])} of {int(_row['n_children'])} children have "
+                f"a Pareto-$k$ above {float(_row['good_k_threshold']):.2f} "
+                f"(largest {float(_row['max_pareto_k']):.2f})"
+            )
+        if not bool(_row.get("integration_reliable", True)):
+            _why.append(
+                "the latent integral's own Monte-Carlo error is large beside the "
+                "estimate's standard error"
+            )
+        print(
+            "\n**The ELPD is withheld.** "
+            + "; ".join(_why).capitalize()
+            + ". An importance-sampling estimate is only as good as its weights, and "
+            "an estimate whose numerical error rivals its sampling error is not "
+            "measuring the model, so neither number is published as a validation "
+            "(#626).\n"
+        )
+```
+
+```{python}
+# | echo: false
+if _nc is not None and not _nc.empty and "status" not in _nc.columns:
+    _nc
+```
+
+```{python}
+# | echo: false
+# | output: asis
+if _nc_kfold is not None and not _nc_kfold.empty and "status" in _nc_kfold.columns:
+    print(
+        "The grouped child-level K-fold that estimates this target was not run for "
+        f"this fit: {_nc_kfold.iloc[0].get('reason', 'no reason recorded')}. Refit at "
+        "`rep-lite` or `reporting` for the held-out estimate and its calibration "
+        "diagnostic.\n"
+    )
+elif _nc_kfold is not None and not _nc_kfold.empty:
+    _k = _nc_kfold.iloc[0]
+    print(
+        f"Because importance sampling cannot answer that question for this model, it is "
+        f"answered by **grouped child-level {int(_k['n_folds'])}-fold cross-validation**. "
+        "Each fold refits the model on its training children through this family's own "
+        "factory and scores the held-out children with their latent departures drawn "
+        "from the population — genuinely unseen children, and no importance weights to "
+        "be unreliable.\n"
+    )
+    if bool(_k.get("complete")):
+        print(
+            f"\nExpected log predictive density for a new child: "
+            f"**{float(_k['elpd_kfold']):.1f}** (standard error "
+            f"{float(_k['elpd_kfold_se']):.1f}) over "
+            f"{int(_k['n_children_scored'])} children, every fold converged.\n"
+        )
+    else:
+        print(
+            f"\n**Partial.** {int(_k['n_children_scored'])} of "
+            f"{int(_k['n_children'])} children were scored by a converged fold "
+            f"({int(_k.get('n_folds_refused', 0))} fold(s) refused). Which refits "
+            "happened to work is a selection, not a smaller sample, so the total is "
+            "reported but is not the declared estimate.\n"
+        )
+```
+
+```{python}
+# | echo: false
+if _nc_kfold is not None and not _nc_kfold.empty and "status" not in _nc_kfold.columns:
+    _nc_kfold
+```
+
+```{python}
+# | echo: false
+# | output: asis
+# The calibration half. Its holdout unit is the *child*, unlike the conditional
+# leave-one-cell-out PIT plots the diagnostics section carries.
+_pit_source = _nc_kfold_pit if _nc_kfold_pit is not None else _nc_pit
+_pit_stem = "new_child_kfold_pit" if _nc_kfold_pit is not None else "new_child_pit"
+if _pit_source is not None and not _pit_source.empty:
+    print(
+        "#### Calibration at the same unit\n\n"
+        "Each figure below is the probability integral transform of one measure's "
+        "**per-child total** under that new-child predictive, shown as the difference "
+        "between its empirical distribution and the uniform one a calibrated model "
+        "would give, inside a 95% Kolmogorov-Smirnov envelope. A curve wandering "
+        "outside the band says the model's spread is wrong for a child it has not "
+        "seen: above the band in the middle means over-dispersed predictions, below "
+        "it means over-confident ones.\n\n"
+        "This is the diagnostic whose holdout unit matches the declared one. The "
+        "leave-one-cell-out PIT plots in the diagnostics section do not — they keep "
+        "the child's other cells observed — so do not read one as validating the "
+        "other.\n"
+    )
+    # A PSIS-weighted PIT is only as good as the weights behind it. Where the ELPD was
+    # withheld for unreliable weights, the same caveat applies to this figure and has
+    # to be said rather than left for the reader to infer from a table above.
+    if (
+        _nc_kfold_pit is None
+        and _nc is not None
+        and not _nc.empty
+        and "status" not in _nc.columns
+        and not bool(_nc.iloc[0].get("reliable"))
+        and int(_nc.iloc[0].get("n_unreliable", 0)) > 0
+    ):
+        print(
+            "\n::: {.callout-warning}\n"
+            "These PIT values are computed from the same importance weights whose "
+            "Pareto-$k$ withheld the ELPD above, so they inherit that unreliability: "
+            "read them as suggestive of where the fit misses, not as a calibration "
+            "verdict. A refit-based version needs no weights and is what the "
+            "historical joint-growth family uses.\n"
+            ":::\n"
+        )
+    for _m in dict.fromkeys(_pit_source["measure"].astype(str)):
+        print(
+            _img(
+                f"{_pit_stem}_{_m.lower()}.png",
+                f"New-child PIT calibration ({_m})",
+            )
+        )
+```

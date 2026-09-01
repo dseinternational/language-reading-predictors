@@ -29,6 +29,12 @@ from language_reading_predictors.statistical_models.historical_growth import (
     check_declared_waves,
     check_extension_after_core,
 )
+from language_reading_predictors.statistical_models.new_child_kfold import KFoldPlan
+from language_reading_predictors.statistical_models.new_child_predictive import (
+    PREDICTION_TARGET_NEW_CHILD,
+    PREDICTION_TARGETS,
+    NewChildPlan,
+)
 from language_reading_predictors.statistical_models.settings_validation import (
     require_declared_booleans,
 )
@@ -74,6 +80,8 @@ _LEGACY_KEYS = frozenset(
         "within_correlation",
         "sigma_within_prior_sigma",
         "within_lkj_eta",
+        "prediction_target",
+        "kfold_folds",
         # Global sampler setting resolved by ``make_context``, not this family.
         "target_accept",
     }
@@ -130,9 +138,31 @@ class HistoricalJointModelSettings:
     within_correlation: bool = False
     sigma_within_prior_sigma: float = 0.5
     within_lkj_eta: float = 2.0
+    prediction_target: str = PREDICTION_TARGET_NEW_CHILD
+    """Out-of-sample target this family's cross-validation answers (#626).
+
+    Recorded rather than left implicit: the family published
+    ``loo_unit="undeclared_prediction_target_not_implemented"`` precisely because no
+    target had been declared, and the declaration is what fixes both what is held out
+    and what the calibration diagnostic's holdout unit has to be."""
+    kfold_folds: int = 5
+    """Folds in the grouped child-level K-fold that estimates it.
+
+    Each fold is a refit, so this is the cost knob. Five leaves roughly 80% of the
+    children training a fold, which keeps every group-indexed scale parameter
+    estimated on a comparable sample to the full fit's."""
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
+        if self.prediction_target not in PREDICTION_TARGETS:
+            raise ValueError(
+                "historical_joint prediction_target must be one of "
+                f"{', '.join(PREDICTION_TARGETS)}; got {self.prediction_target!r}"
+            )
+        if not isinstance(self.kfold_folds, int) or isinstance(self.kfold_folds, bool):
+            raise TypeError("kfold_folds must be an int")
+        if self.kfold_folds < 2:
+            raise ValueError("kfold_folds must be at least 2")
         object.__setattr__(self, "measures", _tuple_of_strings(self.measures, name="measures"))
         if len(self.measures) < 2:
             raise ValueError("historical_joint measures must contain at least two measures")
@@ -246,6 +276,8 @@ class HistoricalJointRunPlan:
     compute_loo: bool
     loo_unit: str
     loo_reason: str
+    prediction_target: str
+    kfold_folds: int
     design: str
     estimand: str
     causal_status: str
@@ -255,6 +287,33 @@ class HistoricalJointRunPlan:
     def as_dict(self) -> dict[str, Any]:
         """Return the JSON-ready run-plan contract for ``config.json``."""
         return asdict(self)
+
+    def new_child_plan(self) -> NewChildPlan:
+        """The declared out-of-sample target, as the validation engines consume it.
+
+        The stable per-subject offsets are always child-level; the wave-specific
+        departures are the same latent one level down, so a design that carries them
+        redraws both. Both are non-centred standard normals whose sample-dependent
+        centring the *model* applies, which is why the re-draw is performed by the
+        model at the realised cohort size rather than from a closed-form marginal that
+        the centring would make wrong.
+        """
+        latents = ("z_subject", "z_within") if self.within_correlation else ("z_subject",)
+        # ``obs`` is declared in both designs, not only where ``z_within`` exists: a
+        # subject-wave row is nested inside a subject either way, so a row-level effect
+        # added to the simpler design must fail the check rather than quietly stay at
+        # its fitted value.
+        dims = ("subject", "obs")
+        return NewChildPlan(
+            prediction_target=self.prediction_target,
+            child_dims=dims,
+            latent_vars=latents,
+            observed_nodes=self.observation_nodes,
+        )
+
+    def kfold_plan(self) -> KFoldPlan:
+        """The grouped child-level K-fold that estimates the declared target."""
+        return KFoldPlan(n_folds=self.kfold_folds, stratify=True)
 
     def prepare_kwargs(self) -> dict[str, Any]:
         """Keyword arguments for ``load_longitudinal_panel``."""
@@ -389,37 +448,36 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         extension_waves=settings.extension_waves,
     )
 
-    # 2026-08-23 joint audit, finding 8. The previous reason — "multiple likelihood
-    # nodes, so no pointwise unit is defined" — was wrong. The nodes share an
-    # observation coordinate, so their conditional log-likelihood contributions can
-    # be summed per child-wave row; multiple nodes are not the obstacle. What is
-    # missing is a *defined and implemented prediction target*: row-level validation
-    # predicts another occasion for an already observed child (and, when
-    # ``within_correlation`` is on, must handle that occasion's own latent
-    # departure), while child-level validation predicts a new child and must
-    # integrate the stable and within-child latent effects under an explicit
-    # treatment of the sample-dependent centring constraints. An exploratory
-    # post-hoc probe of older stored traces also gave maximum Pareto-k of about
-    # 0.92/1.21 per child-wave and 1.64/1.63 per child, so naive conditional PSIS
-    # was unreliable there; those traces predate the current priors, so those values
-    # are not current diagnostics and nothing from them is published.
+    # 2026-08-23 joint audit, finding 8, closed by #626. The reason before that audit
+    # — "multiple likelihood nodes, so no pointwise unit is defined" — was wrong: the
+    # nodes share an observation coordinate, so their contributions sum per child-wave
+    # row. What was missing was a *defined and implemented prediction target*. Both are
+    # now declared: the target is a new child in a replicate cohort, and the estimator
+    # is a grouped child-level K-fold, because the importance-sampling route this
+    # family would otherwise take is not usable here. Its own diagnostics say so — with
+    # the child's latent effects integrated out, as a new-child target requires, the
+    # Pareto shape estimates run into the tens rather than fractions, since a child
+    # contributing a whole multi-measure profile makes the leave-one-child-out
+    # posterior far from the full one. #626 is explicit that naive PSIS is not
+    # published where Pareto-k is unacceptable, so the K-fold refits replace it rather
+    # than sitting beside it.
     loo_reason = (
-        "no out-of-sample prediction target has been defined and implemented for "
-        "this family. Multiple likelihood nodes are not the obstacle: they share an "
-        "observation coordinate, so their contributions can be summed per "
-        "child-wave row. Choosing between a new occasion for a known child and a "
-        "new child changes what has to be integrated"
+        "the out-of-sample prediction target is a new child in a replicate cohort, "
+        "and it is estimated by grouped child-level K-fold refits rather than by "
+        "importance sampling. Multiple likelihood nodes were never the obstacle: they "
+        "share an observation coordinate, so their contributions sum per child-wave "
+        "row. What rules out PSIS here is that predicting an unseen child means "
+        "integrating out that child's stable"
         + (
-            " — including each held-out occasion's own latent departure and the "
-            "sample-dependent double-centring constraint"
+            " and wave-specific"
             if settings.within_correlation
             else ""
         )
-        + ". Until a target-specific implementation exists (grouped child-level "
-        "K-fold or exact refits with held-out child effects integrated from their "
-        "population distribution), production LOO is not computed, and an "
-        "exploratory PSIS probe of older stored traces was unreliable and is not "
-        "reported"
+        + " latent departures, and the resulting leave-one-child-out importance "
+        "ratios are far too heavy-tailed to smooth. Each fold is refitted on its "
+        "training children and the held-out children are scored with their latent "
+        "effects drawn from the population, so no importance weights are involved; "
+        "the same refits supply the held-out calibration diagnostic"
     )
     if settings.within_correlation:
         design = (
@@ -530,7 +588,9 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
             settings.within_lkj_eta if settings.within_correlation else None
         ),
         compute_loo=False,
-        loo_unit="undeclared_prediction_target_not_implemented",
+        loo_unit="child",
+        prediction_target=settings.prediction_target,
+        kfold_folds=settings.kfold_folds,
         loo_reason=loo_reason,
         design=design,
         estimand=estimand,
