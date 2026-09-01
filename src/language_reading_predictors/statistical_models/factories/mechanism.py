@@ -600,8 +600,15 @@ def build_mechanism_model(
                 sigma_mech_phase = _priors.sigma_mech_phase_prior().to_pymc(
                     "sigma_mech_phase"
                 )
-                beta_mech_phase_raw = pm.Normal(
-                    "beta_mech_phase_raw", mu=0.0, sigma=1.0, dims="phase"
+                beta_mech_phase_raw = _priors.declare(
+                    pm.Normal("beta_mech_phase_raw", mu=0.0, sigma=1.0, dims="phase"),
+                    role="nuisance",
+                    rationale=(
+                        "Standard-normal non-centred per-period offset; scaled by "
+                        "sigma_mech_phase and added to mu_mech to form the "
+                        "partially-pooled per-period mechanism slope "
+                        "beta_mech_phase (#604)."
+                    ),
                 )
                 beta_mech_phase = pm.Deterministic(
                     "beta_mech_phase",

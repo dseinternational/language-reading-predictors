@@ -44,6 +44,7 @@ from language_reading_predictors.statistical_models.factories import (
     build_rlm_horseshoe_model,
     build_rlm_joint_growth_model,
     build_rlm_transition_adjusted_model,
+    build_period_stacked_mediation_model,
     build_two_mediator_model,
 )
 from language_reading_predictors.statistical_models.prior_artifacts import (
@@ -81,6 +82,10 @@ def _write_synthetic(tmp_path, n_children: int = 24, seed: int = 7):
                 V.MUMEDUPOST16: int(rng.integers(0, 8)),
                 V.DADEDUPOST16: int(rng.integers(0, 8)),
                 V.AGEBOOKS: int(rng.integers(0, 48)),
+                # Hearing feeds add_hearing_status -> hs/hs_missing, the adjuster
+                # block the registered lcsm specs condition on (#229).
+                V.HEARING: int(rng.integers(0, 2)),
+                V.EARINF: int(rng.integers(0, 2)),
             }
             if t == 1:
                 row[V.BLOCKS] = blocks
@@ -141,6 +146,13 @@ def _representative_models(tmp_path) -> dict[str, object]:
         confounder_symbols=("G", "A"), mech_hsgp_m=6,
         mech_lengthscale_prior=priors.ell_prior_mech_tight(),
     ).model
+    # The partially-pooled per-period slope (#604), taken by mech-302/303. Its
+    # non-centred offset is created inline, so a fixture without this opt-in
+    # never builds it.
+    models["mechanism_phase_varying"] = build_mechanism_model(
+        allp, mechanism_symbol="L", outcome_symbol="W",
+        confounder_symbols=("G", "A"), linear_mechanism=True, phase_varying_slope=True,
+    ).model
     models["mechanism_covariate"] = build_mechanism_model(
         load_and_prepare(
             path=p, phase_mode="all", outcomes=("W",), covariates=("attend",)
@@ -171,6 +183,11 @@ def _representative_models(tmp_path) -> dict[str, object]:
         itt, outcome_symbol="W", confounder_symbols=("E", "R"),
         mediator_kind="gaussian_composite", route_symbols=("L", "B"),
     )[0].model
+    # The period-stacked joint mediator+outcome model (MED-092, #229): both legs
+    # create per-phase offsets and a per-leg child random intercept inline.
+    models["mediation_period_stacked"] = build_period_stacked_mediation_model(
+        allp, mediator_symbol="L", outcome_symbol="W"
+    )[0].model
     models["mediation_multi"] = build_two_mediator_model(
         itt, outcome_symbol="W", mediator_symbols=("L", "E"), confounder_symbols=("R",)
     )[0].model
@@ -193,8 +210,33 @@ def _representative_models(tmp_path) -> dict[str, object]:
         structural_covariates=("blocks",),
     ).model
 
-    panel = load_wave_panel(path=p, outcomes=("W", "L", "E"))
-    models["lcsm"] = build_lcsm_model(panel).model
+    # loading_prior="free" is the legacy loading/residual pair LRPMM101 exists to
+    # fit; the default communality branch derives both as Deterministics, so a
+    # fixture that only builds the default never creates either free RV.
+    models["corr_factor_free_loading"] = build_correlated_factor_model(
+        cf, outcome_symbol="W",
+        domains={"vocabulary": ("R", "E"), "code": ("L", "B"), "grammar": ("F", "T")},
+        structural_covariates=("blocks",),
+        loading_prior="free",
+    ).model
+
+    panel = load_wave_panel(
+        path=p, outcomes=("W", "L", "E"), include_hearing=True
+    )
+    # Exercise the optional blocks the registered lcsm specs actually use, not
+    # just the bare default shape: lcsm-081/082/181 carry a covariate_block
+    # (the measured backdoor adjusters) and lcsm-091 a lagged_change_couplings
+    # block. Both create their own inline priors, and building only the default
+    # shape here is what let two of them ship undeclared — the fit fails closed
+    # on the missing descriptor, so a fixture that skips the block turns a broken
+    # model into a green test.
+    models["lcsm"] = build_lcsm_model(
+        panel,
+        lagged_change_couplings={"W": ("L", "E")},
+        arm_window_intercepts=True,  # the factory's own design rule for the h terms
+        covariate_block=("hs", "hs_missing"),
+        covariate_targets=("W",),
+    ).model
 
     lcf_panel = load_wave_panel(
         path=p, outcomes=("R", "E", "TR", "TE", "L", "B", "F", "T")
