@@ -121,6 +121,7 @@ def build_joint_mechanism_model(
     residual_sd_sigma: float = 1.0,
     child_lkj_eta: float = 2.0,
     sigma_child_prior_sigma: float = 0.5,
+    exposure_scale: tuple[float, float] | None = None,
 ) -> BuiltModel[JointMechanismPayload]:
     """Bivariate mechanism: one standardised exposure -> two outcomes fitted jointly
     with an **LKJ cross-outcome dependence block**, in either of two designs.
@@ -270,12 +271,26 @@ def build_joint_mechanism_model(
         )
 
     N_obs = prepared.n_obs
-    z_L = standardise(
-        logit_safe(
-            prepared.post_counts[mechanism_symbol],
-            prepared.n_trials[mechanism_symbol],
-        )
-    )[0]
+    exposure_logit = logit_safe(
+        prepared.post_counts[mechanism_symbol],
+        prepared.n_trials[mechanism_symbol],
+    )
+    if exposure_scale is None:
+        z_L = standardise(exposure_logit)[0]
+    else:
+        # A cross-validation fold must not re-derive this scale. The rows above are
+        # filtered to those with an observed outcome, so a fold that has withheld some
+        # children standardises the exposure over a DIFFERENT row set: measured across
+        # the five ``jm-002`` folds the SD moves by up to 4.2% and the mean by up to
+        # 0.2 logits. ``beta_mech`` would then be per *fold* standard deviation and
+        # ``alpha`` would absorb a different centring, so transplanting either into the
+        # full model would score held-out children against quantities that do not mean
+        # what the full fit's mean (#626). Passing the full-data scale keeps the refit
+        # the same model, which is the whole warrant for splicing its predictions.
+        mean, sd = exposure_scale
+        if not np.isfinite(mean) or not np.isfinite(sd) or sd <= 0.0:
+            raise ValueError(f"exposure_scale must be finite with sd > 0; got {exposure_scale!r}")
+        z_L = (exposure_logit - mean) / sd
 
     # Per-outcome observation mask + flattened observed cells (robust to
     # outcome-specific post missingness), mirroring build_joint_model.
@@ -495,6 +510,12 @@ def build_joint_mechanism_model(
             ),
             likelihood="binomial" if design == "levels" else "beta_binomial",
             loo_unit="child",
+            exposure_scale=(
+                float(np.mean(exposure_logit)),
+                float(np.std(exposure_logit, ddof=1)),
+            )
+            if exposure_scale is None
+            else (float(exposure_scale[0]), float(exposure_scale[1])),
             outcomes=outcome_symbols,
             mechanism_symbol=mechanism_symbol,
             contrast=contrast,

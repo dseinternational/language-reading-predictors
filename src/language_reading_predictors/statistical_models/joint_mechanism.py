@@ -39,6 +39,7 @@ from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.preprocessing import (
     split_covariates_by_wave,
 )
+from language_reading_predictors.statistical_models.new_child_kfold import KFoldPlan
 from language_reading_predictors.statistical_models.new_child_predictive import (
     PREDICTION_TARGET_NEW_CHILD,
     PREDICTION_TARGETS,
@@ -72,6 +73,7 @@ _FAMILY_KEYS = frozenset(
         "adjust_for",
         "predictor_slope_sigma",
         "prediction_target",
+        "kfold_folds",
     }
 )
 _LEGACY_KEYS = _FAMILY_KEYS | _GLOBAL_KEYS
@@ -117,6 +119,13 @@ class JointMechanismModelSettings:
     Both designs carry a child-level dependence block, so the child-aggregated
     PSIS-LOO alone is conditional on the held-out child's own residual; the declared
     target is what the matching validation integrates that residual out for."""
+    kfold_folds: int = 5
+    """Folds in the grouped child-level K-fold that backs up the integrated estimator.
+
+    Both designs need it. Integrating the child's dependence block out leaves
+    importance ratios this family cannot smooth — the levels design worst, since its
+    residual *is* the child effect — so the ELPD was withheld on both registered fits
+    until the refit route existed. Each fold is a refit, so this is the cost knob."""
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
@@ -125,6 +134,10 @@ class JointMechanismModelSettings:
                 "joint-mechanism prediction_target must be one of "
                 f"{', '.join(PREDICTION_TARGETS)}; got {self.prediction_target!r}"
             )
+        if not isinstance(self.kfold_folds, int) or isinstance(self.kfold_folds, bool):
+            raise TypeError("kfold_folds must be an int")
+        if self.kfold_folds < 2:
+            raise ValueError("kfold_folds must be at least 2")
         if self.design not in _DESIGNS:
             raise ValueError(
                 f"design must be 'levels' or 'transition', got {self.design!r}"
@@ -199,6 +212,7 @@ class JointMechanismRunPlan:
     compute_loo: bool
     loo_unit: str
     prediction_target: str
+    kfold_folds: int
     min_wave_rows: int | None
     min_wave_outcome_rows: int | None
     min_wave_overlap_rows: int | None
@@ -250,6 +264,10 @@ class JointMechanismRunPlan:
             latent_vars=(latent,),
             observed_nodes=(self.observation_node,),
         )
+
+    def kfold_plan(self) -> KFoldPlan:
+        """The grouped child-level K-fold that estimates the declared target."""
+        return KFoldPlan(n_folds=self.kfold_folds, stratify=True)
 
     def prepare_kwargs(self) -> dict[str, Any]:
         """Arguments for ``load_and_prepare`` from the resolved plan."""
@@ -578,6 +596,7 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         compute_loo=compute_loo,
         loo_unit="child",
         prediction_target=settings.prediction_target,
+        kfold_folds=settings.kfold_folds,
         min_wave_rows=min_wave_rows,
         min_wave_outcome_rows=min_wave_outcome_rows,
         min_wave_overlap_rows=min_wave_overlap_rows,

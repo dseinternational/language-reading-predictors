@@ -26,9 +26,14 @@ import pandas as pd
 import pytest
 import xarray as xr
 
+from language_reading_predictors.statistical_models import (
+    joint_mechanism as _joint_mechanism,
+)
+from language_reading_predictors.statistical_models.new_child_kfold import KFoldPlan
 from language_reading_predictors.statistical_models.new_child_predictive import (
     NewChildPlan,
 )
+from language_reading_predictors.statistical_models.registry import discover_models
 from language_reading_predictors.statistical_models.lrp_rli_jm_001 import SPEC as JM001
 from language_reading_predictors.statistical_models.lrp_rli_jm_002 import SPEC as JM002
 from language_reading_predictors.statistical_models.joint_mechanism import (
@@ -53,6 +58,12 @@ from language_reading_predictors.statistical_models.pipelines.joint_mechanism im
 )
 
 _OUTCOMES = ("W", "N")
+#: The refit estimator's plan and the run plan the fold rebuild reads (#626).
+_KFOLD_PLAN = KFoldPlan(n_folds=2)
+_RUN_PLAN = _joint_mechanism.resolve_joint_mechanism_run_plan(
+    discover_models()["lrp-rli-jm-002"].load().SPEC
+)
+
 #: The family's declared out-of-sample target (#626), as the levels design resolves it.
 _NEW_CHILD_PLAN = NewChildPlan(
     child_dims=("obs_id",),
@@ -514,6 +525,9 @@ def test_primary_plan_declares_psense_and_writes_custom_diagnostics(
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech", "delta_ls_decoding"],
         new_child_plan=_NEW_CHILD_PLAN,
+        kfold_plan=_KFOLD_PLAN,
+        run_plan=_RUN_PLAN,
+        exposure_scale=(0.0, 1.0),
     )
     assert plan.custom_posterior_predictive is not None
     assert plan.post_extended_audit is not None
@@ -545,6 +559,9 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech"],
         new_child_plan=_NEW_CHILD_PLAN,
+        kfold_plan=_KFOLD_PLAN,
+        run_plan=_RUN_PLAN,
+        exposure_scale=(0.0, 1.0),
         compute_loo=False,
     )
     assert plan.compute_loo is False
@@ -553,6 +570,7 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
 
     calls: list = []
     validated: list = []
+    kfolded: list = []
 
     class _Diag:
         @staticmethod
@@ -561,6 +579,7 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
 
     real = _jm_pipeline._diag
     real_validate = _jm_pipeline.write_new_child_validation
+    real_kfold = _jm_pipeline.write_child_kfold
     try:
         _jm_pipeline._diag = _Diag
         # The new-child validation samples the real model (#626), so record the call.
@@ -569,18 +588,26 @@ def test_no_loo_plan_skips_psis_artefacts_but_keeps_psense_groups():
         # validation integrates away, so gating it on ``compute_loo`` would withhold
         # it from the one design that most needs it.
         _jm_pipeline.write_new_child_validation = lambda ctx, p: validated.append(p)
+        _jm_pipeline.write_child_kfold = lambda ctx, p, k, rebuild: kfolded.append(k)
         plan.post_sampling_audit(SimpleNamespace())
     finally:
         _jm_pipeline._diag = real
         _jm_pipeline.write_new_child_validation = real_validate
+        _jm_pipeline.write_child_kfold = real_kfold
     assert calls == [False]
     assert validated == [_NEW_CHILD_PLAN]
+    # The stub returns ``None`` — the expected-absence case — so the refit route must
+    # NOT fire: it would ask for the same inputs that were just found missing.
+    assert kfolded == []
 
     with_loo = _jm_primary_fit_plan(
         outcome_symbols=_OUTCOMES,
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech"],
         new_child_plan=_NEW_CHILD_PLAN,
+        kfold_plan=_KFOLD_PLAN,
+        run_plan=_RUN_PLAN,
+        exposure_scale=(0.0, 1.0),
         compute_loo=True,
     )
     assert with_loo.compute_loo is True
@@ -602,6 +629,9 @@ def test_marginal_ppc_is_not_the_conditional_predictive(tmp_path, _silent_diagno
         diag_vars=["beta_mech"],
         psense_vars=["beta_mech"],
         new_child_plan=_NEW_CHILD_PLAN,
+        kfold_plan=_KFOLD_PLAN,
+        run_plan=_RUN_PLAN,
+        exposure_scale=(0.0, 1.0),
         marginal_ppc=True,
     )
     assert plan.custom_posterior_predictive is not None

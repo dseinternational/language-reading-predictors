@@ -66,6 +66,39 @@ Hence K-fold for this family. Each fold refits on its training children through 
 
 Two registered fits withhold their ELPD under this policy on first contact, which is the policy working rather than a problem to route around. `lrp-rli-jm-002` has two children over `good_k` — the same two its stored conditional PSIS-LOO already flagged. `lrp-rli-jm-001`, the saturated levels design, has twelve, which is what its own documentation has always said would happen and is now measured instead of asserted. Where the weights are refused the PSIS-weighted PIT inherits that, and the report says so on the figure rather than leaving a reader to carry the caveat down from the table. Extending the K-fold route to `joint_mechanism` would remove the caveat for those two fits; it is not done here because #626's scope is the declaration plus one working estimator per family, and the levels design's single-wave subset needs its own rebuild callback.
 
+## Which estimator a family needs, measured
+
+Integrating a child's latent out is not uniformly harder on importance sampling than leaving it fitted. Across the twelve reporting fits of the 2026-09-01 batch it ran in both directions, and what decides it is **how much of that latent the held-out child's own data was carrying**. Where a child contributes one row and a small residual, re-drawing that residual loses little, the leave-one-child-out posterior stays close to the full one, and PSIS gets _easier_. Where the latent is effectively a per-child parameter, it loses everything.
+
+| design                                             | rows per child       | child latent                   | integrated $k$                   | conditional $k$           |
+| -------------------------------------------------- | -------------------- | ------------------------------ | -------------------------------- | ------------------------- |
+| `joint`, no residual block (`itt-012/015/016/115`) | 1 per outcome        | none                           | 0.31–0.70                        | identical by construction |
+| `joint`, LKJ residual (`itt-215/216/315`)          | 1 per outcome        | 2-dim residual                 | **0.32–0.40**                    | 0.56–0.65                 |
+| `joint_mechanism` transition (`jm-002`)            | 3                    | bivariate child intercept      | **1.14**                         | 0.98                      |
+| `joint_mechanism` levels (`jm-001`)                | 1                    | residual _is_ the child effect | **6.12**                         | not computed              |
+| `historical_joint` (`jc-001`)                      | 4 waves x 3 measures | stable (+ within) departures   | **2.09 at 256 draws, 18.3 at 8** | not computed              |
+
+Read down the integrated column: it is the one belonging to the declared target, and the conditional column is shown only to give the direction of travel. The three LKJ-residual fits are the case where integration **helps**. `jm-002` is mildly worse. `jm-001` and `jc-001` are the cases where the child's own data was doing most of the work for that child's rows, and no smoothing survives removing it.
+
+The practical guidance for a family added later: expect the importance-sampling estimator to serve a design whose child-level latent is low-dimensional and shared across few rows, and expect to need refits once the latent approaches one free parameter per child, or spans several waves and correlated measures. Pareto-$k$ and the half-split diagnostic between them say which case applies without anyone having to guess, and both fail closed.
+
+## What the refit route delivered
+
+All three `historical_joint` fits scored every one of their 71 children, with **every fold converged** (max R-hat 1.007, min ESS 1 203, zero divergences across all fifteen refits) and no fold refused:
+
+| fit      | analysis rows | `elpd_kfold` | SE   | held-out PIT medians |
+| -------- | ------------- | ------------ | ---- | -------------------- |
+| `jc-001` | 284           | −2414.0      | 46.7 | 0.507, 0.523, 0.520  |
+| `jc-002` | 213           | −1839.5      | 26.6 | 0.501, 0.544, 0.510  |
+| `jc-102` | 213           | −1838.3      | 26.1 | 0.502, 0.544, 0.507  |
+
+> [!WARNING]
+> `jc-001` is **not** comparable with the other two. `within_correlation` requires one row per child and wave, so `jc-002` and `jc-102` fit 213 rows against `jc-001`'s 284. An ELPD is a sum over held-out units; different units, no comparison.
+
+Three independent routes to `jc-001`'s number agree inside its own standard error — −2414 from the reporting K-fold, −2417 from the dev-config K-fold, −2448 from the integrated-PSIS probe at 256 latent draws — while the same probe at 8 draws said −4904. That spread is the argument for the half-split gate stated as a measurement: the estimator it refused was wrong by roughly 2 500 nats, and nothing in its Pareto-$k$ alone would have said so.
+
+`jc-002` and `jc-102` **are** comparable — they differ only in `sigma_within_prior_sigma` (0.5 against 1.0) and share a fold partition. Paired over the 71 children, `elpd_diff = +1.13` with a **paired** standard error of 0.76 (the marginal standard errors, ~26, are the wrong yardstick for a contrast and are ~35x too large). That is inconclusive under the standing `|elpd_diff| < 4` rule, which is a pass: it is the predictive half of the sensitivity `jc-002`'s report has always promised, and it says the correlation conclusions do not detectably depend on that regularisation. Before this work the family had no out-of-sample quantity at all, so the comparison could not be made.
+
 ## What this does not claim
 
 The new-child ELPD is a predictive summary, not a causal one. Nothing here changes an estimand, a prior, a likelihood, a fitted population or an adjustment set. `historical_joint` remains descriptive throughout, and a better predictive score for one joint specification over another is not evidence about a mechanism.
