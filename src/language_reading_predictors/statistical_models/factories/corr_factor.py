@@ -353,15 +353,32 @@ def build_correlated_factor_model(
             # residual SD below the unit total variance of a standardised indicator"
             # was wrong: a HalfNormal has unbounded support and merely makes
             # sigma > 1 unlikely (~5% of prior mass). No cap is imposed, or needed.
-            lam = pm.TruncatedNormal(
-                "lambda_load",
-                mu=loading_mu,
-                sigma=loading_sigma,
-                lower=0.0,
-                dims="indicator",
+            lam = _priors.declare(
+                pm.TruncatedNormal(
+                    "lambda_load",
+                    mu=loading_mu,
+                    sigma=loading_sigma,
+                    lower=0.0,
+                    dims="indicator",
+                ),
+                role="association",
+                rationale=(
+                    "Free factor loading of a standardised indicator on its domain factor "
+                    "(TruncatedNormal(mu, sigma, lower=0)); the legacy free "
+                    "loading/residual pair retained for the prior-geometry "
+                    "sensitivity companion, where communality is derived rather "
+                    "than sampled."
+                ),
             )
-            sigma_ind = pm.HalfNormal(
-                "sigma_indicator", sigma=residual_sigma, dims="indicator"
+            sigma_ind = _priors.declare(
+                pm.HalfNormal(
+                    "sigma_indicator", sigma=residual_sigma, dims="indicator"
+                ),
+                role="nuisance",
+                rationale=(
+                    "Indicator residual SD of the legacy free pair (HalfNormal); unbounded "
+                    "support, so it makes sigma > 1 unlikely rather than capping it."
+                ),
             )
             pm.Deterministic(
                 "communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator"

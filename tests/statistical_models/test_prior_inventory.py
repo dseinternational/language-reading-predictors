@@ -210,6 +210,16 @@ def _representative_models(tmp_path) -> dict[str, object]:
         structural_covariates=("blocks",),
     ).model
 
+    # loading_prior="free" is the legacy loading/residual pair LRPMM101 exists to
+    # fit; the default communality branch derives both as Deterministics, so a
+    # fixture that only builds the default never creates either free RV.
+    models["corr_factor_free_loading"] = build_correlated_factor_model(
+        cf, outcome_symbol="W",
+        domains={"vocabulary": ("R", "E"), "code": ("L", "B"), "grammar": ("F", "T")},
+        structural_covariates=("blocks",),
+        loading_prior="free",
+    ).model
+
     panel = load_wave_panel(
         path=p, outcomes=("W", "L", "E"), include_hearing=True
     )
