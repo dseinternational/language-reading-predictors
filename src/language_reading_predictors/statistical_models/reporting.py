@@ -208,6 +208,8 @@ from language_reading_predictors.statistical_models.key_findings import (  # noq
     _kf_csv_row,
     _kf_dag_unit,
     _kf_direction_words,
+    _kf_dose_blending_link_sentence,
+    _kf_dose_companion_location,
     _kf_float,
     _kf_growth_interaction_sentences,
     _kf_has_factor_term,

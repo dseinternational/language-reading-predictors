@@ -986,6 +986,208 @@ def test_every_registered_blending_model_is_paired_or_exempt(tmp_path):
     )
 
 
+# --- the dose family's phoneme-blending pair (#619) ---------------------------
+
+
+def _dose_blending_config(model_id: str) -> dict:
+    """A dose ``B`` fit's config carrying its module's *real* resolved run plan.
+
+    The paired-link sentence runs the production currency check
+    (``blending_sensitivity._stale_plan_fields``), which re-resolves each half from
+    its registered module and reports a stub plan as stale — which would fail the
+    pair closed for a fact about the fixture rather than about the models.
+    Resolving the real plan here means these tests exercise that check rather than
+    route around it, which is what the level and DiD pairs learned to do the hard
+    way.
+    """
+    from language_reading_predictors.statistical_models.dose_response import (
+        resolve_dose_response_run_plan,
+    )
+    from language_reading_predictors.statistical_models.registry import discover_models
+
+    plan = resolve_dose_response_run_plan(discover_models()[model_id].load().SPEC)
+    return _config(
+        "dose_response",
+        model_id=model_id,
+        outcome_symbol="B",
+        config_name="reporting",
+        data_sha256="d" * 64,
+        n_obs=160,
+        fitted_data_identity={"digest": "9c1bf0de379a503a"},
+        resolved_run_plan=plan.as_dict(),
+    )
+
+
+def _dose_blending_fit(
+    tmp_path: Path,
+    model_id: str,
+    *,
+    items_median: float,
+    items_lo: float,
+    items_hi: float,
+) -> Path:
+    """One half of the stored dose blending pair, carded by its dose marginal."""
+    d = _setup_dir(
+        tmp_path,
+        "dose_response",
+        config=_dose_blending_config(model_id),
+        directory_name=f"{model_id}-reporting",
+    )
+    _write_csv(
+        d,
+        "dose_marginal_summary.csv",
+        {
+            "items_median": items_median,
+            "items_lo": items_lo,
+            "items_hi": items_hi,
+            "prob_pos": 0.51,
+            "contrast_sessions_median": 25.0,
+            "n_rows": 131,
+        },
+    )
+    return d
+
+
+def _dose_pair(tmp_path: Path) -> tuple[Path, Path]:
+    """Both halves, with deliberately distinguishable numbers."""
+    primary = _dose_blending_fit(
+        tmp_path,
+        "lrp-rli-dose-084",
+        items_median=0.017,
+        items_lo=-0.74,
+        items_hi=0.72,
+    )
+    companion = _dose_blending_fit(
+        tmp_path,
+        "lrp-rli-dose-384",
+        items_median=-0.027,
+        items_lo=-0.66,
+        items_hi=0.64,
+    )
+    return primary, companion
+
+
+def test_dose_blending_quotes_both_links_side_by_side(tmp_path):
+    """The #587-finding-6 caveat is superseded by the pair it said did not exist.
+
+    ``lrp-rli-dose-384`` was registered, fitted and gated by #619, so a dose ``B``
+    fit now carries the same paired-link sensitivity wording the ITT and level
+    pairs do: both links' headline numbers, neither one presented as the answer.
+    """
+    primary, _ = _dose_pair(tmp_path)
+
+    payload = generate_key_findings(primary)
+
+    assert payload["status"] == "ok", payload.get("reason")
+    kinds = [s["kind"] for s in payload["sentences"]]
+    assert kinds[0] == "headline"
+    # The link sentence rides immediately behind the headline, because the headline
+    # alone is a single-link number — the level family's placement.
+    assert kinds[1] == "sensitivity"
+    link = payload["sentences"][1]["text"]
+    assert "+0.0 items" in link and "-0.0 items" in link
+    assert "-0.7 to +0.7" in link and "-0.7 to +0.6" in link
+    assert "Neither number is the answer on its own" in link
+    # The dose marginal is an association whichever link produced it.
+    assert "observational associations" in link
+    text = " ".join(s["text"] for s in payload["sentences"])
+    assert "has not been built for this family" not in text
+    assert "provisional" not in text
+
+
+def test_dose_blending_pair_reads_the_same_from_either_half(tmp_path):
+    """The ordinary number is named first whichever half a reader opens.
+
+    The orientation comes from each card's own ``score_mean_link``, not from which
+    directory the box is being generated for, so the two reports cannot disagree
+    about which estimate is the floor-aware one.
+    """
+    _, companion = _dose_pair(tmp_path)
+
+    payload = generate_key_findings(companion)
+
+    assert payload["status"] == "ok", payload.get("reason")
+    link = payload["sentences"][1]["text"]
+    ordinary = link.index("+0.0 items")
+    floored = link.index("-0.0 items")
+    assert ordinary < floored
+    assert "the model that holds the score at or above chance" in link
+
+
+def test_dose_blending_caveat_only_when_the_companion_is_absent(tmp_path):
+    """With no companion fitted, the builder says exactly that — and no more.
+
+    The replaced sentence claimed the companion "has not been built for this
+    family", which stopped being true at #619. What can still be true is that the
+    registered companion has not been fitted at *this* sampling configuration, so
+    the fallback names the companion and the configuration rather than asserting a
+    repo-wide gap.
+    """
+    primary = _dose_blending_fit(
+        tmp_path,
+        "lrp-rli-dose-084",
+        items_median=0.017,
+        items_lo=-0.74,
+        items_hi=0.72,
+    )
+    assert not (tmp_path / "lrp-rli-dose-384-reporting").exists()
+
+    config = json.loads((primary / "config.json").read_text())
+    sentences = _KF_BUILDERS["dose_response"](str(primary), config)
+
+    caveat = [s for s in sentences if s["kind"] == "caveat"]
+    assert len(caveat) == 1
+    text = caveat[0]["text"]
+    assert "lrp-rli-dose-384" in text
+    assert "has not been fitted at the reporting sampling configuration" in text
+    assert "provisional until the pair is fitted together" in text
+    # The superseded claim, in the exact words it was published in.
+    assert "has not been built for this family" not in text
+    assert not [s for s in sentences if s["kind"] == "sensitivity"]
+
+
+def test_dose_blending_fit_without_its_companion_is_withheld(tmp_path):
+    """The caveat is a builder-level fallback, not a publication route.
+
+    A dose ``B`` fit whose pair is unverifiable is withheld by the release gate
+    before any sentence is worded, so the fallback above is what a direct builder
+    call gets, never what a reader sees published.
+    """
+    primary = _dose_blending_fit(
+        tmp_path,
+        "lrp-rli-dose-084",
+        items_median=0.017,
+        items_lo=-0.74,
+        items_hi=0.72,
+    )
+
+    payload = generate_key_findings(primary)
+
+    assert payload["status"] == "robustness_unresolved"
+    assert "phoneme-blending link pair" in payload["reason"]
+    assert payload["sentences"] == []
+
+
+def test_dose_blending_mismatched_pair_fails_closed(tmp_path):
+    """A companion fitted on different rows withholds the box, never a half-pair.
+
+    This is the failure the wording change must not soften: an unverifiable pair is
+    withheld, exactly as the level builder withholds one, rather than degrading to
+    the missing-companion caveat — the directory is there, so "not yet fitted"
+    would be a false account of what is wrong.
+    """
+    primary, companion = _dose_pair(tmp_path)
+    config = json.loads((companion / "config.json").read_text())
+    config["fitted_data_identity"] = {"digest": "0th3rr0ws"}
+    _write_json(companion, "config.json", config)
+
+    payload = generate_key_findings(primary)
+
+    assert payload["status"] == "robustness_unresolved"
+    assert "fitted rows" in payload["reason"]
+
+
+
 def test_aligned_off_floor_uses_resolved_plan_and_percentage_points(tmp_path):
     """The aligned pipeline stores its likelihood in the resolved run plan."""
     config = _config(
