@@ -1544,7 +1544,8 @@ def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
     b = R._model_design_identity(SimpleNamespace(model=built_rebuilt.model))
     assert a["design_sha256"] != b["design_sha256"]
     # Structure is unchanged — only the numbers inside the Data nodes moved.
-    assert a["structure_sha256"] == b["structure_sha256"]
+    # The graph identity includes shared inputs as well as its operators.
+    assert a["structure_sha256"] != b["structure_sha256"]
     # And this is precisely what the pre-existing identity could not see.
     assert describe_fitted_data(
         SimpleNamespace(model=built.model, prepared=prepared)
@@ -1605,12 +1606,24 @@ def _lkj_style_posterior():
     chol[:, :, 1, 1] = rng.normal(0.9, 0.02, (4, 100))  # mixes
     stuck = np.zeros((4, 100))
     stuck[:] = np.arange(4)[:, None] * 0.1  # constant WITHIN chains, differs ACROSS
-    return xr.Dataset(
+    posterior = xr.Dataset(
         {
             "measure_corr_chol": (("chain", "draw", "d0", "d1"), chol),
             "stuck": (("chain", "draw"), stuck),
         }
     )
+
+    _record_test_cholesky(posterior)
+    return posterior
+
+
+def _record_test_cholesky(posterior):
+    import pymc as pm
+    from language_reading_predictors.statistical_models.structural_constants import record_structural_constraints
+
+    with pm.Model() as model:
+        pm.LKJCorr("measure_corr_chol", n=2, eta=2)
+    record_structural_constraints(posterior, model)
 
 
 def test_split_structurally_constant_separates_lkj_entries_from_stuck_ones():
@@ -1704,6 +1717,7 @@ def test_subfit_convergence_reclassifies_structural_constants():
         coords={"chain": range(4), "draw": range(200)},
     )
     trace = xr.DataTree.from_dict({"posterior": post, "sample_stats": ss})
+    _record_test_cholesky(trace.posterior)
     result = subfit_convergence(trace, label="lkj subfit")
     assert result["converged"] is True
     assert result["unassessable_parameters"] == ""

@@ -421,6 +421,18 @@ def test_every_family_prior_is_documented(built_models):
     assert not problems, "Undocumented priors:\n" + "\n".join(problems)
 
 
+def test_representative_family_graphs_can_be_fingerprinted(built_models):
+    """Complex valid families must retain a usable trace-reuse contract."""
+    from language_reading_predictors.statistical_models.model_identity import (
+        model_design_identity,
+    )
+
+    for family, model in built_models.items():
+        identity = model_design_identity(model)
+        assert identity.get("structure_sha256"), (family, identity)
+        assert identity.get("design_sha256"), (family, identity)
+
+
 def test_did_varying_delta_guards_and_rvs(tmp_path):
     """Varying catch-up has guarded inputs and explicit waitlist-child nodes."""
     p = _write_synthetic(tmp_path)

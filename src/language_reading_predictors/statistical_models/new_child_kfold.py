@@ -190,6 +190,7 @@ class KFoldPlan:
         return {
             "n_folds": self.n_folds,
             "n_latent_draws": self.n_latent_draws,
+            "random_seed": self.random_seed,
             "stratify": self.stratify,
         }
 
@@ -400,6 +401,13 @@ def run_child_kfold(
             built,
             label=f"new_child_kfold_{fold}",
             role="cross_validation",
+            trace_filename=f"trace_new_child_kfold_{fold}.nc",
+            reuse_context={
+                "training_child_indices": training.tolist(),
+                "held_out_child_indices": held_out.tolist(),
+                "fold_of_child": folds.tolist(),
+                "kfold_plan": kfold.as_dict(),
+            },
         )
         converged[fold] = bool(getattr(result, "converged", False))
         fold_posterior = _dataset(getattr(result.trace, "posterior", None))

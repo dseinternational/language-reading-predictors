@@ -347,6 +347,8 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
 
     meta_extra = {
         "loo_elpd": float(ctx.loo.elpd),
+        "loo_unit": plan.loo_unit,
+        "loo_note": plan.loo_note,
         "treated_only": treated_only,
         # Requested vs actually-fitted adjustment set, incl. dropped-constant
         # covariates (#247 / #258 review P1). Skills enter at the pre baseline; the

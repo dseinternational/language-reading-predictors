@@ -48,7 +48,7 @@ class _FakeModel:
     """Small context-manager stand-in for the secondary-fit PyMC models."""
 
     def __init__(self, names=("alpha", "tau", "gamma_A", "kappa")):
-        self.free_RVs = [SimpleNamespace(name=name) for name in names]
+        self.free_RVs = [SimpleNamespace(name=name, owner=None) for name in names]
 
     def __enter__(self):
         return self
@@ -61,7 +61,7 @@ class _FakeTrace:
     """Trace surface used by the pipeline after the sampler has been stubbed."""
 
     def __init__(self, outcomes=()):
-        self.posterior = {"outcome": SimpleNamespace(values=np.asarray(outcomes, dtype=object))}
+        self.posterior = xr.Dataset(coords={"outcome": np.asarray(outcomes, dtype=object)})
 
     def to_netcdf(self, path):
         Path(path).write_text("mock trace\n")

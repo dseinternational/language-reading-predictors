@@ -178,6 +178,11 @@ def sample_posterior(context: StatisticalFitContext) -> None:
             random_seed=s.random_seed,
             progressbar=False,
         )
+    from language_reading_predictors.statistical_models.structural_constants import (
+        record_structural_constraints,
+    )
+
+    record_structural_constraints(trace.posterior, context.model)
     context.trace = trace
 
 
@@ -678,37 +683,28 @@ def _parse_coordinate_name(name: str) -> tuple[str, tuple[int, ...] | None]:
 
 
 def split_structurally_constant(posterior, names: Iterable[str]) -> tuple[list[str], list[str]]:
-    """Split unassessable coordinate names into (structural constants, genuine).
+    """Exempt fixed entries only for distribution-verified Cholesky variables.
 
-    PyMC's ``LKJCorr`` Cholesky factor carries a unit ``[0, 0]`` corner and a
-    zero upper triangle **by construction**, and R-hat / ESS are undefined on a
-    constant, so the dse-research-utils v0.12.0 assessability check (adopted in
-    #617) fails every fit that gates such a matrix — the 2026-08-26 batch's
-    mm-001/002/101/102, lcf-001, rlm-jc-001/002/102 and rlm-mm-001 all failed
-    solely on ``*_corr_chol`` structural entries with every real diagnostic
-    clean.
-
-    The reclassification is deliberately narrower than "constant everywhere":
-    a parameter pinned at a hard bound by a pathological sampler can also be
-    exactly constant, and must keep failing. A coordinate is structural only
-    when its **index proves the constraint** for a correlation-Cholesky
-    factor — a 2-D coordinate ``[i, j]`` that is exactly ``0`` everywhere with
-    ``j > i`` (the upper triangle), or exactly ``1`` everywhere at ``[0, 0]``
-    (the unit corner). Everything else — bare names, other indices, other
-    values, near-constants, chain-divergent constants, non-finite draws,
-    unresolvable names — stays a genuine assessability failure.
+    The recorded model constraint establishes the variable's role. Exact sampled
+    values then verify the constraint; indices and constants alone prove nothing
+    about an arbitrary matrix parameter.
     """
+    from language_reading_predictors.statistical_models.structural_constants import (
+        correlation_cholesky_variables,
+    )
+
+    constrained = correlation_cholesky_variables(posterior)
     structural: list[str] = []
     genuine: list[str] = []
     for name in names:
         base, index = _parse_coordinate_name(name)
-        if index is None or len(index) != 2:
+        if base not in constrained or index is None or len(index) != 2:
             genuine.append(name)
             continue
         i, j = index
         try:
-            values = np.asarray(posterior[base].values)
-            # posterior arrays are (chain, draw, *shape)
+            array = posterior[base]
+            values = np.asarray(array.transpose("chain", "draw", ...).values)
             values = values[(slice(None), slice(None), *index)]
         except Exception:  # noqa: BLE001 - unresolvable name stays genuine
             genuine.append(name)
@@ -761,6 +757,12 @@ def write_diagnostics_summary(
     #274 item 2). The curated ``var_names`` still drive the human-readable
     ``diagnostics.csv`` (via :func:`summary_diagnostics`) and the prior-overlay.
     """
+    from language_reading_predictors.statistical_models.structural_constants import (
+        record_structural_constraints,
+    )
+
+    if context.model is not None:
+        record_structural_constraints(context.trace.posterior, context.model)
     gate_names = _gate_var_names(context, var_names)
     summary = _shared_write_diagnostics_summary(
         context.trace,

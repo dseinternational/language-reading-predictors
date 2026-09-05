@@ -323,6 +323,9 @@ def build_gain_factors_model(
     with pm.Model(coords=coords) as model:
         phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
         child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+        # Remove every transition for a child together: a post-score can also
+        # appear as that child's next baseline.
+        pm.Data("loo_child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         # Own baseline is a precision term for the graded likelihood only; the off-floor
         # (Bernoulli) path drops it (A4 — see below), so its data node is not built.

@@ -444,6 +444,15 @@ class GainFactorsRunPlan:
     causal_status: str
     analysis_population: str
     missing_data_assumption: str
+    loo_unit: str = "child"
+    loo_note: str = (
+        "PSIS removes all transition likelihood contributions for one child together. "
+        "A post-score may be the next transition's baseline, so holding out one row "
+        "would leave that score in the training data. The score assesses a held-out "
+        "child's transitions conditional on their supplied baseline predictors; it "
+        "does not assess a forecast made before those predictors are observed. "
+        "Read the Pareto diagnostics before using this importance-sampling estimate."
+    )
 
     @property
     def obs_node(self) -> str:
@@ -596,6 +605,8 @@ class GainFactorsRunPlan:
             "they describe the fitted model, not specifically whether a child "
             "gains more after their own skill increases. The pooled-levels family "
             "carries the explicit Mundlak between/within split of that question.\n\n"
+            "## Predictive validation\n\n"
+            f"Holdout unit: `{self.loo_unit}`. {self.loo_note}\n\n"
             "## Uncertainty and checks\n\n"
             "The fit reports a posterior distribution; interpret it only after the "
             "convergence gate and posterior-predictive checks pass. The saved "

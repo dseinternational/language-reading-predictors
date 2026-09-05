@@ -59,7 +59,7 @@ def _ctx(tmp_path=None, *, draws=800, tune=500, chains=2):
     )
 
 
-def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None):
+def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None, prior=2.0):
     """A tiny Binomial model plus the duck-typed ``prepared`` the runner reads.
 
     ``q`` is a registered Deterministic — not a free variable — so a test can check
@@ -67,7 +67,7 @@ def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None):
     """
     observed = np.asarray(counts)
     with pm.Model() as model:
-        p = pm.Beta("p", 2.0, 2.0)
+        p = pm.Beta("p", prior, prior)
         pm.Deterministic("q", p * 2.0)
         pm.Binomial("y", n=10, p=p, observed=observed)
     prepared = SimpleNamespace(
@@ -120,6 +120,8 @@ def _write_reuse_contract(
         "target_accept": float(ctx.sampling.target_accept),
         "random_seed": ctx.sampling.random_seed,
     }
+    from language_reading_predictors.statistical_models.model_identity import model_design_identity
+
     row = SubfitResult(
         label=label,
         role=role,
@@ -133,6 +135,7 @@ def _write_reuse_contract(
         convergence_vars=tuple(rv.name for rv in built.model.free_RVs),
         trace_file=trace_filename,
         trace_sha256=hashlib.sha256(subfit_trace.read_bytes()).hexdigest(),
+        model_identity=model_design_identity(built.model),
     ).provenance_row()
     pd.DataFrame([row]).to_csv(source / "subfit_provenance.csv", index=False)
 

@@ -44,6 +44,7 @@ needs it, it belongs in :func:`run_subfit` beside the posterior-predictive step.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -155,6 +156,7 @@ class SubfitResult:
     posterior_predictive: tuple[str, ...] = ()
     trace_file: str | None = None
     trace_sha256: str | None = None
+    model_identity: dict[str, Any] | None = None
     failure_type: str | None = None
     failure: str | None = None
 
@@ -196,6 +198,7 @@ class SubfitResult:
             "posterior_predictive": ", ".join(self.posterior_predictive),
             "trace_file": self.trace_file,
             "trace_sha256": self.trace_sha256,
+            "model_identity": json.dumps(self.model_identity, sort_keys=True),
             "failure_type": self.failure_type,
             "failure": self.failure,
         }
@@ -415,6 +418,7 @@ def _require_subfit_reuse_compatibility(
     convergence_scope: ConvergenceScope,
     convergence_vars: tuple[str, ...],
     posterior_predictive: tuple[str, ...],
+    model_identity: dict[str, Any],
 ) -> None:
     """Fail unless one persisted provenance row matches this named sub-fit."""
 
@@ -446,6 +450,8 @@ def _require_subfit_reuse_compatibility(
             "reuse-trace requires exactly one prior provenance row for "
             f"{label!r} and {trace_filename!r}"
         )
+    if not model_identity.get("structure_sha256") or not model_identity.get("design_sha256"):
+        raise ValueError("reuse-trace cannot verify this sub-fit computational graph")
     if data.digest is None:
         raise ValueError("reuse-trace cannot verify this sub-fit's fitted data")
 
@@ -460,6 +466,7 @@ def _require_subfit_reuse_compatibility(
         convergence_vars=convergence_vars,
         posterior_predictive=posterior_predictive,
         trace_file=trace_filename,
+        model_identity=model_identity,
     ).provenance_row()
     row = rows.iloc[0]
     text_fields = (
@@ -470,6 +477,7 @@ def _require_subfit_reuse_compatibility(
         "observed_nodes",
         "identity_keys",
         "data_digest",
+        "model_identity",
         "sampler",
         "random_seed",
         "posterior_predictive",
@@ -521,6 +529,7 @@ def run_subfit(
     trace_filename: str | None = None,
     convergence_scope: ConvergenceScope = "free_rvs",
     extra_var_names: Sequence[str] | None = None,
+    reuse_context: dict[str, Any] | None = None,
 ) -> SubfitResult:
     """Sample one sub-fit, check it, record its provenance, return it typed.
 
@@ -534,6 +543,8 @@ def run_subfit(
     ``extra_var_names`` extends the free-variable convergence scan with the sub-fit's
     *reported deterministics*, whose mixing their arguments do not imply; the scanned
     set is recorded on the provenance row.
+    ``reuse_context`` binds caller-specific evidence, such as the complete K-fold
+    partition, alongside the secondary model identity.
     ``trace_filename`` persists the sub-fit trace next to the primary's and
     records it on the artefact manifest, which is what makes a published
     secondary estimate independently auditable. In ``--reuse-trace`` mode, a
@@ -565,7 +576,14 @@ def run_subfit(
         "target_accept": float(s.target_accept),
         "random_seed": s.random_seed,
     }
+    from language_reading_predictors.statistical_models.model_identity import (
+        model_design_identity,
+    )
+
     data = describe_fitted_data(built)
+    model_identity = model_design_identity(built.model)
+    if reuse_context is not None:
+        model_identity["reuse_context"] = reuse_context
     pp = tuple(posterior_predictive or ())
     scanned: list[str] = []
     if convergence_scope == "free_rvs":
@@ -621,6 +639,7 @@ def run_subfit(
             convergence_scope=convergence_scope,
             convergence_vars=tuple(scanned),
             posterior_predictive=pp,
+            model_identity=model_identity,
         )
         trace = az.from_netcdf(source_path)
 
@@ -646,6 +665,11 @@ def run_subfit(
                 progressbar=False,
             )
 
+    from language_reading_predictors.statistical_models.structural_constants import (
+        record_structural_constraints,
+    )
+
+    record_structural_constraints(trace.posterior, built.model)
     convergence = subfit_convergence(
         trace,
         label=label,
@@ -676,6 +700,7 @@ def run_subfit(
         convergence_vars=tuple(scanned),
         posterior_predictive=pp,
         trace_file=trace_filename,
+        model_identity=model_identity,
         trace_sha256=trace_sha256,
         failure_type=failure_type,
         failure=failure,

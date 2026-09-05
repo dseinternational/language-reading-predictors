@@ -13,7 +13,6 @@ than a hardcoded ``{E, R}``.
 
 from __future__ import annotations
 
-import importlib
 import json
 from dataclasses import replace
 from types import SimpleNamespace
@@ -949,49 +948,16 @@ def test_sensitivity_sweep_period_stacked(tmp_path):
     )
 
 
-def test_the_recorded_simulation_settings_are_the_ones_the_g_formula_uses():
-    """What each fit persists must be what ``decompose*`` actually ran with.
-
-    The counterfactual cells are simulated, so a decomposition is only
-    reproducible if the inner seed and the per-draw replicate count are on
-    record. Both were compile-time defaults named in no fit (#585 section C).
-    They are now module constants that the three entry points default to and
-    that ``pipelines/mediation.py`` writes into ``config.json``; this pins the
-    two together, so changing a default without changing what is recorded — or
-    letting one entry point drift from the others — fails here rather than
-    silently publishing an unreproducible decomposition.
-    """
+def test_integration_settings_are_recorded_for_every_mediation_entry_point():
     import inspect
-
-    from language_reading_predictors.statistical_models import mediation as med
-
-    for function in (
-        med.decompose,
-        med.decompose_period_stacked,
-        med.decompose_two_mediator,
-    ):
-        parameters = inspect.signature(function).parameters
-        assert parameters["seed"].default == med.G_FORMULA_SEED, function.__name__
-        assert (
-            parameters["n_replicates"].default == med.G_FORMULA_REPLICATES
-        ), function.__name__
-
-    source = inspect.getsource(
-        importlib.import_module(
-            "language_reading_predictors.statistical_models.pipelines.mediation"
-        )
-    )
-    recorded = source.count('"simulation": _simulation_record()')
-    assert recorded == 3, (
-        "each of the three mediation fit entry points must record the inner "
-        f"simulation settings it ran with; found {recorded}"
+    from language_reading_predictors.statistical_models.pipelines import mediation as pipeline
+    from language_reading_predictors.statistical_models.mediation_integration import (
+        NORMAL_INTEGRATION_ORDERS, NORMAL_INTEGRATION_TOLERANCE,
     )
 
-    from language_reading_predictors.statistical_models.pipelines.mediation import (
-        _simulation_record,
-    )
-
-    assert _simulation_record() == {
-        "seed": med.G_FORMULA_SEED,
-        "replicates_per_draw": med.G_FORMULA_REPLICATES,
-    }
+    assert inspect.getsource(pipeline).count('"integration": _integration_record()') == 3
+    record = pipeline._integration_record()
+    assert record["count_mediators"] == "exact finite-support summation"
+    assert record["normal_node_counts"] == list(NORMAL_INTEGRATION_ORDERS)
+    assert record["normal_cell_tolerance"] == NORMAL_INTEGRATION_TOLERANCE
+    assert "does not measure integration error" in record["posterior_mcse"]
