@@ -18,6 +18,7 @@ armgap
 ArviZ
 asis
 Asparouhov
+assessability
 assoc
 autoregressive
 autoregressor
@@ -218,6 +219,7 @@ gridspec
 Gunn
 Guttman
 Haldane
+Hermite
 halfnormal
 Hamaker
 Hancock

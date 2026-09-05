@@ -228,6 +228,10 @@ def test_reported_contrast_never_leaves_observed_dose_support(model_id):
         assert row["sessions_q1"] >= raw[rows].min()
         assert row["sessions_q3"] <= raw[rows].max()
         assert row["contrast_sessions"] > 0
+        low = raw[rows] + payload.dose_scaler.sd * contrast.start_offset_std[rows]
+        high = low + payload.dose_scaler.sd * contrast.delta_std[rows]
+        np.testing.assert_allclose(low, row["sessions_q1"])
+        np.testing.assert_allclose(high, row["sessions_q3"])
 
 
 def test_contrast_aligns_to_the_factory_rows_not_the_loader_rows():

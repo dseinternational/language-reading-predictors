@@ -13,7 +13,6 @@ than a hardcoded ``{E, R}``.
 
 from __future__ import annotations
 
-import importlib
 import json
 from dataclasses import replace
 from types import SimpleNamespace
@@ -112,7 +111,7 @@ def test_decompose_beta_binomial(tmp_path):
     prep = _prepare(tmp_path)
     _, med = build_mediation_model(prep, confounder_symbols=("E", "R"))
     names = _OUTCOME_DRAWS + ["b_E", "b_R"] + _BB_MEDIATOR_DRAWS + ["a_E", "a_R", "kappa_M"]
-    df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
+    df = decompose(_fake_trace(names, positive=["kappa_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
     effects = df[df["quantity"].isin(["total", "NDE", "NIE"])]
     assert effects[["prob_mean", "words_mean"]].notna().all().all()
@@ -166,7 +165,7 @@ def test_word_reading_confounder_is_distinct_from_blending_baseline(tmp_path):
         + _BB_MEDIATOR_DRAWS
         + ["a_W", "kappa_M"]
     )
-    df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
+    df = decompose(_fake_trace(names, positive=["kappa_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
 
 
@@ -203,7 +202,7 @@ def test_decompose_offfloor_outcome(tmp_path):
         + _BB_MEDIATOR_DRAWS
         + ["a_W", "kappa_M"]
     )
-    df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
+    df = decompose(_fake_trace(names, positive=["kappa_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
     eff = df[df["quantity"].isin(["total", "NDE", "NIE"])]
     assert eff[["prob_mean", "words_mean"]].notna().all().all()
@@ -311,11 +310,10 @@ def test_decompose_interventional_offfloor_outcome(tmp_path):
         + ["a_E", "a_R", "kappa_M"]
     )
     trace = _fake_trace(names, positive=["kappa_M"])
-    natural = decompose(trace, med, n_replicates=4)
+    natural = decompose(trace, med)
     df = decompose(
         trace,
         med,
-        n_replicates=4,
         interventional=True,
     )
     assert set(df["quantity"]) == _INTERVENTIONAL_QUANTITIES
@@ -388,7 +386,7 @@ def test_decompose_gaussian_composite(tmp_path):
     names = (
         _OUTCOME_DRAWS + ["b_E", "b_R"] + _GAUSSIAN_MEDIATOR_DRAWS + ["a_E", "a_R", "sigma_M"]
     )
-    df = decompose(_fake_trace(names, positive=["sigma_M"]), med, n_replicates=4)
+    df = decompose(_fake_trace(names, positive=["sigma_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
 
 
@@ -400,7 +398,7 @@ def test_sensitivity_sweep(tmp_path):
     _, med = build_mediation_model(prep, confounder_symbols=("E", "R"))
     names = _OUTCOME_DRAWS + ["b_E", "b_R"] + _BB_MEDIATOR_DRAWS + ["a_E", "a_R", "kappa_M"]
     trace = _fake_trace(names, positive=["kappa_M"], seed=1)
-    sweep, summary = sensitivity_sweep(trace, med, n_deltas=6, n_replicates=4)
+    sweep, summary = sensitivity_sweep(trace, med, n_deltas=6)
     assert sweep["delta"].iloc[0] == 0.0
     assert {"nie_median", "nie_lo", "nie_hi", "delta_frac_of_bM"} <= set(sweep.columns)
     assert {
@@ -437,7 +435,7 @@ def test_sensitivity_sweep_attenuates_toward_null_for_both_signs(tmp_path):
             "a0": 0.0, "a_G": 1.5, "a_L": 0.0, "a_A": 0.0, "a_E": 0.0, "a_R": 0.0,
         }
         trace = _fake_trace(names, positive=["kappa_M"], values=vals, seed=3)
-        _, summary = sensitivity_sweep(trace, med, n_deltas=21, n_replicates=8)
+        _, summary = sensitivity_sweep(trace, med, n_deltas=21)
         assert not summary["already_null_at_zero"], f"b_M={b_m}: NIE should be non-null at 0"
         assert not summary["robust_over_full_sweep"], (
             f"b_M={b_m}: sweep must attenuate toward 0 and find a tipping point, not 'robust'"
@@ -658,7 +656,7 @@ def test_decompose_follows_fitted_confounder_set(tmp_path):
     assert med.confounder_symbols == ("R",)
     assert set(med.conf_logit) == {"R"}
     names = _OUTCOME_DRAWS + ["b_R"] + _BB_MEDIATOR_DRAWS + ["a_R", "kappa_M"]
-    df = decompose(_fake_trace(names, positive=["kappa_M"]), med, n_replicates=4)
+    df = decompose(_fake_trace(names, positive=["kappa_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
 
 
@@ -698,11 +696,10 @@ def test_decompose_two_mediator_per_leg_shift_attenuates_target(tmp_path):
     """A shift on the L outcome leg must attenuate NIE_L and the joint NIE."""
     _, med = _prepare_two_mediator(tmp_path)
     trace = _two_mediator_trace()
-    base = decompose_two_mediator(trace, med, n_replicates=8).set_index("quantity")
+    base = decompose_two_mediator(trace, med).set_index("quantity")
     shifted = decompose_two_mediator(
         trace,
         med,
-        n_replicates=8,
         b_m_shifts={"L": 2.0},
     ).set_index("quantity")
     assert abs(shifted.loc["NIE_L", "prob_median"]) < abs(
@@ -720,7 +717,6 @@ def test_sensitivity_sweep_two_mediator_reports_each_leg_and_joint(tmp_path):
         _two_mediator_trace(),
         med,
         n_deltas=6,
-        n_replicates=6,
     )
     assert set(sweep["mediator"]) == {"L", "E"}
     assert (sweep.groupby("mediator")["delta"].first() == 0.0).all()
@@ -771,7 +767,6 @@ def test_two_mediator_sweep_generalises_to_blending_and_chain(tmp_path):
             trace,
             med,
             n_deltas=3,
-            n_replicates=3,
             order=("L", "B"),
         )
         assert set(sweep["mediator"]) == {"L", "B"}
@@ -785,7 +780,6 @@ def test_session_calibration_returns_one_computed_row_per_leg(tmp_path):
         _two_mediator_trace(seed=19),
         med,
         n_deltas=5,
-        n_replicates=4,
     )
     calibration = calibrate_session_confounding(
         prepared,
@@ -905,12 +899,12 @@ def test_decompose_period_stacked_all_rows_and_p1_mask(tmp_path):
     prep = _prepare_stacked(tmp_path)
     _, med = build_period_stacked_mediation_model(prep, confounder_symbols=("E", "R"))
     trace = _fake_trace_stacked(med)
-    df = decompose_period_stacked(trace, med, n_replicates=4)
+    df = decompose_period_stacked(trace, med)
     assert set(df["quantity"]) == _QUANTITIES
     effects = df[df["quantity"].isin(["total", "NDE", "NIE"])]
     assert effects[["prob_mean", "words_mean"]].notna().all().all()
     df_p1 = decompose_period_stacked(
-        trace, med, n_replicates=4, row_mask=med.phase_idx == 0
+        trace, med, row_mask=med.phase_idx == 0
     )
     assert set(df_p1["quantity"]) == _QUANTITIES
 
@@ -924,7 +918,7 @@ def test_decompose_period_stacked_positive_exposure_effect(tmp_path):
     vals = {n: 0.0 for n in _PS_SCALARS if not n.startswith("kappa")}
     vals.update({"a_trt": 2.0, "b_M": 2.0})
     trace = _fake_trace_stacked(med, values=vals, seed=5)
-    df = decompose_period_stacked(trace, med, n_replicates=8).set_index("quantity")
+    df = decompose_period_stacked(trace, med).set_index("quantity")
     assert df.loc["NIE", "prob_mean"] > 0
     assert df.loc["total", "prob_mean"] > 0
 
@@ -939,7 +933,6 @@ def test_sensitivity_sweep_period_stacked(tmp_path):
         trace,
         med,
         n_deltas=4,
-        n_replicates=4,
         decompose_fn=decompose_period_stacked,
         interaction_name="b_trtM",
     )
@@ -949,49 +942,16 @@ def test_sensitivity_sweep_period_stacked(tmp_path):
     )
 
 
-def test_the_recorded_simulation_settings_are_the_ones_the_g_formula_uses():
-    """What each fit persists must be what ``decompose*`` actually ran with.
-
-    The counterfactual cells are simulated, so a decomposition is only
-    reproducible if the inner seed and the per-draw replicate count are on
-    record. Both were compile-time defaults named in no fit (#585 section C).
-    They are now module constants that the three entry points default to and
-    that ``pipelines/mediation.py`` writes into ``config.json``; this pins the
-    two together, so changing a default without changing what is recorded — or
-    letting one entry point drift from the others — fails here rather than
-    silently publishing an unreproducible decomposition.
-    """
+def test_integration_settings_are_recorded_for_every_mediation_entry_point():
     import inspect
-
-    from language_reading_predictors.statistical_models import mediation as med
-
-    for function in (
-        med.decompose,
-        med.decompose_period_stacked,
-        med.decompose_two_mediator,
-    ):
-        parameters = inspect.signature(function).parameters
-        assert parameters["seed"].default == med.G_FORMULA_SEED, function.__name__
-        assert (
-            parameters["n_replicates"].default == med.G_FORMULA_REPLICATES
-        ), function.__name__
-
-    source = inspect.getsource(
-        importlib.import_module(
-            "language_reading_predictors.statistical_models.pipelines.mediation"
-        )
-    )
-    recorded = source.count('"simulation": _simulation_record()')
-    assert recorded == 3, (
-        "each of the three mediation fit entry points must record the inner "
-        f"simulation settings it ran with; found {recorded}"
+    from language_reading_predictors.statistical_models.pipelines import mediation as pipeline
+    from language_reading_predictors.statistical_models.mediation_integration import (
+        NORMAL_INTEGRATION_ORDERS, NORMAL_INTEGRATION_TOLERANCE,
     )
 
-    from language_reading_predictors.statistical_models.pipelines.mediation import (
-        _simulation_record,
-    )
-
-    assert _simulation_record() == {
-        "seed": med.G_FORMULA_SEED,
-        "replicates_per_draw": med.G_FORMULA_REPLICATES,
-    }
+    assert inspect.getsource(pipeline).count('"integration": _integration_record()') == 3
+    record = pipeline._integration_record()
+    assert record["count_mediators"] == "exact finite-support summation"
+    assert record["normal_node_counts"] == list(NORMAL_INTEGRATION_ORDERS)
+    assert record["normal_cell_tolerance"] == NORMAL_INTEGRATION_TOLERANCE
+    assert "does not measure integration error" in record["posterior_mcse"]

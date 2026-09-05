@@ -134,6 +134,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         ),
         include_presence_term=True,
         contrast_std=contrast.delta_std,
+        contrast_start_offset_std=contrast.start_offset_std,
         contrast_sessions=contrast.delta_sessions,
         contrast_label=contrast.label,
         contrast_kind=plan.dose_contrast,
@@ -238,6 +239,7 @@ class DoseContrast:
     """A support-respecting items-scale dose contrast and the evidence for it."""
 
     delta_std: np.ndarray
+    start_offset_std: np.ndarray
     delta_sessions: np.ndarray
     label: str
     note: str
@@ -255,19 +257,20 @@ def resolve_dose_contrast(payload, phase_idx: np.ndarray) -> DoseContrast:
     posterior-predictive check at observed doses validated it.
 
     The replacement moves each treated row from its **own period's** observed lower
-    quartile of sessions to that period's upper quartile. Every endpoint is an
-    observed attendance level in the period it is applied to, so the contrast is
-    inside support by construction, and the raw-session width is recorded per period
+    quartile of sessions to that period's upper quartile. Both endpoints lie
+    within that period's observed attendance range. The raw-session width is recorded per period
     rather than left for the reader to infer from a standardised coefficient.
     """
     treated = np.asarray(payload.treated, dtype=bool)
     sd = float(payload.dose_scaler.sd)
     delta_sessions = np.zeros(treated.shape[0], dtype=float)
+    start_offset = np.zeros(treated.shape[0], dtype=float)
     records: list[dict[str, object]] = []
     for phase, (lo, q1, q3, hi) in enumerate(payload.phase_support):
         rows = treated & (phase_idx == phase)
         width = float(q3 - q1) if np.isfinite(q3) and np.isfinite(q1) else 0.0
         delta_sessions[rows] = width
+        start_offset[rows] = q1 - np.asarray(payload.raw_attend)[rows]
         records.append(
             {
                 "period": phase + 1,
@@ -293,13 +296,14 @@ def resolve_dose_contrast(payload, phase_idx: np.ndarray) -> DoseContrast:
             if r["n_treated_rows"]
         )
         + f" sessions; median width {float(np.median(widths)) if widths else 0.0:.0f}). "
-        "Both endpoints are observed attendance levels in the period they are applied "
-        "to, so no profile is extrapolated beyond the fitted dose support. Untreated "
+        "Both attendance endpoints lie within the observed range for their period. "
+        "Other fitted terms, including child-mean attendance, stay fixed. Untreated "
         "rows are excluded: a session step where there is no intervention is not a "
         "counterfactual this design supports."
     )
     return DoseContrast(
         delta_std=delta_sessions / sd,
+        start_offset_std=start_offset / sd,
         delta_sessions=delta_sessions,
         label=label,
         note=note,
@@ -367,6 +371,7 @@ def dose_marginal_draws(
     *,
     phase_idx: np.ndarray,
     delta_std: np.ndarray,
+    start_offset_std: np.ndarray | None = None,
     n_trials: int,
     period_varying: bool,
     row_mask: np.ndarray | None = None,
@@ -385,7 +390,10 @@ def dose_marginal_draws(
 
     ``group`` is a ``prior`` or ``posterior`` xarray group carrying ``eta_name`` and
     the slope variables. ``delta_std`` is the per-row step in units of the fitted
-    (treated-row) standardised dose; ``row_mask`` restricts the averaging population.
+    (treated-row) standardised dose. ``start_offset_std`` first moves the fitted
+    predictor to the lower endpoint; omitted, the contrast starts at the observed
+    dose. Both arguments hold all other fitted terms fixed, including child-mean
+    attendance in a between/within split. ``row_mask`` selects the averaging rows.
     Returns one items-scale value per draw.
     """
     eta = (
@@ -402,7 +410,17 @@ def dose_marginal_draws(
     else:
         scalar = group["beta_dose"].stack(sample=("chain", "draw")).values.ravel()
         per_row = np.broadcast_to(scalar[None, :], eta.shape)
-    delta_eta = per_row * np.asarray(delta_std, dtype=float)[:, None]
+    def row_vector(value, name):
+        array = np.asarray(value, dtype=float)
+        if array.shape != (eta.shape[0],) or not np.all(np.isfinite(array)):
+            raise ValueError(f"{name} must contain {eta.shape[0]} finite entries")
+        return array[:, None]
+
+    delta_eta = per_row * row_vector(delta_std, "delta_std")
+    if start_offset_std is not None:
+        # Move from observed attendance to Q1 before taking the Q1-to-Q3
+        # contrast. The fitted child-mean component stays fixed in a split model.
+        eta = eta + per_row * row_vector(start_offset_std, "start_offset_std")
     if row_mask is not None:
         keep = np.asarray(row_mask)
         if keep.ndim != 1 or keep.dtype != bool or keep.shape[0] != eta.shape[0]:
@@ -450,6 +468,12 @@ def _summarise_draws(
     return out
 
 
+#: The one contrast kind whose endpoints start at each row's own observed dose —
+#: the +1 SD step the DiD dose companions report. Every other kind moves the
+#: starting point, so it must be accompanied by ``contrast_start_offset_std``.
+_OBSERVED_START_CONTRAST_KIND = "one_sd_all_rows"
+
+
 def write_dose_slope_summary(
     ctx: StatisticalFitContext,
     *,
@@ -460,6 +484,7 @@ def write_dose_slope_summary(
     between_term: str | None = None,
     include_presence_term: bool = False,
     contrast_std: np.ndarray | None = None,
+    contrast_start_offset_std: np.ndarray | None = None,
     contrast_sessions: np.ndarray | None = None,
     contrast_label: str = "a +1 SD session-dose step",
     contrast_kind: str = "one_sd_all_rows",
@@ -490,12 +515,26 @@ def write_dose_slope_summary(
     period's observed maximum, and the 25 period-1 waitlist rows were shifted from
     0 to 30.7 sessions although no treated period-1 child attended fewer than 45.)
 
+    ``contrast_start_offset_std`` moves each observed dose to the lower endpoint.
     ``contrast_std`` is the per-row step in units of the fitted standardised dose;
     ``contrast_sessions`` the same step in raw sessions, for the self-describing
     columns. The default (``None``) is a +1 SD step on every retained row, which is
     what the DiD dose companions report. ``between_term`` names a between-child
     slope to summarise alongside the period slopes when the exposure is split.
+
+    ``contrast_kind`` is bound to the computation rather than merely recorded
+    beside it: only :data:`_OBSERVED_START_CONTRAST_KIND` starts each row at its
+    own fitted dose, so any other declared kind must arrive with the offset that
+    moves it. Without that check the published ``contrast_kind`` / ``contrast_label``
+    could name a lower-to-upper-quartile shift over numbers still computed from
+    the observed dose — the defect #587 corrected, one forgotten keyword away.
     """
+    if contrast_kind != _OBSERVED_START_CONTRAST_KIND and contrast_start_offset_std is None:
+        raise ValueError(
+            f"contrast_kind={contrast_kind!r} declares endpoints the fitted rows do "
+            "not start from, so contrast_start_offset_std is required; otherwise the "
+            "recorded label and the computed marginal describe different contrasts."
+        )
     post = ctx.trace.posterior
     ci_prob = ctx.reporting.ci_prob
     rows: list[dict[str, object]] = []
@@ -565,6 +604,7 @@ def write_dose_slope_summary(
         post,
         phase_idx=phase_idx,
         delta_std=contrast_std,
+        start_offset_std=contrast_start_offset_std,
         n_trials=n_trials,
         period_varying=period_varying,
         row_mask=marginal_row_mask,
@@ -663,6 +703,7 @@ def write_dose_slope_summary(
             prior_group,
             phase_idx=phase_idx,
             delta_std=contrast_std,
+            start_offset_std=contrast_start_offset_std,
             n_trials=n_trials,
             period_varying=period_varying,
             row_mask=marginal_row_mask,

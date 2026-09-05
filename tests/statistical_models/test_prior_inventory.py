@@ -421,6 +421,66 @@ def test_every_family_prior_is_documented(built_models):
     assert not problems, "Undocumented priors:\n" + "\n".join(problems)
 
 
+def test_representative_family_graphs_can_be_fingerprinted(built_models):
+    """Complex valid families must retain a usable trace-reuse contract."""
+    from language_reading_predictors.statistical_models.model_identity import (
+        model_design_identity,
+    )
+
+    for family, model in built_models.items():
+        identity = model_design_identity(model)
+        assert identity.get("structure_sha256"), (family, identity)
+        assert identity.get("design_sha256"), (family, identity)
+
+
+def test_real_family_builds_record_their_correlation_cholesky_variables(built_models):
+    """The gate exemption must be earned by a *registered* build, not a stub.
+
+    ``record_structural_constraints`` matches ``LKJCorrRV`` over ``free_RVs``, so a
+    family whose correlation factor is built any other way (``LKJCholeskyCov``
+    registers ``_LKJCholeskyCovRV`` and exposes the factor as a Deterministic)
+    records nothing and silently loses the exemption — the #617 regression, with
+    every real diagnostic clean. The negative case is covered elsewhere; this pins
+    the positive one to models the registry actually fits.
+    """
+    import xarray as xr
+
+    from language_reading_predictors.statistical_models.diagnostics import (
+        split_structurally_constant,
+    )
+    from language_reading_predictors.statistical_models.structural_constants import (
+        correlation_cholesky_variables,
+        record_structural_constraints,
+    )
+
+    recorded: dict[str, frozenset[str]] = {}
+    for family, model in built_models.items():
+        posterior = xr.Dataset()
+        record_structural_constraints(posterior, model)
+        recorded[family] = correlation_cholesky_variables(posterior)
+        declared = {rv.name for rv in model.free_RVs if "_corr_chol" in rv.name}
+        assert declared <= recorded[family], (family, declared, recorded[family])
+
+    exercised = {family: names for family, names in recorded.items() if names}
+    assert exercised, (
+        "no representative family exercises the correlation-Cholesky exemption, so "
+        "the gate reclassification is only ever tested against hand-built models"
+    )
+
+    # End to end: a recorded name earns the exemption, an unrecorded one does not.
+    family, names = next(iter(exercised.items()))
+    name = sorted(names)[0]
+    chol = np.zeros((2, 8, 2, 2))
+    chol[:, :, 0, 0] = 1.0
+    chol[:, :, 1, 0] = np.linspace(-0.5, 0.5, 8)
+    chol[:, :, 1, 1] = np.linspace(0.6, 0.9, 8)
+    posterior = xr.Dataset({name: (("chain", "draw", "d0", "d1"), chol)})
+    record_structural_constraints(posterior, built_models[family])
+    entries = [f"{name}[0, 0]", f"{name}[0, 1]"]
+    structural, genuine = split_structurally_constant(posterior, entries)
+    assert structural == entries, (family, structural, genuine)
+
+
 def test_did_varying_delta_guards_and_rvs(tmp_path):
     """Varying catch-up has guarded inputs and explicit waitlist-child nodes."""
     p = _write_synthetic(tmp_path)

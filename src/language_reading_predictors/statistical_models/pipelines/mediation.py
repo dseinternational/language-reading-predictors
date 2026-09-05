@@ -220,21 +220,21 @@ def prepare_mediation_data(spec: ModelSpec):
     return _prepare_mediation_data(_settings.resolve_mediation_run_plan(spec))
 
 
-def _simulation_record() -> dict[str, int]:
-    """The g-formula's inner-simulation settings, for the fit's own metadata.
-
-    What separates a reported decomposition from a reproducible one: the
-    counterfactual cells are *drawn*, so the seed and the per-draw replicate
-    count belong in the fit rather than only in the source defaults (#585
-    section C). ``gate_derived_estimands`` bounds the resulting Monte-Carlo
-    error; this records what produced it. All three fit entry points write it,
-    and ``test_mediation`` pins these values to the ``decompose*`` defaults.
-    """
-    from language_reading_predictors.statistical_models import mediation as _med
+def _integration_record() -> dict[str, object]:
+    """Record numerical integration separately from the posterior MCSE gate."""
+    from language_reading_predictors.statistical_models.mediation_integration import (
+        NORMAL_INTEGRATION_ORDERS, NORMAL_INTEGRATION_TOLERANCE,
+        NORMAL_EFFECT_DISTRIBUTION_TOLERANCE,
+    )
 
     return {
-        "seed": _med.G_FORMULA_SEED,
-        "replicates_per_draw": _med.G_FORMULA_REPLICATES,
+        "count_mediators": "exact finite-support summation",
+        "normal_mediators": "adaptive Gauss-Hermite quadrature",
+        "normal_node_counts": list(NORMAL_INTEGRATION_ORDERS),
+        "normal_cell_tolerance": NORMAL_INTEGRATION_TOLERANCE,
+        "normal_effect_distribution_tolerance": NORMAL_EFFECT_DISTRIBUTION_TOLERANCE,
+        "on_integration_failure": "stop decomposition",
+        "posterior_mcse": "MCMC precision only; does not measure integration error",
     }
 
 
@@ -467,7 +467,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         "n_obs_prepared": prepared.n_obs,
         "leg_contract": _leg_contract(plan, built),
         "mediation": _summary,
-        "simulation": _simulation_record(),
+        "integration": _integration_record(),
     }
     if med_df_t3 is not None:
         _extra_meta["mediation_t3_sensitivity"] = {
@@ -714,7 +714,7 @@ def fit_mediation_period_stacked(
             # ``mediation`` is now the PERIOD-1 headline (#585 finding 5); the
             # all-period average is recorded beside it as an extrapolation.
             "mediation": {r["quantity"]: r for r in med_df.to_dict("records")},
-            "simulation": _simulation_record(),
+            "integration": _integration_record(),
             "mediation_all_periods": {
                 r["quantity"]: r for r in med_df_all.to_dict("records")
             },
@@ -908,7 +908,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "mediators": list(mediators),
             "n_trials_W": med_data.n_trials_W,
             "mediation": _summary,
-            "simulation": _simulation_record(),
+            "integration": _integration_record(),
             "mediation_sensitivity": sens_summary.to_dict("records"),
             "named_confounder_calibration": (
                 calibration_df.to_dict("records") if calibration_df is not None else None

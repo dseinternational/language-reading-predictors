@@ -9,11 +9,11 @@ word reading into the natural indirect effect (NIE, the part flowing *through*
 letter-sound knowledge) and the natural direct effect (NDE, everything else).
 
 NDE/NIE are **not** products of coefficients — that is only valid on a linear
-identity scale, and these are logit Beta-Binomial models. They are computed by
-simulation from the posterior: for each posterior draw, simulate the mediator
-under each treatment counterfactual from the mediator model, push it through the
-outcome model, and average the resulting outcome probability over the observed
-covariate distribution. This yields full posteriors for every quantity.
+identity scale, and these are logit Beta-Binomial models. For each posterior draw,
+they are computed by integrating over the mediator
+distribution under each treatment counterfactual and averaging the resulting
+outcome probability over the observed covariate distribution. Finite count
+supports are summed exactly; normal mediators use checked numerical quadrature.
 
 Repo sign convention: ``G = 2 - group`` with ``G = 1`` = immediate-intervention
 arm and ``G = 0`` = wait-list control in phase 0. Effects are reported in the
@@ -65,6 +65,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 import xarray as xr
+from scipy.special import expit
 from dse_research_utils.math.constants import EPSILON
 
 from language_reading_predictors.statistical_models.likelihood import (
@@ -74,6 +75,11 @@ from language_reading_predictors.statistical_models.factories import (
     MediationData,
     PeriodStackedMediationData,
     TwoMediatorData,
+)
+from language_reading_predictors.statistical_models.mediation_integration import (
+    count_cells,
+    count_mass,
+    normal_cells,
 )
 from language_reading_predictors.statistical_models.mediation_parameter_names import (
     outcome_confounder_coefficient,
@@ -87,21 +93,9 @@ from language_reading_predictors.statistical_models.preprocessing import (
 _TREAT = 1.0  # immediate-intervention arm (G = 1)
 _CTRL = 0.0  # wait-list control arm (G = 0)
 
-#: Inner-simulation settings for every g-formula decomposition in this module.
-#:
-#: The counterfactual cells are simulated, so the reported NDE / NIE / total carry
-#: Monte-Carlo error on top of posterior uncertainty. ``gate_derived_estimands``
-#: already fails a fit whose derived MCSE exceeds 5 % of the reported interval
-#: half-width, but the two numbers that *produce* that error were compile-time
-#: defaults recorded nowhere in the fit (#585 section C). They are named here so
-#: the three ``decompose*`` entry points and the metadata each fit persists cannot
-#: drift apart, and a reader can reproduce a decomposition exactly.
-G_FORMULA_SEED = 47
-G_FORMULA_REPLICATES = 50
-
 
 def _sigmoid(x: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-x))
+    return expit(x)
 
 
 def _effect_row(
@@ -137,10 +131,8 @@ def _effect_row(
         # report label the scale ("off-floor risk difference", not items).
         "off_floor": bool(off_floor),
     }
-    # Monte-Carlo precision of this derived g-formula effect. Because the NDE/NIE
-    # are simulated (mediator re-draw noise on top of posterior autocorrelation),
-    # their tail ESS can be worse than the parent coefficients the gate checks —
-    # so report it per row (Kruschke 2021 BARG step 2.C).
+    # Posterior sampling precision of the integrated effect. Nonlinear functions
+    # can mix differently from their parent coefficients, so check each effect.
     if n_chains is not None and n_draws is not None:
         from language_reading_predictors.statistical_models.reporting import (
             derived_mc_diagnostics,
@@ -217,8 +209,6 @@ def decompose(
     med: MediationData,
     *,
     ci_prob: float = 0.95,
-    n_replicates: int = G_FORMULA_REPLICATES,
-    seed: int = G_FORMULA_SEED,
     interventional: bool = False,
     b_m_shift: float = 0.0,
     score_mean_link: str = "logit",
@@ -229,9 +219,9 @@ def decompose(
     (LRP59, a single count mediator) or ``"gaussian_composite"`` (LRP62, a
     continuous standardised code-based-route composite). The outcome model and the
     NDE/NIE/proportion decomposition are identical in both cases. The mediator is
-    re-simulated ``n_replicates`` times per posterior draw and averaged, to
-    control Monte-Carlo noise from the mediator draw; the posterior itself
-    supplies the inferential uncertainty.
+    integrated within each posterior draw. Count mediators are summed exactly;
+    normal mediators use checked quadrature. The posterior supplies the
+    inferential uncertainty.
 
     ``interventional=True`` (MED-078/186/187) labels the decomposition as the
     **randomised interventional analogue** (IDE / IIE) rather than the natural
@@ -297,8 +287,6 @@ def decompose(
     med_cross_rows = {name: value[None, :] for name, value in med_cross.items()}
     own_off_row = None if own_off is None else np.asarray(own_off)[None, :]
     N_W = med.n_trials_W
-    S = b0.shape[0]
-    rng = np.random.default_rng(seed)
 
     def outcome_p(g: float, z_m: np.ndarray) -> np.ndarray:
         if off_floor:
@@ -331,31 +319,6 @@ def decompose(
         # every counterfactual cell is accumulated on that scale (#619).
         return apply_score_mean_link(_sigmoid(eta), score_mean_link)
 
-    # E[Y(g_out, M(g'))] averaged over units, accumulated over mediator replicates.
-    y_treat_Mtreat = np.zeros(S)
-    y_ctrl_Mctrl = np.zeros(S)
-    y_treat_Mctrl = np.zeros(S)
-
-    def draw_m(zm: np.ndarray) -> np.ndarray:
-        # Both the natural and the interventional analogue draw the mediator from
-        # its fitted COVARIATE-CONDITIONAL law P(M | C, g) — exactly what
-        # ``mediator_p`` / ``mediator_mu`` simulate above (``zm``). In this fully
-        # parametric g-formula with no unit-level latent terms, the within-stratum
-        # interventional draw therefore coincides *numerically* with the
-        # natural-branch computation, so ``interventional`` is an interpretive
-        # relabelling (an interventional IDE/IIE under weaker cross-world
-        # assumptions; #260, #268), NOT a different number.
-        #
-        # It is deliberately NOT the marginal population permutation an earlier
-        # version used (``zm[:, rng.permutation(...)]``): that draws M from the
-        # marginal arm-g distribution, pairing mediator values with off-support
-        # covariate profiles through the nonlinear G×M logit, which targets a
-        # cruder estimand — and, crucially, its divergence from the natural
-        # decomposition reflects that covariate decoupling, NOT the treatment-
-        # induced dose (IS) confounding (IS never enters the fitted model), so it
-        # cannot support an IIE-vs-NIE dose-distortion diagnostic.
-        return zm
-
     if med.mediator_kind == "gaussian_composite":
         # LRP62: continuous standardised route composite ~ Normal. The mediator
         # is already on the standardised scale the outcome model consumes, so the
@@ -374,12 +337,9 @@ def decompose(
             return mu
 
         mu_treat, mu_ctrl = mediator_mu(_TREAT), mediator_mu(_CTRL)
-        for _ in range(n_replicates):
-            zm_treat = rng.normal(mu_treat, sigma_M[:, None])
-            zm_ctrl = rng.normal(mu_ctrl, sigma_M[:, None])
-            y_treat_Mtreat += outcome_p(_TREAT, draw_m(zm_treat)).mean(axis=1)
-            y_ctrl_Mctrl += outcome_p(_CTRL, draw_m(zm_ctrl)).mean(axis=1)
-            y_treat_Mctrl += outcome_p(_TREAT, draw_m(zm_ctrl)).mean(axis=1)
+        y_treat_Mtreat, y_ctrl_Mctrl, y_treat_Mctrl = normal_cells(
+            outcome_p, mu_treat, mu_ctrl, sigma_M, ci_prob=ci_prob
+        )
     else:
         # LRP59: single count mediator ~ Beta-Binomial, standardised logit -> z_m.
         # The own-baseline coef is a_{mediator_symbol} (a_L for L, a_TE for TE, ...).
@@ -399,20 +359,9 @@ def decompose(
 
         p_treat = mediator_p(_TREAT)  # (S, n)
         p_ctrl = mediator_p(_CTRL)
-        a_beta_t, b_beta_t = p_treat * kappa_M[:, None], (1 - p_treat) * kappa_M[:, None]
-        a_beta_c, b_beta_c = p_ctrl * kappa_M[:, None], (1 - p_ctrl) * kappa_M[:, None]
-        for _ in range(n_replicates):
-            k_treat = rng.binomial(N_L, rng.beta(a_beta_t, b_beta_t))
-            k_ctrl = rng.binomial(N_L, rng.beta(a_beta_c, b_beta_c))
-            zm_treat = (logit_safe(k_treat, N_L) - med.med_mean) / med.med_sd
-            zm_ctrl = (logit_safe(k_ctrl, N_L) - med.med_mean) / med.med_sd
-            y_treat_Mtreat += outcome_p(_TREAT, draw_m(zm_treat)).mean(axis=1)
-            y_ctrl_Mctrl += outcome_p(_CTRL, draw_m(zm_ctrl)).mean(axis=1)
-            y_treat_Mctrl += outcome_p(_TREAT, draw_m(zm_ctrl)).mean(axis=1)
-
-    y_treat_Mtreat /= n_replicates
-    y_ctrl_Mctrl /= n_replicates
-    y_treat_Mctrl /= n_replicates
+        y_treat_Mtreat, y_ctrl_Mctrl, y_treat_Mctrl = count_cells(
+            outcome_p, p_treat, p_ctrl, kappa_M, N_L, med.med_mean, med.med_sd
+        )
 
     total = y_treat_Mtreat - y_ctrl_Mctrl  # probability scale, intervention-helps
     nde = y_treat_Mctrl - y_ctrl_Mctrl
@@ -555,8 +504,6 @@ def decompose_period_stacked(
     med: PeriodStackedMediationData,
     *,
     ci_prob: float = 0.95,
-    n_replicates: int = G_FORMULA_REPLICATES,
-    seed: int = G_FORMULA_SEED,
     b_m_shift: float = 0.0,
     row_mask: np.ndarray | None = None,
     score_mean_link: str = "logit",
@@ -574,6 +521,7 @@ def decompose_period_stacked(
     ignorability assumption, *not* randomisation. ``row_mask`` restricts the
     averaging rows (e.g. ``phase == 0`` for the period-1, ITT-anchored readout
     comparable with LRP59); the posterior itself is always the all-period fit.
+    Mediator counts are summed exactly.
 
     Everything :mod:`mediation`'s docstring says about non-identification
     carries over unchanged — model-based decomposition under stated
@@ -628,8 +576,6 @@ def decompose_period_stacked(
     conf = {s: med.conf_values[s][mask][None, :] for s in confs}
     N_W = med.n_trials_W
     N_L = med.n_trials_L
-    S = b0.shape[0]
-    rng = np.random.default_rng(seed)
 
     def outcome_p(t: float, z_m: np.ndarray) -> np.ndarray:
         eta = (
@@ -667,23 +613,9 @@ def decompose_period_stacked(
         return np.clip(_sigmoid(mu), EPSILON, 1 - EPSILON)
 
     p_treat, p_ctrl = mediator_p(_TREAT), mediator_p(_CTRL)
-    a_beta_t, b_beta_t = p_treat * kappa_M[:, None], (1 - p_treat) * kappa_M[:, None]
-    a_beta_c, b_beta_c = p_ctrl * kappa_M[:, None], (1 - p_ctrl) * kappa_M[:, None]
-
-    y_treat_Mtreat = np.zeros(S)
-    y_ctrl_Mctrl = np.zeros(S)
-    y_treat_Mctrl = np.zeros(S)
-    for _ in range(n_replicates):
-        k_treat = rng.binomial(N_L, rng.beta(a_beta_t, b_beta_t))
-        k_ctrl = rng.binomial(N_L, rng.beta(a_beta_c, b_beta_c))
-        zm_treat = (logit_safe(k_treat, N_L) - med.med_mean) / med.med_sd
-        zm_ctrl = (logit_safe(k_ctrl, N_L) - med.med_mean) / med.med_sd
-        y_treat_Mtreat += outcome_p(_TREAT, zm_treat).mean(axis=1)
-        y_ctrl_Mctrl += outcome_p(_CTRL, zm_ctrl).mean(axis=1)
-        y_treat_Mctrl += outcome_p(_TREAT, zm_ctrl).mean(axis=1)
-    y_treat_Mtreat /= n_replicates
-    y_ctrl_Mctrl /= n_replicates
-    y_treat_Mctrl /= n_replicates
+    y_treat_Mtreat, y_ctrl_Mctrl, y_treat_Mctrl = count_cells(
+        outcome_p, p_treat, p_ctrl, kappa_M, N_L, med.med_mean, med.med_sd
+    )
 
     total = y_treat_Mtreat - y_ctrl_Mctrl
     nde = y_treat_Mctrl - y_ctrl_Mctrl
@@ -705,8 +637,6 @@ def decompose_two_mediator(
     med: TwoMediatorData,
     *,
     hdi_prob: float = 0.95,
-    n_replicates: int = G_FORMULA_REPLICATES,
-    seed: int = G_FORMULA_SEED,
     order: tuple[str, str] = ("L", "E"),
     b_m_shifts: dict[str, float] | None = None,
     score_mean_link: str = "logit",
@@ -732,12 +662,12 @@ def decompose_two_mediator(
       assumptions — read as ordering-dependent, not a unique attribution.
     - ``proportion_mediated`` — ``NIE_joint / total`` (median + interval).
 
-    Each mediator is re-simulated from its Beta-Binomial leg under each treatment
-    arm, with common random draws reused across counterfactual cells to reduce
-    Monte-Carlo noise. Sign convention as :func:`decompose` (intervention-helps;
-    ``G=1`` intervention, ``G=0`` control, per ``G = 2 - group``). The two mediators are simulated as
-    conditionally independent given the covariates (no residual L-E correlation is
-    modelled) — a simplifying assumption stated in the report. ``b_m_shifts`` is
+    The finite mediator supports are summed exactly within each posterior draw.
+    Sign convention as :func:`decompose`: ``G=1`` is intervention and
+    ``G=0`` is control, per ``G = 2 - group``. Parallel mediators are conditionally
+    independent given the covariates. In a chain the second mediator conditions
+    on the first. Mixed-arm cells integrate independent first-mediator draws
+    across arms, as in the original model-based definition. ``b_m_shifts`` is
     the #335 sensitivity lever: a mapping from mediator symbol to the signed bias
     subtracted from that mediator's outcome-leg main slope before decomposition.
     """
@@ -808,23 +738,27 @@ def decompose_two_mediator(
     N_L = med.n_trials_L
     N_E = med.n_trials_E
     S = b0.shape[0]
-    rng = np.random.default_rng(seed)
+
+    # The mediator-free part of the outcome predictor, and each mediator's total
+    # slope, depend on the arm alone. The enumeration below evaluates the outcome
+    # once per (L, E) support cell -- thousands of times -- so build them once per
+    # arm instead of rebuilding every covariate term in each cell (2026-09-05
+    # review). ``g * b_GL`` folded into the slope is the same linear predictor.
+    _outcome_arms: dict[float, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
+
+    def _outcome_arm(g: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        if g not in _outcome_arms:
+            base = b0[:, None] + b_G[:, None] * g + b_W[:, None] * W1 + b_A[:, None] * A
+            for s in confs:
+                base = base + b_conf[s][:, None] * conf[s]
+            for name, row in out_cross_rows.items():
+                base = base + b_cross[name][:, None] * row
+            _outcome_arms[g] = (base, (b_L + g * b_GL)[:, None], (b_E + g * b_GE)[:, None])
+        return _outcome_arms[g]
 
     def outcome_p(g: float, zL: np.ndarray, zE: np.ndarray) -> np.ndarray:
-        eta = (
-            b0[:, None]
-            + b_G[:, None] * g
-            + b_L[:, None] * zL
-            + b_E[:, None] * zE
-            + b_GL[:, None] * (g * zL)
-            + b_GE[:, None] * (g * zE)
-            + b_W[:, None] * W1
-            + b_A[:, None] * A
-        )
-        for s in confs:
-            eta = eta + b_conf[s][:, None] * conf[s]
-        for name, row in out_cross_rows.items():
-            eta = eta + b_cross[name][:, None] * row
+        base, slope_L, slope_E = _outcome_arm(g)
+        eta = base + slope_L * zL + slope_E * zE
         # The fitted outcome score mean, not the bare inverse logit: under the
         # phoneme-blending guessing floor the mean is 1/3 + 2/3 * expit(eta), and
         # every counterfactual cell is accumulated on that scale (#619).
@@ -877,44 +811,70 @@ def decompose_two_mediator(
             pE_t = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _TREAT, mE)
             pE_c = mediator_p(aE0, aE_G, aE_E, aE_A, aE_conf, E1, _CTRL, mE)
 
-    def zdraw(p, kappa, N, mean, sd):
-        k = rng.binomial(N, rng.beta(p * kappa[:, None], (1 - p) * kappa[:, None]))
-        return (logit_safe(k, N) - mean) / sd
+    # Sum finite mediator supports exactly. In a chain, the mixed-arm cells use
+    # the marginal law of the other arm's second mediator: its first mediator
+    # was drawn independently in the original counterfactual definition.
+    y_TT_TT, y_TT_CC, y_CC_CC, y_T_Lt_Ec, y_T_Lc_Et = np.zeros((5, S))
 
-    # Counterfactual cells (g_out, L-arm, E-arm); common draws across cells.
-    y_TT_TT = np.zeros(S)  # treat outcome, both mediators treated
-    y_TT_CC = np.zeros(S)  # treat outcome, both mediators control
-    y_CC_CC = np.zeros(S)  # control outcome, both mediators control
-    y_T_Lt_Ec = np.zeros(S)  # treat outcome, L treated, E control
-    y_T_Lc_Et = np.zeros(S)  # treat outcome, L control, E treated
-    for _ in range(n_replicates):
-        zL_t = zdraw(pL_t, kappa_L, N_L, med.zL_mean, med.zL_sd)
-        zL_c = zdraw(pL_c, kappa_L, N_L, med.zL_mean, med.zL_sd)
-        if med.chain:
-            # Draw the second mediator conditional on the simulated L: treated
-            # under treated L, control under control L (carrying L -> mE -> W into
-            # the joint indirect effect). Off-floor: a Bernoulli 0/1 off-floor
-            # indicator enters the outcome leg directly (matching the factory's
-            # indicator regressor); graded: a Beta-Binomial count re-standardised.
-            if off2:
-                zE_t = rng.binomial(1, mediator2_p(_TREAT, zL_t)).astype(float)
-                zE_c = rng.binomial(1, mediator2_p(_CTRL, zL_c)).astype(float)
+    def second_mass(k, zL, treated):
+        p = (
+            mediator2_p(_TREAT if treated else _CTRL, zL)
+            if med.chain else (pE_t if treated else pE_c)
+        )
+        return np.where(k == 1, p, 1 - p) if off2 else count_mass(k, N_E, p, kappa_E)
+
+    # The first mediator's Beta-Binomial mass depends only on its support value, so
+    # evaluate the whole support once, outside the second mediator's batch loop.
+    # Recomputing it per batch dominated the decomposition (2026-09-05 review):
+    # 2 * (N_L + 1) arrays were rebuilt for every one of the (N_E + 1) support
+    # values, making this ~45x slower than the simulation it replaced. The cache is
+    # 2 * (N_L + 1) draw-by-row arrays, released when the decomposition returns.
+    L_support = np.arange(N_L + 1)
+    zL_support = (logit_safe(L_support, N_L) - med.zL_mean) / med.zL_sd
+    mass_L = (
+        count_mass(L_support[:, None, None], N_L, pL_c, kappa_L),
+        count_mass(L_support[:, None, None], N_L, pL_t, kappa_L),
+    )
+
+    # Batch the second support axis to avoid thousands of scalar SciPy calls on
+    # small test/sensitivity posteriors, while bounding memory on reporting fits.
+    support_size = (1 if off2 else N_E) + 1
+    batch_size = max(1, min(support_size, 262144 // pL_t.size))
+    for start in range(0, support_size, batch_size):
+        e = np.arange(start, min(start + batch_size, support_size))[:, None, None]
+        zE = e.astype(float) if off2 else (logit_safe(e, N_E) - med.zE_mean) / med.zE_sd
+        cell_shape = (len(e), *pL_t.shape)
+        # Integrating out L avoids a cubic L-treated x L-control x E grid. In the
+        # parallel design the second mediator does not depend on L at all, so its
+        # marginal law is already its conditional one.
+        marginal_Et = np.zeros(cell_shape) if med.chain else second_mass(e, None, True)
+        marginal_Ec = np.zeros(cell_shape) if med.chain else second_mass(e, None, False)
+        # sum_L E[Y(1, L, E)] * P(L | arm). The mixed-arm cells pair one arm's first
+        # mediator with the *other* arm's marginal second mediator, so they are
+        # completed after the loop below has finished accumulating that marginal --
+        # which also lets the chain's conditional second mass be computed once per
+        # (batch, L) rather than once for the marginal and again for the cells.
+        paired_Lt = np.zeros(cell_shape)
+        paired_Lc = np.zeros(cell_shape)
+        for first_count in L_support:
+            zL = zL_support[first_count]
+            mass_Lc, mass_Lt = mass_L[0][first_count], mass_L[1][first_count]
+            if med.chain:
+                second_t, second_c = second_mass(e, zL, True), second_mass(e, zL, False)
+                marginal_Et += mass_Lt * second_t
+                marginal_Ec += mass_Lc * second_c
             else:
-                zE_t = zdraw(mediator2_p(_TREAT, zL_t), kappa_E, N_E, med.zE_mean, med.zE_sd)
-                zE_c = zdraw(mediator2_p(_CTRL, zL_c), kappa_E, N_E, med.zE_mean, med.zE_sd)
-        elif off2:
-            zE_t = rng.binomial(1, pE_t).astype(float)
-            zE_c = rng.binomial(1, pE_c).astype(float)
-        else:
-            zE_t = zdraw(pE_t, kappa_E, N_E, med.zE_mean, med.zE_sd)
-            zE_c = zdraw(pE_c, kappa_E, N_E, med.zE_mean, med.zE_sd)
-        y_TT_TT += outcome_p(_TREAT, zL_t, zE_t).mean(axis=1)
-        y_TT_CC += outcome_p(_TREAT, zL_c, zE_c).mean(axis=1)
-        y_CC_CC += outcome_p(_CTRL, zL_c, zE_c).mean(axis=1)
-        y_T_Lt_Ec += outcome_p(_TREAT, zL_t, zE_c).mean(axis=1)
-        y_T_Lc_Et += outcome_p(_TREAT, zL_c, zE_t).mean(axis=1)
-    for arr in (y_TT_TT, y_TT_CC, y_CC_CC, y_T_Lt_Ec, y_T_Lc_Et):
-        arr /= n_replicates
+                second_t, second_c = marginal_Et, marginal_Ec
+            y_t, y_c = outcome_p(_TREAT, zL, zE), outcome_p(_CTRL, zL, zE)
+            joint_t, joint_c = mass_Lt * second_t, mass_Lc * second_c
+            # Sum over mediator values, then average over children, per draw.
+            y_TT_TT += (y_t * joint_t).mean(axis=-1).sum(axis=0)
+            y_TT_CC += (y_t * joint_c).mean(axis=-1).sum(axis=0)
+            y_CC_CC += (y_c * joint_c).mean(axis=-1).sum(axis=0)
+            paired_Lt += y_t * mass_Lt
+            paired_Lc += y_t * mass_Lc
+        y_T_Lt_Ec += (paired_Lt * marginal_Ec).mean(axis=-1).sum(axis=0)
+        y_T_Lc_Et += (paired_Lc * marginal_Et).mean(axis=-1).sum(axis=0)
 
     total = y_TT_TT - y_CC_CC
     nde = y_TT_CC - y_CC_CC
