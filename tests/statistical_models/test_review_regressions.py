@@ -368,5 +368,9 @@ def test_kfold_saves_reuses_and_binds_each_training_partition(tmp_path, monkeypa
     monkeypatch.setattr(pm, "sample", lambda **kw: pytest.fail("reuse must not sample"))
     reused = kfold.run_child_kfold(new, plan, split, rebuild)
     assert reused.complete and reused.elpd == first.elpd
+    # A held-out *scoring* knob leaves the partition — and so every fold's fitted
+    # model — untouched, so it must not force a resample of the whole K-fold.
+    finer = kfold.KFoldPlan(n_folds=2, random_seed=47, n_latent_draws=128)
+    assert kfold.run_child_kfold(new, plan, finer, rebuild).complete
     with pytest.raises(ValueError, match="model_identity|data_digest"):
         kfold.run_child_kfold(new, plan, kfold.KFoldPlan(n_folds=2, random_seed=91), rebuild)

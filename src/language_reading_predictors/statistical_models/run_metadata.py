@@ -780,6 +780,19 @@ def require_reuse_compatibility(
         raise ValueError(
             "reuse-trace cannot verify the current fitted rows and observations"
         )
+    # Same fail-closed reading for the graph, matching the sub-fit runner's own
+    # check. ``model_design_identity`` records a *reason* rather than raising when
+    # a graph cannot be fingerprinted, and that reason is deterministic — so
+    # without this a stored fit written under the failure and a current run
+    # hitting the same failure compare equal below and authorise reuse with no
+    # graph verification at all (2026-09-05 review).
+    current_identity = current.get("model_design_identity") or {}
+    if not isinstance(current_identity, Mapping) or not (
+        current_identity.get("structure_sha256") and current_identity.get("design_sha256")
+    ):
+        raise ValueError(
+            "reuse-trace cannot verify the current model's computational graph"
+        )
 
     stored = previous.get(REUSE_CONTRACT_KEY)
     if not isinstance(stored, Mapping):

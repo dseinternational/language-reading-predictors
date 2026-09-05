@@ -194,6 +194,21 @@ class KFoldPlan:
             "stratify": self.stratify,
         }
 
+    def partition_identity(self) -> dict[str, Any]:
+        """The settings that decide *which children each fold fits*.
+
+        Bound into every fold's sub-fit identity. ``n_latent_draws`` is
+        deliberately excluded: it is spent re-drawing the child latent when
+        scoring the held-out children, after the fold has been fitted, so binding
+        it would refuse reuse of every persisted fold trace — a full resample of
+        the whole K-fold — to change a number that enters none of them.
+        """
+        return {
+            "n_folds": self.n_folds,
+            "random_seed": self.random_seed,
+            "stratify": self.stratify,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class KFoldValidation:
@@ -406,7 +421,7 @@ def run_child_kfold(
                 "training_child_indices": training.tolist(),
                 "held_out_child_indices": held_out.tolist(),
                 "fold_of_child": folds.tolist(),
-                "kfold_plan": kfold.as_dict(),
+                "kfold_plan": kfold.partition_identity(),
             },
         )
         converged[fold] = bool(getattr(result, "converged", False))

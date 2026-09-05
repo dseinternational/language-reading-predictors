@@ -97,11 +97,17 @@ def _graph(outputs: Sequence[Variable], inputs: Sequence[Variable] = ()) -> dict
             record["constant"] = _value(variable.data)
         elif isinstance(variable, SharedVariable):
             value = variable.get_value(borrow=True)
-            record["shared"] = (
-                {"random_generator": _class_name(value)}
-                if isinstance(value, (np.random.Generator, np.random.RandomState))
-                else _value(np.asarray(value))
-            )
+            if isinstance(value, (np.random.Generator, np.random.RandomState)):
+                record["shared"] = {"random_generator": _class_name(value)}
+            else:
+                # Shape and dtype only. What is *inside* a shared node is the
+                # design, not the structure, and hashing it here as well would
+                # move ``structure_sha256`` whenever the data move — collapsing
+                # the split ``design_sha256`` exists to provide, so a refusal
+                # could no longer say whether the model code or only the data
+                # changed (2026-09-05 review).
+                array = np.asarray(value)
+                record["shared"] = {"dtype": str(array.dtype), "shape": list(array.shape)}
         else:
             record["input"] = None
         index = len(nodes)
@@ -133,4 +139,12 @@ def model_design_identity(model: pm.Model | None) -> dict[str, Any]:
             "design_arrays": list(design),
         }
     except Exception as exc:  # noqa: BLE001 - fitting is possible; reuse fails closed
-        return {"structure_sha256": None, "design_sha256": None, "error": f"{type(exc).__name__}: {exc}"}
+        # Carries the schema version too, so a failure record is distinguishable
+        # from a success one by shape as well as by its null hashes; the reuse
+        # checks refuse on the missing hashes rather than comparing two failures.
+        return {
+            "schema_version": 2,
+            "structure_sha256": None,
+            "design_sha256": None,
+            "error": f"{type(exc).__name__}: {exc}",
+        }

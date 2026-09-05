@@ -1543,9 +1543,10 @@ def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
     a = R._model_design_identity(SimpleNamespace(model=built.model))
     b = R._model_design_identity(SimpleNamespace(model=built_rebuilt.model))
     assert a["design_sha256"] != b["design_sha256"]
-    # Structure is unchanged — only the numbers inside the Data nodes moved.
-    # The graph identity includes shared inputs as well as its operators.
-    assert a["structure_sha256"] != b["structure_sha256"]
+    # Structure is unchanged — only the numbers inside the Data nodes moved. The
+    # graph identity records each shared node's dtype and shape, not its contents,
+    # so the two hashes stay independent and a refusal can name which one moved.
+    assert a["structure_sha256"] == b["structure_sha256"]
     # And this is precisely what the pre-existing identity could not see.
     assert describe_fitted_data(
         SimpleNamespace(model=built.model, prepared=prepared)

@@ -468,6 +468,12 @@ def _summarise_draws(
     return out
 
 
+#: The one contrast kind whose endpoints start at each row's own observed dose —
+#: the +1 SD step the DiD dose companions report. Every other kind moves the
+#: starting point, so it must be accompanied by ``contrast_start_offset_std``.
+_OBSERVED_START_CONTRAST_KIND = "one_sd_all_rows"
+
+
 def write_dose_slope_summary(
     ctx: StatisticalFitContext,
     *,
@@ -515,7 +521,20 @@ def write_dose_slope_summary(
     columns. The default (``None``) is a +1 SD step on every retained row, which is
     what the DiD dose companions report. ``between_term`` names a between-child
     slope to summarise alongside the period slopes when the exposure is split.
+
+    ``contrast_kind`` is bound to the computation rather than merely recorded
+    beside it: only :data:`_OBSERVED_START_CONTRAST_KIND` starts each row at its
+    own fitted dose, so any other declared kind must arrive with the offset that
+    moves it. Without that check the published ``contrast_kind`` / ``contrast_label``
+    could name a lower-to-upper-quartile shift over numbers still computed from
+    the observed dose — the defect #587 corrected, one forgotten keyword away.
     """
+    if contrast_kind != _OBSERVED_START_CONTRAST_KIND and contrast_start_offset_std is None:
+        raise ValueError(
+            f"contrast_kind={contrast_kind!r} declares endpoints the fitted rows do "
+            "not start from, so contrast_start_offset_std is required; otherwise the "
+            "recorded label and the computed marginal describe different contrasts."
+        )
     post = ctx.trace.posterior
     ci_prob = ctx.reporting.ci_prob
     rows: list[dict[str, object]] = []
