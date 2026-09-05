@@ -29,6 +29,13 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 PYPROJECT = REPO / "pyproject.toml"
 
+#: One mypy diagnostic, keyed to the file it names. The separator is the *host's*,
+#: not always ``/``: mypy prints ``src\language_reading_predictors\x.py`` on
+#: Windows, so a ``src/``-only pattern matched nothing there — which left
+#: :func:`test_every_exempted_module_still_needs_its_exemption` reporting all 97
+#: exemptions as stale and its converse passing vacuously (2026-09-05 review).
+_ERROR_LINE = re.compile(r"^(src[/\\][^:]+\.py):\d+: error:")
+
 
 def _config() -> dict:
     with open(PYPROJECT, "rb") as handle:
@@ -74,17 +81,36 @@ def _failing_modules() -> set[str]:
         check=False,
     )
     empty_config.unlink(missing_ok=True)
+    # 0 = nothing failed the strict flags, 1 = it reported diagnostics. Anything
+    # else is mypy failing to run, whose empty stdout would otherwise read as
+    # "every module is clean".
+    if result.returncode not in (0, 1):
+        raise AssertionError(
+            f"the strict-flag probe could not run mypy (exit {result.returncode}):\n"
+            f"{result.stdout[-2000:]}\n{result.stderr[-2000:]}"
+        )
+    reported = [line for line in result.stdout.splitlines() if ": error:" in line]
     failing: set[str] = set()
-    for line in result.stdout.splitlines():
-        match = re.match(r"^(src/[^:]+\.py):\d+: error:", line)
+    for line in reported:
+        match = _ERROR_LINE.match(line)
         if match:
-            path = match.group(1)
+            path = match.group(1).replace("\\", "/")
             failing.add(
                 path.removeprefix("src/")
                 .removesuffix(".py")
                 .replace("/", ".")
                 .removesuffix(".__init__")
             )
+    # Both callers below compare against this set, and both of them read an empty
+    # set as good news — one reports every exemption stale, the other passes
+    # having checked nothing. So a parse that attributes no diagnostic to any
+    # module is a broken probe, not a clean package.
+    if reported and not failing:
+        raise AssertionError(
+            "mypy reported diagnostics the probe could not attribute to a module, "
+            "so the exemption checks would be vacuous; first unparsed line:\n"
+            f"{reported[0]}"
+        )
     return failing
 
 
