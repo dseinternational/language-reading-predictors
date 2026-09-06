@@ -36,6 +36,8 @@ Requires ``trace.nc`` and ``tau_summary.csv`` under
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import argparse
 import glob
 import json
@@ -217,6 +219,18 @@ def _gate_status(model_id: str, config: str) -> str:
             payload = json.load(f)
     except Exception:  # pragma: no cover - defensive
         return "MISSING"
+    from language_reading_predictors.statistical_models.hsgp_migration import hsgp_refit_pending
+
+    config_path = Path(_run_dir(model_id, config)) / "config.json"
+    if config_path.exists():
+        try:
+            saved_config = json.loads(config_path.read_text())
+            if not isinstance(saved_config, dict):
+                return "MISSING"
+            if hsgp_refit_pending(saved_config):
+                return "REVIEW"
+        except (OSError, ValueError):
+            return "MISSING"
     return "PASS" if convergence_gate_clean_passed(payload) else "REVIEW"
 
 
@@ -1529,10 +1543,11 @@ def _max_pareto_k(model_id: str, config: str) -> tuple[float | None, float]:
     threshold = 0.7
     if "good_k_threshold" in frame.columns:
         thr = pd.to_numeric(frame["good_k_threshold"], errors="coerce")
-        if thr.notna().any():
-            threshold = float(thr.iloc[0])
-    if not khat.notna().any():
-        return None, threshold
+        if not np.isfinite(thr).all() or thr.nunique() != 1:
+            raise ValueError(f"{model_id}: invalid or inconsistent stored good_k thresholds")
+        threshold = float(thr.iloc[0])
+    if not np.isfinite(khat).all():
+        return float("inf"), threshold
     return float(khat.max()), threshold
 
 
@@ -1755,7 +1770,10 @@ def _reloo_repair(
         # point as fine, return the model unrepaired, and let the comparison be marked
         # valid on exactly the weights the outer check had just rejected.
         _, threshold = _max_pareto_k(mid, config)
-        n_bad = int((shared_loo.pareto_k_values(lo) > threshold).sum())
+        k = shared_loo.pareto_k_values(lo)
+        if not np.isfinite(k).all():
+            return None, {}, f"{mid}: non-finite Pareto-k diagnostics; exact repair requires review"
+        n_bad = int((k > threshold).sum())
         if n_bad == 0:
             # Store the pointwise LOO object, not the raw trace, so every entry handed
             # to az.compare is the same type and the comparison reuses these scores

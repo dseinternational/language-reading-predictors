@@ -360,6 +360,7 @@ def _write_publishable_fit_dir(d: Path, model_id: str) -> None:
             {
                 "model_id": model_id,
                 "kind": "mechanism",
+                "model_settings": {"linear_mechanism": True},
                 "outcome_symbol": "W",
                 "mechanism_symbol": "L",
                 "title": "test",

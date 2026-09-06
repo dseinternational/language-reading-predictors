@@ -15,6 +15,7 @@ import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Mapping
+from language_reading_predictors.statistical_models.hsgp_migration import hsgp_refit_pending
 from language_reading_predictors.statistical_models.convergence import (
     convergence_gate_failures,
 )
@@ -517,6 +518,15 @@ def evaluate_publication(
                 if config is None
                 else "config.json is missing"
             ),
+            config=config,
+            **qualification,
+        )
+
+    if hsgp_refit_pending(config):
+        return ReleaseEvaluation(
+            status="not_available",
+            stage="computation",
+            reason="HSGP refit pending under dse-research-utils 0.13.0 (#660); old basis results are withheld",
             config=config,
             **qualification,
         )

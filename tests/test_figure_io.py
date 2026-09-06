@@ -109,3 +109,15 @@ def test_init_plotting_applies_house_style():
     init_plotting()
     # set_matplotlib_default_style pins the file DPI at 300.
     assert plt.rcParams["savefig.dpi"] == pytest.approx(300)
+
+
+def test_save_plotcollection_leaves_unrelated_figure_open(tmp_path):
+    unrelated = _tiny_fig()
+    owned = _tiny_fig()
+    try:
+        save_plotcollection(_FakePlotCollection(owned), str(tmp_path), "owned")
+        assert not plt.fignum_exists(owned.number)
+        assert plt.fignum_exists(unrelated.number)
+    finally:
+        plt.close(unrelated)
+        plt.close(owned)

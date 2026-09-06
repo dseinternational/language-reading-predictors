@@ -268,6 +268,8 @@ class MechanismSamplingWrapper(SamplingWrapper):
         min_bfmi = np.inf if signals.min_bfmi is None else signals.min_bfmi
 
         failures = []
+        if signals.unassessable:
+            failures.append("unassessable parameter diagnostics")
         if divergences is None or divergences > GATE_MAX_DIVERGENCES:
             failures.append(f"{divergences} divergences")
         if not np.isfinite(max_rhat) or max_rhat > RHAT_MAX:
@@ -317,7 +319,13 @@ def build_mechanism_wrapper(
     drifted from what produced the trace and no refit derived from it can be trusted.
     """
     plan = _mechanism.resolve_mechanism_plan(spec)
-    built = _mechanism.build_mechanism_for_plan(plan)
+    raw_design = (config.get("extra") or {}).get("mechanism_design")
+    if not isinstance(raw_design, dict):
+        raise ValueError(f"{spec.model_id}: missing saved mechanism design; a fresh full fit is required")
+    design = MechanismDesign.from_dict(raw_design)
+    if not plan.factory_kwargs.get("linear_mechanism", False):
+        design.hsgp_kwargs()
+    built = _mechanism.build_mechanism_for_plan(plan, frozen_design=design)
     obs_var = _observed_variable_name(built.model, idata_orig, spec.model_id)
     # Take the observation count from the log-likelihood group, which *is* the
     # authoritative observation index for LOO, rather than from a posterior dim that
@@ -336,7 +344,7 @@ def build_mechanism_wrapper(
             idata_orig, model=built.model, extend_inferencedata=False, progressbar=False
         )
     delta = float(np.abs(stored_ll.values - recomputed[obs_var].values).max())
-    if delta > 1e-6:
+    if not np.isfinite(delta) or delta > 1e-6:
         raise ValueError(
             f"{spec.model_id}: rebuilt model does not reproduce the stored "
             f"log-likelihood (max |delta| = {delta:.3e}); refusing to refit"
@@ -366,7 +374,7 @@ def build_mechanism_wrapper(
                 "the stored trace; the model specification has drifted — refusing to refit"
             )
         prior_delta = float(np.abs(stored_var.values - fresh_prior[name].values).max())
-        if prior_delta > 1e-6:
+        if not np.isfinite(prior_delta) or prior_delta > 1e-6:
             raise ValueError(
                 f"{spec.model_id}: rebuilt model does not reproduce the stored log-prior "
                 f"for {name!r} (max |delta| = {prior_delta:.3e}); the priors have changed "

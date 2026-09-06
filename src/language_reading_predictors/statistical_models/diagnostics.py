@@ -2117,7 +2117,10 @@ def influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
                     return None, None, None
                 child_ids.append(matches[0])
             ids = np.asarray(child_ids)
-    thr = float(getattr(ctx.loo, "good_k", 0.7) or 0.7)
+    good_k = getattr(ctx.loo, "good_k", None)
+    thr = 0.7 if good_k is None else float(good_k)
+    if not np.isfinite(thr):
+        raise ValueError("LOO good_k threshold must be finite")
     df = (
         pd.DataFrame(
             {
@@ -2129,7 +2132,7 @@ def influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
         .sort_values("pareto_k", ascending=False)
         .reset_index(drop=True)
     )
-    return df, thr, int((k > thr).sum())
+    return df, thr, int((~np.isfinite(k) | (k > thr)).sum())
 
 
 def write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
@@ -2145,7 +2148,7 @@ def write_loo_influence(ctx: StatisticalFitContext) -> pd.DataFrame | None:
         return None
     out = influence.copy()
     out["good_k_threshold"] = threshold
-    out["loo_reliable"] = out["pareto_k"] <= threshold
+    out["loo_reliable"] = np.isfinite(out["pareto_k"]) & (out["pareto_k"] <= threshold)
     save_table(ctx, "pareto_k", out)
     return out
 

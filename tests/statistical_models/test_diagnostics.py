@@ -1804,3 +1804,23 @@ def test_derived_gate_still_fails_a_present_row_below_the_ess_floor(tmp_path):
     )
     assert payload["passed"] is False
     assert payload["derived_estimands_failing"] == ["NDE"]
+
+
+def test_loo_influence_counts_nonfinite_values_once_and_preserves_zero_threshold():
+    ctx = SimpleNamespace(
+        loo=SimpleNamespace(pareto_k=np.array([np.nan, np.inf, -np.inf, .1, -.1]), good_k=0.),
+        prepared=SimpleNamespace(subject_ids=np.arange(5)),
+    )
+    _, threshold, unusable = diag.influence_diagnostics(ctx)
+    assert threshold == 0.
+    assert unusable == 4  # Infinity also exceeds zero, but counts only once.
+
+
+@pytest.mark.parametrize("threshold", [np.nan, np.inf])
+def test_loo_influence_refuses_nonfinite_threshold(threshold):
+    ctx = SimpleNamespace(
+        loo=SimpleNamespace(pareto_k=np.array([.1, .2]), good_k=threshold),
+        prepared=SimpleNamespace(subject_ids=np.arange(2)),
+    )
+    with pytest.raises(ValueError, match="threshold must be finite"):
+        diag.influence_diagnostics(ctx)

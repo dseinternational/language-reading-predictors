@@ -155,6 +155,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # symbols. ``spec.adjustment`` alone materially misdescribed the model, because
     # the ``adjust_for`` covariates never reached config.json (#258 review, P1).
     meta_extra = {
+        "mechanism_design": built.payload.design.as_dict(),
         "loo_elpd": float(ctx.loo.elpd),
         "adjustment": spec.adjustment,
         "effective_adjustment": effective_adjustment(

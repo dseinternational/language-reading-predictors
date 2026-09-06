@@ -114,6 +114,7 @@ def _fit_dir(
             {
                 "model_id": "lrp-test-001",
                 "kind": kind,
+                "hsgp_basis_version": "midpoint-half-range-v1",
                 "outcome_symbol": "W",
                 "config_name": config_name,
             }
@@ -2896,3 +2897,18 @@ def test_the_wave_bundle_check_does_not_apply_to_the_transition_design(tmp_path)
     config["extra"] = {"design": "transition"}
     (d / "config.json").write_text(json.dumps(config))
     assert evaluate_publication(d).publishable
+
+
+def test_legacy_hsgp_results_remain_pending_until_fresh_fit(tmp_path):
+    d = _fit_dir(tmp_path)
+    config = json.loads((d / "config.json").read_text())
+    del config["hsgp_basis_version"]
+    config["model_settings"] = {"linear_mechanism": False}
+    verdict = evaluate_publication(d, config=config)
+    assert verdict.status == "not_available"
+    assert "HSGP refit pending" in verdict.reason
+    config["hsgp_basis_version"] = "midpoint-half-range-v1"
+    assert "HSGP refit pending" not in evaluate_publication(d, config=config).reason
+    del config["hsgp_basis_version"]
+    config["model_settings"]["linear_mechanism"] = True
+    assert "HSGP refit pending" not in evaluate_publication(d, config=config).reason

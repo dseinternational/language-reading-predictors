@@ -40,6 +40,8 @@ import arviz as az
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models.hsgp_migration import hsgp_refit_pending
+from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
 from language_reading_predictors.statistical_models.mechanism import (
     build_mechanism_for_plan,
     resolve_mechanism_plan,
@@ -92,13 +94,17 @@ def regenerate(fit_dir: Path) -> int:
     """Write the table for one stored fit; return the number of rows written."""
     with open(fit_dir / "config.json") as f:
         cfg = json.load(f)
+    if hsgp_refit_pending(cfg):
+        raise SystemExit(f"{fit_dir.name}: HSGP refit required under dse-research-utils 0.13.0 (#660)")
     model_id = str(cfg["model_id"])
     spec = discover_models()[model_id].SPEC
     run_plan = resolve_mechanism_run_plan(spec)
     plan = resolve_mechanism_plan(spec, run_plan=run_plan)
     # The factory subsets the analysis frame to the fitted rows; rebuilding (no
     # sampling) is the one construction that yields exactly those rows.
-    built = build_mechanism_for_plan(plan)
+    raw_design = (cfg.get("extra") or {}).get("mechanism_design")
+    frozen = MechanismDesign.from_dict(raw_design) if raw_design is not None else None
+    built = build_mechanism_for_plan(plan, frozen_design=frozen)
     trace = az.from_netcdf(fit_dir / "trace.nc")
     n_fitted = int(trace.posterior.sizes["obs_id"])
     if int(built.prepared.n_obs) != n_fitted:
