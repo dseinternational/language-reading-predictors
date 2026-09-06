@@ -361,11 +361,13 @@ def build_mechanism_model(
     # per SD of the exposure on the fitted data.
     # A leave-one-out refit must interpret its basis coefficients against the *same*
     # design as the fit that produced the point being scored, so ``frozen_design``
-    # pins every data-derived design quantity (#438 review). Default None reproduces
-    # the original behaviour exactly, so every existing caller is byte-identical.
+    # pins the exposure and moderator scales and the complete mechanism basis.
     _mod_scaler: Standardiser | None = None
-    _mech_c = _MECH_HSGP_C
-    _hsgp_boundary_realised = False
+    _hsgp_L = None
+    _hsgp_center = None
+    _hsgp_m = None
+    if frozen_design is not None and (use_age_gp or phase_specific_mechanism):
+        raise ValueError("exact refits do not yet pin age or phase-specific HSGP designs")
     if frozen_design is None:
         mech_logit_std, _mech_scaler = standardise(mech_input)
     else:
@@ -653,21 +655,25 @@ def build_mechanism_model(
             # Standardised input + a moderate-lengthscale prior + fewer basis
             # functions (issue #265 / #273 item 13): keeps the HSGP priors in their
             # calibrated regime and smooths the boundary geometry that left residual
-            # divergences, without discarding the curve. Scoped to f_mech only. The
-            # curve is still plotted against the raw logit downstream, so its
-            # shape/location is unchanged where the old fit was trustworthy.
-            # ``build_hsgp_1d`` derives its boundary as ``max(|X|) * c``, so a refit on
-            # n-1 rows would silently move it and redefine what the basis weights mean.
-            # Passing the equivalent ``c`` reproduces the *fit's* boundary exactly on
-            # the subset's support (#438 review).
-            if frozen_design is not None:
-                _mech_c = frozen_design.hsgp_c_for(mech_logit_std)
-            _hsgp_boundary_realised = True
+            # divergences, without discarding the curve. Scoped to f_mech only.
+            # The new boundary changes the approximation and requires a fresh fit.
+            # Freeze both the domain midpoint and half-width on the full inputs.
+            # A subset may lose either extreme, or retain only one input value.
+            if frozen_design is None:
+                _hsgp_m = _MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m
+                _hsgp_center = float((mech_logit_std.min() + mech_logit_std.max()) / 2)
+                _hsgp_L = float((mech_logit_std.max() - mech_logit_std.min()) / 2 * _MECH_HSGP_C)
+            else:
+                frozen_design.hsgp_kwargs()  # Refuse incomplete legacy designs.
+                _hsgp_m = frozen_design.hsgp_m
+                _hsgp_L = frozen_design.hsgp_L
+                _hsgp_center = frozen_design.hsgp_center
             f_mech = build_hsgp_1d(
                 "f_mech",
                 mech_logit_std,
-                m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
-                c=_mech_c,
+                m=_hsgp_m,
+                L=_hsgp_L,
+                center=_hsgp_center,
                 lengthscale_prior=(
                     _priors.ell_prior_mech()
                     if mech_lengthscale_prior is None
@@ -712,11 +718,9 @@ def build_mechanism_model(
     # ``loo_refit`` checks before it will refit at all.
     realised_design = MechanismDesign(
         mech_scaler=_mech_scaler,
-        hsgp_L=(
-            float(max(abs(mech_logit_std.min()), abs(mech_logit_std.max())) * _mech_c)
-            if _hsgp_boundary_realised
-            else None
-        ),
+        hsgp_L=_hsgp_L,
+        hsgp_m=_hsgp_m,
+        hsgp_center=_hsgp_center,
         moderator_scaler=_mod_scaler,
     )
     return BuiltModel(

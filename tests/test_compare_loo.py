@@ -445,3 +445,26 @@ def test_mechanism_comparisons_are_copied_beside_both_paired_runs(
             assert beside.exists(), model_id
             note = pd.read_csv(beside)["comparison_note"].iloc[0]
             assert expected_note in note
+
+
+@pytest.mark.parametrize("bad_k", [np.nan, np.inf, -np.inf])
+def test_nonfinite_pareto_k_cannot_hide_beside_finite_values(cmp_mod, out_root, bad_k):
+    d = _install_run(cmp_mod, "bad-k", passed=True)
+    pd.DataFrame({"pareto_k": [.1, bad_k], "good_k_threshold": [.7, .7]}).to_csv(d / "pareto_k.csv", index=False)
+    assert cmp_mod._unreliable_pareto_k(["bad-k"], "dev") == {"bad-k": float("inf")}
+
+
+def test_zero_pareto_threshold_is_preserved(cmp_mod, out_root):
+    d = _install_run(cmp_mod, "zero-k", passed=True)
+    pd.DataFrame({"pareto_k": [.1], "good_k_threshold": [0.]}).to_csv(d / "pareto_k.csv", index=False)
+    assert cmp_mod._max_pareto_k("zero-k", "dev") == (.1, 0.)
+
+
+def test_old_hsgp_comparison_is_pending_despite_clean_diagnostics(cmp_mod, out_root):
+    d = _install_run(cmp_mod, "old-hsgp", passed=True)
+    config = {"kind": "mechanism", "model_settings": {"linear_mechanism": False}}
+    (d / "config.json").write_text(json.dumps(config))
+    assert cmp_mod._gate_status("old-hsgp", "dev") == "REVIEW"
+    config["hsgp_basis_version"] = "midpoint-half-range-v1"
+    (d / "config.json").write_text(json.dumps(config))
+    assert cmp_mod._gate_status("old-hsgp", "dev") == "PASS"

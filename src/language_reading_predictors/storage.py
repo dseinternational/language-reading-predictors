@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from rich.console import Console
+from dse_research_utils.storage.azure import BlobUploadResult
 
 DEFAULT_PROJECT = "language-reading-predictors"
 _console = Console()
@@ -18,8 +19,8 @@ def upload_to_blob_storage(
     project: str = DEFAULT_PROJECT,
     include_traces: bool = False,
     run_id: str | None = None,
-) -> list[str]:
-    """Upload ``output_dir`` to blob storage and return uploaded blob URLs.
+) -> BlobUploadResult:
+    """Upload ``output_dir`` to blob storage and return the structured upload result.
 
     NetCDF trace files (``.nc``) are excluded by default because of their size;
     pass ``include_traces=True`` to include them. Authentication and container
@@ -45,4 +46,4 @@ def upload_to_blob_storage(
     _console.print(f"  prefix: {result.prefix_url}")
     if result.report_url:
         _console.print(f"  report: {result.report_url}")
-    return result.urls
+    return result

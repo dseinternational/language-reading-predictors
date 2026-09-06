@@ -51,6 +51,7 @@ def _config(kind: str, **overrides) -> dict:
     cfg = {
         "model_id": f"lrp-test-{kind}",
         "kind": kind,
+        "hsgp_basis_version": "midpoint-half-range-v1",
         "outcome_symbol": "W",
         "title": "Test model",
         "extra": {},

@@ -11,8 +11,9 @@ different standardisation, mask or HSGP boundary.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from collections.abc import Mapping
+from dataclasses import asdict, dataclass
+from typing import Any, Literal
 
 import numpy as np
 
@@ -127,6 +128,8 @@ class MechanismDesign:
     mech_scaler: Standardiser
     hsgp_L: float | None
     moderator_scaler: Standardiser | None = None
+    hsgp_m: int | None = None
+    hsgp_center: float | None = None
 
     def require_moderator_scaler(self) -> Standardiser:
         if self.moderator_scaler is None:
@@ -136,14 +139,42 @@ class MechanismDesign:
             )
         return self.moderator_scaler
 
-    def hsgp_c_for(self, x: np.ndarray) -> float:
-        """Return the boundary factor reproducing ``hsgp_L`` on ``x``."""
-        if self.hsgp_L is None:
-            raise ValueError("frozen design carries no HSGP boundary to reproduce")
-        support = float(max(abs(np.min(x)), abs(np.max(x))))
-        if not np.isfinite(support) or support <= 0:
-            raise ValueError("cannot reproduce an HSGP boundary on degenerate support")
-        return self.hsgp_L / support
+    def hsgp_kwargs(self) -> dict[str, Any]:
+        """Replay the complete basis; legacy designs require a fresh full fit."""
+        if self.hsgp_L is None or self.hsgp_m is None or self.hsgp_center is None:
+            raise ValueError("incomplete saved HSGP design (m, L, center); a fresh full fit is required")
+        if (
+            isinstance(self.hsgp_m, bool)
+            or not isinstance(self.hsgp_m, int)
+            or self.hsgp_m < 1
+            or not np.isfinite(self.hsgp_L)
+            or self.hsgp_L <= 0
+            or not np.isfinite(self.hsgp_center)
+        ):
+            raise ValueError("invalid saved HSGP design; a fresh full fit is required")
+        return {"m": self.hsgp_m, "L": self.hsgp_L, "center": self.hsgp_center}
+
+    def as_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, raw: Mapping[str, Any]) -> MechanismDesign:
+        """Read stored scalers without estimating anything from refit rows."""
+        def scaler(value: Any) -> Standardiser:
+            if not isinstance(value, Mapping):
+                raise ValueError("missing saved standardisation; a fresh full fit is required")
+            mean, sd = float(value["mean"]), float(value["sd"])
+            if not np.isfinite(mean) or not np.isfinite(sd) or sd <= 0:
+                raise ValueError("invalid saved standardisation; a fresh full fit is required")
+            return Standardiser(mean=mean, sd=sd)
+
+        return cls(
+            mech_scaler=scaler(raw.get("mech_scaler")),
+            moderator_scaler=(scaler(raw["moderator_scaler"]) if raw.get("moderator_scaler") is not None else None),
+            hsgp_L=raw.get("hsgp_L"),
+            hsgp_m=raw.get("hsgp_m"),
+            hsgp_center=raw.get("hsgp_center"),
+        )
 
 
 @dataclass(frozen=True)

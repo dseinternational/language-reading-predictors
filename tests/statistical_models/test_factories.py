@@ -3506,3 +3506,64 @@ def test_block_exposure_factory_identifies_its_intercepts(tmp_path):
         pp.prior["alpha_time"].values.sum(axis=-1), 0.0, atol=1e-10
     )
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
+
+
+@pytest.mark.parametrize("drop", ["minimum", "maximum"])
+def test_mechanism_refit_replays_saved_design_and_priors(tmp_path, drop):
+    from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
+    from language_reading_predictors.statistical_models.preprocessing import _subset
+
+    prep = load_and_prepare(path=_write_synthetic(tmp_path, n_children=15), phase_mode="all")
+    kwargs = dict(mechanism_symbol="R", outcome_symbol="W", confounder_symbols=(),
+                  mech_hsgp_m=6, mech_lengthscale_prior=priors.ell_prior_mech_tight(),
+                  moderator_symbol="A", moderator_is_covariate=True)
+    full = build_mechanism_model(prep, **kwargs)
+    design = MechanismDesign.from_dict(full.payload.design.as_dict())
+    # Remove every tied extreme so the retained input midpoint really changes.
+    x = full.model["mech_post_logit"].get_value()
+    extreme = x.min() if drop == "minimum" else x.max()
+    keep = x != extreme
+    subset = build_mechanism_model(_subset(full.prepared, keep), frozen_design=design, **kwargs)
+    assert subset.payload.design == design
+    for name in ("z_moderator", "z_mech_logit"):
+        np.testing.assert_allclose(subset.model[name].get_value(), full.model[name].get_value()[keep])
+    assert _mech_ell_params(subset) == _mech_ell_params(full) == (8., 8.)
+    curves = []
+    for built in (full, subset):
+        model = built.model
+        curve = model.replace_rvs_by_values([model["f_mech"]])[0]
+        point = model.initial_point()
+        point["f_mech__g_unit_hsgp_coeffs"] = np.linspace(-1., 1., 6)
+        curves.append(model.compile_fn(curve, inputs=model.value_vars, on_unused_input="ignore")(point))
+    np.testing.assert_allclose(curves[0][keep], curves[1], atol=1e-12, rtol=1e-12)
+
+
+def test_held_out_density_uses_the_recorded_full_basis(tmp_path):
+    import xarray as xr
+    from scipy.special import expit
+    from scipy.stats import betabinom
+    from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
+    from language_reading_predictors.statistical_models.loo_refit import MechanismSamplingWrapper
+
+    prep = load_and_prepare(path=_write_synthetic(tmp_path, n_children=15), phase_mode="all")
+    kwargs = dict(mechanism_symbol="R", outcome_symbol="W", confounder_symbols=())
+    original = build_mechanism_model(prep, **kwargs)
+    saved = MechanismDesign.from_dict(original.payload.design.as_dict())
+    replay = build_mechanism_model(original.prepared, frozen_design=saved, **kwargs)
+    with original.model:
+        prior = pm.sample_prior_predictive(draws=3, random_seed=660)
+    posterior = prior.prior.to_dataset()
+    # A refit's sampled variables have the same names and full-design meaning.
+    # Drop stored curves so the held-out evaluator must calculate them itself.
+    trace = xr.DataTree.from_dict({"posterior": posterior[[rv.name for rv in original.model.free_RVs]]})
+    wrapper = object.__new__(MechanismSamplingWrapper)
+    wrapper.full_model = replay.model
+    wrapper.design = saved
+    wrapper.obs_var = "y_post"
+    row = int(np.argmin(original.model["mech_post_logit"].get_value()))
+    actual = wrapper.log_likelihood__i(row, trace)
+    mu = expit(posterior["eta"].values[..., row])
+    kappa = posterior["kappa"].values
+    expected = betabinom.logpmf(original.prepared.post_counts["W"][row],
+                               original.prepared.n_trials["W"], mu * kappa, (1 - mu) * kappa)
+    np.testing.assert_allclose(actual.values, expected, rtol=1e-10, atol=1e-10)

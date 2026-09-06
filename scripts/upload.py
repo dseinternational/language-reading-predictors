@@ -113,11 +113,11 @@ def main() -> None:
     all_urls: dict[str, list[str]] = {}
     reports: list[tuple[str, str]] = []
     for label, path in targets:
-        urls = upload_to_blob_storage(
+        result = upload_to_blob_storage(
             str(path), label, include_traces=args.include_traces, run_id=run_id
         )
-        all_urls[label] = urls
-        report = next((u for u in urls if u.endswith("/index.html")), None)
+        all_urls[label] = result.urls
+        report = result.report_url
         if report:
             reports.append((label, report))
 

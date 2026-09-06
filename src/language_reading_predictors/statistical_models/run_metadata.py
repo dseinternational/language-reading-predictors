@@ -985,6 +985,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "resolved_run_plan": _json_safe(resolved_plan),
         "model_recipe_file": os.path.basename(recipe_path) if recipe_path else None,
         "effective_model_settings": _effective_model_settings(context),
+        "hsgp_basis_version": getattr(getattr(context, "model", None), "_lrp_hsgp_basis_version", None),
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,

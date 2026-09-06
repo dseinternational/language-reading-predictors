@@ -140,43 +140,58 @@ def test_mechanism_diagnostic_vars_track_the_moderator_and_interaction():
     assert "gamma_int" not in M.mechanism_diagnostic_vars(plan_no_int)
 
 
-def test_frozen_design_reproduces_the_boundary_on_a_subset():
-    """A refit must interpret its basis weights against the *fit's* design. The HSGP
-    boundary is `max(|X|) * c`, so a row subset moves it unless `c` is adjusted to
-    compensate — which is what `hsgp_c_for` computes."""
-    from language_reading_predictors.statistical_models.factories import MechanismDesign
+@pytest.mark.parametrize("builder_name", ["build_hsgp_1d", "build_tau_modifier"])
+@pytest.mark.parametrize("indices", [[1, 2, 3, 4], [0, 1, 2, 3], [2]])
+def test_frozen_design_preserves_function_values(builder_name, indices):
+    """Execute the installed constructor with identical, nonzero basis weights."""
+    import pymc as pm
+    from language_reading_predictors.statistical_models import hsgp
+    from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
     from language_reading_predictors.statistical_models.preprocessing import Standardiser
 
+    x = np.array([-2.4712, -1., 0., .5, 1.9])
     design = MechanismDesign(
-        mech_scaler=Standardiser(mean=1.0535, sd=1.4335), hsgp_L=3.719753
+        mech_scaler=Standardiser(mean=1.0535, sd=1.4335),
+        hsgp_m=10,
+        hsgp_L=float(np.ptp(x) / 2 * 1.5),
+        hsgp_center=float((x.min() + x.max()) / 2),
     )
-    subset_x = np.array([-2.4712, 0.0, 1.9])  # support shrunk by dropping a row
-    c = design.hsgp_c_for(subset_x)
-    realised_L = float(max(abs(subset_x.min()), abs(subset_x.max())) * c)
-    assert realised_L == pytest.approx(design.hsgp_L, rel=0, abs=1e-12)
+    # Exercise the saved design round trip too.
+    design = MechanismDesign.from_dict(design.as_dict())
+    curves = []
+    for values in (x, x[indices]):
+        with pm.Model() as model:
+            curve = getattr(hsgp, builder_name)("f", values, **design.hsgp_kwargs())
+        point = model.initial_point()
+        point["f__g_unit_hsgp_coeffs"] = np.linspace(-1, 1, 10)
+        expression = model.replace_rvs_by_values([curve])[0]
+        curves.append(model.compile_fn(expression, inputs=model.value_vars)(point))
+    np.testing.assert_allclose(curves[0][indices], curves[1], rtol=1e-12, atol=1e-12)
 
 
-def test_frozen_design_refuses_when_it_cannot_reproduce():
-    from language_reading_predictors.statistical_models.factories import MechanismDesign
+def test_frozen_design_refuses_incomplete_legacy_basis():
+    from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
     from language_reading_predictors.statistical_models.preprocessing import Standardiser
 
-    no_boundary = MechanismDesign(
-        mech_scaler=Standardiser(mean=0.0, sd=1.0), hsgp_L=None
-    )
-    with pytest.raises(ValueError, match="no HSGP boundary"):
-        no_boundary.hsgp_c_for(np.array([-1.0, 1.0]))
-
-    with pytest.raises(ValueError, match="degenerate support"):
-        MechanismDesign(
-            mech_scaler=Standardiser(mean=0.0, sd=1.0), hsgp_L=2.0
-        ).hsgp_c_for(np.zeros(3))
-
-    # A model with a moderator needs a moderator scaler; a design captured from a
-    # model without one must fail loudly rather than silently re-standardising.
+    for width in (None, 2.):
+        legacy = MechanismDesign(mech_scaler=Standardiser(mean=0., sd=1.), hsgp_L=width)
+        with pytest.raises(ValueError, match="fresh full fit"):
+            legacy.hsgp_kwargs()
     with pytest.raises(ValueError, match="no moderator scaler"):
-        MechanismDesign(
-            mech_scaler=Standardiser(mean=0.0, sd=1.0), hsgp_L=1.0
-        ).require_moderator_scaler()
+        legacy.require_moderator_scaler()
+
+
+def test_old_trace_is_refused_before_any_basis_evaluation(monkeypatch):
+    from types import SimpleNamespace
+    from language_reading_predictors.statistical_models import loo_refit
+
+    monkeypatch.setattr(M, "resolve_mechanism_plan", lambda spec: SimpleNamespace(factory_kwargs={}))
+    def unexpected(*args, **kwargs):
+        pytest.fail("must not construct or score an old trace against a new basis")
+    monkeypatch.setattr(M, "build_mechanism_for_plan", unexpected)
+    monkeypatch.setattr(loo_refit, "compute_log_likelihood", unexpected)
+    with pytest.raises(ValueError, match="fresh full fit"):
+        loo_refit.build_mechanism_wrapper(_spec(), object(), {})
 
 
 class _FakeRV:
@@ -299,3 +314,14 @@ def test_as_dataset_unwraps_a_datatree_group():
     unwrapped = _as_dataset(tree)
     assert "alpha" in unwrapped.data_vars
     assert np.asarray(unwrapped["alpha"].values).shape == (2, 3)
+
+
+def test_exact_refit_gate_refuses_unassessable_parameters(monkeypatch):
+    from types import SimpleNamespace
+    from language_reading_predictors.statistical_models import loo_refit
+
+    monkeypatch.setattr(loo_refit, "sampling_quality", lambda _: SimpleNamespace(
+        max_rhat=1., min_ess=1000., min_bfmi=.9, n_divergences=0, unassessable=("stuck",)))
+    wrapper = object.__new__(loo_refit.MechanismSamplingWrapper)
+    with pytest.raises(ValueError, match="unassessable parameter diagnostics"):
+        wrapper._assert_refit_converged(object())

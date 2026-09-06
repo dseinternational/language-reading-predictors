@@ -79,6 +79,8 @@ import pandas as pd
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models.hsgp_migration import hsgp_refit_pending
+from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
 from language_reading_predictors.statistical_models import mechanism as _mechanism
 from language_reading_predictors.statistical_models import reporting as _report
 from language_reading_predictors.statistical_models.adjustment import (
@@ -155,6 +157,8 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
         return "skipped", "no config.json"
     with open(config_path) as handle:
         stored = json.load(handle)
+    if hsgp_refit_pending(stored):
+        return "needs refit", "HSGP basis changed in dse-research-utils 0.13.0 (#660)"
     model_id = stored.get("model_id", "")
     if model_id in NEEDS_REFIT:
         return "needs refit", NEEDS_REFIT[model_id]
@@ -169,7 +173,9 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         plan = _mechanism.resolve_mechanism_plan(spec)
-        built = _mechanism.build_mechanism_for_plan(plan)
+        raw_design = (stored.get("extra") or {}).get("mechanism_design")
+        frozen = MechanismDesign.from_dict(raw_design) if raw_design is not None else None
+        built = _mechanism.build_mechanism_for_plan(plan, frozen_design=frozen)
         trace = az.from_netcdf(fit_dir / "trace.nc")
     # The *fitted* frame, i.e. after the factory keep-mask — the same object the
     # pipeline sees, because ``stages.attach_built`` replaces ``ctx.prepared`` with
