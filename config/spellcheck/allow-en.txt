@@ -92,8 +92,10 @@ colsample
 colwidths
 commensurate
 communalities
+compiledir
 componential
 comprehender
+comspec
 configural
 confounder
 confounders
@@ -313,6 +315,7 @@ linkcolor
 linspace
 Lipsitch
 LKJ
+localappdata
 logit
 logits
 logp
@@ -484,6 +487,7 @@ partialled
 partialling
 passthrough
 Paterra
+pathext
 pathlib
 Pediatrics
 Piironen
@@ -503,6 +507,7 @@ prob
 probs
 proc
 psense
+pytensor
 Psychometrika
 Psychonomic
 Puhani
@@ -629,6 +634,7 @@ summarisable
 suptitle
 surv
 sweepable
+systemroot
 Sénéchal
 Sørbye
 tachang
@@ -671,6 +677,7 @@ unrepresentable
 unsuffixed
 untiered
 Usami
+userprofile
 Valido
 Vallar
 VanderWeele
@@ -694,6 +701,7 @@ Westreich
 WIAT
 Wiig
 Wilcoxon
+windir
 winget
 woco
 workstream

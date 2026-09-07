@@ -49,10 +49,23 @@ RLI_ARCHIVE_ZIP_URL = (
 RLI_ARCHIVE_ZIP_SHA256 = (
     "a015edd19d0d35e325f3a14a06cc5894e1beb3cc95ce6db6513b0c763b4a7d3b"
 )
+#: Where the CSV sits inside the upstream ZIP.  Retained for independent
+#: verification of the committed copy against the deposit: fetch
+#: :data:`RLI_ARCHIVE_ZIP_URL`, check it against
+#: :data:`RLI_ARCHIVE_ZIP_SHA256`, extract this member and check it against
+#: :data:`RLI_ARCHIVE_CSV_SHA256`.
+RLI_ARCHIVE_ZIP_MEMBER = "DSE_Data/dse-rli-trial-data-archive.csv"
 RLI_ARCHIVE_CSV_SHA256 = (
     "7c6cda3634c302d6b2b253ba01a9043bd0762d3f35a66027f9a2f1f2dbdc5ae7"
 )
 RLI_ARCHIVE_CSV_NAME = "dse-rli-trial-data-archive.csv"
+#: The deposited archive as committed to this repository.  Down Syndrome
+#: Education International deposited the ReShare collection and holds the
+#: rights in it, so the file is distributed here under the repository's own
+#: CC BY 4.0 data licence rather than fetched at run time.  It is the default
+#: source for the mandatory word-reading missingness bundle; the
+#: ``--rli-randomised-archive`` option overrides it for a local re-check.
+RLI_ARCHIVE_LOCAL_CSV = _paths.DATA_DIR / RLI_ARCHIVE_CSV_NAME
 RLI_LOCAL_WIDE_SHA256 = (
     "2c47eb49a96013a0283a225dcd8460ceb62720fdca60bcaeb3811345e5b7c99c"
 )
@@ -1413,11 +1426,21 @@ def run_missingness_subfit(
 
 
 def missingness_source_path(option: str | None) -> Path | None:
-    """Resolve the explicitly supplied source path without hidden downloading."""
+    """Resolve the archive source without hidden downloading.
 
-    if option is None:
-        return None
-    path = Path(os.path.expanduser(option)).resolve()
-    if not path.is_file():
-        raise FileNotFoundError(f"--rli-randomised-archive does not exist: {path}")
-    return path
+    An explicit ``--rli-randomised-archive`` path wins and must exist, so a
+    local re-check against a freshly fetched copy still fails loudly rather
+    than silently falling back.  Otherwise the committed deposit
+    (:data:`RLI_ARCHIVE_LOCAL_CSV`) is used, so a clean checkout can run the
+    mandatory word-reading missingness bundle with no extra step.  ``None`` is
+    returned only when that file is absent from the checkout, which the caller
+    reports as an incomplete release rather than treating as a clean fit.
+    """
+
+    if option is not None:
+        path = Path(os.path.expanduser(option)).resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"--rli-randomised-archive does not exist: {path}")
+        return path
+    committed = RLI_ARCHIVE_LOCAL_CSV
+    return committed.resolve() if committed.is_file() else None

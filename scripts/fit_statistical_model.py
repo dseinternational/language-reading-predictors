@@ -104,9 +104,11 @@ def main() -> None:
         type=str,
         default=None,
         help=(
-            "Checksum-pinned 57-row UKDS RLI archive used only by the mandatory "
-            "word-reading missing-data sensitivity. If omitted, the primary fit "
-            "runs but its release is withheld as incomplete."
+            "Override the committed 57-row trial archive "
+            "(data/dse-rli-trial-data-archive.csv) used by the mandatory "
+            "word-reading missing-data sensitivity, for a local re-check "
+            "against a freshly fetched copy. Not needed for an ordinary fit: "
+            "the committed deposit is resolved by default."
         ),
     )
     parser.add_argument(

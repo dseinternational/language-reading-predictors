@@ -40,6 +40,11 @@ def test_transition_analysis_set_is_gate_visible_but_sensitivities_are_not():
 
 QUARTO = shutil.which("quarto")
 
+# The render subprocess environment is defined once, beside the other render
+# tests, because omitting a Windows name there fails the render before any
+# assertion runs rather than reporting a template defect.
+from .test_mechanism_report_forms import RENDER_ENV_KEYS  # noqa: E402
+
 _REWRITER_SPEC = importlib.util.spec_from_file_location(
     "restructure_statistical_reports",
     REPO / "scripts/restructure_statistical_reports.py",
@@ -272,11 +277,7 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
         "{{< include _partials/_key_findings.qmd >}}\n\n"
         "{{< include _partials/_technical.qmd >}}\n"
     )
-    env = {
-        key: os.environ[key]
-        for key in ("PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
-        if key in os.environ
-    }
+    env = {key: os.environ[key] for key in RENDER_ENV_KEYS if key in os.environ}
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
@@ -399,11 +400,7 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
         'print(_csv("diagnostics_deterministics.csv", index_col=0).to_html())\n'
         "```\n"
     )
-    env = {
-        key: os.environ[key]
-        for key in ("PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
-        if key in os.environ
-    }
+    env = {key: os.environ[key] for key in RENDER_ENV_KEYS if key in os.environ}
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
