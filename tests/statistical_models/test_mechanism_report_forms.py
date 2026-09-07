@@ -89,12 +89,37 @@ def _fixture_dir(tmp_path: Path, name: str, run_plan: dict) -> Path:
     return fit
 
 
+#: Variables a Quarto render subprocess needs, kept deliberately minimal so a
+#: fixture cannot pick up ambient project configuration.  The Windows entries
+#: are not optional extras: without ``TMP``/``TEMP`` Quarto's Deno runtime dies
+#: in ``initSessionTempDir`` (``PermissionDenied ... tmpdir``, since ``TMPDIR``
+#: is a POSIX name); without ``USERPROFILE`` Jupyter's ``get_home_dir`` raises
+#: ``Could not determine home directory``, because Windows expands ``~`` from
+#: it rather than from the ``HOME`` set below; and without ``COMSPEC`` the
+#: render fails to spawn ``CMD``.  Each aborts before any assertion runs.
+#: Absent names are skipped, so this stays a no-op on Linux and macOS.
+RENDER_ENV_KEYS = (
+    "PATH",
+    "LANG",
+    "LC_ALL",
+    "TMPDIR",
+    "SYSTEMROOT",
+    # Windows
+    "TMP",
+    "TEMP",
+    "USERPROFILE",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "COMSPEC",
+    "PATHEXT",
+    "WINDIR",
+)
+
+
 def _render(fit: Path) -> str:
-    env = {
-        key: os.environ[key]
-        for key in ("PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
-        if key in os.environ
-    }
+    env = {key: os.environ[key] for key in RENDER_ENV_KEYS if key in os.environ}
     env["HOME"] = str(fit)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(fit / ".cache")
