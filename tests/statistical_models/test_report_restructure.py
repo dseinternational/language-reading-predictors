@@ -446,11 +446,7 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
 
 def _render_report_fixture(tmp_path):
     """Render ``index.qmd`` in ``tmp_path`` with the repo's package importable."""
-    env = {
-        key: os.environ[key]
-        for key in ("PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
-        if key in os.environ
-    }
+    env = {key: os.environ[key] for key in RENDER_ENV_KEYS if key in os.environ}
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")

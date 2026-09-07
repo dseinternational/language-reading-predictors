@@ -44,9 +44,43 @@ class Variables:
 
     BLOCKS = "blocks"
     """
-    Block Design subtest from the Wechsler Preschool and Primary Scale of 
+    Block Design subtest from the Wechsler Preschool and Primary Scale of
     Intelligence – Third Edition (WPPSI-III) (Wechsler, 2002). Only
     administered at time point 1.
+    """
+
+    OBJASS = "objass"
+    """
+    Object Assembly subtest from the Wechsler Preschool and Primary Scale of
+    Intelligence – Third Edition (WPPSI-III) (Wechsler, 2002). Only
+    administered at time point 1, and complete for all 54 analysed children.
+
+    The second of the two non-verbal subtests the original trial reported
+    (Burgoyne et al. 2012, Table 1: maximum 37, published alpha 0.85). It is
+    derived from the committed deposit by ``scripts/derive_object_assembly.py``
+    and exists so the single-subtest ability adjustment can be checked against a
+    two-indicator composite; see ``OBJASS_C``.
+    """
+
+    OBJASS_C = "objass_c"
+    """
+    Non-verbal ability composite: ``BLOCKS + OBJASS``.
+
+    Derived by ``statistical_models.preprocessing.derive_nonverbal_ability_composite``
+    rather than stored, following the ``HEARING_C`` precedent, so the definition
+    lives in one place and cannot drift from a stored column.
+
+    Both subtests are WPPSI-III perceptual-organisation tasks with near-equal
+    spread in this cohort (standard deviations 6.26 and 6.77), so the raw sum is
+    within 0.0002 of the correlation-equivalent average of the two standardised
+    scores; every consumer standardises it downstream in any case. The two
+    correlate at 0.664, so a single subtest is roughly a 0.66-reliable measure of
+    what they share and the sum is roughly 0.80-reliable — which is the whole
+    point of the composite. What they share is a **narrow visuospatial factor**,
+    not the latent general ability ``GA`` of the causal diagram: ``GA`` remains
+    unmeasured, and visuospatial processing is the relative strength in the Down
+    syndrome profile. Read a composite-adjusted result as a better-measured
+    adjustment for one domain, never as adjustment for general ability.
     """
 
     APTGRAM = "aptgram"
@@ -678,6 +712,7 @@ class Variables:
         GENDER,
         AGE,
         BLOCKS,
+        OBJASS,
         APTGRAM,
         APTINFO,
         B1EXTAU,
@@ -900,6 +935,7 @@ class Variables:
     NUMERIC: ClassVar[Sequence[str]] = [
         AGE,
         BLOCKS,
+        OBJASS,
         APTGRAM,
         APTINFO,
         B1EXTAU,
@@ -981,6 +1017,8 @@ class Variables:
 
     DEFAULT_EXCLUDED: ClassVar[Sequence[str]] = [
         BLOCKS,  # only at t1
+        OBJASS,  # only at t1; a component of OBJASS_C
+        OBJASS_C,  # sums BLOCKS and OBJASS, and only at t1
         B1EXTAU,  # included in B1EXTO
         B1RETAU,  # included in B1RETO
         B1EXNT,  # included in B1EXTO
@@ -1044,7 +1082,7 @@ class Variables:
             "numchil", "mumocc", "dadocc", "mumedupost16", "dadedupost16",
         ],
         "demographics_child": ["age", "gender", "agespeak"],
-        "cognition": ["blocks"],
+        "cognition": ["blocks", "objass", "objass_c"],
         "social": ["behav", "sdq"],
         "intervention": ["attend", "attend_cumul", "tascore", "tachang"],
         "study_structure": ["time", "group", "area"],
@@ -1096,6 +1134,7 @@ class Variables:
         BEDTIMEREAD,
         OTHERTIMEREAD,
         BLOCKS,
+        OBJASS,
         AGESPEAK,
     ]
     """

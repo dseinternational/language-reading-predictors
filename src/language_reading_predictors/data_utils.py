@@ -130,32 +130,46 @@ def load_data() -> pd.DataFrame:
     validate_erb_consistency(df)
     configure_data_types(df)
     add_intervention_schema(df)
-    _broadcast_baseline_blocks(df)
+    _broadcast_t1_only_baselines(df)
     return df
 
 
-def _broadcast_baseline_blocks(df: pd.DataFrame) -> None:
-    """Broadcast block design (recorded only at wave 1) across each child's rows.
+#: Columns recorded once at t1 that the long format leaves null at every later
+#: wave, and that are broadcast across a child's rows by
+#: :func:`_broadcast_t1_only_baselines`. Both are WPPSI-III non-verbal subtests.
+#: Kept as an explicit tuple rather than derived from
+#: ``Variables.TIME_INVARIANT_BASELINES``: most entries in that list are already
+#: replicated across waves in the source extract, so broadcasting them would be a
+#: no-op at best, and the two that genuinely need it should be named.
+_T1_ONLY_BASELINES: tuple[str, ...] = (vars.BLOCKS, vars.OBJASS)
 
-    In the long format ``blocks`` is present only on the t1 row, so broadcasting a
-    child's single value to all their rows makes it usable as a time-invariant
-    baseline covariate (issue #186). ``blocks`` is in ``Variables.DEFAULT_EXCLUDED``,
-    so this changes no default predictor set — it only affects models that opt it in
-    via ``include`` (it realises the intent documented by
-    ``Variables.TIME_INVARIANT_BASELINES`` for block design).
+
+def _broadcast_t1_only_baselines(df: pd.DataFrame) -> None:
+    """Broadcast the t1-only non-verbal subtests across each child's rows.
+
+    In the long format ``blocks`` and ``objass`` are present only on the t1 row,
+    so broadcasting a child's single value to all their rows makes them usable as
+    time-invariant baseline covariates (issue #186). Both are in
+    ``Variables.DEFAULT_EXCLUDED``, so this changes no default predictor set — it
+    only affects models that opt one in via ``include`` (it realises the intent
+    documented by ``Variables.TIME_INVARIANT_BASELINES``).
+
+    ``objass`` is handled here for the same reason ``blocks`` is: a t1-only column
+    that is broadcast and one that is not would behave differently in any model
+    that opted it in, which is exactly the kind of asymmetry that goes unnoticed.
+    The statistical models do not depend on this — they pull the ability covariate
+    from t1 themselves — so this is about the boosting/exploratory path.
     """
-    if vars.BLOCKS in df.columns:
-        # blocks is recorded once per child (t1); map that single value to all of the
-        # child's rows. Taking the first non-null is independent of the frame's row
-        # order and well-defined even if a future extract ever carried more than one
+    for column in _T1_ONLY_BASELINES:
+        if column not in df.columns:
+            continue
+        # Recorded once per child (t1); map that single value to all of the child's
+        # rows. Taking the first non-null is independent of the frame's row order
+        # and well-defined even if a future extract ever carried more than one
         # non-null value for a child — unlike ``ffill().bfill()``, which would knit
         # together neighbouring values in that case.
-        first_block = (
-            df.dropna(subset=[vars.BLOCKS])
-            .groupby(vars.SUBJECT_ID)[vars.BLOCKS]
-            .first()
-        )
-        df[vars.BLOCKS] = df[vars.SUBJECT_ID].map(first_block)
+        first = df.dropna(subset=[column]).groupby(vars.SUBJECT_ID)[column].first()
+        df[column] = df[vars.SUBJECT_ID].map(first)
 
 
 def add_intervention_schema(df: pd.DataFrame) -> None:

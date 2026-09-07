@@ -1,0 +1,81 @@
+---
+title: "LRP307: Composite-ability letter sounds (LS) -> receptive vocabulary (R)"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+## Overview
+
+LRP307 is a **one-knob companion** to [LRP197](../lrp-rli-mech-197/): the same rows,
+outcome, own-baseline term, adjustment set, subject random intercept and priors,
+differing in exactly one thing. Where LRP197 adjusts for measured ability with
+`blocks` (WPPSI-III Block Design) alone, this fit uses the two-subtest composite
+`objass_c` — Block Design plus Object Assembly.
+
+The ability-adjusted panel LRP196–201 is the project's evidence that the letter-sound
+association is not merely measured ability, and its obvious rebuttal is that it adjusts
+for a single noisy subtest. Over the 54 analysed children the two subtests correlate at
+0.664, so Block Design alone is roughly a 0.66-reliable measure of what they share while
+their sum is roughly 0.80-reliable. This fit re-reads the same comparison at the higher
+reliability, so the rebuttal has a fitted answer.
+
+Role in the panel: **an oral-language negative control**.
+
+A better-measured proxy is still a proxy. Both subtests are perceptual-organisation
+tasks, so what they share is a **narrow visuospatial factor** — the domain of relative
+strength in the Down syndrome profile — and not the latent general ability `GA` of the
+project's causal diagram, which stays unmeasured and structurally unblockable. Adjusting
+for the composite does not move the mechanism slope any closer to a causal quantity: it
+remains an **adjusted association**.
+
+## How to read it
+
+Compare with **LRP197**, not with the unadjusted LRP97. A slope that holds up here
+having held up there is adjusted for the shared visuospatial variance about as well as
+this battery permits. A slope that shrinks here but not there was carrying
+subtest-specific noise. A screening regression over the fitted rows put the difference at
+well under a tenth of a standard error, so **agreement is the expected result** — the
+purpose is to close a line of criticism, not to report a new effect.
+
+## Model
+
+$$
+\eta = \alpha + \alpha_{\text{phase}} + \beta_G G
+  + \beta_{\text{mech}}\, z(\operatorname{logit}_* L_{\text{post}})
+  + \gamma_{\text{own}}\operatorname{logit}_*(R_{\text{pre}})
+  + \gamma_A z(A) + \gamma_{\text{objass}} z(\text{objass\_c})
+  + \sum_c \gamma_c z(c) + u_{\text{child}}.
+$$
+
+The only difference from LRP197 is that $\gamma_{\text{blocks}} z(\text{blocks})$ is
+replaced by $\gamma_{\text{objass}} z(\text{objass\_c})$. The composite is the raw sum of
+the two subtests, derived by
+`statistical_models.preprocessing.derive_nonverbal_ability_composite`; the subtests have
+near-equal spread in this cohort, so the sum agrees with the average of their
+standardised scores to a correlation of 0.99984, and it is standardised here in any case.
+
+![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
+
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_mechanism.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}

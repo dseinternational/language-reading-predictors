@@ -71,6 +71,9 @@ Assessment: this retires a belt-and-braces convention rather than disclosing any
 
 **Object Assembly is now available and nothing uses it.** The general-ability proxy across the suite is Block Design alone, and `notes/202607172345-design-lessons-for-future-studies.md` names single-indicator constructs and the absence of a real general-ability battery as two of the study's measurement walls. A two-indicator non-verbal composite would not clear that wall, but it would narrow it. Wiring it in is an analytic change — it touches the data schema, the ability covariate, several adjustment sets and the DAG's account of what `GA` is proxied by — so it is left for a separate decision rather than folded into a data-provenance change.
 
+> [!NOTE]
+> **Decided 2026-09-07** — `notes/202609071900-nonverbal-ability-composite.md`. The report takes the reporting gain (the subtests correlate at 0.664, which quantifies how far a single-subtest adjustment reaches) and seven registered companions `LRP306`–`LRP312` give the criticism a fitted answer. The composite was deliberately **not** swapped in across the suite: a screening regression moved the affected slopes by under a tenth of a standard error, and because both subtests are perceptual-organisation tasks the composite measures a narrow visuospatial factor better rather than approaching latent general ability, so the wall named above is unmoved.
+
 ## Related
 
 - `notes/202607131900-attrition-audit.md` — the 57 → 3 → 54 → 53 flow this rests on.
