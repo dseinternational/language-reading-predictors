@@ -15,21 +15,21 @@ Committing the deposited trial archive (#664) brought in **WPPSI-III Object Asse
 
 Object Assembly is complete for all 54 analysed children, exactly as Block Design is, with no floor or ceiling pile-up (4 children at zero, none at the 37 maximum, mean 9.48, SD 6.77 against Block Design's 12.59 and 6.26).
 
-**The two subtests correlate at 0.664** (Spearman 0.680). Treating them as two indicators of what they share, that correlation *is* the reliability of a single subtest as a measure of the common factor, and the Spearman-Brown reliability of their sum is **0.798**. So a single-subtest adjustment leaves about a third of the shared factor's variance unadjusted, and the composite about a fifth.
+**The two subtests correlate at 0.664** (Spearman 0.680). Treating them as two indicators of what they share, that correlation _is_ the reliability of a single subtest as a measure of the common factor, and the Spearman-Brown reliability of their sum is **0.798**. So a single-subtest adjustment leaves about a third of the shared factor's variance unadjusted, and the composite about a fifth.
 
-Note what the published subtest alphas (0.84 Block Design, 0.85 Object Assembly) are and are not: they are internal consistency *of each subtest*, which includes subtest-specific variance that is not the common factor. Quoting them as the reliability of the ability adjustment overstates it, and this note is partly here so that mistake is not made in the report.
+Note what the published subtest alphas (0.84 Block Design, 0.85 Object Assembly) are and are not: they are internal consistency _of each subtest_, which includes subtest-specific variance that is not the common factor. Quoting them as the reliability of the ability adjustment overstates it, and this note is partly here so that mistake is not made in the report.
 
 ## What it would change: nothing material
 
 A screening regression over the fitted mechanism rows (clustered least squares on the logit scale, ability broadcast from t1 as the models do it) put the letter-sound → word-reading slope at:
 
-| Ability adjustment      | Letter-sound slope | Ability slope    |
-| ----------------------- | ------------------ | ---------------- |
-| none                    | +0.284 (0.092)     | —                |
-| Block Design alone      | +0.250 (0.090)     | +0.147 (0.068)   |
-| Object Assembly alone   | +0.273 (0.090)     | +0.116 (0.052)   |
-| two-subtest composite   | +0.257 (0.089)     | +0.152 (0.062)   |
-| both, separately        | +0.253 (0.089)     | +0.115 (0.082)   |
+| Ability adjustment    | Letter-sound slope | Ability slope  |
+| --------------------- | ------------------ | -------------- |
+| none                  | +0.284 (0.092)     | —              |
+| Block Design alone    | +0.250 (0.090)     | +0.147 (0.068) |
+| Object Assembly alone | +0.273 (0.090)     | +0.116 (0.052) |
+| two-subtest composite | +0.257 (0.089)     | +0.152 (0.062) |
+| both, separately      | +0.253 (0.089)     | +0.115 (0.082) |
 
 **The composite absorbs no more than Block Design alone** — very slightly less, and the difference is under a tenth of a standard error. The negative control moves from +0.075 to +0.074. The ability coefficient itself changes by a factor of 1.03, 1.00 and 0.87 on word reading, receptive and expressive vocabulary. The one real gain is precision: standard errors on the ability term narrow by 9 to 14 %.
 
@@ -39,7 +39,7 @@ Extrapolating matters here. Moving reliability from 0.66 to 0.80 moved the slope
 
 ## The deeper point, which cuts against doing more
 
-**Block Design and Object Assembly are both perceptual-organisation subtests.** What they share is a *narrow visuospatial factor*, and visuospatial processing is the relative strength in the Down syndrome profile. Measuring that better does not bring the adjustment closer to the DAG's latent general ability `GA`, which stays unmeasured and structurally unblockable. A composite-adjusted association is better adjusted for one domain; it is not closer to a causal quantity.
+**Block Design and Object Assembly are both perceptual-organisation subtests.** What they share is a _narrow visuospatial factor_, and visuospatial processing is the relative strength in the Down syndrome profile. Measuring that better does not bring the adjustment closer to the DAG's latent general ability `GA`, which stays unmeasured and structurally unblockable. A composite-adjusted association is better adjusted for one domain; it is not closer to a causal quantity.
 
 This is why the design-lessons note's request stands unmet: two subtests from one domain is not a general-ability battery, and nothing in the archive changes that.
 
@@ -59,15 +59,15 @@ Rejected, and why:
 
 The panel is what makes the argument. `LRP196`–`201` is a specificity comparison — the letter-sound slope on the written-code outcomes against the oral-language negative controls — so re-reading the word-reading cell alone would break its logic. `LRP312` is included because `LRP258` is the ability-adjusted version of the family's **headline estimand**, the flexible curve whose interquartile contrast the mechanism family publishes, and that claim ("+6.8 to +6.5 items, a 4 % shift") is load-bearing.
 
-| New     | Parent  | Outcome                    | Role                                |
-| ------- | ------- | -------------------------- | ----------------------------------- |
-| LRP306  | LRP196  | nonword reading (N)        | the decoding-specific channel       |
-| LRP307  | LRP197  | receptive vocabulary (R)   | oral-language negative control      |
-| LRP308  | LRP198  | expressive vocabulary (E)  | oral-language negative control      |
-| LRP309  | LRP199  | receptive grammar (T)      | oral-language negative control      |
-| LRP310  | LRP200  | basic concepts (F)         | oral-language negative control      |
-| LRP311  | LRP201  | word reading (W)           | the mixed sight/decoding channel    |
-| LRP312  | LRP258  | word reading (W), HSGP     | the family's headline curve         |
+| New    | Parent | Outcome                   | Role                             |
+| ------ | ------ | ------------------------- | -------------------------------- |
+| LRP306 | LRP196 | nonword reading (N)       | the decoding-specific channel    |
+| LRP307 | LRP197 | receptive vocabulary (R)  | oral-language negative control   |
+| LRP308 | LRP198 | expressive vocabulary (E) | oral-language negative control   |
+| LRP309 | LRP199 | receptive grammar (T)     | oral-language negative control   |
+| LRP310 | LRP200 | basic concepts (F)        | oral-language negative control   |
+| LRP311 | LRP201 | word reading (W)          | the mixed sight/decoding channel |
+| LRP312 | LRP258 | word reading (W), HSGP    | the family's headline curve      |
 
 Each is registered `Status.COMPANION` against its parent, and a test asserts the one-knob property: same outcome, mechanism, adjustment set, baseline symbol, outcomes tuple, linearity and random-intercept setting, differing only in `ability_covariate`.
 
