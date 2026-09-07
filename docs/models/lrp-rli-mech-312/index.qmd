@@ -25,10 +25,11 @@ Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 ## Overview
 
 LRP312 is a **one-knob companion** to [LRP258](../lrp-rli-mech-258/): the same rows,
-outcome, own-baseline term, adjustment set, subject random intercept and priors,
-differing in exactly one thing. Where LRP258 adjusts for measured ability with `blocks`
-(WPPSI-III Block Design) alone, this fit uses the two-subtest composite `objass_c` —
-Block Design plus Object Assembly.
+outcome, own-baseline term, adjustment set, subject random intercept, priors, and — as
+LRP258 is itself matched to LRP58 — the same reduced six-function HSGP basis, tight
+length-scale prior and raised acceptance target. It differs in exactly one thing. Where
+LRP258 adjusts for measured ability with `blocks` (WPPSI-III Block Design) alone, this
+fit uses the two-subtest composite `objass_c` — Block Design plus Object Assembly.
 
 Where the LRP306–311 panel does this for the linear Tier-1 slopes, this does it for the
 family's **headline estimand**: the flexible letter-sound curve of
@@ -49,14 +50,12 @@ children Block Design and Object Assembly correlate at 0.664, so Block Design al
 roughly a 0.66-reliable measure of what they share while their sum is roughly
 0.80-reliable. This fit re-reads the claim at the higher reliability.
 
-::: {.callout-important}
 A better-measured proxy is still a proxy. Both subtests are perceptual-organisation
 tasks, so what they share is a **narrow visuospatial factor** — the domain of relative
 strength in the Down syndrome profile — and not the latent general ability `GA` of the
 project's causal diagram, which stays unmeasured and structurally unblockable. The curve
 remains an **adjusted association**, and no adjustment available here makes it a causal
 skill-to-skill effect.
-:::
 
 ## How to read it
 

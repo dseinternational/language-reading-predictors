@@ -39,14 +39,12 @@ reliability, so the rebuttal has a fitted answer.
 
 Role in the panel: **the mixed sight/decoding channel**.
 
-::: {.callout-important}
 A better-measured proxy is still a proxy. Both subtests are perceptual-organisation
 tasks, so what they share is a **narrow visuospatial factor** — the domain of relative
 strength in the Down syndrome profile — and not the latent general ability `GA` of the
 project's causal diagram, which stays unmeasured and structurally unblockable. Adjusting
 for the composite does not move the mechanism slope any closer to a causal quantity: it
 remains an **adjusted association**.
-:::
 
 ## How to read it
 

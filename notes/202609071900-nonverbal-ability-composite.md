@@ -69,7 +69,9 @@ The panel is what makes the argument. `LRP196`–`201` is a specificity comparis
 | LRP311 | LRP201 | word reading (W)          | the mixed sight/decoding channel |
 | LRP312 | LRP258 | word reading (W), HSGP    | the family's headline curve      |
 
-Each is registered `Status.COMPANION` against its parent, and a test asserts the one-knob property: same outcome, mechanism, adjustment set, baseline symbol, outcomes tuple, linearity and random-intercept setting, differing only in `ability_covariate`.
+Each is registered `Status.COMPANION` against its parent, and a test asserts the one-knob property by comparing the **whole declaration** — every `ModelSpec` field and every settings field — normalising only the model's own identity and `ability_covariate`, plus the sampler setting explicitly.
+
+That the test compares everything rather than a named list is not incidental. The first revision named the fields it thought mattered, and review caught what it therefore missed: `LRP312` had silently dropped its parent's reduced six-function HSGP basis, tight length-scale prior and raised acceptance target, so it would have fitted a different curve under different sampling and any difference could not have been attributed to the ability measure. The six panel companions were unaffected. Mutation-checked: removing the acceptance target again now fails the test by name.
 
 ## Implementation
 
@@ -79,11 +81,13 @@ Each is registered `Status.COMPANION` against its parent, and a test asserts the
 - **Composite derived, not stored** (`preprocessing.derive_nonverbal_ability_composite`), following the `HEARING_C` precedent so the definition lives in one place. It is the raw sum: the subtests have near-equal spread here, so the sum agrees with the average of their standardised scores to a correlation of 0.99984, every consumer standardises it downstream, and a raw sum has no reference-sample ambiguity. Returns `None` when either component is absent, so the historical cohort is a no-op rather than getting a silent single-subtest fallback.
 - **Both new names are in `DEFAULT_EXCLUDED`,** as `blocks` already was, so the 50 gradient-boosting models' predictor sets are untouched and no GB refit is implied. A test asserts it.
 - **`objass_c` added to `SUPPORTED_ABILITY_COVARIATES`**; registry counts and the catalogue updated (mechanism family 46 → 53, registry 269 → 276).
-- **Eleven tests** in `tests/test_nonverbal_ability_composite.py`, including that the composite is complete wherever Block Design is — otherwise a companion would silently analyse fewer children than its parent and the comparison would not be like-for-like.
+- **Thirteen tests** in `tests/test_nonverbal_ability_composite.py`, including that the composite is complete wherever Block Design is — otherwise a companion would silently analyse fewer children than its parent and the comparison would not be like-for-like.
 
 ## Not fitted here
 
-These seven need a `reporting`-tier fit, which will happen in the next sweep on the machine that holds the artefacts. Until then they are registered and their reports are templates. Nothing existing is invalidated: no fitted model changes, because the composite is only named by the new companions.
+These seven need a `reporting`-tier fit, which will happen in the next sweep on the machine that holds the artefacts. Until then they are registered and their reports are templates.
+
+**No posterior changes**, because the composite is only named by the new companions. But **every stored fit's recorded data digest is now stale**, and the durable record should say so: `data_sha256` is a whole-file digest of `rli_data_long.csv`, and appending the `objass` column changes it. So a stored trace can no longer be reused against the current data, and a resumed sweep will refit rather than skip. No stored fit becomes internally inconsistent and no published number moves; the blending pair gates compare their two halves to each other rather than to the live file, so those still hold. The practical cost is nil here because the next sweep is a full refit on a machine with no stored artefacts — but it is a consequence of this change, not an absence of one.
 
 ## One thing found while doing this
 

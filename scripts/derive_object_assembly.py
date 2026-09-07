@@ -17,7 +17,7 @@ analysed children.  No identifier crosswalk is written: the fingerprint is
 computed, used and discarded.
 
 ``--check`` recomputes the column and compares it with what is committed,
-without writing.  ``tests/test_derive_object_assembly.py`` runs that mode, so
+without writing.  ``tests/test_nonverbal_ability_composite.py`` runs that mode, so
 the committed column cannot drift from the deposit unnoticed.
 
 Usage::
@@ -71,11 +71,20 @@ def object_assembly_by_wide_row(
     if wide is None:
         wide = pd.read_csv(WIDE_PATH)
 
-    source_columns = [c for c in ARCHIVE_TO_LOCAL_WIDE if c in included.columns]
-    local_columns = [ARCHIVE_TO_LOCAL_WIDE[c] for c in source_columns]
-    missing = [c for c in local_columns if c not in wide.columns]
-    if missing:
-        raise ValueError(f"analysis file is missing reconciliation columns: {missing}")
+    # Require every mapped field on both sides, exactly as
+    # ``_reconcile_included_rows`` does. Filtering the mapping down to whichever
+    # columns happen to be present would silently weaken the advertised 71-field
+    # match: if a mapped archive field disappeared, this would still pass on 70
+    # fields and go on to assign scores despite the schema drift.
+    source_columns = list(ARCHIVE_TO_LOCAL_WIDE)
+    local_columns = list(ARCHIVE_TO_LOCAL_WIDE.values())
+    missing_source = sorted(set(source_columns) - set(included.columns))
+    missing_local = sorted(set(local_columns) - set(wide.columns))
+    if missing_source or missing_local:
+        raise ValueError(
+            "reconciliation fields are missing — deposit: "
+            f"{missing_source}; analysis file: {missing_local}"
+        )
 
     source = _row_fingerprints(
         included[source_columns].rename(columns=ARCHIVE_TO_LOCAL_WIDE)

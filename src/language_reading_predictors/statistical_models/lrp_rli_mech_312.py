@@ -54,6 +54,13 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
+    # Matched to LRP258 exactly, which is in turn matched to LRP58: the reduced
+    # six-function HSGP basis, the tight length-scale prior and the raised
+    # acceptance target are what make this geometry sample at all. Omitting them
+    # would give this fit the default ten-basis curve, the default length-scale
+    # prior and the preset acceptance, so a difference from the parent could not
+    # be attributed to the ability measure -- which is the fit's whole purpose.
+    target_accept=0.999,
     model_settings=MechanismModelSettings(
         outcomes=("W", "L"),
         adjust_baseline_symbol="W",
@@ -62,6 +69,8 @@ SPEC = ModelSpec(
         use_age_gp=False,
         phase_specific_mechanism=False,
         use_subject_random_intercept=True,
+        mech_hsgp_m=6,
+        mech_lengthscale_tight=True,
     ),
 )
 

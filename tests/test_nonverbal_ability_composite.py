@@ -14,6 +14,7 @@ be like-for-like.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib.util
 from pathlib import Path
 
@@ -218,20 +219,34 @@ def test_the_composite_companions_are_registered_against_their_parents():
         plan = resolve_mechanism_run_plan(module.SPEC)
         parent_plan = resolve_mechanism_run_plan(parent.SPEC)
 
-        # One knob, and one only: everything that defines the comparison must match.
         assert plan.ability_covariate == V.OBJASS_C
         assert parent_plan.ability_covariate == V.BLOCKS
-        assert module.SPEC.outcome_symbol == parent.SPEC.outcome_symbol
-        assert module.SPEC.mechanism_symbol == parent.SPEC.mechanism_symbol
-        assert module.SPEC.adjustment == parent.SPEC.adjustment
-        assert plan.adjust_for == parent_plan.adjust_for
-        assert plan.adjust_baseline_symbol == parent_plan.adjust_baseline_symbol
-        assert plan.outcomes == parent_plan.outcomes
-        assert plan.linear_mechanism == parent_plan.linear_mechanism
-        assert (
-            plan.use_subject_random_intercept
-            == parent_plan.use_subject_random_intercept
-        )
+
+        # One knob, and one only. Compare the WHOLE declaration rather than a
+        # hand-picked list of fields: an earlier revision of this test named the
+        # fields it thought mattered and so missed that LRP312 had dropped its
+        # parent's reduced HSGP basis, tight length-scale prior and raised
+        # acceptance target -- which would have made the comparison meaningless
+        # and probably unsamplable. Anything that is not the ability measure and
+        # not the model's own identity must be identical.
+        skip = {"model_id", "title", "model_settings"}
+        for field in dataclasses.fields(module.SPEC):
+            if field.name in skip:
+                continue
+            assert getattr(module.SPEC, field.name) == getattr(
+                parent.SPEC, field.name
+            ), f"{model_id}: spec.{field.name} differs from {parent_id}"
+        for field in dataclasses.fields(module.SPEC.model_settings):
+            if field.name == "ability_covariate":
+                continue
+            assert getattr(module.SPEC.model_settings, field.name) == getattr(
+                parent.SPEC.model_settings, field.name
+            ), f"{model_id}: settings.{field.name} differs from {parent_id}"
+
+        # The sampler setting is a ModelSpec field rather than a settings field,
+        # so name it explicitly too: LRP258's geometry needs 0.999 and inheriting
+        # the preset instead is the failure mode this guards.
+        assert module.SPEC.target_accept == parent.SPEC.target_accept
 
 
 def test_every_composite_companion_has_a_report_template():
