@@ -88,6 +88,67 @@ def test_loader_keeps_53_likelihood_rows_and_all_57_target_profiles(tmp_path):
     assert not any("subject" in value.casefold() for value in data.subject_ids)
 
 
+def test_the_deposited_archive_is_committed_and_matches_its_pinned_checksum():
+    """DSE deposited the collection, so the archive ships with the repository.
+
+    A clean checkout must be able to run the mandatory word-reading
+    missingness bundle with no import step, which is only true while this file
+    is present and byte-identical to the published deposit.
+    """
+
+    committed = missing.RLI_ARCHIVE_LOCAL_CSV
+
+    assert committed.is_file(), f"deposited trial archive is missing: {committed}"
+    assert committed.name == missing.RLI_ARCHIVE_CSV_NAME
+    assert missing.sha256_file(committed) == missing.RLI_ARCHIVE_CSV_SHA256
+
+
+def test_the_committed_archive_reconciles_with_the_repository_wide_file():
+    """The 71-field reconciliation is the provenance check, so run it for real."""
+
+    data = missing.load_randomised_w_archive(missing.RLI_ARCHIVE_LOCAL_CSV)
+
+    assert data.n_obs == 53
+    assert data.target_X.shape == (missing.RANDOMISED_N, 2)
+    assert data.reconciled_included_n == 54
+    assert data.local_wide_sha256 == missing.RLI_LOCAL_WIDE_SHA256
+    # The archive's own published labels must not travel into a fit.
+    assert not any("subject" in value.casefold() for value in data.subject_ids)
+
+
+def test_the_source_path_defaults_to_the_committed_deposit():
+    assert missing.missingness_source_path(None) == (
+        missing.RLI_ARCHIVE_LOCAL_CSV.resolve()
+    )
+
+
+def test_an_explicit_source_path_overrides_the_committed_deposit(tmp_path):
+    path = tmp_path / "archive.csv"
+    _write_archive(path)
+
+    resolved = missing.missingness_source_path(str(path))
+
+    assert resolved == path.resolve()
+    assert resolved != missing.RLI_ARCHIVE_LOCAL_CSV.resolve()
+
+
+def test_an_explicit_source_path_that_is_absent_still_fails_loudly(tmp_path):
+    """A local re-check must not silently fall back to the committed copy."""
+
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        missing.missingness_source_path(str(tmp_path / "absent.csv"))
+
+
+def test_a_missing_committed_deposit_resolves_to_none(tmp_path, monkeypatch):
+    """The caller reports an incomplete release rather than a clean fit."""
+
+    monkeypatch.setattr(
+        missing, "RLI_ARCHIVE_LOCAL_CSV", tmp_path / "absent.csv", raising=True
+    )
+
+    assert missing.missingness_source_path(None) is None
+
+
 def test_loader_rejects_a_wrong_source_hash(tmp_path):
     path = tmp_path / "archive.csv"
     _write_archive(path)

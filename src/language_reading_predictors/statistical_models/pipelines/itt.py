@@ -388,17 +388,23 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             if os.environ.get("DSE_LRP_REUSE_TRACE"):
                 raise FileNotFoundError(
                     "reuse-trace mode cannot rebuild the mandatory word-reading "
-                    "missingness bundle without --rli-randomised-archive; the "
-                    "previous complete output has not been replaced"
+                    "missingness bundle: the committed trial archive is missing "
+                    "from the checkout and no --rli-randomised-archive was "
+                    "supplied; the previous complete output has not been replaced"
                 )
             missingness_metadata = {
                 "status": "not_run",
-                "reason": "--rli-randomised-archive was not supplied",
+                "reason": (
+                    "the committed trial archive is missing from the checkout "
+                    "and no --rli-randomised-archive was supplied"
+                ),
             }
             rprint(
                 "[yellow]Required word-reading missing-data sensitivity not run: "
-                "supply --rli-randomised-archive. The primary fit is retained, "
-                "but its scientific release will be withheld as incomplete.[/yellow]"
+                "the committed trial archive is missing from the checkout. "
+                "Restore it or pass --rli-randomised-archive. The primary fit is "
+                "retained, but its scientific release will be withheld as "
+                "incomplete.[/yellow]"
             )
         else:
             section_header("Full-randomised-cohort missing-data sensitivity")

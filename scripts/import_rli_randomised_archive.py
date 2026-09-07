@@ -1,12 +1,19 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Install the checksum-pinned UKDS RLI archive for a local sensitivity run.
+"""Install a fresh copy of the deposited RLI trial archive from UKDS ReShare.
 
-The source is open access, but its ReShare item-level licence field is blank and
-ReShare's two possible open-data licences are ShareAlike variants.  Consequently
-the installed CSV is gitignored and is not redistributed under this repository's
-CC BY 4.0 data licence.
+**This is no longer required for an ordinary fit.**  Down Syndrome Education
+International deposited the ReShare collection and holds the rights in it, so
+the archive is committed to this repository as
+``data/dse-rli-trial-data-archive.csv`` under its own CC BY 4.0 data licence,
+and the word-reading missingness bundle resolves that file by default.
+
+The script remains useful for re-verifying the committed copy against a freshly
+fetched upstream one: it installs to the gitignored ``data/generated/``
+directory, which can then be passed to
+``fit_statistical_model.py --rli-randomised-archive``.  Both paths are checked
+against the same pinned checksums, so a mismatch either way fails loudly.
 
 Examples::
 

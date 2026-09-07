@@ -35,3 +35,11 @@
 *.docx      binary
 *.duckdb    binary
 *.nc        binary
+
+# Verbatim third-party deposits — preserve bytes exactly.
+# The deposited RLI trial archive is committed as published and its SHA-256 is
+# pinned in `itt_missingness.RLI_ARCHIVE_CSV_SHA256`, so the CRLF line endings it
+# ships with must survive a checkout untouched or that check fails everywhere.
+# `-text` disables end-of-line conversion while keeping the file diffable, and it
+# must follow the `*.csv text eol=lf` rule above to win.
+data/dse-rli-trial-data-archive.csv -text

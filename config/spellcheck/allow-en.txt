@@ -92,6 +92,7 @@ colsample
 colwidths
 commensurate
 communalities
+compiledir
 componential
 comprehender
 configural
@@ -502,6 +503,7 @@ prob
 probs
 proc
 psense
+pytensor
 Psychometrika
 Psychonomic
 Puhani
