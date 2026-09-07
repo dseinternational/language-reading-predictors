@@ -40,6 +40,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from dse_research_utils.ml.permutation import pooled_oof_permutation_deltas
 
 
 def subject_block_permutation_indices(
@@ -82,19 +83,22 @@ def subject_block_permutation_indices(
     return donor_index
 
 
-def _pooled_oof_rmse(
-    estimators: Sequence[Any],
-    X: pd.DataFrame,
-    y: np.ndarray,
-    test_indices: Sequence[np.ndarray],
-) -> tuple[float, np.ndarray]:
-    """Pooled out-of-fold RMSE plus the row mask the folds cover."""
-    oof_pred = np.full(len(y), np.nan, dtype=float)
-    for est, val_idx in zip(estimators, test_indices, strict=True):
-        oof_pred[val_idx] = est.predict(X.iloc[val_idx])
-    covered = ~np.isnan(oof_pred)
-    resid = y[covered] - oof_pred[covered]
-    return float(np.sqrt(np.mean(resid**2))), covered
+def _predict(estimator: Any, frame: pd.DataFrame) -> np.ndarray:
+    """The prediction callback the shared evaluator calls per fold."""
+    return estimator.predict(frame)
+
+
+def pooled_rmse(target: np.ndarray, prediction: np.ndarray) -> float:
+    """Pooled RMSE over every scored row at once.
+
+    Deliberately *not* an average of per-fold scores: with near
+    leave-one-subject-out folds a per-fold RMSE is one child's error, and
+    averaging those weights a one-row child like a four-row one. The shared
+    evaluator scores the pooled out-of-fold predictions once, in original row
+    order, which is what this project has always reported.
+    """
+    residual = target - prediction
+    return float(np.sqrt(np.mean(residual**2)))
 
 
 def pooled_permutation_deltas(
@@ -151,25 +155,34 @@ def pooled_permutation_deltas(
         Block key -> array of ``n_repeats`` deltas (rise in pooled out-of-fold
         RMSE when the block is permuted; positive = the block was useful).
     """
-    y = np.asarray(y, dtype=float)
-    estimators = list(estimators)
-    test_indices = [np.asarray(t) for t in test_indices]
-
-    base_rmse, covered = _pooled_oof_rmse(estimators, X, y, test_indices)
-
-    deltas: dict[Hashable, list[float]] = {key: [] for key in col_blocks}
-    for r in range(n_repeats):
-        rng = np.random.default_rng([seed, r])
-        donor_index = subject_block_permutation_indices(groups, rng)
-        for key, cols in col_blocks.items():
-            cols = list(cols)
-            Xp = X.copy()
-            Xp.iloc[:, cols] = X.iloc[donor_index, cols].to_numpy()
-            oof_pred = np.full(len(y), np.nan, dtype=float)
-            for est, val_idx in zip(estimators, test_indices, strict=True):
-                oof_pred[val_idx] = est.predict(Xp.iloc[val_idx])
-            resid = y[covered] - oof_pred[covered]
-            perm_rmse = float(np.sqrt(np.mean(resid**2)))
-            deltas[key].append(perm_rmse - base_rmse)
-
-    return {key: np.asarray(v) for key, v in deltas.items()}
+    # The donor design is this project's (#631) and stays here: one subject-block
+    # permutation per repeat, drawn from ``default_rng([seed, r])`` and SHARED by
+    # every block, so block iteration order cannot move a delta. The scoring loop
+    # — baseline, per-block permuted frames, pooled out-of-fold score, delta sign
+    # — is ``ml.permutation.pooled_oof_permutation_deltas`` (#662).
+    donor_plan = np.stack(
+        [
+            subject_block_permutation_indices(groups, np.random.default_rng([seed, r]))
+            for r in range(n_repeats)
+        ]
+    )
+    # The shared API blocks by column *label*; this one has always blocked by
+    # column position, which the two callers build from ``X.columns`` order.
+    labels = list(X.columns)
+    column_blocks = {
+        key: [labels[position] for position in cols] for key, cols in col_blocks.items()
+    }
+    result = pooled_oof_permutation_deltas(
+        estimators,
+        X,
+        # Positional, exactly as before: ``y`` may be a Series whose index does
+        # not label ``X``'s rows, and the fold positions are what align them.
+        np.asarray(y, dtype=float),
+        [np.asarray(t) for t in test_indices],
+        column_blocks,
+        donor_indices=dict.fromkeys(column_blocks, donor_plan),
+        predict=_predict,
+        score=pooled_rmse,
+        score_direction="lower_is_better",
+    )
+    return {key: np.asarray(value) for key, value in result.deltas.items()}

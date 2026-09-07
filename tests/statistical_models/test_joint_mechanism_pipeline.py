@@ -459,15 +459,27 @@ def _artefact_trace(*, n_obs: int = 12, exact: bool) -> xr.DataTree:
                     "outcome": list(_OUTCOMES),
                 },
             ),
-            "observed_data": xr.Dataset({"y_post": ("cell", observed)}),
+            # Every dimension carries the explicit coordinate index a real trace
+            # has; the shared sample reshaping used since #662 identifies rows by
+            # coordinate labels rather than by matching lengths.
+            "observed_data": xr.Dataset(
+                {"y_post": ("cell", observed)},
+                coords={"cell": range(observed.size)},
+            ),
             "posterior_predictive": xr.Dataset(
-                {"y_post": (("chain", "draw", "cell"), y_rep)}
+                {"y_post": (("chain", "draw", "cell"), y_rep)},
+                coords={
+                    "chain": range(chains),
+                    "draw": range(draws),
+                    "cell": range(observed.size),
+                },
             ),
             "constant_data": xr.Dataset(
                 {
                     "y_post_cell_row": ("cell", rows),
                     "y_post_cell_outcome": ("cell", cols),
-                }
+                },
+                coords={"cell": range(observed.size)},
             ),
         }
     )

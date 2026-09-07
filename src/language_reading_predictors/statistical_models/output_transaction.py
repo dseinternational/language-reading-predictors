@@ -10,15 +10,17 @@ new partial output with the last successful publication.
 
 from __future__ import annotations
 
-import os
 import shutil
 import stat
 import tempfile
 import time
 import uuid
 import weakref
+from contextlib import nullcontext
 from dataclasses import dataclass, field
 from pathlib import Path
+
+from dse_research_utils.storage.directories import promote_directory
 
 
 _STALE_PRIVATE_PATH_AGE_SECONDS = 7 * 24 * 60 * 60
@@ -130,24 +132,29 @@ class OutputTransaction:
                 f"staging output directory does not exist: {self.staging_dir}"
             )
 
-        backup: Path | None = None
-        if self.final_dir.exists():
-            backup = self.final_dir.parent / (
-                f".{self.final_dir.name}.backup-{uuid.uuid4().hex}"
-            )
-            os.replace(self.final_dir, backup)
-
-        try:
-            os.replace(self.staging_dir, self.final_dir)
-        except BaseException:
-            if backup is not None and backup.exists() and not self.final_dir.exists():
-                os.replace(backup, self.final_dir)
-            raise
+        # The two renames, the backup-first ordering and the restore-on-failure
+        # attempt are the shared helper's (#662). This class keeps what the
+        # library deliberately leaves to the caller: the staging directory and
+        # its mode, the exclusion contract, completeness (only ``publish`` is
+        # called, and only after the report files exist), the private backup
+        # *name*, and backup retention — the helper deletes nothing.
+        promotion = promote_directory(
+            self.staging_dir,
+            self.final_dir,
+            backup=self.final_dir.parent
+            / f".{self.final_dir.name}.backup-{uuid.uuid4().hex}",
+            # This process is the single writer of these paths: the staging
+            # directory is a private mkdtemp and the final path is one model's
+            # own output directory. A null context is what the helper documents
+            # for exactly that case; nothing here coordinates other processes,
+            # exactly as before.
+            lock=nullcontext(),
+        )
 
         self._published = True
         self._finalizer.detach()
-        if backup is not None:
-            _remove_private_path(backup)
+        if promotion.backup is not None:
+            _remove_private_path(promotion.backup)
         return self.final_dir
 
     def abandon(self) -> None:

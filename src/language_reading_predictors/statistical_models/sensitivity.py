@@ -13,7 +13,6 @@ mistaken for completed analyses.
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shutil
@@ -25,6 +24,9 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
+from dse_research_utils.metadata.provenance import (
+    sha256_file as _shared_sha256_file,
+)
 
 FLOOR_SENSITIVITY_FILENAME = "floor_tau_prior_sensitivity.csv"
 FLOOR_SENSITIVITY_AXIS = "floor_tau_sigma_x_age_adjustment"
@@ -320,12 +322,12 @@ class PrimaryStandardReference:
 
 
 def sha256_file(path: str | Path) -> str:
-    """Return the SHA-256 digest of a file without loading it all into memory."""
-    digest = hashlib.sha256()
-    with Path(path).open("rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    """Return the SHA-256 digest of a file without loading it all into memory.
+
+    Delegated to the shared implementation (#662); same chunk size, same bare
+    lowercase hex digest, so stored digests keep comparing equal.
+    """
+    return _shared_sha256_file(path)
 
 
 def _is_sha256(value: Any) -> bool:

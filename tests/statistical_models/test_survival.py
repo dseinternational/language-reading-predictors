@@ -146,7 +146,9 @@ def test_child_aggregation_recognises_the_survival_likelihood_node():
     trace = xr.DataTree.from_dict(
         {
             "log_likelihood": xr.Dataset(
-                {"y_event": (("chain", "draw", "obs_id"), ll)}
+                # Explicit sample coordinates, as every real trace carries.
+                {"y_event": (("chain", "draw", "obs_id"), ll)},
+                coords={"chain": range(2), "draw": range(5)},
             ),
             "constant_data": xr.Dataset(
                 {"loo_child_idx": (("obs_id",), rows_to_child)}

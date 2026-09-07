@@ -23,9 +23,7 @@ quoted anywhere without failing closed (2026-08-20 ITT review, finding 1).
 from __future__ import annotations
 
 import json
-import os
 import shutil
-import tempfile
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +33,7 @@ import arviz as az
 import numpy as np
 import pandas as pd
 
+from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models import reporting as _report
 from language_reading_predictors.statistical_models.family_registry import (
@@ -628,22 +627,15 @@ def _install_content_addressed_copy(
 
     if destination.is_file() and sha256_file(destination) == expected_sha256:
         return
-    descriptor, temporary = tempfile.mkstemp(
-        dir=destination.parent,
-        prefix=f".{destination.name}-",
-        suffix=".tmp",
-    )
-    os.close(descriptor)
-    try:
+
+    def _copy_and_verify(temporary: Path) -> None:
         shutil.copyfile(source, temporary)
         if sha256_file(temporary) != expected_sha256:
             raise ValueError(f"archived copy failed its SHA-256 check: {source}")
-        os.replace(temporary, destination)
-    finally:
-        try:
-            os.unlink(temporary)
-        except FileNotFoundError:
-            pass
+
+    # The staged copy is verified *before* the rename, so a source that changed
+    # under us never reaches the archive path (#662 keeps that order).
+    write_atomic(destination, _copy_and_verify)
 
 
 def build_blending_link_sensitivity(
@@ -722,19 +714,12 @@ def build_blending_link_sensitivity(
 
 
 def _atomic_write_csv(frame: pd.DataFrame, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        dir=path.parent, prefix=f".{path.name}-", suffix=".tmp"
-    )
-    os.close(descriptor)
-    try:
-        frame.to_csv(temporary, index=False)
-        os.replace(temporary, path)
-    finally:
-        try:
-            os.unlink(temporary)
-        except FileNotFoundError:
-            pass
+    """Serialise here, replace through the shared helper (#662).
+
+    The mode stays ``private``: this file was already written into a
+    ``mkstemp`` temporary, so its published permissions do not change.
+    """
+    write_atomic(path, lambda temporary: frame.to_csv(temporary, index=False))
 
 
 def _validate_archive_trace(

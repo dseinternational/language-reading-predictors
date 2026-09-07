@@ -32,7 +32,6 @@ import pandas as pd
 import shap
 from rich import print
 from scipy.cluster import hierarchy
-from scipy.spatial.distance import squareform
 from sklearn.inspection import partial_dependence, permutation_importance
 from sklearn.model_selection import GroupKFold, cross_validate
 
@@ -864,6 +863,10 @@ class EstimatorPipeline:
         Must run *after* :meth:`permutation_importance_analysis` so that
         ``perm_importance_df`` is available for the importance pairing.
         """
+        from language_reading_predictors.models.cluster_ranking import (
+            average_linkage_tree,
+            cluster_table,
+        )
         from language_reading_predictors.stats_utils import (
             distance_corr_matrix,
             mutual_info_dissimilarity,
@@ -908,14 +911,13 @@ class EstimatorPipeline:
         dcor_dissim = 1.0 - dcor_matrix
         np.fill_diagonal(dcor_dissim, 0.0)
         np.clip(dcor_dissim, 0.0, 1.0, out=dcor_dissim)
-        condensed = squareform(dcor_dissim, checks=False)
         # Average linkage, not Ward: Ward is correctly defined only for
         # Euclidean distances, whereas 1 - dcor is a precomputed non-Euclidean
-        # dissimilarity in general (see the shared
-        # ``dse_research_utils.ml.feature_dependence.distance_corr_dissimilarity_linkage``
-        # helper, which this mirrors on the already-computed matrix; #631
-        # finding 18).
-        linkage = hierarchy.average(condensed)
+        # dissimilarity in general (#631 finding 18). Since #662 the tree comes
+        # from the shared ``ml.feature_groups`` constructor — the same one
+        # ``distance_corr_dissimilarity_linkage`` now uses — so this path and
+        # ``scripts/rank_predictors.py``'s cannot drift apart.
+        linkage = average_linkage_tree(dcor_dissim)
 
         dendro_h = min(max(3, 0.5 * n), 12)
         dendro_w = min(max(5, 0.4 * n), 10)
@@ -934,12 +936,7 @@ class EstimatorPipeline:
         # dissimilarity), so 0.4 remains a sensible default, but it must be
         # re-validated via ``scripts/rank_predictors.py``'s
         # ``cutoff_sensitivity`` when the rankings are regenerated (#631).
-        clusters = hierarchy.fcluster(linkage, t=cluster_cutoff, criterion="distance")
-        cluster_df = (
-            pd.DataFrame({"feature": predictors, "cluster_id": clusters})
-            .sort_values(["cluster_id", "feature"])
-            .reset_index(drop=True)
-        )
+        cluster_df = cluster_table(predictors, linkage, cutoff=cluster_cutoff)
         cluster_df.to_csv(out / "cluster_table.csv", index=False)
 
         # ── Mutual information ──────────────────────────────────────────

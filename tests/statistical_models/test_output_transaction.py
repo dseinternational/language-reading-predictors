@@ -47,27 +47,37 @@ def test_successful_publish_replaces_the_directory_without_stale_files(tmp_path)
 
 
 def test_failed_promotion_restores_the_previous_publication(monkeypatch, tmp_path):
+    # The two renames now come from ``storage.directories.promote_directory``
+    # (#662), which uses ``os.rename``; the recovery contract is unchanged, so
+    # this still fails the *second* rename — the one that would install the new
+    # tree after the old publication was moved to its private backup.
     final = tmp_path / "model-reporting"
     final.mkdir()
     (final / "config.json").write_text("old", encoding="utf-8")
     transaction = OutputTransaction.create(final)
     (transaction.staging_dir / "config.json").write_text("new", encoding="utf-8")
-    real_replace = os.replace
+    real_rename = os.rename
     calls = 0
 
-    def fail_second_replace(source, destination):
+    def fail_second_rename(source, destination):
         nonlocal calls
         calls += 1
         if calls == 2:
             raise OSError("promotion failed")
-        return real_replace(source, destination)
+        return real_rename(source, destination)
 
-    monkeypatch.setattr(os, "replace", fail_second_replace)
+    monkeypatch.setattr(os, "rename", fail_second_rename)
 
     with pytest.raises(OSError, match="promotion failed"):
         transaction.publish()
 
+    monkeypatch.undo()
     assert (final / "config.json").read_text(encoding="utf-8") == "old"
+    assert not transaction.published
+    # The backup was moved back rather than left beside the publication.
+    assert not any(
+        path.name.startswith(".model-reporting.backup-") for path in tmp_path.iterdir()
+    )
     transaction.abandon()
 
 

@@ -30,6 +30,7 @@ import arviz as az
 import pandas as pd
 import pymc as pm
 
+from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors import paths
 from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models import reporting as _report
@@ -72,23 +73,23 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _atomic_write_csv(frame: pd.DataFrame, destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        frame.to_csv(temporary, index=False)
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
+    """Serialise here, replace through the shared helper; keep the umask mode (#662)."""
+    write_atomic(
+        destination,
+        lambda temporary: frame.to_csv(temporary, index=False),
+        mode="process_default",
+    )
 
 
 def _atomic_write_json(value: dict[str, Any], destination: Path) -> None:
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
-        os.replace(temporary, destination)
-    finally:
-        temporary.unlink(missing_ok=True)
+    """As above, with this script's own indentation and trailing newline retained."""
+    write_atomic(
+        destination,
+        lambda temporary: temporary.write_text(
+            json.dumps(value, indent=2) + "\n", encoding="utf-8"
+        ),
+        mode="process_default",
+    )
 
 
 def _registered_spec(model_id: str):

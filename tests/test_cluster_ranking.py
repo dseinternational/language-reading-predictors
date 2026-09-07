@@ -10,12 +10,19 @@ ranking and the cluster-table assembly that the per-model report renders.
 
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
+import pytest
+from scipy.cluster import hierarchy
+from scipy.spatial.distance import squareform
 
 from language_reading_predictors.models.cluster_ranking import (
     SAME_SKILL_SIBLINGS,
     aggregate_cluster_importance,
+    average_linkage_tree,
+    cluster_ids_by_feature,
     cluster_ranking_table,
+    cluster_table,
 )
 
 
@@ -77,3 +84,69 @@ def test_cluster_ranking_table_picks_representative():
     assert row1["representative"] == "a"
     assert row1["representative_excl_same_skill"] == "b"
     assert bool(row1["any_same_skill"]) is True
+
+
+# --- Shared feature grouping (#662) ------------------------------------------
+
+
+def _symmetric_dissimilarity(rng, n: int) -> np.ndarray:
+    """A 1 − distance-correlation-shaped matrix: symmetric, zero diagonal, in [0, 1]."""
+    matrix = rng.random((n, n))
+    matrix = (matrix + matrix.T) / 2.0
+    np.fill_diagonal(matrix, 0.0)
+    np.clip(matrix, 0.0, 1.0, out=matrix)
+    return matrix
+
+
+@pytest.mark.parametrize("seed", range(6))
+def test_shared_grouping_reproduces_the_local_tree_and_cut(seed):
+    """The tree, the labels and the table must be identical to the retired path.
+
+    ``cluster_id`` joins ``cluster_table.csv`` to ``importance_pairing.csv`` and
+    to the cluster-importance tables, so the labels are not free to change: they
+    are SciPy's own, and the column keeps SciPy's ``int32`` (building it from
+    Python ints would widen it to ``int64`` and break a dtype-sensitive merge).
+    """
+    rng = np.random.default_rng(seed)
+    n = int(rng.integers(2, 25))
+    names = [f"f{index:02d}" for index in range(n)]
+    dissimilarity = _symmetric_dissimilarity(rng, n)
+    cutoff = float(rng.uniform(0.05, 0.95))
+
+    retired_tree = hierarchy.average(squareform(dissimilarity, checks=False))
+    retired_labels = hierarchy.fcluster(retired_tree, t=cutoff, criterion="distance")
+    retired_table = (
+        pd.DataFrame({"feature": names, "cluster_id": retired_labels})
+        .sort_values(["cluster_id", "feature"])
+        .reset_index(drop=True)
+    )
+
+    tree = average_linkage_tree(dissimilarity)
+    np.testing.assert_array_equal(tree, retired_tree)
+    assert cluster_ids_by_feature(names, tree, cutoff=cutoff) == {
+        name: int(label) for name, label in zip(names, retired_labels, strict=True)
+    }
+    table = cluster_table(names, tree, cutoff=cutoff)
+    pd.testing.assert_frame_equal(table, retired_table)
+    assert table["cluster_id"].dtype == np.int32
+
+
+def test_the_tree_builder_refuses_a_repaired_or_euclidean_only_input():
+    """The checks ``squareform(..., checks=False)`` used to skip are now enforced."""
+    asymmetric = np.array([[0.0, 0.2], [0.3, 0.0]])
+    with pytest.raises(ValueError, match="symmetric"):
+        average_linkage_tree(asymmetric)
+    with pytest.raises(ValueError, match="zero diagonal"):
+        average_linkage_tree(np.array([[0.1, 0.2], [0.2, 0.1]]))
+    with pytest.raises(ValueError, match="nonnegative"):
+        average_linkage_tree(np.array([[0.0, -0.2], [-0.2, 0.0]]))
+
+
+def test_a_singleton_feature_set_still_produces_one_cluster():
+    """The GB diagnostics run on whatever predictor set a model declares."""
+    tree = average_linkage_tree(np.zeros((1, 1)))
+    assert tree.shape == (0, 4)
+    assert cluster_ids_by_feature(["only"], tree, cutoff=0.4) == {"only": 1}
+    table = cluster_table(["only"], tree, cutoff=0.4)
+    assert list(table["feature"]) == ["only"]
+    assert table["cluster_id"].dtype == np.int32

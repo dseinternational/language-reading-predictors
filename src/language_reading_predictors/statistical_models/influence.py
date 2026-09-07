@@ -40,7 +40,12 @@ import pandas as pd
 import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
+from dse_research_utils.metadata.provenance import (
+    sha256_file as _shared_sha256_file,
+)
+
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models import factories as _factories
 from language_reading_predictors.statistical_models import reporting as _report
@@ -110,12 +115,14 @@ class InfluenceBundleError(RuntimeError):
 
 
 def sha256_file(path: Path) -> str:
-    """Return a streaming SHA-256 digest for one artefact."""
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    """Return a streaming SHA-256 digest for one artefact.
+
+    Delegated to ``metadata.provenance.sha256_file`` (#662), which reads the
+    same 1 MiB chunks and returns the same bare lowercase hex digest. The
+    ``sha256:`` prefixes and the digest-prefix filenames this module builds on
+    top of it are unchanged.
+    """
+    return _shared_sha256_file(path)
 
 
 def _close_trace(trace: Any) -> None:
@@ -166,27 +173,27 @@ def hash_primary_artifacts(model_dir: Path) -> dict[str, str]:
 
 
 def _atomic_write_csv(frame: pd.DataFrame, destination: Path) -> None:
-    """Write a CSV by atomic rename so readers never observe a partial bundle index."""
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        frame.to_csv(temporary, index=False)
-        os.replace(temporary, destination)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
+    """Write a CSV by atomic rename so readers never observe a partial bundle index.
+
+    The temporary file, the single rename and the failure cleanup come from the
+    shared helper (#662); the serialisation and the published file mode stay
+    here. ``process_default`` keeps the umask-derived mode this bundle index has
+    always had — the report render and ``scripts/upload.py`` read it back.
+    """
+    write_atomic(
+        destination,
+        lambda temporary: frame.to_csv(temporary, index=False),
+        mode="process_default",
+    )
 
 
 def _atomic_copy(source: Path, destination: Path) -> None:
-    """Copy one file to a sibling temporary path and atomically install it."""
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        shutil.copy2(source, temporary)
-        os.replace(temporary, destination)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
+    """Copy one file to a sibling temporary path and atomically install it.
+
+    ``copy2`` copies the source file's mode onto the temporary file, so the
+    installed copy keeps the source's permissions exactly as before (#662).
+    """
+    write_atomic(destination, lambda temporary: shutil.copy2(source, temporary))
 
 
 def _json_normalise(value: Any) -> Any:

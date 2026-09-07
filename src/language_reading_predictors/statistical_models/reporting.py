@@ -105,8 +105,10 @@ from language_reading_predictors.statistical_models.estimands import (  # noqa: 
 
 from language_reading_predictors.statistical_models.predictive_checks import (  # noqa: F401
     _indicator_prior_verdict,
+    _observation_checks,
     _offfloor_cell_rates,
     _ppc_node_arrays,
+    _summary_columns,
     indicator_prior_check,
     joint_prior_pushforward,
     labelled_pushforward,

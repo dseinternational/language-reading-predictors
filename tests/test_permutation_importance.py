@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GroupKFold
 
@@ -130,3 +131,130 @@ def test_pooled_permutation_deltas_deterministic_per_seed():
         estimators, X, y, test_indices, groups, blocks, n_repeats=4, seed=48
     )
     assert any(not np.allclose(d1[key], d3[key]) for key in blocks)
+
+
+# --- Shared-evaluator adoption (#662) ----------------------------------------
+
+
+def _reference_pooled_deltas(
+    estimators, X, y, test_indices, groups, col_blocks, *, n_repeats, seed
+):
+    """The pre-#662 local scoring loop, kept as the numerical reference.
+
+    ``pooled_permutation_deltas`` now delegates its baseline, its permuted
+    frames and its pooled score to ``ml.permutation.pooled_oof_permutation_deltas``
+    while keeping this project's donor design. The published importance columns
+    must not move, so the retired loop is retained here to compare against.
+    """
+    y = np.asarray(y, dtype=float)
+    estimators = list(estimators)
+    test_indices = [np.asarray(t) for t in test_indices]
+    oof = np.full(len(y), np.nan, dtype=float)
+    for estimator, rows in zip(estimators, test_indices, strict=True):
+        oof[rows] = estimator.predict(X.iloc[rows])
+    covered = ~np.isnan(oof)
+    baseline = float(np.sqrt(np.mean((y[covered] - oof[covered]) ** 2)))
+    deltas: dict = {key: [] for key in col_blocks}
+    for repeat in range(n_repeats):
+        donor = subject_block_permutation_indices(
+            groups, np.random.default_rng([seed, repeat])
+        )
+        for key, columns in col_blocks.items():
+            columns = list(columns)
+            permuted = X.copy()
+            permuted.iloc[:, columns] = X.iloc[donor, columns].to_numpy()
+            prediction = np.full(len(y), np.nan, dtype=float)
+            for estimator, rows in zip(estimators, test_indices, strict=True):
+                prediction[rows] = estimator.predict(permuted.iloc[rows])
+            permuted_score = float(
+                np.sqrt(np.mean((y[covered] - prediction[covered]) ** 2))
+            )
+            deltas[key].append(permuted_score - baseline)
+    return {key: np.asarray(values) for key, values in deltas.items()}
+
+
+def test_shared_evaluator_reproduces_the_local_deltas_exactly():
+    """Bit-for-bit agreement, for singleton and multi-column (cluster) blocks."""
+    X, y, groups = _child_constant_data(seed=5)
+    estimators, test_indices = _one_child_folds(X, y, groups)
+    blocks = {0: [0], 1: [1], "cluster": [0, 1]}
+
+    new = pooled_permutation_deltas(
+        estimators, X, y, test_indices, groups, blocks, n_repeats=3, seed=47
+    )
+    old = _reference_pooled_deltas(
+        estimators, X, y, test_indices, groups, blocks, n_repeats=3, seed=47
+    )
+
+    assert new.keys() == old.keys()
+    for key in old:
+        np.testing.assert_array_equal(new[key], old[key])
+
+
+def test_every_block_shares_one_donor_plan_per_repeat(monkeypatch):
+    """One subject-block permutation per repeat, handed to every block.
+
+    The shared evaluator takes a donor plan *per block*; drawing a separate
+    permutation for each would make block importances incomparable and would
+    make the result depend on block iteration order. The adapter passes one
+    ``(n_repeats, n_rows)`` array under every key, and the plan is exactly what
+    ``subject_block_permutation_indices`` draws from ``default_rng([seed, r])``.
+    """
+    from language_reading_predictors.models import permutation as module
+
+    X, y, groups = _child_constant_data(seed=6)
+    estimators, test_indices = _one_child_folds(X, y, groups)
+    captured: dict = {}
+    real = module.pooled_oof_permutation_deltas
+
+    def _spy(*args, **kwargs):
+        captured["donor_indices"] = kwargs["donor_indices"]
+        captured["column_blocks"] = args[4]
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(module, "pooled_oof_permutation_deltas", _spy)
+    module.pooled_permutation_deltas(
+        estimators, X, y, test_indices, groups, {0: [0], "both": [0, 1]},
+        n_repeats=4, seed=47,
+    )
+
+    plans = list(captured["donor_indices"].values())
+    assert captured["donor_indices"].keys() == {0, "both"}
+    assert all(plan is plans[0] for plan in plans)
+    assert plans[0].shape == (4, len(X))
+    for repeat in range(4):
+        np.testing.assert_array_equal(
+            plans[0][repeat],
+            subject_block_permutation_indices(
+                groups, np.random.default_rng([47, repeat])
+            ),
+        )
+    # Column positions are translated to the labels the shared API blocks by.
+    assert captured["column_blocks"] == {
+        0: ["const_signal"],
+        "both": ["const_signal", "row_noise"],
+    }
+
+
+def test_pooled_rmse_is_pooled_not_an_average_of_fold_scores():
+    """Unequal fold sizes make the two summaries differ; the pooled one is ours."""
+    from language_reading_predictors.models.permutation import pooled_rmse
+
+    target = np.array([0.0, 0.0, 0.0, 0.0])
+    prediction = np.array([2.0, 0.0, 0.0, 0.0])
+    pooled = pooled_rmse(target, prediction)
+    fold_mean = np.mean(
+        [pooled_rmse(target[:1], prediction[:1]), pooled_rmse(target[1:], prediction[1:])]
+    )
+    assert pooled == pytest.approx(1.0)
+    assert fold_mean == pytest.approx(1.0)
+    # A one-row fold and a three-row fold weight differently once both err.
+    prediction = np.array([2.0, 1.0, 1.0, 1.0])
+    assert pooled_rmse(target, prediction) != pytest.approx(
+        np.mean(
+            [
+                pooled_rmse(target[:1], prediction[:1]),
+                pooled_rmse(target[1:], prediction[1:]),
+            ]
+        )
+    )

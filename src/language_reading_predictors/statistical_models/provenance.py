@@ -19,6 +19,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
+from dse_research_utils.metadata.provenance import git_snapshot as _git_snapshot
+from dse_research_utils.metadata.provenance import (
+    package_versions as _shared_package_versions,
+)
+from dse_research_utils.metadata.provenance import sha256_file as _sha256_file
+
 
 CORE_DISTRIBUTIONS: dict[str, str] = {
     "arviz": "arviz",
@@ -43,15 +49,16 @@ def _utc_now() -> datetime:
 def _cached_package_versions(
     distributions: tuple[tuple[str, str], ...],
 ) -> tuple[tuple[str, str | None], ...]:
-    """Resolve one distribution set once for the lifetime of the process."""
-    versions: list[tuple[str, str | None]] = []
-    for name, distribution in distributions:
-        try:
-            version = metadata.version(distribution)
-        except (metadata.PackageNotFoundError, OSError, ValueError):
-            version = None
-        versions.append((name, version))
-    return tuple(versions)
+    """Resolve one distribution set once for the lifetime of the process.
+
+    The lookup itself is ``metadata.provenance.package_versions`` (#662), which
+    reads installed distribution metadata without importing the package and
+    keeps this manifest's ``None`` for a missing, unreadable or malformed
+    record. The shared helper deliberately does not cache; the cache stays here
+    because a fit's manifest must describe one environment, not re-query it per
+    artefact.
+    """
+    return tuple(_shared_package_versions(dict(distributions)).items())
 
 
 def package_versions(
@@ -78,7 +85,22 @@ def _git_output(arguments: list[str], *, cwd: Path) -> str | None:
 
 
 def source_provenance(cwd: str | Path | None = None) -> dict[str, Any]:
-    """Describe the package checkout without making Git a runtime requirement."""
+    """Describe the package checkout without making Git a runtime requirement.
+
+    The four recorded field names, their order and their ``None``-when-unknown
+    convention are this project's manifest schema and are unchanged. The facts
+    behind ``commit`` / ``branch`` / ``dirty`` now come from one bounded
+    ``git status --porcelain=v2`` through the shared snapshot (#662) instead of
+    three separate Git invocations. ``repository_root`` has no shared
+    equivalent — the snapshot deliberately returns no filesystem paths — so it
+    keeps its own ``rev-parse --show-toplevel`` call, which is also what still
+    decides "not a usable checkout" and returns all-``None``.
+
+    ``dirty`` retains its meaning: any staged, unstaged, unmerged or untracked
+    change, excluding ignored files, and ``None`` when Git could not answer —
+    never ``False`` by default. A detached HEAD reports ``branch=None``, as the
+    previous ``branch --show-current`` did.
+    """
     working_directory = Path(__file__).resolve().parent if cwd is None else Path(cwd)
     root_text = _git_output(["rev-parse", "--show-toplevel"], cwd=working_directory)
     if root_text is None:
@@ -90,14 +112,12 @@ def source_provenance(cwd: str | Path | None = None) -> dict[str, Any]:
         }
 
     repository_root = Path(root_text)
-    commit = _git_output(["rev-parse", "HEAD"], cwd=repository_root)
-    branch = _git_output(["branch", "--show-current"], cwd=repository_root)
-    status = _git_output(["status", "--porcelain"], cwd=repository_root)
+    snapshot = _git_snapshot(repository_root)
     return {
         "repository_root": str(repository_root),
-        "commit": commit,
-        "branch": branch or None,
-        "dirty": None if status is None else bool(status),
+        "commit": snapshot.commit,
+        "branch": snapshot.branch or None,
+        "dirty": snapshot.dirty,
     }
 
 
@@ -121,14 +141,6 @@ def run_provenance() -> dict[str, Any]:
         },
         "packages": package_versions(),
     }
-
-
-def _file_sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _sanitise_direct_url(raw_text: str | None) -> dict[str, Any] | None:
@@ -204,7 +216,7 @@ def environment_lock() -> dict[str, Any]:
     if spec_path.is_file():
         project_spec = {
             "path": "uv.lock",
-            "sha256": _file_sha256(spec_path),
+            "sha256": _sha256_file(spec_path),
         }
     return {
         "schema_version": 2,
