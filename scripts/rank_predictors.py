@@ -55,7 +55,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.cluster import hierarchy
 
 from language_reading_predictors import model_ids
 from language_reading_predictors import paths as _paths
@@ -63,6 +62,7 @@ from language_reading_predictors.models.base_pipeline import _clear_directory
 from language_reading_predictors.models.cluster_ranking import (
     SAME_SKILL_SIBLINGS,
     assemble_ranking,
+    cluster_ids_by_feature,
     cluster_ranking_table,
 )
 from language_reading_predictors.models.common import RunConfig
@@ -268,12 +268,13 @@ def cutoff_sensitivity(X, target, cutoffs=(0.2, 0.3, 0.4, 0.5, 0.6)):
     anchor = next((m for m in (siblings + vocab_markers) if m in feats), feats[0])
     rows = []
     for t in cutoffs:
-        cl = hierarchy.fcluster(Z, t=t, criterion="distance")
-        memb = {f: int(c) for f, c in zip(feats, cl, strict=True)}
+        # Same shared cut as the per-fit diagnostics (#662), so this sensitivity
+        # table cannot disagree with the cluster_table.csv it is validating.
+        memb = cluster_ids_by_feature(feats, Z, cutoff=t)
         anchor_members = sorted(f for f in feats if memb[f] == memb[anchor])
         rows.append({
             "cutoff": t,
-            "n_clusters": int(len(set(cl))),
+            "n_clusters": int(len(set(memb.values()))),
             "anchor": anchor,
             "anchor_cluster_size": len(anchor_members),
             "anchor_cluster_members": ",".join(anchor_members),

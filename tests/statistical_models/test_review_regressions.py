@@ -301,7 +301,11 @@ def test_gain_factory_loo_removes_all_of_each_childs_transitions(tmp_path, likel
     trace = xr.DataTree.from_dict(
         {
             "constant_data": xr.Dataset({"loo_child_idx": ("obs_id", rows)}),
-            "log_likelihood": xr.Dataset({node: (("chain", "draw", "obs_id"), values[None, None, :])}),
+            "log_likelihood": xr.Dataset(
+                {node: (("chain", "draw", "obs_id"), values[None, None, :])},
+                # Explicit sample coordinates, as every real trace carries.
+                coords={"chain": [0], "draw": [0]},
+            ),
         }
     )
     grouped = diagnostics._joint_log_likelihood_by_child(trace)

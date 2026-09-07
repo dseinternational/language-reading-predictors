@@ -20,8 +20,14 @@ two surfaces stay schema-compatible.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import pandas as pd
+from dse_research_utils.ml.feature_groups import (
+    feature_groups_from_linkage,
+    linkage_from_dissimilarity,
+)
 
 # ── Curated same-skill (predictor↔OUTCOME contamination) map ───────────────────
 # Source: curated project mapping. A predictor listed here is
@@ -45,6 +51,68 @@ SAME_SKILL_SIBLINGS: dict[str, list[str]] = {
     # gain outcomes (ewrswr_gain, rowpvt_gain, erb*_gain, ...): none — the baseline
     # level is the regression-to-the-mean anchor, not contamination.
 }
+
+
+
+# ── dendrogram cut → cluster membership ───────────────────────────────────────
+# Both ranking surfaces cut the SAME average-linkage tree over the 1 − distance
+# correlation dissimilarity, so the cut lives here once (#662). The library owns
+# the tree construction and the cut; this project owns the feature order, the
+# cut height, the ``cluster_id`` column dtype and the table's row order.
+
+
+def average_linkage_tree(dissimilarity: np.ndarray) -> np.ndarray:
+    """Average-linkage tree over a precomputed dissimilarity matrix.
+
+    Average linkage, not Ward: Ward is correctly defined only for Euclidean
+    distances, and 1 − distance correlation is a precomputed non-Euclidean
+    dissimilarity in general (#631 finding 18). The shared constructor validates
+    what ``squareform(..., checks=False)`` used to skip — finite, nonnegative,
+    exactly symmetric, exactly zero-diagonal — and refuses Euclidean-only
+    methods outright, so the choice cannot be undone by a later caller.
+    """
+    return linkage_from_dissimilarity(dissimilarity, method="average")
+
+
+def cluster_ids_by_feature(
+    names: Sequence[str], linkage: np.ndarray, *, cutoff: float
+) -> dict[str, int]:
+    """Feature → SciPy cut label at ``cutoff``, in the caller's feature order.
+
+    The numeric labels are SciPy's own, kept (rather than renumbered) because
+    ``cluster_table.csv``, ``importance_pairing.csv`` and the cluster-importance
+    tables all join on them. They are local to one tree and one cut, not stable
+    identities across a changed feature set, matrix or cut height.
+    """
+    groups = feature_groups_from_linkage(list(names), linkage, threshold=cutoff)
+    return {
+        member: cluster_id for cluster_id, members in groups.items() for member in members
+    }
+
+
+def cluster_table(
+    names: Sequence[str], linkage: np.ndarray, *, cutoff: float
+) -> pd.DataFrame:
+    """The ``cluster_table.csv`` frame: one row per feature, cluster-major order.
+
+    ``cluster_id`` keeps the ``int32`` dtype SciPy's ``fcluster`` produced, so a
+    downstream merge against a table built the same way still matches on dtype;
+    building the column from Python ints would silently widen it to ``int64``.
+    """
+    membership = cluster_ids_by_feature(names, linkage, cutoff=cutoff)
+    features = list(names)
+    return (
+        pd.DataFrame(
+            {
+                "feature": features,
+                "cluster_id": np.asarray(
+                    [membership[name] for name in features], dtype=np.int32
+                ),
+            }
+        )
+        .sort_values(["cluster_id", "feature"])
+        .reset_index(drop=True)
+    )
 
 
 def _standardise_perm(df: pd.DataFrame) -> pd.DataFrame:

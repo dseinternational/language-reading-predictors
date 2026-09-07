@@ -29,6 +29,23 @@ from language_reading_predictors.statistical_models.reporting import (
 )
 
 
+
+def _labelled(dataset: xr.Dataset) -> xr.Dataset:
+    """Give every dimension the explicit integer coordinate a real trace has.
+
+    PyMC/ArviZ always write a coordinate index for every dimension, including
+    ones the model declared without a coord (``y_post_dim_0``), and every stored
+    ``trace.nc`` in this project carries them. The shared
+    ``statistics.samples.sample_matrix`` used since #662 requires them, because
+    matching row *counts* are not evidence that two arrays describe the same
+    observations. These synthetic fixtures therefore label their axes the same
+    way rather than relying on positional alignment.
+    """
+    return dataset.assign_coords(
+        {name: np.arange(size) for name, size in dataset.sizes.items()}
+    )
+
+
 def _count_trace(rep, obs, *, node="y_post"):
     """A DataTree with a ``posterior_predictive`` + ``observed_data`` count node.
 
@@ -36,11 +53,13 @@ def _count_trace(rep, obs, *, node="y_post"):
     """
     return xr.DataTree.from_dict(
         {
-            "posterior_predictive": xr.Dataset(
-                {node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
+            "posterior_predictive": _labelled(
+                xr.Dataset(
+                    {node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
+                )
             ),
-            "observed_data": xr.Dataset(
-                {node: (("obs_id",), np.asarray(obs, dtype=float))}
+            "observed_data": _labelled(
+                xr.Dataset({node: (("obs_id",), np.asarray(obs, dtype=float))})
             ),
         }
     )
@@ -147,10 +166,12 @@ def test_node_arrays_flatten_multidim_obs_in_order():
     obs = np.array([[10.0, 11.0], [12.0, 13.0]])  # (obs_id, domain)
     trace = xr.DataTree.from_dict(
         {
-            "posterior_predictive": xr.Dataset(
-                {"y_obs": (("chain", "draw", "obs_id", "domain"), rep)}
+            "posterior_predictive": _labelled(
+                xr.Dataset({"y_obs": (("chain", "draw", "obs_id", "domain"), rep)})
             ),
-            "observed_data": xr.Dataset({"y_obs": (("obs_id", "domain"), obs)}),
+            "observed_data": _labelled(
+                xr.Dataset({"y_obs": (("obs_id", "domain"), obs)})
+            ),
         }
     )
     y_rep, y_obs = _ppc_node_arrays(trace, "y_obs")
@@ -160,7 +181,11 @@ def test_node_arrays_flatten_multidim_obs_in_order():
 
 def test_node_arrays_raises_on_missing_group():
     trace = xr.DataTree.from_dict(
-        {"posterior_predictive": xr.Dataset({"y_post": (("chain", "draw", "obs_id"), np.ones((1, 2, 3)))})}
+        {
+            "posterior_predictive": _labelled(
+                xr.Dataset({"y_post": (("chain", "draw", "obs_id"), np.ones((1, 2, 3)))})
+            )
+        }
     )
     with pytest.raises(KeyError, match="observed_data"):
         _ppc_node_arrays(trace, "y_post")
@@ -172,11 +197,13 @@ def test_node_arrays_raises_on_missing_group():
 def _offfloor_trace(rep, obs, *, node="y_offfloor"):
     return xr.DataTree.from_dict(
         {
-            "posterior_predictive": xr.Dataset(
-                {node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
+            "posterior_predictive": _labelled(
+                xr.Dataset(
+                    {node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
+                )
             ),
-            "observed_data": xr.Dataset(
-                {node: (("obs_id",), np.asarray(obs, dtype=float))}
+            "observed_data": _labelled(
+                xr.Dataset({node: (("obs_id",), np.asarray(obs, dtype=float))})
             ),
         }
     )
@@ -352,19 +379,23 @@ def _multi_outcome_context(tmp_path, kind, outcomes, cell_outcome, rep, obs):
 
     trace = xr.DataTree.from_dict(
         {
-            "posterior_predictive": xr.Dataset(
-                {"y_obs": (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
+            "posterior_predictive": _labelled(
+                xr.Dataset(
+                    {"y_obs": (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
+                )
             ),
-            "observed_data": xr.Dataset(
-                {"y_obs": (("obs_id",), np.asarray(obs, dtype=float))}
+            "observed_data": _labelled(
+                xr.Dataset({"y_obs": (("obs_id",), np.asarray(obs, dtype=float))})
             ),
-            "constant_data": xr.Dataset(
-                {
-                    "y_obs_cell_outcome": (
-                        ("obs_id",),
-                        np.asarray(cell_outcome, dtype=int),
-                    )
-                }
+            "constant_data": _labelled(
+                xr.Dataset(
+                    {
+                        "y_obs_cell_outcome": (
+                            ("obs_id",),
+                            np.asarray(cell_outcome, dtype=int),
+                        )
+                    }
+                )
             ),
         }
     )

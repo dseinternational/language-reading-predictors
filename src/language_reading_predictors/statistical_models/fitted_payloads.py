@@ -17,6 +17,8 @@ from typing import Any, Literal
 
 import numpy as np
 
+from dse_research_utils.statistics.models.hsgp_design import HSGPDesign
+
 from language_reading_predictors.statistical_models.likelihood import ScoreMeanLink
 from language_reading_predictors.statistical_models.preprocessing import Standardiser
 
@@ -139,20 +141,29 @@ class MechanismDesign:
             )
         return self.moderator_scaler
 
-    def hsgp_kwargs(self) -> dict[str, Any]:
-        """Replay the complete basis; legacy designs require a fresh full fit."""
+    def hsgp_design(self) -> HSGPDesign:
+        """The saved geometry as the shared frozen design; legacy fits are refused.
+
+        Validation is ``statistics.models.hsgp_design.HSGPDesign`` (#662) rather
+        than a local repeat of the same predicates: it adds PyMC's own
+        eigenvalue and endpoint representability checks on top of "positive
+        integer ``m``, positive finite ``L``, finite ``center``". Only the
+        *absence* of any of the three scalars is still decided here, because
+        that is what identifies a design saved before the corrected basis
+        (#660) — and no subset may derive it. The project's "a fresh full fit
+        is required" contract is preserved for both outcomes.
+        """
         if self.hsgp_L is None or self.hsgp_m is None or self.hsgp_center is None:
             raise ValueError("incomplete saved HSGP design (m, L, center); a fresh full fit is required")
-        if (
-            isinstance(self.hsgp_m, bool)
-            or not isinstance(self.hsgp_m, int)
-            or self.hsgp_m < 1
-            or not np.isfinite(self.hsgp_L)
-            or self.hsgp_L <= 0
-            or not np.isfinite(self.hsgp_center)
-        ):
-            raise ValueError("invalid saved HSGP design; a fresh full fit is required")
-        return {"m": self.hsgp_m, "L": self.hsgp_L, "center": self.hsgp_center}
+        try:
+            return HSGPDesign(m=self.hsgp_m, L=self.hsgp_L, center=self.hsgp_center)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("invalid saved HSGP design; a fresh full fit is required") from exc
+
+    def hsgp_kwargs(self) -> dict[str, Any]:
+        """Replay the complete basis; legacy designs require a fresh full fit."""
+        design = self.hsgp_design()
+        return {"m": design.m, "L": design.L, "center": design.center}
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)

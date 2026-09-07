@@ -21,6 +21,10 @@ from typing import Any
 
 import numpy as np
 
+from dse_research_utils.metadata.provenance import (
+    sha256_file as _shared_sha256_file,
+)
+
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
@@ -665,11 +669,8 @@ _REUSE_CONFIG_FIELDS = (
 
 
 def _sha256_path(path: str | Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    """The shared streaming file digest (#662); identical bytes and output."""
+    return _shared_sha256_file(path)
 
 
 def _fitted_data_identity(context: StatisticalFitContext) -> dict[str, Any]:

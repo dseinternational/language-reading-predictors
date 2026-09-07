@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import uuid
 from datetime import UTC, datetime
 from importlib import metadata
@@ -59,20 +60,49 @@ def test_source_provenance_fails_safely_without_git(monkeypatch, tmp_path):
     }
 
 
-def test_source_provenance_distinguishes_clean_checkout(monkeypatch, tmp_path):
-    responses = iter([str(tmp_path), "abc123", "main", ""])
-    monkeypatch.setattr(
-        provenance,
-        "_git_output",
-        lambda *args, **kwargs: next(responses),
-    )
+def _git(*arguments: str, cwd: Path) -> None:
+    subprocess.run(["git", *arguments], cwd=cwd, check=True, capture_output=True)
 
-    assert provenance.source_provenance(tmp_path) == {
-        "repository_root": str(tmp_path),
-        "commit": "abc123",
-        "branch": "main",
-        "dirty": False,
-    }
+
+def test_source_provenance_reads_a_real_checkout(tmp_path):
+    """Exercise the adapter against Git itself, not against canned responses.
+
+    ``commit`` / ``branch`` / ``dirty`` come from the shared
+    ``metadata.provenance.git_snapshot`` since #662, so a test that stubs this
+    module's own ``_git_output`` would no longer touch the code that produces
+    them. The manifest contract asserted here is the one that has not changed:
+    the four field names, the branch of a detached HEAD as ``None``, and
+    ``dirty`` covering tracked edits *and* untracked files.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git("init", "--initial-branch=main", cwd=repo)
+    _git("config", "user.email", "tests@example.org", cwd=repo)
+    _git("config", "user.name", "Tests", cwd=repo)
+    (repo / "tracked.txt").write_text("one\n", encoding="utf-8")
+    _git("add", "tracked.txt", cwd=repo)
+    _git("commit", "-m", "one", cwd=repo)
+
+    clean = provenance.source_provenance(repo)
+    assert Path(clean["repository_root"]).resolve() == repo.resolve()
+    assert clean["branch"] == "main"
+    assert len(clean["commit"]) == 40
+    assert clean["dirty"] is False
+    assert set(clean) == {"repository_root", "commit", "branch", "dirty"}
+
+    (repo / "tracked.txt").write_text("two\n", encoding="utf-8")
+    assert provenance.source_provenance(repo)["dirty"] is True
+
+    _git("checkout", "--", "tracked.txt", cwd=repo)
+    (repo / "untracked.txt").write_text("three\n", encoding="utf-8")
+    assert provenance.source_provenance(repo)["dirty"] is True
+
+    (repo / "untracked.txt").unlink()
+    _git("checkout", "--detach", cwd=repo)
+    detached = provenance.source_provenance(repo)
+    assert detached["branch"] is None
+    assert detached["commit"] == clean["commit"]
+    assert detached["dirty"] is False
 
 
 def test_source_provenance_defaults_to_package_checkout(monkeypatch):

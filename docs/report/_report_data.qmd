@@ -14,7 +14,6 @@ chapter's location and of Quarto's execution directory.
 ```{python}
 #| label: report-data-setup
 #| echo: false
-import json
 from pathlib import Path
 
 from IPython.display import Markdown
@@ -49,9 +48,45 @@ def model_dir(model_id: str, config: str = "reporting") -> Path:
     return _report.model_dir(model_id, config)
 
 
+# Artefacts that EXIST but could not be parsed: (model_id, artefact) -> reason.
+# ``report.readers`` (#662) separates that state from "not fitted yet", which the
+# previous ``path.exists()`` + ``json.loads`` pattern could not. A corrupt or
+# truncated file must not render as the reassuring pending-fit placeholder.
+unreadable_artifacts: dict[tuple[str, str], str] = {}
+
+
 def load_summary(model_id: str, name: str, config: str = "reporting"):
-    """A summary / diagnostic CSV for a fitted model, or None if not present."""
-    return _report.load_summary(model_id, name, config)
+    """A summary / diagnostic CSV for a fitted model, or None if not present.
+
+    Returns None for a missing file exactly as before. A file that is present
+    but unparsable is also None here — every caller already handles that — but
+    it is recorded, and :func:`show_gated` refuses to publish a model with any
+    recorded failure.
+    """
+    read = _report.read_summary(model_id, name, config)
+    if read.status == "invalid":
+        unreadable_artifacts[(model_id, f"{name}.csv")] = (
+            read.reason or "unreadable"
+        )
+        return None
+    return read.value
+
+
+def unreadable_artifacts_markdown() -> str:
+    """A visible list of every unparsable artefact seen so far in this render."""
+    if not unreadable_artifacts:
+        return ""
+    items = "\n".join(
+        f"- `{model_id}` / `{artefact}` ({reason})"
+        for (model_id, artefact), reason in sorted(unreadable_artifacts.items())
+    )
+    return (
+        "::: {.callout-important}\n"
+        "## Unreadable fit artefacts\n\n"
+        "These files are present but could not be parsed, so the results that "
+        "depend on them are withheld. An unreadable artefact is a failure, not a "
+        f"model awaiting a fit.\n\n{items}\n\n:::"
+    )
 
 
 def fig(model_id: str, filename: str, config: str = "reporting") -> str:
@@ -75,15 +110,16 @@ def load_diagnostics(model_id: str, config: str = "reporting"):
     """The convergence-gate payload (``diagnostics_summary.json``), or None.
 
     ``passed`` is the gate verdict; ``checks`` breaks it down (rhat / ess /
-    divergences / bfmi).
+    divergences / bfmi). Missing and unreadable both return None, as before; an
+    unreadable gate is additionally recorded so it cannot pass as "not fitted".
     """
-    path = model_dir(model_id, config) / "diagnostics_summary.json"
-    if not path.exists():
+    read = _report.read_json(model_id, "diagnostics_summary", config)
+    if read.status == "invalid":
+        unreadable_artifacts[(model_id, "diagnostics_summary.json")] = (
+            read.reason or "unreadable"
+        )
         return None
-    try:
-        return json.loads(path.read_text())
-    except Exception:
-        return None
+    return read.value
 
 
 def show_gated(model_id: str, df, what: str, config: str = "reporting"):
@@ -98,6 +134,24 @@ def show_gated(model_id: str, df, what: str, config: str = "reporting"):
     a result CSV exists.
     """
     diag = load_diagnostics(model_id, config)
+    unreadable = {
+        artefact: reason
+        for (recorded_id, artefact), reason in unreadable_artifacts.items()
+        if recorded_id == model_id
+    }
+    if unreadable:
+        # An unparsable artefact is a failure state, and a failure state must be
+        # seen. Falling through to the pending-fit placeholder would describe a
+        # corrupt fit as one that has simply not been run.
+        files = ", ".join(
+            f"`{artefact}` ({reason})"
+            for artefact, reason in sorted(unreadable.items())
+        )
+        return Markdown(
+            f"**⚠ Unreadable artefact — {what} withheld.** `{model_id}` has "
+            f"output that is present but could not be parsed: {files}. Re-run the "
+            "fit or regenerate the affected artefact before reading its results."
+        )
     if convergence_gate_clean_passed(diag):
         return show_or_pending(df, what)
     if diag is None and df is None:

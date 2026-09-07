@@ -32,10 +32,8 @@ substantive output.
 
 from __future__ import annotations
 
-import json
 import os
 import re
-import tempfile
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -55,9 +53,18 @@ from dse_research_utils.statistics.diagnostics import (
     _bfmi_per_chain,
 )
 from dse_research_utils.statistics.diagnostics import (
+    amend_diagnostics_summary,
+)
+from dse_research_utils.statistics.diagnostics import (
     write_diagnostics_summary as _shared_write_diagnostics_summary,
 )
 
+from dse_research_utils.statistics.log_likelihood import (
+    LogLikelihoodFactor,
+    aggregate_log_likelihood,
+)
+
+from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     record_artifact,
@@ -278,23 +285,30 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
         )
     if rows.size and (rows.min() < 0 or rows.max() >= n_children):
         raise ValueError("child-row map contains an out-of-range child index")
-    ordered = ll.transpose("chain", "draw", unit_dim)
-    aggregated = np.zeros(
-        (ordered.sizes["chain"], ordered.sizes["draw"], n_children), dtype=float
-    )
-    values = np.asarray(ordered.values, dtype=float)
-    for child in range(n_children):
-        aggregated[..., child] = values[..., rows == child].sum(axis=-1)
-    return xr.DataArray(
-        aggregated,
-        dims=("chain", "draw", "loo_child"),
-        coords={
-            "chain": ordered.coords["chain"],
-            "draw": ordered.coords["draw"],
-            "loo_child": np.arange(n_children),
-        },
-        name="y_post_child",
-        attrs={"loo_unit": "child", "aggregation": aggregation},
+    # The row-to-unit sum is ``statistics.log_likelihood.aggregate_log_likelihood``
+    # (#662). What stays here is everything that decides *what a unit is*: which
+    # map names a child, which likelihood node the map belongs to, how many
+    # children there are, and the refusal of an out-of-range index. The helper
+    # also converts to float64 before summing, exactly as this did.
+    try:
+        aggregated = aggregate_log_likelihood(
+            [
+                LogLikelihoodFactor(
+                    values=ll, row_dim=unit_dim, row_unit_ids=rows.tolist()
+                )
+            ],
+            unit_ids=list(range(n_children)),
+            unit_dim="loo_child",
+        )
+    except ValueError as exc:
+        # A requested child with no row would previously have become a silent
+        # zero-likelihood unit in the PSIS-LOO — the phantom-unit defect the
+        # ``loo_child_idx`` branch above already guards against. Fail instead.
+        raise ValueError(
+            f"child-row map leaves a child with no {node!r} likelihood row: {exc}"
+        ) from exc
+    return aggregated.rename("y_post_child").assign_attrs(
+        loo_unit="child", aggregation=aggregation
     )
 
 
@@ -773,11 +787,14 @@ def write_diagnostics_summary(
     return reclassify_structural_constants(
         summary,
         context.trace.posterior,
-        path=os.path.join(context.output_dir, "diagnostics_summary.json"),
+        output_dir=context.output_dir,
+        tables=context.tables,
     )
 
 
-def reclassify_structural_constants(summary: dict, posterior, *, path=None) -> dict:
+def reclassify_structural_constants(
+    summary: dict, posterior, *, output_dir=None, tables=None
+) -> dict:
     """Downgrade exactly-constant coordinates from gate failures to a record.
 
     See :func:`split_structurally_constant`. Applied after the shared writer so
@@ -785,6 +802,16 @@ def reclassify_structural_constants(summary: dict, posterior, *, path=None) -> d
     verdict changes, the on-disk ``diagnostics_summary.json`` is rewritten to
     match what this function returns, and the reclassified names are kept under
     ``structurally_constant_parameters`` so the report can still disclose them.
+
+    The rewrite is ``diagnostics.amend_diagnostics_summary`` (#662): the same
+    read-modify-rewrite, but atomic, sanitised the way the fit's own writer
+    sanitises, and — because it takes the fit's table cache — no longer leaving
+    ``tables["diagnostics_summary"]`` holding the *pre*-reclassification verdict
+    while the file on disk carries the amended one. Which names are structural,
+    and therefore whether the verdict changes at all, is decided here.
+
+    ``output_dir=None`` amends the payload in memory only, for callers that have
+    no fit directory to rewrite.
     """
     unassessable = list(summary.get("unassessable_parameters") or [])
     if not unassessable:
@@ -792,17 +819,21 @@ def reclassify_structural_constants(summary: dict, posterior, *, path=None) -> d
     structural, genuine = split_structurally_constant(posterior, unassessable)
     if not structural:
         return summary
-    summary = dict(summary)
-    summary["structurally_constant_parameters"] = structural
-    summary["unassessable_parameters"] = genuine
-    checks = dict(summary.get("checks") or {})
-    checks["diagnostics_assessable"] = not genuine
-    summary["checks"] = checks
-    summary["passed"] = all(value is True for value in checks.values())
-    if path is not None:
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(summary, handle, indent=1)
-    return summary
+    updates = {
+        "structurally_constant_parameters": structural,
+        "unassessable_parameters": genuine,
+        "checks": {"diagnostics_assessable": not genuine},
+    }
+    if output_dir is None:
+        summary = dict(summary)
+        summary["structurally_constant_parameters"] = structural
+        summary["unassessable_parameters"] = genuine
+        checks = dict(summary.get("checks") or {})
+        checks["diagnostics_assessable"] = not genuine
+        summary["checks"] = checks
+        summary["passed"] = all(value is True for value in checks.values())
+        return summary
+    return amend_diagnostics_summary(str(output_dir), updates, tables=tables)
 
 
 #: Monte-Carlo tolerance for a derived (post-processed) headline estimand: the
@@ -849,8 +880,6 @@ def gate_derived_estimands(
     if not os.path.exists(path):
         rprint("[yellow]derived-estimand gate skipped: no diagnostics summary[/yellow]")
         return {}
-    with open(path, encoding="utf-8") as handle:
-        payload = json.load(handle)
 
     quantities = tuple(quantities)
     wanted = set(quantities)
@@ -896,15 +925,7 @@ def gate_derived_estimands(
         elif seen[name] > 1:
             failures.append(f"{name} (duplicated)")
 
-    payload.setdefault("checks", {})[label] = not failures
-    payload[f"{label}_detail"] = records
-    payload[f"{label}_failing"] = failures
-    payload[f"{label}_thresholds"] = {
-        "ess_floor": DERIVED_ESS_FLOOR,
-        "mcse_over_half_interval": DERIVED_MCSE_TOLERANCE,
-    }
     if failures:
-        payload["passed"] = False
         rprint(
             "[red]  Convergence gate: REVIEW — derived estimand(s) "
             f"{', '.join(failures)} missed the Monte-Carlo tolerance[/red]"
@@ -913,11 +934,27 @@ def gate_derived_estimands(
         rprint(
             f"  Derived estimands within Monte-Carlo tolerance ({len(records)} checked)."
         )
-    with open(path, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, default=str)
-    if context.tables is not None:
-        context.tables["diagnostics_summary"] = payload
-    return payload
+    # The read-modify-rewrite is ``diagnostics.amend_diagnostics_summary`` (#662).
+    # It merges the new check into ``checks`` rather than replacing them,
+    # recomputes ``passed`` from the merged set — the same verdict this used to
+    # reach by forcing ``passed=False`` on failure — writes the file atomically,
+    # and keeps ``context.tables`` agreeing with it. It also sanitises the
+    # per-quantity detail rows: a missing ESS or MCSE used to be serialised as a
+    # bare ``NaN`` token, which is not valid JSON and which the shared readers
+    # reject, and is now recorded as ``null``.
+    return amend_diagnostics_summary(
+        context.output_dir,
+        {
+            "checks": {label: not failures},
+            f"{label}_detail": records,
+            f"{label}_failing": failures,
+            f"{label}_thresholds": {
+                "ess_floor": DERIVED_ESS_FLOOR,
+                "mcse_over_half_interval": DERIVED_MCSE_TOLERANCE,
+            },
+        },
+        tables=context.tables,
+    )
 
 
 def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None) -> dict:
@@ -1389,7 +1426,6 @@ def psense_artifacts(
         os.unlink(summary_path)
     except FileNotFoundError:
         pass
-    temporary_path: str | None = None
     try:
         import arviz_stats as azs
 
@@ -1409,22 +1445,13 @@ def psense_artifacts(
             import pandas as pd
 
             df = pd.DataFrame(s)
-        descriptor, temporary_path = tempfile.mkstemp(
-            dir=out,
-            prefix=f".{stem}_summary-",
-            suffix=".tmp",
-        )
-        os.close(descriptor)
-        df.to_csv(temporary_path)
-        os.replace(temporary_path, summary_path)
-        temporary_path = None
+        # Serialisation (including the retained index) stays here; the temporary
+        # file, the single rename and the cleanup-on-failure are the shared
+        # helper's (#662). A failure still leaves no ``*_summary.csv`` at all,
+        # because the stale one was unlinked above before anything was computed.
+        write_atomic(summary_path, lambda temporary: df.to_csv(temporary))
     except Exception as exc:  # pragma: no cover
         df = None
-        if temporary_path is not None:
-            try:
-                os.unlink(temporary_path)
-            except FileNotFoundError:
-                pass
         rprint(f"[yellow]{stem}_summary skipped: {exc}[/yellow]")
 
     import arviz_plots as azp

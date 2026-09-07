@@ -53,6 +53,10 @@ from typing import Any, Literal, Sequence
 import numpy as np
 import pandas as pd
 
+from dse_research_utils.metadata.provenance import (
+    sha256_file as _shared_sha256_file,
+)
+
 from language_reading_predictors.statistical_models.artifacts import (
     record_artifact,
     save_table,
@@ -394,11 +398,8 @@ def _classify_failure(convergence: dict[str, Any]) -> tuple[str | None, str | No
 
 
 def _sha256_file(path: str | Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    """The shared streaming file digest (#662); identical bytes and output."""
+    return _shared_sha256_file(path)
 
 
 def _stored_text(value: Any) -> str:

@@ -19,6 +19,11 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 import xarray as xr
+from dse_research_utils.statistics.predictive import (
+    PredictiveObservationChecks,
+    predictive_observation_checks,
+)
+from dse_research_utils.statistics.samples import sample_matrix
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.estimands import (
@@ -485,10 +490,18 @@ def _ppc_node_arrays(
 
     ``y_rep`` is ``(n_obs, n_samples)`` (observation dims flattened, chain/draw
     stacked last) and ``y_obs`` is ``(n_obs,)``, taken from ``posterior_predictive``
-    and ``observed_data`` respectively. The observed array is transposed into the
+    and ``observed_data`` respectively. The observed array is matched to the
     predictive's observation-dim order before flattening so the two stay row-aligned
     for a multi-dim likelihood (e.g. the panel ``y_obs``). Non-finite observed rows
     are *kept* here — callers mask them — so both arrays share one row indexing.
+
+    Since #662 the reshape and the alignment check are
+    ``statistics.samples.sample_matrix`` / ``SampleMatrix.observed_values``. The row
+    and column orders are the ones this module has always used: observation dims in
+    the predictive's own order with the last varying fastest, then ``chain`` before
+    ``draw`` with ``draw`` varying fastest. The check itself is stronger — equal row
+    *counts* no longer pass for differing coordinate labels — which is the point:
+    a silently misaligned observed vector produced a plausible coverage number.
     """
     try:
         pp = trace.posterior_predictive[node]
@@ -497,22 +510,75 @@ def _ppc_node_arrays(
         raise KeyError(
             f"trace must contain posterior_predictive and observed_data for {node!r}"
         ) from exc
-    sample_dims = [d for d in pp.dims if d in ("chain", "draw")]
-    obs_dims = [d for d in pp.dims if d not in ("chain", "draw")]
+    sample_dims = tuple(d for d in pp.dims if d in ("chain", "draw"))
+    obs_dims = tuple(d for d in pp.dims if d not in ("chain", "draw"))
     if not sample_dims or not obs_dims:
         raise ValueError(f"{node!r} predictive has unexpected dims {pp.dims}")
-    y_rep = (
-        pp.stack(__sample__=sample_dims)
-        .transpose(*obs_dims, "__sample__")
-        .values.reshape(-1, int(np.prod([pp.sizes[d] for d in sample_dims])))
-    )
-    y_obs = obs_da.transpose(*obs_dims).values.reshape(-1).astype(float)
-    if y_obs.shape[0] != y_rep.shape[0]:
+    matrix = sample_matrix(pp, sample_dims=sample_dims, observation_dims=obs_dims)
+    try:
+        y_obs = matrix.observed_values(obs_da).astype(float)
+    except (TypeError, ValueError) as exc:
         raise ValueError(
-            f"{node!r} observed ({y_obs.shape[0]}) and replicated "
-            f"({y_rep.shape[0]}) rows are misaligned"
+            f"{node!r} observed values do not identify the replicated rows: {exc}"
+        ) from exc
+    return matrix.values, y_obs
+
+
+def _observation_checks(
+    y_obs: np.ndarray, y_rep: np.ndarray, probs: Sequence[float]
+) -> PredictiveObservationChecks | None:
+    """Per-observation predictive summaries, or ``None`` when no rows remain.
+
+    ``statistics.predictive.predictive_observation_checks`` (#662) owns the
+    quantile bounds, the closed-interval inclusion flags and the medians. Two
+    project decisions stay here:
+
+    * **Which rows are reported.** Callers mask non-finite observed values (and
+      apply the same mask to the labels and groups) before calling; the shared
+      helper deliberately refuses to choose an observation population.
+    * **What a degenerate population reports.** A fit with no finite observed
+      row still writes its coverage row with ``n_total = 0`` and
+      ``coverage = NaN``; a floor-rule node whose single ``"all"`` cell has no
+      observations still writes that cell with NaN bounds and ``inside=False``.
+      The shared helper rejects both an empty observation axis and a non-finite
+      observation, so those cases are answered here and never reach it.
+
+    The upper bound now comes from the shared ``1 - (1 - p) / 2`` rather than
+    this module's ``(1 + p) / 2``. The two are algebraically equal and, in
+    float64, identical for every ``p >= 0.25`` — which covers every interval
+    this project publishes (50%, 89%, 90%, 95%); see
+    ``test_the_shared_upper_quantile_matches_the_one_it_replaced``.
+    """
+    if y_obs.shape[0] == 0 or not np.isfinite(y_obs).all():
+        return None
+    return predictive_observation_checks(
+        y_obs, y_rep, interval_probs=tuple(float(p) for p in probs), sample_axis=1
+    )
+
+
+
+def _summary_columns(
+    checks: PredictiveObservationChecks | None, n_rows: int
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """The single-interval median / bounds / inclusion columns of a check table.
+
+    A degenerate population — no rows at all, or a single cell with no
+    observations — reports NaN summaries and ``inside=False``, which is what the
+    quantile arithmetic these tables used to do inline produced for it.
+    """
+    if checks is None:
+        return (
+            np.full(n_rows, np.nan),
+            np.full(n_rows, np.nan),
+            np.full(n_rows, np.nan),
+            np.zeros(n_rows, dtype=bool),
         )
-    return y_rep, y_obs
+    return (
+        checks.predictive_median,
+        checks.lower[:, 0],
+        checks.upper[:, 0],
+        checks.inside[:, 0],
+    )
 
 
 def ppc_interval_coverage(
@@ -534,12 +600,11 @@ def ppc_interval_coverage(
     finite = np.isfinite(y_obs)
     y_rep, y_obs = y_rep[finite], y_obs[finite]
     n = int(y_obs.shape[0])
+    checks = _observation_checks(y_obs, y_rep, ci_levels)
     rows: list[dict[str, object]] = []
-    for p in ci_levels:
-        lo = np.quantile(y_rep, (1.0 - p) / 2.0, axis=1)
-        hi = np.quantile(y_rep, (1.0 + p) / 2.0, axis=1)
-        inside = (y_obs >= lo) & (y_obs <= hi)  # closed interval convention
-        n_in = int(np.count_nonzero(inside))
+    for column, p in enumerate(ci_levels):
+        # Closed-interval convention, unchanged.
+        n_in = 0 if checks is None else int(np.count_nonzero(checks.inside[:, column]))
         rows.append(
             {
                 "mode": "count_interval",
@@ -591,10 +656,11 @@ def ppc_interval_coverage_by_group(
         keep = labels == label
         subset_rep, subset_obs = y_rep[keep], y_obs[keep]
         n = int(subset_obs.shape[0])
-        for p in ci_levels:
-            lo = np.quantile(subset_rep, (1.0 - p) / 2.0, axis=1)
-            hi = np.quantile(subset_rep, (1.0 + p) / 2.0, axis=1)
-            n_in = int(np.count_nonzero((subset_obs >= lo) & (subset_obs <= hi)))
+        checks = _observation_checks(subset_obs, subset_rep, ci_levels)
+        for column, p in enumerate(ci_levels):
+            n_in = (
+                0 if checks is None else int(np.count_nonzero(checks.inside[:, column]))
+            )
             rows.append(
                 {
                     "mode": "count_interval",
@@ -627,16 +693,15 @@ def ppc_calibration_table(
     y_rep, y_obs = _ppc_node_arrays(trace, node)
     finite = np.isfinite(y_obs)
     y_rep, y_obs = y_rep[finite], y_obs[finite]
-    lo_q, hi_q = (1.0 - ci_prob) / 2.0, (1.0 + ci_prob) / 2.0
-    lo = np.quantile(y_rep, lo_q, axis=1)
-    hi = np.quantile(y_rep, hi_q, axis=1)
+    checks = _observation_checks(y_obs, y_rep, (ci_prob,))
+    median, lo, hi, inside = _summary_columns(checks, len(y_obs))
     return pd.DataFrame(
         {
             "observed": y_obs,
-            "pp_median": np.median(y_rep, axis=1),
+            "pp_median": median,
             "pp_lo": lo,
             "pp_hi": hi,
-            "inside": (y_obs >= lo) & (y_obs <= hi),
+            "inside": inside,
         }
     )
 
@@ -688,18 +753,20 @@ def ppc_offfloor_cell_table(
     floor-rule PPC figure and its data CSV.
     """
     labels, obs_rate, rep_rate, cell_n = _offfloor_cell_rates(trace, node, group)
-    lo_q, hi_q = (1.0 - ci_prob) / 2.0, (1.0 + ci_prob) / 2.0
-    lo = np.quantile(rep_rate, lo_q, axis=1)
-    hi = np.quantile(rep_rate, hi_q, axis=1)
+    # The evaluated unit here is the group CELL, not the observation: the shared
+    # helper is given one "observation" per cell and that cell's replicated-rate
+    # draws (#662 keeps that distinction in the caller, where it belongs).
+    checks = _observation_checks(obs_rate, rep_rate, (ci_prob,))
+    median, lo, hi, inside = _summary_columns(checks, len(obs_rate))
     return pd.DataFrame(
         {
             "cell": [str(lbl) for lbl in labels],
             "n": cell_n,
             "observed_rate": obs_rate,
-            "pp_rate_median": np.median(rep_rate, axis=1),
+            "pp_rate_median": median,
             "pp_rate_lo": lo,
             "pp_rate_hi": hi,
-            "inside": (obs_rate >= lo) & (obs_rate <= hi),
+            "inside": inside,
         }
     )
 
@@ -723,12 +790,11 @@ def ppc_offfloor_rate_coverage(
     """
     labels, obs_rate, rep_rate, _cell_n = _offfloor_cell_rates(trace, node, group)
     n_cells = len(labels)
+    checks = _observation_checks(obs_rate, rep_rate, ci_levels)
     rows: list[dict[str, object]] = []
-    for p in ci_levels:
-        lo = np.quantile(rep_rate, (1.0 - p) / 2.0, axis=1)
-        hi = np.quantile(rep_rate, (1.0 + p) / 2.0, axis=1)
-        inside = (obs_rate >= lo) & (obs_rate <= hi)  # closed interval convention
-        n_in = int(np.count_nonzero(inside))
+    for column, p in enumerate(ci_levels):
+        # Closed-interval convention, unchanged.
+        n_in = 0 if checks is None else int(np.count_nonzero(checks.inside[:, column]))
         rows.append(
             {
                 "mode": "offfloor_rate",

@@ -447,6 +447,146 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
     assert "0.654" in html
 
 
+def _render_report_fixture(tmp_path):
+    """Render ``index.qmd`` in ``tmp_path`` with the repo's package importable."""
+    env = {
+        key: os.environ[key]
+        for key in ("PATH", "LANG", "LC_ALL", "TMPDIR", "SYSTEMROOT")
+        if key in os.environ
+    }
+    env["HOME"] = str(tmp_path)
+    env["QUARTO_PYTHON"] = sys.executable
+    env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
+    env["PYTHONPATH"] = os.pathsep.join(
+        filter(None, (str(REPO / "src"), str(REPO), env.get("PYTHONPATH")))
+    )
+    subprocess.run(
+        [QUARTO, "render", "index.qmd", "--to", "html"],
+        cwd=tmp_path,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return (tmp_path / "index.html").read_text(encoding="utf-8")
+
+
+def _unreadable_fixture(
+    tmp_path, *, gate: str, loadings: str, release: str | None = None
+) -> None:
+    """A minimal corr_factor fit directory with a chosen gate and loadings file."""
+    import arviz as az
+    import numpy as np
+
+    partials = tmp_path / "_partials"
+    partials.mkdir()
+    for name in ("_setup.qmd", "_gate_badge.qmd", "_results_corr_factor.qmd"):
+        shutil.copy(REPO / "docs/models/_partials" / name, partials / name)
+
+    (tmp_path / "config.json").write_text(
+        json.dumps(
+            {
+                "model_id": "unreadable-fixture",
+                "kind": "corr_factor",
+                "outcome_symbol": "W",
+                "title": "Unreadable fixture",
+            }
+        )
+    )
+    (tmp_path / "diagnostics_summary.json").write_text(gate)
+    if release is not None:
+        (tmp_path / "release_decision.json").write_text(release)
+    az.from_dict({"posterior": {"theta": np.zeros((2, 4))}}).to_netcdf(
+        tmp_path / "trace.nc"
+    )
+    (tmp_path / "loadings_summary.csv").write_text(loadings)
+    (tmp_path / "factor_correlation.csv").write_text(
+        ",SECRET_FACTOR\nSECRET_FACTOR,1\n"
+    )
+    (tmp_path / "index.qmd").write_text(
+        "---\n"
+        'title: "Unreadable fixture"\n'
+        "format: html\n"
+        "---\n\n"
+        "{{< include _partials/_setup.qmd >}}\n\n"
+        "{{< include _partials/_gate_badge.qmd >}}\n\n"
+        "{{< include _partials/_results_corr_factor.qmd >}}\n\n"
+        "```{python}\n"
+        "# | echo: false\n"
+        "# | output: asis\n"
+        'print("RECORDED " + " ".join(sorted(unreadable_artifacts)))\n'
+        "```\n"
+    )
+
+
+_CLEAN_GATE = json.dumps(
+    {
+        "passed": True,
+        "scan_completed": True,
+        "checks": {
+            "rhat": True,
+            "ess": True,
+            "divergences": True,
+            "bfmi": True,
+            "diagnostics_assessable": True,
+        },
+        "divergences": 0,
+        "max_rhat": 1.0,
+        "min_ess": 4000.0,
+        "bfmi_per_chain": [0.9, 0.9],
+    }
+)
+
+
+@pytest.mark.skipif(QUARTO is None, reason="Quarto is not installed")
+def test_an_unreadable_gate_is_named_rather_than_read_as_an_unfitted_model(tmp_path):
+    """A present-but-unparsable artefact is a failure, not a pending fit (#662).
+
+    Before the shared ``report.readers`` facts, ``_setup``'s ``_json`` returned
+    ``None`` for a missing file and for a truncated one alike, so a corrupt gate
+    was indistinguishable from a model nobody had fitted yet. The badge must now
+    name the file, and the scientific tables must stay withheld.
+    """
+    _unreadable_fixture(
+        tmp_path,
+        gate='{"passed": true, "checks"',  # truncated: the file exists
+        loadings="indicator,loading_median\nSECRET_LOADING,9\n",
+    )
+
+    html = _render_report_fixture(tmp_path)
+
+    assert "Unreadable fit artefact" in html
+    assert "diagnostics_summary.json" in html
+    assert "Sampling-quality gate" in html
+    assert "No loadings summary" in html
+    assert "SECRET_" not in html
+
+
+@pytest.mark.skipif(QUARTO is None, reason="Quarto is not installed")
+def test_an_unreadable_result_table_withholds_the_tables_rendered_after_it(tmp_path):
+    """The gate is clean, so the corrupt CSV is actually read — and recorded.
+
+    Visibility is still decided before a file is opened, so this also pins the
+    late-withholding order the report depends on: the failure is discovered while
+    rendering the loadings table and suppresses every scientific table after it.
+    """
+    _unreadable_fixture(
+        tmp_path,
+        gate=_CLEAN_GATE,
+        release=json.dumps({"publishable": True, "stage": "robustness"}),
+        # Ragged quoting pandas cannot parse.
+        loadings='indicator,loading_median\n"SECRET_LOADING,9\n9,9,9,9\n',
+    )
+
+    html = _render_report_fixture(tmp_path)
+
+    assert "RECORDED loadings_summary.csv" in html
+    assert "No loadings summary" in html
+    # factor_correlation.csv is readable, and is rendered after the failure.
+    assert "SECRET_FACTOR" not in html
+    assert "No factor-correlation matrix" in html
+
+
 # --- Report-template import contract (#641 facade regression) -----------------
 #
 # The #641 reporting split left ``statistical_models.reporting`` as a re-export

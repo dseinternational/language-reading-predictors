@@ -10,7 +10,9 @@ from pathlib import Path
 
 import arviz as az
 import numpy as np  # noqa: F401  (available to downstream partials)
-import pandas as pd
+import pandas as pd  # noqa: F401  (available to downstream partials)
+from dse_research_utils.report.readers import read_csv as _read_csv_file
+from dse_research_utils.report.readers import read_json as _read_json_file
 
 from language_reading_predictors.statistical_models import measures as _measures
 from language_reading_predictors.statistical_models.reporting import (
@@ -24,19 +26,61 @@ with open(_here / "config.json") as _f:
 
 trace = az.from_netcdf(_here / "trace.nc")
 
+# Artefacts that EXIST but could not be parsed, mapped to the shared reader's
+# failure category. Missing and unreadable used to be indistinguishable here —
+# both returned None — so a truncated or half-written CSV/JSON rendered exactly
+# like a fit that had not written that artefact yet, which is the reassuring
+# reading of a failure. Since #662 an unreadable artefact is recorded and
+# withholds scientific output; _gate_badge names the files.
+unreadable_artifacts: dict[str, str] = {}
+
 
 def _has(name: str) -> bool:
     return (_here / name).exists()
 
 
+def _record_unreadable(name: str, reason: str | None) -> None:
+    """Record a parse failure and withhold scientific output from here on.
+
+    Assigning the module-level flag rather than capturing it keeps the *late*
+    withholding this report depends on: ``_key_findings`` reassigns the same
+    name partway through the render, and ``_csv`` / ``_img`` must see whichever
+    value is current when they are called, not one frozen at setup.
+    """
+    global _scientific_results_released
+    unreadable_artifacts[name] = reason or "unreadable"
+    _scientific_results_released = False
+
+
 def _json(name: str):
-    if not _has(name):
+    """Parsed JSON, or None for a file that is missing OR unreadable.
+
+    ``report.readers.read_json`` (#662) separates those two states, which
+    ``json.load`` behind an existence check could not. The return value stays
+    None for both, so every consumer is unchanged, but an unreadable file is now
+    recorded. The reader is also stricter than ``json.load``: bare ``NaN`` /
+    ``Infinity`` tokens are not JSON and are refused rather than read back as
+    floats. A JSON ``null`` remains a present value of None.
+    """
+    read = _read_json_file(_here / name)
+    if read.status == "invalid":
+        _record_unreadable(name, read.reason)
         return None
-    try:
-        with open(_here / name) as _fh:
-            return json.load(_fh)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
+    return read.value
+
+
+def _read_table(name: str, **kw):
+    """Parse one CSV, recording a read/parse failure rather than raising.
+
+    A header-only table is present and empty, as before. A zero-byte or
+    unparsable file is a *failure*, not an absent artefact.
+    """
+    read = _read_csv_file(_here / name, **kw)
+    if read.status == "present":
+        return read.value
+    if read.status == "invalid":
+        _record_unreadable(name, read.reason)
+    return None
 
 
 diag_summary = _json("diagnostics_summary.json") or {}
@@ -55,7 +99,13 @@ _release_blocked_structurally = _release_decision is None or (
     in ("inputs", "computation", "artifacts")
 )
 _scientific_results_released = (
-    _convergence_gate_passed and not _release_blocked_structurally
+    _convergence_gate_passed
+    and not _release_blocked_structurally
+    # An artefact that exists but could not be parsed is a failure state. It is
+    # recorded above rather than silently read as absent, and it withholds
+    # scientific output in its own right; ``_record_unreadable`` reasserts this
+    # for any failure discovered later in the render.
+    and not unreadable_artifacts
 )
 
 # A failed automatic gate withholds scientific result tables while leaving the
@@ -127,11 +177,15 @@ _GATE_VISIBLE_DIAGNOSTIC_IMG_PREFIXES = (
 
 
 def _csv(name: str, **kw):
+    # Visibility is decided BEFORE the file is read, so a withheld scientific
+    # table is never parsed and can never leak through a later code path.
     if not _has(name):
         return None
     if not _scientific_results_released:
         if name in _GATE_SAMPLER_DIAGNOSTIC_CSV:
-            table = pd.read_csv(_here / name, **kw)
+            table = _read_table(name, **kw)
+            if table is None:
+                return None
             safe = [
                 column
                 for column in table.columns
@@ -140,7 +194,7 @@ def _csv(name: str, **kw):
             return table.loc[:, safe]
         if name not in _GATE_VISIBLE_DIAGNOSTIC_CSV:
             return None
-    return pd.read_csv(_here / name, **kw)
+    return _read_table(name, **kw)
 
 
 def _img(path: str, alt: str = "", attrs: str = "{.lightbox}") -> str:

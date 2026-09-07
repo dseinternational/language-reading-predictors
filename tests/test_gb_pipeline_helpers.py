@@ -22,6 +22,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from dse_research_utils.ml.feature_groups import linkage_from_dissimilarity
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
 
@@ -45,10 +46,34 @@ def rank_predictors():
 
 
 def test_feature_selection_diagnostics_uses_average_linkage():
-    """Pin the linkage method: average, never Ward, on the 1 − dcor dissimilarity."""
+    """Pin the linkage method: average, never Ward, on the 1 − dcor dissimilarity.
+
+    Since #662 the pipeline builds its tree through
+    ``cluster_ranking.average_linkage_tree``, so this checks the *tree* rather
+    than the call spelling: it must equal SciPy average linkage on the same
+    dissimilarity, and differ from Ward. The shared constructor also refuses
+    Ward outright, which is asserted here so a later caller cannot reintroduce
+    it by passing a method through.
+    """
+    from language_reading_predictors.models.cluster_ranking import average_linkage_tree
+
     src = inspect.getsource(EstimatorPipeline.feature_selection_diagnostics)
-    assert "hierarchy.average(" in src
+    assert "average_linkage_tree(" in src
     assert "hierarchy.ward(" not in src
+
+    rng = np.random.default_rng(18)
+    n = 9
+    dissim = rng.random((n, n))
+    dissim = (dissim + dissim.T) / 2.0
+    np.fill_diagonal(dissim, 0.0)
+    condensed = squareform(dissim, checks=False)
+
+    tree = average_linkage_tree(dissim)
+    np.testing.assert_array_equal(tree, hierarchy.average(condensed))
+    assert not np.allclose(tree, hierarchy.ward(condensed))
+
+    with pytest.raises(ValueError, match="Euclidean-only"):
+        linkage_from_dissimilarity(dissim, method="ward")
 
 
 def test_rank_predictors_average_linkage_matches_scipy_average(rank_predictors):

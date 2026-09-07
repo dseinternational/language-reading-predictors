@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from preliz.distributions.distributions import Continuous
 
 
+from dse_research_utils.statistics.models.hsgp_design import HSGPDesign
+
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.hsgp import (
     build_hsgp_1d,
@@ -659,15 +661,21 @@ def build_mechanism_model(
             # The new boundary changes the approximation and requires a fresh fit.
             # Freeze both the domain midpoint and half-width on the full inputs.
             # A subset may lose either extreme, or retain only one input value.
+            # ``HSGPDesign.from_domain`` is the same arithmetic this used to do
+            # inline — half the input range, expanded by ``c``, about the input
+            # midpoint — now expressed once in the shared frozen-geometry type
+            # and validated against PyMC's own basis representability (#662).
+            # A refit replays the saved scalars through the same type instead of
+            # recalibrating from its own (possibly extreme-losing) rows.
             if frozen_design is None:
-                _hsgp_m = _MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m
-                _hsgp_center = float((mech_logit_std.min() + mech_logit_std.max()) / 2)
-                _hsgp_L = float((mech_logit_std.max() - mech_logit_std.min()) / 2 * _MECH_HSGP_C)
+                _design = HSGPDesign.from_domain(
+                    mech_logit_std,
+                    m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
+                    c=_MECH_HSGP_C,
+                )
             else:
-                frozen_design.hsgp_kwargs()  # Refuse incomplete legacy designs.
-                _hsgp_m = frozen_design.hsgp_m
-                _hsgp_L = frozen_design.hsgp_L
-                _hsgp_center = frozen_design.hsgp_center
+                _design = frozen_design.hsgp_design()  # Refuse incomplete legacy designs.
+            _hsgp_m, _hsgp_L, _hsgp_center = _design.m, _design.L, _design.center
             f_mech = build_hsgp_1d(
                 "f_mech",
                 mech_logit_std,

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -231,22 +232,30 @@ def test_run_psense_atomically_replaces_summary(
     monkeypatch.setattr(azs, "psense_summary", lambda *_args, **_kwargs: expected)
     monkeypatch.setattr(diag, "_save_pc", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(diag, "thin_for_plots", lambda trace: trace)
-    real_replace = diag.os.replace
+    # The temporary file and the single rename come from
+    # ``storage.files.atomic_write`` (#662), so this asserts the contract that
+    # matters — one replacement onto the summary path, from a hidden sibling in
+    # the same directory that no longer exists afterwards — rather than the
+    # helper's private temporary-file naming.
+    real_replace = os.replace
     replacements: list[tuple[Path, Path]] = []
 
     def _record_replace(source, destination):
         replacements.append((Path(source), Path(destination)))
         real_replace(source, destination)
 
-    monkeypatch.setattr(diag.os, "replace", _record_replace)
+    monkeypatch.setattr(os, "replace", _record_replace)
 
     diag.run_psense(context, var_names=["tau"])
 
+    monkeypatch.undo()
     summary_path = tmp_path / "psense_summary.csv"
     assert len(replacements) == 1
     assert replacements[0][1] == summary_path
     assert replacements[0][0].parent == tmp_path
-    assert replacements[0][0].name.startswith(".psense_summary-")
+    assert replacements[0][0] != summary_path
+    assert replacements[0][0].name.startswith(".")
+    assert replacements[0][0].suffix == ".csv"
     assert summary_path.is_file()
     assert not replacements[0][0].exists()
     assert context.tables["psense_summary"].equals(expected)
@@ -488,8 +497,12 @@ def test_joint_log_likelihood_is_aggregated_by_child():
     values = np.array([[[1.0, 2.0, 4.0, 8.0], [10.0, 20.0, 40.0, 80.0]]])
     trace = xr.DataTree.from_dict(
         {
+            # Sample dimensions carry explicit coordinate indexes, as every real
+            # PyMC/ArviZ trace does; the shared aggregation used since #662
+            # matches factors by those labels rather than by array shape.
             "log_likelihood": xr.Dataset(
-                {"y_post": (("chain", "draw", "cell"), values)}
+                {"y_post": (("chain", "draw", "cell"), values)},
+                coords={"chain": [0], "draw": [0, 1]},
             ),
             "constant_data": xr.Dataset(
                 {
@@ -511,7 +524,8 @@ def test_marked_repeated_rows_are_aggregated_by_child():
     trace = xr.DataTree.from_dict(
         {
             "log_likelihood": xr.Dataset(
-                {"y_post": (("chain", "draw", "obs_id"), values)}
+                {"y_post": (("chain", "draw", "obs_id"), values)},
+                coords={"chain": [0], "draw": [0, 1]},
             ),
             "constant_data": xr.Dataset(
                 {"loo_child_idx": ("obs_id", np.array([0, 1, 0]))}
@@ -541,12 +555,16 @@ def _repeated_transition_joint_trace() -> xr.DataTree:
                 {"tau": (("chain", "draw", "outcome"), np.zeros((1, 1, 2)))},
                 coords={"chain": [0], "draw": [0], "outcome": ["W", "N"]},
             ),
-            "observed_data": xr.Dataset({"y_post": ("cell", np.arange(12))}),
+            "observed_data": xr.Dataset(
+                {"y_post": ("cell", np.arange(12))}, coords={"cell": range(12)}
+            ),
             "posterior_predictive": xr.Dataset(
-                {"y_post": (("chain", "draw", "cell"), values)}
+                {"y_post": (("chain", "draw", "cell"), values)},
+                coords={"chain": [0], "draw": [0], "cell": range(12)},
             ),
             "log_likelihood": xr.Dataset(
-                {"y_post": (("chain", "draw", "cell"), -values)}
+                {"y_post": (("chain", "draw", "cell"), -values)},
+                coords={"chain": [0], "draw": [0], "cell": range(12)},
             ),
             "constant_data": xr.Dataset(
                 {
@@ -609,7 +627,8 @@ def test_marked_repeated_rows_ignore_per_row_G_for_the_unit_count():
     trace = xr.DataTree.from_dict(
         {
             "log_likelihood": xr.Dataset(
-                {"y_post": (("chain", "draw", "cell"), values)}
+                {"y_post": (("chain", "draw", "cell"), values)},
+                coords={"chain": [0], "draw": [0, 1]},
             ),
             "constant_data": xr.Dataset(
                 {
@@ -1661,8 +1680,14 @@ def test_reclassify_structural_constants_flips_the_verdict_and_rewrites(tmp_path
     }
     path = tmp_path / "diagnostics_summary.json"
     path.write_text(json.dumps(summary))
-    out = reclassify_structural_constants(summary, posterior, path=str(path))
+    tables: dict = {}
+    out = reclassify_structural_constants(
+        summary, posterior, output_dir=tmp_path, tables=tables
+    )
     assert out["passed"] is True
+    # The fit's table cache must agree with the amended file (#662): it used to
+    # keep the pre-reclassification verdict the shared writer had stored.
+    assert tables["diagnostics_summary"] is out
     assert out["checks"]["diagnostics_assessable"] is True
     assert out["unassessable_parameters"] == []
     assert out["structurally_constant_parameters"] == [
@@ -1683,7 +1708,7 @@ def test_reclassify_keeps_genuine_unassessables_failing(tmp_path):
         "checks": {"rhat": True, "diagnostics_assessable": False},
         "unassessable_parameters": ["measure_corr_chol[0, 0]", "stuck"],
     }
-    out = reclassify_structural_constants(summary, posterior, path=None)
+    out = reclassify_structural_constants(summary, posterior, output_dir=None)
     assert out["passed"] is False
     assert out["checks"]["diagnostics_assessable"] is False
     assert out["unassessable_parameters"] == ["stuck"]
