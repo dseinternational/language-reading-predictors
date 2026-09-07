@@ -65,6 +65,45 @@ def test_the_long_file_carries_the_subtest_at_t1_only_like_block_design():
     assert by_wave == blocks_by_wave == {1: 54, 2: 0, 3: 0, 4: 0}
 
 
+def test_load_data_broadcasts_both_subtests_identically():
+    """A t1-only column that is broadcast and one that is not is a silent trap.
+
+    ``load_data`` broadcasts ``blocks`` from t1 across a child's rows so it is
+    usable as a time-invariant baseline. Object Assembly is recorded the same way
+    and must behave the same way, or a model opting it in via ``include`` would
+    get a column that is null on three of four rows while its sibling is not.
+    Both stay out of the default predictor sets either way.
+    """
+    from language_reading_predictors.data_utils import load_data
+
+    with pytest.warns(UserWarning):
+        frame = load_data()
+
+    for column in (V.BLOCKS, V.OBJASS):
+        assert frame[column].notna().all(), f"{column} was not broadcast from t1"
+        assert str(frame[column].dtype) == "Float64", f"{column} has the wrong dtype"
+        per_child = frame.groupby(V.SUBJECT_ID)[column].nunique()
+        assert per_child.max() <= 1, f"{column} is not constant within child"
+
+
+def test_the_schema_knows_object_assembly_as_a_source_column():
+    """Every comparable source measurement is in ALL and NUMERIC.
+
+    ``NUMERIC`` is what ``data_utils.configure_data_types`` keys on, so omitting
+    the column there left it inferred as ``Int64`` where ``blocks`` is
+    ``Float64``. ``TIME_INVARIANT_BASELINES`` documents the once-measured
+    variables whose replication across a child's rows can bias tree splits and
+    permutation importance, which is exactly what this subtest is.
+    """
+    for group in (V.ALL, V.NUMERIC, V.TIME_INVARIANT_BASELINES):
+        assert V.BLOCKS in group
+        assert V.OBJASS in group
+    # The composite is derived at load time, not a source column, so it belongs
+    # in none of them -- the same treatment as ``hs`` and ``aptinfo_x2``.
+    assert V.OBJASS_C not in V.ALL
+    assert V.OBJASS_C not in V.NUMERIC
+
+
 def test_the_composite_is_the_sum_of_the_two_subtests():
     df = pd.DataFrame({V.BLOCKS: [10.0, 0.0, np.nan], V.OBJASS: [5.0, 3.0, 2.0]})
 

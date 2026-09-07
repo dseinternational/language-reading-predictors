@@ -712,6 +712,7 @@ class Variables:
         GENDER,
         AGE,
         BLOCKS,
+        OBJASS,
         APTGRAM,
         APTINFO,
         B1EXTAU,
@@ -934,6 +935,7 @@ class Variables:
     NUMERIC: ClassVar[Sequence[str]] = [
         AGE,
         BLOCKS,
+        OBJASS,
         APTGRAM,
         APTINFO,
         B1EXTAU,
@@ -1132,6 +1134,7 @@ class Variables:
         BEDTIMEREAD,
         OTHERTIMEREAD,
         BLOCKS,
+        OBJASS,
         AGESPEAK,
     ]
     """

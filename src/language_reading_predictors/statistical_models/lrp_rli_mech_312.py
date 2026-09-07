@@ -13,9 +13,12 @@ contrast is what the mechanism family publishes.
 
 **Why.** LRP258 is the fit that answers "what does the curve look like once
 measured ability is partialled out", and the answer on record is that it barely
-moves: the endpoint contrast goes from +6.8 to +6.5 items, a 4% shift. That is a
-load-bearing robustness claim for the project's most-cited association, and it
-currently rests on one noisy subtest. The two subtests correlate at 0.664, so
+moves: on the family's declared interquartile estimand the curve reads +2.7
+items (89% +0.6 to +4.6) against +2.8 (+0.8 to +4.6) for the unadjusted LRP58.
+That is a load-bearing robustness claim for the project's most-cited
+association, and it currently rests on one noisy subtest — the mechanism
+findings note makes the same point, that adjusting for a mismeasured confounder
+removes only part of its influence. The two subtests correlate at 0.664, so
 Block Design alone is roughly a 0.66-reliable measure of what they share while
 the sum is roughly 0.80-reliable.
 

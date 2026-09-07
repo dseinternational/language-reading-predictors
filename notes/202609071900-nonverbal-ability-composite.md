@@ -52,12 +52,12 @@ Two of the four options considered, as agreed:
 
 Rejected, and why:
 
-- **Swapping the composite in everywhere.** Around 120 model modules carry the ability covariate, so it means a full re-sweep and a new artefact set, to move coefficients by well under a tenth of their standard error. Poor value, and it would invalidate the current artefacts for no scientific gain.
+- **Swapping the composite in everywhere.** Ninety-six registered modules declare an ability setting, across nine families and **nine different settings fields** (`ability_covariate`, `ability_by_time`, `age_ability_interaction`, `ability_adjust_symbols`, `group_ability` and others), of which only 21 use the `ability_covariate` field that admits the composite today. So it is not one swap but nine pieces of family-specific plumbing plus a broad refit, to move coefficients by well under a tenth of their standard error. Poor value, and it would invalidate the current artefacts for no scientific gain.
 - **A latent non-verbal factor / errors-in-variables model.** Cleanest methodologically, but two indicators is the bare minimum for identification and the notes already record the measurement model as fragile and prior-dependent at this sample size (`notes/202608061500-default-prior-recalibration-383.md`). It also would not improve identification, since the factor is still a proxy for `GA`.
 
 ## Why the whole panel and not just the headline
 
-The panel is what makes the argument. `LRP196`–`201` is a specificity comparison — the letter-sound slope on the written-code outcomes against the oral-language negative controls — so re-reading the word-reading cell alone would break its logic. `LRP312` is included because `LRP258` is the ability-adjusted version of the family's **headline estimand**, the flexible curve whose interquartile contrast the mechanism family publishes, and that claim ("+6.8 to +6.5 items, a 4 % shift") is load-bearing.
+The panel is what makes the argument. `LRP196`–`201` is a specificity comparison — the letter-sound slope on the written-code outcomes against the oral-language negative controls — so re-reading the word-reading cell alone would break its logic. `LRP312` is included because `LRP258` is the ability-adjusted version of the family's **headline estimand**, the flexible curve whose interquartile contrast the mechanism family publishes, and that claim — on the current interquartile estimand, +2.7 items ability-adjusted against +2.8 unadjusted — is load-bearing. (An earlier draft of this note quoted the retired observed-range figures of +6.8 and +6.5; the mechanism family moved to the interquartile contrast in September, so those numbers describe a superseded estimand.)
 
 | New    | Parent | Outcome                   | Role                             |
 | ------ | ------ | ------------------------- | -------------------------------- |
