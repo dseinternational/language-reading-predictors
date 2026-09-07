@@ -249,6 +249,58 @@ def derive_hearing_composite(df: pd.DataFrame) -> pd.Series | None:
     return derived
 
 
+def derive_nonverbal_ability_composite(df: pd.DataFrame) -> pd.Series | None:
+    """Return the two-subtest non-verbal ability composite, or ``None``.
+
+    ``blocks + objass`` — WPPSI-III Block Design plus Object Assembly, both
+    recorded at t1 only. Derived rather than stored, following the
+    :func:`derive_hearing_composite` precedent, so the definition lives in one
+    place and cannot drift from a stored column.
+
+    Why a raw sum rather than the average of the two standardised scores: the
+    subtests have near-equal spread in this cohort (standard deviations 6.26 and
+    6.77 over the 54 analysed children), so the two agree to a correlation of
+    0.99984, and every consumer standardises the result downstream in any case.
+    A raw sum also has no reference-sample ambiguity, whereas standardising the
+    components first would depend on which rows happened to be loaded.
+
+    What it is for: the suite adjusts for measured ability with Block Design
+    alone, and the two subtests correlate at 0.664, so a single subtest is
+    roughly a 0.66-reliable measure of what they share while the sum is roughly
+    0.80-reliable. The composite exists so an ability-adjusted result can be
+    re-read with the more reliable measure.
+
+    What it is **not**: an improved measure of the latent general ability ``GA``
+    of the causal diagram. Both subtests are perceptual-organisation tasks, so
+    their shared variance is a narrow visuospatial factor — the domain of
+    relative strength in the Down syndrome profile — and ``GA`` stays
+    unmeasured. Returns ``None`` when either component is absent, so a dataset
+    without both subtests is a no-op rather than a silent single-subtest
+    fallback.
+    """
+    if V.BLOCKS not in df.columns or V.OBJASS not in df.columns:
+        return None
+    blocks = pd.to_numeric(df[V.BLOCKS], errors="coerce")
+    objass = pd.to_numeric(df[V.OBJASS], errors="coerce")
+    return blocks + objass
+
+
+def add_nonverbal_ability_composite(df: pd.DataFrame) -> pd.DataFrame:
+    """Add the ``objass_c`` column so a fit can name it as its ability covariate.
+
+    A no-op when either subtest is absent. Unlike the hearing covariates this
+    adds no missing indicator: both subtests are complete for all 54 analysed
+    children, so the composite is complete wherever ``blocks`` is, and a fit
+    naming it drops exactly the rows a fit naming ``blocks`` drops.
+    """
+    composite = derive_nonverbal_ability_composite(df)
+    if composite is None:
+        return df
+    out = df.copy()
+    out[V.OBJASS_C] = composite
+    return out
+
+
 def add_hearing_status(df: pd.DataFrame) -> pd.DataFrame:
     """Derive the missing-indicator hearing-status (HS) covariates.
 
@@ -579,6 +631,9 @@ def load_and_prepare(
     # Derive the missing-indicator hearing-status covariates (HS; #244) up front so
     # ``hs`` / ``hs_missing`` are available as complete adjusters (no row dropping).
     df = add_hearing_status(df)
+    # The two-subtest non-verbal ability composite, so a fit can name ``objass_c``
+    # as its ability covariate and be read against the single-subtest default.
+    df = add_nonverbal_ability_composite(df)
     # Same for the continuous DAG-confounder covariates SP (deapp_c) and RW (erbto)
     # (#245): fill + ``{col}_missing`` so they can be adjusted for without dropping
     # within-child rows.

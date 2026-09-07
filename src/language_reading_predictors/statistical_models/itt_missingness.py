@@ -66,8 +66,12 @@ RLI_ARCHIVE_CSV_NAME = "dse-rli-trial-data-archive.csv"
 #: source for the mandatory word-reading missingness bundle; the
 #: ``--rli-randomised-archive`` option overrides it for a local re-check.
 RLI_ARCHIVE_LOCAL_CSV = _paths.DATA_DIR / RLI_ARCHIVE_CSV_NAME
+#: Whole-file digest of ``data/rli_data_wide.csv``.  Updated when the Object
+#: Assembly column was appended (``scripts/derive_object_assembly.py``); the
+#: 71-field reconciliation digest below is unaffected, because that column is
+#: not one of the reconciled fields.
 RLI_LOCAL_WIDE_SHA256 = (
-    "2c47eb49a96013a0283a225dcd8460ceb62720fdca60bcaeb3811345e5b7c99c"
+    "f698a4642ce2d8a6007e745be0d04ff7363b5be0068ba9f9f0d27462100eeebf"
 )
 RLI_RECONCILIATION_DIGEST = (
     "22b745ee81a32a5c654cfd0d480c0ba87dd9aea3a3f51a74ce3447e56ac37c0e"

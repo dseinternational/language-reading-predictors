@@ -98,7 +98,13 @@ _LEGACY_KEYS = frozenset(
 #: ``ability_covariate``. The loader broadcasts them from t1 via
 #: ``baseline_covariates``; anything else is a KeyError deep inside pandas, long
 #: after an output directory has been reset and the data loaded (#586).
-SUPPORTED_ABILITY_COVARIATES: frozenset[str] = frozenset({"blocks", "behav"})
+#: ``objass_c`` is the two-subtest non-verbal composite derived by
+#: :func:`preprocessing.derive_nonverbal_ability_composite`; it is admissible
+#: here so a fit can re-read an ability-adjusted result with a more reliable
+#: measure of the same visuospatial domain (never of latent general ability).
+SUPPORTED_ABILITY_COVARIATES: frozenset[str] = frozenset(
+    {"blocks", "behav", "objass_c"}
+)
 
 
 def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:

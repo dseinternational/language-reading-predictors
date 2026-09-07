@@ -321,6 +321,23 @@ _MECH = [
     _d("lrp303", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "phase-stability sensitivity: partially-pooled per-period letter-sound -> receptive-vocabulary slopes (#604)", "lrp97"),
     _d("lrp304", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp101 fit (n = 79) (#605)", "lrp101"),
     _d("lrp305", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp97 fit (n = 170) (#605)", "lrp97"),
+    # --- Composite-ability reliability check on the ability-adjusted panel ------
+    # The 1NN panel and lrp258 adjust for ``blocks`` alone, and the obvious rebuttal
+    # is that this is one noisy subtest. Block Design and Object Assembly correlate
+    # at 0.664 over the 54 analysed children, so a single subtest is roughly a
+    # 0.66-reliable measure of what they share while the sum ``objass_c`` is roughly
+    # 0.80-reliable. Each of these mirrors its 1NN/258 parent exactly except for the
+    # ability adjuster, so a difference is attributable to reliability alone. What
+    # the two subtests share is a narrow visuospatial factor, NOT the latent ``GA``
+    # of the DAG: these are still adjusted associations, and a screening regression
+    # expects agreement with the parent rather than movement.
+    _d("lrp306", "mechanism", "Mechanism", Status.COMPANION, "N", "composite-ability decoding channel: letter sounds -> nonword decoding (lrp196 with objass_c)", "lrp196"),
+    _d("lrp307", "mechanism", "Mechanism", Status.COMPANION, "R", "composite-ability negative control: letter sounds -> receptive vocabulary (lrp197 with objass_c)", "lrp197"),
+    _d("lrp308", "mechanism", "Mechanism", Status.COMPANION, "E", "composite-ability negative control: letter sounds -> expressive vocabulary (lrp198 with objass_c)", "lrp198"),
+    _d("lrp309", "mechanism", "Mechanism", Status.COMPANION, "T", "composite-ability negative control: letter sounds -> receptive grammar (lrp199 with objass_c)", "lrp199"),
+    _d("lrp310", "mechanism", "Mechanism", Status.COMPANION, "F", "composite-ability negative control: letter sounds -> basic concepts (lrp200 with objass_c)", "lrp200"),
+    _d("lrp311", "mechanism", "Mechanism", Status.COMPANION, "W", "composite-ability Tier-1 anchor: letter sounds -> word reading (lrp201 with objass_c)", "lrp201"),
+    _d("lrp312", "mechanism", "Mechanism", Status.COMPANION, "W", "composite-ability counterpart of the lrp258 letter-sound -> word-reading HSGP curve (lrp258 with objass_c)", "lrp258"),
     _d("lrppl01", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: letter sounds -> word reading (per-wave intercepts, child RE)"),
     _d("lrppl02", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "N", "wave-pooled between-child level association: letter sounds -> nonword decoding"),
     _d("lrppl101", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "no-wave-intercept comparator for lrppl01 (slope also carries secular co-movement)", "lrppl01"),
