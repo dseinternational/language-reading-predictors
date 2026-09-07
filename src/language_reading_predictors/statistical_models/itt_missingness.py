@@ -49,6 +49,12 @@ RLI_ARCHIVE_ZIP_URL = (
 RLI_ARCHIVE_ZIP_SHA256 = (
     "a015edd19d0d35e325f3a14a06cc5894e1beb3cc95ce6db6513b0c763b4a7d3b"
 )
+#: Where the CSV sits inside the upstream ZIP.  Retained for independent
+#: verification of the committed copy against the deposit: fetch
+#: :data:`RLI_ARCHIVE_ZIP_URL`, check it against
+#: :data:`RLI_ARCHIVE_ZIP_SHA256`, extract this member and check it against
+#: :data:`RLI_ARCHIVE_CSV_SHA256`.
+RLI_ARCHIVE_ZIP_MEMBER = "DSE_Data/dse-rli-trial-data-archive.csv"
 RLI_ARCHIVE_CSV_SHA256 = (
     "7c6cda3634c302d6b2b253ba01a9043bd0762d3f35a66027f9a2f1f2dbdc5ae7"
 )
