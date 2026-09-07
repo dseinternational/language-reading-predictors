@@ -90,7 +90,11 @@ def test_the_sampler_knob_survived_the_move_to_its_own_field():
         for spec in REGISTERED
         if spec_target_accept(spec) is not None
     }
-    assert len(declared) == 38
+    # 38 + lrp-rli-mech-312, whose 0.999 is inherited from its lrp-rli-mech-258
+    # parent: the composite-ability companion has to match the parent's HSGP
+    # basis, length-scale prior and acceptance target, or a difference between
+    # the two fits would not be attributable to the ability measure.
+    assert len(declared) == 39
     assert all(0.0 < value < 1.0 for value in declared.values())
     # Every one of them now reads from the first-class field.
     assert all(
