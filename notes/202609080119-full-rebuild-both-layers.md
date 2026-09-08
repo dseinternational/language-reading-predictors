@@ -121,6 +121,21 @@ These reuse the same randomised t2 information under a different specification a
 
 This is the expected split and a useful check on a from-scratch rebuild: level models are autoregressive and predict well, gain models sit near noise. GB output is a ranking, not evidence about causal claims.
 
+## This batch discharges the HSGP refits pending under #660
+
+Issue [#660](https://github.com/dseinternational/language-reading-predictors/issues/660) had two parts. The `v0.13.0` code migration landed in #661; the **20 HSGP mechanism reporting refits and their held-out comparisons stayed open**, because the boundary correction changed the basis — the library moved from a `max(abs(X))` domain to half the input range about the midpoint — and identical basis weights against a different basis describe a different curve. Old posteriors could not be rescored, only resampled. The later `v0.14.0` upgrade (#662 / PR #663) explicitly did **not** absorb that work: it expressed the same arithmetic through `HSGPDesign.from_domain`, verified to reproduce the retired boundary exactly on 2,000 random domains, and recorded that the 47 disagreeing stored mechanism identities "belong to the refits already pending under #660".
+
+This batch refit all 20 as part of the full sweep. Measured against `notes/assets/20260906-hsgp-refit-inventory-660.csv`, now updated in place with the post-refit state beside the preserved `old_*` audit columns:
+
+- **20/20 refit** at commit `173dc0aa`, all carrying `hsgp_basis_version = midpoint-half-range-v1`.
+- **20/20 stored `hsgp_m` / `hsgp_L` / `hsgp_center` and exposure scalers reproduce the migrated inventory exactly**, to a tolerance of 1e-12 — so the fitted basis is the one the migration predicted, not a reconstruction.
+- **20/20 pass the convergence gate with 0 divergences and are publishable**, so no publication or comparison reader is withholding them as pending. Eighteen declare `target_accept` 0.999 in-module; `mech-073` and `mech-204` sit at the 0.95 preset, and `mech-104` is the batch's remediation at 0.98.
+- **8 of the 20 carry a nested held-out comparison**, and every one is `comparison_valid=True` under `psis+reloo` with one exact refit: `mech-058`/`071`, `061`/`161`, `063`/`163` and `104`/`204`. The remaining 12 have no registered nested comparator, so per-fit PSIS-LOO is the whole of their held-out evidence.
+
+Worth recording because it supersedes an earlier working assumption: nested LOO over HSGP pairs used to degrade to per-model ELPD, every pair hitting Pareto-k around 0.9–1.0. The #438 exact-refit repair now fixes those influential points, so these comparisons are valid rather than abandoned. All four verdicts are inconclusive (|elpd_diff| < 4), which is a statement about discrimination, not about the refits.
+
+The implementation checklist in #660 is a separate matter and this note does not speak to it; what is discharged here is the scientific obligation — the fresh fits, their recorded identities and their comparison outcomes.
+
 ## Open residuals
 
 1. **14 fits record no `data_sha256`** — `surv-009/011`, the six `rlm-adj-*`, `rlm-ca-001/002`, `rlm-hs-001/002/003`, `rlm-mm-001`. **Byte-identical to the set the 2026-09-01 batch recorded.** Nothing consumes the field for these families, so this is a provenance gap, not a correctness one.
