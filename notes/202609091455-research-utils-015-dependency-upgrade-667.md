@@ -57,7 +57,18 @@ That pattern — two of three fits bit-identical, the third displaced — is the
 
 Repeating the `rho = 0` fit across eight sampler seeds measures how much of this is ordinary Monte Carlo noise. Under the pre-#667 stack the estimate spans -0.035 to +0.042 (mean +0.007, sd 0.025); under the new one it spans -0.016 to +0.113 (mean +0.046, sd 0.048). So the spread roughly doubles and shifts slightly positive on this deliberately weakly-identified fixture. The `abs=0.1` tolerance was about four standard deviations on the old stack and about one on the new — it was calibrated against one stack's value rather than against the estimator's variability, which is why a change that moves no model could cross it.
 
-The tolerance is widened to `abs=0.2` with that measurement recorded at the assertion. It keeps all of the test's discriminating power: the correlated fits give ±0.55, and the directional ordering assertion, which the fixture's docstring names as the actual question, passes on every seed on both stacks. **This is the one place in this PR where a scientific test's threshold was changed, and it is worth a second opinion** — the alternative reading is that the coarse fixture should buy the precision instead, by sampling more draws.
+The fix is to buy the precision rather than to widen the threshold: the fixture now samples **4,000 draws** and the tolerance stays at `abs=0.1`. Repeating the `rho = 0` fit over six seeds at each draw count shows why that is the right lever, and settles what the displacement was:
+
+| draws | mean       | sd        | max \|r\| |
+| ----- | ---------- | --------- | --------- |
+| 500   | +0.031     | 0.051     | 0.113     |
+| 1,000 | +0.027     | 0.039     | 0.063     |
+| 2,000 | +0.010     | 0.035     | 0.051     |
+| 4,000 | **+0.011** | **0.026** | **0.042** |
+
+The spread falls about as 1/sqrt(draws), and — the part that matters — the estimate converges on +0.011 rather than on the +0.113 that seed 41 produced at 500 draws. The displacement was Monte Carlo noise in a quantity the fixture was not sampling hard enough to assert about, not a shifted posterior. At 4,000 draws the seed-to-seed sd is 0.026, which is what the pre-#667 stack had at 500, so `abs=0.1` is again the roughly four-deviation margin it was originally written as, and the widest of the six seeds sits at 0.042.
+
+The cost is about five seconds. Compiling the model dominates this fixture, so eight times the draws takes the file from roughly 38 to 43 seconds. The directional ordering assertion, which the fixture's docstring names as the actual question, passes on every seed on both stacks either way; what the extra draws buy is the independence check beside it.
 
 Nothing here bears on the registered fits, which sample at reporting resolution behind an ESS and R-hat gate rather than at 500 draws with no gate at all. The practical consequence is narrower and already implied by the identity result: the same model and the same seed do not have to yield the same draws once the compiled numerics change, so a posterior may only be compared with another sampled under the same environment lock. Which is exactly what the next section enforces.
 
@@ -91,7 +102,7 @@ This predates #667 and is out of its scope. It is recorded here because it is th
 ## Validation
 
 - `uv sync --locked` installed `dse-research-utils` 0.15.0 at the released commit `e818caf5`; installed metadata confirms both the tag and the commit.
-- `uv run pytest` — 3,456 passed, 1 skipped, 0 failed. The upgrade surfaced two failures, both addressed above and neither silenced: the two `tests/test_type_coverage.py` failures were the three NumPy 2.5 annotation errors, fixed at their call sites rather than exempted, and `test_joint_dependence.py::test_the_declared_contrast_carries_the_fitted_dependence` was the sampler-path divergence, whose tolerance is now sized to the measured spread.
+- `uv run pytest` — 3,456 passed, 1 skipped, 0 failed. The upgrade surfaced two failures, both addressed above and neither silenced: the two `tests/test_type_coverage.py` failures were the three NumPy 2.5 annotation errors, fixed at their call sites rather than exempted, and `test_joint_dependence.py::test_the_declared_contrast_carries_the_fitted_dependence` was the sampler-path divergence, resolved by sampling the fixture at 4,000 draws rather than 500, with its tolerance left where it was.
 - `ruff check src/`, `npm run format:check` and `npm run spellcheck` pass.
 - `model_design_identity` recomputed for all 276 registered models on both stacks: no difference in `structure_sha256` or `design_sha256`.
 - Optuna 4.9 and 5.0 compared directly on one seeded study to establish that the search, not merely the version, changed.
