@@ -14,7 +14,7 @@ authors = [{ name = "Frank Buckley" }]
 dependencies = [
   # The compiled scientific core is no longer restated here: it is declared once
   # in dse-research-utils' own pyproject.toml and inherited transitively, so the
-  # floors (numpy <2.5, pymc, pytensor, arviz, …) cannot drift between repos.
+  # floors (numpy <2.6, pymc, pytensor, arviz, …) cannot drift between repos.
   # Extras carry the optional layers this repo actually imports:
   #   boosting   lightgbm, shap           (models/, scripts/rank_predictors.py)
   #   columnar   pyreadstat               (scripts/audit_rlm_source_provenance.py)
@@ -59,7 +59,7 @@ environments = [
 # dse-research-utils isn't published to PyPI — resolve it from the public git
 # tag. To develop against a sibling checkout, replace this entry with:
 #   dse-research-utils = { path = "../research/src/python", editable = true }
-dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.14.0" }
+dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.15.0" }
 
 [tool.hatch.version]
 path = "src/language_reading_predictors/__init__.py"

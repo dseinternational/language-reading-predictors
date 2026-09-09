@@ -12,12 +12,13 @@ updates:
       python-dependencies:
         patterns:
           - "*"
-    # pytensor pins numba <=0.66.0 and numba 0.66.0 pins numpy <2.5, so numpy
-    # 2.5 is unreachable however it is declared. Lift when a PyTensor release
-    # admits numba 0.67.
+    # pytensor pins numba <=0.67.0 and numba 0.67.0 pins numpy <2.6, so numpy
+    # 2.6 is unreachable however it is declared. Lift when a PyTensor release
+    # admits numba 0.68. The same cap is declared in dse-research-utils'
+    # pyproject.toml and inherited transitively, so both have to move together.
     ignore:
       - dependency-name: "numpy"
-        versions: [">=2.5.0"]
+        versions: [">=2.6.0"]
     assignees:
       - frankbuckley
 

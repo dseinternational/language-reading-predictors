@@ -16,6 +16,7 @@ aptinfo
 argmax
 armgap
 ArviZ
+asarray
 asis
 Asparouhov
 assessability
@@ -315,6 +316,7 @@ linkcolor
 linspace
 Lipsitch
 LKJ
+llvmlite
 localappdata
 logit
 logits
@@ -462,6 +464,7 @@ operatorname
 Optuna
 optuna
 orcid
+orjson
 Ostad
 Otaiba
 othertimeread
@@ -603,6 +606,7 @@ scikit
 scipy
 scrartcl
 scratchpad
+seaborn
 secondaries
 Secord
 Semel
@@ -625,6 +629,7 @@ spphon
 spraw
 Stanovich
 startswith
+statsmodels
 Sterling
 Stojanovik
 Stuebing
@@ -717,6 +722,7 @@ Wysocki
 Wyver
 xarray
 xcheck
+xgboost
 YARC
 yarcewr
 yarclet

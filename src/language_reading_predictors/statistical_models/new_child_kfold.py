@@ -109,7 +109,7 @@ def subset_panel_children(panel: Any, child_indices: Sequence[int]) -> Any:
     keep_ids = [subject_ids[index] for index in kept]
     subject_col = panel.dataset.subject_col
     long = panel.long[panel.long[subject_col].isin(set(keep_ids))].copy()
-    positions = np.asarray(kept, dtype=int)
+    positions: np.ndarray = np.asarray(kept, dtype=int)
     return dataclasses.replace(
         panel,
         long=long,

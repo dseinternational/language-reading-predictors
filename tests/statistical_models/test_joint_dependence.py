@@ -172,12 +172,17 @@ def _simulate_joint(prepared, *, rho: float, sigma_u: float = 0.8, seed: int = 3
 def simulated_dependence_fits(tmp_path_factory) -> dict[float, dict]:
     """One correlated joint fit per simulated dependence sign, shared by the tests.
 
-    Coarse by design — 80 children, 500 draws — because the question is which way
-    the construction points, not how precisely it estimates a correlation. The
-    residual scale is deliberately large so the block *is* identified; on the three
-    registered companions it is not, which is why their contrast intervals differ
-    from their parents' through marginal uncertainty rather than covariance
-    (2026-08-24 review of the joint audit).
+    Small by design — 80 synthetic children — because the question is which way the
+    construction points. The 4,000 draws are not a matter of taste: the independence
+    check reads a correlation off the ``rho = 0`` fit, and that estimate needs enough
+    draws to be worth asserting about. At the 500 this fixture used before #667 its seed-to-seed
+    spread was wide enough to cross the tolerance on a compiled-stack change alone
+    (measurements at the assertion, and in
+    ``notes/202609091455-research-utils-015-dependency-upgrade-667.md``). The residual
+    scale is deliberately large so the block *is* identified; on the three registered
+    companions it is not, which is why their contrast intervals differ from their
+    parents' through marginal uncertainty rather than covariance (2026-08-24 review of
+    the joint audit).
     """
     from language_reading_predictors.statistical_models import reporting as _report
     from language_reading_predictors.statistical_models.factories import (
@@ -205,7 +210,7 @@ def simulated_dependence_fits(tmp_path_factory) -> dict[float, dict]:
         )
         with built.model:
             idata = pm.sample(
-                draws=500,
+                draws=4000,
                 tune=500,
                 chains=2,
                 cores=1,
@@ -264,6 +269,13 @@ def test_the_declared_contrast_carries_the_fitted_dependence(
         < independent["ame_correlation"]
         < positive["ame_correlation"]
     )
+    # The tolerance is what it has always been. What #667 changed is the draw count
+    # that has to support it: at 500 draws, under numpy 2.5.3 / pymc 6.3.2, this
+    # correlation carried a seed-to-seed sd of 0.05, leaving abs=0.1 barely two
+    # deviations out and crossable by a stack change that moves no model — which is
+    # what #667 found. At 4,000 draws the sd is 0.026, the same the pre-#667 stack
+    # had at 500, so this is again the roughly four-deviation margin it was written
+    # as, with the widest of six seeds at 0.042.
     assert independent["ame_correlation"] == pytest.approx(0.0, abs=0.1)
     assert positive["contrast_width"] < independent["contrast_width"]
     assert independent["contrast_width"] < negative["contrast_width"]
