@@ -103,7 +103,7 @@ def child_log_likelihood(
         groups.append((children, cell_indices, observed))
         all_children.extend(children.tolist())
 
-    used_children = np.asarray(sorted(all_children), dtype=int)
+    used_children: np.ndarray = np.asarray(sorted(all_children), dtype=int)
     if len(np.unique(used_children)) != len(used_children):
         raise ValueError("LCF observed-pattern groups assign a child more than once")
     expected_children = int(payload.n_used_children)
@@ -142,7 +142,7 @@ def child_log_likelihood(
                     + log_determinant[:, None]
                     + quadratic
                 )
-                columns = np.asarray(
+                columns: np.ndarray = np.asarray(
                     [child_column[int(child)] for child in children], dtype=int
                 )
                 # Advanced indexing places the child dimension first on the target.

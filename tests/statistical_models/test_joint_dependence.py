@@ -264,7 +264,16 @@ def test_the_declared_contrast_carries_the_fitted_dependence(
         < independent["ame_correlation"]
         < positive["ame_correlation"]
     )
-    assert independent["ame_correlation"] == pytest.approx(0.0, abs=0.1)
+    # Sized to this estimator's own seed-to-seed spread rather than to one stack's
+    # value. The correlation is read off a deliberately coarse, weakly-identified
+    # fit, so it is noisy: across eight sampler seeds it spans -0.02..+0.11 (sd
+    # 0.05) under numpy 2.5.3 / pymc 6.3.2 and -0.03..+0.04 (sd 0.03) under the
+    # 2.4.6 / 6.3.1 stack shipped before #667. The former abs=0.1 sat inside that
+    # spread, so a compiled-stack change that moves no model could cross it — and
+    # did (notes/202609091455-research-utils-015-dependency-upgrade-667.md). The
+    # +/-0.7 fits are unaffected: they agree to six decimals across both stacks,
+    # and 0.2 still separates independence from the +/-0.55 they produce.
+    assert independent["ame_correlation"] == pytest.approx(0.0, abs=0.2)
     assert positive["contrast_width"] < independent["contrast_width"]
     assert independent["contrast_width"] < negative["contrast_width"]
     marginal_sds = [sd for fit in simulated_dependence_fits.values() for sd in fit["marginal_sds"]]
