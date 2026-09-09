@@ -547,6 +547,8 @@ reparameterised
 reparameterising
 replite
 repr
+rescore
+rescored
 resid
 residualisation
 residualise
