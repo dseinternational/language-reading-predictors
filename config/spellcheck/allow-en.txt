@@ -194,6 +194,7 @@ fittable
 Florit
 followup
 fontsize
+fonttools
 fpsyg
 fromkeys
 Frota
@@ -497,6 +498,8 @@ Pediatrics
 Piironen
 pipefail
 Pittau
+pkill
+platformdirs
 PLOS
 plotcollection
 PNDE
@@ -656,6 +659,7 @@ TNIE
 Toffalini
 tolist
 toplevel
+tqdm
 trainability
 traj
 trivariate
@@ -718,6 +722,7 @@ worktrees
 Woynaroski
 WPPSI
 wpre
+wrapt
 Wysocki
 Wyver
 xarray
