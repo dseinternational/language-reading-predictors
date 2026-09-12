@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Available-case modified intention-to-treat model construction.
-
-"""
+"""Available-case modified intention-to-treat model construction."""
 
 from __future__ import annotations
 
@@ -13,7 +11,6 @@ from typing import Iterable
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -43,6 +40,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _rlm_dispersion_kappa,
     _tau_sigma_for,
 )
+
 
 def build_itt_model(
     prepared: PreparedData,
@@ -199,29 +197,15 @@ def build_itt_model(
         argument is unused by the Bernoulli off-floor likelihood.
     """
     if prepared.phase_mode != "itt":
-        raise ValueError(
-            f"build_itt_model expects phase_mode='itt', got {prepared.phase_mode!r}"
-        )
+        raise ValueError(f"build_itt_model expects phase_mode='itt', got {prepared.phase_mode!r}")
     if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
-        raise ValueError(
-            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
-            f"got {likelihood!r}"
-        )
+        raise ValueError(f"likelihood must be 'beta_binomial' or 'bernoulli_offfloor', got {likelihood!r}")
     if score_mean_link not in SCORE_MEAN_LINKS:
-        raise ValueError(
-            f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-            f"got {score_mean_link!r}"
-        )
+        raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {score_mean_link!r}")
     if score_mean_link == "three_choice_guessing_floor" and outcome_symbol != "B":
-        raise ValueError(
-            "three_choice_guessing_floor is only valid for phoneme blending (B), "
-            f"got {outcome_symbol!r}"
-        )
+        raise ValueError(f"three_choice_guessing_floor is only valid for phoneme blending (B), got {outcome_symbol!r}")
     if likelihood != "beta_binomial" and score_mean_link != "logit":
-        raise ValueError(
-            "score_mean_link applies only to the Beta-Binomial likelihood; "
-            f"got likelihood={likelihood!r}"
-        )
+        raise ValueError(f"score_mean_link applies only to the Beta-Binomial likelihood; got likelihood={likelihood!r}")
     if use_age_gp and use_age_linear:
         raise ValueError(
             "use_age_gp and use_age_linear are mutually exclusive: the age GP "
@@ -242,37 +226,26 @@ def build_itt_model(
     adjust_for = tuple(adjust_for)
     missing_adjusters = [c for c in adjust_for if c not in prepared.covariates]
     if missing_adjusters:
-        raise KeyError(
-            "Requested adjustment covariates missing from prepared data: "
-            f"{missing_adjusters}"
-        )
+        raise KeyError(f"Requested adjustment covariates missing from prepared data: {missing_adjusters}")
     if cross_symbols is None:
         cross = [s for s in ITT_OUTCOMES if s != own]
     else:
         cross = [s for s in cross_symbols if s != own]
         missing_cross = [s for s in cross if s not in prepared.pre_logit]
         if missing_cross:
-            raise KeyError(
-                f"Cross-baseline symbols missing from prepared data: {missing_cross}"
-            )
+            raise KeyError(f"Cross-baseline symbols missing from prepared data: {missing_cross}")
 
     # Validate the tau-moderator (Part B). It must be a pre-randomisation
     # quantity — a baseline logit or a covariate — never a post-outcome.
     if tau_moderator_symbol is not None:
         if tau_moderator_is_covariate:
-            if (
-                tau_moderator_symbol != "A"
-                and tau_moderator_symbol not in prepared.covariates
-            ):
+            if tau_moderator_symbol != "A" and tau_moderator_symbol not in prepared.covariates:
                 raise KeyError(
                     f"tau moderator covariate {tau_moderator_symbol!r} not in "
                     "prepared.covariates (and is not 'A' for age)"
                 )
         elif tau_moderator_symbol not in prepared.pre_logit:
-            raise KeyError(
-                f"tau moderator baseline {tau_moderator_symbol!r} not in "
-                "prepared.pre_logit"
-            )
+            raise KeyError(f"tau moderator baseline {tau_moderator_symbol!r} not in prepared.pre_logit")
 
     post = prepared.post_counts[own]
     if np.any(np.isnan(post)):
@@ -289,11 +262,7 @@ def build_itt_model(
     z_M: np.ndarray | None = None
     if tau_moderator_symbol is not None:
         if tau_moderator_is_covariate:
-            raw_M = (
-                prepared.A_std
-                if tau_moderator_symbol == "A"
-                else prepared.covariates[tau_moderator_symbol]
-            )
+            raw_M = prepared.A_std if tau_moderator_symbol == "A" else prepared.covariates[tau_moderator_symbol]
         else:
             raw_M = prepared.pre_logit[tau_moderator_symbol]
         z_M, _ = standardise(raw_M)
@@ -306,31 +275,21 @@ def build_itt_model(
         G_d = pm.Data("G", G_f, dims="obs_id")
         cross_pre_data: dict[str, pt.TensorVariable] = {}
         for s in cross:
-            cross_pre_data[s] = pm.Data(
-                f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id"
-            )
+            cross_pre_data[s] = pm.Data(f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id")
         adjust_data: dict[str, pt.TensorVariable] = {}
         for c in adjust_for:
             adjust_data[c] = pm.Data(f"{c}_std", prepared.covariates[c], dims="obs_id")
-        z_M_d = (
-            pm.Data("z_tau_moderator", z_M, dims="obs_id") if z_M is not None else None
-        )
+        z_M_d = pm.Data("z_tau_moderator", z_M, dims="obs_id") if z_M is not None else None
 
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(own, alpha_sigma)
-        ).to_pymc("alpha")
-        tau0 = _priors.tau_prior(
-            sigma=_tau_sigma_for(own, tau_sigma)
-        ).to_pymc("tau")
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(own, alpha_sigma)).to_pymc("alpha")
+        tau0 = _priors.tau_prior(sigma=_tau_sigma_for(own, tau_sigma)).to_pymc("tau")
 
         eta: pt.TensorVariable | float = alpha
 
         if use_own_baseline:
             own_pre_d = pm.Data("own_pre_logit", y_pre_logit, dims="obs_id")
             gamma_own_spec = (
-                _priors.gamma_own_prior()
-                if gamma_own_sigma is None
-                else _priors.gamma_own_prior(sigma=gamma_own_sigma)
+                _priors.gamma_own_prior() if gamma_own_sigma is None else _priors.gamma_own_prior(sigma=gamma_own_sigma)
             )
             gamma_own = gamma_own_spec.to_pymc("gamma_own")
             eta = eta + gamma_own * own_pre_d
@@ -340,7 +299,16 @@ def build_itt_model(
             eta = eta + gamma_s * cross_pre_data[s]
 
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c, role='precision' if c in {'blocks', 'area', 'mumedupost16', 'dadedupost16', 'agebooks'} else 'association', rationale=f'Pre-randomisation baseline adjustment covariate ({c}); not a cross-baseline skill coupling.'))
+            gamma_c = _priors.gamma_cross_prior().to_pymc(
+                f"gamma_{c}",
+                **_priors.adjustment_metadata(
+                    c,
+                    role="precision"
+                    if c in {"blocks", "area", "mumedupost16", "dadedupost16", "agebooks"}
+                    else "association",
+                    rationale=f"Pre-randomisation baseline adjustment covariate ({c}); not a cross-baseline skill coupling.",
+                ),
+            )
             eta = eta + gamma_c * adjust_data[c]
 
         if use_age_linear:
@@ -387,16 +355,10 @@ def build_itt_model(
                 # minimum overdispersion of roughly 5.9x at its own median. Same
                 # constructor the RLM historical families use.
                 kappa = _rlm_dispersion_kappa(
-                    float(_priors.inv_sqrt_kappa_prior().sigma)
-                    if kappa_sigma is None
-                    else kappa_sigma
+                    float(_priors.inv_sqrt_kappa_prior().sigma) if kappa_sigma is None else kappa_sigma
                 )
             elif kappa_prior_family == "halfnormal_concentration":
-                kappa_spec = (
-                    _priors.kappa_prior()
-                    if kappa_sigma is None
-                    else _priors.kappa_prior(sigma=kappa_sigma)
-                )
+                kappa_spec = _priors.kappa_prior() if kappa_sigma is None else _priors.kappa_prior(sigma=kappa_sigma)
                 kappa = kappa_spec.to_pymc("kappa")
             else:
                 raise ValueError(

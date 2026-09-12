@@ -97,9 +97,7 @@ def score_ppc_distribution_shape(
     if np.any((observed < 0) | (observed > n_trials)):
         raise ValueError("observed scores lie outside the requested denominator")
 
-    observed_q25, observed_median, observed_q75 = np.quantile(
-        observed, [0.25, 0.5, 0.75]
-    )
+    observed_q25, observed_median, observed_q75 = np.quantile(observed, [0.25, 0.5, 0.75])
     replicated_q25 = np.quantile(replicated, 0.25, axis=1)
     replicated_median = np.quantile(replicated, 0.5, axis=1)
     replicated_q75 = np.quantile(replicated, 0.75, axis=1)
@@ -127,11 +125,7 @@ def score_ppc_distribution_shape(
             )
         )
 
-    flagged = [
-        prefix
-        for prefix in summaries
-        if bool(row[f"ppc_{prefix}_outside_interval"])
-    ]
+    flagged = [prefix for prefix in summaries if bool(row[f"ppc_{prefix}_outside_interval"])]
     row["ppc_shape_flag"] = bool(flagged)
     row["flagged_statistics"] = ";".join(flagged)
     return pd.DataFrame([row])
@@ -172,17 +166,13 @@ def score_ppc_by_arm_and_baseline(
         raise ValueError("row_indices contains an out-of-range prepared row")
 
     if observed_counts is None:
-        observed = np.asarray(prepared.post_counts[outcome_symbol], dtype=float)[
-            row_indices
-        ]
+        observed = np.asarray(prepared.post_counts[outcome_symbol], dtype=float)[row_indices]
     else:
         observed = np.asarray(observed_counts, dtype=float)
     if observed.shape != (row_indices.size,):
         raise ValueError("observed_counts must have one value per predictive cell")
 
-    denominator = int(
-        prepared.n_trials[outcome_symbol] if n_trials is None else n_trials
-    )
+    denominator = int(prepared.n_trials[outcome_symbol] if n_trials is None else n_trials)
     if denominator <= 0:
         raise ValueError("n_trials must be positive")
     finite = np.isfinite(observed)

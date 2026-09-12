@@ -92,15 +92,11 @@ def test_settings_reject_unknown_legacy_key():
 
 
 def test_typed_settings_allow_only_global_extra_keys():
-    plan = J.resolve_joint_mechanism_run_plan(
-        _spec(settings=J.JointMechanismModelSettings(), target_accept=0.99)
-    )
+    plan = J.resolve_joint_mechanism_run_plan(_spec(settings=J.JointMechanismModelSettings(), target_accept=0.99))
     assert plan.settings_source == "typed"
 
     with pytest.raises(ValueError, match="cannot be split.*design"):
-        J.resolve_joint_mechanism_run_plan(
-            _spec(settings=J.JointMechanismModelSettings(), design="transition")
-        )
+        J.resolve_joint_mechanism_run_plan(_spec(settings=J.JointMechanismModelSettings(), design="transition"))
 
 
 def test_resolve_rejects_wrong_kind_and_study():

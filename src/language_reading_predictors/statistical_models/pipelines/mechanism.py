@@ -131,9 +131,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         PrimaryFitPlan(
             diagnostic_vars=tuple(_mech_vars),
             ppc_var_names=(run_plan.observation_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol or "W"
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol or "W"),
             psense_vars=tuple(_mech_psense_vars),
             # The curve and interaction summaries precede persistence by design.
             save_trace=False,
@@ -164,9 +162,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         "effective_adjustment": effective_adjustment(
             spec,
             prepared,
-            measure_confounders=tuple(
-                s for s in confounders if s in ("G", "A") or s in MEASURES
-            ),
+            measure_confounders=tuple(s for s in confounders if s in ("G", "A") or s in MEASURES),
             adjust_for=adjust_for,
             # The typed ability adjuster is declared apart from ``adjust_for`` (it
             # loads from t1 via ``baseline_covariates``) but is fitted as an ordinary
@@ -182,9 +178,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             # (#586 finding 9).
             moderator_symbol=run_plan.moderator_symbol,
             moderator_is_covariate=run_plan.moderator_is_covariate,
-            moderator_interaction=(
-                run_plan.moderator_symbol is not None and run_plan.include_interaction
-            ),
+            moderator_interaction=(run_plan.moderator_symbol is not None and run_plan.include_interaction),
             # The #603 / #604 focal exposure terms. They are not adjusters, but they
             # do carry coefficients, and the fitted record exists to name every
             # coefficient a fit estimates (#586 finding 9) — so they are recorded
@@ -213,15 +207,9 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         meta_extra["mechanism_is_covariate"] = True
         _sc = ctx.prepared.covariate_scalers.get(spec.mechanism_symbol)
         if _sc is not None:
-            _z_kept = np.asarray(
-                ctx.prepared.covariates[spec.mechanism_symbol], dtype=float
-            )
-            meta_extra["mechanism_exposure_sd_raw"] = float(
-                _sc.sd * np.nanstd(_z_kept, ddof=1)
-            )
-            meta_extra["mechanism_exposure_mean_raw"] = float(
-                _sc.mean + _sc.sd * np.nanmean(_z_kept)
-            )
+            _z_kept = np.asarray(ctx.prepared.covariates[spec.mechanism_symbol], dtype=float)
+            meta_extra["mechanism_exposure_sd_raw"] = float(_sc.sd * np.nanstd(_z_kept, ddof=1))
+            meta_extra["mechanism_exposure_mean_raw"] = float(_sc.mean + _sc.sd * np.nanmean(_z_kept))
 
     # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
     if moderator_symbol is not None:
@@ -233,8 +221,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
             metrics_table(
                 [{"metric": k, "value": v} for k, v in gi.items()],
                 title=(
-                    f"Linear moderation by {moderator_symbol} "
-                    f"- {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
+                    f"Linear moderation by {moderator_symbol} - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
                 ),
                 columns=["metric", "value"],
             )
@@ -266,9 +253,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     return finalize_report(ctx)
 
 
-def _exposure_term_records(
-    run_plan: _mechanism.MechanismRunPlan, prepared
-) -> tuple[dict, ...]:
+def _exposure_term_records(run_plan: _mechanism.MechanismRunPlan, prepared) -> tuple[dict, ...]:
     """Fitted-record entries for the family's focal exposure coefficients.
 
     Empty for a pooled design, whose single ``beta_mech`` (or ``f_mech``) is already
@@ -298,8 +283,7 @@ def _exposure_term_records(
                 "term": "beta_between",
                 "kind": "exposure_between_child",
                 "scale": f"child fitted-row mean of the {scale}",
-                "question": "do children whose average exposure is higher score "
-                "higher on the outcome?",
+                "question": "do children whose average exposure is higher score higher on the outcome?",
                 **common,
             }
         )
@@ -309,8 +293,7 @@ def _exposure_term_records(
                     "term": "beta_within",
                     "kind": "exposure_within_child",
                     "scale": f"deviation from the child's mean of the {scale}",
-                    "question": "when a child's own exposure moves, does their "
-                    "outcome move with it?",
+                    "question": "when a child's own exposure moves, does their outcome move with it?",
                     **common,
                 }
             )
@@ -324,17 +307,14 @@ def _exposure_term_records(
                     if run_plan.decompose_between_within
                     else f"per-period slope on the {scale}"
                 ),
-                "question": "does the exposure-outcome slope differ across the "
-                "three period transitions?",
+                "question": "does the exposure-outcome slope differ across the three period transitions?",
                 **common,
             }
         )
     return tuple(records)
 
 
-def _mechanism_exposure_logit_sd(
-    ctx: StatisticalFitContext, run_plan: _mechanism.MechanismRunPlan
-) -> float | None:
+def _mechanism_exposure_logit_sd(ctx: StatisticalFitContext, run_plan: _mechanism.MechanismRunPlan) -> float | None:
     """SD of the exposure logit on this fit's rows, or ``None`` when undefined.
 
     Bounded-count exposures only: a covariate exposure is already standardised by the
@@ -432,9 +412,7 @@ def _mechanism_exposure_axis(ctx: StatisticalFitContext) -> tuple[np.ndarray, st
     if run_plan.mechanism_at_pre:
         x_vals = np.asarray(ctx.prepared.pre_logit[sym], dtype=float)
         return x_vals, "mech_logit", f"logit({sym}_pre)"
-    x_vals = np.asarray(
-        logit_safe(ctx.prepared.post_counts[sym], MEASURES[sym].n_trials), dtype=float
-    )
+    x_vals = np.asarray(logit_safe(ctx.prepared.post_counts[sym], MEASURES[sym].n_trials), dtype=float)
     return x_vals, "mech_logit", f"logit({sym}_post)"
 
 
@@ -463,9 +441,7 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     x_vals, x_col, x_label = _mechanism_exposure_axis(ctx)
 
     try:
-        terms = resolve_mechanism_terms(
-            ctx.trace, x_exposure=x_vals, exposure_n_trials=None, group="posterior"
-        )
+        terms = resolve_mechanism_terms(ctx.trace, x_exposure=x_vals, exposure_n_trials=None, group="posterior")
     except KeyError as exc:
         # No recognisable exposure term in the posterior — e.g. a
         # ``phase_specific_mechanism`` fit, whose per-phase curve is registered under
@@ -667,11 +643,7 @@ def _write_mechanism_slope_summary(ctx: StatisticalFitContext) -> pd.DataFrame |
                 f"beta_mech_phase[{index}]",
                 per_phase.isel({phase_dim: index}).values,
                 f"Within period t{index + 1}->t{index + 2}"
-                + (
-                    " (the randomised transition)"
-                    if index == 0
-                    else " (post-crossover: both arms on the intervention)"
-                )
+                + (" (the randomised transition)" if index == 0 else " (post-crossover: both arms on the intervention)")
                 + ": how the outcome tracks the exposure in that period alone.",
                 "Adjusted association. The exposure is not randomised in any "
                 "period; from period 2 both arms are on the intervention, so a "
@@ -801,9 +773,7 @@ def _write_mechanism_items(ctx: StatisticalFitContext) -> dict:
         "mechanism_summary",
         mechanism_summary_table(
             worked,
-            exposure_unit=(
-                f"{sym} raw-score units" if is_covariate else f"{sym} items"
-            ),
+            exposure_unit=(f"{sym} raw-score units" if is_covariate else f"{sym} items"),
         ),
     )
     # ``mechanism_curve_items.csv`` is written inside the helper (which takes an
@@ -868,9 +838,7 @@ def _write_mechanism_prior_pushforward(
     )
     source = getattr(ctx, "prior_samples", None) or ctx.trace
     try:
-        require_prior_evidence(
-            source, terms=("eta",), what="the mechanism-curve prior check"
-        )
+        require_prior_evidence(source, terms=("eta",), what="the mechanism-curve prior check")
         _, worked = mechanism_items_curve(
             source,
             x_exposure=x_exposure,
@@ -917,9 +885,7 @@ def _write_mechanism_prior_pushforward(
     write_prior_pushforward(ctx, rows)
 
 
-def _items_scale_knee(
-    ctx: StatisticalFitContext, *, x_obs: np.ndarray, is_covariate: bool
-) -> dict:
+def _items_scale_knee(ctx: StatisticalFitContext, *, x_obs: np.ndarray, is_covariate: bool) -> dict:
     """The steepest interval of the **expected-items** curve, ``items_``-prefixed.
 
     ``readiness_threshold`` locates the steepest interval of the *latent-logit*
@@ -1020,9 +986,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     else:
         N = MEASURES[sym].n_trials
         try:
-            summary = _readiness_summary.readiness_threshold(
-                ctx.trace, n_trials=N, ci_prob=ctx.reporting.ci_prob
-            )
+            summary = _readiness_summary.readiness_threshold(ctx.trace, n_trials=N, ci_prob=ctx.reporting.ci_prob)
         except ValueError as exc:
             rprint(f"[yellow]_write_readiness_threshold: {exc}; skipped.[/yellow]")
             return
@@ -1047,9 +1011,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
         alpha=0.15,
         label=f"knee {int(round(ctx.reporting.ci_prob * 100))}% CI",
     )
-    plt.axvline(
-        summary["knee_count_median"], color=COLOUR_RED, lw=1.5, label="knee median"
-    )
+    plt.axvline(summary["knee_count_median"], color=COLOUR_RED, lw=1.5, label="knee median")
     plt.xlabel(x_label)
     plt.ylabel(f"{outcome} logit contribution")
     plt.title(f"Readiness threshold (steepest rise): {sym} -> {outcome}")
@@ -1192,6 +1154,7 @@ def moderation_items_rows(
     if "f_mech" in post:
         f = post["f_mech"].stack(sample=("chain", "draw")).values
         f = np.asarray(f).reshape(eta.shape[0], -1)
+
         # The curve depends on the exposure only, so its value at a cell is its
         # value on any fitted row with that exposure count (cells are snapped
         # to observed counts above).
@@ -1207,20 +1170,10 @@ def moderation_items_rows(
         raise KeyError("posterior has neither 'f_mech' nor 'beta_mech'")
     gamma_mod = post["gamma_mod"].stack(sample=("chain", "draw")).values
     gamma_int = post["gamma_int"].stack(sample=("chain", "draw")).values
-    eta_base = (
-        eta
-        - f
-        - z_m_obs[:, None] * gamma_mod[None, :]
-        - (z_x_obs * z_m_obs)[:, None] * gamma_int[None, :]
-    )
+    eta_base = eta - f - z_m_obs[:, None] * gamma_mod[None, :] - (z_x_obs * z_m_obs)[:, None] * gamma_int[None, :]
 
     def expected_items(x: float, m: float, g_int: np.ndarray) -> np.ndarray:
-        eta_cell = (
-            eta_base
-            + f_at(x)[None, :]
-            + gamma_mod[None, :] * z_m(m)
-            + g_int[None, :] * (z_x(x) * z_m(m))
-        )
+        eta_cell = eta_base + f_at(x)[None, :] + gamma_mod[None, :] * z_m(m) + g_int[None, :] * (z_x(x) * z_m(m))
         return expit(eta_cell).mean(axis=0) * float(outcome_n_trials)
 
     zero = np.zeros_like(gamma_int)
@@ -1233,9 +1186,9 @@ def moderation_items_rows(
     inc_lo = cells[(x_hi, m_lo)] - cells[(x_lo, m_lo)]
     inc_hi = cells[(x_hi, m_hi)] - cells[(x_lo, m_hi)]
     interaction = inc_hi - inc_lo
-    additive = (
-        expected_items(x_hi, m_hi, zero) - expected_items(x_lo, m_hi, zero)
-    ) - (expected_items(x_hi, m_lo, zero) - expected_items(x_lo, m_lo, zero))
+    additive = (expected_items(x_hi, m_hi, zero) - expected_items(x_lo, m_hi, zero)) - (
+        expected_items(x_hi, m_lo, zero) - expected_items(x_lo, m_lo, zero)
+    )
     logit_interaction = gamma_int * (z_x(x_hi) - z_x(x_lo)) * (z_m(m_hi) - z_m(m_lo))
 
     common = {

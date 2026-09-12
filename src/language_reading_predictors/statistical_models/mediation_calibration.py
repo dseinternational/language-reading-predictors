@@ -218,10 +218,7 @@ def _observed_slopes(
     med_slope = _linear_slope(
         med_std,
         X_med,
-        source=(
-            "observed randomised-window association on available-case rows "
-            "(arm, age and L baseline adjusted)"
-        ),
+        source=("observed randomised-window association on available-case rows (arm, age and L baseline adjusted)"),
     )
 
     if med.off_floor:
@@ -231,8 +228,7 @@ def _observed_slopes(
             y,
             X_out,
             source=(
-                "observed randomised-window off-floor logit association on "
-                "available-case rows (arm and age adjusted)"
+                "observed randomised-window off-floor logit association on available-case rows (arm and age adjusted)"
             ),
         )
     else:
@@ -278,37 +274,26 @@ def _read_dose_slope(
     diag_path = source_dir / "diagnostics_summary.json"
     slope_path = source_dir / "dose_slope_summary.csv"
     if not diag_path.exists() or not slope_path.exists():
-        raise _CalibrationUnavailable(
-            f"{model_id}-{config} has not produced gate and dose-slope artefacts"
-        )
+        raise _CalibrationUnavailable(f"{model_id}-{config} has not produced gate and dose-slope artefacts")
     try:
         with diag_path.open(encoding="utf-8") as f:
             diagnostics = json.load(f)
     except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
-        raise _CalibrationUnavailable(
-            f"{model_id}-{config} diagnostics could not be read"
-        ) from exc
+        raise _CalibrationUnavailable(f"{model_id}-{config} diagnostics could not be read") from exc
     if not convergence_gate_clean_passed(diagnostics):
-        raise _CalibrationUnavailable(
-            f"{model_id}-{config} failed its convergence gate"
-        )
+        raise _CalibrationUnavailable(f"{model_id}-{config} failed its convergence gate")
     slopes = pd.read_csv(slope_path)
     row = slopes.loc[slopes["term"] == "dose_period1"]
     if len(row) != 1:
-        raise _CalibrationUnavailable(
-            f"{model_id}-{config} has no unique dose_period1 slope"
-        )
+        raise _CalibrationUnavailable(f"{model_id}-{config} has no unique dose_period1 slope")
     r = row.iloc[0]
     point_key = "median" if "median" in slopes.columns else "mean"
     values = [r[point_key], r["lo"], r["hi"]]
     if not np.isfinite(np.asarray(values, dtype=float)).all():
-        raise _CalibrationUnavailable(
-            f"{model_id}-{config} dose_period1 slope is non-finite"
-        )
+        raise _CalibrationUnavailable(f"{model_id}-{config} dose_period1 slope is non-finite")
     dose_sd = (
         float(r["dose_sd_sessions"])
-        if "dose_sd_sessions" in slopes.columns
-        and np.isfinite(float(r["dose_sd_sessions"]))
+        if "dose_sd_sessions" in slopes.columns and np.isfinite(float(r["dose_sd_sessions"]))
         else _dose_sd_from_data(outcome_symbol, data_path)
     )
     return SlopeEstimate(
@@ -332,9 +317,7 @@ def _rescale(est: SlopeEstimate, factor: float, *, source_suffix: str) -> SlopeE
 
 
 def _abs_product_envelope(a: SlopeEstimate, b: SlopeEstimate) -> tuple[float, float]:
-    products = np.asarray(
-        [a.lo * b.lo, a.lo * b.hi, a.hi * b.lo, a.hi * b.hi]
-    )
+    products = np.asarray([a.lo * b.lo, a.lo * b.hi, a.hi * b.lo, a.hi * b.hi])
     raw_lo, raw_hi = float(products.min()), float(products.max())
     low = 0.0 if raw_lo <= 0.0 <= raw_hi else min(abs(raw_lo), abs(raw_hi))
     return low, max(abs(raw_lo), abs(raw_hi))
@@ -381,13 +364,9 @@ def calibrate_is_scenario(
     statistical assumptions are unit-testable without file-system fixtures.
     """
     delta_point = abs(fitted_mediator_slope.point * fitted_outcome_slope.point)
-    fitted_lo, fitted_hi = _abs_product_envelope(
-        fitted_mediator_slope, fitted_outcome_slope
-    )
+    fitted_lo, fitted_hi = _abs_product_envelope(fitted_mediator_slope, fitted_outcome_slope)
     delta_observed = abs(observed_mediator_slope.point * observed_outcome_slope.point)
-    observed_lo, observed_hi = _abs_product_envelope(
-        observed_mediator_slope, observed_outcome_slope
-    )
+    observed_lo, observed_hi = _abs_product_envelope(observed_mediator_slope, observed_outcome_slope)
     scenario_lo = min(fitted_lo, observed_lo)
     scenario_hi = max(fitted_hi, observed_hi)
     sweep_max = float(sweep["delta"].max())
@@ -401,9 +380,7 @@ def calibrate_is_scenario(
     nie_response_lo = nie_lo * response_multiplier
     nie_response_hi = nie_hi * response_multiplier
 
-    already_null = _as_bool(
-        sensitivity_summary["already_null_at_zero"], field="already_null_at_zero"
-    )
+    already_null = _as_bool(sensitivity_summary["already_null_at_zero"], field="already_null_at_zero")
     robust = _as_bool(
         sensitivity_summary["robust_over_full_sweep"],
         field="robust_over_full_sweep",
@@ -413,10 +390,7 @@ def calibrate_is_scenario(
     mapped = ""
     if np.isfinite(nie_response):
         mapped = (
-            (
-                "; the g-formula maps the point scenario to an NIE off-floor "
-                f"risk difference of {nie_response:+.2f}"
-            )
+            (f"; the g-formula maps the point scenario to an NIE off-floor risk difference of {nie_response:+.2f}")
             if off_floor
             else f"; the g-formula maps the point scenario to an NIE of {nie_response:+.2f} items"
         )
@@ -557,9 +531,7 @@ def generate_is_calibration(
             outcome_symbol=spec.mechanism_symbol or "L",
             data_path=path,
         )
-        mediator_factor = calibration_dose_sd / (
-            float(fitted_m_raw.dose_sd_sessions) * med.med_sd
-        )
+        mediator_factor = calibration_dose_sd / (float(fitted_m_raw.dose_sd_sessions) * med.med_sd)
         fitted_m = _rescale(
             fitted_m_raw,
             mediator_factor,
@@ -575,9 +547,7 @@ def generate_is_calibration(
                 outcome_symbol=spec.outcome_symbol or "W",
                 data_path=path,
             )
-            outcome_factor = calibration_dose_sd / float(
-                fitted_y_raw.dose_sd_sessions
-            )
+            outcome_factor = calibration_dose_sd / float(fitted_y_raw.dose_sd_sessions)
             fitted_y = _rescale(
                 fitted_y_raw,
                 outcome_factor,

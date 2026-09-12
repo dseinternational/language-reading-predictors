@@ -29,8 +29,7 @@ def _kf_build_aligned(output_dir: str | Path, config: Mapping) -> list[dict[str,
     off_floor = bool(
         plan.get(
             "off_floor",
-            plan.get("likelihood", extra.get("likelihood"))
-            == "bernoulli_offfloor",
+            plan.get("likelihood", extra.get("likelihood")) == "bernoulli_offfloor",
         )
     )
     scale = 100.0 if off_floor else 1.0

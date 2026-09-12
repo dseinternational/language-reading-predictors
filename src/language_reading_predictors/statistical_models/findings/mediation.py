@@ -26,9 +26,7 @@ def _kf_build_mediation(output_dir: str | Path, config: Mapping) -> list[dict[st
         raise _KeyFindingsUnavailable("mediation_summary.csv is not present")
     indexed = df.set_index("quantity")
     if "total" not in indexed.index:
-        raise _KeyFindingsUnavailable(
-            "mediation_summary.csv has no total-effect row"
-        )
+        raise _KeyFindingsUnavailable("mediation_summary.csv has no total-effect row")
     total = indexed.loc["total"].to_dict()
     off_floor = str(total.get("off_floor", "false")).lower() in {"true", "1"}
     scale = 100.0 if off_floor else 1.0

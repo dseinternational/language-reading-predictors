@@ -40,19 +40,16 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import f
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-071",
     kind="mechanism",
-    title=(
-        "Mechanism model: letter-sound (L) -> word reading (W), "
-        "linear moderation by expressive vocabulary (E)"
-    ),
+    title=("Mechanism model: letter-sound (L) -> word reading (W), linear moderation by expressive vocabulary (E)"),
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
     # Same flags as LRP58 plus the moderator. Age GP off (age enters linearly),
     # subject random intercept on.
-        # Boundary divergences remain at 0.95 (R-hat 1.0, min ESS ~2400); lift
-        # target_accept for smaller steps, as LRP58 does. The wave fix (#258) already
-        # took this from ~90 divergences (R-hat 1.2, ESS ~9) to ~14, so the residual
-        # is a boundary-step issue, not the interaction geometry the review feared.
+    # Boundary divergences remain at 0.95 (R-hat 1.0, min ESS ~2400); lift
+    # target_accept for smaller steps, as LRP58 does. The wave fix (#258) already
+    # took this from ~90 divergences (R-hat 1.2, ESS ~9) to ~14, so the residual
+    # is a boundary-step issue, not the interaction geometry the review feared.
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         outcomes=("W", "L", "E"),

@@ -37,20 +37,17 @@ from language_reading_predictors.statistical_models.pipelines.did import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-007",
     kind="did",
-    title=(
-        "Waitlist-crossover period-resolved session-dose association on "
-        "letter-sound knowledge (YARC-LSK) (L)"
-    ),
+    title=("Waitlist-crossover period-resolved session-dose association on letter-sound knowledge (YARC-LSK) (L)"),
     outcome_symbol="L",
     family="did",
     design="waitlist-crossover transition dose intensive margin",
     estimand_type="association",
     causal_status="none for session-dose coefficients",
-        # The dose companion carries the same period-varying-slope-over-child-intercept
-        # geometry as the dose_response family: 2 divergences at the reporting preset's
-        # 0.95, 0 at 0.97 (R-hat 1.0005, min ESS 6,308). The default seed is fixed, so
-        # this reproduces the stored fit exactly. See
-        # notes/202608050649-reporting-refit-predictive-checks.md.
+    # The dose companion carries the same period-varying-slope-over-child-intercept
+    # geometry as the dose_response family: 2 divergences at the reporting preset's
+    # 0.95, 0 at 0.97 (R-hat 1.0005, min ESS 6,308). The default seed is fixed, so
+    # this reproduces the stored fit exactly. See
+    # notes/202608050649-reporting-refit-predictive-checks.md.
     target_accept=0.97,
     model_settings=DiDModelSettings(
         outcomes=("L",),

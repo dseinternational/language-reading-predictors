@@ -111,16 +111,13 @@ def _rlm_group_nuisance_names(frame) -> list[str]:
     counts = {code: int((frame.group_code == code).sum()) for code in codes}
     reference = max(counts, key=lambda code: (counts[code], -code))
     return [
-        "beta_group_nuisance_"
-        + frame.group_labels[code].lower().replace(" ", "_").replace("-", "_")
+        "beta_group_nuisance_" + frame.group_labels[code].lower().replace(" ", "_").replace("-", "_")
         for code in codes
         if code != reference
     ]
 
 
-def _ca_wave_predictors(
-    wave_prepared, predictor_symbols: list[str], measure_catalogue
-) -> tuple[list[str], list[str]]:
+def _ca_wave_predictors(wave_prepared, predictor_symbols: list[str], measure_catalogue) -> tuple[list[str], list[str]]:
     """Split ``predictor_symbols`` into those usable at this wave and those dropped.
 
     A predictor is usable only if its same-wave logit has positive, finite variance on
@@ -135,16 +132,12 @@ def _ca_wave_predictors(
         if finite.size < 2:
             dropped.append(sym)
             continue
-        sd = float(
-            np.nanstd(logit_safe(vals, measure_catalogue[sym].n_trials), ddof=1)
-        )
+        sd = float(np.nanstd(logit_safe(vals, measure_catalogue[sym].n_trials), ddof=1))
         (available if np.isfinite(sd) and sd > 0 else dropped).append(sym)
     return available, dropped
 
 
-def _ca_concurrent_terms(
-    wave_prepared, predictor_symbols: list[str], measure_catalogue
-) -> list:
+def _ca_concurrent_terms(wave_prepared, predictor_symbols: list[str], measure_catalogue) -> list:
     """``ConcurrentTerm`` list for a wave's items-scale marginals (#312).
 
     Recomputes, per predictor, the same-wave logit SD (matching the factory's
@@ -186,9 +179,7 @@ def _ca_sd_margin(df: pd.DataFrame, predictor: str) -> pd.Series:
     """Return the unique ``+1 SD`` marginal row for ``predictor``."""
     rows = df[(df["term"] == predictor) & (df["scale"] == "+1 SD")]
     if len(rows) != 1:
-        raise ValueError(
-            f"Expected one +1 SD marginal for {predictor!r}; found {len(rows)}"
-        )
+        raise ValueError(f"Expected one +1 SD marginal for {predictor!r}; found {len(rows)}")
     return rows.iloc[0]
 
 
@@ -300,34 +291,20 @@ def _write_concurrent_outputs(
     sd_marginals = marginal_df[marginal_df["scale"] == "+1 SD"]
     actual_marginals = {
         (int(row.timepoint), str(row.term), str(row.adjustment))
-        for row in sd_marginals[
-            ["timepoint", "term", "adjustment"]
-        ].itertuples(index=False)
+        for row in sd_marginals[["timepoint", "term", "adjustment"]].itertuples(index=False)
     }
     if actual_marginals != expected_marginals:
         missing = sorted(expected_marginals - actual_marginals)
         extra = sorted(actual_marginals - expected_marginals)
-        raise ValueError(
-            "concurrent_marginals +1 SD cross-product mismatch: "
-            f"missing={missing}, extra={extra}"
-        )
+        raise ValueError(f"concurrent_marginals +1 SD cross-product mismatch: missing={missing}, extra={extra}")
 
     expected_adjusted = {timepoint for timepoint, _ in association_pairs}
-    adjusted_diagnostics = diagnostic_df[
-        diagnostic_df["fit_kind"] == "adjusted"
-    ]
-    actual_adjusted = {
-        int(row.timepoint)
-        for row in adjusted_diagnostics[["timepoint"]].itertuples(index=False)
-    }
-    bivariate_diagnostics = diagnostic_df[
-        diagnostic_df["fit_kind"] == "bivariate"
-    ]
+    adjusted_diagnostics = diagnostic_df[diagnostic_df["fit_kind"] == "adjusted"]
+    actual_adjusted = {int(row.timepoint) for row in adjusted_diagnostics[["timepoint"]].itertuples(index=False)}
+    bivariate_diagnostics = diagnostic_df[diagnostic_df["fit_kind"] == "bivariate"]
     actual_bivariate = {
         (int(row.timepoint), str(row.predictor))
-        for row in bivariate_diagnostics[
-            ["timepoint", "predictor"]
-        ].itertuples(index=False)
+        for row in bivariate_diagnostics[["timepoint", "predictor"]].itertuples(index=False)
     }
     if actual_adjusted != expected_adjusted or actual_bivariate != association_pairs:
         raise ValueError(
@@ -403,14 +380,15 @@ def _compare_wave_associations(
     terms = _ca_concurrent_terms(sub, preds, measure_catalogue)
     terms_by_symbol = {term.label: term for term in terms}
     adj_mdf = _concurrent_summary.concurrent_marginals(
-        trace, terms=terms, n_trials=N_focal, ci_prob=hdi,
+        trace,
+        terms=terms,
+        n_trials=N_focal,
+        ci_prob=hdi,
         score_mean_link=link,
     )
     adj_mdf.insert(0, "timepoint", tp)
     adj_mdf.insert(1, "adjustment", "adjusted")
-    adj_mdf["label"] = adj_mdf["term"].map(
-        lambda sym: _ca_label(sym, labels)
-    )
+    adj_mdf["label"] = adj_mdf["term"].map(lambda sym: _ca_label(sym, labels))
     adj_mdf["converged"] = adj_conv["converged"]
     marg_frames.append(adj_mdf)
 
@@ -436,9 +414,7 @@ def _compare_wave_associations(
         )
         biv_mdf.insert(0, "timepoint", tp)
         biv_mdf.insert(1, "adjustment", "bivariate")
-        biv_mdf["label"] = biv_mdf["term"].map(
-            lambda key: _ca_label(key, labels)
-        )
+        biv_mdf["label"] = biv_mdf["term"].map(lambda key: _ca_label(key, labels))
         biv_mdf["converged"] = bconv["converged"]
         marg_frames.append(biv_mdf)
 
@@ -529,9 +505,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     # build_concurrent_model default is filled via default_of here — the anti-drift
     # single source #394 retains until typed family defaults replace it.
     factory_for_defaults = (
-        _concurrent_factory.build_concurrent_model
-        if port == "rli"
-        else _concurrent_factory.build_rlm_concurrent_model
+        _concurrent_factory.build_concurrent_model if port == "rli" else _concurrent_factory.build_rlm_concurrent_model
     )
     sigma0 = (
         float(plan.predictor_slope_sigma)
@@ -563,10 +537,8 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     if port == "rli":
         prepared_all = load_and_prepare(**plan.prepare_kwargs())
         wave_indices = sorted({int(p) for p in np.unique(prepared_all.phase)})
-        requested_wave_subsets = {
-            w: _subset_prepared(prepared_all, prepared_all.phase == w)
-            for w in wave_indices
-        }
+        requested_wave_subsets = {w: _subset_prepared(prepared_all, prepared_all.phase == w) for w in wave_indices}
+
         def display_wave(wave: int) -> int:
             return wave + 1
     else:
@@ -581,6 +553,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             include_age=include_age,
         )
         wave_indices = sorted(requested_wave_subsets)
+
         def display_wave(wave: int) -> int:
             return wave
 
@@ -599,16 +572,12 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         if port == "rli":
             keep = ~np.isnan(sub.post_counts[outcome])
             sub = _subset_prepared(sub, keep)
-            sub, effective_covariates, dropped_covariates = (
-                filter_informative_covariates(sub, covariates)
-            )
+            sub, effective_covariates, dropped_covariates = filter_informative_covariates(sub, covariates)
         else:
             effective_covariates, dropped_covariates = (), ()
         wave_subsets[w] = sub
         wave_n[w] = sub.n_obs
-        wave_preds[w], dropped_by_wave[w] = _ca_wave_predictors(
-            sub, predictor_symbols, measure_catalogue
-        )
+        wave_preds[w], dropped_by_wave[w] = _ca_wave_predictors(sub, predictor_symbols, measure_catalogue)
         wave_covariates[w] = list(effective_covariates)
         dropped_covariates_by_wave[w] = list(dropped_covariates)
     # Diagnostic anchor = most complete-outcome rows; tie → latest timepoint. This is
@@ -669,10 +638,15 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             rprint(f"[yellow]Concurrent: wave t{tp} has no usable predictors; skipped.[/yellow]")
             return
         built = _build(sub, preds, covs, age=include_age, group=include_group)
-        res = run_subfit(
-            ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
+        res = run_subfit(ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave")
+        wave_fits[w] = ConcurrentWaveFit(
+            trace=res.trace,
+            prepared=built.prepared,
+            preds=preds,
+            covariates=covs,
+            dropped_covariates=dropped_covariates_by_wave[w],
+            convergence=res.convergence,
         )
-        wave_fits[w] = ConcurrentWaveFit(trace=res.trace, prepared=built.prepared, preds=preds, covariates=covs, dropped_covariates=dropped_covariates_by_wave[w], convergence=res.convergence)
 
     # Preserve the established chronological fit order: waves before the anchor
     # remain before its build/sampling, while later waves run immediately after the
@@ -696,7 +670,14 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     )
     attach_built(ctx, primary_built)
     render_model_graph(ctx)
-    wave_fits[primary_wave] = ConcurrentWaveFit(trace=None, prepared=primary_built.prepared, preds=primary_preds, covariates=primary_covs, dropped_covariates=dropped_covariates_by_wave[primary_wave], convergence=None)
+    wave_fits[primary_wave] = ConcurrentWaveFit(
+        trace=None,
+        prepared=primary_built.prepared,
+        preds=primary_preds,
+        covariates=primary_covs,
+        dropped_covariates=dropped_covariates_by_wave[primary_wave],
+        convergence=None,
+    )
 
     prim = wave_fits[primary_wave]
     beta_names = [f"beta_{s}" for s in prim.preds]
@@ -720,17 +701,14 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             if after_primary:
                 _fit_non_primary_wave(w)
 
-    def _record_primary_convergence(
-        c: StatisticalFitContext, gate: dict
-    ) -> None:
+    def _record_primary_convergence(c: StatisticalFitContext, gate: dict) -> None:
         primary_conv = _diag.subfit_convergence(
             c.trace,
             label=f"{spec.model_id} primary wave t{primary_tp}",
             var_names=[rv.name for rv in c.model.free_RVs],
         )
         primary_conv["converged"] = bool(
-            _convergence.convergence_gate_clean_passed(gate)
-            and primary_conv.get("converged")
+            _convergence.convergence_gate_clean_passed(gate) and primary_conv.get("converged")
         )
         wave_fits[primary_wave].convergence = primary_conv
 
@@ -740,9 +718,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             diagnostic_vars=tuple(diag_vars),
             summary_header="Summary diagnostics (primary wave)",
             extended_header="Extended diagnostics (primary wave)",
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, outcome
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, outcome),
             post_sampling_audit=_finish_wave_fits,
             post_gate_audit=_record_primary_convergence,
         ),
@@ -781,12 +757,14 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         tp = display_wave(w)
         fit = wave_fits[w]
         rows, marginals, diagnostics = _compare_wave_associations(
-            ctx, fit, tp=tp,
-            build_single_skill=lambda sub, preds, covs: _build(
-                sub, preds, covs, age=False, group=False
-            ),
-            measure_catalogue=measure_catalogue, labels=labels,
-            n_trials=N_focal, score_mean_link=link,
+            ctx,
+            fit,
+            tp=tp,
+            build_single_skill=lambda sub, preds, covs: _build(sub, preds, covs, age=False, group=False),
+            measure_catalogue=measure_catalogue,
+            labels=labels,
+            n_trials=N_focal,
+            score_mean_link=link,
         )
         assoc_rows.extend(rows)
         marg_frames.extend(marginals)
@@ -803,8 +781,15 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             assoc_df,
             title=f"Concurrent associations (per-SD, logit; {int(hdi * 100)}% interval)",
             columns=[
-                "timepoint", "label", "adj_mean", "adj_lo", "adj_hi", "adj_prob_pos",
-                "biv_mean", "biv_lo", "biv_hi",
+                "timepoint",
+                "label",
+                "adj_mean",
+                "adj_lo",
+                "adj_hi",
+                "adj_prob_pos",
+                "biv_mean",
+                "biv_lo",
+                "biv_hi",
             ],
             rank_column=False,
             precision=3,
@@ -812,10 +797,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     )
     _plot_concurrent(ctx, assoc_df, hdi, primary_tp=primary_tp)
 
-    all_fits_converged = bool(
-        not fit_diagnostics_df.empty
-        and fit_diagnostics_df["converged"].eq(True).all()
-    )
+    all_fits_converged = bool(not fit_diagnostics_df.empty and fit_diagnostics_df["converged"].eq(True).all())
 
     def _adjustment_record(wave: int) -> dict:
         if port == "rli":
@@ -874,9 +856,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         "estimand": "concurrent conditional associations (per wave)",
         "predictors": prim.preds,
         "predictors_requested": predictor_symbols,
-        "dropped_by_wave": {
-            f"t{display_wave(w)}": dropped_by_wave[w] for w in wave_indices
-        },
+        "dropped_by_wave": {f"t{display_wave(w)}": dropped_by_wave[w] for w in wave_indices},
         "primary_timepoint": primary_tp,
         "diagnostic_anchor_timepoint": primary_tp,
         "timepoints": [display_wave(w) for w in wave_indices],
@@ -884,38 +864,24 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         "include_age": include_age,
         "include_group_nuisance": include_group,
         "bivariate_adjustment": (
-            "single-skill comparator; same effective other covariates retained; "
-            "age, group and other skills omitted"
+            "single-skill comparator; same effective other covariates retained; age, group and other skills omitted"
         ),
         "covariates_requested": covariates,
-        "effective_covariates_by_wave": {
-            f"t{display_wave(w)}": wave_covariates[w] for w in wave_indices
-        },
-        "dropped_covariates_by_wave": {
-            f"t{display_wave(w)}": dropped_covariates_by_wave[w]
-            for w in wave_indices
-        },
-        "effective_adjustment_by_timepoint": {
-            f"t{display_wave(w)}": _adjustment_record(w)
-            for w in wave_indices
-        },
+        "effective_covariates_by_wave": {f"t{display_wave(w)}": wave_covariates[w] for w in wave_indices},
+        "dropped_covariates_by_wave": {f"t{display_wave(w)}": dropped_covariates_by_wave[w] for w in wave_indices},
+        "effective_adjustment_by_timepoint": {f"t{display_wave(w)}": _adjustment_record(w) for w in wave_indices},
         "averaging_population": "all fitted rows at the wave (descriptive)",
         "predictor_slope_sigma": sigma0,
-        "standardisation": (
-            "same-wave Haldane-corrected logit, standardised within each wave"
-        ),
+        "standardisation": ("same-wave Haldane-corrected logit, standardised within each wave"),
         "confirmed_measure_subset": port == "rlm",
         "extension_wave_caveat": (
-            "wave 4 is an available-case, attrition-sensitive extension beyond the "
-            "paper's audited waves 1-3"
+            "wave 4 is an available-case, attrition-sensitive extension beyond the paper's audited waves 1-3"
             if port == "rlm" and 4 in plan.waves
             else None
         ),
         "n_published_fits": int(len(fit_diagnostics_df)),
         "all_published_fits_converged": all_fits_converged,
-        "n_failed_or_unchecked_fits": int(
-            (~fit_diagnostics_df["converged"].eq(True)).sum()
-        ),
+        "n_failed_or_unchecked_fits": int((~fit_diagnostics_df["converged"].eq(True)).sum()),
         "output_contract": (
             "concurrent_associations.csv contains mutually adjusted and single-skill "
             "comparator logit, "
@@ -928,9 +894,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     return finalize_report(ctx)
 
 
-def _plot_concurrent(
-    ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float, *, primary_tp: int
-) -> None:
+def _plot_concurrent(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float, *, primary_tp: int) -> None:
     """Forest of adjusted vs single-skill coefficients for the primary wave (#312)."""
     if df.empty:
         return
@@ -940,20 +904,26 @@ def _plot_concurrent(
     y = np.arange(len(d))[::-1]
     plt.figure(figsize=(7.0, 0.6 * len(d) + 1.6))
     plt.errorbar(
-        d["adj_mean"], y + 0.12,
+        d["adj_mean"],
+        y + 0.12,
         xerr=[d["adj_mean"] - d["adj_lo"], d["adj_hi"] - d["adj_mean"]],
-        fmt="o", color=COLOUR_BLUE, capsize=3, label="adjusted (mutual)",
+        fmt="o",
+        color=COLOUR_BLUE,
+        capsize=3,
+        label="adjusted (mutual)",
     )
     plt.errorbar(
-        d["biv_mean"], y - 0.12,
+        d["biv_mean"],
+        y - 0.12,
         xerr=[d["biv_mean"] - d["biv_lo"], d["biv_hi"] - d["biv_mean"]],
-        fmt="s", color="#999999", capsize=3, label="single-skill comparator",
+        fmt="s",
+        color="#999999",
+        capsize=3,
+        label="single-skill comparator",
     )
     plt.axvline(0.0, color="grey", ls=":", lw=1)
     plt.yticks(y, d["label"])
-    plt.xlabel(
-        f"Standardised coefficient (per-SD, logit scale); {int(hdi * 100)}% interval"
-    )
+    plt.xlabel(f"Standardised coefficient (per-SD, logit scale); {int(hdi * 100)}% interval")
     plt.title(f"Concurrent associations at t{primary_tp} (between-child)")
     plt.legend(fontsize=8, loc="best")
     # NB: distinct stem from ``concurrent_associations.csv`` (the full wave×predictor

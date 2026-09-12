@@ -42,10 +42,7 @@ from language_reading_predictors.statistical_models.pipelines.concurrent import 
 SPEC = ModelSpec(
     model_id="lrp-rli-ca-004",
     kind="concurrent",
-    title=(
-        "Concurrent conditional associations: concurrent skills -> taught expressive "
-        "vocabulary (per wave)"
-    ),
+    title=("Concurrent conditional associations: concurrent skills -> taught expressive vocabulary (per wave)"),
     outcome_symbol="TE",
     family="concurrent",
     design="per-wave cross-sectional conditional associations",

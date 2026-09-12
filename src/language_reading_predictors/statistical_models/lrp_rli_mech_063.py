@@ -47,10 +47,7 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import f
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-063",
     kind="mechanism",
-    title=(
-        "Joint-readiness interaction: letter sounds (L) -> word reading (W), "
-        "moderated by nonword decoding (N)"
-    ),
+    title=("Joint-readiness interaction: letter sounds (L) -> word reading (W), moderated by nonword decoding (N)"),
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],

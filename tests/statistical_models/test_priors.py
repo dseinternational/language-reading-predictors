@@ -78,16 +78,8 @@ _CONSTRUCTOR_FOR = {
 }
 
 
-
-
-
-
-
-
 def test_used_prior_keys_prunes_unused():
-    model = _described(
-        "alpha", "tau", "gamma_own", "gamma_A", "kappa", deterministics=("eta",)
-    )
+    model = _described("alpha", "tau", "gamma_own", "gamma_A", "kappa", deterministics=("eta",))
     keys = priors.used_prior_keys(model)
     assert set(keys) == {"alpha", "tau", "gamma_own", "gamma_age", "kappa"}
     # GP panels are not used by a plain ITT model -> pruned.
@@ -98,7 +90,9 @@ def test_used_prior_keys_prunes_unused():
 
 def test_used_prior_keys_skips_inline_noncentred_offsets():
     model = _described(
-        "mu_dose", "sigma_dose", "beta_dose_phase_raw",
+        "mu_dose",
+        "sigma_dose",
+        "beta_dose_phase_raw",
         deterministics=("beta_dose_phase",),
     )
     keys = priors.used_prior_keys(
@@ -145,12 +139,6 @@ def test_concurrent_group_term_is_documented_as_nuisance():
     assert by_param.loc["beta_group_nuisance", "panel"] == ""
 
 
-
-
-
-
-
-
 def test_priors_table_applies_rationale_overrides():
     model = _described("b_grp_time")
     df = priors.priors_table(
@@ -192,9 +180,13 @@ def test_anchor_mean_alone_does_not_infer_empirical_bayes():
     """A vector location can be chosen externally; its source must be declared."""
     import numpy as np
     import pymc as pm
+
     with pm.Model() as model:
-        priors.declare(pm.Normal("alpha", mu=np.array([0.3, -0.2]), sigma=1.5),
-                       role="nuisance", rationale="Externally supplied locations.")
+        priors.declare(
+            pm.Normal("alpha", mu=np.array([0.3, -0.2]), sigma=1.5),
+            role="nuisance",
+            rationale="Externally supplied locations.",
+        )
     row = priors.priors_table(model).iloc[0]
     assert row["rationale"] == "Externally supplied locations."
     assert priors.EMPIRICAL_BAYES_SENTENCE not in row["rationale"]

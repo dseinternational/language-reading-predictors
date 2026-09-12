@@ -19,9 +19,7 @@ from language_reading_predictors.statistical_models.findings.common import (
 )
 
 
-def _kf_growth_interaction_sentences(
-    gamma_int: pd.DataFrame, gamma: pd.DataFrame
-) -> list[dict[str, str]]:
+def _kf_growth_interaction_sentences(gamma_int: pd.DataFrame, gamma: pd.DataFrame) -> list[dict[str, str]]:
     """Key-findings box for the age x ability interaction growth model (LRP85)."""
     row = _kf_most_resolved_row(gamma_int, prob_col="prob_positive")
     outcome = _kf_measure_label(row["outcome"])
@@ -37,13 +35,8 @@ def _kf_growth_interaction_sentences(
         _kf_sentence(
             _kf_association_direction(
                 row["prob_positive"],
-                positive_claim=(
-                    "older-and-more-able children progress faster than the main "
-                    "effects alone imply"
-                ),
-                negative_claim=(
-                    "the ability-growth association weakens with age at entry"
-                ),
+                positive_claim=("older-and-more-able children progress faster than the main effects alone imply"),
+                negative_claim=("the ability-growth association weakens with age at entry"),
             ),
             "confidence",
         ),
@@ -62,8 +55,7 @@ def _kf_growth_interaction_sentences(
         )
     sentences.append(
         _kf_sentence(
-            "These trajectory coefficients are adjusted associations, not effects "
-            "of changing non-verbal ability.",
+            "These trajectory coefficients are adjusted associations, not effects of changing non-verbal ability.",
             "causal",
         )
     )
@@ -105,7 +97,7 @@ def _kf_build_growth(output_dir: str | Path, config: Mapping) -> list[dict[str, 
             baseline_label = catalogue[baseline_symbol].label
             if str(row["outcome"]) in catalogue:
                 outcome = catalogue[str(row["outcome"])].label
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             baseline_label = baseline_symbol
     return [
         _kf_sentence(
@@ -125,8 +117,7 @@ def _kf_build_growth(output_dir: str | Path, config: Mapping) -> list[dict[str, 
             "confidence",
         ),
         _kf_sentence(
-            "These trajectory coefficients are adjusted associations, not effects of "
-            f"changing {baseline_label}.",
+            f"These trajectory coefficients are adjusted associations, not effects of changing {baseline_label}.",
             "causal",
         ),
     ]

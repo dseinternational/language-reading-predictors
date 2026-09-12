@@ -76,20 +76,14 @@ def _linear_fit(tmp_path: Path, *, n_trials_exposure: int = 32):
     # Chosen so the 25th and 75th percentiles land exactly on observed values
     # (v[2] == v[3] and v[8] == v[9] for a 12-row sample), which makes the
     # worked-example points rows of the plotted curve rather than interpolations.
-    counts = np.array(
-        [4.0, 8.0, 16.0, 16.0, 18.0, 20.0, 20.0, 22.0, 24.0, 24.0, 28.0, 32.0]
-    )
+    counts = np.array([4.0, 8.0, 16.0, 16.0, 18.0, 20.0, 20.0, 22.0, 24.0, 24.0, 28.0, 32.0])
     z_mech, scaler = standardise(logit_safe(counts, n_trials_exposure))
     n_obs = counts.size
     beta = rng.normal(0.4, 0.05, size=(2, 25))
     child_idx = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3])
     u_child = rng.normal(0.0, 0.4, size=(2, 25, 4))
     baseline = rng.normal(0.0, 0.3, size=(2, 25, n_obs))
-    eta = (
-        baseline
-        + beta[:, :, None] * z_mech[None, None, :]
-        + u_child[:, :, child_idx]
-    )
+    eta = baseline + beta[:, :, None] * z_mech[None, None, :] + u_child[:, :, child_idx]
     posterior = _dataset(
         {
             "eta": (("chain", "draw", "obs_id"), eta),
@@ -112,9 +106,7 @@ def _linear_fit(tmp_path: Path, *, n_trials_exposure: int = 32):
         outcome_symbol="W",
         mechanism_symbol="L",
         adjustment=["G", "A", "W_pre"],
-        model_settings=MechanismModelSettings(
-            outcomes=("W", "L"), linear_mechanism=True
-        ),
+        model_settings=MechanismModelSettings(outcomes=("W", "L"), linear_mechanism=True),
     )
     ctx = SimpleNamespace(
         trace=SimpleNamespace(posterior=posterior, constant_data=constant),
@@ -142,9 +134,7 @@ def _linear_fit(tmp_path: Path, *, n_trials_exposure: int = 32):
 # ---------------------------------------------------------------------------
 
 
-def test_headline_matches_across_summary_worked_example_and_key_findings(
-    tmp_path, monkeypatch
-):
+def test_headline_matches_across_summary_worked_example_and_key_findings(tmp_path, monkeypatch):
     """The one number a reader quotes must be one number, wherever they read it.
 
     Before #602 the key-findings headline came from a full-observed-range,
@@ -162,9 +152,7 @@ def test_headline_matches_across_summary_worked_example_and_key_findings(
     assert headline["contrast"] == "headline_interquartile"
     assert headline["estimand"] == mi.HEADLINE_ESTIMAND
     # The worked example annotated on the figure is the same contrast, not another.
-    assert headline["items_median"] == pytest.approx(
-        worked["outcome_difference_median"]
-    )
+    assert headline["items_median"] == pytest.approx(worked["outcome_difference_median"])
     assert headline["exposure_low"] == pytest.approx(worked["exposure_ref_low"])
     assert headline["exposure_high"] == pytest.approx(worked["exposure_ref_high"])
 
@@ -173,9 +161,7 @@ def test_headline_matches_across_summary_worked_example_and_key_findings(
     payload = generate_key_findings(tmp_path)
     assert payload["status"] == "ok"
     assert payload["headline_estimand"]["estimand"] == mi.HEADLINE_ESTIMAND
-    assert payload["headline_estimand"]["items_median"] == pytest.approx(
-        worked["outcome_difference_median"]
-    )
+    assert payload["headline_estimand"]["items_median"] == pytest.approx(worked["outcome_difference_median"])
     text = payload["sentences"][0]["text"]
     assert f"{worked['outcome_difference_median']:+.1f} items" in text
     assert "75th and 25th percentile" in text
@@ -202,9 +188,7 @@ def test_secondary_contrast_is_present_and_labelled(tmp_path, monkeypatch):
     assert set(summary["child_intercept"]) == {"retained_at_fitted_value"}
 
 
-def test_the_curve_and_the_worked_example_agree_at_the_reference_points(
-    tmp_path, monkeypatch
-):
+def test_the_curve_and_the_worked_example_agree_at_the_reference_points(tmp_path, monkeypatch):
     """The annotated points lie **on** the plotted curve.
 
     They did not before #602: the curve and its worked example were the same
@@ -219,12 +203,7 @@ def test_the_curve_and_the_worked_example_agree_at_the_reference_points(
     worked = mech_pipeline._write_mechanism_items(ctx)
     curve = pd.read_csv(tmp_path / "mechanism_curve_items.csv")
 
-    eta = (
-        ctx.trace.posterior["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )
+    eta = ctx.trace.posterior["eta"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
     beta_flat = beta.reshape(-1)
     eta_base = eta - z_mech[:, None] * beta_flat[None, :]
 
@@ -258,12 +237,7 @@ def test_standardisation_is_not_the_link_of_an_average(tmp_path, monkeypatch):
     """
     monkeypatch.setattr(mi, "save_styled_figure", lambda *_a, **_k: None)
     ctx, counts, z_mech, _scaler, beta = _linear_fit(tmp_path)
-    eta = (
-        ctx.trace.posterior["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )
+    eta = ctx.trace.posterior["eta"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
     beta_flat = beta.reshape(-1)
     eta_base = eta - z_mech[:, None] * beta_flat[None, :]
 
@@ -275,18 +249,14 @@ def test_standardisation_is_not_the_link_of_an_average(tmp_path, monkeypatch):
         ci_prob=0.89,
     )
     row = curve.loc[curve["exposure"] == counts[0]].iloc[0]
-    row_standardised = 79.0 * expit(eta_base + z_mech[0] * beta_flat[None, :]).mean(
-        axis=0
-    )
+    row_standardised = 79.0 * expit(eta_base + z_mech[0] * beta_flat[None, :]).mean(axis=0)
     typical_child = 79.0 * expit(eta_base.mean(axis=0) + z_mech[0] * beta_flat)
     assert row["outcome_mean"] == pytest.approx(row_standardised.mean())
     assert row["outcome_mean"] != pytest.approx(typical_child.mean(), rel=1e-6)
 
 
-def test_items_scale_steepest_interval_is_published_beside_the_logit_one(
-    tmp_path, monkeypatch
-):
-    """"Where do outcome *items* rise fastest?" gets its own answer (#602).
+def test_items_scale_steepest_interval_is_published_beside_the_logit_one(tmp_path, monkeypatch):
+    """ "Where do outcome *items* rise fastest?" gets its own answer (#602).
 
     ``_readiness_knee`` locates the steepest interval on the outcome-*logit* scale;
     the expected-items derivative carries an extra ``p (1 - p)`` factor from the
@@ -300,9 +270,7 @@ def test_items_scale_steepest_interval_is_published_beside_the_logit_one(
     n_obs = counts.size
     ell = logit_safe(counts, 32)
     # A curve that is flat, then rises: a real steepest interval to find.
-    f = np.broadcast_to(
-        1.4 / (1.0 + np.exp(-(counts - 20.0) / 2.0)), (2, 40, n_obs)
-    ).copy()
+    f = np.broadcast_to(1.4 / (1.0 + np.exp(-(counts - 20.0) / 2.0)), (2, 40, n_obs)).copy()
     baseline = rng.normal(-1.0, 0.3, size=(2, 40, n_obs))
     posterior = _dataset(
         {
@@ -335,9 +303,7 @@ def test_items_scale_steepest_interval_is_published_beside_the_logit_one(
         output_dir=str(tmp_path),
         tables={},
     )
-    monkeypatch.setattr(
-        mech_pipeline, "save_styled_figure", lambda *_a, **_k: None
-    )
+    monkeypatch.setattr(mech_pipeline, "save_styled_figure", lambda *_a, **_k: None)
 
     mech_pipeline._write_readiness_threshold(ctx)
 
@@ -392,8 +358,7 @@ def _write_publishable_fit_dir(d: Path, model_id: str) -> None:
         json.dump(
             {
                 "artifacts": [
-                    {"filename": name, "status": "written", "required": True}
-                    for name in _release._CORE_ARTIFACTS_BASE
+                    {"filename": name, "status": "written", "required": True} for name in _release._CORE_ARTIFACTS_BASE
                 ]
             },
             fh,
@@ -475,11 +440,7 @@ def test_the_split_contrast_is_the_within_child_one(tmp_path):
     between = rng.normal(0.9, 0.05, size=(2, 30))
     within = rng.normal(0.1, 0.02, size=(2, 30))
     baseline = rng.normal(0.0, 0.2, size=(2, 30, counts.size))
-    eta = (
-        baseline
-        + between[:, :, None] * mbar[None, None, :]
-        + within[:, :, None] * dev[None, None, :]
-    )
+    eta = baseline + between[:, :, None] * mbar[None, None, :] + within[:, :, None] * dev[None, None, :]
     trace = SimpleNamespace(
         posterior=_dataset(
             {
@@ -496,14 +457,11 @@ def test_the_split_contrast_is_the_within_child_one(tmp_path):
             }
         ),
     )
-    terms = mi.resolve_mechanism_terms(
-        trace, x_exposure=counts, exposure_n_trials=32
-    )
+    terms = mi.resolve_mechanism_terms(trace, x_exposure=counts, exposure_n_trials=32)
     assert terms.kind == "linear_between_within"
     np.testing.assert_allclose(
         terms.fitted,
-        mbar[:, None] * between.reshape(-1)[None, :]
-        + dev[:, None] * within.reshape(-1)[None, :],
+        mbar[:, None] * between.reshape(-1)[None, :] + dev[:, None] * within.reshape(-1)[None, :],
         atol=1e-12,
     )
     # Every row's contrast between two exposures is beta_within * dz — the between
@@ -649,14 +607,10 @@ def test_phase_varying_contribution_uses_each_row_s_own_period():
             }
         ),
     )
-    terms = mi.resolve_mechanism_terms(
-        trace, x_exposure=counts, exposure_n_trials=32
-    )
+    terms = mi.resolve_mechanism_terms(trace, x_exposure=counts, exposure_n_trials=32)
     assert terms.kind == "linear_phase_varying"
     flat = per_phase.reshape(-1, 3)
-    np.testing.assert_allclose(
-        terms.fitted, flat[:, phase].T * z[:, None], atol=1e-12
-    )
+    np.testing.assert_allclose(terms.fitted, flat[:, phase].T * z[:, None], atol=1e-12)
     # Row-specific: at one exposure value the contribution still differs by period.
     at_20 = terms.contribution_at(20.0)
     assert at_20.shape[0] == counts.size
@@ -743,16 +697,12 @@ def test_dispersion_settings_are_validated_before_data_loading():
         MechanismModelSettings(kappa_prior_family="halfcauchy")
     with pytest.raises(ValueError, match="kappa_sigma must be"):
         MechanismModelSettings(kappa_sigma=0.0)
-    settings = MechanismModelSettings(
-        kappa_prior_family="halfnormal_inverse_sqrt", kappa_sigma=0.5
-    )
+    settings = MechanismModelSettings(kappa_prior_family="halfnormal_inverse_sqrt", kappa_sigma=0.5)
     assert settings.kappa_sigma == 0.5
     assert _priors.inv_sqrt_kappa_prior(sigma=0.5) is not None
 
 
-def test_dispersion_summary_records_the_prior_and_the_implied_inflation(
-    tmp_path, monkeypatch
-):
+def test_dispersion_summary_records_the_prior_and_the_implied_inflation(tmp_path, monkeypatch):
     """The report must be able to show whether the data moved ``kappa`` at all."""
     monkeypatch.setattr(mi, "save_styled_figure", lambda *_a, **_k: None)
     ctx, *_ = _linear_fit(tmp_path)

@@ -196,9 +196,7 @@ def main() -> int:
         # target_accept: CLI override > registered spec override (hs-001 needs
         # 0.999) > family default.
         target_accept = (
-            float(args.target_accept)
-            if args.target_accept is not None
-            else spec_target_accept(spec) or 0.99
+            float(args.target_accept) if args.target_accept is not None else spec_target_accept(spec) or 0.99
         )
 
         cells = [(t, ref_slab) for t in TAU0_GRID] + [(ref_tau0, s) for s in SLAB_GRID]
@@ -287,9 +285,7 @@ def main() -> int:
         for model_id in cells_df["model_id"].unique():
             dst = out_root / "models" / f"{model_id}-reporting"
             if dst.is_dir():
-                cells_df[cells_df["model_id"] == model_id].to_csv(
-                    dst / "horseshoe_prior_sensitivity.csv", index=False
-                )
+                cells_df[cells_df["model_id"] == model_id].to_csv(dst / "horseshoe_prior_sensitivity.csv", index=False)
                 print(f"Wrote report-local sensitivity: {dst}")
     print(cells_df.to_string(index=False))
     return 0

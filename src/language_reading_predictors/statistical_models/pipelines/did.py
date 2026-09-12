@@ -124,13 +124,9 @@ def _waitlist_crossover_index(
     rather than re-derived by a second, subtly different rule (#576 finding 5).
     """
     prepared = built.prepared
-    waitlist_subjects = np.unique(
-        prepared.subject_ids[(prepared.G == 0) & (prepared.phase == 2)]
-    )
+    waitlist_subjects = np.unique(prepared.subject_ids[(prepared.G == 0) & (prepared.phase == 2)])
     lookup = {subject: position for position, subject in enumerate(waitlist_subjects)}
-    return np.asarray(
-        [lookup.get(subject, 0) for subject in prepared.subject_ids], dtype=int
-    )
+    return np.asarray([lookup.get(subject, 0) for subject in prepared.subject_ids], dtype=int)
 
 
 def _did_analysis_contract(
@@ -169,18 +165,10 @@ def _did_analysis_contract(
         dose_payload = built.require_payload(DidDosePayload, family="did dose")
         manifest["treated"] = np.asarray(dose_payload.treated, dtype=int)
         manifest["sessions_raw"] = np.asarray(dose_payload.raw_attend, dtype=float)
-        manifest["dose_treated_std"] = np.asarray(
-            dose_payload.dose_treated_std, dtype=float
-        )
+        manifest["dose_treated_std"] = np.asarray(dose_payload.dose_treated_std, dtype=float)
     save_table(ctx, "analysis_rows", manifest, register=False)
 
-    counts = (
-        manifest.groupby([phase_name, "arm"], observed=True)
-        .size()
-        .rename("n")
-        .reset_index()
-        .to_dict("records")
-    )
+    counts = manifest.groupby([phase_name, "arm"], observed=True).size().rename("n").reset_index().to_dict("records")
     design_codes = (0, 1) if dose else (0, 1, 2)
     design_eligible = int(np.isin(loaded_prepared.phase, design_codes).sum())
     contract: dict = {
@@ -195,9 +183,7 @@ def _did_analysis_contract(
         },
         "run_plan_digest": plan.run_plan_digest,
         "analysis_row_manifest": "analysis_rows.csv",
-        "analysis_row_sha256": hashlib.sha256(
-            "\n".join(row_ids).encode("utf-8")
-        ).hexdigest(),
+        "analysis_row_sha256": hashlib.sha256("\n".join(row_ids).encode("utf-8")).hexdigest(),
         "analysis_row_count": int(len(row_ids)),
         "loaded_row_count": int(loaded_prepared.n_obs),
         "loader_dropped_rows": int(loaded_prepared.dropped_rows),
@@ -218,8 +204,7 @@ def _did_analysis_contract(
             {
                 "analysis_periods": ["P1", "P2"],
                 "baseline_policy": (
-                    "shared pre-randomisation t1 outcome and t1 age; never the "
-                    "treatment-affected P2 period-start score"
+                    "shared pre-randomisation t1 outcome and t1 age; never the treatment-affected P2 period-start score"
                 ),
                 "dose_standardization": {
                     "scope": "raw sessions among treated P1/P2 rows",
@@ -240,14 +225,10 @@ def _did_analysis_contract(
                     **(
                         {
                             "mu_dose": (
-                                "hierarchical centre of the per-period session "
-                                "slopes; not the published marginal"
+                                "hierarchical centre of the per-period session slopes; not the published marginal"
                             ),
                             "sigma_dose": "between-period SD of the session slopes",
-                            "beta_dose_phase": (
-                                "partial-pooled per-period intensive session-dose "
-                                "associations"
-                            ),
+                            "beta_dose_phase": ("partial-pooled per-period intensive session-dose associations"),
                         }
                         if plan.period_varying
                         else {
@@ -271,22 +252,15 @@ def _did_analysis_contract(
             }
         )
     else:
-        arm_payload = built.require_payload(
-            DidArmWavePayload, family="did arm-by-wave"
-        )
+        arm_payload = built.require_payload(DidArmWavePayload, family="did arm-by-wave")
         contract.update(
             {
                 "analysis_waves": ["t1", "t2", "t3"],
-                "baseline_policy": (
-                    "t1 is modelled as an outcome level; no period-start outcome "
-                    "is conditioned on"
-                ),
+                "baseline_policy": ("t1 is modelled as an outcome level; no period-start outcome is conditioned on"),
                 # None for the LRPDID101 independent-prior companion: its free
                 # alpha has no outcome-informed location to record.
                 "alpha_anchor_logit": (
-                    float(arm_payload.alpha_anchor)
-                    if arm_payload.alpha_anchor is not None
-                    else None
+                    float(arm_payload.alpha_anchor) if arm_payload.alpha_anchor is not None else None
                 ),
                 "score_mean_link": arm_payload.score_mean_link,
                 "arm_gap_orientation": "immediate minus waitlist",
@@ -297,10 +271,7 @@ def _did_analysis_contract(
                 # effects and different taught blocks are inseparable there.
                 "contrast_status": {
                     "arm_gap_t1": "pre-randomisation balance association",
-                    "tau_t2": (
-                        "randomised assignment contrast: immediate treatment versus "
-                        "no treatment yet, at t2"
-                    ),
+                    "tau_t2": ("randomised assignment contrast: immediate treatment versus no treatment yet, at t2"),
                     "arm_gap_t3": (
                         "randomised assignment contrast between treatment schedules: "
                         "early-start (about 40 weeks) versus delayed-start (about 20 "
@@ -312,9 +283,7 @@ def _did_analysis_contract(
                         "t3 gap); not an identified catch-up mechanism"
                     ),
                 },
-                "marginal_standardization": (
-                    "wave-specific fitted-row standardised arm means and gaps"
-                ),
+                "marginal_standardization": ("wave-specific fitted-row standardised arm means and gaps"),
             }
         )
     return contract
@@ -379,8 +348,11 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             # correlations, which it cannot. Guarded: an expensive fit must not be
             # lost to a diagnostic.
             with guard_optional(
-                c, "DiD within-child PPC",
-                filename="did_within_child_ppc.csv", kind="table", verb="skipped",
+                c,
+                "DiD within-child PPC",
+                filename="did_within_child_ppc.csv",
+                kind="table",
+                verb="skipped",
             ):
                 save_table(
                     c,
@@ -403,17 +375,13 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         PrimaryFitPlan(
             diagnostic_vars=tuple(_did_diag),
             ppc_var_names=("y_offfloor",) if off_floor else ("y_post",),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol or "W"
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol or "W"),
             post_ppc_audit=_write_did_cell_ppc,
             # Overlay first, then power scaling: the family's established
             # post-trace order, now owned by the runner (#637 stage 4).
             psense_timing="after_trace",
             psense_vars=tuple(plan.psense_terms),
-            after_trace_audit=lambda c: _diag.save_prior_posterior_plot(
-                c, var_names=_did_diag
-            ),
+            after_trace_audit=lambda c: _diag.save_prior_posterior_plot(c, var_names=_did_diag),
             extended_term=_did_effect,
         ),
     )
@@ -421,8 +389,11 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     _within_child_ppc = ctx.tables.get("did_within_child_ppc")
     if not dose:
         with guard_optional(
-            ctx, "DiD prior pushforward",
-            filename="prior_pushforward.csv", kind="table", verb="skipped",
+            ctx,
+            "DiD prior pushforward",
+            filename="prior_pushforward.csv",
+            kind="table",
+            verb="skipped",
         ):
             from language_reading_predictors.statistical_models.measures import MEASURES
 
@@ -438,9 +409,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 score_mean_link=plan.score_mean_link,
             )
             prior_pushforward_df = pd.DataFrame([prior_pushforward])
-            save_table(
-                ctx, "prior_pushforward", prior_pushforward_df, required=False
-            )
+            save_table(ctx, "prior_pushforward", prior_pushforward_df, required=False)
         save_forest_plot(
             ctx,
             ["tau_t2", "arm_gap_t3", "delta_crossover"],
@@ -450,11 +419,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    section_header(
-        "Dose-model association summary"
-        if dose
-        else "Arm-by-wave crossover contrasts"
-    )
+    section_header("Dose-model association summary" if dose else "Arm-by-wave crossover contrasts")
     did_s = _did_summary.did_summary(
         ctx.trace,
         ci_prob=ctx.reporting.ci_prob,
@@ -500,9 +465,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             child_re=plan.use_child_re,
             child_idx=built.prepared.child_idx,
             delta=ROPE_DELTA_PROB.get(sym) if off_floor else ROPE_DELTA.get(sym),
-            population=(
-                "covariate profiles drawn from the fitted t2 rows"
-            ),
+            population=("covariate profiles drawn from the fitted t2 rows"),
             contrast_status=(
                 "randomised t2 assignment contrast — immediate treatment versus no "
                 "treatment yet — within a within-child longitudinal "
@@ -534,15 +497,9 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             extra_effect_name="v_delta" if plan.use_varying_delta else None,
             extra_effect_sd_name="sigma_delta" if plan.use_varying_delta else None,
             extra_effect_rows=(
-                ((built.prepared.G == 0) & (built.prepared.phase == 2))
-                if plan.use_varying_delta
-                else None
+                ((built.prepared.G == 0) & (built.prepared.phase == 2)) if plan.use_varying_delta else None
             ),
-            extra_effect_idx=(
-                _waitlist_crossover_index(built)
-                if plan.use_varying_delta
-                else None
-            ),
+            extra_effect_idx=(_waitlist_crossover_index(built) if plan.use_varying_delta else None),
         )
         write_child_fit(
             ctx,
@@ -562,11 +519,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # question — does the L dose-gain slope vary by period? — is answered by
         # the nested PSIS-LOO against the pooled comparator (lrp-rli-did-107) in
         # compare_statistical_models.py, not by this single-fit table.
-        section_header(
-            "Period-resolved dose-slope summary"
-            if period_varying
-            else "Pooled dose-slope summary"
-        )
+        section_header("Period-resolved dose-slope summary" if period_varying else "Pooled dose-slope summary")
         # The DiD dose factory standardises sessions among treated P1/P2 rows
         # only, so the persisted per-session calibration must come from the
         # fitted payload's scaler — not the loader's all-rows scaler, whose SD
@@ -626,12 +579,8 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             **did_contract,
             **(
                 {
-                    "dose_slope_summary": ctx.tables[
-                        "dose_slope_summary"
-                    ].to_dict("records"),
-                    "dose_marginal_summary": ctx.tables[
-                        "dose_marginal_summary"
-                    ].to_dict("records"),
+                    "dose_slope_summary": ctx.tables["dose_slope_summary"].to_dict("records"),
+                    "dose_marginal_summary": ctx.tables["dose_marginal_summary"].to_dict("records"),
                 }
                 if dose
                 else {}

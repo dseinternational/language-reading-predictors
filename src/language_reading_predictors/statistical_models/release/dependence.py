@@ -31,6 +31,7 @@ from language_reading_predictors.statistical_models.release.robustness import (
     _CONTRAST_DIRECTION_SHIFT,
 )
 
+
 def _dependence_identification_note(output_dir: Path) -> str:
     """Qualifier when a fitted dependence block never moved off its prior.
 
@@ -55,9 +56,7 @@ def _dependence_identification_note(output_dir: Path) -> str:
     correlations = frame.loc[frame["role"].astype(str) == "residual correlation"]
     if correlations.empty:
         return ""
-    dominated = correlations.loc[
-        correlations["verdict"].astype(str) == "prior-dominated"
-    ]
+    dominated = correlations.loc[correlations["verdict"].astype(str) == "prior-dominated"]
     if dominated.empty:
         return ""
     names = ", ".join(str(v) for v in dominated["parameter"])
@@ -95,9 +94,7 @@ def _required_dependence_companion(config: Mapping[str, Any]) -> str:
     return str(contrast.get("dependence_companion") or "")
 
 
-def _joint_marginal_widths(
-    directory: Path, outcomes: tuple[str, str]
-) -> dict[str, float] | None:
+def _joint_marginal_widths(directory: Path, outcomes: tuple[str, str]) -> dict[str, float] | None:
     """Each contrast outcome's probability-scale AME interval width, or ``None``."""
     frame = _read_csv(directory, "tau_summary.csv")
     if frame is None or frame.empty or "outcome" not in frame.columns:
@@ -192,17 +189,13 @@ def _joint_width_channels(
     return {
         "channel_status": "measured",
         "parent_marginal_widths": {k: float(v) for k, v in parent_widths.items()},
-        "companion_marginal_widths": {
-            k: float(v) for k, v in companion_widths.items()
-        },
+        "companion_marginal_widths": {k: float(v) for k, v in companion_widths.items()},
         "parent_implied_ame_correlation": float(parent_r),
         "companion_implied_ame_correlation": float(companion_r),
         "implied_ame_correlation_change": float(correlation_change),
         "marginal_width_channel": float(marginal_channel),
         "covariance_width_channel": float(covariance_channel),
-        "covariance_channel_share": (
-            float(abs(covariance_channel) / moved) if moved else None
-        ),
+        "covariance_channel_share": (float(abs(covariance_channel) / moved) if moved else None),
         "dominant_width_channel": dominant,
     }
 
@@ -255,19 +248,14 @@ def _joint_contrast_consequence(
     if str(p.get("contrast")) != str(c.get("contrast")):
         return _unusable(
             "mismatched",
-            f"parent reports {p.get('contrast')!r} and companion "
-            f"{c.get('contrast')!r}",
+            f"parent reports {p.get('contrast')!r} and companion {c.get('contrast')!r}",
         )
     needed = ("diff_prob_median", "diff_prob_lo", "diff_prob_hi", "prob_diff_pos")
     if any(col not in parent.columns or col not in companion.columns for col in needed):
-        return _unusable(
-            "unavailable", "tau_difference.csv is missing the contrast columns"
-        )
+        return _unusable("unavailable", "tau_difference.csv is missing the contrast columns")
     values = {name: (_finite(p[name]), _finite(c[name])) for name in needed}
     if any(v[0] is None or v[1] is None for v in values.values()):
-        return _unusable(
-            "unavailable", "tau_difference.csv holds non-finite contrast values"
-        )
+        return _unusable("unavailable", "tau_difference.csv holds non-finite contrast values")
     p_med, c_med = values["diff_prob_median"]
     p_pos, c_pos = values["prob_diff_pos"]
     p_width = values["diff_prob_hi"][0] - values["diff_prob_lo"][0]
@@ -307,11 +295,7 @@ def _joint_contrast_consequence(
         record["channel_reason"] = "the resolved plan does not name the contrast pair"
     if not record["material"]:
         return record, ""
-    cause = (
-        "reverses the sign of the contrast median"
-        if flipped
-        else f"moves P(> 0) by {direction_shift:.2f}"
-    )
+    cause = "reverses the sign of the contrast median" if flipped else f"moves P(> 0) by {direction_shift:.2f}"
     return record, (
         "The dependence model materially changes the declared contrast: the LKJ "
         f"companion {cause} (parent P(> 0) = {p_pos:.2f}, companion "
@@ -347,9 +331,7 @@ def _historical_joint_prior_sensitivity(output_dir: Path) -> str:
     )
 
 
-def _historical_joint_prior_companion_qualifications(
-    output_dir: Path, config: Mapping[str, Any]
-) -> list[str]:
+def _historical_joint_prior_companion_qualifications(output_dir: Path, config: Mapping[str, Any]) -> list[str]:
     """Qualify a within-child historical-joint fit whose prior sensitivity is absent.
 
     2026-08-23 joint audit, finding 5, completing what #609 registered. The family
@@ -389,15 +371,11 @@ def _historical_joint_prior_companion_qualifications(
 
     try:
         directory = Path(output_dir).resolve()
-        config_name = str(config.get("config_name") or "") or _config_name(
-            directory, model_id
-        )
+        config_name = str(config.get("config_name") or "") or _config_name(directory, model_id)
         if not config_name:
             return _note("this fit's configuration name could not be resolved")
         companion_dir = directory.parent / f"{companion}-{config_name}"
-        decision, decision_error = _read_json(
-            companion_dir / RELEASE_DECISION_FILENAME
-        )
+        decision, decision_error = _read_json(companion_dir / RELEASE_DECISION_FILENAME)
         if decision_error is not None or not isinstance(decision, Mapping):
             return _note("it has not been fitted, or its release decision is unreadable")
         if not bool(decision.get("publishable")):
@@ -412,10 +390,7 @@ def _historical_joint_prior_companion_qualifications(
         if ours is None or theirs is None:
             return _note("the within-scale prior is not recorded on both fits")
         if ours == theirs:
-            return _note(
-                "it was fitted under the same within-scale prior, so it varies "
-                "nothing"
-            )
+            return _note("it was fitted under the same within-scale prior, so it varies nothing")
         for description, reader in _HISTORICAL_JOINT_PRIOR_BINDING:
             mine, yours = reader(config), reader(companion_config)
             if mine is None or yours is None:
@@ -434,9 +409,7 @@ def _historical_joint_prior_companion_qualifications(
     return []
 
 
-def _historical_joint_resolvability_change(
-    parent_dir: Path, companion_dir: Path
-) -> str:
+def _historical_joint_resolvability_change(parent_dir: Path, companion_dir: Path) -> str:
     """Which measures the wider prior reclassifies, as a phrase or ``""``.
 
     The classification *is* the conclusion for this family, so comparing it across
@@ -453,9 +426,7 @@ def _historical_joint_resolvability_change(
 
     def _flags(frame: pd.DataFrame) -> dict[str, bool]:
         return {
-            str(row["measure"]): str(row["resolvable"]).strip().lower()
-            in {"true", "1"}
-            for _, row in frame.iterrows()
+            str(row["measure"]): str(row["resolvable"]).strip().lower() in {"true", "1"} for _, row in frame.iterrows()
         }
 
     mine, theirs = _flags(parent), _flags(companion)
@@ -471,9 +442,7 @@ def _historical_joint_resolvability_change(
     )
 
 
-def _joint_dependence_companion_note(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, dict[str, Any] | None]:
+def _joint_dependence_companion_note(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, dict[str, Any] | None]:
     """Qualifying note when a factorised joint contrast's dependence companion is
     not release-ready **and bound** beside it (2026-08-21 joint review, finding 3;
     binding and contrast consequence added by the 2026-08-23 joint audit, finding 2).
@@ -520,15 +489,11 @@ def _joint_dependence_companion_note(
     try:
         directory = Path(output_dir).resolve()
         model_id = str(config.get("model_id") or "")
-        config_name = str(config.get("config_name") or "") or _config_name(
-            directory, model_id
-        )
+        config_name = str(config.get("config_name") or "") or _config_name(directory, model_id)
         if not config_name:
             return _note("this fit's configuration name could not be resolved"), None
         companion_dir = directory.parent / f"{companion}-{config_name}"
-        decision, decision_error = _read_json(
-            companion_dir / RELEASE_DECISION_FILENAME
-        )
+        decision, decision_error = _read_json(companion_dir / RELEASE_DECISION_FILENAME)
         if decision_error is not None or not isinstance(decision, Mapping):
             return _note("its release decision is missing or unreadable"), None
         if not bool(decision.get("publishable")):
@@ -560,8 +525,6 @@ def _joint_dependence_companion_note(
     if isinstance(declared, Mapping):
         left, right = str(declared.get("left") or ""), str(declared.get("right") or "")
         pair = (left, right) if left and right else None
-    contrast_record, contrast_note = _joint_contrast_consequence(
-        directory, companion_dir, pair=pair
-    )
+    contrast_record, contrast_note = _joint_contrast_consequence(directory, companion_dir, pair=pair)
     contrast_record["companion"] = companion
     return contrast_note, contrast_record

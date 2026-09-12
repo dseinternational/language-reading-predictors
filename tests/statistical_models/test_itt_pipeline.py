@@ -163,9 +163,7 @@ def fast_pipeline(monkeypatch, tmp_path):
 
     def sample_and_loo(ctx, *, compute_loo=True):
         outcomes = (
-            ctx.resolved_plan.outcomes
-            if ctx.resolved_plan is not None
-            else tuple(ctx.spec.extra.get("outcomes", ()))
+            ctx.resolved_plan.outcomes if ctx.resolved_plan is not None else tuple(ctx.spec.extra.get("outcomes", ()))
         )
         ctx.trace = _FakeTrace(outcomes)
         ctx.loo = SimpleNamespace(elpd=-12.5)
@@ -250,9 +248,7 @@ def fast_pipeline(monkeypatch, tmp_path):
                 ctx,
                 draws=plan.prior_predictive_draws,
                 var_names=(
-                    list(plan.prior_predictive_var_names)
-                    if plan.prior_predictive_var_names is not None
-                    else None
+                    list(plan.prior_predictive_var_names) if plan.prior_predictive_var_names is not None else None
                 ),
             )
             if plan.plot_prior_predictive is not None:
@@ -260,20 +256,14 @@ def fast_pipeline(monkeypatch, tmp_path):
             sample_and_loo(ctx, compute_loo=plan.compute_loo)
             if plan.post_sampling_audit is not None:
                 plan.post_sampling_audit(ctx)
-            itt_pipeline._diag.summary_diagnostics(
-                ctx, var_names=list(plan.diagnostic_vars)
-            )
+            itt_pipeline._diag.summary_diagnostics(ctx, var_names=list(plan.diagnostic_vars))
             if plan.custom_posterior_predictive is not None:
                 plan.custom_posterior_predictive(ctx)
             else:
-                itt_pipeline._diag.sample_posterior_predictive(
-                    ctx, var_names=list(plan.ppc_var_names)
-                )
+                itt_pipeline._diag.sample_posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
             if plan.post_ppc_audit is not None:
                 plan.post_ppc_audit(ctx)
-            gate = itt_pipeline._diag.write_diagnostics_summary(
-                ctx, var_names=list(plan.diagnostic_vars)
-            )
+            gate = itt_pipeline._diag.write_diagnostics_summary(ctx, var_names=list(plan.diagnostic_vars))
             if plan.post_gate_audit is not None:
                 plan.post_gate_audit(ctx, gate)
             if plan.run_extended:
@@ -592,14 +582,10 @@ def test_write_itt_ppc_calibration_real_writer_maps_joint_cells(tmp_path):
     assert (tmp_path / "posterior_predictive_shape_calibration.csv").is_file()
     assert calibration.groupby("outcome")["n"].sum().to_dict() == {"L": 3, "W": 4}
     assert not calibration.filter(like="outside_interval").to_numpy().any()
-    shape = pd.read_csv(
-        tmp_path / "posterior_predictive_shape_calibration.csv", keep_default_na=False
-    )
+    shape = pd.read_csv(tmp_path / "posterior_predictive_shape_calibration.csv", keep_default_na=False)
     assert shape.set_index("outcome")["n"].to_dict() == {"L": 3, "W": 4}
     assert not shape["ppc_shape_flag"].any()
-    pd.testing.assert_frame_equal(
-        ctx.tables["posterior_predictive_shape_calibration"], shape
-    )
+    pd.testing.assert_frame_equal(ctx.tables["posterior_predictive_shape_calibration"], shape)
 
 
 def test_tau_summary_itt_names_probability_scale_direction_and_keeps_alias():
@@ -729,9 +715,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
     assert cfg["model_recipe_file"] == "model_recipe.md"
     lock_path = out / cfg["environment_lock_file"]
     assert cfg["environment_lock_file"] == "environment-lock.json"
-    assert cfg["environment_lock_sha256"] == hashlib.sha256(
-        lock_path.read_bytes()
-    ).hexdigest()
+    assert cfg["environment_lock_sha256"] == hashlib.sha256(lock_path.read_bytes()).hexdigest()
     recipe = (out / "model_recipe.md").read_text()
     assert "A causal reading in the observed analysis set requires" in recipe
     assert "further missing-outcome assumptions and sensitivity" in recipe

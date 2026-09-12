@@ -47,10 +47,7 @@ from language_reading_predictors.statistical_models.pipelines.did import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-102",
     kind="did",
-    title=(
-        "Wide-tau_t2 prior sensitivity for the letter-sound arm-by-wave contrasts "
-        "(YARC-LSK) (L)"
-    ),
+    title=("Wide-tau_t2 prior sensitivity for the letter-sound arm-by-wave contrasts (YARC-LSK) (L)"),
     outcome_symbol="L",
     family="did",
     design="waitlist-crossover arm-by-wave levels",

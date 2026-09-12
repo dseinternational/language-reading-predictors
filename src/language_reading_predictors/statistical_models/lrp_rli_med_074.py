@@ -60,8 +60,16 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="N",  # the mediator
     adjustment=[
-        "G", "A", "E", "R", "W_pre", "N_t1",
-        "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+        "G",
+        "A",
+        "E",
+        "R",
+        "W_pre",
+        "N_t1",
+        "deapp_c",
+        "deapp_c_missing",
+        "erbto",
+        "erbto_missing",
     ],
     # N is outside ITT_OUTCOMES, so name the symbols the model loads (outcome +
     # mediator + confounders); restricts the complete-case mask to them.

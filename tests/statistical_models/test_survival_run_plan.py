@@ -56,8 +56,7 @@ def _registered_specs() -> list[ModelSpec]:
     specs: list[ModelSpec] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_rli_surv_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and spec.kind == "survival":
@@ -137,9 +136,7 @@ def test_default_legacy_plan_preserves_execution_contract():
 
 
 def test_logit_no_treatment_plan_removes_tau_from_factory_and_diagnostics():
-    plan = S.resolve_survival_run_plan(
-        _spec(hazard_link="logit", use_treatment=False)
-    )
+    plan = S.resolve_survival_run_plan(_spec(hazard_link="logit", use_treatment=False))
 
     assert plan.factory_kwargs() == {
         "hazard_link": "logit",
@@ -205,9 +202,7 @@ def test_invalid_setting_fails_before_context_reset_or_data_loading(monkeypatch)
 
 
 def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
-    spec = _spec(
-        settings=S.SurvivalModelSettings(hazard_link="logit")
-    )
+    spec = _spec(settings=S.SurvivalModelSettings(hazard_link="logit"))
     plan = S.resolve_survival_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
 

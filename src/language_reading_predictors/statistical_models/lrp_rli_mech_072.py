@@ -67,10 +67,7 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import f
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-072",
     kind="mechanism",
-    title=(
-        "Code-based route: letter-sound (L) moderated by phoneme blending (B) "
-        "-> decoding (nonword)"
-    ),
+    title=("Code-based route: letter-sound (L) moderated by phoneme blending (B) -> decoding (nonword)"),
     outcome_symbol="N",
     mechanism_symbol="L",
     adjustment=["G", "A", "N_pre"],

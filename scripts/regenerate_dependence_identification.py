@@ -73,7 +73,7 @@ def _record_in_manifest(directory: Path) -> None:
         return
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except OSError, UnicodeDecodeError, json.JSONDecodeError:
         return
     entries = payload.get("artifacts")
     if not isinstance(entries, list):
@@ -103,8 +103,9 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("target", help="'all', a model id, or a fit dir name")
-    parser.add_argument("--ci-prob", type=float, default=None,
-                        help="Credible-interval mass (default: the fit's own config.json)")
+    parser.add_argument(
+        "--ci-prob", type=float, default=None, help="Credible-interval mass (default: the fit's own config.json)"
+    )
     parser.add_argument("--output-dir", default=None, help="Output root override")
     args = parser.parse_args()
     if args.output_dir:
@@ -122,9 +123,7 @@ def main() -> None:
         ci_prob = args.ci_prob
         if ci_prob is None:
             with suppress(Exception):
-                ci_prob = float(
-                    json.loads((directory / "config.json").read_text(encoding="utf-8"))["ci_prob"]
-                )
+                ci_prob = float(json.loads((directory / "config.json").read_text(encoding="utf-8"))["ci_prob"])
         if ci_prob is None:
             ci_prob = 0.89
         trace = None
@@ -147,8 +146,7 @@ def main() -> None:
         write_release_decision(SimpleNamespace(output_dir=str(directory)), decision)
         payload = generate_key_findings(directory, decision=decision)
         verdicts = ", ".join(
-            f"{row.parameter}={row.verdict}"
-            for row in frame.loc[frame["role"] == "residual correlation"].itertuples()
+            f"{row.parameter}={row.verdict}" for row in frame.loc[frame["role"] == "residual correlation"].itertuples()
         )
         _console.print(
             f"  {directory.name}: {len(frame)} rows [{verdicts}] "

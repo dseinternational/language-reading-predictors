@@ -37,9 +37,7 @@ def observed_domain_corr(
     it is not the same estimand as the model's latent factor correlation.
     """
     panel = built.prepared
-    payload = built.require_payload(
-        LongCorrFactorPayload, family="long_corr_factor summaries"
-    )
+    payload = built.require_payload(LongCorrFactorPayload, family="long_corr_factor summaries")
     domains = payload.domains
     standardisers = payload.standardisers
     waves = payload.waves
@@ -93,9 +91,7 @@ def items_scale(
     from scipy.special import expit
 
     post = ctx.trace.posterior
-    payload = built.require_payload(
-        LongCorrFactorPayload, family="long_corr_factor summaries"
-    )
+    payload = built.require_payload(LongCorrFactorPayload, family="long_corr_factor summaries")
     domains = payload.domains
     standardisers = payload.standardisers
     waves = payload.waves
@@ -201,21 +197,13 @@ def observed_conditional_slope(
     """
     corr = np.asarray(corr, dtype=float)
     n_domains = corr.shape[-1]
-    conditioned = [
-        idx
-        for idx in range(n_domains)
-        if idx not in {target_domain_idx, predictor_domain_idx}
-    ]
+    conditioned = [idx for idx in range(n_domains) if idx not in {target_domain_idx, predictor_domain_idx}]
     if conditioned:
         corr_cc = corr[:, :, conditioned, :][:, :, :, conditioned]
         corr_cb = corr[:, :, conditioned, predictor_domain_idx]
         solve_cb = np.linalg.solve(corr_cc, corr_cb[..., None])[..., 0]
-        predictor_variance = 1.0 - np.sum(
-            corr[:, :, predictor_domain_idx, conditioned] * solve_cb, axis=-1
-        )
-        conditional_covariance = corr[
-            :, :, target_domain_idx, predictor_domain_idx
-        ] - np.sum(
+        predictor_variance = 1.0 - np.sum(corr[:, :, predictor_domain_idx, conditioned] * solve_cb, axis=-1)
+        conditional_covariance = corr[:, :, target_domain_idx, predictor_domain_idx] - np.sum(
             corr[:, :, target_domain_idx, conditioned] * solve_cb, axis=-1
         )
     else:
@@ -226,11 +214,10 @@ def observed_conditional_slope(
     lambda_predictor = loadings[:, predictor_indicator_idx, None]
     sigma_predictor = residual_sds[:, predictor_indicator_idx, None]
     return (
-        lambda_target * lambda_predictor * conditional_covariance
-        / (
-            lambda_predictor**2 * predictor_variance
-            + sigma_predictor**2
-        )
+        lambda_target
+        * lambda_predictor
+        * conditional_covariance
+        / (lambda_predictor**2 * predictor_variance + sigma_predictor**2)
     )
 
 
@@ -264,29 +251,12 @@ def concurrent_comparison(
     domain_index = {domain: i for i, domain in enumerate(domains)}
     indicator_names = [str(value) for value in post.coords["indicator"].values]
     indicator_index = {symbol: i for i, symbol in enumerate(indicator_names)}
-    payload = built.require_payload(
-        LongCorrFactorPayload, family="long_corr_factor summaries"
-    )
+    payload = built.require_payload(LongCorrFactorPayload, family="long_corr_factor summaries")
     domain_of = payload.domain_of
 
-    corr = (
-        post["factor_corr"]
-        .stack(sample=("chain", "draw"))
-        .transpose("sample", "wave", "domain", "domain_b")
-        .values
-    )
-    loadings = (
-        post["lambda_load"]
-        .stack(sample=("chain", "draw"))
-        .transpose("sample", "indicator")
-        .values
-    )
-    residual_sds = (
-        post["sigma_indicator"]
-        .stack(sample=("chain", "draw"))
-        .transpose("sample", "indicator")
-        .values
-    )
+    corr = post["factor_corr"].stack(sample=("chain", "draw")).transpose("sample", "wave", "domain", "domain_b").values
+    loadings = post["lambda_load"].stack(sample=("chain", "draw")).transpose("sample", "indicator").values
+    residual_sds = post["sigma_indicator"].stack(sample=("chain", "draw")).transpose("sample", "indicator").values
 
     if ca_tables is None:
         ca_tables = {}
@@ -321,9 +291,7 @@ def concurrent_comparison(
                 continue
             predictor_domain_idx = domain_index[predictor_domain]
             predictor_indicator_idx = indicator_index[predictor]
-            predictor_pooled_sd = float(
-                payload.standardisers[predictor][1]
-            )
+            predictor_pooled_sd = float(payload.standardisers[predictor][1])
 
             observed_slope = observed_conditional_slope(
                 corr,
@@ -339,26 +307,17 @@ def concurrent_comparison(
                 predictor_wave = np.asarray(panel.logit[predictor][:, wave_idx])
                 target_wave = np.asarray(panel.logit[target][:, wave_idx])
                 fitted_rows = np.isfinite(target_wave)
-                predictor_wave_sd = float(
-                    np.nanstd(predictor_wave[fitted_rows], ddof=1)
-                )
+                predictor_wave_sd = float(np.nanstd(predictor_wave[fitted_rows], ddof=1))
                 target_wave_mean = float(np.nanmean(target_wave[fitted_rows]))
-                if not (
-                    np.isfinite(predictor_wave_sd)
-                    and predictor_wave_sd > 0
-                    and np.isfinite(target_wave_mean)
-                ):
+                if not (np.isfinite(predictor_wave_sd) and predictor_wave_sd > 0 and np.isfinite(target_wave_mean)):
                     continue
                 predictor_delta_z = predictor_wave_sd / predictor_pooled_sd
-                target_delta_logit = (
-                    observed_slope[:, wave_idx] * predictor_delta_z * target_sd
-                )
+                target_delta_logit = observed_slope[:, wave_idx] * predictor_delta_z * target_sd
                 # ``logit_safe`` uses the Haldane proportion (y + 0.5)/(N + 1),
                 # whose inverse count difference is (N + 1) times the probability
                 # difference (the -0.5 constants cancel).
                 lcf_items = (target_trials + 1) * (
-                    expit(target_wave_mean + target_delta_logit)
-                    - expit(target_wave_mean)
+                    expit(target_wave_mean + target_delta_logit) - expit(target_wave_mean)
                 )
 
                 ca_row = None
@@ -389,26 +348,10 @@ def concurrent_comparison(
                         "lcf_items_lo": float(np.quantile(lcf_items, lo_q)),
                         "lcf_items_hi": float(np.quantile(lcf_items, 1.0 - lo_q)),
                         "lcf_prob_pos": float(np.mean(lcf_items > 0)),
-                        "ca_items_median": (
-                            float(ca_row["items_median"])
-                            if ca_row is not None
-                            else float("nan")
-                        ),
-                        "ca_items_lo": (
-                            float(ca_row["items_lo"])
-                            if ca_row is not None
-                            else float("nan")
-                        ),
-                        "ca_items_hi": (
-                            float(ca_row["items_hi"])
-                            if ca_row is not None
-                            else float("nan")
-                        ),
-                        "ca_prob_pos": (
-                            float(ca_row["prob_pos"])
-                            if ca_row is not None
-                            else float("nan")
-                        ),
+                        "ca_items_median": (float(ca_row["items_median"]) if ca_row is not None else float("nan")),
+                        "ca_items_lo": (float(ca_row["items_lo"]) if ca_row is not None else float("nan")),
+                        "ca_items_hi": (float(ca_row["items_hi"]) if ca_row is not None else float("nan")),
+                        "ca_prob_pos": (float(ca_row["prob_pos"]) if ca_row is not None else float("nan")),
                         "ca_available": ca_row is not None,
                         "ca_model_id": _LCF_CA_MODEL_IDS[target],
                     }

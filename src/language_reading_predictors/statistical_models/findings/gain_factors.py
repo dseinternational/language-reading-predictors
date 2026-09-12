@@ -80,9 +80,7 @@ def _kf_build_gain_factors(output_dir: str | Path, config: Mapping) -> list[dict
     plan = config.get("resolved_run_plan") or {}
     extra = config.get("extra") or {}
     treated_only = bool(plan.get("treated_only", extra.get("treated_only", False)))
-    moderation_variant = bool(
-        plan.get("moderation_variant", extra.get("moderation_variant", False))
-    )
+    moderation_variant = bool(plan.get("moderation_variant", extra.get("moderation_variant", False)))
     sentences: list[dict[str, str]] = []
     if moderation_variant:
         sentences.append(
@@ -101,9 +99,7 @@ def _kf_build_gain_factors(output_dir: str | Path, config: Mapping) -> list[dict
             sentences.append(_kf_sentence(text, "moderation"))
         tm = _kf_csv_row(output_dir, "treatment_marginal.csv")
         if tm is not None:
-            is_rd = bool(
-                plan.get("off_floor", extra.get("likelihood") == "bernoulli_offfloor")
-            )
+            is_rd = bool(plan.get("off_floor", extra.get("likelihood") == "bernoulli_offfloor"))
             try:
                 scale = 100.0 if is_rd else 1.0
                 med = _kf_float(tm["trt_items_median"]) * scale
@@ -121,8 +117,7 @@ def _kf_build_gain_factors(output_dir: str | Path, config: Mapping) -> list[dict
                     f"off the floor at the period end (89% credible range "
                     f"{lo:+.0f} to {hi:+.0f})"
                     if is_rd
-                    else f"**{med:+.1f} items** (89% credible range {lo:+.1f} "
-                    f"to {hi:+.1f})"
+                    else f"**{med:+.1f} items** (89% credible range {lo:+.1f} to {hi:+.1f})"
                 )
                 sentences.append(
                     _kf_sentence(
@@ -171,23 +166,19 @@ def _kf_build_gain_factors(output_dir: str | Path, config: Mapping) -> list[dict
     else:
         tm = _kf_csv_row(output_dir, "treatment_marginal.csv")
         if tm is None:
-            raise _KeyFindingsUnavailable(
-                "neither rope_summary.csv nor treatment_marginal.csv is present"
-            )
+            raise _KeyFindingsUnavailable("neither rope_summary.csv nor treatment_marginal.csv is present")
         med = _kf_float(tm["trt_items_median"])
         lo = _kf_float(tm["trt_items_lo"])
         hi = _kf_float(tm["trt_items_hi"])
         sentences.append(
-                _kf_sentence(
-                    f"Best estimate: the model-estimated on-intervention contrast "
-                    f"for {outcome_label} was **{med:+.1f} items** {scope} "
+            _kf_sentence(
+                f"Best estimate: the model-estimated on-intervention contrast "
+                f"for {outcome_label} was **{med:+.1f} items** {scope} "
                 f"(89% credible range {lo:+.1f} to {hi:+.1f}).",
                 "headline",
             )
         )
-        sentences.append(
-            _kf_sentence(_kf_direction_words(tm["prob_trt_pos"], is_rd=False), "confidence")
-        )
+        sentences.append(_kf_sentence(_kf_direction_words(tm["prob_trt_pos"], is_rd=False), "confidence"))
     sentences.append(
         _kf_sentence(
             "The on-intervention effect is the only potentially cause-and-effect "

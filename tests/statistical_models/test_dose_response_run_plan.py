@@ -57,8 +57,7 @@ def _registered_specs() -> list[ModelSpec]:
     specs: list[ModelSpec] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_rli_dose_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and spec.kind == "dose_response":
@@ -112,9 +111,7 @@ def test_settings_accept_global_target_accept_without_owning_it():
 
 
 def test_typed_settings_allow_only_global_extra_keys():
-    plan = D.resolve_dose_response_run_plan(
-        _spec(settings=D.DoseResponseModelSettings(), target_accept=0.99)
-    )
+    plan = D.resolve_dose_response_run_plan(_spec(settings=D.DoseResponseModelSettings(), target_accept=0.99))
     assert plan.settings_source == "typed"
 
     with pytest.raises(ValueError, match="cannot be split.*dose_covariate"):

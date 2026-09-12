@@ -19,10 +19,7 @@ from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-008",
     kind="itt",
-    title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "phoneme blending (B)"
-    ),
+    title=("Available-case modified ITT estimate of the assigned-arm contrast in phoneme blending (B)"),
     outcome_symbol="B",
     model_settings=IttModelSettings(),
 )

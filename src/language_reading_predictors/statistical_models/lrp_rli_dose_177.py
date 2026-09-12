@@ -59,10 +59,10 @@ SPEC = ModelSpec(
         ability_adjust_symbols=("L", "E", "B"),
         outcomes=("W", "L", "E", "B"),
     ),
-        # The worst of the dose family at the reporting preset's 0.95 — 23 divergences,
-        # unsurprising given the extra baseline-skill cluster on the same funnelled
-        # dose-slope geometry. 0.99 clears it (0 divergences, R-hat 1.002, min ESS
-        # 3,300). See notes/202608050649-reporting-refit-predictive-checks.md.
+    # The worst of the dose family at the reporting preset's 0.95 — 23 divergences,
+    # unsurprising given the extra baseline-skill cluster on the same funnelled
+    # dose-slope geometry. 0.99 clears it (0 divergences, R-hat 1.002, min ESS
+    # 3,300). See notes/202608050649-reporting-refit-predictive-checks.md.
     target_accept=0.99,
 )
 

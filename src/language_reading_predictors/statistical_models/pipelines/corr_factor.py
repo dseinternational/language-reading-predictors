@@ -147,23 +147,15 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         PrimaryFitPlan(
             diagnostic_vars=tuple(summary_vars),
             ppc_var_names=plan.observation_nodes,
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, outcome, node="y_post"
-            ),
-            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
-                c, strict=False
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, outcome, node="y_post"),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(c, strict=False),
             # The termless profile plotted every posterior variable (including the
             # per-child factor offsets), tripping the max-subplots guard so
             # ess_evolution.png was never written; focus on the released
             # correlations. LOO-PIT is declared off — with no PSIS-LOO and two
             # observed nodes the figure could only ever fail (2026-08-21 review,
             # finding 3).
-            extended_term=(
-                "factor_corr_pairs"
-                if "factor_corr_pairs" in summary_vars
-                else summary_vars[0]
-            ),
+            extended_term=("factor_corr_pairs" if "factor_corr_pairs" in summary_vars else summary_vars[0]),
             include_loo_pit=False,
             compute_loo=plan.compute_loo,
         ),
@@ -190,17 +182,20 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     # ``loading``); the residual sigma is free, so lambda is a coefficient on the
     # unit-variance factor, not in general a correlation — the standardised loading /
     # indicator-factor correlation reported alongside is sqrt(communality).
-    load_df = _cf_summaries.loadings_communalities_table(
-        post, domains, lo_q=lo_q, loading_var="lambda_load"
-    )
+    load_df = _cf_summaries.loadings_communalities_table(post, domains, lo_q=lo_q, loading_var="lambda_load")
     save_table(ctx, "loadings_summary", load_df)
     print_table(
         ranked_dataframe_table(
             load_df,
             title=f"Loadings, correlations + communalities - {int(hdi * 100)}% CI (equal-tailed)",
             columns=[
-                "indicator", "domain", "loading_mean", "correlation_mean",
-                "communality_mean", "communality_lo", "communality_hi",
+                "indicator",
+                "domain",
+                "loading_mean",
+                "correlation_mean",
+                "communality_mean",
+                "communality_lo",
+                "communality_hi",
             ],
             rank_column=False,
             precision=3,
@@ -223,16 +218,10 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     section_header("Structural slopes (factor -> gain)")
     # The structural leg regresses on all domain factors (beta_factor dims "domain")
     # unless structural_factors isolated a subset (dims "struct_domain", #228 item 14).
-    struct_names = (
-        list(plan.structural_factors)
-        if plan.structural_factors is not None
-        else dnames
-    )
+    struct_names = list(plan.structural_factors) if plan.structural_factors is not None else dnames
     _bf_dim = "struct_domain" if plan.structural_factors is not None else "domain"
     struct_rows = [
-        _posterior.coef_row(
-            f"beta_{d}", post["beta_factor"].isel({_bf_dim: k}).values, hdi
-        )
+        _posterior.coef_row(f"beta_{d}", post["beta_factor"].isel({_bf_dim: k}).values, hdi)
         for k, d in enumerate(struct_names)
     ]
     extra_terms = (
@@ -246,10 +235,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     print_table(
         ranked_dataframe_table(
             struct_df,
-            title=(
-                f"Structural slopes (factor -> gain; adjusted associations) - "
-                f"{int(hdi * 100)}% CI"
-            ),
+            title=(f"Structural slopes (factor -> gain; adjusted associations) - {int(hdi * 100)}% CI"),
             columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
             rank_column=False,
             precision=3,
@@ -319,16 +305,10 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             diagnostic_vars=tuple(diag_vars),
             ppc_var_names=plan.observation_nodes,
             plot_prior_predictive=_diag.save_prior_predictive_dist_overlay,
-            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
-                c, strict=False
-            ),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(c, strict=False),
             # Same ESS-evolution / LOO-PIT reasoning as the RLI entry point above
             # (2026-08-21 review, finding 3).
-            extended_term=(
-                "factor_corr_pairs"
-                if "factor_corr_pairs" in diag_vars
-                else diag_vars[0]
-            ),
+            extended_term=("factor_corr_pairs" if "factor_corr_pairs" in diag_vars else diag_vars[0]),
             include_loo_pit=False,
             compute_loo=plan.compute_loo,
         ),
@@ -357,8 +337,13 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             load_df,
             title=f"Loadings, correlations + communalities - {int(hdi * 100)}% CI",
             columns=[
-                "indicator", "domain", "loading_mean", "correlation_mean",
-                "communality_mean", "communality_lo", "communality_hi",
+                "indicator",
+                "domain",
+                "loading_mean",
+                "correlation_mean",
+                "communality_mean",
+                "communality_lo",
+                "communality_hi",
             ],
             rank_column=False,
             precision=3,

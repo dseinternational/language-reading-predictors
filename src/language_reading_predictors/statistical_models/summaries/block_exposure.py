@@ -52,12 +52,7 @@ def block_exposure_summary(
         "delta_favoured_label": evidence_label(max(prob_pos, 1.0 - prob_pos)),
     }
     # Items-scale average marginal effect: toggle exposed 0 -> 1 per fitted row.
-    eta_base = (
-        posterior["eta_base"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta_base = posterior["eta_base"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     eff = (expit(eta_base + d[None, :]) - expit(eta_base)).mean(axis=0) * n_trials
     out["delta_items_median"] = float(np.median(eff))
     out["delta_items_mean"] = float(np.mean(eff))

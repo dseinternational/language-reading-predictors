@@ -140,9 +140,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         "slab_scale": plan.slab_scale,
         "slab_df": plan.slab_df,
         "gb_reference": plan.gb_reference,
-        "ranking_top": ranking.head(3)[["predictor", "p_abs_gt_delta"]].to_dict(
-            "records"
-        ),
+        "ranking_top": ranking.head(3)[["predictor", "p_abs_gt_delta"]].to_dict("records"),
     }
     write_run_metadata(ctx, extra=meta_extra)
 
@@ -208,9 +206,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     section_header("Predictor ranking")
     ranking = _horseshoe_summary.horseshoe_ranking(ctx.trace, delta=plan.delta)
     save_table(ctx, "predictor_ranking", ranking)
-    print_table(
-        ranked_dataframe_table(ranking, title="Horseshoe predictor ranking")
-    )
+    print_table(ranked_dataframe_table(ranking, title="Horseshoe predictor ranking"))
     write_prior_pushforward(
         ctx,
         horseshoe_pushforward_rows(ctx, predictors, plan.outcome_symbol),
@@ -230,9 +226,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             "tau0": plan.tau0,
             "slab_scale": plan.slab_scale,
             "slab_df": plan.slab_df,
-            "ranking_top": ranking.head(3)[["predictor", "p_abs_gt_delta"]].to_dict(
-                "records"
-            ),
+            "ranking_top": ranking.head(3)[["predictor", "p_abs_gt_delta"]].to_dict("records"),
         },
     )
     return finalize_report(ctx)

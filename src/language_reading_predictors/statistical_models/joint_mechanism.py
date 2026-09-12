@@ -139,9 +139,7 @@ class JointMechanismModelSettings:
         if self.kfold_folds < 2:
             raise ValueError("kfold_folds must be at least 2")
         if self.design not in _DESIGNS:
-            raise ValueError(
-                f"design must be 'levels' or 'transition', got {self.design!r}"
-            )
+            raise ValueError(f"design must be 'levels' or 'transition', got {self.design!r}")
         for name in (
             "outcome_symbols",
             "contrast",
@@ -164,9 +162,7 @@ class JointMechanismModelSettings:
         )
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> JointMechanismModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> JointMechanismModelSettings:
         """Strictly translate the former ``spec.extra`` declaration."""
         unknown = sorted(set(extra) - _LEGACY_KEYS)
         if unknown:
@@ -228,15 +224,11 @@ class JointMechanismRunPlan:
         """Return the JSON-ready run-plan contract for ``config.json``."""
         return asdict(self)
 
-    def with_active_adjustment(
-        self, active_adjustment: tuple[str, ...]
-    ) -> JointMechanismRunPlan:
+    def with_active_adjustment(self, active_adjustment: tuple[str, ...]) -> JointMechanismRunPlan:
         """Record constant requested terms removed on the fitted rows."""
         unknown = sorted(set(active_adjustment) - set(self.declared_adjustment))
         if unknown:
-            raise ValueError(
-                f"active joint-mechanism adjustment was not declared: {unknown!r}"
-            )
+            raise ValueError(f"active joint-mechanism adjustment was not declared: {unknown!r}")
         return replace(self, active_adjustment=active_adjustment)
 
     @property
@@ -309,9 +301,7 @@ class JointMechanismRunPlan:
         """Reported parameters present in a built model, in stable gate order."""
         names = ["alpha", "beta_mech", "delta_ls_decoding"]
         if self.fits_group_nuisance:
-            names.append(
-                "beta_group_nuisance" if self.design == "levels" else "beta_G"
-            )
+            names.append("beta_group_nuisance" if self.design == "levels" else "beta_G")
         if "A" in self.confounder_symbols:
             names.append("gamma_A")
         names.extend(f"gamma_{name}" for name in self.active_adjustment)
@@ -379,10 +369,7 @@ class JointMechanismRunPlan:
     def _loo_sentence(self) -> str:
         """The recipe's LOO sentence, honest about the levels design's saturation."""
         if self.compute_loo:
-            return (
-                f"The observation node is `{self.observation_node}` and PSIS-LOO "
-                f"uses the `{self.loo_unit}` unit."
-            )
+            return f"The observation node is `{self.observation_node}` and PSIS-LOO uses the `{self.loo_unit}` unit."
         return (
             f"The observation node is `{self.observation_node}`. PSIS-LOO is not "
             "computed for this design: with one bivariate latent residual per "
@@ -424,14 +411,9 @@ def declared_joint_mechanism_settings(
 def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
     """Resolve and validate the family contract before context or data I/O."""
     if spec.kind != "joint_mechanism":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'joint_mechanism', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'joint_mechanism', got {spec.kind!r}")
     if spec.study_id != "rli":
-        raise ValueError(
-            f"{spec.model_id}: joint_mechanism requires study_id='rli', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: joint_mechanism requires study_id='rli', got {spec.study_id!r}")
     mechanism_symbol = spec.mechanism_symbol or "L"
     if not isinstance(mechanism_symbol, str) or not mechanism_symbol:
         raise TypeError("joint_mechanism mechanism_symbol must be a non-empty string")
@@ -443,15 +425,10 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
     if mechanism_symbol in outcome_symbols:
         raise ValueError("mechanism_symbol must differ from both outcome_symbols")
     if len(settings.contrast) != 2 or set(settings.contrast) != set(outcome_symbols):
-        raise ValueError(
-            "contrast must contain the two outcome_symbols exactly once"
-        )
+        raise ValueError("contrast must contain the two outcome_symbols exactly once")
     unknown_confounders = sorted(set(settings.confounder_symbols) - {"G", "A"})
     if unknown_confounders:
-        raise ValueError(
-            "confounder_symbols supports only the group and age flags G/A; got "
-            f"{unknown_confounders!r}"
-        )
+        raise ValueError(f"confounder_symbols supports only the group and age flags G/A; got {unknown_confounders!r}")
 
     if settings.design == "levels":
         if settings.adjust_for:
@@ -462,9 +439,7 @@ def resolve_joint_mechanism_run_plan(spec: ModelSpec) -> JointMechanismRunPlan:
         post_covariates: tuple[str, ...] = ()
         phase_mode: Literal["levels", "all"] = "levels"
         likelihood: Literal["binomial", "beta_binomial"] = "binomial"
-        dependence: Literal[
-            "lkj_residual_within_wave", "lkj_child_intercept"
-        ] = "lkj_residual_within_wave"
+        dependence: Literal["lkj_residual_within_wave", "lkj_child_intercept"] = "lkj_residual_within_wave"
         min_wave_rows = 10
         # A wave needs enough rows on *each* outcome, and enough jointly observed
         # pairs, before its residual correlation and conditional slope mean

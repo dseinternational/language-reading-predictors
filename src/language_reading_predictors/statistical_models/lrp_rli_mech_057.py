@@ -46,7 +46,12 @@ SPEC = ModelSpec(
         outcomes=("W", "E", "R", "TR", "TE"),
         adjust_baseline_symbol="W",
         adjust_for=(
-            "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+            "hs",
+            "hs_missing",
+            "erbto",
+            "erbto_missing",
+            "deapp_c",
+            "deapp_c_missing",
         ),
         use_age_gp=False,
         phase_specific_mechanism=False,

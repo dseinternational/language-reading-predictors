@@ -54,8 +54,16 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",  # the mediator
     adjustment=[
-        "G", "A", "E", "R", "W_pre", "L_t1",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "E",
+        "R",
+        "W_pre",
+        "L_t1",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     # Primary outcome taken at t4 (mediator stays at t2): mediator precedes outcome.
     model_settings=MediationModelSettings(outcome_time=4),

@@ -119,9 +119,6 @@ def test_estimand_names_the_coefficients_the_posterior_carries():
     assert "beta_between" not in blended.estimand
 
 
-
-
-
 def test_model_recipe_is_written_for_the_family(tmp_path):
     """Every typed-plan family writes model_recipe.md; the reporting dispatch now
     resolves a pooled-levels plan, so the plan must be able to render one."""
@@ -192,21 +189,13 @@ def test_covariate_exposure_must_be_complete_case_and_not_a_measure():
     with pytest.raises(ValueError, match="must be declared in require_observed"):
         P.resolve_pooled_levels_run_plan(_covariate_spec(require_observed=()))
     with pytest.raises(ValueError, match="cannot be declared as a raw covariate"):
-        P.resolve_pooled_levels_run_plan(
-            _covariate_spec(mech="L", require_observed=())
-        )
+        P.resolve_pooled_levels_run_plan(_covariate_spec(mech="L", require_observed=()))
     with pytest.raises(ValueError, match="not a supported filled covariate"):
-        P.resolve_pooled_levels_run_plan(
-            _covariate_spec(mech="attend", require_observed=("attend",))
-        )
+        P.resolve_pooled_levels_run_plan(_covariate_spec(mech="attend", require_observed=("attend",)))
     with pytest.raises(ValueError, match="unknown measure symbol"):
-        P.resolve_pooled_levels_run_plan(
-            _covariate_spec(mechanism_is_covariate=False, require_observed=())
-        )
+        P.resolve_pooled_levels_run_plan(_covariate_spec(mechanism_is_covariate=False, require_observed=()))
     with pytest.raises(ValueError, match="must not also appear in adjust_for"):
-        P.resolve_pooled_levels_run_plan(
-            _covariate_spec(adjust_for=("hs", "hs_missing", "erbto", "erbto_missing"))
-        )
+        P.resolve_pooled_levels_run_plan(_covariate_spec(adjust_for=("hs", "hs_missing", "erbto", "erbto_missing")))
 
 
 def test_skill_adjusters_are_loaded_as_same_wave_measures():
@@ -259,15 +248,25 @@ def test_registered_pl_003_to_006_resolve_as_the_issue_specifies():
     import importlib
 
     expected = {
-        "lrp_rli_pl_003": ("E", "bounded_count", ("TR", "TE", "R"), (), ("hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing")),
+        "lrp_rli_pl_003": (
+            "E",
+            "bounded_count",
+            ("TR", "TE", "R"),
+            (),
+            ("hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing"),
+        ),
         "lrp_rli_pl_004": ("R", "bounded_count", ("TR",), (), ("hs", "hs_missing", "erbto", "erbto_missing")),
         "lrp_rli_pl_005": ("erbto", "raw_covariate", (), ("erbto",), ("hs", "hs_missing")),
-        "lrp_rli_pl_006": ("deapp_c", "raw_covariate", (), ("deapp_c",), ("hs", "hs_missing", "erbto", "erbto_missing")),
+        "lrp_rli_pl_006": (
+            "deapp_c",
+            "raw_covariate",
+            (),
+            ("deapp_c",),
+            ("hs", "hs_missing", "erbto", "erbto_missing"),
+        ),
     }
     for name, (mech, kind, skills, required, adjust) in expected.items():
-        spec = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{name}"
-        ).SPEC
+        spec = importlib.import_module(f"language_reading_predictors.statistical_models.{name}").SPEC
         plan = P.resolve_pooled_levels_run_plan(spec)
         assert plan.outcome_symbol == "W", name
         assert plan.mechanism_symbol == mech, name

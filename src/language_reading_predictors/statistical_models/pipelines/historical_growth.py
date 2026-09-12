@@ -21,7 +21,11 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import datasets as _datasets, diagnostics as _diag, historical as _historical
+from language_reading_predictors.statistical_models import (
+    datasets as _datasets,
+    diagnostics as _diag,
+    historical as _historical,
+)
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -100,9 +104,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         PrimaryFitPlan(
             diagnostic_vars=tuple(diag_vars),
             ppc_var_names=(plan.observation_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, measure, node=plan.observation_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, measure, node=plan.observation_node),
             compute_loo=plan.compute_loo,
         ),
     )
@@ -119,16 +121,11 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     save_table(ctx, "posterior_cell_summary", cells)
     growth = _historical.growth_summary(ctx.trace, panel, measure)
     save_table(ctx, "posterior_growth_summary", growth)
-    write_prior_pushforward(
-        ctx, growth_contrast_pushforward_rows(ctx, panel, measure)
-    )
+    write_prior_pushforward(ctx, growth_contrast_pushforward_rows(ctx, panel, measure))
     print_table(
         ranked_dataframe_table(
             growth,
-            title=(
-                f"{measure_label} growth (items) - "
-                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
-            ),
+            title=(f"{measure_label} growth (items) - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"),
             columns=["label", "readgrp_label", "mean", "q_lo", "q_hi", "p_gt_0"],
             rank_column=False,
             precision=2,
@@ -145,9 +142,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
             "n_trials": panel.n_trials[measure],
             "waves": list(plan.waves),
             "extension_waves": list(plan.extension_waves),
-            "groups": dict(
-                zip(panel.group_codes, panel.group_labels, strict=True)
-            ),
+            "groups": dict(zip(panel.group_codes, panel.group_labels, strict=True)),
             "n_subjects": panel.n_subjects,
         },
     )

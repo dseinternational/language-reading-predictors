@@ -107,9 +107,7 @@ _LEGACY_KEYS = frozenset(
 #: :func:`preprocessing.derive_nonverbal_ability_composite`; it is admissible
 #: here so a fit can re-read an ability-adjusted result with a more reliable
 #: measure of the same visuospatial domain (never of latent general ability).
-SUPPORTED_ABILITY_COVARIATES: frozenset[str] = frozenset(
-    {"blocks", "behav", "objass_c"}
-)
+SUPPORTED_ABILITY_COVARIATES: frozenset[str] = frozenset({"blocks", "behav", "objass_c"})
 
 
 def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
@@ -134,10 +132,7 @@ def _reference_quantiles(value: Any) -> tuple[float, float]:
         raise TypeError("items_ref_quantiles must contain numeric probabilities")
     lo, hi = (float(raw[0]), float(raw[1]))
     if not 0.0 <= lo < hi <= 1.0:
-        raise ValueError(
-            "items_ref_quantiles must satisfy 0 <= lower < upper <= 1, "
-            f"got {(lo, hi)!r}"
-        )
+        raise ValueError(f"items_ref_quantiles must satisfy 0 <= lower < upper <= 1, got {(lo, hi)!r}")
     return lo, hi
 
 
@@ -171,31 +166,20 @@ def _validate_missing_covariate_policy(
             f"mechanism plan: {', '.join(undeclared_required)}"
         )
     unknown_indicators = sorted(
-        name
-        for name in adjusters
-        if name.endswith("_missing") and name not in supported_indicators
+        name for name in adjusters if name.endswith("_missing") and name not in supported_indicators
     )
     if unknown_indicators:
-        raise ValueError(
-            f"{model_id}: unsupported missingness indicator(s): "
-            f"{', '.join(unknown_indicators)}"
-        )
+        raise ValueError(f"{model_id}: unsupported missingness indicator(s): {', '.join(unknown_indicators)}")
 
     for parent, indicator in MISSINGNESS_INDICATOR_PAIRS.items():
         has_parent = parent in declared
         has_indicator = indicator in adjusters
         complete_case = parent in required
         if has_indicator and not has_parent:
-            raise ValueError(
-                f"{model_id}: orphan missingness indicator {indicator!r}; declare "
-                f"its parent {parent!r}"
-            )
+            raise ValueError(f"{model_id}: orphan missingness indicator {indicator!r}; declare its parent {parent!r}")
         if parent in role_parents and not complete_case:
             role = "exposure" if parent == exposure else "moderator"
-            raise ValueError(
-                f"{model_id}: filled covariate {role} {parent!r} must be declared "
-                "in require_observed"
-            )
+            raise ValueError(f"{model_id}: filled covariate {role} {parent!r} must be declared in require_observed")
         if parent in adjusters and not has_indicator and not complete_case:
             raise ValueError(
                 f"{model_id}: filled covariate {parent!r} requires companion "
@@ -247,9 +231,7 @@ class MechanismModelSettings:
     def __post_init__(self) -> None:
         require_declared_booleans(self)
         if self.outcomes is not None:
-            object.__setattr__(
-                self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes")
-            )
+            object.__setattr__(self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes"))
         if not isinstance(self.adjust_baseline_symbol, str) or not self.adjust_baseline_symbol:
             raise TypeError("adjust_baseline_symbol must be a non-empty string")
         object.__setattr__(
@@ -267,9 +249,7 @@ class MechanismModelSettings:
         ):
             raise TypeError("moderator_symbol must be a non-empty string or None")
         if self.kappa_sigma is not None:
-            if isinstance(self.kappa_sigma, bool) or not isinstance(
-                self.kappa_sigma, (int, float)
-            ):
+            if isinstance(self.kappa_sigma, bool) or not isinstance(self.kappa_sigma, (int, float)):
                 raise TypeError("kappa_sigma must be a positive number or None")
             if not self.kappa_sigma > 0:
                 raise ValueError("kappa_sigma must be a positive number or None")
@@ -298,9 +278,7 @@ class MechanismModelSettings:
         )
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> MechanismModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> MechanismModelSettings:
         """Strictly translate the former untyped ``spec.extra`` boundary."""
         unknown = sorted(set(extra) - _LEGACY_KEYS)
         if unknown:
@@ -316,9 +294,7 @@ class MechanismModelSettings:
             require_observed=extra.get("require_observed", ()),
             use_age_gp=extra.get("use_age_gp", False),
             phase_specific_mechanism=extra.get("phase_specific_mechanism", False),
-            use_subject_random_intercept=extra.get(
-                "use_subject_random_intercept", True
-            ),
+            use_subject_random_intercept=extra.get("use_subject_random_intercept", True),
             moderator_symbol=extra.get("moderator_symbol"),
             moderator_is_covariate=extra.get("moderator_is_covariate", False),
             include_interaction=extra.get("include_interaction", True),
@@ -331,9 +307,7 @@ class MechanismModelSettings:
             items_ref_quantiles=extra.get("items_ref_quantiles", (0.25, 0.75)),
             decompose_between_within=extra.get("decompose_between_within", False),
             phase_varying_slope=extra.get("phase_varying_slope", False),
-            kappa_prior_family=extra.get(
-                "kappa_prior_family", "halfnormal_concentration"
-            ),
+            kappa_prior_family=extra.get("kappa_prior_family", "halfnormal_concentration"),
             kappa_sigma=extra.get("kappa_sigma"),
         )
 
@@ -423,9 +397,7 @@ class MechanismRunPlan:
             # pull is NaN for every phase after the first. It must be broadcast from
             # t1 via ``baseline_covariates`` — the same route the gain-/level-factor,
             # block-exposure and aligned families use for this adjuster.
-            "baseline_covariates": (
-                (self.ability_covariate,) if self.ability_covariate else ()
-            ),
+            "baseline_covariates": ((self.ability_covariate,) if self.ability_covariate else ()),
             "require_observed": self.require_observed,
             "pre_required": self.pre_required,
         }
@@ -433,9 +405,7 @@ class MechanismRunPlan:
             kwargs["outcomes"] = self.outcomes
         return kwargs
 
-    def factory_kwargs(
-        self, *, effective_adjust_for: tuple[str, ...] | None = None
-    ) -> dict[str, Any]:
+    def factory_kwargs(self, *, effective_adjust_for: tuple[str, ...] | None = None) -> dict[str, Any]:
         """Arguments for ``build_mechanism_model`` after preprocessing."""
         adjusters = self.adjust_for if effective_adjust_for is None else effective_adjust_for
         return {
@@ -458,14 +428,10 @@ class MechanismRunPlan:
             "mechanism_is_covariate": self.mechanism_is_covariate,
             "mechanism_at_pre": self.mechanism_at_pre,
             "mech_hsgp_m": self.mech_hsgp_m,
-            "mech_lengthscale_prior": (
-                _priors.ell_prior_mech_tight() if self.mech_lengthscale_tight else None
-            ),
+            "mech_lengthscale_prior": (_priors.ell_prior_mech_tight() if self.mech_lengthscale_tight else None),
         }
 
-    def diagnostic_vars(
-        self, *, effective_adjust_for: tuple[str, ...] | None = None
-    ) -> list[str]:
+    def diagnostic_vars(self, *, effective_adjust_for: tuple[str, ...] | None = None) -> list[str]:
         """Curated variables used by summaries, sensitivity and the gate."""
         adjusters = self.adjust_for if effective_adjust_for is None else effective_adjust_for
         names = ["alpha", "beta_G", "gamma_own", "kappa"]
@@ -519,10 +485,7 @@ class MechanismRunPlan:
         if not self.linear_mechanism:
             return "HSGP curve"
         if self.decompose_between_within and self.phase_varying_slope:
-            return (
-                "between/within split with partially-pooled per-period within-child "
-                "slopes"
-            )
+            return "between/within split with partially-pooled per-period within-child slopes"
         if self.decompose_between_within:
             return "between/within (Mundlak) split of the linear slope"
         if self.phase_varying_slope:
@@ -544,17 +507,13 @@ class MechanismRunPlan:
             f"{0.25 if self.kappa_sigma is None else self.kappa_sigma:g}), which "
             "reaches the near-Binomial limit"
             if self.kappa_prior_family == "halfnormal_inverse_sqrt"
-            else "kappa ~ HalfNormal("
-            f"{50.0 if self.kappa_sigma is None else self.kappa_sigma:g}) on the "
-            "concentration"
+            else f"kappa ~ HalfNormal({50.0 if self.kappa_sigma is None else self.kappa_sigma:g}) on the concentration"
         )
         outcomes = ", ".join(self.outcomes) if self.outcomes else "family default set"
         pre_required = ", ".join(self.pre_required)
         confounders = ", ".join(self.confounders) if self.confounders else "none"
         adjusters = ", ".join(self.adjust_for) if self.adjust_for else "none"
-        complete = (
-            ", ".join(self.require_observed) if self.require_observed else "none"
-        )
+        complete = ", ".join(self.require_observed) if self.require_observed else "none"
         return (
             "Note: Generated from the validated mechanism run plan; template drafted "
             "by an LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -590,27 +549,19 @@ def declared_mechanism_settings(
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: mechanism settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: mechanism settings cannot be split between model_settings and extra")
         if not isinstance(settings, MechanismModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='mechanism' requires "
-                f"MechanismModelSettings, got {type(settings).__name__}"
+                f"{spec.model_id}: kind='mechanism' requires MechanismModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
-        MechanismModelSettings.from_legacy_extra(
-            spec.extra, model_id=spec.model_id
-        ),
+        MechanismModelSettings.from_legacy_extra(spec.extra, model_id=spec.model_id),
         "legacy_extra",
     )
 
 
-def _reject_unsupported_mechanism_design(
-    spec: ModelSpec, settings: MechanismModelSettings
-) -> None:
+def _reject_unsupported_mechanism_design(spec: ModelSpec, settings: MechanismModelSettings) -> None:
     """Fail closed on configurations the family cannot honestly report (#586).
 
     None of these is reachable from a registered model today, which is exactly why
@@ -687,10 +638,7 @@ def _reject_unsupported_mechanism_design(
     ability = settings.ability_covariate
     if ability is not None:
         if not isinstance(ability, str) or not ability:
-            raise TypeError(
-                f"{model_id}: ability_covariate must be a non-empty column name, "
-                f"got {ability!r}"
-            )
+            raise TypeError(f"{model_id}: ability_covariate must be a non-empty column name, got {ability!r}")
         if ability not in SUPPORTED_ABILITY_COVARIATES:
             raise ValueError(
                 f"{model_id}: unsupported ability_covariate {ability!r}; expected one "
@@ -701,17 +649,11 @@ def _reject_unsupported_mechanism_design(
 def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
     """Resolve and validate a mechanism spec before data or output are touched."""
     if spec.kind != "mechanism":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'mechanism', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'mechanism', got {spec.kind!r}")
     if not spec.outcome_symbol:
-        raise ValueError(
-            f"{spec.model_id}: outcome_symbol is required for a mechanism model"
-        )
+        raise ValueError(f"{spec.model_id}: outcome_symbol is required for a mechanism model")
     if not spec.mechanism_symbol:
-        raise ValueError(
-            f"{spec.model_id}: mechanism_symbol is required for a mechanism model"
-        )
+        raise ValueError(f"{spec.model_id}: mechanism_symbol is required for a mechanism model")
 
     settings, source = declared_mechanism_settings(spec)
     _reject_unsupported_mechanism_design(spec, settings)
@@ -726,19 +668,11 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         bounded_symbols.add(settings.moderator_symbol)
     unknown_bounded = sorted(bounded_symbols - set(MEASURES))
     if unknown_bounded:
-        raise ValueError(
-            f"{spec.model_id}: unrecognised bounded measure symbol(s): "
-            f"{', '.join(unknown_bounded)}"
-        )
+        raise ValueError(f"{spec.model_id}: unrecognised bounded measure symbol(s): {', '.join(unknown_bounded)}")
     if "G" not in spec.adjustment:
-        raise ValueError(
-            f"{spec.model_id}: adjustment must declare 'G' because beta_G is "
-            "always fitted"
-        )
+        raise ValueError(f"{spec.model_id}: adjustment must declare 'G' because beta_G is always fitted")
     expected_baseline = f"{settings.adjust_baseline_symbol}_pre"
-    declared_baselines = tuple(
-        symbol for symbol in spec.adjustment if symbol.endswith("_pre")
-    )
+    declared_baselines = tuple(symbol for symbol in spec.adjustment if symbol.endswith("_pre"))
     if declared_baselines != (expected_baseline,):
         raise ValueError(
             f"{spec.model_id}: adjustment must declare exactly the fitted "
@@ -747,32 +681,18 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         )
     if settings.mechanism_is_covariate and spec.mechanism_symbol in settings.adjust_for:
         raise ValueError(
-            f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} must not "
-            "also appear in adjust_for"
+            f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} must not also appear in adjust_for"
         )
     moderator = settings.moderator_symbol
-    if (
-        settings.moderator_is_covariate
-        and moderator is not None
-        and moderator in settings.adjust_for
-    ):
-        raise ValueError(
-            f"{spec.model_id}: covariate moderator {moderator!r} must not also "
-            "appear in adjust_for"
-        )
+    if settings.moderator_is_covariate and moderator is not None and moderator in settings.adjust_for:
+        raise ValueError(f"{spec.model_id}: covariate moderator {moderator!r} must not also appear in adjust_for")
     if settings.mechanism_is_covariate and spec.mechanism_symbol in MEASURES:
         raise ValueError(
-            f"{spec.model_id}: bounded measure exposure {spec.mechanism_symbol!r} "
-            "cannot be declared as a raw covariate"
+            f"{spec.model_id}: bounded measure exposure {spec.mechanism_symbol!r} cannot be declared as a raw covariate"
         )
-    if (
-        settings.moderator_is_covariate
-        and moderator is not None
-        and moderator in MEASURES
-    ):
+    if settings.moderator_is_covariate and moderator is not None and moderator in MEASURES:
         raise ValueError(
-            f"{spec.model_id}: bounded measure moderator {moderator!r} cannot be "
-            "declared as a raw covariate"
+            f"{spec.model_id}: bounded measure moderator {moderator!r} cannot be declared as a raw covariate"
         )
     bounded_adjusters = sorted(set(settings.adjust_for) & set(MEASURES))
     if bounded_adjusters:
@@ -782,11 +702,7 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         )
 
     covariate_exposure = spec.mechanism_symbol if settings.mechanism_is_covariate else None
-    covariate_moderator = (
-        moderator
-        if settings.moderator_is_covariate and moderator not in (None, "A")
-        else None
-    )
+    covariate_moderator = moderator if settings.moderator_is_covariate and moderator not in (None, "A") else None
     _validate_missing_covariate_policy(
         model_id=spec.model_id,
         adjust_for=settings.adjust_for,
@@ -795,25 +711,14 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
         moderator=covariate_moderator,
     )
 
-    confounders = tuple(
-        symbol
-        for symbol in spec.adjustment
-        if not symbol.endswith("_pre") and symbol != moderator
-    )
+    confounders = tuple(symbol for symbol in spec.adjustment if not symbol.endswith("_pre") and symbol != moderator)
     if len(confounders) != len(set(confounders)):
-        raise ValueError(
-            f"{spec.model_id}: adjustment contains duplicate non-baseline symbols"
-        )
+        raise ValueError(f"{spec.model_id}: adjustment contains duplicate non-baseline symbols")
     unknown_confounders = sorted(
-        symbol
-        for symbol in confounders
-        if symbol not in {"G", "A"} and symbol not in MEASURES
+        symbol for symbol in confounders if symbol not in {"G", "A"} and symbol not in MEASURES
     )
     if unknown_confounders:
-        raise ValueError(
-            f"{spec.model_id}: unrecognised mechanism confounder(s): "
-            f"{', '.join(unknown_confounders)}"
-        )
+        raise ValueError(f"{spec.model_id}: unrecognised mechanism confounder(s): {', '.join(unknown_confounders)}")
 
     # Required-measure coverage is checked against the **effective** outcome set,
     # whether declared or defaulted (#586). Guarding this on ``outcomes is not None``
@@ -849,8 +754,7 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
     form = (
         "HSGP curve"
         if not form_settings.linear_mechanism
-        else "between/within split with partially-pooled per-period within-child "
-        "slopes"
+        else "between/within split with partially-pooled per-period within-child slopes"
         if form_settings.decompose_between_within and form_settings.phase_varying_slope
         else "between/within (Mundlak) split of the linear slope"
         if form_settings.decompose_between_within
@@ -983,9 +887,7 @@ def resolve_mechanism_run_plan(spec: ModelSpec) -> MechanismRunPlan:
     )
 
 
-def validate_mechanism_run_plan(
-    spec: ModelSpec, run_plan: MechanismRunPlan
-) -> MechanismRunPlan:
+def validate_mechanism_run_plan(spec: ModelSpec, run_plan: MechanismRunPlan) -> MechanismRunPlan:
     """Require an attached plan to equal the plan implied by ``spec`` exactly.
 
     Matching only the model ID is insufficient: a stale caller could otherwise pair
@@ -995,10 +897,7 @@ def validate_mechanism_run_plan(
     """
     expected = resolve_mechanism_run_plan(spec)
     if run_plan != expected:
-        raise ValueError(
-            f"{spec.model_id}: supplied mechanism run plan does not match the "
-            "current model specification"
-        )
+        raise ValueError(f"{spec.model_id}: supplied mechanism run plan does not match the current model specification")
     return run_plan
 
 
@@ -1021,15 +920,9 @@ class MechanismPlan:
     run_plan: MechanismRunPlan | None = None
 
 
-def resolve_mechanism_plan(
-    spec: ModelSpec, *, run_plan: MechanismRunPlan | None = None
-) -> MechanismPlan:
+def resolve_mechanism_plan(spec: ModelSpec, *, run_plan: MechanismRunPlan | None = None) -> MechanismPlan:
     """Load the analysis frame and resolve the factory keywords for ``spec``."""
-    resolved = (
-        resolve_mechanism_run_plan(spec)
-        if run_plan is None
-        else validate_mechanism_run_plan(spec, run_plan)
-    )
+    resolved = resolve_mechanism_run_plan(spec) if run_plan is None else validate_mechanism_run_plan(spec, run_plan)
     prepared = load_and_prepare(**resolved.prepare_kwargs())
 
     if resolved.exposure_positive_only:
@@ -1050,10 +943,7 @@ def resolve_mechanism_plan(
         raw = scaler.inverse(z) if scaler is not None else z
         keep = raw > 0.0
         if not keep.any():
-            raise ValueError(
-                f"{spec.model_id}: exposure_positive_only leaves no rows with a "
-                f"positive {symbol!r}."
-            )
+            raise ValueError(f"{spec.model_id}: exposure_positive_only leaves no rows with a positive {symbol!r}.")
         prepared = _subset_prepared(prepared, keep)
 
     # A constant covariate (e.g. an all-zero ``_missing`` indicator on the fitted
@@ -1062,16 +952,9 @@ def resolve_mechanism_plan(
     # The ability adjuster is declared separately (it loads from t1 via
     # ``baseline_covariates``) but is an ordinary standardised linear adjustment
     # coefficient in the fitted model, so it joins the effective adjustment set here.
-    declared_adjust_for = resolved.adjust_for + (
-        (resolved.ability_covariate,) if resolved.ability_covariate else ()
-    )
-    adjust_for = tuple(
-        covariate for covariate in declared_adjust_for if covariate in prepared.covariates
-    )
-    if (
-        resolved.mechanism_is_covariate
-        and resolved.mechanism_symbol not in prepared.covariates
-    ):
+    declared_adjust_for = resolved.adjust_for + ((resolved.ability_covariate,) if resolved.ability_covariate else ())
+    adjust_for = tuple(covariate for covariate in declared_adjust_for if covariate in prepared.covariates)
+    if resolved.mechanism_is_covariate and resolved.mechanism_symbol not in prepared.covariates:
         # The drop-constant policy is fine for an adjuster but fatal for the
         # exposure itself — there is no model without it.
         raise ValueError(

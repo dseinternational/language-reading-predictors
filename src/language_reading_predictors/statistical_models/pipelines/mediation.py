@@ -90,25 +90,18 @@ def _leg_contract(plan, built) -> dict:
     """
 
     def terms(items):
-        return [
-            {"symbol": t.symbol, "coefficient": t.coefficient, "form": t.form}
-            for t in items
-        ]
+        return [{"symbol": t.symbol, "coefficient": t.coefficient, "form": t.form} for t in items]
 
     cross = plan.mediator_cross_baselines
     mediator_terms = (
-        {symbol: terms(items) for symbol, items in cross.items()}
-        if isinstance(cross, dict)
-        else terms(cross)
+        {symbol: terms(items) for symbol, items in cross.items()} if isinstance(cross, dict) else terms(cross)
     )
     return {
         "common_baselines": list(plan.common_baselines),
         "pre_required": list(plan.pre_required),
         "mediator_cross_baselines": mediator_terms,
         "outcome_cross_baselines": terms(plan.outcome_cross_baselines),
-        "fitted_coefficients": sorted(
-            rv.name for rv in built.model.free_RVs if rv.ndim == 0
-        ),
+        "fitted_coefficients": sorted(rv.name for rv in built.model.free_RVs if rv.ndim == 0),
     }
 
 
@@ -130,9 +123,7 @@ def _fit_t3_sensitivity(
     from language_reading_predictors.statistical_models import mediation as _med
 
     outcome_symbol = plan.outcome_symbol
-    lag_kwargs = (
-        {"outcomes": plan.outcomes} if plan.outcomes is not None else {}
-    )
+    lag_kwargs = {"outcomes": plan.outcomes} if plan.outcomes is not None else {}
     prepared_t3 = load_and_prepare_lagged_outcome(
         outcome_symbol,
         outcome_time=_T3_SENSITIVITY_TIME,
@@ -202,9 +193,7 @@ def _prepare_mediation_data(plan: _settings.MediationRunPlan):
     else:
         prepared = load_and_prepare(**kwargs)
     confounders = tuple(
-        symbol
-        for symbol in plan.declared_confounders
-        if symbol in prepared.covariates or symbol in prepared.pre_logit
+        symbol for symbol in plan.declared_confounders if symbol in prepared.covariates or symbol in prepared.pre_logit
     )
     return prepared, confounders
 
@@ -222,7 +211,8 @@ def prepare_mediation_data(spec: ModelSpec):
 def _integration_record() -> dict[str, object]:
     """Record numerical integration separately from the posterior MCSE gate."""
     from language_reading_predictors.statistical_models.mediation_integration import (
-        NORMAL_INTEGRATION_ORDERS, NORMAL_INTEGRATION_TOLERANCE,
+        NORMAL_INTEGRATION_ORDERS,
+        NORMAL_INTEGRATION_TOLERANCE,
         NORMAL_EFFECT_DISTRIBUTION_TOLERANCE,
     )
 
@@ -244,10 +234,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
 
     plan = _settings.resolve_mediation_run_plan(spec)
     if plan.entrypoint != "single":
-        raise ValueError(
-            f"{spec.model_id}: period-stacked settings require "
-            "fit_mediation_period_stacked"
-        )
+        raise ValueError(f"{spec.model_id}: period-stacked settings require fit_mediation_period_stacked")
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
     _metadata.write_model_recipe(ctx)
@@ -293,12 +280,8 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         PrimaryFitPlan(
             diagnostic_vars=tuple(coef_vars),
             ppc_var_names=(mediator_node, outcome_node),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, plan.outcome_symbol, node=outcome_node
-            ),
-            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
-                c, strict=False
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, plan.outcome_symbol, node=outcome_node),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(c, strict=False),
             compute_loo=plan.compute_loo,
         ),
     )
@@ -314,9 +297,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         # The link the factory BUILT, so the g-formula accumulates every
         # counterfactual cell on the response scale the outcome likelihood used
         # (#619).
-        score_mean_link=built.require_payload(
-            MediationPayload, family="mediation"
-        ).score_mean_link,
+        score_mean_link=built.require_payload(MediationPayload, family="mediation").score_mean_link,
     )
     save_table(ctx, "mediation_summary", med_df)
     # Extend the convergence gate to the POST-PROCESSED headline effects (#585
@@ -327,9 +308,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.gate_derived_estimands(
         ctx,
         med_df,
-        quantities=(
-            ("total", "IDE", "IIE") if _interventional else ("total", "NDE", "NIE")
-        ),
+        quantities=(("total", "IDE", "IIE") if _interventional else ("total", "NDE", "NIE")),
     )
     # Print the primary decomposition table before the (slow, ~21x-decompose) sensitivity
     # sweep, so the main NDE/NIE result shows under its own section header rather than
@@ -369,15 +348,9 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         register=False,
     )
     if sens_summary["already_null_at_zero"]:
-        rprint(
-            "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
-            "(no indirect effect to explain away)."
-        )
+        rprint("  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A (no indirect effect to explain away).")
     elif sens_summary["robust_over_full_sweep"]:
-        rprint(
-            f"  NIE robust across the full sweep (CI excludes 0 up to "
-            f"delta={sens_sweep['delta'].max():.2f} logit)."
-        )
+        rprint(f"  NIE robust across the full sweep (CI excludes 0 up to delta={sens_sweep['delta'].max():.2f} logit).")
     else:
         rprint(
             f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
@@ -431,10 +404,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         print_table(
             ranked_dataframe_table(
                 med_df_t3,
-                title=(
-                    "Temporal-ordering sensitivity "
-                    f"(outcome {plan.outcome_symbol} at t3; NOT randomised)"
-                ),
+                title=(f"Temporal-ordering sensitivity (outcome {plan.outcome_symbol} at t3; NOT randomised)"),
                 columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
                 rank_column=False,
                 precision=3,
@@ -453,9 +423,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _extra_meta = {
         "adjustment": spec.adjustment,
         "effective_confounders": list(confounders),
-        "dropped_confounders": [
-            c for c in plan.declared_confounders if c not in confounders
-        ],
+        "dropped_confounders": [c for c in plan.declared_confounders if c not in confounders],
         "estimand": "interventional" if _interventional else "natural",
         "outcome_kind": outcome_kind,
         "companion_of": plan.companion_of,
@@ -469,9 +437,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         "integration": _integration_record(),
     }
     if med_df_t3 is not None:
-        _extra_meta["mediation_t3_sensitivity"] = {
-            r["quantity"]: r for r in med_df_t3.to_dict("records")
-        }
+        _extra_meta["mediation_t3_sensitivity"] = {r["quantity"]: r for r in med_df_t3.to_dict("records")}
     if plan.outcome_time is not None:
         _extra_meta["outcome_time"] = plan.outcome_time
     if is_calibration is not None:
@@ -481,9 +447,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     return finalize_report(ctx)
 
 
-def fit_mediation_period_stacked(
-    spec: ModelSpec, config: str = "dev"
-) -> StatisticalFitContext:
+def fit_mediation_period_stacked(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Period-stacked g-formula mediation on the gain-factor scaffold (MED-092, #229).
 
     The LRP59 mediator + outcome design refit over **all stacked period
@@ -511,9 +475,7 @@ def fit_mediation_period_stacked(
 
     plan = _settings.resolve_mediation_run_plan(spec)
     if plan.entrypoint != "period_stacked":
-        raise ValueError(
-            f"{spec.model_id}: single-mediator settings require fit_mediation"
-        )
+        raise ValueError(f"{spec.model_id}: single-mediator settings require fit_mediation")
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
     _metadata.write_model_recipe(ctx)
@@ -526,9 +488,7 @@ def fit_mediation_period_stacked(
     # Keep only confounders actually present (a constant ``_missing`` indicator
     # is dropped by the loader and gets no coefficient).
     confounders = tuple(
-        symbol
-        for symbol in plan.declared_confounders
-        if symbol in prepared.covariates or symbol in prepared.pre_logit
+        symbol for symbol in plan.declared_confounders if symbol in prepared.covariates or symbol in prepared.pre_logit
     )
     if confounders != plan.effective_confounders:
         plan = plan.with_effective_confounders(confounders)
@@ -563,12 +523,8 @@ def fit_mediation_period_stacked(
         PrimaryFitPlan(
             diagnostic_vars=tuple(diag_vars),
             ppc_var_names=(mediator_node, "y_post"),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, outcome_symbol, node="y_post"
-            ),
-            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
-                c, strict=False
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, outcome_symbol, node="y_post"),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(c, strict=False),
             compute_loo=plan.compute_loo,
         ),
     )
@@ -585,23 +541,18 @@ def fit_mediation_period_stacked(
                 "period": int(ph) + 1,
                 "n_rows": int((med_data.phase_idx == ph).sum()),
                 "n_treated": int(med_data.trt[med_data.phase_idx == ph].sum()),
-                "n_untreated": int(
-                    (1.0 - med_data.trt)[med_data.phase_idx == ph].sum()
-                ),
+                "n_untreated": int((1.0 - med_data.trt)[med_data.phase_idx == ph].sum()),
             }
             for ph in sorted(set(med_data.phase_idx.tolist()))
         ]
     )
-    support_df["both_arms_supported"] = (support_df["n_treated"] > 0) & (
-        support_df["n_untreated"] > 0
-    )
+    support_df["both_arms_supported"] = (support_df["n_treated"] > 0) & (support_df["n_untreated"] > 0)
     save_table(ctx, "period_treatment_support", support_df)
     print_table(
         ranked_dataframe_table(
             support_df,
             title="Empirical treatment support by period",
-            columns=["period", "n_rows", "n_treated", "n_untreated",
-                     "both_arms_supported"],
+            columns=["period", "n_rows", "n_treated", "n_untreated", "both_arms_supported"],
             rank_column=False,
             precision=0,
         )
@@ -631,10 +582,7 @@ def fit_mediation_period_stacked(
     print_table(
         ranked_dataframe_table(
             med_df,
-            title=(
-                "Period-1 mediation, randomised window "
-                f"(on-intervention; words out of {med_data.n_trials_W})"
-            ),
+            title=(f"Period-1 mediation, randomised window (on-intervention; words out of {med_data.n_trials_W})"),
             columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
             rank_column=False,
             precision=3,
@@ -644,16 +592,13 @@ def fit_mediation_period_stacked(
     # Secondary, explicitly labelled: the all-period standardised contrast. Kept
     # for continuity and as a shape check, never as the headline.
     section_header("All-period contrast (model extrapolation)")
-    med_df_all = _med.decompose_period_stacked(
-        ctx.trace, med_data, ci_prob=ctx.reporting.ci_prob
-    )
+    med_df_all = _med.decompose_period_stacked(ctx.trace, med_data, ci_prob=ctx.reporting.ci_prob)
     save_table(ctx, "mediation_summary_all_periods", med_df_all)
     print_table(
         ranked_dataframe_table(
             med_df_all,
             title=(
-                "All-period contrast — MODEL EXTRAPOLATION "
-                f"(no untreated rows in period(s) {_unsupported or 'none'})"
+                f"All-period contrast — MODEL EXTRAPOLATION (no untreated rows in period(s) {_unsupported or 'none'})"
             ),
             columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
             rank_column=False,
@@ -679,15 +624,9 @@ def fit_mediation_period_stacked(
         register=False,
     )
     if sens_summary["already_null_at_zero"]:
-        rprint(
-            "  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A "
-            "(no indirect effect to explain away)."
-        )
+        rprint("  NIE not credibly nonzero at delta=0 — sensitivity analysis N/A (no indirect effect to explain away).")
     elif sens_summary["robust_over_full_sweep"]:
-        rprint(
-            f"  NIE robust across the full sweep (CI excludes 0 up to "
-            f"delta={sens_sweep['delta'].max():.2f} logit)."
-        )
+        rprint(f"  NIE robust across the full sweep (CI excludes 0 up to delta={sens_sweep['delta'].max():.2f} logit).")
     else:
         rprint(
             f"  NIE tipping point delta*={sens_summary['tipping_delta']:.3f} logit "
@@ -700,9 +639,7 @@ def fit_mediation_period_stacked(
         extra={
             "adjustment": spec.adjustment,
             "effective_confounders": list(confounders),
-            "dropped_confounders": [
-                c for c in plan.declared_confounders if c not in confounders
-            ],
+            "dropped_confounders": [c for c in plan.declared_confounders if c not in confounders],
             "n_obs": built.prepared.n_obs,
             "n_obs_prepared": prepared.n_obs,
             "leg_contract": _leg_contract(plan, built),
@@ -714,9 +651,7 @@ def fit_mediation_period_stacked(
             # all-period average is recorded beside it as an extrapolation.
             "mediation": {r["quantity"]: r for r in med_df.to_dict("records")},
             "integration": _integration_record(),
-            "mediation_all_periods": {
-                r["quantity"]: r for r in med_df_all.to_dict("records")
-            },
+            "mediation_all_periods": {r["quantity"]: r for r in med_df_all.to_dict("records")},
         },
     )
 
@@ -752,9 +687,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     prepared = load_and_prepare(**plan.prepare_kwargs())
     # Drop any missing-indicator constant on the ITT-phase rows (see fit_mediation).
     confounders = tuple(
-        symbol
-        for symbol in plan.declared_confounders
-        if symbol in prepared.covariates or symbol in prepared.pre_logit
+        symbol for symbol in plan.declared_confounders if symbol in prepared.covariates or symbol in prepared.pre_logit
     )
     if confounders != plan.effective_confounders:
         plan = plan.with_effective_confounders(confounders)
@@ -792,12 +725,8 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         PrimaryFitPlan(
             diagnostic_vars=tuple(coef_vars),
             ppc_var_names=plan.observation_nodes,
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, plan.outcome_symbol, node="y_post"
-            ),
-            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
-                c, strict=False
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, plan.outcome_symbol, node="y_post"),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(c, strict=False),
             compute_loo=plan.compute_loo,
         ),
     )
@@ -825,10 +754,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     print_table(
         ranked_dataframe_table(
             med_df,
-            title=(
-                f"Two-mediator decomposition (intervention-helps; words out of "
-                f"{med_data.n_trials_W})"
-            ),
+            title=(f"Two-mediator decomposition (intervention-helps; words out of {med_data.n_trials_W})"),
             columns=["quantity", "words_mean", "words_lo", "words_hi", "prob_pos"],
             rank_column=False,
             precision=3,
@@ -852,13 +778,8 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
                 "non-zero path-specific effect to explain away."
             )
         elif row["robust_over_full_sweep"]:
-            max_delta = sens_sweep.loc[
-                sens_sweep["mediator"] == mediator, "delta"
-            ].max()
-            rprint(
-                f"  NIE_{mediator} remains nonzero across its full sweep "
-                f"(delta <= {max_delta:.2f} logit)."
-            )
+            max_delta = sens_sweep.loc[sens_sweep["mediator"] == mediator, "delta"].max()
+            rprint(f"  NIE_{mediator} remains nonzero across its full sweep (delta <= {max_delta:.2f} logit).")
         else:
             rprint(
                 f"  NIE_{mediator} tipping point delta*={row['tipping_delta']:.3f} "
@@ -867,9 +788,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             )
         if not row["joint_already_null_at_zero"]:
             if row["joint_robust_over_full_sweep"]:
-                rprint(
-                    f"  NIE_joint remains nonzero across the {mediator}-leg sweep."
-                )
+                rprint(f"  NIE_joint remains nonzero across the {mediator}-leg sweep.")
             else:
                 rprint(
                     f"  NIE_joint reaches zero at delta="
@@ -898,9 +817,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "adjustment": spec.adjustment,
             "effective_confounders": list(confounders),
             # Full declared set, not just the raw covariates (#585 finding 3).
-            "dropped_confounders": [
-                c for c in plan.declared_confounders if c not in confounders
-            ],
+            "dropped_confounders": [c for c in plan.declared_confounders if c not in confounders],
             "n_obs": built.prepared.n_obs,
             "n_obs_prepared": prepared.n_obs,
             "leg_contract": _leg_contract(plan, built),
@@ -909,9 +826,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
             "mediation": _summary,
             "integration": _integration_record(),
             "mediation_sensitivity": sens_summary.to_dict("records"),
-            "named_confounder_calibration": (
-                calibration_df.to_dict("records") if calibration_df is not None else None
-            ),
+            "named_confounder_calibration": (calibration_df.to_dict("records") if calibration_df is not None else None),
         },
     )
 

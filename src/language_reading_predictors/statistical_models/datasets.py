@@ -226,11 +226,7 @@ RLM_MEASURES: dict[str, StudyMeasure] = {
 RLM_DATASET = DatasetSpec(
     study_id="rlm",
     label="Byrne, MacDonald & Buckley reading-language-memory study",
-    path=(
-        Path(_env.DATA_DIR)
-        / "reading-language-memory"
-        / "reading_language_memory_data_long.csv"
-    ),
+    path=(Path(_env.DATA_DIR) / "reading-language-memory" / "reading_language_memory_data_long.csv"),
     subject_col="subject_id",
     wave_col="time",
     group_col="readgrp",
@@ -244,9 +240,7 @@ RLM_DATASET = DatasetSpec(
         "source. The historical 96-row CSV omitted one Down-syndrome participant; "
         "the repaired derivative now matches all 97 source assessment rows."
     ),
-    source_provenance_manifest=(
-        "data/reading-language-memory/source_provenance.json"
-    ),
+    source_provenance_manifest=("data/reading-language-memory/source_provenance.json"),
 )
 
 
@@ -260,15 +254,11 @@ _DATASETS: dict[str, tuple[DatasetSpec, dict[str, StudyMeasure]]] = {
 def resolve_dataset(study_id: str) -> tuple[DatasetSpec, dict[str, StudyMeasure]]:
     """Return the ``(DatasetSpec, measures)`` pair for a study id."""
     if study_id not in _DATASETS:
-        raise KeyError(
-            f"Unknown study_id {study_id!r}; known: {sorted(_DATASETS)}"
-        )
+        raise KeyError(f"Unknown study_id {study_id!r}; known: {sorted(_DATASETS)}")
     return _DATASETS[study_id]
 
 
-def publication_input_contract(
-    study_id: str, measure_symbols: tuple[str, ...]
-) -> dict[str, object]:
+def publication_input_contract(study_id: str, measure_symbols: tuple[str, ...]) -> dict[str, object]:
     """Return the publication-relevant input snapshot for one fitted study.
 
     The release evaluator must read the evidence that belonged to the fit, not the
@@ -281,10 +271,7 @@ def publication_input_contract(
     selected = tuple(dict.fromkeys(measure_symbols))
     unknown = sorted(set(selected) - set(measures))
     if unknown:
-        raise KeyError(
-            f"Unknown {study_id!r} measure symbol(s) in publication contract: "
-            f"{', '.join(unknown)}"
-        )
+        raise KeyError(f"Unknown {study_id!r} measure symbol(s) in publication contract: {', '.join(unknown)}")
 
     blockers: list[str] = []
     if not dataset.source_provenance_confirmed:
@@ -305,15 +292,9 @@ def publication_input_contract(
             record["instrument_identity_note"] = measure.instrument_identity_note
         measure_records[symbol] = record
         if not measure.n_trials_confirmed:
-            blockers.append(
-                f"{symbol}: the bounded-count denominator is not confirmed "
-                "against the instrument"
-            )
+            blockers.append(f"{symbol}: the bounded-count denominator is not confirmed against the instrument")
         if not measure.instrument_identity_confirmed:
-            detail = (
-                measure.instrument_identity_note
-                or "the source instrument identity is unverified"
-            )
+            detail = measure.instrument_identity_note or "the source instrument identity is unverified"
             blockers.append(f"{symbol}: instrument identity is unresolved: {detail}")
 
     if not selected:

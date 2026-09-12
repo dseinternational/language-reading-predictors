@@ -148,9 +148,7 @@ def _gf_association_terms(
             other = pair[0] if pair[1] == key else pair[1]
             if other not in term_vecs:  # partner unavailable (e.g. trt under treated_only)
                 continue
-            out.append(
-                (f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float))
-            )
+            out.append((f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float)))
         return tuple(out)
 
     def _sd_items(sd_logit: float, p: float, n: int) -> float:
@@ -172,10 +170,16 @@ def _gf_association_terms(
         p_own = float(np.mean(_expit(bp.pre_logit[own])))
         n_own = int(bp.n_trials[own])
         terms.append(
-            AT("own", "gamma_own", scales["own"], _ints_for("own"),
-               n_items=n_own, mean_prop=p_own,
-               sd_items=_sd_items(scales["own"], p_own, n_own),
-               k_items=_k_for(n_own))
+            AT(
+                "own",
+                "gamma_own",
+                scales["own"],
+                _ints_for("own"),
+                n_items=n_own,
+                mean_prop=p_own,
+                sd_items=_sd_items(scales["own"], p_own, n_own),
+                k_items=_k_for(n_own),
+            )
         )
     else:
         # The binary off-floor-at-pre indicator association (#391 finding 2
@@ -185,9 +189,14 @@ def _gf_association_terms(
         # already off the floor at pre contrast the actual 0 -> 1 switch instead
         # of an out-of-support 1 -> 2 move (code review 2026-08-20, finding 2).
         terms.append(
-            AT("own", "gamma_own_offfloor", 1.0, _ints_for("own"),
-               perturbation_label="off-floor at pre (0 to 1)",
-               toggle_vector=term_vecs["own"])
+            AT(
+                "own",
+                "gamma_own_offfloor",
+                1.0,
+                _ints_for("own"),
+                perturbation_label="off-floor at pre (0 to 1)",
+                toggle_vector=term_vecs["own"],
+            )
         )
     terms.append(AT("age", "gamma_A", 1.0, _ints_for("age")))
     if ability_covariate is not None:
@@ -196,10 +205,16 @@ def _gf_association_terms(
         p_s = float(np.mean(_expit(bp.pre_logit[s])))
         n_s = int(bp.n_trials[s])
         terms.append(
-            AT(s, f"gamma_{s}", scales[s], _ints_for(s),
-               n_items=n_s, mean_prop=p_s,
-               sd_items=_sd_items(scales[s], p_s, n_s),
-               k_items=_k_for(n_s))
+            AT(
+                s,
+                f"gamma_{s}",
+                scales[s],
+                _ints_for(s),
+                n_items=n_s,
+                mean_prop=p_s,
+                sd_items=_sd_items(scales[s], p_s, n_s),
+                k_items=_k_for(n_s),
+            )
         )
     for c in adjust_for:
         if c.endswith("_missing"):
@@ -219,9 +234,14 @@ def _gf_association_terms(
             # eta carries gamma_c * (x - mean) / sd, so a raw 0 -> 1 switch shifts
             # eta by gamma_c / sd and the toggle vector must be the raw indicator.
             terms.append(
-                AT(c, f"gamma_{c}", 1.0 / float(bp.covariate_scalers[c].sd), (),
-                   perturbation_label=f"{c} toggled 0 to 1",
-                   toggle_vector=np.isclose(raw, 1.0).astype(float))
+                AT(
+                    c,
+                    f"gamma_{c}",
+                    1.0 / float(bp.covariate_scalers[c].sd),
+                    (),
+                    perturbation_label=f"{c} toggled 0 to 1",
+                    toggle_vector=np.isclose(raw, 1.0).astype(float),
+                )
             )
         else:
             sd_c = float(np.std(values, ddof=1))
@@ -282,13 +302,16 @@ def _write_period_one_treatment_comparison(
     )
 
     # Prior pushforward on the same scale (estimand-scale prior check, #125).
-    with guard_optional(
-        ctx, "prior pushforward", filename="prior_pushforward.csv", kind="table"
-    ):
+    with guard_optional(ctx, "prior pushforward", filename="prior_pushforward.csv", kind="table"):
         pf = _predictive.prior_pushforward(
-            ctx.prior_samples, G=trt, n_trials=n_marg,
-            term="beta_trt", varying_term="", moderators=trt_moderators,
-            ci_prob=ctx.reporting.ci_prob, row_mask=p1_mask,
+            ctx.prior_samples,
+            G=trt,
+            n_trials=n_marg,
+            term="beta_trt",
+            varying_term="",
+            moderators=trt_moderators,
+            ci_prob=ctx.reporting.ci_prob,
+            row_mask=p1_mask,
             score_mean_link=link,
         )
         save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
@@ -335,9 +358,17 @@ def _write_period_one_treatment_comparison(
             )
         )
         save_rope_plot(
-            ctx, spec.outcome_symbol, trt, n_marg, delta_items,
-            term="beta_trt", varying_term="", moderators=trt_moderators,
-            row_mask=p1_mask, split=True, score_mean_link=link,
+            ctx,
+            spec.outcome_symbol,
+            trt,
+            n_marg,
+            delta_items,
+            term="beta_trt",
+            varying_term="",
+            moderators=trt_moderators,
+            row_mask=p1_mask,
+            split=True,
+            score_mean_link=link,
         )
     elif off_floor and delta_prob is not None:
         # Off-floor risk-difference ROPE, matching the floored ITT path
@@ -345,9 +376,15 @@ def _write_period_one_treatment_comparison(
         # (2026-07-01, #144), so it is NOT provisional; the ITT floored path
         # sets provisional_delta=False and this mirrors it.
         rope_s = _rope_summary.rope_summary(
-            ctx.trace, G=trt, n_trials=1, delta=delta_prob,
-            ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
-            moderators=trt_moderators, row_mask=p1_mask,
+            ctx.trace,
+            G=trt,
+            n_trials=1,
+            delta=delta_prob,
+            ci_prob=ctx.reporting.ci_prob,
+            term="beta_trt",
+            varying_term="",
+            moderators=trt_moderators,
+            row_mask=p1_mask,
             direction_from_ame=True,  # direction from the off-floor RD AME, not beta_trt (#391)
         )
         rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
@@ -355,15 +392,27 @@ def _write_period_one_treatment_comparison(
         save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
         meta_extra["rope_summary"] = rope_s
         save_rope_plot(
-            ctx, spec.outcome_symbol, trt, 1, delta_prob,
-            term="beta_trt", varying_term="", moderators=trt_moderators,
-            row_mask=p1_mask, split=True,
+            ctx,
+            spec.outcome_symbol,
+            trt,
+            1,
+            delta_prob,
+            term="beta_trt",
+            varying_term="",
+            moderators=trt_moderators,
+            row_mask=p1_mask,
+            split=True,
         )
         # δ-sensitivity sweep on the risk-difference scale (#144): 10/15/20 pp,
         # the grid the sign-off mandates (mirrors the floored ITT path).
         sens_df = _rope_summary.rope_sensitivity(
-            ctx.trace, G=trt, n_trials=1, deltas=ROPE_DELTA_PROB_GRID,
-            term="beta_trt", varying_term="", moderators=trt_moderators,
+            ctx.trace,
+            G=trt,
+            n_trials=1,
+            deltas=ROPE_DELTA_PROB_GRID,
+            term="beta_trt",
+            varying_term="",
+            moderators=trt_moderators,
             row_mask=p1_mask,
         )
         save_table(ctx, "rope_sensitivity", sens_df)
@@ -386,10 +435,7 @@ def _write_period_one_treatment_comparison(
         child_re=True,
         child_idx=built.prepared.child_idx,
         delta=delta_prob if off_floor else delta_items,
-        population=(
-            "covariate profiles drawn from the period-1 "
-            "randomised-transition rows"
-        ),
+        population=("covariate profiles drawn from the period-1 randomised-transition rows"),
         contrast_status=(
             "model-dependent interaction-aware contrast (associational "
             "moderation variant; partly informed by post-crossover data)"
@@ -438,12 +484,8 @@ def _write_period_one_treatment_comparison(
             trace_filename="trace_period1_only.nc",
             extra_var_names=["beta_trt"],
         )
-        p1_payload = p1_built.require_payload(
-            GainFactorsPayload, family="gain_factors"
-        )
-        trt_p1 = (
-            (p1_built.prepared.G == 1) | (p1_built.prepared.phase >= 1)
-        ).astype(float)
+        p1_payload = p1_built.require_payload(GainFactorsPayload, family="gain_factors")
+        trt_p1 = ((p1_built.prepared.G == 1) | (p1_built.prepared.phase >= 1)).astype(float)
         tme_p1 = _gain_factors_summary.treatment_marginal_effect(
             res.trace,
             trt=trt_p1,
@@ -476,6 +518,7 @@ def _write_period_one_treatment_comparison(
                 "trt_items_hi": tme_row["trt_items_hi"],
                 "prob_trt_pos": tme_row["prob_trt_pos"],
             }
+
         p1_df = pd.DataFrame(
             [
                 {
@@ -495,17 +538,12 @@ def _write_period_one_treatment_comparison(
         save_table(ctx, "period1_sensitivity", p1_df)
         meta_extra["period1_sensitivity"] = {
             "beta_trt_shift": float(np.median(_b1) - np.median(_b)),
-            "items_shift": float(
-                tme_p1["trt_items_median"] - tme["trt_items_median"]
-            ),
+            "items_shift": float(tme_p1["trt_items_median"] - tme["trt_items_median"]),
             "period1_converged": res.convergence.get("converged"),
         }
         print_table(
             metrics_table(
-                [
-                    {"metric": k, "value": v}
-                    for k, v in meta_extra["period1_sensitivity"].items()
-                ],
+                [{"metric": k, "value": v} for k, v in meta_extra["period1_sensitivity"].items()],
                 title="Period-1-only refit sensitivity",
                 columns=["metric", "value"],
             )
@@ -579,6 +617,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _focal_gf = None if treated_only else "beta_trt"
     _gf_diag = plan.diagnostic_vars(effective_adjustment=adjust_for)
     _gf_coef_names = plan.coefficient_names(effective_adjustment=adjust_for)
+
     def save_prior_posterior_figures(c: StatisticalFitContext) -> None:
         _diag.save_prior_posterior_plot(c, var_names=_gf_diag)
         if _focal_gf is not None:
@@ -589,9 +628,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
         PrimaryFitPlan(
             diagnostic_vars=tuple(_gf_diag),
             ppc_var_names=(obs_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol, node=obs_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol, node=obs_node),
             # The family's established post-trace order — overlay, optional
             # forest, then optional power scaling — declared to the runner
             # (#637 stage 4). A treated-only fit has no focal term, so it
@@ -607,11 +644,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # A moderation variant's beta_trt is NOT flagged causal: its interaction-aware
     # marginal is model-dependent (partly informed by post-crossover data), so every
     # row — the treatment term included — reads as an adjusted association there.
-    gf_causal_terms: tuple[str, ...] = (
-        () if moderation_variant else ("beta_trt",)
-    )
+    gf_causal_terms: tuple[str, ...] = () if moderation_variant else ("beta_trt",)
     fs = _factors_summary.factor_summary(
-        ctx.trace, _gf_coef_names, ci_prob=ctx.reporting.ci_prob,
+        ctx.trace,
+        _gf_coef_names,
+        ci_prob=ctx.reporting.ci_prob,
         causal_terms=gf_causal_terms,
     )
     save_table(ctx, "factor_summary", fs)
@@ -672,9 +709,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # treated_only (the on-intervention indicator is then constant and beta_trt
     # is absent).
     if not treated_only:
-        meta_extra.update(_write_period_one_treatment_comparison(
-            ctx, built, prepared, payload, plan, loader_adjust_for=loader_adjust_for
-        ))
+        meta_extra.update(
+            _write_period_one_treatment_comparison(
+                ctx, built, prepared, payload, plan, loader_adjust_for=loader_adjust_for
+            )
+        )
 
     # --- Per-covariate items-scale association marginals (#310) ---
     # The adjusted-association analogue of the treatment marginal: for each covariate
@@ -685,9 +724,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # Averaging population = ALL stacked rows (row_mask=None): these are descriptive
     # associations, not the randomised period-1 contrast, so every fitted observation
     # counts. That choice is recorded in config.json (meta_extra) as well as the note.
-    assoc_terms = _gf_association_terms(
-        plan, built, adjust_for=adjust_for, off_floor=off_floor
-    )
+    assoc_terms = _gf_association_terms(plan, built, adjust_for=adjust_for, off_floor=off_floor)
     if assoc_terms:
         n_assoc = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
         am = _factors_summary.association_marginals(

@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Concurrent (same-wave) association model construction.
-
-"""
+"""Concurrent (same-wave) association model construction."""
 
 from __future__ import annotations
 
@@ -12,7 +10,6 @@ from typing import Iterable
 
 import numpy as np
 import pymc as pm
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -38,6 +35,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _rlm_dispersion_kappa,
     _rlm_group_nuisance,
 )
+
 
 def build_concurrent_model(
     prepared: PreparedData,
@@ -87,8 +85,7 @@ def build_concurrent_model(
     """
     if prepared.phase_mode != "levels":
         raise ValueError(
-            "Concurrent model requires a phase_mode='levels' subset (one wave); "
-            f"got {prepared.phase_mode!r}"
+            f"Concurrent model requires a phase_mode='levels' subset (one wave); got {prepared.phase_mode!r}"
         )
     if outcome_symbol not in prepared.post_counts:
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
@@ -113,9 +110,7 @@ def build_concurrent_model(
     N = prepared.n_trials[outcome_symbol]
     predictor_symbols = tuple(predictor_symbols)
     covariates = tuple(covariates)
-    _, effective_covariates, dropped_covariates = filter_informative_covariates(
-        prepared, covariates
-    )
+    _, effective_covariates, dropped_covariates = filter_informative_covariates(prepared, covariates)
     if dropped_covariates:
         raise ValueError(
             "Concurrent covariates must be present and vary on the final fitted rows; "
@@ -123,38 +118,29 @@ def build_concurrent_model(
             f"Invalid: {', '.join(dropped_covariates)}"
         )
     if effective_covariates != covariates:
-        raise ValueError(
-            "Concurrent covariates must be unique and preserve their declared order"
-        )
+        raise ValueError("Concurrent covariates must be unique and preserve their declared order")
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
         eta = alpha
 
         for sym in predictor_symbols:
             if sym not in prepared.post_counts:
-                raise KeyError(
-                    f"Concurrent predictor {sym!r} missing from prepared data"
-                )
+                raise KeyError(f"Concurrent predictor {sym!r} missing from prepared data")
             z, _ = standardise(logit_safe(prepared.post_counts[sym], prepared.n_trials[sym]))
             z = np.nan_to_num(z)  # mean-impute missing (0 on the standardised scale)
             z_d = pm.Data(f"z_{sym}", z, dims="obs_id")
-            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                f"beta_{sym}"
-            )
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f"beta_{sym}")
             eta = eta + beta * z_d
 
         if include_age:
             age_d = pm.Data(
-                "z_age", np.nan_to_num(np.asarray(prepared.A_std, dtype=float)),
+                "z_age",
+                np.nan_to_num(np.asarray(prepared.A_std, dtype=float)),
                 dims="obs_id",
             )
-            beta_age = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                "beta_age"
-            )
+            beta_age = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc("beta_age")
             eta = eta + beta_age * age_d
 
         if include_group:
@@ -164,12 +150,12 @@ def build_concurrent_model(
             # report, just a composition control. The report flags it as such.
             g_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
             beta_group = _priors.declare(
-                             pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0),
-                             role="nuisance",
-                             rationale=(
-                                 'Non-interpretable group-composition nuisance dummy held outside the horseshoe / adjustment set to absorb cohort composition (reference = largest group); never a ranked predictor slope or a group-effect estimate.'
-                             ),
-                         )
+                pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0),
+                role="nuisance",
+                rationale=(
+                    "Non-interpretable group-composition nuisance dummy held outside the horseshoe / adjustment set to absorb cohort composition (reference = largest group); never a ranked predictor slope or a group-effect estimate."
+                ),
+            )
             eta = eta + beta_group * g_d
 
         # Trait covariates (e.g. non-verbal ability, hearing, speech, phonological
@@ -182,13 +168,20 @@ def build_concurrent_model(
         for c in covariates:
             cov_vec = np.nan_to_num(np.asarray(prepared.covariates[c], dtype=float))
             cov_d = pm.Data(f"z_{c}", cov_vec, dims="obs_id")
-            gamma = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c))
+            gamma = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"gamma_{c}", **_priors.adjustment_metadata(c)
+            )
             eta = eta + gamma * cov_d
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
         beta_binomial_from_score_mean_link(
-            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id",
+            "y_post",
+            eta,
+            n_trials=N,
+            kappa=kappa,
+            observed=post,
+            dims="obs_id",
             score_mean_link=score_mean_link,
         )
 
@@ -239,13 +232,11 @@ def build_rlm_concurrent_model(
         alpha = _priors.alpha_prior(sigma=1.5).to_pymc("alpha")
         eta = alpha
         for key in keys:
-            z, _ = standardise(
-                logit_safe(frame.post_counts[key], frame.n_trials[key])
+            z, _ = standardise(logit_safe(frame.post_counts[key], frame.n_trials[key]))
+            predictor = pm.Data(f"z_{key}", np.nan_to_num(z), dims="obs_id")
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                f"beta_{key}", **_priors.adjustment_metadata(key)
             )
-            predictor = pm.Data(
-                f"z_{key}", np.nan_to_num(z), dims="obs_id"
-            )
-            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f'beta_{key}', **_priors.adjustment_metadata(key))
             eta = eta + beta * predictor
 
         if include_age:
@@ -254,9 +245,7 @@ def build_rlm_concurrent_model(
                 np.nan_to_num(np.asarray(frame.A_std, dtype=float)),
                 dims="obs_id",
             )
-            beta_age = _priors.predictor_slope_prior(
-                predictor_slope_sigma
-            ).to_pymc("beta_age")
+            beta_age = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc("beta_age")
             eta = eta + beta_age * age
 
         if include_group:

@@ -14,7 +14,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from language_reading_predictors.statistical_models.factories.adjusted import build_rlm_adjusted_model, build_rlm_transition_adjusted_model
+from language_reading_predictors.statistical_models.factories.adjusted import (
+    build_rlm_adjusted_model,
+    build_rlm_transition_adjusted_model,
+)
 from language_reading_predictors.statistical_models.factories.corr_factor import build_rlm_corr_factor_model
 from language_reading_predictors.statistical_models.factories.historical import build_rlm_joint_growth_model
 from language_reading_predictors.statistical_models.factories.horseshoe import build_rlm_horseshoe_model
@@ -26,8 +29,15 @@ from language_reading_predictors.statistical_models.preprocessing import (
 )
 
 _MEASURE_COLS = [
-    "basread", "basspel", "woco", "bpvs", "trog", "basdig", "bassim",
-    "basmat", "basnum",
+    "basread",
+    "basspel",
+    "woco",
+    "bpvs",
+    "trog",
+    "basdig",
+    "bassim",
+    "basmat",
+    "basnum",
 ]
 
 
@@ -39,8 +49,7 @@ def _write_battery_csv(tmp_path, *, drop_one=False, waves=(1, 2, 3)):
         for k in range(4):
             sid = f"S{grp}{k}"
             for t in waves:
-                row = {"subject_id": sid, "time": t, "readgrp": grp,
-                       "age": 60 + 12 * t + int(rng.integers(0, 6))}
+                row = {"subject_id": sid, "time": t, "readgrp": grp, "age": 60 + 12 * t + int(rng.integers(0, 6))}
                 for col in _MEASURE_COLS:
                     row[col] = int(rng.integers(0, 15)) + 2 * (t - 1)
                 rows.append(row)
@@ -149,9 +158,7 @@ def test_rlm_wave_wide_rejects_fractional_group_code(tmp_path):
     df["readgrp"] = df["readgrp"].astype(float)
     df.loc[df.subject_id == "S20", "readgrp"] = 1.5
     df.to_csv(path, index=False)
-    with pytest.raises(
-        ValueError, match=r"reading-group code\(s\) at wave 3.*1\.5"
-    ):
+    with pytest.raises(ValueError, match=r"reading-group code\(s\) at wave 3.*1\.5"):
         load_rlm_wave_battery(wave=3, path=path)
 
 
@@ -210,9 +217,7 @@ def test_transition_frame_and_factory_preserve_child_loo_unit(tmp_path):
 
     built = build_rlm_transition_adjusted_model(frame)
     names = {variable.name for variable in built.model.free_RVs}
-    assert {
-        "alpha_transition", "gamma_own", "sigma_child", "inv_sqrt_kappa"
-    }.issubset(names)
+    assert {"alpha_transition", "gamma_own", "sigma_child", "inv_sqrt_kappa"}.issubset(names)
     assert "kappa" in {v.name for v in built.model.deterministics}
     assert {f"beta_{key}" for key in frame.predictors}.issubset(names)
     assert "loo_child_idx" in built.model.named_vars
@@ -243,9 +248,7 @@ def test_rlm_adjusted_factories_take_the_dispersion_scale_and_own_baseline_prior
     transition = load_rlm_transition_frame(path=path, transition_waves=(1, 2, 3))
     for built in (
         build_rlm_adjusted_model(span, gamma_own_sigma=0.5, dispersion_prior_sigma=0.4),
-        build_rlm_transition_adjusted_model(
-            transition, gamma_own_sigma=0.5, dispersion_prior_sigma=0.4
-        ),
+        build_rlm_transition_adjusted_model(transition, gamma_own_sigma=0.5, dispersion_prior_sigma=0.4),
     ):
         free = {v.name: v for v in built.model.free_RVs}
         assert "kappa" not in free
@@ -268,9 +271,7 @@ def test_build_rlm_corr_factor_single_indicator_fixed(tmp_path):
         "memory": ("basdig",),
         "ability": ("bassim", "basmat", "basnum"),
     }
-    built = build_rlm_corr_factor_model(
-        battery, domains=domains, single_indicator_reliability=0.8
-    )
+    built = build_rlm_corr_factor_model(battery, domains=domains, single_indicator_reliability=0.8)
     names = {v.name for v in built.model.free_RVs}
     # Communality parameterisation (#409 item B): the free parameter is the
     # communality; the loading sqrt(c) and residual sqrt(1 - c) are derived
@@ -328,9 +329,7 @@ def test_build_rlm_joint_growth(tmp_path):
         [RLM_MEASURES[m] for m in ("basread", "bpvs", "basdig")],
         waves=(1, 2, 3),
     )
-    built = build_rlm_joint_growth_model(
-        panel, measures=("basread", "bpvs", "basdig")
-    )
+    built = build_rlm_joint_growth_model(panel, measures=("basread", "bpvs", "basdig"))
     names = {v.name for v in built.model.free_RVs}
     # The sampled dispersion parameter is 1/sqrt(kappa) since the 2026-08-21
     # review (finding 8); kappa stays available as the interpretable
@@ -421,11 +420,7 @@ def test_phase_bd_specs_well_formed(model_id, expected):
     assert spec.study_id == "rlm"
     assert spec.outcome_symbol == outcome
     assert spec.causal_status == "none"
-    assert spec.design == (
-        "historical_stacked_transitions"
-        if model_id == "lrp-rlm-adj-006"
-        else "historical_cohort"
-    )
+    assert spec.design == ("historical_stacked_transitions" if model_id == "lrp-rlm-adj-006" else "historical_cohort")
 
 
 def test_span_frame_rejects_fractional_and_out_of_range_counts(tmp_path):

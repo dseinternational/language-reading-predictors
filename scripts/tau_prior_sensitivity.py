@@ -150,10 +150,7 @@ def _assert_primary_sampling_contract(
         )
         for key, observed in matched.items()
     ):
-        raise RuntimeError(
-            f"{reference.outcome} sensitivity sampling does not match its "
-            f"current {config} primary fit"
-        )
+        raise RuntimeError(f"{reference.outcome} sensitivity sampling does not match its current {config} primary fit")
 
 
 def _sigmas_for(symbol: str) -> tuple[float, ...]:
@@ -178,11 +175,7 @@ def _floor_trace_file(
     sigma_token = f"{tau_sigma:g}".replace(".", "p")
     age_token = "on" if age_adjusted else "off"
     model_id = FLOOR_SENSITIVITY_MODEL_IDS[symbol]
-    return (
-        Path("traces")
-        / f"{model_id}-{config}"
-        / f"trace_floor_tau-sd-{sigma_token}_age-{age_token}.nc"
-    )
+    return Path("traces") / f"{model_id}-{config}" / f"trace_floor_tau-sd-{sigma_token}_age-{age_token}.nc"
 
 
 def _standard_trace_file(row: dict, config: str) -> Path:
@@ -226,10 +219,7 @@ def _persist_content_addressed_trace(
         destination = trace_dir / f"{semantic_file.stem}-{digest[:12]}.nc"
         if destination.exists():
             if sha256_file(destination) != digest:
-                raise RuntimeError(
-                    "floor sensitivity trace digest-prefix collision: "
-                    f"{destination}"
-                )
+                raise RuntimeError(f"floor sensitivity trace digest-prefix collision: {destination}")
             temporary.unlink()
         else:
             os.replace(temporary, destination)
@@ -254,10 +244,7 @@ def _write_content_addressed_csv(frame: pd.DataFrame, directory: Path) -> Path:
         destination = directory / f"tau_prior_sensitivity-{digest[:12]}.csv"
         if destination.exists():
             if sha256_file(destination) != digest:
-                raise RuntimeError(
-                    "tau-prior manifest digest-prefix collision: "
-                    f"{destination}"
-                )
+                raise RuntimeError(f"tau-prior manifest digest-prefix collision: {destination}")
             temporary.unlink()
         else:
             os.replace(temporary, destination)
@@ -273,9 +260,7 @@ def _read_bound_run_manifest(frame: pd.DataFrame, run_csv: Path) -> pd.DataFrame
         raise RuntimeError(f"sensitivity run manifest does not exist: {source}")
     digest = sha256_file(source)
     if not source.stem.endswith(f"-{digest[:12]}"):
-        raise RuntimeError(
-            "sensitivity run manifest is not content-addressed by its current digest"
-        )
+        raise RuntimeError("sensitivity run manifest is not content-addressed by its current digest")
     try:
         recorded = pd.read_csv(source)
         expected = pd.read_csv(io.StringIO(frame.to_csv(index=False)))
@@ -287,9 +272,7 @@ def _read_bound_run_manifest(frame: pd.DataFrame, run_csv: Path) -> pd.DataFrame
             check_like=False,
         )
     except Exception as exc:  # noqa: BLE001 - malformed release input fails closed
-        raise RuntimeError(
-            "sensitivity run manifest does not exactly represent the validated frame"
-        ) from exc
+        raise RuntimeError("sensitivity run manifest does not exactly represent the validated frame") from exc
     return recorded
 
 
@@ -328,18 +311,13 @@ def _publish_validated_sensitivity_manifest(
     floor_only = bool(requested) and set(requested).issubset(FLOOR_SENSITIVITY_MODEL_IDS)
     if floor_only:
         exact_floor = bool(
-            len(requested) == len(FLOOR_SENSITIVITY_MODEL_IDS)
-            and set(requested) == set(FLOOR_SENSITIVITY_MODEL_IDS)
+            len(requested) == len(FLOOR_SENSITIVITY_MODEL_IDS) and set(requested) == set(FLOOR_SENSITIVITY_MODEL_IDS)
         )
         if not exact_floor or config != "reporting":
             return None
         manifest = _read_bound_run_manifest(frame, run_csv)
         references = primary_floor_references or {}
-        observed_outcomes = (
-            set(manifest["outcome"].astype(str))
-            if "outcome" in manifest.columns
-            else set()
-        )
+        observed_outcomes = set(manifest["outcome"].astype(str)) if "outcome" in manifest.columns else set()
         reporting_identity = bool(
             "config" in manifest.columns
             and manifest["config"].astype(str).eq(config).all()
@@ -369,8 +347,7 @@ def _publish_validated_sensitivity_manifest(
         return fixed
 
     exact_standard = bool(
-        len(requested) == len(STANDARD_SENSITIVITY_OUTCOMES)
-        and set(requested) == set(STANDARD_SENSITIVITY_OUTCOMES)
+        len(requested) == len(STANDARD_SENSITIVITY_OUTCOMES) and set(requested) == set(STANDARD_SENSITIVITY_OUTCOMES)
     )
     if not exact_standard or config != "reporting":
         return None
@@ -486,10 +463,7 @@ def _fit_floor_one(
         or n_intervention != primary_reference.n_intervention
         or n_control != primary_reference.n_control
     ):
-        raise RuntimeError(
-            f"{symbol} floor sensitivity no longer matches its primary analysis "
-            "data or arm counts"
-        )
+        raise RuntimeError(f"{symbol} floor sensitivity no longer matches its primary analysis data or arm counts")
 
     row = {
         **primary_reference.manifest_values(),
@@ -579,8 +553,7 @@ def _copy_floor_model_artifacts(
         model_dir = model_output_root / f"{model_id}-{config}"
         if not model_dir.is_dir():
             raise FileNotFoundError(
-                f"cannot install {symbol} floor sensitivity: primary model "
-                f"directory does not exist: {model_dir}"
+                f"cannot install {symbol} floor sensitivity: primary model directory does not exist: {model_dir}"
             )
         reference = load_primary_floor_reference(
             model_dir,
@@ -596,8 +569,7 @@ def _copy_floor_model_artifacts(
         )
         if not status["ready"]:
             raise RuntimeError(
-                f"refusing to install {symbol} floor sensitivity: central bundle "
-                f"failed validation ({status})"
+                f"refusing to install {symbol} floor sensitivity: central bundle failed validation ({status})"
             )
         validated.append((symbol, model_dir, rows, reference))
 
@@ -619,16 +591,12 @@ def _copy_floor_model_artifacts(
                 trace_sha256 = str(row["trace_sha256"])
                 digest_suffix = f"-{trace_sha256[:12]}"
                 destination_name = (
-                    source.name
-                    if source.stem.endswith(digest_suffix)
-                    else f"{source.stem}{digest_suffix}.nc"
+                    source.name if source.stem.endswith(digest_suffix) else f"{source.stem}{digest_suffix}.nc"
                 )
                 staged_trace = stage_dir / destination_name
                 shutil.copy2(source, staged_trace)
                 if sha256_file(staged_trace) != trace_sha256:
-                    raise RuntimeError(
-                        f"staged floor sensitivity trace changed during copy: {source}"
-                    )
+                    raise RuntimeError(f"staged floor sensitivity trace changed during copy: {source}")
                 rows.at[index, "trace_file"] = destination_name
                 installed_names.append(destination_name)
 
@@ -641,8 +609,7 @@ def _copy_floor_model_artifacts(
             )
             if not staged_status["ready"]:
                 raise RuntimeError(
-                    f"refusing to install {symbol} floor sensitivity: staged bundle "
-                    f"failed validation ({staged_status})"
+                    f"refusing to install {symbol} floor sensitivity: staged bundle failed validation ({staged_status})"
                 )
             staged_csv = stage_dir / FLOOR_SENSITIVITY_FILENAME
             rows.to_csv(staged_csv, index=False)
@@ -738,8 +705,7 @@ def _fit_one(
         or n_control != primary_reference.n_control
     ):
         raise RuntimeError(
-            f"{symbol} standard sensitivity does not match its current primary "
-            "ITT data, sample, arm counts, or config"
+            f"{symbol} standard sensitivity does not match its current primary ITT data, sample, arm counts, or config"
         )
     row = {
         **primary_reference.manifest_values(),
@@ -829,9 +795,7 @@ def main() -> None:
 
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
-    args.out_dir = args.out_dir or os.path.join(
-        str(_paths.stat_dir()), _default_output_name(args.outcomes)
-    )
+    args.out_dir = args.out_dir or os.path.join(str(_paths.stat_dir()), _default_output_name(args.outcomes))
     sensitivity_dir = Path(args.out_dir)
 
     from language_reading_predictors.statistical_models.preprocessing import (
@@ -855,10 +819,7 @@ def main() -> None:
         )
         for symbol in args.outcomes
     }
-    loaded_counts = ", ".join(
-        f"{symbol}={prepared.n_obs}"
-        for symbol, prepared in prepared_by_symbol.items()
-    )
+    loaded_counts = ", ".join(f"{symbol}={prepared.n_obs}" for symbol, prepared in prepared_by_symbol.items())
     print(
         f"Loaded separate outcome frames ({loaded_counts}); "
         f"config={args.config} (draws={sampling.draws}, tune={sampling.tune}, "
@@ -898,10 +859,7 @@ def main() -> None:
             reference.n_intervention,
             reference.n_control,
         )
-        if (
-            str(getattr(at_risk, "data_sha256", "")) != reference.data_sha256
-            or observed_counts != expected_counts
-        ):
+        if str(getattr(at_risk, "data_sha256", "")) != reference.data_sha256 or observed_counts != expected_counts:
             raise RuntimeError(
                 f"{symbol} sensitivity input does not match the current primary "
                 "report's data digest or analysis-set counts"

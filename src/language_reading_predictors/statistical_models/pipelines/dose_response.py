@@ -102,9 +102,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         PrimaryFitPlan(
             diagnostic_vars=tuple(dose_vars),
             ppc_var_names=(plan.observation_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, plan.outcome_symbol
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, plan.outcome_symbol),
             extended_term=plan.focal_term,
             compute_loo=plan.compute_loo,
             # The trace is intentionally persisted after the dose-slope summary,
@@ -117,9 +115,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # ``built.prepared``, never the loader's ``prepared``: the factory drops rows
     # (a missing outcome, or a child with no verified t1 ability) and the payload's
     # arrays are aligned to what it kept. dose-177 loads 157 rows and fits 156.
-    contrast = resolve_dose_contrast(
-        built.payload, np.asarray(built.prepared.phase, dtype=int)
-    )
+    contrast = resolve_dose_contrast(built.payload, np.asarray(built.prepared.phase, dtype=int))
     save_table(ctx, "dose_support", contrast.support_table)
 
     section_header("Dose-slope summary")
@@ -129,9 +125,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         dose_covariate=plan.dose_covariate,
         dose_scaler=built.payload.dose_scaler,
         marginal_row_mask=built.payload.treated,
-        between_term=(
-            "beta_dose_between" if plan.decompose_between_within else None
-        ),
+        between_term=("beta_dose_between" if plan.decompose_between_within else None),
         include_presence_term=True,
         contrast_std=contrast.delta_std,
         contrast_start_offset_std=contrast.start_offset_std,
@@ -188,9 +182,7 @@ def _dose_effective_adjustment(plan, prepared) -> dict:
         {
             "term": f"{plan.adjust_baseline_symbol}_pre",
             "kind": "autoregressive_baseline",
-            "source_column": prepared.column_map.get(
-                plan.adjust_baseline_symbol, plan.adjust_baseline_symbol
-            ),
+            "source_column": prepared.column_map.get(plan.adjust_baseline_symbol, plan.adjust_baseline_symbol),
             "wave": "pre",
         }
     ]
@@ -205,9 +197,7 @@ def _dose_effective_adjustment(plan, prepared) -> dict:
             }
         )
     if plan.adjust_age:
-        terms.append(
-            {"term": "A", "kind": "covariate", "source_column": "age", "wave": "pre"}
-        )
+        terms.append({"term": "A", "kind": "covariate", "source_column": "age", "wave": "pre"})
     for symbol in plan.ability_adjust_symbols:
         terms.append(
             {
@@ -280,9 +270,7 @@ def resolve_dose_contrast(payload, phase_idx: np.ndarray) -> DoseContrast:
                 "sessions_q3": q3,
                 "sessions_max": hi,
                 "contrast_sessions": width,
-                "contrast_within_support": bool(
-                    np.isfinite(hi) and np.isfinite(lo) and q1 >= lo and q3 <= hi
-                ),
+                "contrast_within_support": bool(np.isfinite(hi) and np.isfinite(lo) and q1 >= lo and q3 <= hi),
             }
         )
     label = "an interquartile increase in that period's observed session attendance"
@@ -335,9 +323,7 @@ def write_dose_band_ppc(ctx: StatisticalFitContext, *, payload) -> None:
     band = np.full(raw.shape[0], "none", dtype=object)
     if treated.any():
         cuts = np.percentile(raw[treated], [100 / 3, 200 / 3])
-        band[treated] = np.where(
-            raw[treated] <= cuts[0], "low", np.where(raw[treated] <= cuts[1], "mid", "high")
-        )
+        band[treated] = np.where(raw[treated] <= cuts[0], "low", np.where(raw[treated] <= cuts[1], "mid", "high"))
     lo, hi = np.percentile(draws, [5.5, 94.5], axis=1)
     inside = (observed >= lo) & (observed <= hi)
     median = np.median(draws, axis=1)
@@ -396,12 +382,7 @@ def dose_marginal_draws(
     attendance in a between/within split. ``row_mask`` selects the averaging rows.
     Returns one items-scale value per draw.
     """
-    eta = (
-        group[eta_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )
+    eta = group[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
     if period_varying:
         stacked = group["beta_dose_phase"].stack(sample=("chain", "draw"))
         phase_dim = next(d for d in stacked.dims if d != "sample")
@@ -410,6 +391,7 @@ def dose_marginal_draws(
     else:
         scalar = group["beta_dose"].stack(sample=("chain", "draw")).values.ravel()
         per_row = np.broadcast_to(scalar[None, :], eta.shape)
+
     def row_vector(value, name):
         array = np.asarray(value, dtype=float)
         if array.shape != (eta.shape[0],) or not np.all(np.isfinite(array)):
@@ -443,9 +425,7 @@ def dose_marginal_draws(
     ).mean(axis=0) * float(n_trials)
 
 
-def _summarise_draws(
-    values: np.ndarray, ci_prob: float, *, include_p_pos: bool = True
-) -> dict[str, float]:
+def _summarise_draws(values: np.ndarray, ci_prob: float, *, include_p_pos: bool = True) -> dict[str, float]:
     """Mean, equal-tailed CI and (optionally) P(>0) for a 1-D array of draws.
 
     ``ci_prob`` is the interval *coverage* probability (equal-tailed), read from
@@ -546,9 +526,7 @@ def write_dose_slope_summary(
         rows.append({"term": "dose_overall", **_summarise_draws(_draws("mu_dose"), ci_prob)})
         bdp = _draws("beta_dose_phase")  # (phase, sample)
         for p in range(bdp.shape[0]):
-            rows.append(
-                {"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], ci_prob)}
-            )
+            rows.append({"term": f"dose_period{p + 1}", **_summarise_draws(bdp[p], ci_prob)})
         rows.append(
             {
                 "term": "sigma_dose_between_period",
@@ -562,17 +540,13 @@ def write_dose_slope_summary(
         # period slopes and never merged into them: "children who attended more" and
         # "a period when this child attended more" are different questions, and a lone
         # coefficient over a random intercept silently returns a blend of the two.
-        rows.append(
-            {"term": "dose_between_child", **_summarise_draws(_draws(between_term), ci_prob)}
-        )
+        rows.append({"term": "dose_between_child", **_summarise_draws(_draws(between_term), ci_prob)})
     if include_presence_term and "theta_treated" in post:
         # The extensive margin, kept in the same table so a reader cannot mistake a
         # dose slope for the effect of being on the intervention at all. Opt-in so the
         # DiD dose companions, which have their own ``theta_treated`` and their own
         # audit in #576, keep their existing table unchanged.
-        rows.append(
-            {"term": "on_intervention", **_summarise_draws(_draws("theta_treated"), ci_prob)}
-        )
+        rows.append({"term": "on_intervention", **_summarise_draws(_draws("theta_treated"), ci_prob)})
 
     df = pd.DataFrame(rows)
     if dose_scaler is None:
@@ -597,9 +571,7 @@ def write_dose_slope_summary(
         contrast_std = np.ones(n_rows_total, dtype=float)
     contrast_std = np.asarray(contrast_std, dtype=float)
     if contrast_std.shape != (n_rows_total,):
-        raise ValueError(
-            f"contrast_std must have {n_rows_total} entries; got {contrast_std.shape}"
-        )
+        raise ValueError(f"contrast_std must have {n_rows_total} entries; got {contrast_std.shape}")
     items = dose_marginal_draws(
         post,
         phase_idx=phase_idx,
@@ -611,11 +583,7 @@ def write_dose_slope_summary(
         score_mean_link=score_mean_link,
     )
     lo_q = (1 - ci_prob) / 2
-    kept = (
-        np.ones(n_rows_total, dtype=bool)
-        if marginal_row_mask is None
-        else np.asarray(marginal_row_mask)
-    )
+    kept = np.ones(n_rows_total, dtype=bool) if marginal_row_mask is None else np.asarray(marginal_row_mask)
     sessions = (
         np.full(n_rows_total, float(dose_scaler.sd))
         if contrast_sessions is None
@@ -641,17 +609,13 @@ def write_dose_slope_summary(
                 "n_rows": int(kept.sum()),
                 "n_rows_fitted": n_rows_total,
                 "row_population": (
-                    "all fitted rows"
-                    if marginal_row_mask is None
-                    else "on-intervention (treated) rows only"
+                    "all fitted rows" if marginal_row_mask is None else "on-intervention (treated) rows only"
                 ),
                 "support_note": support_note,
                 # The published estimand names itself where the family records one
                 # (#576 finding 1), so a reader of the CSV never has to infer which
                 # of the fit's several dose quantities is the headline.
-                "focal_estimand": str(
-                    getattr(getattr(ctx, "resolved_plan", None), "focal_estimand", "")
-                ),
+                "focal_estimand": str(getattr(getattr(ctx, "resolved_plan", None), "focal_estimand", "")),
                 "swept_coefficient": focal_term_name,
             }
         ]
@@ -659,13 +623,8 @@ def write_dose_slope_summary(
     save_table(ctx, "dose_marginal_summary", marginal)
     print_table(
         metrics_table(
-            [
-                {"metric": r["term"], "value": r["mean"], "lo": r["lo"], "hi": r["hi"]}
-                for r in rows
-            ],
-            title=(
-                f"Dose slope (logit / 1 SD dose) - {int(ci_prob * 100)}% CI (equal-tailed)"
-            ),
+            [{"metric": r["term"], "value": r["mean"], "lo": r["lo"], "hi": r["hi"]} for r in rows],
+            title=(f"Dose slope (logit / 1 SD dose) - {int(ci_prob * 100)}% CI (equal-tailed)"),
             columns=["metric", "value", "lo", "hi"],
         )
     )
@@ -687,10 +646,7 @@ def write_dose_slope_summary(
         pushforward_rows = [
             _predictive.unavailable_pushforward(
                 estimand=focal,
-                estimand_label=(
-                    f"the association of {contrast_label} with "
-                    f"{pushforward_outcome_label(ctx, outcome)}"
-                ),
+                estimand_label=(f"the association of {contrast_label} with {pushforward_outcome_label(ctx, outcome)}"),
                 role="association",
                 reason=str(exc),
             )
@@ -709,19 +665,12 @@ def write_dose_slope_summary(
             row_mask=marginal_row_mask,
             score_mean_link=score_mean_link,
         )
-        prior_logit = (
-            prior_group[focal].stack(sample=("chain", "draw")).values.ravel()
-        )
+        prior_logit = prior_group[focal].stack(sample=("chain", "draw")).values.ravel()
         pushforward_rows = [
             _predictive.labelled_pushforward(
-                _predictive.pushforward_values(
-                    prior_logit, prior_items, n_trials=n_trials, ci_prob=ci_prob
-                ),
+                _predictive.pushforward_values(prior_logit, prior_items, n_trials=n_trials, ci_prob=ci_prob),
                 estimand=focal,
-                estimand_label=(
-                    f"the association of {contrast_label} with "
-                    f"{pushforward_outcome_label(ctx, outcome)}"
-                ),
+                estimand_label=(f"the association of {contrast_label} with {pushforward_outcome_label(ctx, outcome)}"),
                 role="association",
             )
         ]

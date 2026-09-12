@@ -40,10 +40,7 @@ def _kf_jm_wave_series(rows: pd.DataFrame, *, decimals: int = 2) -> str:
     was most extreme, which is exactly the selection a reader would have to discount
     (2026-08-23 follow-up review, finding 1).
     """
-    return ", ".join(
-        f"{str(r['wave'])} {_kf_float(r['median']):+.{decimals}f}"
-        for _, r in rows.iterrows()
-    )
+    return ", ".join(f"{str(r['wave'])} {_kf_float(r['median']):+.{decimals}f}" for _, r in rows.iterrows())
 
 
 def _kf_jm_psense_flags(output_dir: str | Path, rows: pd.DataFrame) -> list[str]:
@@ -58,11 +55,7 @@ def _kf_jm_psense_flags(output_dir: str | Path, rows: pd.DataFrame) -> list[str]
     for _, row in rows.iterrows():
         wave = str(row.get("wave", "")).strip()
         filename = str(row.get("psense_file") or "").strip() or "psense_summary.csv"
-        flagged = [
-            term
-            for term in terms
-            if _kf_psense_diagnosis(output_dir, term, filename=filename) is not None
-        ]
+        flagged = [term for term in terms if _kf_psense_diagnosis(output_dir, term, filename=filename) is not None]
         if flagged:
             flags.append(f"{wave} ({', '.join(flagged)})" if wave else ", ".join(flagged))
     return flags
@@ -88,12 +81,18 @@ def _kf_build_joint_mechanism(output_dir: str | Path, config: Mapping) -> list[d
     if df is None:
         raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv is missing")
     for column in (
-        "wave", "term", "median", "lo50", "hi50", "lo", "hi", "prob_pos", "converged",
+        "wave",
+        "term",
+        "median",
+        "lo50",
+        "hi50",
+        "lo",
+        "hi",
+        "prob_pos",
+        "converged",
     ):
         if column not in df.columns:
-            raise _KeyFindingsUnavailable(
-                f"joint_mechanism_slopes.csv has no {column!r} column"
-            )
+            raise _KeyFindingsUnavailable(f"joint_mechanism_slopes.csv has no {column!r} column")
     # A wave whose fit did not converge is published flagged in the CSV but must not
     # enter any number in the box. Since the 2026-08-23 review every published wave is
     # also release-gating, so this filter is a second line rather than the only one.
@@ -102,9 +101,7 @@ def _kf_build_joint_mechanism(output_dir: str | Path, config: Mapping) -> list[d
     df = df[converged_rows]
     delta = df[df["term"] == "delta_ls_decoding"]
     if delta.empty:
-        raise _KeyFindingsUnavailable(
-            "joint_mechanism_slopes.csv has no converged delta_ls_decoding row"
-        )
+        raise _KeyFindingsUnavailable("joint_mechanism_slopes.csv has no converged delta_ls_decoding row")
     waves = [str(w) for w in df["wave"].drop_duplicates()]
     per_wave = len(waves) > 1
     # The family's own keys live under ``extra``; the top-level ``design`` is the
@@ -175,13 +172,11 @@ def _kf_build_joint_mechanism(output_dir: str | Path, config: Mapping) -> list[d
     where = " at every fitted wave" if per_wave else ""
     if all(p > 0.5 for p in probs):
         direction = (
-            f"letter sounds track {_kf_measure_label(hi_sym)} more closely than "
-            f"{_kf_measure_label(lo_sym)}{where}"
+            f"letter sounds track {_kf_measure_label(hi_sym)} more closely than {_kf_measure_label(lo_sym)}{where}"
         )
     elif all(p < 0.5 for p in probs):
         direction = (
-            f"letter sounds track {_kf_measure_label(lo_sym)} more closely than "
-            f"{_kf_measure_label(hi_sym)}{where}"
+            f"letter sounds track {_kf_measure_label(lo_sym)} more closely than {_kf_measure_label(hi_sym)}{where}"
         )
     else:
         direction = "the contrast does not keep one sign across the fitted waves"
@@ -193,8 +188,7 @@ def _kf_build_joint_mechanism(output_dir: str | Path, config: Mapping) -> list[d
             "general-ability component would produce and what the 6-item nonword "
             "floor would exaggerate"
             if design == "levels"
-            else " — a reversal of the Tier-1 contrast, to be read against the "
-            "matched mech-096 / mech-101 pair"
+            else " — a reversal of the Tier-1 contrast, to be read against the matched mech-096 / mech-101 pair"
         )
     sentences.append(
         _kf_sentence(
@@ -225,16 +219,10 @@ def _kf_build_joint_mechanism(output_dir: str | Path, config: Mapping) -> list[d
         governance = _kf_csv(output_dir, "conditional_slope_ratio.csv")
         regions = ""
         if governance is not None and "prob_in_unit" in governance.columns:
-            usable = governance[
-                governance["wave"].astype(str).isin(set(stable["wave"].astype(str)))
-            ]
+            usable = governance[governance["wave"].astype(str).isin(set(stable["wave"].astype(str)))]
             if not usable.empty:
                 regions = (
-                    " P(0 ≤ ratio ≤ 1) = "
-                    + ", ".join(
-                        f"{_kf_float(v):.2f}" for v in usable["prob_in_unit"]
-                    )
-                    + "."
+                    " P(0 ≤ ratio ≤ 1) = " + ", ".join(f"{_kf_float(v):.2f}" for v in usable["prob_in_unit"]) + "."
                 )
         if not stable.empty:
             sentences.append(
@@ -280,9 +268,7 @@ def _kf_build_joint_mechanism(output_dir: str | Path, config: Mapping) -> list[d
     # The transition design publishes one posterior and writes no per-wave diagnostic
     # table, so it is read against the fit-level power-scaling table.
     psense_rows = (
-        diagnostics
-        if diagnostics is not None
-        else pd.DataFrame([{"wave": "", "psense_file": "psense_summary.csv"}])
+        diagnostics if diagnostics is not None else pd.DataFrame([{"wave": "", "psense_file": "psense_summary.csv"}])
     )
     flags = _kf_jm_psense_flags(output_dir, psense_rows)
     if flags:
@@ -313,11 +299,7 @@ def _kf_build_joint_mechanism(output_dir: str | Path, config: Mapping) -> list[d
         sentences.append(
             _kf_sentence(
                 f"The {level} correlation between the two outcomes is "
-                + (
-                    _kf_jm_wave_series(rho)
-                    if per_wave
-                    else _kf_jm_interval(rho.iloc[0])
-                )
+                + (_kf_jm_wave_series(rho) if per_wave else _kf_jm_interval(rho.iloc[0]))
                 + ". This is the dependence block doing the work: an interval "
                 "sitting on zero would mean the joint fit buys little over two "
                 "separate ones.",

@@ -1,18 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Historical-cohort growth and joint-growth model construction.
-
-"""
+"""Historical-cohort growth and joint-growth model construction."""
 
 from __future__ import annotations
-
 
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -28,6 +24,7 @@ from language_reading_predictors.statistical_models.factories.base import (
 from language_reading_predictors.statistical_models.invariants import (
     require_value,
 )
+
 
 def _map_panel_rows(values, index: dict, *, what: str) -> np.ndarray:
     """Map tidy-row keys to dense model indices, refusing keys the panel lacks.
@@ -105,35 +102,20 @@ def build_historical_growth_model(
 
     cells = panel.cells(measure)
     cell_index = {cell: i for i, cell in enumerate(cells)}
-    cell_labels = [
-        f"{group_labels[group_index[g]]} | wave {w}" for g, w in cells
-    ]
+    cell_labels = [f"{group_labels[group_index[g]]} | wave {w}" for g, w in cells]
     # Waves supported in *every* group - the window where between-group
     # quantities are defined (the Byrne common window is w1-w4; wave 5 is a
     # Down-syndrome-only extension).
-    common_waves = [
-        w
-        for w in sorted({w for _g, w in cells})
-        if all((g, w) in cell_index for g in group_codes)
-    ]
+    common_waves = [w for w in sorted({w for _g, w in cells}) if all((g, w) in cell_index for g in group_codes)]
 
     group_idx = _map_panel_rows(df[grp].tolist(), group_index, what="group code")
     obs_cell_idx = np.array(
-        [
-            cell_index[(int(g), int(w))]
-            for g, w in zip(df[grp], df[wave_c], strict=True)
-        ],
+        [cell_index[(int(g), int(w))] for g, w in zip(df[grp], df[wave_c], strict=True)],
         dtype=int,
     )
     subject_idx = _map_panel_rows(df[subj].tolist(), subject_index, what="subject")
     observed = df[measure].to_numpy(dtype=int)
-    subject_group = (
-        df.drop_duplicates(subj)
-        .set_index(subj)
-        .loc[subject_ids, grp]
-        .map(group_index)
-        .to_numpy(dtype=int)
-    )
+    subject_group = df.drop_duplicates(subj).set_index(subj).loc[subject_ids, grp].map(group_index).to_numpy(dtype=int)
 
     coords = {
         "group": group_labels,
@@ -148,39 +130,32 @@ def build_historical_growth_model(
 
     with pm.Model(coords=coords) as model:
         eta_cell = _priors.declare(
-                       pm.Normal(
-                                   "eta_cell", mu=0.0, sigma=eta_prior_sigma, dims="cell"
-                               ),
-                       role="nuisance",
-                       rationale=(
-                           'Group-by-wave population level per cell/measure on the logit scale; the fitted cells (mean_items) and growth intervals are deterministics of it — descriptive, not a treatment effect.'
-                       ),
-                   )
+            pm.Normal("eta_cell", mu=0.0, sigma=eta_prior_sigma, dims="cell"),
+            role="nuisance",
+            rationale=(
+                "Group-by-wave population level per cell/measure on the logit scale; the fitted cells (mean_items) and growth intervals are deterministics of it — descriptive, not a treatment effect."
+            ),
+        )
         sigma_subject = _priors.declare(
-                            pm.HalfNormal(
-                                        "sigma_subject", sigma=sigma_subject_prior_sigma, dims="group"
-                                    ),
-                            role="nuisance",
-                            rationale=(
-                                'Group-indexed between-subject random-intercept SD; between-child heterogeneity that differs by cohort group.'
-                            ),
-                        )
+            pm.HalfNormal("sigma_subject", sigma=sigma_subject_prior_sigma, dims="group"),
+            role="nuisance",
+            rationale=(
+                "Group-indexed between-subject random-intercept SD; between-child heterogeneity that differs by cohort group."
+            ),
+        )
         z_subject = _priors.declare(
-                        pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject"),
-                        role="nuisance",
-                        rationale=(
-                            'Non-centred standard-normal per-subject offsets; group-centred and scaled by sigma_subject to form the subject random effects.'
-                        ),
-                    )
+            pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject"),
+            role="nuisance",
+            rationale=(
+                "Non-centred standard-normal per-subject offsets; group-centred and scaled by sigma_subject to form the subject random effects."
+            ),
+        )
         # Group-centre the subject offsets for identifiability against
         # ``eta_cell`` (the group-by-wave level absorbs the group mean).
-        z_group_mean = pm.math.stack(
-            [z_subject[subject_group == g].mean() for g in range(len(group_codes))]
-        )
+        z_group_mean = pm.math.stack([z_subject[subject_group == g].mean() for g in range(len(group_codes))])
         subject_offset = pm.Deterministic(
             "subject_offset",
-            (z_subject - z_group_mean[subject_group])
-            * sigma_subject[subject_group],
+            (z_subject - z_group_mean[subject_group]) * sigma_subject[subject_group],
             dims="subject",
         )
         # Sample the DISPERSION, publish the concentration. ``u = 1/sqrt(kappa)``
@@ -189,12 +164,10 @@ def build_historical_growth_model(
         # probability 0.001 (2026-08-21 review, finding 8). The 1e-6 floor keeps
         # kappa finite and the gradient smooth as u -> 0; at the fitted range
         # (kappa 28-121, u 0.09-0.19) it shifts kappa by under 0.01%.
-        inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(
-            sigma=dispersion_prior_sigma
-        ).to_pymc("inv_sqrt_kappa", dims="group")
-        kappa = pm.Deterministic(
-            "kappa", 1.0 / (inv_sqrt_kappa**2 + 1e-6), dims="group"
+        inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(sigma=dispersion_prior_sigma).to_pymc(
+            "inv_sqrt_kappa", dims="group"
         )
+        kappa = pm.Deterministic("kappa", 1.0 / (inv_sqrt_kappa**2 + 1e-6), dims="group")
 
         eta_obs = eta_cell[obs_cell_idx] + subject_offset[subject_idx]
         p_obs = pm.math.sigmoid(eta_obs)
@@ -219,28 +192,23 @@ def build_historical_growth_model(
         if len(common_waves) >= 2:
             pm.Deterministic(
                 "growth_first_next_items",
-                mean_items[_cell_pos(common_waves[1])]
-                - mean_items[_cell_pos(common_waves[0])],
+                mean_items[_cell_pos(common_waves[1])] - mean_items[_cell_pos(common_waves[0])],
                 dims="group",
             )
         if len(common_waves) >= 3:
             pm.Deterministic(
                 "growth_next_last_items",
-                mean_items[_cell_pos(common_waves[-1])]
-                - mean_items[_cell_pos(common_waves[1])],
+                mean_items[_cell_pos(common_waves[-1])] - mean_items[_cell_pos(common_waves[1])],
                 dims="group",
             )
         if len(common_waves) >= 2:
             pm.Deterministic(
                 "growth_first_last_items",
-                mean_items[_cell_pos(common_waves[-1])]
-                - mean_items[_cell_pos(common_waves[0])],
+                mean_items[_cell_pos(common_waves[-1])] - mean_items[_cell_pos(common_waves[0])],
                 dims="group",
             )
 
-    return BuiltModel(
-        model=model, prepared=panel, payload=EmptyPayload()
-    )
+    return BuiltModel(model=model, prepared=panel, payload=EmptyPayload())
 
 
 def build_rlm_joint_growth_model(
@@ -317,45 +285,24 @@ def build_rlm_joint_growth_model(
                 f"{measures[0]!r}; the joint model needs one shared cell set."
             )
     cell_index = {cell: i for i, cell in enumerate(cells)}
-    cell_labels = [
-        f"{group_labels[group_index[g]]} | wave {w}" for g, w in cells
-    ]
-    common_waves = [
-        w
-        for w in sorted({w for _g, w in cells})
-        if all((g, w) in cell_index for g in group_codes)
-    ]
+    cell_labels = [f"{group_labels[group_index[g]]} | wave {w}" for g, w in cells]
+    common_waves = [w for w in sorted({w for _g, w in cells}) if all((g, w) in cell_index for g in group_codes)]
 
     group_idx = _map_panel_rows(df[grp].tolist(), group_index, what="group code")
     obs_cell_idx = np.array(
-        [
-            cell_index[(int(g), int(w))]
-            for g, w in zip(df[grp], df[wave_c], strict=True)
-        ],
+        [cell_index[(int(g), int(w))] for g, w in zip(df[grp], df[wave_c], strict=True)],
         dtype=int,
     )
     subject_idx = _map_panel_rows(df[subj].tolist(), subject_index, what="subject")
-    subject_group = (
-        df.drop_duplicates(subj)
-        .set_index(subj)
-        .loc[subject_ids, grp]
-        .map(group_index)
-        .to_numpy(dtype=int)
-    )
+    subject_group = df.drop_duplicates(subj).set_index(subj).loc[subject_ids, grp].map(group_index).to_numpy(dtype=int)
     if within_correlation:
         if df.duplicated([subj, wave_c]).any():
-            raise ValueError(
-                "within_correlation requires exactly one row per child and wave"
-            )
+            raise ValueError("within_correlation requires exactly one row per child and wave")
         subject_wave_sets = {
-            tuple(sorted(int(wave) for wave in frame[wave_c]))
-            for _subject, frame in df.groupby(subj, sort=False)
+            tuple(sorted(int(wave) for wave in frame[wave_c])) for _subject, frame in df.groupby(subj, sort=False)
         }
         if len(subject_wave_sets) != 1:
-            raise ValueError(
-                "within_correlation requires a balanced panel with the same waves "
-                "for every child"
-            )
+            raise ValueError("within_correlation requires a balanced panel with the same waves for every child")
 
     coords = {
         "measure": list(measures),
@@ -371,31 +318,29 @@ def build_rlm_joint_growth_model(
 
     with pm.Model(coords=coords) as model:
         eta_cell = _priors.declare(
-                       pm.Normal(
-                                   "eta_cell", mu=0.0, sigma=eta_prior_sigma, dims=("measure", "cell")
-                               ),
-                       role="nuisance",
-                       rationale=(
-                           'Group-by-wave population level per cell/measure on the logit scale; the fitted cells (mean_items) and growth intervals are deterministics of it — descriptive, not a treatment effect.'
-                       ),
-                   )
+            pm.Normal("eta_cell", mu=0.0, sigma=eta_prior_sigma, dims=("measure", "cell")),
+            role="nuisance",
+            rationale=(
+                "Group-by-wave population level per cell/measure on the logit scale; the fitted cells (mean_items) and growth intervals are deterministics of it — descriptive, not a treatment effect."
+            ),
+        )
         sigma_subject = _priors.declare(
-                            pm.HalfNormal(
-                                        "sigma_subject",
-                                        sigma=sigma_subject_prior_sigma,
-                                        dims=("measure", "group"),
-                                    ),
-                            role="nuisance",
-                            rationale=(
-                                'Group-indexed between-subject random-intercept SD; between-child heterogeneity that differs by cohort group.'
-                            ),
-                        )
+            pm.HalfNormal(
+                "sigma_subject",
+                sigma=sigma_subject_prior_sigma,
+                dims=("measure", "group"),
+            ),
+            role="nuisance",
+            rationale=(
+                "Group-indexed between-subject random-intercept SD; between-child heterogeneity that differs by cohort group."
+            ),
+        )
         kappa = None
         if not within_correlation:
             # Dispersion-scale prior, as in build_historical_growth_model.
-            inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(
-                sigma=dispersion_prior_sigma
-            ).to_pymc("inv_sqrt_kappa", dims=("measure", "group"))
+            inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(sigma=dispersion_prior_sigma).to_pymc(
+                "inv_sqrt_kappa", dims=("measure", "group")
+            )
             kappa = pm.Deterministic(
                 "kappa",
                 1.0 / (inv_sqrt_kappa**2 + 1e-6),
@@ -408,42 +353,31 @@ def build_rlm_joint_growth_model(
         # LKJCholeskyCov discussion in mm-001: LKJCorr avoids the unused sd
         # scales of LKJCholeskyCov in a correlation-only role).
         chol = _priors.declare(
-                   pm.LKJCorr("measure_corr_chol", n=M, eta=lkj_eta),
-                   role="association",
-                   rationale=(
-                       'Cholesky factor of the between-child cross-measure correlation. R = chol @ chol.T is the reported reading-language-memory association.'
-                   ),
-               )
-        measure_corr = pm.Deterministic(
-            "measure_corr", chol @ chol.T, dims=("measure", "measure_b")
+            pm.LKJCorr("measure_corr_chol", n=M, eta=lkj_eta),
+            role="association",
+            rationale=(
+                "Cholesky factor of the between-child cross-measure correlation. R = chol @ chol.T is the reported reading-language-memory association."
+            ),
         )
+        measure_corr = pm.Deterministic("measure_corr", chol @ chol.T, dims=("measure", "measure_b"))
         iu, ju = np.triu_indices(M, k=1)
         if len(iu):
             pm.Deterministic(
                 "measure_corr_pairs",
-                pt.stack(
-                    [measure_corr[i, j] for i, j in zip(iu, ju, strict=True)]
-                ),
+                pt.stack([measure_corr[i, j] for i, j in zip(iu, ju, strict=True)]),
             )
 
         z_subject = _priors.declare(
-                        pm.Normal(
-                                    "z_subject", mu=0.0, sigma=1.0, dims=("subject", "measure")
-                                ),
-                        role="nuisance",
-                        rationale=(
-                            'Non-centred standard-normal per-subject offsets; group-centred and scaled by sigma_subject to form the subject random effects.'
-                        ),
-                    )
+            pm.Normal("z_subject", mu=0.0, sigma=1.0, dims=("subject", "measure")),
+            role="nuisance",
+            rationale=(
+                "Non-centred standard-normal per-subject offsets; group-centred and scaled by sigma_subject to form the subject random effects."
+            ),
+        )
         corr_z = z_subject @ chol.T  # rows ~ MVN(0, R)
         # Group-centre per (group, measure) for identifiability against the
         # per-measure group-by-wave grids (same device as the hg factory).
-        z_group_mean = pt.stack(
-            [
-                corr_z[subject_group == g].mean(axis=0)
-                for g in range(len(group_codes))
-            ]
-        )
+        z_group_mean = pt.stack([corr_z[subject_group == g].mean(axis=0) for g in range(len(group_codes))])
         centred = corr_z - z_group_mean[subject_group]
         subject_offset = pm.Deterministic(
             "subject_offset",
@@ -454,29 +388,27 @@ def build_rlm_joint_growth_model(
         within_offset = None
         if within_correlation:
             sigma_within = _priors.declare(
-                               pm.HalfNormal(
-                                               "sigma_within",
-                                               sigma=sigma_within_prior_sigma,
-                                               dims="measure",
-                                           ),
-                               role="nuisance",
-                               rationale=(
-                                   "Scale of the wave-specific within-child departure on the logit scale. This model's likelihood is Binomial rather than Beta-Binomial, so this term carries ALL extra-Binomial variance — true within-child fluctuation and measurement noise together — and the double sum-to-zero centring makes the realised departure SD smaller than this parameter."
-                               ),
-                           )
+                pm.HalfNormal(
+                    "sigma_within",
+                    sigma=sigma_within_prior_sigma,
+                    dims="measure",
+                ),
+                role="nuisance",
+                rationale=(
+                    "Scale of the wave-specific within-child departure on the logit scale. This model's likelihood is Binomial rather than Beta-Binomial, so this term carries ALL extra-Binomial variance — true within-child fluctuation and measurement noise together — and the double sum-to-zero centring makes the realised departure SD smaller than this parameter."
+                ),
+            )
             within_chol = _priors.declare(
-                              pm.LKJCorr(
-                                              "within_corr_chol", n=M, eta=within_lkj_eta
-                                          ),
-                              role="association",
-                              rationale=(
-                                  "LKJ prior on the Cholesky factor of the WITHIN-child cross-measure "
-                                  "correlation of wave-specific departures (LKJCorrRV(<constant>, "
-                                  "2)); within_corr = chol @ chol.T is the headline estimand of the "
-                                  "within-child companion. Interpretable only for a measure pair "
-                                  "whose residual scales are resolvable."
-                              ),
-                          )
+                pm.LKJCorr("within_corr_chol", n=M, eta=within_lkj_eta),
+                role="association",
+                rationale=(
+                    "LKJ prior on the Cholesky factor of the WITHIN-child cross-measure "
+                    "correlation of wave-specific departures (LKJCorrRV(<constant>, "
+                    "2)); within_corr = chol @ chol.T is the headline estimand of the "
+                    "within-child companion. Interpretable only for a measure pair "
+                    "whose residual scales are resolvable."
+                ),
+            )
             within_corr = pm.Deterministic(
                 "within_corr",
                 within_chol @ within_chol.T,
@@ -485,36 +417,19 @@ def build_rlm_joint_growth_model(
             if len(iu):
                 pm.Deterministic(
                     "within_corr_pairs",
-                    pt.stack(
-                        [
-                            within_corr[i, j]
-                            for i, j in zip(iu, ju, strict=True)
-                        ]
-                    ),
+                    pt.stack([within_corr[i, j] for i, j in zip(iu, ju, strict=True)]),
                 )
             z_within = _priors.declare(
-                           pm.Normal(
-                                           "z_within", mu=0.0, sigma=1.0, dims=("obs", "measure")
-                                       ),
-                           role="nuisance",
-                           rationale=(
-                               'Non-centred standard-normal per-row, per-measure within-child offsets; correlated through within_corr_chol, double-centred within child and within group-by-wave cell, and scaled by sigma_within.'
-                           ),
-                       )
+                pm.Normal("z_within", mu=0.0, sigma=1.0, dims=("obs", "measure")),
+                role="nuisance",
+                rationale=(
+                    "Non-centred standard-normal per-row, per-measure within-child offsets; correlated through within_corr_chol, double-centred within child and within group-by-wave cell, and scaled by sigma_within."
+                ),
+            )
             raw_within = z_within @ within_chol.T
-            subject_means = pt.stack(
-                [
-                    raw_within[subject_idx == s].mean(axis=0)
-                    for s in range(len(subject_ids))
-                ]
-            )
+            subject_means = pt.stack([raw_within[subject_idx == s].mean(axis=0) for s in range(len(subject_ids))])
             centred_on_subject = raw_within - subject_means[subject_idx]
-            cell_means = pt.stack(
-                [
-                    centred_on_subject[obs_cell_idx == c].mean(axis=0)
-                    for c in range(len(cells))
-                ]
-            )
+            cell_means = pt.stack([centred_on_subject[obs_cell_idx == c].mean(axis=0) for c in range(len(cells))])
             centred_within = centred_on_subject - cell_means[obs_cell_idx]
             within_offset = pm.Deterministic(
                 "within_offset",
@@ -525,9 +440,7 @@ def build_rlm_joint_growth_model(
         for mi, m in enumerate(measures):
             n_trials = int(panel.n_trials[m])
             observed = df[m].to_numpy(dtype=int)
-            eta_obs = (
-                eta_cell[mi, obs_cell_idx] + subject_offset[subject_idx, mi]
-            )
+            eta_obs = eta_cell[mi, obs_cell_idx] + subject_offset[subject_idx, mi]
             if within_offset is not None:
                 eta_obs = eta_obs + within_offset[:, mi]
             p_obs = pm.math.sigmoid(eta_obs)
@@ -550,9 +463,7 @@ def build_rlm_joint_growth_model(
                     observed=observed,
                     dims="obs",
                 )
-            pm.Deterministic(
-                f"fitted_mean_items_obs_{m}", n_trials * p_obs, dims="obs"
-            )
+            pm.Deterministic(f"fitted_mean_items_obs_{m}", n_trials * p_obs, dims="obs")
             pm.Deterministic(
                 f"mean_items_{m}",
                 n_trials * pm.math.sigmoid(eta_cell[mi]),
@@ -572,8 +483,7 @@ def build_rlm_joint_growth_model(
                 mean_items_m = n_trials * pm.math.sigmoid(eta_cell[mi])
                 pm.Deterministic(
                     f"growth_first_last_items_{m}",
-                    mean_items_m[_cell_pos(common_waves[-1])]
-                    - mean_items_m[_cell_pos(common_waves[0])],
+                    mean_items_m[_cell_pos(common_waves[-1])] - mean_items_m[_cell_pos(common_waves[0])],
                     dims="group",
                 )
 

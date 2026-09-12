@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Joint (multi-outcome) ITT model construction.
-
-"""
+"""Joint (multi-outcome) ITT model construction."""
 
 from __future__ import annotations
 
@@ -13,7 +11,6 @@ from typing import Iterable
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -32,6 +29,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
 )
+
 
 def build_joint_model(
     prepared: PreparedData,
@@ -103,17 +101,13 @@ def build_joint_model(
     if prepared.phase_mode != "itt":
         raise ValueError("joint model requires phase_mode='itt'")
     if use_age_gp and use_age_linear:
-        raise ValueError(
-            "use_age_gp and use_age_linear are mutually exclusive in the joint model."
-        )
+        raise ValueError("use_age_gp and use_age_linear are mutually exclusive in the joint model.")
 
     K = len(outcomes)
     N_obs = prepared.n_obs
 
     # Observation masks (per outcome) for rows with observed post values.
-    mask = np.stack(
-        [~np.isnan(prepared.post_counts[s]) for s in outcomes], axis=1
-    )  # (N_obs, K)
+    mask = np.stack([~np.isnan(prepared.post_counts[s]) for s in outcomes], axis=1)  # (N_obs, K)
     post_counts_int = np.stack(
         [np.nan_to_num(prepared.post_counts[s], nan=0.0).astype(np.int64) for s in outcomes],
         axis=1,
@@ -151,9 +145,7 @@ def build_joint_model(
 
         # Pre-score matrix (N_obs, K) - same order as ``outcomes``.
         pre_logit = np.stack([prepared.pre_logit[s] for s in outcomes], axis=1)
-        pre_logit_data = pm.Data(
-            "pre_logit", pre_logit, dims=("obs_id", "baseline")
-        )
+        pre_logit_data = pm.Data("pre_logit", pre_logit, dims=("obs_id", "baseline"))
 
         # Per-outcome scalar parameters — shared constructors (priors.py) so
         # the joint model cannot drift from the ITT / mechanism factories (issue #79).
@@ -169,11 +161,7 @@ def build_joint_model(
         # Own-baseline contribution: (N_obs, K) - elementwise by outcome index.
         own_contrib = gamma_own[None, :] * pre_logit_data
 
-        eta_core = (
-            alpha[None, :]
-            + tau[None, :] * pt.shape_padright(G_d)
-            + own_contrib
-        )
+        eta_core = alpha[None, :] + tau[None, :] * pt.shape_padright(G_d) + own_contrib
 
         # Cross-baseline couplings: (K outcomes) x K baselines; mask the diagonal
         # to enforce "own baseline handled separately". The DAG-faithful LRPITT
@@ -181,9 +169,7 @@ def build_joint_model(
         # mirrors the single-outcome suite; kept available for a richer
         # sensitivity fit (the historical LRP55 behaviour).
         if use_cross_baselines:
-            gamma_cross_mat = _priors.gamma_cross_prior().to_pymc(
-                "gamma_cross", dims=("outcome", "baseline")
-            )
+            gamma_cross_mat = _priors.gamma_cross_prior().to_pymc("gamma_cross", dims=("outcome", "baseline"))
             mask_offdiag = 1.0 - np.eye(K)
             gamma_cross_eff = pm.Deterministic(
                 "gamma_cross_eff",
@@ -243,7 +229,7 @@ def build_joint_model(
                 "u_chol",
                 role="nuisance",
                 rationale=(
-                    'Packed Cholesky factor of residual covariance across the jointly fitted outcomes. The LKJ correlation prior favours smaller correlations, with positive per-outcome residual scales. This dependence model contributes to uncertainty in paired contrasts and is reported through sigma_outcome and u_corr_pair.'
+                    "Packed Cholesky factor of residual covariance across the jointly fitted outcomes. The LKJ correlation prior favours smaller correlations, with positive per-outcome residual scales. This dependence model contributes to uncertainty in paired contrasts and is reported through sigma_outcome and u_corr_pair."
                 ),
             )
             # u_corr is outcome × outcome (not outcome × baseline) — use
@@ -251,22 +237,16 @@ def build_joint_model(
             pm.Deterministic("u_corr", corr, dims=("outcome", "outcome2"))
             pm.Deterministic("sigma_outcome", sigmas, dims="outcome")
             # The free correlations as scalars (one per outcome pair, #551).
-            pm.Deterministic(
-                "u_corr_pair", corr[pair_i, pair_j], dims="outcome_pair"
-            )
+            pm.Deterministic("u_corr_pair", corr[pair_i, pair_j], dims="outcome_pair")
             z_raw = _priors.declare(
-                        pm.Normal(
-                                        "u_z", mu=0.0, sigma=1.0, dims=("obs_id", "outcome")
-                                    ),
-                        role="nuisance",
-                        rationale=(
-                            'Non-centred standard-normal per-child, per-outcome residual offsets; scaled by the Cholesky factor u_chol to form the within-child residual offsets u = z @ chol.T.'
-                        ),
-                    )
-            # u_i = chol @ z_i ⇒ rowwise U = Z @ chol.T.
-            u = pm.Deterministic(
-                "u", pt.dot(z_raw, chol.T), dims=("obs_id", "outcome")
+                pm.Normal("u_z", mu=0.0, sigma=1.0, dims=("obs_id", "outcome")),
+                role="nuisance",
+                rationale=(
+                    "Non-centred standard-normal per-child, per-outcome residual offsets; scaled by the Cholesky factor u_chol to form the within-child residual offsets u = z @ chol.T."
+                ),
             )
+            # u_i = chol @ z_i ⇒ rowwise U = Z @ chol.T.
+            u = pm.Deterministic("u", pt.dot(z_raw, chol.T), dims=("obs_id", "outcome"))
             eta = eta_core + u
         else:
             eta = eta_core
@@ -304,11 +284,7 @@ def build_joint_model(
             dims="cell",
         )
 
-    dependence = (
-        "residual_correlated"
-        if use_residual_correlation
-        else "factorised_outcome_marginals"
-    )
+    dependence = "residual_correlated" if use_residual_correlation else "factorised_outcome_marginals"
     return BuiltModel(
         model=model,
         prepared=prepared,

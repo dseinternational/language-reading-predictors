@@ -104,8 +104,11 @@ def emit_itt_extras(
     ``moderators`` includes each fitted treatment interaction in the marginal.
     """
     with guard_optional(
-        ctx, "prior pushforward",
-        filename="prior_pushforward.csv", kind="table", verb="skipped",
+        ctx,
+        "prior pushforward",
+        filename="prior_pushforward.csv",
+        kind="table",
+        verb="skipped",
     ):
         pf = _predictive.prior_pushforward(
             ctx.prior_samples,
@@ -234,7 +237,9 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             psense_timing="after_trace",
             psense_vars=("tau",),
             after_trace_audit=lambda c: emit_itt_extras(
-                c, built, n_trials=n_trials_own,
+                c,
+                built,
+                n_trials=n_trials_own,
                 overlay_vars=list(diag_vars),
                 moderators=tau_moderators,
                 score_mean_link=score_mean_link,
@@ -328,13 +333,8 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         term="tau",
         moderators=tau_moderators,
         delta=delta_items,
-        population=(
-            "new child; covariate profiles drawn from the fitted available-case "
-            "modified ITT analysis rows"
-        ),
-        contrast_status=(
-            "randomised assigned-arm contrast (available-case modified ITT estimate)"
-        ),
+        population=("new child; covariate profiles drawn from the fitted available-case modified ITT analysis rows"),
+        contrast_status=("randomised assigned-arm contrast (available-case modified ITT estimate)"),
         split=True,
         score_mean_link=score_mean_link,
     )
@@ -350,13 +350,8 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
         term="tau",
         moderators=tau_moderators,
-        population=(
-            "new child; covariate profiles drawn from the fitted available-case "
-            "modified ITT analysis rows"
-        ),
-        contrast_status=(
-            "randomised assigned-arm contrast (available-case modified ITT estimate)"
-        ),
+        population=("new child; covariate profiles drawn from the fitted available-case modified ITT analysis rows"),
+        contrast_status=("randomised assigned-arm contrast (available-case modified ITT estimate)"),
         score_mean_link=score_mean_link,
     )
 
@@ -376,9 +371,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             run_missingness_subfit,
         )
 
-        archive_option = getattr(
-            getattr(ctx, "run_options", None), "rli_randomised_archive", None
-        )
+        archive_option = getattr(getattr(ctx, "run_options", None), "rli_randomised_archive", None)
         archive_path = missingness_source_path(archive_option)
         if archive_path is None:
             if os.environ.get("DSE_LRP_REUSE_TRACE"):
@@ -513,10 +506,7 @@ def fit_itt_floor_rule(
             "data or fit a different estimand."
         )
     write_analysis_audit(ctx, at_risk, (own,))
-    missing_by_arm = ", ".join(
-        f"{row.arm}: {int(row.n_pre_missing)}"
-        for row in eligibility.itertuples(index=False)
-    )
+    missing_by_arm = ", ".join(f"{row.arm}: {int(row.n_pre_missing)}" for row in eligibility.itertuples(index=False))
     rprint(
         f"  Floor rule: {own} is {p0:.0%} floored at t2 "
         f"(>= {_floor.FLOOR_THRESHOLD:.0%}); the post-hoc exploratory headline is "
@@ -528,10 +518,7 @@ def fit_itt_floor_rule(
     )
 
     # ----- EXPLORATORY HEADLINE: binary transition among observed baseline zeros. -----
-    section_header(
-        "Build model (post-hoc headline: off-floor transition among observed "
-        "baseline-floor children)"
-    )
+    section_header("Build model (post-hoc headline: off-floor transition among observed baseline-floor children)")
     built = build_itt_from_plan(
         plan,
         at_risk,
@@ -542,9 +529,7 @@ def fit_itt_floor_rule(
     attach_built(ctx, built)
     render_model_graph(ctx)
 
-    diag_vars = tuple(
-        itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor")
-    )
+    diag_vars = tuple(itt_diag_vars(plan, adjust_for, likelihood="bernoulli_offfloor"))
 
     def _write_floor_ppc(c: StatisticalFitContext) -> None:
         write_ppc_calibration(
@@ -559,29 +544,25 @@ def fit_itt_floor_rule(
         PrimaryFitPlan(
             diagnostic_vars=diag_vars,
             ppc_var_names=("y_offfloor",),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol or "W"
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol or "W"),
             post_ppc_audit=_write_floor_ppc,
             psense_timing="after_trace",
             psense_vars=("tau",),
             # Off-floor estimand is a risk difference (Pr off-floor), so the items
             # scale is n_trials = 1; no age-varying term in the floor-rule model.
             after_trace_audit=lambda c: emit_itt_extras(
-                c, built, n_trials=1, varying_term="",
+                c,
+                built,
+                n_trials=1,
+                varying_term="",
                 overlay_vars=list(diag_vars),
             ),
             extended_term="tau",
         ),
     )
 
-    section_header(
-        "Off-floor available-case modified ITT estimate "
-        "(post-hoc exploratory headline)"
-    )
-    off = _itt_summary.tau_summary_offfloor(
-        ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G
-    )
+    section_header("Off-floor available-case modified ITT estimate (post-hoc exploratory headline)")
+    off = _itt_summary.tau_summary_offfloor(ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G)
     save_table(ctx, "tau_summary", pd.DataFrame([off]))
     print_table(
         metrics_table(
@@ -628,9 +609,7 @@ def fit_itt_floor_rule(
         rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
         rope_s["delta_scale"] = "risk_difference"
         save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
-        save_rope_plot(
-            ctx, own, built.prepared.G, 1, delta_prob, varying_term="", split=True
-        )
+        save_rope_plot(ctx, own, built.prepared.G, 1, delta_prob, varying_term="", split=True)
 
         # δ-sensitivity sweep on the risk-difference scale (issue #144): 10/15/20 pp.
         sens_df = _rope_summary.rope_sensitivity(
@@ -654,14 +633,8 @@ def fit_itt_floor_rule(
         varying_term="",
         likelihood="bernoulli",
         delta=delta_prob,
-        population=(
-            "new child; covariate profiles drawn from the baseline-floored "
-            "at-risk analysis rows"
-        ),
-        contrast_status=(
-            "randomised assigned-arm contrast (post-hoc subgroup available-case "
-            "modified ITT estimate)"
-        ),
+        population=("new child; covariate profiles drawn from the baseline-floored at-risk analysis rows"),
+        contrast_status=("randomised assigned-arm contrast (post-hoc subgroup available-case modified ITT estimate)"),
         event_label="off the floor at t2",
         split=True,
     )
@@ -677,14 +650,8 @@ def fit_itt_floor_rule(
         term="tau",
         varying_term="",
         likelihood="bernoulli",
-        population=(
-            "new child; covariate profiles drawn from the baseline-floored "
-            "at-risk analysis rows"
-        ),
-        contrast_status=(
-            "randomised assigned-arm contrast (post-hoc subgroup available-case "
-            "modified ITT estimate)"
-        ),
+        population=("new child; covariate profiles drawn from the baseline-floored at-risk analysis rows"),
+        contrast_status=("randomised assigned-arm contrast (post-hoc subgroup available-case modified ITT estimate)"),
         event_label="off the floor at t2",
     )
 
@@ -708,9 +675,7 @@ def fit_itt_floor_rule(
             posterior_predictive=["y_post"],
             trace_filename=trace_filename,
         )
-        summ = _itt_summary.tau_summary_itt(
-            res.trace, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G
-        )
+        summ = _itt_summary.tau_summary_itt(res.trace, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G)
         summ.update(res.convergence)
         summ["trace_file"] = res.trace_file
         return res.trace, summ
@@ -746,9 +711,7 @@ def fit_itt_floor_rule(
     hurdle = None
     off_floor_data = restrict_to_off_floor(prepared, own)
     if off_floor_data.n_obs >= 8 and int(np.unique(off_floor_data.G).size) == 2:
-        section_header(
-            "Build model (SECONDARY: graded contrast among off-floor children | post>0)"
-        )
+        section_header("Build model (SECONDARY: graded contrast among off-floor children | post>0)")
         built_h = build_itt_from_plan(
             plan,
             off_floor_data,
@@ -791,19 +754,13 @@ def fit_itt_floor_rule(
                 "threshold": _floor.FLOOR_THRESHOLD,
                 "status": "post_hoc_data_adaptive",
                 "arm_blind_gate": True,
-                "exploratory_estimand": (
-                    "Pr(off-floor at t2 | observed at floor at t1)"
-                ),
+                "exploratory_estimand": ("Pr(off-floor at t2 | observed at floor at t1)"),
                 "at_risk_n": int(at_risk.n_obs),
                 "total_n": int(prepared.n_obs),
                 "baseline_missing_n": int(eligibility["n_pre_missing"].sum()),
                 "eligibility_by_arm": eligibility.to_dict(orient="records"),
-                "eligibility_status_sensitivity": eligibility_sensitivity.to_dict(
-                    orient="records"
-                ),
-                "transition_missingness_bounds": transition_missingness.to_dict(
-                    orient="records"
-                ),
+                "eligibility_status_sensitivity": eligibility_sensitivity.to_dict(orient="records"),
+                "transition_missingness_bounds": transition_missingness.to_dict(orient="records"),
             },
             "tau_offfloor_exploratory": off,
             "tau_graded_secondary": graded,

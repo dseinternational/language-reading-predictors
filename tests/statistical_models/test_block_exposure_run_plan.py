@@ -57,8 +57,7 @@ def _registered_specs() -> list[ModelSpec]:
     specs: list[ModelSpec] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_rli_bx_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and spec.kind == "block_exposure":

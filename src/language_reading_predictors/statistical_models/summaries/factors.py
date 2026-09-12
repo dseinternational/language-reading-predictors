@@ -263,12 +263,7 @@ def association_marginals(
     )
 
     posterior = getattr(trace, group)
-    eta = (
-        posterior[eta_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     n_obs = eta.shape[0]
 
     mask: np.ndarray | None = None
@@ -278,18 +273,12 @@ def association_marginals(
             raise ValueError(f"row_mask must be 1-D, got a {m.ndim}-D array.")
         if m.dtype == bool:
             if m.shape[0] != n_obs:
-                raise ValueError(
-                    f"boolean row_mask has {m.shape[0]} entries but eta has "
-                    f"{n_obs} observations."
-                )
+                raise ValueError(f"boolean row_mask has {m.shape[0]} entries but eta has {n_obs} observations.")
         elif np.issubdtype(m.dtype, np.integer):
             if m.size and (int(m.min()) < 0 or int(m.max()) >= n_obs):
                 raise ValueError(f"integer row_mask has indices outside [0, {n_obs}).")
         else:
-            raise ValueError(
-                "row_mask must be a boolean mask or integer index array, got dtype "
-                f"{m.dtype}."
-            )
+            raise ValueError(f"row_mask must be a boolean mask or integer index array, got dtype {m.dtype}.")
         mask = m
 
     eta_sel = eta if mask is None else eta[mask]
@@ -312,9 +301,7 @@ def association_marginals(
         # (scale label, standardised shift Δz). +1 SD is Δz = 1; +k items maps the
         # bounded-count increment to standardised units at the mean operating point.
         # A term may override the unit label (e.g. a 0/1 indicator switch).
-        perturbations: list[tuple[str, float]] = [
-            (term.perturbation_label or "+1 SD", 1.0)
-        ]
+        perturbations: list[tuple[str, float]] = [(term.perturbation_label or "+1 SD", 1.0)]
         if term.n_items and term.mean_prop is not None and term.main_scale > 0:
             # The fitted baselines are Haldane logits, log((y+0.5)/(n-y+0.5)),
             # whose proportion p* = (y+0.5)/(n+1) is affine in the count — so the
@@ -331,10 +318,13 @@ def association_marginals(
             k_req = int(term.k_items if term.k_items is not None else k_items)
             k_eff = min(k_req, int(np.floor(n - y_mean)))
             if k_eff >= 1:
-                dz = float(
-                    logit_safe(np.asarray([y_mean + k_eff]), int(n))[0]
-                    - logit_safe(np.asarray([y_mean]), int(n))[0]
-                ) / term.main_scale
+                dz = (
+                    float(
+                        logit_safe(np.asarray([y_mean + k_eff]), int(n))[0]
+                        - logit_safe(np.asarray([y_mean]), int(n))[0]
+                    )
+                    / term.main_scale
+                )
                 perturbations.append((f"+{k_eff} items", dz))
 
         for scale_label, dz in perturbations:
@@ -351,11 +341,7 @@ def association_marginals(
                     )
                 delta_eta = delta_eta + np.outer(zp, gi) * dz  # (n_obs, S)
 
-            de_sel = (
-                delta_eta
-                if delta_eta.shape[0] == 1
-                else (delta_eta if mask is None else delta_eta[mask])
-            )
+            de_sel = delta_eta if delta_eta.shape[0] == 1 else (delta_eta if mask is None else delta_eta[mask])
             if term.toggle_vector is not None:
                 # Binary-indicator toggle (gain-factors code review 2026-08-20,
                 # finding 2): net the observed contribution out per row — exact,
@@ -367,8 +353,7 @@ def association_marginals(
                 x = np.asarray(term.toggle_vector, dtype=float)
                 if x.shape[0] != n_obs:
                     raise ValueError(
-                        f"toggle_vector for {term.label!r} has {x.shape[0]} rows "
-                        f"but eta has {n_obs} observations."
+                        f"toggle_vector for {term.label!r} has {x.shape[0]} rows but eta has {n_obs} observations."
                     )
                 x_sel = x if mask is None else x[mask]
                 eta_base = eta_sel - de_sel * x_sel[:, None]
@@ -402,11 +387,7 @@ def association_marginals(
                     "items_hi50": items_hi50,
                     "prob_pos": float(np.mean(ame_items > 0)),
                     "off_floor": bool(off_floor),
-                    "sd_items": (
-                        float(term.sd_items)
-                        if term.sd_items is not None
-                        else float("nan")
-                    ),
+                    "sd_items": (float(term.sd_items) if term.sd_items is not None else float("nan")),
                 }
             )
     return pd.DataFrame(rows)

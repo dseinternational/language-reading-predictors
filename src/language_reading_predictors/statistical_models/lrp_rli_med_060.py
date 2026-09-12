@@ -55,8 +55,18 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol=None,  # two mediators; named in extra["mediators"]
     adjustment=[
-        "G", "A", "E", "R", "W_pre", "L_t1",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+        "G",
+        "A",
+        "E",
+        "R",
+        "W_pre",
+        "L_t1",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
+        "erbto",
+        "erbto_missing",
     ],
     model_settings=MediationMultiModelSettings(
         mediators=("L", "N"),

@@ -106,12 +106,7 @@ def concurrent_marginals(
     intentional, per the family's documented estimand).
     """
     posterior = getattr(trace, group)
-    eta = (
-        posterior[eta_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
 
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
@@ -151,9 +146,7 @@ def concurrent_marginals(
             # differencing: under a non-identity link the response-scale change is
             # not the logit-scale one rescaled (#619).
             ame_prob = (
-                apply_score_mean_link(
-                    expit(eta + delta_eta[None, :]), score_mean_link
-                )
+                apply_score_mean_link(expit(eta + delta_eta[None, :]), score_mean_link)
                 - apply_score_mean_link(expit(eta), score_mean_link)
             ).mean(axis=0)  # (S,)
             ame_items = float(n_trials) * ame_prob

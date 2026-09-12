@@ -75,9 +75,7 @@ def _built(counts=(3, 5, 2, 7), *, n_children=4, subject_ids=None, phase=None, p
         dropped_rows=0,
         dropped_by_reason={},
         data_sha256="a" * 64,
-        subject_ids=np.asarray(
-            subject_ids if subject_ids is not None else range(len(observed))
-        ),
+        subject_ids=np.asarray(subject_ids if subject_ids is not None else range(len(observed))),
     )
     if phase is not None:
         prepared.phase = np.asarray(phase)
@@ -246,9 +244,7 @@ def test_the_digest_covers_shape_so_a_reshape_is_not_the_same_data():
     with pm.Model() as model:
         p = pm.Beta("p", 2.0, 2.0)
         pm.Binomial("y", n=10, p=p, observed=np.asarray([[3, 5], [2, 7]]))
-    reshaped = describe_fitted_data(
-        SimpleNamespace(model=model, prepared=built.prepared)
-    )
+    reshaped = describe_fitted_data(SimpleNamespace(model=model, prepared=built.prepared))
     assert flat.digest != reshaped.digest
 
 
@@ -274,9 +270,7 @@ def test_an_unreadable_observation_records_why_the_digest_is_absent():
 
     built = SimpleNamespace(
         model=SimpleNamespace(observed_RVs=[Hostile()], rvs_to_values={}),
-        prepared=SimpleNamespace(
-            n_children=4, n_obs=4, subject_ids=np.arange(4)
-        ),
+        prepared=SimpleNamespace(n_children=4, n_obs=4, subject_ids=np.arange(4)),
     )
     data = describe_fitted_data(built)
     assert data.digest is None
@@ -306,13 +300,9 @@ def test_an_uncomputable_convergence_check_is_named_not_left_blank():
     verdict dict alone, so both get a name.
     """
     assert _classify_failure(_verdict()) == (None, None)
-    kind, message = _classify_failure(
-        {"converged": None, "max_rhat": None, "min_ess": None}
-    )
+    kind, message = _classify_failure({"converged": None, "max_rhat": None, "min_ess": None})
     assert kind == "convergence_unavailable" and message
-    kind, message = _classify_failure(
-        {"converged": None, "max_rhat": 1.002, "min_ess": 900.0}
-    )
+    kind, message = _classify_failure({"converged": None, "max_rhat": 1.002, "min_ess": 900.0})
     assert kind == "divergences_unavailable" and "diverging" in message
 
 
@@ -512,9 +502,7 @@ def test_reuse_trace_loads_a_persisted_subfit_without_sampling(tmp_path, monkeyp
     assert (staging / "trace_toy_subfit.nc").is_file()
 
 
-def test_reuse_trace_rejects_subfit_provenance_drift_before_sampling(
-    tmp_path, monkeypatch
-):
+def test_reuse_trace_rejects_subfit_provenance_drift_before_sampling(tmp_path, monkeypatch):
     source = tmp_path / "published"
     staging = tmp_path / "staging"
     source.mkdir()
@@ -575,9 +563,7 @@ def test_refresh_subfit_trace_hash_rebinds_the_final_augmented_bytes(tmp_path):
     assert row["trace_sha256"] == expected
 
 
-def test_reuse_trace_fails_closed_when_persisted_subfit_is_absent(
-    tmp_path, monkeypatch
-):
+def test_reuse_trace_fails_closed_when_persisted_subfit_is_absent(tmp_path, monkeypatch):
     source = tmp_path / "published"
     staging = tmp_path / "staging"
     source.mkdir()

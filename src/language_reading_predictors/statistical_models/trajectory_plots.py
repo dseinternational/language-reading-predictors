@@ -146,9 +146,7 @@ def select_children(
 # ---------------------------------------------------------------------------
 
 
-def _gh_marginal_prob(
-    eta0: np.ndarray, sigma: np.ndarray | None, *, n_gh: int
-) -> np.ndarray:
+def _gh_marginal_prob(eta0: np.ndarray, sigma: np.ndarray | None, *, n_gh: int) -> np.ndarray:
     """E_u[expit(eta0 + u)] with ``u ~ Normal(0, sigma)`` by Gauss--Hermite quadrature.
 
     ``eta0`` is ``(n_rows, S)`` (the linear predictor with the fitted child intercept
@@ -216,15 +214,9 @@ def marginal_cell_probabilities(
     if extra_effect_rows is not None and extra_effect_sd is not None:
         # Two different marginalising SDs across the rows, so integrate in two
         # passes and stitch: the masked rows carry both variance components.
-        base_sd = (
-            np.zeros(eta0.shape[1], dtype=float)
-            if sigma_child is None
-            else np.asarray(sigma_child, dtype=float)
-        )
+        base_sd = np.zeros(eta0.shape[1], dtype=float) if sigma_child is None else np.asarray(sigma_child, dtype=float)
         combined_sd = np.sqrt(base_sd**2 + np.asarray(extra_effect_sd, dtype=float) ** 2)
-        p_row = _gh_marginal_prob(
-            eta0, None if sigma_child is None else base_sd, n_gh=n_gh
-        )
+        p_row = _gh_marginal_prob(eta0, None if sigma_child is None else base_sd, n_gh=n_gh)
         p_extra = _gh_marginal_prob(eta0, combined_sd, n_gh=n_gh)
         p_row = np.where(mask[:, None], p_extra, p_row)
     else:
@@ -241,9 +233,7 @@ def marginal_cell_probabilities(
     return out
 
 
-def observed_cell_means(
-    observed: np.ndarray, *, arm: np.ndarray, wave: np.ndarray
-) -> dict[tuple[int, int], float]:
+def observed_cell_means(observed: np.ndarray, *, arm: np.ndarray, wave: np.ndarray) -> dict[tuple[int, int], float]:
     """Observed mean of ``observed`` per (arm, wave) cell (counts, or 0/1 off-floor)."""
     observed = np.asarray(observed, dtype=float)
     arm = np.asarray(arm)
@@ -262,9 +252,7 @@ def observed_cell_means(
 # ---------------------------------------------------------------------------
 
 
-def child_predictive_bands(
-    ppc_rows: np.ndarray, *, ci_prob: float
-) -> dict[str, np.ndarray]:
+def child_predictive_bands(ppc_rows: np.ndarray, *, ci_prob: float) -> dict[str, np.ndarray]:
     """Median and inner-50 / ``ci_prob`` bands of a child's predictive draws by wave.
 
     ``ppc_rows`` is ``(n_waves, S)`` posterior-predictive draws for one child's rows
@@ -383,8 +371,7 @@ def write_group_arm_trajectory(
     if extra_effect_name is not None and extra_effect_name in post:
         if extra_effect_idx is None or extra_effect_rows is None:
             raise ValueError(
-                f"{extra_effect_name} needs both extra_effect_idx and "
-                "extra_effect_rows to be removed from eta"
+                f"{extra_effect_name} needs both extra_effect_idx and extra_effect_rows to be removed from eta"
             )
         if extra_effect_sd_name is None or extra_effect_sd_name not in post:
             # Fail loud: silently skipping the integration is exactly the defect
@@ -407,9 +394,7 @@ def write_group_arm_trajectory(
         n_gh=n_gh,
         extra_effect_rows=extra_rows,
         extra_effect_sd=extra_sd,
-        extra_effect_mask=(
-            None if extra_effect_rows is None else np.asarray(extra_effect_rows, dtype=bool)
-        ),
+        extra_effect_mask=(None if extra_effect_rows is None else np.asarray(extra_effect_rows, dtype=bool)),
         score_mean_link=score_mean_link,
     )
     observed = np.asarray(trace.observed_data[obs_node].values, dtype=float)
@@ -418,10 +403,7 @@ def write_group_arm_trajectory(
     obs_means = observed_cell_means(observed, arm=arm, wave=wave)
     arm_arr = np.asarray(arm)
     wave_arr = np.asarray(wave)
-    cell_n = {
-        key: int(np.sum((arm_arr == key[0]) & (wave_arr == key[1])))
-        for key in cell_draws
-    }
+    cell_n = {key: int(np.sum((arm_arr == key[0]) & (wave_arr == key[1]))) for key in cell_draws}
 
     scale_mult = 1.0 if off_floor else float(n_trials)
     waves = sorted({w for (_, w) in cell_draws})
@@ -506,20 +488,35 @@ def _draw_group_trajectory(
         sub = summary[summary["arm"] == g].sort_values("wave")
         color = ARM_COLORS.get(g, "#333333")
         ax.fill_between(
-            sub["wave"], sub["predicted_lo"], sub["predicted_hi"],
-            color=color, alpha=0.18, linewidth=0,
+            sub["wave"],
+            sub["predicted_lo"],
+            sub["predicted_hi"],
+            color=color,
+            alpha=0.18,
+            linewidth=0,
         )
         ax.plot(
-            sub["wave"], sub["predicted_median"], color=color, lw=2.0,
+            sub["wave"],
+            sub["predicted_median"],
+            color=color,
+            lw=2.0,
             label=f"{ARM_LABELS.get(g, str(g))} — model mean ({pct}% CrI)",
         )
         ax.scatter(
-            sub["wave"], sub["observed_mean"], color=color, edgecolor="white",
-            s=55, zorder=5, marker="o",
+            sub["wave"],
+            sub["observed_mean"],
+            color=color,
+            edgecolor="white",
+            s=55,
+            zorder=5,
+            marker="o",
         )
     if crossover_wave is not None and crossover_wave in list(waves):
         ax.axvline(
-            crossover_wave, color="#555555", lw=1.0, ls="--",
+            crossover_wave,
+            color="#555555",
+            lw=1.0,
+            ls="--",
             label=f"wait-list crossover ({_wave_label(crossover_wave)})",
         )
     ax.set_xticks(x, xticklabels)
@@ -529,9 +526,7 @@ def _draw_group_trajectory(
         ax.set_ylim(0, 1)
     else:
         ax.set_ylabel(f"predicted score (items, out of {n_trials})")
-    ax.set_title(
-        f"Group score trajectory ({outcome_symbol}); filled dots = observed arm means"
-    )
+    ax.set_title(f"Group score trajectory ({outcome_symbol}); filled dots = observed arm means")
     ax.legend(fontsize=8, frameon=False, loc="best")
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
@@ -545,9 +540,7 @@ def _draw_group_trajectory(
 # ---------------------------------------------------------------------------
 
 
-def _pareto_k_by_child(
-    pareto_k: np.ndarray | None, child_idx: np.ndarray
-) -> dict[int, float] | None:
+def _pareto_k_by_child(pareto_k: np.ndarray | None, child_idx: np.ndarray) -> dict[int, float] | None:
     """Aggregate a per-observation Pareto-k vector to a per-child maximum."""
     if pareto_k is None:
         return None
@@ -593,9 +586,7 @@ def write_child_fit_obsid(
     wave = np.asarray(wave, dtype=int)
     n_children = int(child_idx.max()) + 1 if child_idx.size else 0
     k_by_child = _pareto_k_by_child(pareto_k, child_idx)
-    chosen, worst_set = select_children(
-        k_by_child, n_children, n_total=n_panels, seed=seed
-    )
+    chosen, worst_set = select_children(k_by_child, n_children, n_total=n_panels, seed=seed)
 
     observed = np.asarray(trace.observed_data[obs_node].values, dtype=float)
     if off_floor:
@@ -682,7 +673,11 @@ def _draw_small_multiples(
     pct = int(round(ci_prob * 100))
     ymax = 1.0 if off_floor else float(n_trials)
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(3.0 * ncols, 2.4 * nrows), sharex=True, sharey=True,
+        nrows,
+        ncols,
+        figsize=(3.0 * ncols, 2.4 * nrows),
+        sharex=True,
+        sharey=True,
         squeeze=False,
     )
     flat = axes.ravel()
@@ -691,14 +686,18 @@ def _draw_small_multiples(
         ax.fill_between(xs, p["lo"], p["hi"], color=_FIT_COLOR, alpha=0.20, linewidth=0)
         ax.plot(xs, p["median"], color=_FIT_COLOR, lw=1.5)
         ax.scatter(
-            xs, p["observed"], color=_OBSERVED_COLOR, s=30, zorder=5,
-            edgecolor="white", linewidth=0.5,
+            xs,
+            p["observed"],
+            color=_OBSERVED_COLOR,
+            s=30,
+            zorder=5,
+            edgecolor="white",
+            linewidth=0.5,
         )
         ax.set_xticks(xs, [_wave_label(w) for w in p["waves"]], fontsize=7)
         ax.set_ylim(0, ymax)
         flag = f"\nhigh Pareto-k = {p['pareto_k']:.2f}" if p["worst"] and p["pareto_k"] is not None else ""
-        ax.set_title(f"child #{p['ordinal']}{flag}", fontsize=8,
-                     color=_OBSERVED_COLOR if p["worst"] else "black")
+        ax.set_title(f"child #{p['ordinal']}{flag}", fontsize=8, color=_OBSERVED_COLOR if p["worst"] else "black")
         ax.tick_params(labelsize=7)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)
@@ -711,14 +710,9 @@ def _draw_small_multiples(
     # noise); the floored path plots the posterior credible interval for P(off the
     # floor) from expit(eta) — the per-row Bernoulli predictive is degenerate, so
     # the band label must not claim "posterior-predictive" there.
-    band_desc = (
-        f"posterior {pct}% band for P(off the floor)"
-        if off_floor
-        else f"posterior-predictive {pct}% band"
-    )
+    band_desc = f"posterior {pct}% band for P(off the floor)" if off_floor else f"posterior-predictive {pct}% band"
     fig.suptitle(
-        f"Per-child fit ({outcome_symbol}, {item_label}) — observed dots, "
-        f"{band_desc}; same-children",
+        f"Per-child fit ({outcome_symbol}, {item_label}) — observed dots, {band_desc}; same-children",
         fontsize=10,
     )
     fig.tight_layout()
@@ -779,9 +773,7 @@ def write_outcome_trajectory(
         panel_labels = getattr(panel, "outcome_labels", {}) or {}
         facet_data[sym] = {
             "n_trials": n_tr,
-            "label": panel_labels.get(
-                sym, MEASURES[sym].label if sym in MEASURES else sym
-            ),
+            "label": panel_labels.get(sym, MEASURES[sym].label if sym in MEASURES else sym),
             "observed": obs_mean,
             "median": np.array([b["median"] for b in band]),
             "lo": np.array([b["lo"] for b in band]),
@@ -803,9 +795,7 @@ def write_outcome_trajectory(
                 }
             )
     summary = pd.DataFrame(rows)
-    _draw_outcome_trajectory(
-        output_dir, facet_data, waves=waves, summary=summary, ci_prob=ci_prob, name=name
-    )
+    _draw_outcome_trajectory(output_dir, facet_data, waves=waves, summary=summary, ci_prob=ci_prob, name=name)
     return summary
 
 
@@ -825,9 +815,7 @@ def _draw_outcome_trajectory(
     ncols = min(ncols, n)
     nrows = int(np.ceil(n / ncols))
     pct = int(round(ci_prob * 100))
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=(3.4 * ncols, 2.8 * nrows), squeeze=False
-    )
+    fig, axes = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 2.8 * nrows), squeeze=False)
     flat = axes.ravel()
     xs = np.arange(len(waves), dtype=float)
     for ax, sym in zip(flat[:n], syms, strict=False):
@@ -888,18 +876,14 @@ def write_child_fit_panel(
     if group_axis:
         if panel.group is None:
             raise ValueError("group-indexed kappa requires panel.group")
-        group_values = [
-            int(value) for value in kappa_da.coords["reading_group"].values
-        ]
+        group_values = [int(value) for value in kappa_da.coords["reading_group"].values]
         group_lookup = {code: index for index, code in enumerate(group_values)}
     else:
         kappa_s = kappa[k_index, cols] if kappa.ndim == 2 else kappa[cols]
 
     idx_i = _panel_child_index(panel)
     k_by_child = _pareto_k_by_child(pareto_k, idx_i)
-    chosen, worst_set = select_children(
-        k_by_child, panel.n_children, n_total=n_panels, seed=seed
-    )
+    chosen, worst_set = select_children(k_by_child, panel.n_children, n_total=n_panels, seed=seed)
 
     rng = np.random.default_rng(seed)
     counts = panel.counts[focal_symbol]  # (child, wave)
@@ -954,8 +938,14 @@ def write_child_fit_panel(
     summary = pd.DataFrame(rows)
     label = MEASURES[focal_symbol].label if focal_symbol in MEASURES else focal_symbol
     _draw_small_multiples_panel(
-        output_dir, panels, summary=summary, item_label=label,
-        outcome_symbol=focal_symbol, n_trials=n_tr, ci_prob=ci_prob, name=name,
+        output_dir,
+        panels,
+        summary=summary,
+        item_label=label,
+        outcome_symbol=focal_symbol,
+        n_trials=n_tr,
+        ci_prob=ci_prob,
+        name=name,
     )
     return summary
 
@@ -980,7 +970,11 @@ def _draw_small_multiples_panel(
     nrows = int(np.ceil(n / ncols))
     pct = int(round(ci_prob * 100))
     fig, axes = plt.subplots(
-        nrows, ncols, figsize=(3.0 * ncols, 2.4 * nrows), sharex=True, sharey=True,
+        nrows,
+        ncols,
+        figsize=(3.0 * ncols, 2.4 * nrows),
+        sharex=True,
+        sharey=True,
         squeeze=False,
     )
     flat = axes.ravel()
@@ -989,14 +983,18 @@ def _draw_small_multiples_panel(
         ax.fill_between(xs, p["lo"], p["hi"], color=_FIT_COLOR, alpha=0.20, linewidth=0)
         ax.plot(xs, p["median"], color=_FIT_COLOR, lw=1.5)
         ax.scatter(
-            xs, p["observed"], color=_OBSERVED_COLOR, s=30, zorder=5,
-            edgecolor="white", linewidth=0.5,
+            xs,
+            p["observed"],
+            color=_OBSERVED_COLOR,
+            s=30,
+            zorder=5,
+            edgecolor="white",
+            linewidth=0.5,
         )
         ax.set_xticks(xs, p["_wave_labels"], fontsize=7)
         ax.set_ylim(0, n_trials)
         flag = f"\nhigh Pareto-k = {p['pareto_k']:.2f}" if p["worst"] and p["pareto_k"] is not None else ""
-        ax.set_title(f"child #{p['ordinal']}{flag}", fontsize=8,
-                     color=_OBSERVED_COLOR if p["worst"] else "black")
+        ax.set_title(f"child #{p['ordinal']}{flag}", fontsize=8, color=_OBSERVED_COLOR if p["worst"] else "black")
         ax.tick_params(labelsize=7)
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)

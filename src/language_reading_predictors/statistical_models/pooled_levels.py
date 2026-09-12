@@ -160,12 +160,8 @@ class PooledLevelsModelSettings:
     def __post_init__(self) -> None:
         require_declared_booleans(self)
         object.__setattr__(self, "adjust_for", _tuple_of_strings(self.adjust_for, name="adjust_for"))
-        object.__setattr__(
-            self, "require_observed", _tuple_of_strings(self.require_observed, name="require_observed")
-        )
-        object.__setattr__(
-            self, "skill_symbols", _tuple_of_strings(self.skill_symbols, name="skill_symbols")
-        )
+        object.__setattr__(self, "require_observed", _tuple_of_strings(self.require_observed, name="require_observed"))
+        object.__setattr__(self, "skill_symbols", _tuple_of_strings(self.skill_symbols, name="skill_symbols"))
         if len(set(self.skill_symbols)) != len(self.skill_symbols):
             raise ValueError("skill_symbols must not repeat")
         object.__setattr__(self, "waves", tuple(int(w) for w in self.waves))
@@ -188,17 +184,14 @@ class PooledLevelsModelSettings:
             )
         if self.ability_covariate is not None and self.ability_covariate in self.adjust_for:
             raise ValueError(
-                f"{self.ability_covariate!r} is declared both as ability_covariate and "
-                "in adjust_for; name it once."
+                f"{self.ability_covariate!r} is declared both as ability_covariate and in adjust_for; name it once."
             )
 
     @classmethod
     def from_extra(cls, extra: dict[str, Any], *, model_id: str) -> PooledLevelsModelSettings:
         unknown = sorted(set(extra) - _ALLOWED_KEYS)
         if unknown:
-            raise ValueError(
-                f"{model_id}: unknown pooled_levels setting(s): {', '.join(unknown)}."
-            )
+            raise ValueError(f"{model_id}: unknown pooled_levels setting(s): {', '.join(unknown)}.")
         return cls(
             adjust_for=extra.get("adjust_for", ()),
             ability_covariate=extra.get("ability_covariate"),
@@ -276,18 +269,12 @@ class PooledLevelsRunPlan:
                 )
             )
         for parent in self.require_observed:
-            post_covariates = tuple(
-                dict.fromkeys(
-                    (*post_covariates, parent, MISSINGNESS_INDICATOR_PAIRS[parent])
-                )
-            )
+            post_covariates = tuple(dict.fromkeys((*post_covariates, parent, MISSINGNESS_INDICATOR_PAIRS[parent])))
         return {
             "phase_mode": "levels",
             "outcomes": outcomes,
             "post_covariates": post_covariates,
-            "baseline_covariates": (
-                (self.ability_covariate,) if self.ability_covariate else ()
-            ),
+            "baseline_covariates": ((self.ability_covariate,) if self.ability_covariate else ()),
             "require_observed": self.require_observed,
         }
 
@@ -309,9 +296,7 @@ class PooledLevelsRunPlan:
         """Display label for the exposure: the measure's registered label, or the
         covariate's documented name."""
         if self.mechanism_is_covariate:
-            return COVARIATE_EXPOSURE_LABELS.get(
-                self.mechanism_symbol, self.mechanism_symbol
-            )
+            return COVARIATE_EXPOSURE_LABELS.get(self.mechanism_symbol, self.mechanism_symbol)
         return MEASURES[self.mechanism_symbol].label
 
     def recipe_markdown(self, *, title: str) -> str:
@@ -337,19 +322,10 @@ class PooledLevelsRunPlan:
             "nowhere, so a bounded-count logit would fabricate a denominator; rows "
             "whose exposure was imputed are dropped via `require_observed`)"
             if self.mechanism_is_covariate
-            else f"`{self.mechanism_symbol}` at the same wave, as the standardised "
-            "logit of the observed proportion"
+            else f"`{self.mechanism_symbol}` at the same wave, as the standardised logit of the observed proportion"
         )
-        skills = (
-            ", ".join(f"`{s}`" for s in self.skill_symbols)
-            if self.skill_symbols
-            else "none"
-        )
-        complete_case = (
-            ", ".join(f"`{c}`" for c in self.require_observed)
-            if self.require_observed
-            else "none"
-        )
+        skills = ", ".join(f"`{s}`" for s in self.skill_symbols) if self.skill_symbols else "none"
+        complete_case = ", ".join(f"`{c}`" for c in self.require_observed) if self.require_observed else "none"
         return (
             "Note: Generated from the validated pooled-levels run plan; template "
             "drafted by an LLM-based AI tool (Claude Code/Opus 5).\n\n"
@@ -386,21 +362,13 @@ class PooledLevelsRunPlan:
         """Summary variables; ``covariates`` is the loaded covariate set, from which
         a covariate exposure is excluded (it carries the focal slopes, not a
         ``gamma_`` adjuster coefficient)."""
-        names = (
-            ["beta_between", "beta_within", "kappa"]
-            if self.decompose_between_within
-            else ["beta_mech", "kappa"]
-        )
+        names = ["beta_between", "beta_within", "kappa"] if self.decompose_between_within else ["beta_mech", "kappa"]
         names.append("alpha_wave" if self.use_wave_intercepts else "alpha")
         if self.include_group:
             names.append("beta_G")
         names.append("gamma_A")
         names += [f"gamma_{s}" for s in self.skill_symbols]
-        names += [
-            f"gamma_{c}"
-            for c in covariates
-            if not (self.mechanism_is_covariate and c == self.mechanism_symbol)
-        ]
+        names += [f"gamma_{c}" for c in covariates if not (self.mechanism_is_covariate and c == self.mechanism_symbol)]
         if self.use_subject_random_intercept:
             names.append("sigma_child")
         return tuple(names)
@@ -411,26 +379,20 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
     if spec.kind != "pooled_levels":
         raise ValueError(f"{spec.model_id}: expected kind='pooled_levels'")
     if not spec.outcome_symbol or not spec.mechanism_symbol:
-        raise ValueError(
-            f"{spec.model_id}: pooled_levels needs both outcome_symbol and "
-            "mechanism_symbol"
-        )
+        raise ValueError(f"{spec.model_id}: pooled_levels needs both outcome_symbol and mechanism_symbol")
     if spec.outcome_symbol == spec.mechanism_symbol:
         raise ValueError(
             f"{spec.model_id}: outcome and exposure are the same measure "
             f"({spec.outcome_symbol!r}); the coefficient would be trivially 1."
         )
     if spec.outcome_symbol not in MEASURES:
-        raise ValueError(
-            f"{spec.model_id}: unknown measure symbol {spec.outcome_symbol!r}"
-        )
+        raise ValueError(f"{spec.model_id}: unknown measure symbol {spec.outcome_symbol!r}")
 
     declared = getattr(spec, "model_settings", None)
     if declared is not None:
         if spec.extra:
             raise ValueError(
-                f"{spec.model_id}: pooled_levels settings cannot be split between "
-                "model_settings and extra"
+                f"{spec.model_id}: pooled_levels settings cannot be split between model_settings and extra"
             )
         if not isinstance(declared, PooledLevelsModelSettings):
             raise TypeError(
@@ -439,9 +401,7 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
             )
         settings, source = declared, "typed_settings"
     else:
-        settings = PooledLevelsModelSettings.from_extra(
-            dict(spec.extra or {}), model_id=spec.model_id
-        )
+        settings = PooledLevelsModelSettings.from_extra(dict(spec.extra or {}), model_id=spec.model_id)
         source = "legacy_extra"
 
     # --- exposure kind (#553). A bounded-count measure enters as its standardised
@@ -469,13 +429,11 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
             )
         if spec.mechanism_symbol in settings.adjust_for:
             raise ValueError(
-                f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} must "
-                "not also appear in adjust_for"
+                f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} must not also appear in adjust_for"
             )
         if settings.ability_covariate == spec.mechanism_symbol:
             raise ValueError(
-                f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} must "
-                "not also be the ability_covariate"
+                f"{spec.model_id}: covariate exposure {spec.mechanism_symbol!r} must not also be the ability_covariate"
             )
     elif spec.mechanism_symbol not in MEASURES:
         raise ValueError(
@@ -493,17 +451,11 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
     # outcome or the exposure.
     for sym in settings.skill_symbols:
         if sym not in MEASURES:
-            raise ValueError(
-                f"{spec.model_id}: unknown skill adjuster symbol {sym!r}"
-            )
+            raise ValueError(f"{spec.model_id}: unknown skill adjuster symbol {sym!r}")
         if sym == spec.outcome_symbol:
-            raise ValueError(
-                f"{spec.model_id}: skill adjuster {sym!r} is the outcome"
-            )
+            raise ValueError(f"{spec.model_id}: skill adjuster {sym!r} is the outcome")
         if sym == spec.mechanism_symbol:
-            raise ValueError(
-                f"{spec.model_id}: skill adjuster {sym!r} is the exposure"
-            )
+            raise ValueError(f"{spec.model_id}: skill adjuster {sym!r} is the exposure")
     bounded_adjusters = sorted(set(settings.adjust_for) & set(MEASURES))
     if bounded_adjusters:
         raise ValueError(
@@ -517,9 +469,7 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
         if settings.mechanism_is_covariate
         else MEASURES[spec.mechanism_symbol].label
     )
-    exposure_scale = (
-        "standardised raw score" if settings.mechanism_is_covariate else "logit"
-    )
+    exposure_scale = "standardised raw score" if settings.mechanism_is_covariate else "logit"
     skill_clause = (
         " and the same-wave standardised logits of "
         + ", ".join(MEASURES[s].label for s in settings.skill_symbols)
@@ -529,11 +479,9 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
     )
     waves = ", ".join(f"t{w}" for w in settings.waves)
     intercepts = (
-        "per-wave intercepts, so the slope is the within-wave association averaged "
-        "over waves"
+        "per-wave intercepts, so the slope is the within-wave association averaged over waves"
         if settings.use_wave_intercepts
-        else "a single intercept, so the slope also carries the secular co-movement "
-        "of the two measures across waves"
+        else "a single intercept, so the slope also carries the secular co-movement of the two measures across waves"
     )
     return PooledLevelsRunPlan(
         model_id=spec.model_id,
@@ -548,9 +496,7 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
         include_group=settings.include_group,
         waves=settings.waves,
         mechanism_is_covariate=settings.mechanism_is_covariate,
-        exposure_kind=(
-            "raw_covariate" if settings.mechanism_is_covariate else "bounded_count"
-        ),
+        exposure_kind=("raw_covariate" if settings.mechanism_is_covariate else "bounded_count"),
         require_observed=settings.require_observed,
         skill_symbols=settings.skill_symbols,
         likelihood="beta_binomial",
@@ -601,8 +547,7 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
             + " and adjuster set at a given wave; a child contributes as many rows as "
             "they have complete waves."
             + (
-                " Rows whose exposure was mean-imputed are dropped "
-                "(require_observed), and the count is reported."
+                " Rows whose exposure was mean-imputed are dropped (require_observed), and the count is reported."
                 if settings.mechanism_is_covariate
                 else ""
             )
@@ -610,11 +555,7 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
         missing_data_assumption=(
             "Complete-case at the row level, with the loader's mean-imputed covariate "
             "indicators carrying the unknown groups for the adjusters"
-            + (
-                "; the exposure itself is complete-case, never imputed."
-                if settings.mechanism_is_covariate
-                else "."
-            )
+            + ("; the exposure itself is complete-case, never imputed." if settings.mechanism_is_covariate else ".")
         ),
     )
 
@@ -648,19 +589,14 @@ def build_pooled_levels_model(
     y_all = np.asarray(prepared.post_counts[outcome_symbol], dtype=float)
     if mechanism_is_covariate:
         if mechanism_symbol not in prepared.covariates:
-            raise KeyError(
-                f"pooled_levels: covariate exposure {mechanism_symbol!r} is not in "
-                "prepared.covariates"
-            )
+            raise KeyError(f"pooled_levels: covariate exposure {mechanism_symbol!r} is not in prepared.covariates")
         x_all = np.asarray(prepared.covariates[mechanism_symbol], dtype=float)
     else:
         x_all = np.asarray(prepared.post_counts[mechanism_symbol], dtype=float)
     skill_all = {}
     for sym in skill_symbols:
         if sym not in prepared.post_counts:
-            raise KeyError(
-                f"pooled_levels: skill adjuster {sym!r} is not in prepared.post_counts"
-            )
+            raise KeyError(f"pooled_levels: skill adjuster {sym!r} is not in prepared.post_counts")
         skill_all[sym] = np.asarray(prepared.post_counts[sym], dtype=float)
     in_wave = np.isin(np.asarray(prepared.phase) + 1, np.asarray(waves))
     complete = np.isfinite(y_all) & np.isfinite(x_all)
@@ -726,7 +662,12 @@ def build_pooled_levels_model(
         wave_d = pm.Data("wave_idx", wave_idx, dims="obs_id")
 
         if use_wave_intercepts:
-            alpha = _priors.alpha_prior().to_pymc('alpha_wave', dims='wave', role='nuisance', rationale='Per-wave intercepts absorb the secular change in outcome level so the exposure slopes compare rows within waves.')
+            alpha = _priors.alpha_prior().to_pymc(
+                "alpha_wave",
+                dims="wave",
+                role="nuisance",
+                rationale="Per-wave intercepts absorb the secular change in outcome level so the exposure slopes compare rows within waves.",
+            )
             eta = alpha[wave_d]
         else:
             eta = _priors.alpha_prior().to_pymc("alpha")
@@ -740,16 +681,39 @@ def build_pooled_levels_model(
             # and word-reading scores; 0.70 against 0.51 on the raw counts).
             # Splitting the exposure into the child mean and the deviation from it
             # estimates each cleanly and leaves nothing blended.
-            beta_between = _priors.beta_mech_prior().to_pymc('beta_between', rationale='Between-child association: outcome logit per 1 pooled row-level SD of the study-average exposure {unit} for a child.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
-            beta_within = _priors.beta_mech_prior().to_pymc('beta_within', rationale='Within-child association: outcome logit per 1 pooled row-level SD of a wave deviation from the mean exposure {unit} for that child.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
+            beta_between = _priors.beta_mech_prior().to_pymc(
+                "beta_between",
+                rationale="Between-child association: outcome logit per 1 pooled row-level SD of the study-average exposure {unit} for a child.".format(
+                    unit="raw score" if mechanism_is_covariate else "logit"
+                ),
+            )
+            beta_within = _priors.beta_mech_prior().to_pymc(
+                "beta_within",
+                rationale="Within-child association: outcome logit per 1 pooled row-level SD of a wave deviation from the mean exposure {unit} for that child.".format(
+                    unit="raw score" if mechanism_is_covariate else "logit"
+                ),
+            )
             eta = eta + beta_between * mech_bar_d + beta_within * mech_dev_d
         else:
-            beta_mech = _priors.beta_mech_prior().to_pymc('beta_mech', rationale='Blended pooled association: outcome logit per 1 SD of the same-wave exposure {unit}.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
+            beta_mech = _priors.beta_mech_prior().to_pymc(
+                "beta_mech",
+                rationale="Blended pooled association: outcome logit per 1 SD of the same-wave exposure {unit}.".format(
+                    unit="raw score" if mechanism_is_covariate else "logit"
+                ),
+            )
             eta = eta + beta_mech * mech_d
 
         if include_group:
             g = pm.Data("G", np.asarray(prepared.G, dtype=float)[keep], dims="obs_id")
-            eta = eta + _priors.tau_prior().to_pymc('beta_G', role='association', rationale='Arm main effect pooled over the fitted waves, including post-crossover waves. An adjusted association conditional on same-wave skills, not the randomised treatment effect.') * g
+            eta = (
+                eta
+                + _priors.tau_prior().to_pymc(
+                    "beta_G",
+                    role="association",
+                    rationale="Arm main effect pooled over the fitted waves, including post-crossover waves. An adjusted association conditional on same-wave skills, not the randomised treatment effect.",
+                )
+                * g
+            )
 
         age = pm.Data("A_std", np.asarray(prepared.A_std, dtype=float)[keep], dims="obs_id")
         eta = eta + _priors.gamma_age_prior().to_pymc("gamma_A") * age
@@ -758,13 +722,30 @@ def build_pooled_levels_model(
         # family's measure adjusters; adjusted associations, never effects.
         for sym, z in skill_std.items():
             sk = pm.Data(f"{sym}_post_logit_std", z, dims="obs_id")
-            eta = eta + _priors.gamma_cross_prior().to_pymc(f'gamma_{sym}', rationale=f'Same-wave skill adjuster for {sym}: a possibly treatment-affected level. An adjusted association, never an effect.') * sk
+            eta = (
+                eta
+                + _priors.gamma_cross_prior().to_pymc(
+                    f"gamma_{sym}",
+                    rationale=f"Same-wave skill adjuster for {sym}: a possibly treatment-affected level. An adjusted association, never an effect.",
+                )
+                * sk
+            )
 
         for name, values in prepared.covariates.items():
             if mechanism_is_covariate and name == mechanism_symbol:
                 continue  # the exposure carries the focal slopes, not a gamma_
             cov = pm.Data(f"{name}_std", np.asarray(values, dtype=float)[keep], dims="obs_id")
-            eta = eta + _priors.predictor_slope_prior().to_pymc(f'gamma_{name}', **_priors.adjustment_metadata(name, rationale=f'Adjustment slope for {name}: a same-wave covariate or a baseline covariate broadcast across waves; an adjusted association.')) * cov
+            eta = (
+                eta
+                + _priors.predictor_slope_prior().to_pymc(
+                    f"gamma_{name}",
+                    **_priors.adjustment_metadata(
+                        name,
+                        rationale=f"Adjustment slope for {name}: a same-wave covariate or a baseline covariate broadcast across waves; an adjusted association.",
+                    ),
+                )
+                * cov
+            )
 
         if use_subject_random_intercept:
             eta = _add_child_random_intercept(eta, child_idx)

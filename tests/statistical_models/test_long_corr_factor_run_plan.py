@@ -71,15 +71,11 @@ def test_settings_reject_unknown_legacy_key():
 
 
 def test_typed_settings_allow_only_global_extra_keys():
-    plan = L.resolve_long_corr_factor_run_plan(
-        _spec(settings=L.LongCorrFactorModelSettings(), target_accept=0.999)
-    )
+    plan = L.resolve_long_corr_factor_run_plan(_spec(settings=L.LongCorrFactorModelSettings(), target_accept=0.999))
     assert plan.settings_source == "typed"
 
     with pytest.raises(ValueError, match="cannot be split.*lkj_eta"):
-        L.resolve_long_corr_factor_run_plan(
-            _spec(settings=L.LongCorrFactorModelSettings(), lkj_eta=3)
-        )
+        L.resolve_long_corr_factor_run_plan(_spec(settings=L.LongCorrFactorModelSettings(), lkj_eta=3))
 
 
 def test_resolve_rejects_wrong_kind_study_and_outcome():
@@ -105,9 +101,7 @@ def test_default_legacy_plan_preserves_execution_contract():
         "code": ("L", "B"),
         "grammar": ("F", "T"),
     }
-    assert plan.prepare_kwargs() == {
-        "outcomes": ("R", "E", "TR", "TE", "L", "B", "F", "T")
-    }
+    assert plan.prepare_kwargs() == {"outcomes": ("R", "E", "TR", "TE", "L", "B", "F", "T")}
     assert plan.factory_kwargs() == {
         "domains": plan.domain_mapping(),
         "loading_prior": "communality",
@@ -134,23 +128,15 @@ def test_default_legacy_plan_preserves_execution_contract():
         ("free", "comm_alpha", "only apply to loading_prior='communality'"),
     ],
 )
-def test_resolve_rejects_inactive_loading_knobs(
-    typed, loading_prior, knob, message
-):
+def test_resolve_rejects_inactive_loading_knobs(typed, loading_prior, knob, message):
     values = {"loading_prior": loading_prior, knob: 0.5}
-    spec = (
-        _spec(settings=L.LongCorrFactorModelSettings(**values))
-        if typed
-        else _spec(**values)
-    )
+    spec = _spec(settings=L.LongCorrFactorModelSettings(**values)) if typed else _spec(**values)
     with pytest.raises(ValueError, match=message):
         L.resolve_long_corr_factor_run_plan(spec)
 
 
 def test_free_loading_plan_resolves_legacy_defaults():
-    plan = L.resolve_long_corr_factor_run_plan(
-        _spec(settings=L.LongCorrFactorModelSettings(loading_prior="free"))
-    )
+    plan = L.resolve_long_corr_factor_run_plan(_spec(settings=L.LongCorrFactorModelSettings(loading_prior="free")))
     assert plan.loading_sigma == 1.0
     assert plan.residual_sigma == 1.0
     assert plan.comm_alpha == 2.0
@@ -163,9 +149,7 @@ def test_wrong_typed_settings_class_is_rejected():
     )
 
     with pytest.raises(TypeError, match="requires LongCorrFactorModelSettings"):
-        L.resolve_long_corr_factor_run_plan(
-            _spec(settings=SurvivalModelSettings())
-        )
+        L.resolve_long_corr_factor_run_plan(_spec(settings=SurvivalModelSettings()))
 
 
 def test_invalid_setting_fails_before_context_reset_or_data_loading(monkeypatch):

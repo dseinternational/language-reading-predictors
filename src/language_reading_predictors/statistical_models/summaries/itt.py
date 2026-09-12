@@ -91,12 +91,7 @@ def _itt_ame_draws(
     """
     posterior = getattr(trace, group)
     term_draws = posterior[term].stack(sample=("chain", "draw")).values  # (S,)
-    eta = (
-        posterior[eta_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     G = np.asarray(G, dtype=float)
     if G.shape[0] != eta.shape[0]:
         raise ValueError(
@@ -107,10 +102,7 @@ def _itt_ame_draws(
     # model has it, otherwise the constant ``term`` broadcast over observations.
     if varying_term and varying_term in posterior:
         delta = (
-            posterior[varying_term]
-            .stack(sample=("chain", "draw"))
-            .transpose("obs_id", "sample")
-            .values
+            posterior[varying_term].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
         )  # (n_obs, S)
     else:
         delta = term_draws[None, :]  # (1, S)
@@ -150,14 +142,9 @@ def _itt_ame_draws(
                 )
         elif np.issubdtype(m.dtype, np.integer):
             if m.size and (int(m.min()) < 0 or int(m.max()) >= eta.shape[0]):
-                raise ValueError(
-                    f"integer row_mask has indices outside [0, {eta.shape[0]})."
-                )
+                raise ValueError(f"integer row_mask has indices outside [0, {eta.shape[0]}).")
         else:
-            raise ValueError(
-                "row_mask must be a boolean mask or integer index array, got dtype "
-                f"{m.dtype}."
-            )
+            raise ValueError(f"row_mask must be a boolean mask or integer index array, got dtype {m.dtype}.")
         contrib = contrib[m]
         if contrib.shape[0] == 0:
             raise ValueError("row_mask selects no observations for the marginal effect.")

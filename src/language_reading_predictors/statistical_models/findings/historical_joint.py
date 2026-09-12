@@ -25,18 +25,9 @@ def _kf_build_historical_joint(output_dir: str | Path, config: Mapping) -> list[
     if within is not None:
         scales = _kf_csv(output_dir, "within_scale_summary.csv")
         if scales is not None and "pair_resolvable" in within.columns:
-            resolvable_pairs = within[
-                within["pair_resolvable"]
-                .astype(str)
-                .str.lower()
-                .isin({"true", "1"})
-            ]
+            resolvable_pairs = within[within["pair_resolvable"].astype(str).str.lower().isin({"true", "1"})]
             if resolvable_pairs.empty:
-                strongest = scales.iloc[
-                    pd.to_numeric(
-                        scales["prob_above_minimum"], errors="coerce"
-                    ).argmax()
-                ]
+                strongest = scales.iloc[pd.to_numeric(scales["prob_above_minimum"], errors="coerce").argmax()]
                 threshold = _kf_float(strongest["minimum_resolvable_sd"])
                 return [
                     _kf_sentence(
@@ -96,23 +87,17 @@ def _kf_build_historical_joint(output_dir: str | Path, config: Mapping) -> list[
                         "also to be above-level waves on the other"
                     ),
                     negative_claim=(
-                        "waves above a child's stable level on one measure tend "
-                        "to be below-level waves on the other"
+                        "waves above a child's stable level on one measure tend to be below-level waves on the other"
                     ),
                 ),
                 "confidence",
             ),
         ]
-        comparison = _kf_csv(
-            output_dir, "between_within_correlation_comparison.csv"
-        )
+        comparison = _kf_csv(output_dir, "between_within_correlation_comparison.csv")
         if comparison is not None:
             matched = comparison[
                 (comparison["measure_i"].astype(str) == str(row["measure_i"]))
-                & (
-                    comparison["measure_j"].astype(str)
-                    == str(row["measure_j"])
-                )
+                & (comparison["measure_j"].astype(str) == str(row["measure_j"]))
             ]
             if not matched.empty:
                 comp = matched.iloc[0]
@@ -158,14 +143,8 @@ def _kf_build_historical_joint(output_dir: str | Path, config: Mapping) -> list[
         _kf_sentence(
             _kf_association_direction(
                 row["prob_pos"],
-                positive_claim=(
-                    "children who sit higher on one measure tend to sit higher "
-                    "on the other"
-                ),
-                negative_claim=(
-                    "children who sit higher on one measure tend to sit lower "
-                    "on the other"
-                ),
+                positive_claim=("children who sit higher on one measure tend to sit higher on the other"),
+                negative_claim=("children who sit higher on one measure tend to sit lower on the other"),
             ),
             "confidence",
         ),

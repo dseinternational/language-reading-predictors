@@ -106,41 +106,25 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     def _plot_joint_prior(c: StatisticalFitContext) -> None:
         for index, symbol in enumerate(joint_outcomes):
-            stem = (
-                "prior_predictive_check"
-                if index == 0
-                else f"prior_predictive_check_{symbol.lower()}"
-            )
+            stem = "prior_predictive_check" if index == 0 else f"prior_predictive_check_{symbol.lower()}"
             _diag.save_prior_predictive_plot(c, symbol, filename_stem=stem)
 
     def _run_joint_ppc(c: StatisticalFitContext) -> None:
         _diag.sample_posterior_predictive(c, var_names=["y_post"])
         for index, symbol in enumerate(joint_outcomes):
-            stem = (
-                "posterior_predictive_check"
-                if index == 0
-                else f"posterior_predictive_check_{symbol.lower()}"
-            )
-            _diag.save_joint_posterior_predictive_plot(
-                c, symbol, filename_stem=stem
-            )
+            stem = "posterior_predictive_check" if index == 0 else f"posterior_predictive_check_{symbol.lower()}"
+            _diag.save_joint_posterior_predictive_plot(c, symbol, filename_stem=stem)
         write_ppc_calibration(c, built.prepared, joint_outcomes)
         # Coverage is denominator-agnostic for flattened child × outcome cells, but
         # the pooled statistic can still hide one outcome's misfit behind another's
         # fit (#631 finding 16), so publish per-outcome rows beside it — the pooled
         # row remains the one the shared coverage sentence reads.
-        with guard_optional(
-            c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
-        ):
+        with guard_optional(c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
             coverage = _predictive.ppc_interval_coverage(c.trace, node="y_post")
             frames = [coverage]
             labels = cell_outcome_labels(c, "y_post", joint_outcomes)
             if labels is not None:
-                frames.append(
-                    _predictive.ppc_interval_coverage_by_group(
-                        c.trace, node="y_post", group_labels=labels
-                    )
-                )
+                frames.append(_predictive.ppc_interval_coverage_by_group(c.trace, node="y_post", group_labels=labels))
             save_table(
                 c,
                 "ppc_summary",
@@ -176,9 +160,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             # the dependence block is weakly identified.
             psense_timing="after_trace",
             psense_vars=tuple(plan.psense_vars),
-            after_trace_audit=lambda c: _diag.save_prior_posterior_plot(
-                c, var_names=_joint_vars
-            ),
+            after_trace_audit=lambda c: _diag.save_prior_posterior_plot(c, var_names=_joint_vars),
             extended_term="tau",
             include_loo_pit=False,
             post_extended_audit=_write_joint_loo_pit,
@@ -213,18 +195,13 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # interval also carries its extra layer's own parameter uncertainty, which on
     # these fits is the larger of the two channels; ``release_decision.json`` records
     # the split (2026-08-24 review of the joint audit).
-    dependence = _dependence_summary.dependence_identification_summary(
-        ctx.trace, ci_prob=ctx.reporting.ci_prob
-    )
+    dependence = _dependence_summary.dependence_identification_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
     if dependence is not None and not dependence.empty:
         save_table(ctx, "dependence_identification", dependence)
     print_table(
         ranked_dataframe_table(
             tau_df,
-            title=(
-                "Probability-scale AME by outcome - "
-                f"{int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"
-            ),
+            title=(f"Probability-scale AME by outcome - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"),
             columns=[
                 "outcome",
                 "ame_prob_median",
@@ -284,15 +261,11 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     write_prior_pushforward(ctx, pf_rows)
 
-    contrast = _joint_summary.tau_contrast_matrix(
-        ctx.trace, outcomes, G=built.prepared.G, scale="probability"
-    )
+    contrast = _joint_summary.tau_contrast_matrix(ctx.trace, outcomes, G=built.prepared.G, scale="probability")
     save_table(ctx, "tau_contrast_matrix", contrast, index=True)
     save_contrast_heatmap(ctx, contrast)
 
-    logit_contrast = _joint_summary.tau_contrast_matrix(
-        ctx.trace, outcomes, G=built.prepared.G, scale="logit"
-    )
+    logit_contrast = _joint_summary.tau_contrast_matrix(ctx.trace, outcomes, G=built.prepared.G, scale="logit")
     save_table(ctx, "tau_contrast_matrix_logit", logit_contrast, index=True)
 
     payload = built.require_payload(JointPayload, family="joint")

@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Block-design exposure model construction.
-
-"""
+"""Block-design exposure model construction."""
 
 from __future__ import annotations
 
@@ -12,7 +10,6 @@ from typing import Iterable
 
 import numpy as np
 import pymc as pm
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -33,6 +30,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _scalar_prior,
     _tau_sigma_for,
 )
+
 
 def build_block_exposure_model(
     prepared: PreparedData,
@@ -106,10 +104,7 @@ def build_block_exposure_model(
     if prepared.phase_mode != "levels":
         raise ValueError("build_block_exposure_model requires phase_mode='levels'")
     if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
-        raise ValueError(
-            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
-            f"got {likelihood!r}"
-        )
+        raise ValueError(f"likelihood must be 'beta_binomial' or 'bernoulli_offfloor', got {likelihood!r}")
     own = outcome_symbol
     if own not in prepared.post_counts:
         raise KeyError(f"Outcome {own!r} missing from prepared data (post_counts)")
@@ -129,10 +124,7 @@ def build_block_exposure_model(
     # Staggered block-2 exposure: immediate arm (G==1) taught block 2 from t3
     # (phase >= 2), wait-list arm (G==0) from t4 (phase >= 3). Derived from the
     # design (G, phase), like build_did_model's ``treated``.
-    exposed = (
-        ((prepared.G == 1) & (prepared.phase >= 2))
-        | ((prepared.G == 0) & (prepared.phase >= 3))
-    ).astype(float)
+    exposed = (((prepared.G == 1) & (prepared.phase >= 2)) | ((prepared.G == 0) & (prepared.phase >= 3))).astype(float)
     ability = prepared.covariates[ability_covariate] if ability_covariate is not None else None
 
     # Only the phases this fit actually observes get a wave intercept (#631
@@ -142,9 +134,7 @@ def build_block_exposure_model(
     # the data-free element can absorb the compensating shift.
     observed_phases = np.unique(np.asarray(prepared.phase).astype(np.int64))
     phase_position = {int(p): i for i, p in enumerate(observed_phases)}
-    phase_idx = np.array(
-        [phase_position[int(p)] for p in np.asarray(prepared.phase)], dtype=np.int64
-    )
+    phase_idx = np.array([phase_position[int(p)] for p in np.asarray(prepared.phase)], dtype=np.int64)
     coords = {
         "obs_id": np.arange(prepared.n_obs),
         "phase": observed_phases,
@@ -154,10 +144,7 @@ def build_block_exposure_model(
         phase_d = pm.Data("phase_idx", phase_idx, dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         exposed_d = pm.Data("exposed", exposed, dims="obs_id")
-        adjust_d = {
-            c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
-            for c in adjust_for
-        }
+        adjust_d = {c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id") for c in adjust_for}
 
         # Own-baseline-free level model. A free ``alpha`` beside a free per-phase
         # ``alpha_time`` left only their sums in the likelihood, so the split
@@ -167,19 +154,17 @@ def build_block_exposure_model(
         # (this family has no untreated t1 wave to anchor on, unlike the level
         # factors) and ``alpha_time`` is an exact zero-sum deviation vector over
         # the observed phases, so both are identified.
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
         alpha_time = _priors.declare(
-                         pm.ZeroSumNormal("alpha_time", sigma=0.5, dims="phase"),
-                         role="nuisance",
-                         rationale=(
-                             "Per-timepoint intercept deviations: in the level family an exact "
-                             "zero-sum wave-deviation vector around the anchored mean level "
-                             "(#389 finding 2); in the block-exposure family a free per-wave "
-                             "offset."
-                         ),
-                     )
+            pm.ZeroSumNormal("alpha_time", sigma=0.5, dims="phase"),
+            role="nuisance",
+            rationale=(
+                "Per-timepoint intercept deviations: in the level family an exact "
+                "zero-sum wave-deviation vector around the anchored mean level "
+                "(#389 finding 2); in the block-exposure family a free per-wave "
+                "offset."
+            ),
+        )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 
@@ -191,33 +176,39 @@ def build_block_exposure_model(
         # Raw-covariate adjusters (revised-DAG exogenous confounders HS/SP/RW): linear
         # gamma terms, mirroring the gain/level-factor adjuster path (#247).
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c))
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}", **_priors.adjustment_metadata(c))
             eta = eta + gamma_c * adjust_d[c]
 
         if use_child_re:
-            child_idx_d = pm.Data(
-                "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
-            )
-            eta = _add_child_random_intercept(
-                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
-            )
+            child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+            eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma)
 
         # Linear predictor without the exposure term, so the pipeline can read the
         # un-exposed baseline for the average-marginal-effect translation (as DiD).
         eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
-        delta = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol, delta_prior_sigma)).to_pymc('delta', role='association', rationale="Block-active exposure shift in the block-2 taught-vocabulary logit; a parallel-trends association ('block-2-active vs block-1-active'), not a randomised treatment effect.")
+        delta = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol, delta_prior_sigma)).to_pymc(
+            "delta",
+            role="association",
+            rationale="Block-active exposure shift in the block-2 taught-vocabulary logit; a parallel-trends association ('block-2-active vs block-1-active'), not a randomised treatment effect.",
+        )
         eta_full = pm.Deterministic("eta", eta_base + delta * exposed_d, dims="obs_id")
 
         if likelihood == "beta_binomial":
             kappa = _scalar_prior("kappa", _priors.kappa_prior)
             beta_binomial_from_logit(
-                "y_post", eta_full, n_trials=prepared.n_trials[own], kappa=kappa,
-                observed=post, dims="obs_id",
+                "y_post",
+                eta_full,
+                n_trials=prepared.n_trials[own],
+                kappa=kappa,
+                observed=post,
+                dims="obs_id",
             )
         else:  # bernoulli_offfloor (not expected for block-2 taught; kept for parity)
             pm.Bernoulli(
-                "y_offfloor", logit_p=eta_full,
-                observed=(post > 0).astype(np.int64), dims="obs_id",
+                "y_offfloor",
+                logit_p=eta_full,
+                observed=(post > 0).astype(np.int64),
+                dims="obs_id",
             )
 
     return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())

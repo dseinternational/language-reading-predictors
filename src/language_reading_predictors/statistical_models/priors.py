@@ -165,8 +165,7 @@ class PriorSpec:
                 role=role if role is not None else self.role,
                 rationale=description,
                 panel=_density_panel_key(self.panel, self.distribution),
-                provenance="constructor" if role is None and rationale is None
-                else "call-site",
+                provenance="constructor" if role is None and rationale is None else "call-site",
                 density=deepcopy(self.distribution),
             )
         )
@@ -207,10 +206,7 @@ def prior_density_panel_files(output_dir: str | Path) -> list[Path]:
     """Find named-prior density files, excluding predictive and overlay figures."""
     keys = "|".join(re.escape(key) for key in ALL_PRIORS)
     filename = re.compile(rf"prior_(?:{keys})(?:__[0-9a-f]{{16}})?\.(?:png|svg)")
-    return [
-        path for path in Path(output_dir).glob("prior_*.*")
-        if path.is_file() and filename.fullmatch(path.name)
-    ]
+    return [path for path in Path(output_dir).glob("prior_*.*") if path.is_file() and filename.fullmatch(path.name)]
 
 
 def model_prior_panels(model) -> dict[str, Continuous]:
@@ -226,10 +222,7 @@ def model_prior_panel_title(model, key: str) -> str:
     """Name the fitted parameters, whose roles may differ from a shared default."""
     from textwrap import fill
 
-    parameters = [
-        descriptor.parameter for descriptor in descriptors_for(model).values()
-        if descriptor.panel == key
-    ]
+    parameters = [descriptor.parameter for descriptor in descriptors_for(model).values() if descriptor.panel == key]
     return fill("Prior for " + ", ".join(parameters), width=48)
 
 
@@ -276,8 +269,7 @@ def named_prior(key: str, *, role: str, panel: str | None = None):
     return wrap
 
 
-def declare(variable, *, role: str, rationale: str, constructor: str = "inline",
-            panel: str = ""):
+def declare(variable, *, role: str, rationale: str, constructor: str = "inline", panel: str = ""):
     """Record what an inline ``pm.*`` prior means, and return the variable.
 
     The counterpart to :meth:`PriorSpec.to_pymc` for the priors a factory builds
@@ -310,9 +302,7 @@ def declare(variable, *, role: str, rationale: str, constructor: str = "inline",
     return variable
 
 
-def adjustment_metadata(
-    covariate: str, *, role: str = "association", rationale: str | None = None
-) -> dict[str, str]:
+def adjustment_metadata(covariate: str, *, role: str = "association", rationale: str | None = None) -> dict[str, str]:
     """Meaning of a covariate declared in a factory's adjustment block.
 
     The data schema names its missing-data indicators ``<covariate>_missing``.
@@ -503,9 +493,7 @@ def gamma_age_prior() -> PriorSpec:
 JOINT_RESIDUAL_LKJ_ETA = 4.0
 
 
-def residual_correlation_prior_sd(
-    n_outcomes: int, eta: float = JOINT_RESIDUAL_LKJ_ETA
-) -> float:
+def residual_correlation_prior_sd(n_outcomes: int, eta: float = JOINT_RESIDUAL_LKJ_ETA) -> float:
     """Marginal prior SD of any off-diagonal correlation under ``LKJ(eta)``.
 
     For a ``d x d`` LKJ(``eta``) correlation matrix every off-diagonal element has
@@ -907,8 +895,6 @@ def _dist_from_doc(ctor) -> str:
     return m.group(1) if m else ""
 
 
-
-
 def _normalise_dist_str(s: str) -> str:
     """Tidy a ``pymc.printing.str_for_dist`` string to the docstring house style.
 
@@ -921,7 +907,7 @@ def _normalise_dist_str(s: str) -> str:
     if m:
         return f"HalfNormal({m.group(1)})"
     if s.startswith("_lkjcholeskycov"):
-        return "LKJCholeskyCov" + s[len("_lkjcholeskycov"):]
+        return "LKJCholeskyCov" + s[len("_lkjcholeskycov") :]
     return s
 
 
@@ -945,10 +931,6 @@ def _dist_from_rv(rv) -> str | None:
     if "~" in s:
         s = s.split("~", 1)[1]
     return _normalise_dist_str(s.strip())
-
-
-
-
 
 
 # --- Empirical-Bayes anchors (#390 P1) --------------------------------------------
@@ -979,10 +961,7 @@ _EMPIRICAL_BAYES_ANCHORS: dict[str, str] = {
         "Per-measure intercept on the logit scale, its mean anchored on the grand "
         "mean observed logit across all waves (not a baseline wave)."
     ),
-    "mu1": (
-        "Initial latent level, its mean anchored on the observed wave-1 mean logit "
-        "per outcome."
-    ),
+    "mu1": ("Initial latent level, its mean anchored on the observed wave-1 mean logit per outcome."),
     "alpha_offset": (
         "Zero-centred offset around the pooled, arm-blind observed t1 logit "
         "anchor (pre-randomisation data only); the deterministic alpha is the "
@@ -1001,14 +980,10 @@ def empirical_bayes_rationale(base: str, distribution: str | None) -> str:
     ``lcsm``'s ``mu1`` reaches no rationale at all.
     """
     dist = distribution or ""
-    anchored = base == "alpha_offset" or (
-        base in _EMPIRICAL_BAYES_ANCHORS and dist.startswith("Normal(<constant>,")
-    )
+    anchored = base == "alpha_offset" or (base in _EMPIRICAL_BAYES_ANCHORS and dist.startswith("Normal(<constant>,"))
     if not anchored:
         return ""
     return f"{_EMPIRICAL_BAYES_ANCHORS[base]} {EMPIRICAL_BAYES_SENTENCE}"
-
-
 
 
 def used_prior_keys(
@@ -1021,10 +996,7 @@ def used_prior_keys(
     Deterministic transformations have no separate prior density. Recorded
     distributions take precedence over legacy constructor-name overrides.
     """
-    keys = [
-        described_prior_row(model, rv, ctor_overrides=ctor_overrides)["panel"]
-        for rv in model.free_RVs
-    ]
+    keys = [described_prior_row(model, rv, ctor_overrides=ctor_overrides)["panel"] for rv in model.free_RVs]
     return list(dict.fromkeys(key for key in keys if key))
 
 
@@ -1051,9 +1023,7 @@ def priors_table(
         )
         for rv in model.free_RVs
     ]
-    return pd.DataFrame(
-        rows, columns=["parameter", "distribution", "role", "rationale", "panel"]
-    )
+    return pd.DataFrame(rows, columns=["parameter", "distribution", "role", "rationale", "panel"])
 
 
 def described_prior_row(
@@ -1082,11 +1052,7 @@ def described_prior_row(
         row = descriptor.as_row()
         if base in role_overrides:
             row["role"] = role_overrides[base]
-        override_rationale = (
-            rationale_overrides.get(rv.name)
-            or rationale_overrides.get(base)
-            or None
-        )
+        override_rationale = rationale_overrides.get(rv.name) or rationale_overrides.get(base) or None
         if override_rationale is not None:
             row["rationale"] = override_rationale
         return row
@@ -1159,9 +1125,7 @@ def _unrecorded_prior_row(
                 "parameter": rv.name,
                 "distribution": _dist_from_rv(rv) or "(model prior)",
                 "role": role_overrides.get(base, role),
-                "rationale": rationale_overrides.get(rv.name)
-                or rationale_overrides.get(base)
-                or rationale,
+                "rationale": rationale_overrides.get(rv.name) or rationale_overrides.get(base) or rationale,
                 "panel": "",
             }
     raise ValueError(
@@ -1179,7 +1143,7 @@ def _prior_title(name: str) -> str:
     prior"`` using the role registry, so the panel says what the parameter *is*
     rather than repeating the filename.
     """
-    key = name[len("prior_"):] if name.startswith("prior_") else name
+    key = name[len("prior_") :] if name.startswith("prior_") else name
     constructor_key = key.split("__", 1)[0]
     constructor = ALL_PRIORS.get(constructor_key)
     role = _role_of(constructor) if constructor is not None else None
@@ -1204,9 +1168,7 @@ def plot_and_save(dist: Continuous, output_dir: str, name: str, *, title: str | 
     return save_styled_figure(output_dir, name, fig=fig)
 
 
-def save_shared_prior_panel(
-    output_dir: str, used: list[str] | None = None
-) -> list[str]:
+def save_shared_prior_panel(output_dir: str, used: list[str] | None = None) -> list[str]:
     """Plot the default constructor catalogue, for reference outside a fitted report.
 
     ``used`` selects constructor keys from :data:`ALL_PRIORS`. When omitted,

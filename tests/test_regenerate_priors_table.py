@@ -58,9 +58,7 @@ def test_only_the_orphaned_panels_are_removed(tmp_path):
             (tmp_path / f"prior_{key}.{ext}").write_text("figure")
     (tmp_path / "prior_posterior.png").write_text("not a named-prior panel")
 
-    removed = regenerate_priors_table._drop_orphaned_panels(
-        tmp_path, _table(["alpha", "predictor_slope", ""])
-    )
+    removed = regenerate_priors_table._drop_orphaned_panels(tmp_path, _table(["alpha", "predictor_slope", ""]))
 
     assert removed == {
         "prior_beta_mech.png",
@@ -111,9 +109,7 @@ def test_the_manifest_is_pruned_not_rescanned(tmp_path):
     path.write_text(json.dumps(manifest))
     (tmp_path / "index.html").write_text("<html>rendered after the fit</html>")
 
-    regenerate_priors_table._prune_manifest(
-        tmp_path, {"prior_beta_mech.png", "prior_beta_mech.svg"}
-    )
+    regenerate_priors_table._prune_manifest(tmp_path, {"prior_beta_mech.png", "prior_beta_mech.svg"})
 
     updated = json.loads(path.read_text())
     names = [entry["filename"] for entry in updated["artifacts"]]
@@ -140,9 +136,7 @@ def test_pruning_nothing_leaves_the_manifest_untouched(tmp_path):
         ("beta_mech", "predictor_slope", False),
     ],
 )
-def test_an_absent_panel_reads_the_same_either_side_of_a_csv_round_trip(
-    stored, fresh, equal
-):
+def test_an_absent_panel_reads_the_same_either_side_of_a_csv_round_trip(stored, fresh, equal):
     """A blank panel is NaN once read back; that must not read as a change."""
     normalise = regenerate_priors_table._normalise
     assert (normalise(stored) == normalise(fresh)) is equal
@@ -155,9 +149,7 @@ def test_a_family_without_a_checked_rebuild_is_skipped(tmp_path):
     one that was fitted, which is the defect being repaired.
     """
     (tmp_path / "priors_table.csv").write_text("parameter\nalpha\n")
-    (tmp_path / "config.json").write_text(
-        json.dumps({"model_id": "lrp-rli-itt-010", "kind": "itt"})
-    )
+    (tmp_path / "config.json").write_text(json.dumps({"model_id": "lrp-rli-itt-010", "kind": "itt"}))
     status, detail = regenerate_priors_table.regenerate(tmp_path, dry_run=True)
     assert status == "skipped"
     assert "no checked rebuild for kind 'itt'" in detail
@@ -179,9 +171,9 @@ def test_rebuild_refuses_changed_prior_distributions_before_writing(monkeypatch,
     original = table.read_bytes()
     (tmp_path / "config.json").write_text(json.dumps({"model_id": "test", "kind": "test"}))
     monkeypatch.setattr(regenerate_priors_table, "_spec_for", lambda _: object())
-    monkeypatch.setattr(regenerate_priors_table, "BUILDERS", {
-        "test": lambda *_: (SimpleNamespace(model=changed_model), None)
-    })
+    monkeypatch.setattr(
+        regenerate_priors_table, "BUILDERS", {"test": lambda *_: (SimpleNamespace(model=changed_model), None)}
+    )
     status, detail = regenerate_priors_table.regenerate(tmp_path, dry_run=False)
     assert status == "needs refit"
     assert "prior distributions differ" in detail
@@ -196,9 +188,7 @@ def test_missing_panels_are_previewed_and_repaired_with_matching_table(monkeypat
     (tmp_path / "config.json").write_text(json.dumps({"model_id": "test", "kind": "test"}))
     (tmp_path / "artifact_manifest.json").write_text(json.dumps({"artifacts": [], "n_untracked": 0}))
     monkeypatch.setattr(regenerate_priors_table, "_spec_for", lambda _: object())
-    monkeypatch.setattr(regenerate_priors_table, "BUILDERS", {
-        "test": lambda *_: (SimpleNamespace(model=model), None)
-    })
+    monkeypatch.setattr(regenerate_priors_table, "BUILDERS", {"test": lambda *_: (SimpleNamespace(model=model), None)})
 
     def save(density, output_dir, name, *, title):
         assert density.params_dict == {"mu": 0, "sigma": 1}
@@ -214,7 +204,5 @@ def test_missing_panels_are_previewed_and_repaired_with_matching_table(monkeypat
     assert regenerate_priors_table.regenerate(tmp_path, dry_run=False)[0] == "rewritten"
     manifest = json.loads((tmp_path / "artifact_manifest.json").read_text())
     assert manifest["n_untracked"] == 2
-    assert {row["filename"] for row in manifest["artifacts"]} == {
-        path.name for path in tmp_path.glob("prior_*.*")
-    }
+    assert {row["filename"] for row in manifest["artifacts"]} == {path.name for path in tmp_path.glob("prior_*.*")}
     assert regenerate_priors_table.regenerate(tmp_path, dry_run=False)[0] == "unchanged"

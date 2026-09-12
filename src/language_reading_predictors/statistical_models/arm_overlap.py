@@ -117,7 +117,7 @@ def overlap_curves(
     def _density(x: np.ndarray) -> np.ndarray:
         try:
             return gaussian_kde(x)(grid)
-        except (np.linalg.LinAlgError, ValueError):  # pragma: no cover - degenerate
+        except np.linalg.LinAlgError, ValueError:  # pragma: no cover - degenerate
             hist, edges = np.histogram(x, bins=min(60, grid.size), density=True)
             centres = 0.5 * (edges[:-1] + edges[1:])
             return np.interp(grid, centres, hist, left=0.0, right=0.0)
@@ -125,8 +125,7 @@ def overlap_curves(
     dc = _density(a)
     di = _density(b)
     overlap = float(np.trapezoid(np.minimum(dc, di), grid))
-    return OverlapCurves(grid=grid, density_control=dc, density_intervention=di,
-                         overlap_coefficient=overlap)
+    return OverlapCurves(grid=grid, density_control=dc, density_intervention=di, overlap_coefficient=overlap)
 
 
 def _band(draws: np.ndarray, ci_prob: float) -> tuple[float, float, float, float, float]:
@@ -209,8 +208,7 @@ def arm_overlap_summary(
         _row("intervention_level", intervention, level_scale),
         _row(effect_quantity, effect, effect_scale),
         _scalar("overlap_coefficient", overlap_coefficient, "fraction"),
-        _scalar(superiority_quantity, float(np.mean(np.asarray(effect) > 0)),
-                "probability"),
+        _scalar(superiority_quantity, float(np.mean(np.asarray(effect) > 0)), "probability"),
     ]
     return pd.DataFrame(rows)
 
@@ -230,10 +228,10 @@ def _draw_overlap(
     blend of the two reads as the overlap — no separate overlap hue is added
     (its area is reported numerically in the annotation and the sidecar CSV).
     """
-    ax.fill_between(curves.grid, curves.density_control, color=_CONTROL_COLOR,
-                    alpha=0.35, label=control_label)
-    ax.fill_between(curves.grid, curves.density_intervention,
-                    color=_INTERVENTION_COLOR, alpha=0.35, label=intervention_label)
+    ax.fill_between(curves.grid, curves.density_control, color=_CONTROL_COLOR, alpha=0.35, label=control_label)
+    ax.fill_between(
+        curves.grid, curves.density_intervention, color=_INTERVENTION_COLOR, alpha=0.35, label=intervention_label
+    )
     ax.plot(curves.grid, curves.density_control, color=_CONTROL_COLOR, lw=1.3)
     ax.plot(curves.grid, curves.density_intervention, color=_INTERVENTION_COLOR, lw=1.3)
     ax.axvline(float(np.median(control)), color=_CONTROL_COLOR, lw=1.4, ls="--")
@@ -281,23 +279,22 @@ def save_arm_overlap_mean(
     )
 
     fig, ax = plt.subplots(figsize=FIGSIZE_LG)
-    _draw_overlap(ax, curves, pc, pt,
-                  control_label="no intervention (wait-list)",
-                  intervention_label="intervention (immediate)")
+    _draw_overlap(
+        ax, curves, pc, pt, control_label="no intervention (wait-list)", intervention_label="intervention (immediate)"
+    )
     if likelihood == "bernoulli":
         ax.set_xlabel(f"P({event_label}) — {item_label} (%)")
-        ax.set_title(f"Posterior probability {event_label} by arm ({outcome_symbol})",
-                     fontsize=10)
+        ax.set_title(f"Posterior probability {event_label} by arm ({outcome_symbol})", fontsize=10)
     else:
         ax.set_xlabel(f"expected {item_label} score (% correct)")
         ax.set_title(
-            f"Posterior of expected outcome by arm ({outcome_symbol}) — "
-            "population average",
+            f"Posterior of expected outcome by arm ({outcome_symbol}) — population average",
             fontsize=10,
         )
     lo_e, hi_e = np.quantile(ame_pp, [(1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2])
     ax.text(
-        0.02, 0.98,
+        0.02,
+        0.98,
         (
             f"median: {np.median(pt):.1f}% vs {np.median(pc):.1f}%\n"
             f"average effect: {np.median(ame_pp):+.1f} pp "
@@ -305,7 +302,10 @@ def save_arm_overlap_mean(
             f"P(intervention higher) = {np.mean(ame_pp > 0):.2f}\n"
             f"overlap = {curves.overlap_coefficient:.0%}"
         ),
-        transform=ax.transAxes, va="top", ha="left", fontsize=8,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=8,
         bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85},
     )
     fig.tight_layout()
@@ -362,21 +362,23 @@ def save_arm_overlap_predictive(
     )
 
     fig, ax = plt.subplots(figsize=FIGSIZE_LG)
-    _draw_overlap(ax, curves, pc, pt,
-                  control_label="no intervention (wait-list)",
-                  intervention_label="intervention (immediate)")
-    ax.set_xlabel(f"predicted {item_label} score for a new child (% correct)")
-    ax.set_title(
-        f"Predicted-outcome overlap, new child ({outcome_symbol})", fontsize=10
+    _draw_overlap(
+        ax, curves, pc, pt, control_label="no intervention (wait-list)", intervention_label="intervention (immediate)"
     )
+    ax.set_xlabel(f"predicted {item_label} score for a new child (% correct)")
+    ax.set_title(f"Predicted-outcome overlap, new child ({outcome_symbol})", fontsize=10)
     ax.text(
-        0.02, 0.98,
+        0.02,
+        0.98,
         (
             f"median: {np.median(pt):.0f}% vs {np.median(pc):.0f}%\n"
             f"average effect: {np.median(np.asarray(contrast.ame_items)):+.1f} items\n"
             f"overlap = {curves.overlap_coefficient:.0%}"
         ),
-        transform=ax.transAxes, va="top", ha="left", fontsize=8,
+        transform=ax.transAxes,
+        va="top",
+        ha="left",
+        fontsize=8,
         bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.85},
     )
     fig.tight_layout()

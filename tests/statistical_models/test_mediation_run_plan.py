@@ -56,9 +56,7 @@ def _spec(
 def _registered_specs() -> list[ModelSpec]:
     specs = []
     for path in sorted(_MODEL_ROOT.glob("lrp_rli_med_*.py")):
-        module = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{path.stem}"
-        )
+        module = importlib.import_module(f"language_reading_predictors.statistical_models.{path.stem}")
         specs.append(module.SPEC)
     return specs
 
@@ -150,21 +148,15 @@ def test_multi_typed_and_legacy_declarations_resolve_identically():
     [
         (MediationModelSettings(route_symbols=("L",)), "route_symbols"),
         (
-            MediationModelSettings(
-                mediator_kind="gaussian_composite", route_symbols=()
-            ),
+            MediationModelSettings(mediator_kind="gaussian_composite", route_symbols=()),
             "route_symbols",
         ),
         (
-            MediationModelSettings(
-                companion_of="parent", estimand="natural"
-            ),
+            MediationModelSettings(companion_of="parent", estimand="natural"),
             "companion_of",
         ),
         (
-            MediationModelSettings(
-                period_stacked=True, estimand="interventional"
-            ),
+            MediationModelSettings(period_stacked=True, estimand="interventional"),
             "period-stacked",
         ),
     ],
@@ -179,37 +171,27 @@ def test_single_cross_field_constraints_fail_early(settings, message):
     [
         (MediationMultiModelSettings(mediators=("L",)), "exactly two"),
         (
-            MediationMultiModelSettings(
-                mediators=("E", "L"), order=("E", "L")
-            ),
+            MediationMultiModelSettings(mediators=("E", "L"), order=("E", "L")),
             "first.*'L'",
         ),
         (
-            MediationMultiModelSettings(
-                mediators=("L", "B"), order=("L", "E")
-            ),
+            MediationMultiModelSettings(mediators=("L", "B"), order=("L", "E")),
             "permutation",
         ),
     ],
 )
 def test_multi_cross_field_constraints_fail_early(settings, message):
     with pytest.raises(ValueError, match=message):
-        resolve_mediation_multi_run_plan(
-            _spec(kind="mediation_multi", settings=settings)
-        )
+        resolve_mediation_multi_run_plan(_spec(kind="mediation_multi", settings=settings))
 
 
 def test_unknown_and_split_declarations_are_rejected():
     with pytest.raises(ValueError, match="unknown mediation setting"):
         resolve_mediation_run_plan(_spec(extra={"outocmes": ("W", "L")}))
     with pytest.raises(ValueError, match="cannot be split"):
-        resolve_mediation_run_plan(
-            _spec(settings=MediationModelSettings(), extra={"outcomes": ("W", "L")})
-        )
+        resolve_mediation_run_plan(_spec(settings=MediationModelSettings(), extra={"outcomes": ("W", "L")}))
     with pytest.raises(ValueError, match="unknown multi-mediation setting"):
-        resolve_mediation_multi_run_plan(
-            _spec(kind="mediation_multi", extra={"medaitors": ("L", "E")})
-        )
+        resolve_mediation_multi_run_plan(_spec(kind="mediation_multi", extra={"medaitors": ("L", "E")}))
 
 
 def test_plan_maps_loader_factory_and_observation_contracts():
@@ -244,9 +226,7 @@ def test_plan_maps_loader_factory_and_observation_contracts():
         _spec(
             kind="mediation_multi",
             adjustment=["G", "A", "W_pre", "L_t1", "E_t1", "R", "hs"],
-            settings=MediationMultiModelSettings(
-                named_confounder_calibration=NamedConfounderCalibration()
-            ),
+            settings=MediationMultiModelSettings(named_confounder_calibration=NamedConfounderCalibration()),
         )
     )
     assert multi.prepare_kwargs() == {
@@ -292,9 +272,7 @@ def test_effective_confounders_are_a_validated_subset():
 def test_reporting_reuses_attached_plan_and_reconstructs_both_kinds():
     single = resolve_mediation_run_plan(_spec(settings=MediationModelSettings()))
     assert _metadata._resolved_run_plan(SimpleNamespace(spec=_spec(), resolved_plan=single)) is single
-    multi_spec = _spec(
-        kind="mediation_multi", settings=MediationMultiModelSettings()
-    )
+    multi_spec = _spec(kind="mediation_multi", settings=MediationMultiModelSettings())
     multi = _metadata._resolved_run_plan(SimpleNamespace(spec=multi_spec, resolved_plan=None))
     assert isinstance(multi, MediationMultiRunPlan)
 
@@ -319,9 +297,7 @@ def test_pipeline_has_no_direct_family_extra_reads():
         ),
     ],
 )
-def test_wrong_single_entrypoint_fails_before_context_or_data(
-    monkeypatch, entrypoint, spec
-):
+def test_wrong_single_entrypoint_fails_before_context_or_data(monkeypatch, entrypoint, spec):
     monkeypatch.setattr(
         pipeline,
         "make_context",

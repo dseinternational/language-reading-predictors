@@ -186,8 +186,7 @@ class SubfitResult:
             # Shapes travel with the names: an auditor comparing two rows has to be
             # able to see that differently shaped observations *are* different.
             "observed_nodes": ", ".join(
-                f"{name}[{', '.join(str(n) for n in shape)}]"
-                for name, shape in self.data.observed
+                f"{name}[{', '.join(str(n) for n in shape)}]" for name, shape in self.data.observed
             ),
             "identity_keys": ", ".join(self.data.identity_keys),
             "data_digest": self.data.digest,
@@ -271,10 +270,7 @@ def _observed_arrays(model: Any) -> list[tuple[str, np.ndarray]]:
         if data is None and hasattr(value, "get_value"):
             data = value.get_value(borrow=True)
         if data is None:
-            raise TypeError(
-                f"observed node {rv.name!r} holds a "
-                f"{type(value).__name__} with no readable array"
-            )
+            raise TypeError(f"observed node {rv.name!r} holds a {type(value).__name__} with no readable array")
         out.append((rv.name, np.asarray(data)))
     return out
 
@@ -360,18 +356,14 @@ def describe_fitted_data(built: Any) -> SubfitData:
         observed=tuple(observed),
         identity_keys=tuple(name for name, _ in row_keys),
         digest=hasher.hexdigest()[:16] if identified else None,
-        digest_error=(
-            None
-            if identified
-            else "the model has no observed nodes and the frame no row keys"
-        ),
+        digest_error=(None if identified else "the model has no observed nodes and the frame no row keys"),
     )
 
 
 def _as_int(value: Any) -> int | None:
     try:
         return int(value) if value is not None else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -428,29 +420,16 @@ def _require_subfit_reuse_compatibility(
     try:
         frame = pd.read_csv(provenance_path)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            "reuse-trace mode requires prior sub-fit provenance at "
-            f"{provenance_path}"
-        ) from exc
+        raise FileNotFoundError(f"reuse-trace mode requires prior sub-fit provenance at {provenance_path}") from exc
     except (OSError, UnicodeDecodeError, pd.errors.ParserError, ValueError) as exc:
-        raise ValueError(
-            f"reuse-trace prior sub-fit provenance is unreadable: {provenance_path}"
-        ) from exc
+        raise ValueError(f"reuse-trace prior sub-fit provenance is unreadable: {provenance_path}") from exc
     required = set(PROVENANCE_COLUMNS)
     if not required.issubset(frame.columns):
         missing = ", ".join(sorted(required - set(frame.columns)))
-        raise ValueError(
-            "reuse-trace prior sub-fit provenance lacks required columns: " + missing
-        )
-    rows = frame.loc[
-        frame["label"].astype(str).eq(label)
-        & frame["trace_file"].astype(str).eq(trace_filename)
-    ]
+        raise ValueError("reuse-trace prior sub-fit provenance lacks required columns: " + missing)
+    rows = frame.loc[frame["label"].astype(str).eq(label) & frame["trace_file"].astype(str).eq(trace_filename)]
     if len(rows) != 1:
-        raise ValueError(
-            "reuse-trace requires exactly one prior provenance row for "
-            f"{label!r} and {trace_filename!r}"
-        )
+        raise ValueError(f"reuse-trace requires exactly one prior provenance row for {label!r} and {trace_filename!r}")
     if not model_identity.get("structure_sha256") or not model_identity.get("design_sha256"):
         raise ValueError("reuse-trace cannot verify this sub-fit computational graph")
     if data.digest is None:
@@ -493,11 +472,7 @@ def _require_subfit_reuse_compatibility(
         "cores",
         "target_accept",
     )
-    mismatched = [
-        field
-        for field in text_fields
-        if _stored_text(row.get(field)) != _stored_text(expected.get(field))
-    ]
+    mismatched = [field for field in text_fields if _stored_text(row.get(field)) != _stored_text(expected.get(field))]
     for column in numeric_fields:
         stored = pd.to_numeric(_stored_text(row.get(column)), errors="coerce")
         wanted = pd.to_numeric(_stored_text(expected.get(column)), errors="coerce")
@@ -506,18 +481,11 @@ def _require_subfit_reuse_compatibility(
 
     trace_path = source / trace_filename
     recorded_sha256 = _stored_text(row.get("trace_sha256"))
-    if (
-        len(recorded_sha256) != 64
-        or not trace_path.is_file()
-        or _sha256_file(trace_path) != recorded_sha256
-    ):
+    if len(recorded_sha256) != 64 or not trace_path.is_file() or _sha256_file(trace_path) != recorded_sha256:
         mismatched.append("trace_sha256")
     if mismatched:
         fields = ", ".join(dict.fromkeys(mismatched))
-        raise ValueError(
-            "reuse-trace sub-fit compatibility check failed for "
-            f"{label!r}: {fields}"
-        )
+        raise ValueError(f"reuse-trace sub-fit compatibility check failed for {label!r}: {fields}")
 
 
 def run_subfit(
@@ -593,11 +561,7 @@ def run_subfit(
         # well-mixed slopes can have far worse R-hat and ESS than either. A family
         # that publishes one names it here so the verdict beside it covers it
         # (2026-08-23 joint-mechanism follow-up review, finding 1).
-        scanned += [
-            name
-            for name in (extra_var_names or ())
-            if name not in scanned and name in built.model.named_vars
-        ]
+        scanned += [name for name in (extra_var_names or ()) if name not in scanned and name in built.model.named_vars]
     elif extra_var_names:
         raise ValueError(
             "extra_var_names is only meaningful with convergence_scope='free_rvs'; "
@@ -609,8 +573,7 @@ def run_subfit(
     if reuse:
         if trace_filename is None:
             raise FileNotFoundError(
-                "reuse-trace mode cannot reuse an unnamed sub-fit; refusing to run "
-                f"fresh NUTS for {label!r}"
+                f"reuse-trace mode cannot reuse an unnamed sub-fit; refusing to run fresh NUTS for {label!r}"
             )
         import arviz as az
 
@@ -618,9 +581,7 @@ def run_subfit(
 
         source = getattr(ctx, "final_output_dir", None) if reuse == "1" else reuse
         if source is None:
-            raise FileNotFoundError(
-                f"cannot resolve the saved sub-fit directory for {trace_filename}"
-            )
+            raise FileNotFoundError(f"cannot resolve the saved sub-fit directory for {trace_filename}")
         source_path = os.path.join(str(source), trace_filename)
         if not os.path.isfile(source_path):
             raise FileNotFoundError(
@@ -728,9 +689,7 @@ def record_subfit(ctx: Any, result: SubfitResult) -> None:
     )
 
 
-def refresh_subfit_trace_hash(
-    ctx: Any, *, label: str, trace_filename: str
-) -> str:
+def refresh_subfit_trace_hash(ctx: Any, *, label: str, trace_filename: str) -> str:
     """Rebind provenance after a family augments an already persisted trace.
 
     ``run_subfit`` owns the initial persistence, but a family may subsequently add
@@ -752,10 +711,7 @@ def refresh_subfit_trace_hash(
         if result.label == label and result.trace_file == trace_filename
     ]
     if len(matches) != 1:
-        raise ValueError(
-            "cannot uniquely identify the sub-fit provenance row for "
-            f"{label!r} and {trace_filename!r}"
-        )
+        raise ValueError(f"cannot uniquely identify the sub-fit provenance row for {label!r} and {trace_filename!r}")
     digest = _sha256_file(trace_path)
     index = matches[0]
     log.results[index] = replace(log.results[index], trace_sha256=digest)

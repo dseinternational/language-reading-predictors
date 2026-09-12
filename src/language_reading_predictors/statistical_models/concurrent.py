@@ -87,9 +87,7 @@ def _tuple_of_strings(value: Any, *, name: str) -> tuple[str, ...]:
     return out
 
 
-def _optional_positive_ints(
-    value: Any, *, name: str
-) -> tuple[int, ...] | None:
+def _optional_positive_ints(value: Any, *, name: str) -> tuple[int, ...] | None:
     if value is None:
         return None
     if isinstance(value, (str, bytes)) or not hasattr(value, "__iter__"):
@@ -142,9 +140,7 @@ class ConcurrentModelSettings:
             "predictor_symbols",
             _tuple_of_strings(self.predictor_symbols, name="predictor_symbols"),
         )
-        object.__setattr__(
-            self, "covariates", _tuple_of_strings(self.covariates, name="covariates")
-        )
+        object.__setattr__(self, "covariates", _tuple_of_strings(self.covariates, name="covariates"))
         object.__setattr__(
             self,
             "require_observed",
@@ -158,19 +154,12 @@ class ConcurrentModelSettings:
             if sigma <= 0:
                 raise ValueError("predictor_slope_sigma must be positive")
             object.__setattr__(self, "predictor_slope_sigma", float(sigma))
-        object.__setattr__(
-            self, "waves", _optional_positive_ints(self.waves, name="waves")
-        )
+        object.__setattr__(self, "waves", _optional_positive_ints(self.waves, name="waves"))
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-                f"got {self.score_mean_link!r}"
-            )
+            raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {self.score_mean_link!r}")
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> ConcurrentModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> ConcurrentModelSettings:
         """Strictly translate the former ``spec.extra`` dictionary boundary.
 
         Rejects unknown keys so a misspelling fails before data loading rather than
@@ -245,13 +234,8 @@ class ConcurrentRunPlan:
         t1-measured and enter as baseline covariates broadcast across the waves."""
         if self.port != "rli":
             raise ValueError("prepare_kwargs applies only to the RLI concurrent port")
-        filter_only_indicators = tuple(
-            MISSINGNESS_INDICATOR_PAIRS[name]
-            for name in self.require_observed
-        )
-        covariates_to_load = tuple(
-            dict.fromkeys((*self.covariates, *filter_only_indicators))
-        )
+        filter_only_indicators = tuple(MISSINGNESS_INDICATOR_PAIRS[name] for name in self.require_observed)
+        covariates_to_load = tuple(dict.fromkeys((*self.covariates, *filter_only_indicators)))
         return {
             "phase_mode": "levels",
             "outcomes": self.measure_outcomes,
@@ -263,16 +247,8 @@ class ConcurrentRunPlan:
         """Undergraduate-friendly explanation generated from the resolved plan."""
         preds = ", ".join(self.predictor_symbols) if self.predictor_symbols else "none"
         covs = ", ".join(self.covariates) if self.covariates else "none"
-        complete = (
-            ", ".join(self.require_observed)
-            if self.require_observed
-            else "none"
-        )
-        sigma = (
-            "build default"
-            if self.predictor_slope_sigma is None
-            else f"{self.predictor_slope_sigma:g}"
-        )
+        complete = ", ".join(self.require_observed) if self.require_observed else "none"
+        sigma = "build default" if self.predictor_slope_sigma is None else f"{self.predictor_slope_sigma:g}"
         pairing = (
             " This fit is one half of the mandatory phoneme-blending response-link "
             f"pair: it must be read and released beside `"
@@ -314,14 +290,10 @@ def declared_concurrent_settings(
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: concurrent settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: concurrent settings cannot be split between model_settings and extra")
         if not isinstance(settings, ConcurrentModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='concurrent' requires "
-                f"ConcurrentModelSettings, got {type(settings).__name__}"
+                f"{spec.model_id}: kind='concurrent' requires ConcurrentModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
@@ -344,42 +316,29 @@ def _validate_missing_covariate_policy(
     unsupported = sorted(required_set - supported)
     if unsupported:
         raise ValueError(
-            f"{model_id}: require_observed supports only "
-            f"{', '.join(sorted(supported))}; got {', '.join(unsupported)}"
+            f"{model_id}: require_observed supports only {', '.join(sorted(supported))}; got {', '.join(unsupported)}"
         )
     undeclared = sorted(required_set - covariate_set)
     if undeclared:
         raise ValueError(
-            f"{model_id}: require_observed covariate(s) must also be declared in "
-            f"covariates: {', '.join(undeclared)}"
+            f"{model_id}: require_observed covariate(s) must also be declared in covariates: {', '.join(undeclared)}"
         )
     unknown_indicators = sorted(
-        name
-        for name in covariate_set
-        if name.endswith("_missing") and name not in supported_indicators
+        name for name in covariate_set if name.endswith("_missing") and name not in supported_indicators
     )
     if unknown_indicators:
-        raise ValueError(
-            f"{model_id}: unsupported missingness indicator(s): "
-            f"{', '.join(unknown_indicators)}"
-        )
+        raise ValueError(f"{model_id}: unsupported missingness indicator(s): {', '.join(unknown_indicators)}")
 
     for parent, indicator in MISSINGNESS_INDICATOR_PAIRS.items():
         has_parent = parent in covariate_set
         has_indicator = indicator in covariate_set
         complete_case = parent in required_set
         if has_indicator and not has_parent:
-            raise ValueError(
-                f"{model_id}: orphan missingness indicator {indicator!r}; declare "
-                f"its parent {parent!r}"
-            )
+            raise ValueError(f"{model_id}: orphan missingness indicator {indicator!r}; declare its parent {parent!r}")
         if not has_parent:
             continue
         if has_indicator and complete_case:
-            raise ValueError(
-                f"{model_id}: {parent!r} cannot use both {indicator!r} and "
-                "require_observed"
-            )
+            raise ValueError(f"{model_id}: {parent!r} cannot use both {indicator!r} and require_observed")
         if not has_indicator and not complete_case:
             raise ValueError(
                 f"{model_id}: filled covariate {parent!r} requires companion "
@@ -390,20 +349,13 @@ def _validate_missing_covariate_policy(
 def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
     """Resolve and validate a concurrent-associations spec before any data are loaded."""
     if spec.kind != "concurrent":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'concurrent', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'concurrent', got {spec.kind!r}")
     if not spec.outcome_symbol:
-        raise ValueError(
-            f"{spec.model_id}: outcome_symbol is required for a concurrent model"
-        )
+        raise ValueError(f"{spec.model_id}: outcome_symbol is required for a concurrent model")
 
     settings, source = declared_concurrent_settings(spec)
     if spec.study_id not in {"rli", "rlm"}:
-        raise ValueError(
-            f"{spec.model_id}: concurrent supports study_id 'rli' or 'rlm', "
-            f"got {spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: concurrent supports study_id 'rli' or 'rlm', got {spec.study_id!r}")
     port: Literal["rli", "rlm"] = spec.study_id
     waves: tuple[int, ...]
     if port == "rli":
@@ -413,9 +365,7 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
             require_observed=settings.require_observed,
         )
         if settings.waves is not None:
-            raise ValueError(
-                f"{spec.model_id}: waves is an RLM-only concurrent setting"
-            )
+            raise ValueError(f"{spec.model_id}: waves is an RLM-only concurrent setting")
         # Validate the measure symbols against the registry *before* make_context
         # can reset an output directory — the RLM branch already did; the RLI
         # branch previously failed only inside the loader, after the reset
@@ -427,15 +377,12 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
         requested_rli = (spec.outcome_symbol, *settings.predictor_symbols)
         unknown_rli = sorted(set(requested_rli) - set(_rli_measures))
         if unknown_rli:
-            raise ValueError(
-                f"{spec.model_id}: unknown RLI measure(s): {', '.join(unknown_rli)}"
-            )
+            raise ValueError(f"{spec.model_id}: unknown RLI measure(s): {', '.join(unknown_rli)}")
         waves = (1, 2, 3, 4)
     else:
         if settings.covariates or settings.require_observed:
             raise ValueError(
-                f"{spec.model_id}: the RLM concurrent port does not support RLI "
-                "trait covariates or require_observed"
+                f"{spec.model_id}: the RLM concurrent port does not support RLI trait covariates or require_observed"
             )
         waves = settings.waves or (1, 2, 3, 4)
     own = spec.outcome_symbol
@@ -472,20 +419,15 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
 
         _dataset, measures = resolve_dataset("rlm")
         if own in settings.predictor_symbols:
-            raise ValueError(
-                f"{spec.model_id}: the outcome cannot also be a predictor"
-            )
+            raise ValueError(f"{spec.model_id}: the outcome cannot also be a predictor")
         requested = (own, *settings.predictor_symbols)
         unknown = sorted(set(requested) - set(measures))
         if unknown:
-            raise ValueError(
-                f"{spec.model_id}: unknown RLM measure(s): {', '.join(unknown)}"
-            )
+            raise ValueError(f"{spec.model_id}: unknown RLM measure(s): {', '.join(unknown)}")
         provisional = [
             sym
             for sym in requested
-            if not measures[sym].n_trials_confirmed
-            or not measures[sym].instrument_identity_confirmed
+            if not measures[sym].n_trials_confirmed or not measures[sym].instrument_identity_confirmed
         ]
         if provisional:
             raise ValueError(
@@ -496,13 +438,11 @@ def resolve_concurrent_run_plan(spec: ModelSpec) -> ConcurrentRunPlan:
         unavailable = {
             symbol: tuple(wave for wave in waves if wave not in measures[symbol].available_waves)
             for symbol in requested
-            if measures[symbol].available_waves
-            and any(wave not in measures[symbol].available_waves for wave in waves)
+            if measures[symbol].available_waves and any(wave not in measures[symbol].available_waves for wave in waves)
         }
         if unavailable:
             detail = "; ".join(
-                f"{symbol} is not available at requested wave(s) "
-                f"{', '.join(map(str, missing_waves))}"
+                f"{symbol} is not available at requested wave(s) {', '.join(map(str, missing_waves))}"
                 for symbol, missing_waves in unavailable.items()
             )
             raise ValueError(f"{spec.model_id}: {detail}")

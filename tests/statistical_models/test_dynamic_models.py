@@ -217,7 +217,12 @@ def test_lcsm_factory_multi_target_couplings_and_arm_window(tmp_path):
         include_hearing=True,
     )
     block = (
-        "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+        "hs",
+        "hs_missing",
+        "erbto",
+        "erbto_missing",
+        "deapp_c",
+        "deapp_c_missing",
     )
     built = build_lcsm_model(
         panel,
@@ -291,9 +296,7 @@ def test_lcsm_factory_validation_guards(tmp_path):
     with pytest.raises(ValueError, match="couple to itself"):
         build_lcsm_model(panel, couplings={"W": ("W",)})
     with pytest.raises(KeyError, match="not on the panel"):
-        build_lcsm_model(
-            panel, covariate_block=("hs",), covariate_targets=("W",)
-        )
+        build_lcsm_model(panel, covariate_block=("hs",), covariate_targets=("W",))
     with pytest.raises(ValueError, match="given together"):
         build_lcsm_model(panel, covariate_block=("hs",))
     from dataclasses import replace

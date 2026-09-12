@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 
-
 from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
 
 from collections.abc import Sequence
@@ -67,11 +66,7 @@ def rope_markdown(rope: pd.DataFrame, outcome_label: str, *, with_title: bool = 
             else "the intervention lowers the off-floor probability"
         )
     else:
-        _fav_claim = (
-            "the intervention helps"
-            if _fav == "positive"
-            else "the intervention is harmful"
-        )
+        _fav_claim = "the intervention helps" if _fav == "positive" else "the intervention is harmful"
     direction_clause = (
         f"**Direction** — P(intervention helps) = {r['pd']:.3f} "
         f"({odds_string(r['pd'])}); favoured direction: {_fav_claim} — "
@@ -177,6 +172,7 @@ def rope_summary(
     )
     items = ame_prob * float(n_trials)
     card = rope_card(effect_draws, items, delta=delta, ci_prob=ci_prob)
+
     # The external rope_card still emits a 90% band (`*_lo90`/`*_hi90`); the suite
     # retired it (2026-07-17 credible-interval standard). Drop it here so the raw
     # rope table matches the median + 50% + 89% convention everywhere it surfaces.
@@ -265,9 +261,7 @@ def rope_sensitivity(
     return pd.DataFrame(rows)
 
 
-def rope_sensitivity_markdown(
-    sens: pd.DataFrame, *, is_risk_difference: bool = False
-) -> str:
+def rope_sensitivity_markdown(sens: pd.DataFrame, *, is_risk_difference: bool = False) -> str:
     """Render the δ-sensitivity sweep (:func:`rope_sensitivity`) as a markdown table.
 
     Shared by the ITT and floored result partials so the δ-robustness view cannot

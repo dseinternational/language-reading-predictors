@@ -135,6 +135,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # the pre-randomisation gap the changes are measured from.
     _causal_lf = plan.causal_vector
     _forest_vars = [*plan.balance_terms, _causal_lf]
+
     def save_prior_posterior_figures(c: StatisticalFitContext) -> None:
         _diag.save_prior_posterior_plot(c, var_names=_lf_diag)
         save_forest_plot(c, _forest_vars)
@@ -144,9 +145,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         PrimaryFitPlan(
             diagnostic_vars=tuple(_lf_diag),
             ppc_var_names=(obs_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol, node=obs_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol, node=obs_node),
             # The family's established post-trace order — overlay, forest, then
             # power scaling — declared to the runner rather than performed after
             # it (#637 stage 4). Same figures, same order, one owner.
@@ -184,11 +183,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # (causal element), the balance term and the derived levels view are excluded.
     save_association_forest(
         ctx,
-        [
-            c
-            for c in _lf_coefs
-            if c not in plan.balance_terms and c not in plan.levels_view_terms
-        ],
+        [c for c in _lf_coefs if c not in plan.balance_terms and c not in plan.levels_view_terms],
         causal,
     )
     print_table(
@@ -239,11 +234,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _graded_card = delta_items is not None and not off_floor and _gbt
     _offfloor_card = off_floor and delta_prob is not None and _gbt
     if _graded_card or _offfloor_card:
-        ability = (
-            built.prepared.covariates[ability_covariate]
-            if ability_covariate is not None
-            else None
-        )
+        ability = built.prepared.covariates[ability_covariate] if ability_covariate is not None else None
         contrast_draws, ame_prob = _level_factors_summary.level_t2_marginal_effect(
             ctx.trace,
             phase=built.prepared.phase,
@@ -257,20 +248,14 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         if _graded_card:
             n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
             delta = delta_items
-            title = (
-                f"ROPE summary (t2 contrast, {spec.outcome_symbol}, "
-                f"delta={delta_items:g} items)"
-            )
+            title = f"ROPE summary (t2 contrast, {spec.outcome_symbol}, delta={delta_items:g} items)"
         else:
             # Off-floor (Bernoulli) t2 contrast: expit(eta) = Pr(off-floor), so the
             # probability-scale AME from level_t2_marginal_effect IS the off-floor risk
             # difference (n_trials = 1), matching the gain-factor off-floor path.
             n_marg = 1
             delta = delta_prob
-            title = (
-                f"ROPE summary (t2 off-floor risk difference, "
-                f"{spec.outcome_symbol}, delta={delta_prob:g})"
-            )
+            title = f"ROPE summary (t2 off-floor risk difference, {spec.outcome_symbol}, delta={delta_prob:g})"
         items = ame_prob * n_marg
         # Estimand-scale prior pushforward for the t2 term (#389 finding 3): the
         # prior-predictive counterpart of this card, pushed through the same t2
@@ -284,9 +269,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         # ``guard_optional``, so the skip and its cause land in
         # ``artifact_manifest.json`` rather than scrolling away in a warning the
         # manifest never records (#584 lower-severity 1).
-        with guard_optional(
-            ctx, "prior_pushforward", filename="prior_pushforward.csv", kind="table"
-        ):
+        with guard_optional(ctx, "prior_pushforward", filename="prior_pushforward.csv", kind="table"):
             pf = _predictive.level_prior_pushforward(
                 ctx.trace,
                 phase=built.prepared.phase,
@@ -306,9 +289,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         # the other families publish (2026-07-17 standard; 2026-08-20 review,
         # finding 3).
         rope_s = _rope_summary.drop_retired_90_band(
-            _rope_statistics.rope_card(
-                contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob
-            )
+            _rope_statistics.rope_card(contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob)
         )
         if _offfloor_card:
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
@@ -323,9 +304,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 columns=["metric", "value"],
             )
         )
-        save_rope_plot(
-            ctx, spec.outcome_symbol, None, n_marg, delta, items=items, split=True
-        )
+        save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta, items=items, split=True)
         if _offfloor_card:
             # δ-sensitivity sweep on the risk-difference grid (10/15/20 pp), mirroring
             # the gain-factor off-floor path (#144). Built from the same ``items``

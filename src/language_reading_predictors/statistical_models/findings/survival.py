@@ -49,18 +49,12 @@ def _kf_build_survival(output_dir: str | Path, config: Mapping) -> list[dict[str
     if effects.empty:
         raise _KeyFindingsUnavailable("survival summary has no directional effects")
     treatment = effects[effects["term"].astype(str).str.startswith("tau")]
-    row = (treatment.iloc[0].to_dict() if not treatment.empty else _kf_most_resolved_row(
-        effects, prob_col="P(>0)"
-    ))
+    row = treatment.iloc[0].to_dict() if not treatment.empty else _kf_most_resolved_row(effects, prob_col="P(>0)")
     ratio = np.exp(_kf_float(row["median"]))
     ratio_lo = np.exp(_kf_float(row["ci_low"]))
     ratio_hi = np.exp(_kf_float(row["ci_high"]))
     label = _kf_plain_label(row["term"])
-    scope = (
-        "in the randomised first interval"
-        if window == "randomised" and not treatment.empty
-        else "in an interval"
-    )
+    scope = "in the randomised first interval" if window == "randomised" and not treatment.empty else "in an interval"
     if treatment.empty:
         causal_text = (
             "The reported covariate term is an adjusted association with movement "

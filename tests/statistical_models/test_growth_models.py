@@ -70,9 +70,7 @@ def _write_growth_csv(tmp_path, n_children: int = 20, seed: int = 5, drop_block=
 
 def test_baseline_covariate_loads_standardised_and_aligned(tmp_path):
     p = _write_growth_csv(tmp_path, n_children=20)
-    panel = load_wave_panel(
-        path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",)
-    )
+    panel = load_wave_panel(path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",))
 
     z = panel.baseline["blocks"]
     raw = panel.baseline_raw["blocks"]
@@ -84,12 +82,7 @@ def test_baseline_covariate_loads_standardised_and_aligned(tmp_path):
     # Raw is the t1 block-design value aligned to sorted subject_ids; the scaler
     # inverts the standardised vector back to the raw values.
     src = pd.read_csv(p)
-    expected = (
-        src[src[V.TIME] == 1]
-        .set_index(V.SUBJECT_ID)
-        .loc[panel.subject_ids, V.BLOCKS]
-        .to_numpy(float)
-    )
+    expected = src[src[V.TIME] == 1].set_index(V.SUBJECT_ID).loc[panel.subject_ids, V.BLOCKS].to_numpy(float)
     assert np.allclose(raw, expected)
     assert np.allclose(panel.baseline_scaler["blocks"].inverse(z), raw)
 
@@ -184,14 +177,11 @@ def _n_observed(panel) -> int:
 
 def test_growth_factory_core_builds_and_samples_prior(tmp_path):
     p = _write_growth_csv(tmp_path, n_children=20)
-    panel = load_wave_panel(
-        path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",)
-    )
+    panel = load_wave_panel(path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",))
     built = build_growth_model(panel, use_shared_factor=False)
     rv = {v.name for v in built.model.free_RVs}
     det = {v.name for v in built.model.deterministics}
-    assert {"gamma", "delta", "beta", "alpha", "sigma_slope", "sigma_intercept",
-            "kappa"}.issubset(rv)
+    assert {"gamma", "delta", "beta", "alpha", "sigma_slope", "sigma_intercept", "kappa"}.issubset(rv)
     assert {"intercept", "slope", "theta"}.issubset(det)
     # Core model has no shared-tempo factor.
     assert "loading" not in rv and "G_tempo" not in rv
@@ -204,9 +194,7 @@ def test_growth_factory_core_builds_and_samples_prior(tmp_path):
 
 def test_growth_factory_shared_factor_adds_tempo_and_loadings(tmp_path):
     p = _write_growth_csv(tmp_path, n_children=18)
-    panel = load_wave_panel(
-        path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",)
-    )
+    panel = load_wave_panel(path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",))
     built = build_growth_model(panel, use_shared_factor=True)
     rv = {v.name for v in built.model.free_RVs}
     assert {"G_tempo", "loading"}.issubset(rv)
@@ -224,9 +212,7 @@ def test_growth_factory_age_ability_interaction_adds_terms(tmp_path):
     with ability, and the standardised baseline-age data container — and only when
     opted in. The extra terms must also compose into a samplable model."""
     p = _write_growth_csv(tmp_path, n_children=20)
-    panel = load_wave_panel(
-        path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",)
-    )
+    panel = load_wave_panel(path=p, outcomes=_OUTCOMES, baseline_covariates=("blocks",))
     built = build_growth_model(panel, age_ability_interaction=True)
     rv = {v.name for v in built.model.free_RVs}
     assert {"gamma_age", "gamma_int"}.issubset(rv)
@@ -262,13 +248,16 @@ def test_summary_coefs_publish_the_plan_declared_headline():
     )
 
     def _plan(**extra):
-        return resolve_growth_run_plan(
-            ModelSpec(model_id="lrp-rli-gc-000", kind="growth", title="t", extra=extra)
-        )
+        return resolve_growth_run_plan(ModelSpec(model_id="lrp-rli-gc-000", kind="growth", title="t", extra=extra))
 
     assert summary_coefs(_plan()) == ("gamma", "delta", "beta", "loading")
     assert summary_coefs(_plan(age_ability_interaction=True)) == (
-        "gamma", "delta", "beta", "loading", "gamma_age", "gamma_int",
+        "gamma",
+        "delta",
+        "beta",
+        "loading",
+        "gamma_age",
+        "gamma_int",
     )
 
 

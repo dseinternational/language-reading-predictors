@@ -122,8 +122,7 @@ def _registered_spec(symbol: str):
 
     model_id = DISPERSION_SENSITIVITY_MODEL_IDS[symbol]
     module = importlib.import_module(
-        "language_reading_predictors.statistical_models."
-        + model_id.replace("-", "_").replace("lrp_rli", "lrp_rli")
+        "language_reading_predictors.statistical_models." + model_id.replace("-", "_").replace("lrp_rli", "lrp_rli")
     )
     return module.SPEC
 
@@ -176,10 +175,7 @@ def _row(symbol, family, sigma, built, trace, ci_prob):
     # ``ppc_summary.csv`` the primary fits publish rather than a hand-rolled
     # variant that could differ in its interval convention.
     cov = _predictive.ppc_interval_coverage(trace, node="y_post")
-    by_level = {
-        int(round(float(r.level) * 100)): (int(r.n_inside), int(r.n_total))
-        for r in cov.itertuples()
-    }
+    by_level = {int(round(float(r.level) * 100)): (int(r.n_inside), int(r.n_total)) for r in cov.itertuples()}
     inside50, total50 = by_level.get(50, (0, 0))
     inside90, total90 = by_level.get(90, (0, 0))
 
@@ -234,13 +230,10 @@ def main() -> None:
     unknown = [o for o in args.outcomes if o not in DISPERSION_SENSITIVITY_MODEL_IDS]
     if unknown:
         raise SystemExit(
-            f"unknown outcome(s): {', '.join(unknown)}; "
-            f"registered: {', '.join(DISPERSION_SENSITIVITY_MODEL_IDS)}"
+            f"unknown outcome(s): {', '.join(unknown)}; registered: {', '.join(DISPERSION_SENSITIVITY_MODEL_IDS)}"
         )
 
-    sampling = _sampling.get_sampling_configuration(
-        args.config, random_seed=args.seed
-    )
+    sampling = _sampling.get_sampling_configuration(args.config, random_seed=args.seed)
     out_dir = Path(_paths.stat_models_dir()).parent / OUTPUT_SUBDIR
     out_dir.mkdir(parents=True, exist_ok=True)
     _console.print(f"Output root: {_paths.describe_output_root()}")
@@ -254,9 +247,7 @@ def main() -> None:
         for index, (family, sigma) in enumerate(DISPERSION_SENSITIVITY_CELLS):
             label = f"{symbol}: {family} sigma={sigma}"
             _console.print(f"  fitting {label} ...")
-            built, trace = _fit_cell(
-                prepared, symbol, family, sigma, sampling, args.seed + index
-            )
+            built, trace = _fit_cell(prepared, symbol, family, sigma, sampling, args.seed + index)
             row = _row(symbol, family, sigma, built, trace, args.ci_prob)
             rows.append(row)
             _console.print(

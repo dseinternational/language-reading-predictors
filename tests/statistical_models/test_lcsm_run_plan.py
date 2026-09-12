@@ -56,8 +56,7 @@ def _registered_specs() -> list[ModelSpec]:
     specs: list[ModelSpec] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_rli_lcsm_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and spec.kind == "lcsm":
@@ -98,15 +97,11 @@ def test_settings_reject_unknown_legacy_key():
 
 
 def test_typed_settings_allow_only_global_extra_keys():
-    plan = L.resolve_lcsm_run_plan(
-        _spec(settings=L.LcsmModelSettings(), target_accept=0.99)
-    )
+    plan = L.resolve_lcsm_run_plan(_spec(settings=L.LcsmModelSettings(), target_accept=0.99))
     assert plan.settings_source == "typed"
 
     with pytest.raises(ValueError, match="cannot be split.*outcomes"):
-        L.resolve_lcsm_run_plan(
-            _spec(settings=L.LcsmModelSettings(), outcomes=("W", "L"))
-        )
+        L.resolve_lcsm_run_plan(_spec(settings=L.LcsmModelSettings(), outcomes=("W", "L")))
 
 
 def test_resolve_rejects_wrong_kind_study_and_missing_outcome():
@@ -271,9 +266,7 @@ def test_resolve_rejects_cross_field_contradictions(settings, message):
 
 def test_outcome_symbol_must_be_loaded():
     with pytest.raises(ValueError, match="outcome_symbol 'W'.*not in outcomes"):
-        L.resolve_lcsm_run_plan(
-            _spec(settings=L.LcsmModelSettings(outcomes=("L", "E")))
-        )
+        L.resolve_lcsm_run_plan(_spec(settings=L.LcsmModelSettings(outcomes=("L", "E"))))
 
 
 def test_wrong_typed_settings_class_is_rejected():
@@ -338,12 +331,8 @@ def test_registered_models_are_typed_and_preserve_the_legacy_contract():
         assert set(registered.extra) <= {"target_accept"}
         typed = L.resolve_lcsm_run_plan(registered)
         legacy_settings = asdict(settings)
-        legacy_settings["couplings"] = (
-            dict(settings.couplings) if settings.couplings is not None else None
-        )
-        legacy_settings["lagged_change_couplings"] = dict(
-            settings.lagged_change_couplings
-        )
+        legacy_settings["couplings"] = dict(settings.couplings) if settings.couplings is not None else None
+        legacy_settings["lagged_change_couplings"] = dict(settings.lagged_change_couplings)
         legacy = L.resolve_lcsm_run_plan(
             ModelSpec(
                 model_id=registered.model_id,

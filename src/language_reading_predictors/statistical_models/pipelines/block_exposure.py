@@ -100,16 +100,19 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     # forest evidence, exactly as the level-factor group term does.
     def save_prior_posterior_figures(c: StatisticalFitContext) -> None:
         _diag.save_prior_posterior_plot(c, var_names=diag_vars)
-        save_forest_plot(c, [plan.focal_term], name='delta_forest.png', title='Block-active exposure effect (forest, reference line at 0)')
+        save_forest_plot(
+            c,
+            [plan.focal_term],
+            name="delta_forest.png",
+            title="Block-active exposure effect (forest, reference line at 0)",
+        )
 
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
             diagnostic_vars=tuple(diag_vars),
             ppc_var_names=(plan.observation_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, sym, node=plan.observation_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, sym, node=plan.observation_node),
             # The family's established post-trace order — overlay, forest, then
             # power scaling — now declared to the runner rather than performed
             # after it (#637 stage 4). Same figures, same order, one owner.

@@ -8,7 +8,6 @@ the executable model design and the environment, and both writes and checks the
 versioned trace-reuse contract (#637 stages 1 and 3).
 """
 
-
 from __future__ import annotations
 
 import hashlib
@@ -50,6 +49,7 @@ from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
     write_environment_lock,
 )
+
 
 def _json_safe(value):
     """Return a reconstructable JSON representation of model settings.
@@ -112,9 +112,7 @@ def fitted_subject_identity(prepared: Any) -> dict[str, Any] | None:
         return None
     values = np.asarray(subject_ids)
     if values.ndim != 1:
-        raise ValueError(
-            "prepared.subject_ids must be one-dimensional to fingerprint fitted rows"
-        )
+        raise ValueError("prepared.subject_ids must be one-dimensional to fingerprint fitted rows")
 
     hasher = hashlib.sha256()
     hasher.update(_FITTED_SUBJECT_IDENTITY_DOMAIN.encode("utf-8"))
@@ -188,9 +186,7 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
                     "use_cross_baselines": use_cross_baselines,
                     "cross_symbols": outcomes if use_cross_baselines else [],
                 },
-                "age_effect": (
-                    "gp" if use_age_gp else "linear" if use_age_linear else "none"
-                ),
+                "age_effect": ("gp" if use_age_gp else "linear" if use_age_linear else "none"),
                 "use_age_gp": use_age_gp,
                 "partial_pool_age_gp": plan.partial_pool_age_gp,
                 "use_age_linear": use_age_linear,
@@ -202,9 +198,7 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
     covariates = getattr(prepared, "covariates", {}) if prepared is not None else {}
     effective_adjustment = list(covariates)
     if spec.kind == "itt":
-        effective_adjustment = [
-            name for name in plan.adjust_for if name in covariates
-        ]
+        effective_adjustment = [name for name in plan.adjust_for if name in covariates]
     elif spec.kind == "dose_response":
         # The loaded covariate of a dose fit is its **exposure**, not an adjuster, so
         # the generic "everything in prepared.covariates" fallback recorded the
@@ -216,24 +210,14 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
             settings.get("dose_covariate"),
             settings.get("dose_stage_covariate"),
         }
-        effective_adjustment = [
-            name for name in covariates if name not in exposure
-        ]
+        effective_adjustment = [name for name in covariates if name not in exposure]
     settings.update(
         {
             "prepared_outcomes": list(post_counts),
             "effective_adjustment": effective_adjustment,
             "prepared_covariates": list(covariates),
-            "covariate_time": _json_safe(
-                getattr(prepared, "covariate_time", {})
-                if prepared is not None
-                else {}
-            ),
-            "dropped_covariates": list(
-                getattr(prepared, "dropped_covariates", ())
-                if prepared is not None
-                else ()
-            ),
+            "covariate_time": _json_safe(getattr(prepared, "covariate_time", {}) if prepared is not None else {}),
+            "dropped_covariates": list(getattr(prepared, "dropped_covariates", ()) if prepared is not None else ()),
             "phase_mode": getattr(prepared, "phase_mode", None),
         }
     )
@@ -401,9 +385,7 @@ def _reuse_compatibility_contract(
         "adjustment": _json_safe(spec.adjustment),
         "spec_extra": _json_safe(spec.extra),
         "model_settings": (
-            _json_safe(declared_settings_dict(spec))
-            if spec.kind == "itt" or spec.model_settings is not None
-            else None
+            _json_safe(declared_settings_dict(spec)) if spec.kind == "itt" or spec.model_settings is not None else None
         ),
         "resolved_run_plan": _json_safe(resolved_plan),
         "effective_model_settings": _json_safe(_effective_model_settings(context)),
@@ -419,14 +401,10 @@ def _reuse_compatibility_contract(
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
-        "n_waves": (
-            getattr(context.prepared, "n_waves", None) if context.prepared else None
-        ),
+        "n_waves": (getattr(context.prepared, "n_waves", None) if context.prepared else None),
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
         "dropped_by_reason": (
-            dict(getattr(context.prepared, "dropped_by_reason", {}) or {})
-            if context.prepared
-            else None
+            dict(getattr(context.prepared, "dropped_by_reason", {}) or {}) if context.prepared else None
         ),
         "fitted_subject_identity": fitted_subject_identity(context.prepared),
         "fitted_data_identity": _fitted_data_identity(context),
@@ -439,9 +417,7 @@ def _reuse_compatibility_contract(
     }
 
 
-def require_reuse_compatibility(
-    context: StatisticalFitContext, source_dir: str | Path
-) -> None:
+def require_reuse_compatibility(context: StatisticalFitContext, source_dir: str | Path) -> None:
     """Fail unless a prior publication matches the current scientific contract."""
 
     source = Path(source_dir)
@@ -450,22 +426,16 @@ def require_reuse_compatibility(
         with open(config_path, encoding="utf-8") as handle:
             previous = json.load(handle)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"reuse-trace mode requires prior run metadata at {config_path}"
-        ) from exc
+        raise FileNotFoundError(f"reuse-trace mode requires prior run metadata at {config_path}") from exc
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError(
-            f"reuse-trace prior run metadata is unreadable: {config_path}"
-        ) from exc
+        raise ValueError(f"reuse-trace prior run metadata is unreadable: {config_path}") from exc
     if not isinstance(previous, Mapping):
         raise ValueError("reuse-trace prior config.json is not a JSON object")
 
     current = _reuse_compatibility_contract(context)
     current_data = current.get("fitted_data_identity") or {}
     if not isinstance(current_data, Mapping) or not current_data.get("digest"):
-        raise ValueError(
-            "reuse-trace cannot verify the current fitted rows and observations"
-        )
+        raise ValueError("reuse-trace cannot verify the current fitted rows and observations")
     # Same fail-closed reading for the graph, matching the sub-fit runner's own
     # check. ``model_design_identity`` records a *reason* rather than raising when
     # a graph cannot be fingerprinted, and that reason is deterministic — so
@@ -476,9 +446,7 @@ def require_reuse_compatibility(
     if not isinstance(current_identity, Mapping) or not (
         current_identity.get("structure_sha256") and current_identity.get("design_sha256")
     ):
-        raise ValueError(
-            "reuse-trace cannot verify the current model's computational graph"
-        )
+        raise ValueError("reuse-trace cannot verify the current model's computational graph")
 
     stored = previous.get(REUSE_CONTRACT_KEY)
     if not isinstance(stored, Mapping):
@@ -526,10 +494,7 @@ def require_reuse_compatibility(
         mismatched.append("trace_sha256")
     if mismatched:
         fields = ", ".join(dict.fromkeys(mismatched))
-        raise ValueError(
-            "reuse-trace compatibility check failed for the prior publication: "
-            + fields
-        )
+        raise ValueError("reuse-trace compatibility check failed for the prior publication: " + fields)
 
 
 def write_model_recipe(context: StatisticalFitContext, *, plan=None) -> str | None:
@@ -615,9 +580,7 @@ def _publication_input_contract(context: StatisticalFitContext) -> dict | None:
         if isinstance(values, Mapping):
             add(tuple(values))
 
-    selected = tuple(
-        dict.fromkeys(symbol for symbol in candidates if symbol in catalogue)
-    )
+    selected = tuple(dict.fromkeys(symbol for symbol in candidates if symbol in catalogue))
     return publication_input_contract(spec.study_id, selected)
 
 
@@ -664,9 +627,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         # below, which contains post-fit summaries supplied by the pipeline.
         "spec_extra": _json_safe(spec.extra),
         "model_settings": (
-            _json_safe(declared_settings_dict(spec))
-            if spec.kind == "itt" or spec.model_settings is not None
-            else None
+            _json_safe(declared_settings_dict(spec)) if spec.kind == "itt" or spec.model_settings is not None else None
         ),
         "resolved_run_plan": _json_safe(resolved_plan),
         "model_recipe_file": os.path.basename(recipe_path) if recipe_path else None,
@@ -678,9 +639,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "n_waves": getattr(context.prepared, "n_waves", None) if context.prepared else None,
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
         "dropped_by_reason": (
-            dict(getattr(context.prepared, "dropped_by_reason", {}) or {})
-            if context.prepared
-            else None
+            dict(getattr(context.prepared, "dropped_by_reason", {}) or {}) if context.prepared else None
         ),
         # Privacy-preserving fitted-row identity. Unlike ``data_sha256`` and row
         # counts, this lets companion fits prove that their primary analysis rows

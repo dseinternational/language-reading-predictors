@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Regularised-horseshoe predictor-ranking model construction.
-
-"""
+"""Regularised-horseshoe predictor-ranking model construction."""
 
 from __future__ import annotations
 
@@ -13,7 +11,6 @@ from typing import Iterable
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -36,9 +33,8 @@ from language_reading_predictors.statistical_models.factories.base import (
     _scalar_prior,
 )
 
-def _build_horseshoe_betas(
-    *, tau0: float, slab_scale: float, slab_df: float
-) -> pt.TensorVariable:
+
+def _build_horseshoe_betas(*, tau0: float, slab_scale: float, slab_df: float) -> pt.TensorVariable:
     """Regularized ("Finnish") horseshoe coefficient vector over the ``predictor`` coord.
 
     Call inside a ``pm.Model`` that declares a ``predictor`` coord. Returns the
@@ -50,13 +46,13 @@ def _build_horseshoe_betas(
     lam = _priors.horseshoe_local_prior().to_pymc("hs_lambda", dims="predictor")
     lam_tilde = pt.sqrt(c2 * lam**2 / (c2 + tau**2 * lam**2))
     z = _priors.declare(
-            pm.Normal("hs_z", mu=0.0, sigma=1.0, dims="predictor"),
-            role="nuisance",
-            rationale=(
-                "Standard-normal non-centred horseshoe coefficient offset; scaled "
-                "by tau * lambda_tilde to give beta (LRPHS)."
-            ),
-        )
+        pm.Normal("hs_z", mu=0.0, sigma=1.0, dims="predictor"),
+        role="nuisance",
+        rationale=(
+            "Standard-normal non-centred horseshoe coefficient offset; scaled "
+            "by tau * lambda_tilde to give beta (LRPHS)."
+        ),
+    )
     return pm.Deterministic("beta", tau * lam_tilde * z, dims="predictor")
 
 
@@ -129,13 +125,9 @@ def build_horseshoe_model(
     but not itself ranked.
     """
     if gain and prepared.phase_mode not in {"span", "itt"}:
-        raise ValueError(
-            f"horseshoe gain model needs phase_mode in {{'span','itt'}}; got {prepared.phase_mode!r}"
-        )
+        raise ValueError(f"horseshoe gain model needs phase_mode in {{'span','itt'}}; got {prepared.phase_mode!r}")
     if not gain and prepared.phase_mode != "levels":
-        raise ValueError(
-            f"horseshoe level model needs phase_mode='levels'; got {prepared.phase_mode!r}"
-        )
+        raise ValueError(f"horseshoe level model needs phase_mode='levels'; got {prepared.phase_mode!r}")
     if outcome_symbol not in prepared.post_counts:
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
 
@@ -163,15 +155,11 @@ def build_horseshoe_model(
         alpha = _scalar_prior("alpha", _priors.alpha_prior)
         eta = alpha
         if gain:
-            own_pre_d = pm.Data(
-                "own_pre_logit", prepared.pre_logit[outcome_symbol], dims="obs_id"
-            )
+            own_pre_d = pm.Data("own_pre_logit", prepared.pre_logit[outcome_symbol], dims="obs_id")
             gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
             eta = eta + gamma_own * own_pre_d
         else:
-            child_idx_d = pm.Data(
-                "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
-            )
+            child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
             # Age is ranked as a horseshoe predictor when it is in ``predictors``
             # (so it competes under the same shrinkage as every other construct and
             # appears in the ranking). Adding a separate unshrunk ``gamma_A`` too
@@ -182,17 +170,13 @@ def build_horseshoe_model(
                 gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
                 eta = eta + gamma_A * A_std_d
             if use_subject_random_intercept:
-                eta = _add_child_random_intercept(
-                    eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
-                )
+                eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma)
 
         beta = _build_horseshoe_betas(tau0=tau0, slab_scale=slab_scale, slab_df=slab_df)
         eta = eta + pt.dot(X_d, beta)
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
-        beta_binomial_from_logit(
-            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
-        )
+        beta_binomial_from_logit("y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id")
 
     return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
@@ -246,8 +230,6 @@ def build_rlm_horseshoe_model(
         eta = eta + pt.dot(X_d, beta)
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _rlm_dispersion_kappa(dispersion_prior_sigma)
-        beta_binomial_from_logit(
-            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
-        )
+        beta_binomial_from_logit("y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id")
 
     return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())

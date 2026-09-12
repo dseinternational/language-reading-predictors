@@ -156,19 +156,10 @@ def _one_csv_row(path: Path, *, label: str) -> dict[str, Any]:
 def _scientific_artifact_hashes(directory: Path) -> dict[str, str]:
     """Hash the complete scientific-artefact surface rendered by the ITT partial."""
 
-    missing = [
-        name
-        for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
-        if not (directory / name).is_file()
-    ]
+    missing = [name for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS if not (directory / name).is_file()]
     if missing:
-        raise FileNotFoundError(
-            "fit is missing scientific report artefacts: " + ", ".join(missing)
-        )
-    return {
-        name: sha256_file(directory / name)
-        for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
-    }
+        raise FileNotFoundError("fit is missing scientific report artefacts: " + ", ".join(missing))
+    return {name: sha256_file(directory / name) for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS}
 
 
 def _encode_scientific_artifact_hashes(hashes: Mapping[str, str]) -> str:
@@ -184,12 +175,8 @@ def _decode_scientific_artifact_hashes(value: Any) -> dict[str, str]:
         decoded = json.loads(str(value))
     except (json.JSONDecodeError, TypeError, ValueError) as exc:
         raise ValueError("scientific artefact hash map is not valid JSON") from exc
-    if not isinstance(decoded, dict) or set(decoded) != set(
-        BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
-    ):
-        raise ValueError(
-            "scientific artefact hash map does not match the ITT report contract"
-        )
+    if not isinstance(decoded, dict) or set(decoded) != set(BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS):
+        raise ValueError("scientific artefact hash map does not match the ITT report contract")
     malformed = [
         name
         for name, digest in decoded.items()
@@ -199,8 +186,7 @@ def _decode_scientific_artifact_hashes(value: Any) -> dict[str, str]:
     ]
     if malformed:
         raise ValueError(
-            "scientific artefact hash map contains malformed SHA-256 values: "
-            + ", ".join(sorted(malformed))
+            "scientific artefact hash map contains malformed SHA-256 values: " + ", ".join(sorted(malformed))
         )
     return {str(name): str(digest).lower() for name, digest in decoded.items()}
 
@@ -209,13 +195,9 @@ def _values_match(recorded: Any, recomputed: Any) -> bool:
     try:
         left = float(recorded)
         right = float(recomputed)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
-    return bool(
-        np.isfinite(left)
-        and np.isfinite(right)
-        and np.isclose(left, right, rtol=1e-9, atol=1e-11)
-    )
+    return bool(np.isfinite(left) and np.isfinite(right) and np.isclose(left, right, rtol=1e-9, atol=1e-11))
 
 
 def _recorded_bool(value: Any) -> bool | None:
@@ -266,12 +248,8 @@ def _load_row_map(
     subjects = ordered["subject_id"].astype(str)
     if subjects.str.strip().eq("").any() or subjects.duplicated().any():
         raise ValueError("Pareto-k subject identities are blank or duplicated")
-    pareto_k = pd.to_numeric(ordered["pareto_k"], errors="coerce").to_numpy(
-        dtype=float
-    )
-    thresholds = pd.to_numeric(
-        ordered["good_k_threshold"], errors="coerce"
-    ).to_numpy(dtype=float)
+    pareto_k = pd.to_numeric(ordered["pareto_k"], errors="coerce").to_numpy(dtype=float)
+    thresholds = pd.to_numeric(ordered["good_k_threshold"], errors="coerce").to_numpy(dtype=float)
     if (
         not np.isfinite(pareto_k).all()
         or not np.isfinite(thresholds).all()
@@ -279,9 +257,7 @@ def _load_row_map(
         or thresholds[0] <= 0.0
     ):
         raise ValueError("Pareto-k values or reliability threshold are malformed")
-    reliable_text = ordered["loo_reliable"].map(
-        lambda value: str(value).strip().lower()
-    )
+    reliable_text = ordered["loo_reliable"].map(lambda value: str(value).strip().lower())
     if not reliable_text.isin({"true", "false"}).all():
         raise ValueError("Pareto-k reliability flags must be true or false")
     reliable = reliable_text.eq("true").to_numpy(dtype=bool)
@@ -326,9 +302,7 @@ def _load_fit_record(
     }
     missing = [name for name, path in required.items() if not path.is_file()]
     if missing:
-        raise FileNotFoundError(
-            f"{expected_model_id} is missing required artefacts: {', '.join(missing)}"
-        )
+        raise FileNotFoundError(f"{expected_model_id} is missing required artefacts: {', '.join(missing)}")
     # These are not needed to recompute the paired estimand, but they are the
     # scientific tables and figures the report can publish.  Requiring the full
     # surface here makes a plotting or finalisation failure a release failure.
@@ -336,21 +310,14 @@ def _load_fit_record(
 
     config = _read_json(required["config.json"], label="fit config")
     if config.get("model_id") != expected_model_id:
-        raise ValueError(
-            f"model identity mismatch: expected {expected_model_id}, "
-            f"got {config.get('model_id')!r}"
-        )
+        raise ValueError(f"model identity mismatch: expected {expected_model_id}, got {config.get('model_id')!r}")
     if config.get("kind") != "itt" or config.get("outcome_symbol") != "B":
         raise ValueError(f"{expected_model_id} is not the registered B ITT fit")
     link = _config_link(config)
     if link != expected_link:
-        raise ValueError(
-            f"{expected_model_id} declares {link!r}, expected {expected_link!r}"
-        )
+        raise ValueError(f"{expected_model_id} declares {link!r}, expected {expected_link!r}")
     if directory.name != f"{expected_model_id}-{config_name}":
-        raise ValueError(
-            f"fit directory {directory.name!r} does not match config {config_name!r}"
-        )
+        raise ValueError(f"fit directory {directory.name!r} does not match config {config_name!r}")
     data_sha = str(config.get("data_sha256", ""))
     environment_sha = str(config.get("environment_lock_sha256", ""))
     if len(data_sha) != 64 or len(environment_sha) != 64:
@@ -371,23 +338,15 @@ def _load_fit_record(
 
     diagnostic_names = pd.read_csv(required["diagnostics.csv"], index_col=0).index
     if tuple(str(name) for name in diagnostic_names) != _FREE_VARIABLES:
-        raise ValueError(
-            f"{expected_model_id} diagnostics do not cover the fixed B free-variable set"
-        )
-    saved_gate = _read_json(
-        required["diagnostics_summary.json"], label="diagnostics summary"
-    )
+        raise ValueError(f"{expected_model_id} diagnostics do not cover the fixed B free-variable set")
+    saved_gate = _read_json(required["diagnostics_summary.json"], label="diagnostics summary")
     if not _convergence.convergence_gate_clean_passed(saved_gate):
         raise ValueError(f"{expected_model_id} did not pass its saved clean gate")
 
     saved_summary = _one_csv_row(required["tau_summary.csv"], label="tau summary")
     saved_rope = _one_csv_row(required["rope_summary.csv"], label="ROPE summary")
-    saved_prior = _one_csv_row(
-        required["prior_pushforward.csv"], label="prior pushforward"
-    )
-    subject_ids, saved_pareto_k, good_k_threshold = _load_row_map(
-        required["pareto_k.csv"], n_obs=n_obs
-    )
+    saved_prior = _one_csv_row(required["prior_pushforward.csv"], label="prior pushforward")
+    subject_ids, saved_pareto_k, good_k_threshold = _load_row_map(required["pareto_k.csv"], n_obs=n_obs)
 
     try:
         trace = az.from_netcdf(required["trace.nc"])
@@ -397,10 +356,9 @@ def _load_fit_record(
         posterior = getattr(trace, "posterior", None)
         if posterior is None or not set(_FREE_VARIABLES).issubset(posterior.data_vars):
             raise ValueError("trace posterior lacks one or more required free variables")
-        if (
-            int(posterior.sizes.get("chain", -1)) != int(sampling.get("chains", -2))
-            or int(posterior.sizes.get("draw", -1)) != int(sampling.get("draws", -2))
-        ):
+        if int(posterior.sizes.get("chain", -1)) != int(sampling.get("chains", -2)) or int(
+            posterior.sizes.get("draw", -1)
+        ) != int(sampling.get("draws", -2)):
             raise ValueError("trace chain/draw dimensions do not match config")
         constant = getattr(trace, "constant_data", None)
         if constant is None or "G" not in constant:
@@ -454,9 +412,7 @@ def _load_fit_record(
                 and not _values_match(saved[name], recomputed[name])
             ]
             if mismatched:
-                raise ValueError(
-                    f"saved {label} does not match trace: {', '.join(sorted(mismatched))}"
-                )
+                raise ValueError(f"saved {label} does not match trace: {', '.join(sorted(mismatched))}")
         loo = az.loo(trace, pointwise=True)
         loo_i = np.asarray(loo.elpd_i.values, dtype=float).reshape(-1)
         pareto_k = np.asarray(loo.pareto_k.values, dtype=float).reshape(-1)
@@ -531,9 +487,7 @@ def _check_pair(primary: _FitRecord, companion: _FitRecord) -> None:
     )
     drift = [name for name in shared if getattr(primary, name) != getattr(companion, name)]
     if drift:
-        raise ValueError(
-            "B link fits are not a like-for-like pair; mismatched " + ", ".join(drift)
-        )
+        raise ValueError("B link fits are not a like-for-like pair; mismatched " + ", ".join(drift))
     if primary.trace_sha256 == companion.trace_sha256:
         raise ValueError("B link fits unexpectedly point to identical trace bytes")
     settings_a = dict(primary.config["model_settings"])
@@ -679,9 +633,7 @@ def build_blending_link_sensitivity(
             archive / trace_name,
             expected_sha256=record.trace_sha256,
         )
-        row_map_name = (
-            f"{record.model_id}-rows-{record.row_map_sha256[:16]}.csv"
-        )
+        row_map_name = f"{record.model_id}-rows-{record.row_map_sha256[:16]}.csv"
         _install_content_addressed_copy(
             record.model_dir / "pareto_k.csv",
             archive / row_map_name,
@@ -744,10 +696,9 @@ def _validate_archive_trace(
         posterior = getattr(trace, "posterior", None)
         if posterior is None or not set(_FREE_VARIABLES).issubset(posterior.data_vars):
             raise ValueError("trace lacks required posterior variables")
-        if (
-            int(posterior.sizes.get("chain", -1)) != int(row["sampling_chains"])
-            or int(posterior.sizes.get("draw", -1)) != int(row["sampling_draws"])
-        ):
+        if int(posterior.sizes.get("chain", -1)) != int(row["sampling_chains"]) or int(
+            posterior.sizes.get("draw", -1)
+        ) != int(row["sampling_draws"]):
             raise ValueError("trace dimensions do not match the manifest")
         constant = getattr(trace, "constant_data", None)
         if constant is None or "G" not in constant:
@@ -757,8 +708,7 @@ def _validate_archive_trace(
             treatment.size != int(row["n"])
             or int(np.sum(treatment == 1.0)) != int(row["n_intervention"])
             or int(np.sum(treatment == 0.0)) != int(row["n_control"])
-            or _text_sha256("".join(map(str, treatment.astype(int))))
-            != str(row["treatment_order_sha256"])
+            or _text_sha256("".join(map(str, treatment.astype(int)))) != str(row["treatment_order_sha256"])
         ):
             raise ValueError("trace treatment assignments do not match the manifest")
         convergence = _diag.subfit_convergence(
@@ -859,12 +809,8 @@ def evaluate_blending_link_sensitivity(
     *,
     trace_root: str | Path,
     primary_model_dirs: Mapping[str, str | Path] | None = None,
-    trace_validator: Callable[
-        [Path, Mapping[str, Any]], Mapping[str, np.ndarray] | None
-    ] = _validate_archive_trace,
-    row_map_validator: Callable[
-        [Path, Mapping[str, Any]], Mapping[str, np.ndarray] | None
-    ] = _validate_archive_row_map,
+    trace_validator: Callable[[Path, Mapping[str, Any]], Mapping[str, np.ndarray] | None] = _validate_archive_trace,
+    row_map_validator: Callable[[Path, Mapping[str, Any]], Mapping[str, np.ndarray] | None] = _validate_archive_row_map,
 ) -> dict[str, Any]:
     """Fail-closed validator used by report generation and public release."""
 
@@ -939,27 +885,16 @@ def evaluate_blending_link_sensitivity(
         return status
     expected = dict(BLENDING_LINK_MODELS)
     rows = summary[summary["model_id"].isin(expected)].copy()
-    if (
-        len(summary) != 2
-        or len(rows) != 2
-        or rows["model_id"].duplicated().any()
-    ):
+    if len(summary) != 2 or len(rows) != 2 or rows["model_id"].duplicated().any():
         status["reason"] = "summary must contain exactly the 008 and 108 fits"
         return status
     rows = rows.set_index("model_id").loc[list(expected)].reset_index()
     status["complete"] = bool(
         rows["outcome"].astype(str).eq("B").all()
         and rows["sensitivity_of"].astype(str).eq(BLENDING_PRIMARY_MODEL_ID).all()
-        and all(
-            str(row.score_mean_link) == expected[str(row.model_id)]
-            for row in rows.itertuples()
-        )
-        and pd.to_numeric(rows["schema_version"], errors="coerce")
-        .eq(BLENDING_SENSITIVITY_SCHEMA_VERSION)
-        .all()
-        and rows["converged"]
-        .map(lambda value: str(value).strip().lower() == "true")
-        .all()
+        and all(str(row.score_mean_link) == expected[str(row.model_id)] for row in rows.itertuples())
+        and pd.to_numeric(rows["schema_version"], errors="coerce").eq(BLENDING_SENSITIVITY_SCHEMA_VERSION).all()
+        and rows["converged"].map(lambda value: str(value).strip().lower() == "true").all()
     )
     shared = (
         "config",
@@ -1026,13 +961,9 @@ def evaluate_blending_link_sensitivity(
         and numeric[list(probability_columns)].le(1.0).all().all()
         and (numeric["effect_items_lo"] <= numeric["effect_items_median"]).all()
         and (numeric["effect_items_median"] <= numeric["effect_items_hi"]).all()
-        and (numeric["prior_effect_items_lo"] <= numeric["prior_effect_items_median"])
-        .all()
-        and (numeric["prior_effect_items_median"] <= numeric["prior_effect_items_hi"])
-        .all()
-        and (numeric["n_intervention"] + numeric["n_control"])
-        .eq(numeric["n"])
-        .all()
+        and (numeric["prior_effect_items_lo"] <= numeric["prior_effect_items_median"]).all()
+        and (numeric["prior_effect_items_median"] <= numeric["prior_effect_items_hi"]).all()
+        and (numeric["n_intervention"] + numeric["n_control"]).eq(numeric["n"]).all()
         and numeric["n_intervention"].gt(0).all()
         and numeric["n_control"].gt(0).all()
         and numeric["sampling_draws"].gt(0).all()
@@ -1068,14 +999,10 @@ def evaluate_blending_link_sensitivity(
     ).all():
         status["reason"] = "summary count and sampling fields must be integers"
         return status
-    loo_flags = rows["loo_reliable"].map(
-        lambda value: str(value).strip().lower()
-    )
+    loo_flags = rows["loo_reliable"].map(lambda value: str(value).strip().lower())
     if not loo_flags.isin({"true", "false"}).all() or not np.array_equal(
         loo_flags.eq("true").to_numpy(dtype=bool),
-        (numeric["pareto_k_max"] <= numeric["good_k_threshold"]).to_numpy(
-            dtype=bool
-        ),
+        (numeric["pareto_k_max"] <= numeric["good_k_threshold"]).to_numpy(dtype=bool),
     ):
         status["reason"] = "summary LOO reliability flags are inconsistent"
         return status
@@ -1088,25 +1015,16 @@ def evaluate_blending_link_sensitivity(
         "subject_order_sha256",
         "treatment_order_sha256",
     )
-    if not all(
-        rows[column]
-        .astype(str)
-        .str.fullmatch(r"[0-9a-f]{64}", case=False)
-        .all()
-        for column in hash_columns
-    ) or not rows["source_commit"].astype(str).str.fullmatch(
-        r"[0-9a-f]{40}", case=False
-    ).all():
+    if (
+        not all(rows[column].astype(str).str.fullmatch(r"[0-9a-f]{64}", case=False).all() for column in hash_columns)
+        or not rows["source_commit"].astype(str).str.fullmatch(r"[0-9a-f]{40}", case=False).all()
+    ):
         status["reason"] = "summary contains malformed provenance hashes"
         return status
     for row in rows.to_dict(orient="records"):
         expected_trace = f"{row['model_id']}-{str(row['trace_sha256'])[:16]}.nc"
-        expected_row_map = (
-            f"{row['model_id']}-rows-{str(row['row_map_sha256'])[:16]}.csv"
-        )
-        if str(row["trace_file"]) != expected_trace or str(
-            row["row_map_file"]
-        ) != expected_row_map:
+        expected_row_map = f"{row['model_id']}-rows-{str(row['row_map_sha256'])[:16]}.csv"
+        if str(row["trace_file"]) != expected_trace or str(row["row_map_file"]) != expected_row_map:
             status["reason"] = "evidence filenames are not content-addressed"
             return status
     if rows["trace_sha256"].astype(str).nunique() != 2:
@@ -1114,9 +1032,7 @@ def evaluate_blending_link_sensitivity(
         return status
     try:
         scientific_artifact_hashes = {
-            str(row["model_id"]): _decode_scientific_artifact_hashes(
-                row[_SCIENTIFIC_ARTIFACT_HASH_COLUMN]
-            )
+            str(row["model_id"]): _decode_scientific_artifact_hashes(row[_SCIENTIFIC_ARTIFACT_HASH_COLUMN])
             for row in rows.to_dict(orient="records")
         }
     except ValueError as exc:
@@ -1128,24 +1044,17 @@ def evaluate_blending_link_sensitivity(
         indexed_numeric.loc[BLENDING_COMPANION_MODEL_ID, "loo_elpd"]
         - indexed_numeric.loc[BLENDING_PRIMARY_MODEL_ID, "loo_elpd"]
     )
-    if not all(
-        _values_match(value, scalar_delta_elpd)
-        for value in numeric["guessing_floor_minus_logit_elpd"]
-    ):
+    if not all(_values_match(value, scalar_delta_elpd) for value in numeric["guessing_floor_minus_logit_elpd"]):
         status["reason"] = "summary LOO difference does not match its two fit rows"
         return status
     try:
         trace_results: dict[str, Mapping[str, np.ndarray]] = {}
         row_map_results: dict[str, Mapping[str, np.ndarray]] = {}
         for row in rows.to_dict(orient="records"):
-            result = trace_validator(
-                Path(trace_root) / str(row["trace_file"]), row
-            )
+            result = trace_validator(Path(trace_root) / str(row["trace_file"]), row)
             if result is not None:
                 trace_results[str(row["model_id"])] = result
-            row_map_result = row_map_validator(
-                Path(trace_root) / str(row["row_map_file"]), row
-            )
+            row_map_result = row_map_validator(Path(trace_root) / str(row["row_map_file"]), row)
             if row_map_result is not None:
                 row_map_results[str(row["model_id"])] = row_map_result
         status["traces_validated"] = True
@@ -1158,23 +1067,15 @@ def evaluate_blending_link_sensitivity(
                     rtol=1e-9,
                     atol=1e-11,
                 ):
-                    raise ValueError(
-                        f"{model_id} archived row map does not match its trace"
-                    )
+                    raise ValueError(f"{model_id} archived row map does not match its trace")
         if len(trace_results) == 2:
-            primary_loo = np.asarray(
-                trace_results[BLENDING_PRIMARY_MODEL_ID]["loo_i"], dtype=float
-            )
-            companion_loo = np.asarray(
-                trace_results[BLENDING_COMPANION_MODEL_ID]["loo_i"], dtype=float
-            )
+            primary_loo = np.asarray(trace_results[BLENDING_PRIMARY_MODEL_ID]["loo_i"], dtype=float)
+            companion_loo = np.asarray(trace_results[BLENDING_COMPANION_MODEL_ID]["loo_i"], dtype=float)
             if primary_loo.shape != companion_loo.shape:
                 raise ValueError("paired pointwise LOO arrays have different shapes")
             loo_difference = companion_loo - primary_loo
             delta_elpd = float(np.sum(loo_difference))
-            delta_se = float(
-                np.sqrt(len(loo_difference) * np.var(loo_difference, ddof=1))
-            )
+            delta_se = float(np.sqrt(len(loo_difference) * np.var(loo_difference, ddof=1)))
             for column, value in (
                 ("guessing_floor_minus_logit_elpd", delta_elpd),
                 ("guessing_floor_minus_logit_elpd_se", delta_se),
@@ -1189,22 +1090,14 @@ def evaluate_blending_link_sensitivity(
                     raise ValueError(f"{model_id} config has changed")
                 if sha256_file(directory / "trace.nc") != str(row["trace_sha256"]):
                     raise ValueError(f"{model_id} trace has changed")
-                if sha256_file(directory / "pareto_k.csv") != str(
-                    row["row_map_sha256"]
-                ):
+                if sha256_file(directory / "pareto_k.csv") != str(row["row_map_sha256"]):
                     raise ValueError(f"{model_id} row map has changed")
-                for name, expected_sha256 in scientific_artifact_hashes[
-                    model_id
-                ].items():
+                for name, expected_sha256 in scientific_artifact_hashes[model_id].items():
                     path = directory / name
                     if not path.is_file():
-                        raise ValueError(
-                            f"{model_id} scientific report artefact is missing: {name}"
-                        )
+                        raise ValueError(f"{model_id} scientific report artefact is missing: {name}")
                     if sha256_file(path) != expected_sha256:
-                        raise ValueError(
-                            f"{model_id} scientific report artefact has changed: {name}"
-                        )
+                        raise ValueError(f"{model_id} scientific report artefact has changed: {name}")
             status["scientific_artifacts_current"] = True
             status["primary_fits_current"] = True
     except (OSError, KeyError, TypeError, ValueError) as exc:
@@ -1218,18 +1111,10 @@ def evaluate_blending_link_sensitivity(
         and status["scientific_artifacts_bound"]
     )
     status["release_ready"] = bool(
-        status["archive_ready"]
-        and status["primary_fits_current"]
-        and status["scientific_artifacts_current"]
+        status["archive_ready"] and status["primary_fits_current"] and status["scientific_artifacts_current"]
     )
-    status["ready"] = (
-        status["release_ready"]
-        if primary_model_dirs is not None
-        else status["archive_ready"]
-    )
-    status["ready_scope"] = (
-        "release" if primary_model_dirs is not None else "archive"
-    )
+    status["ready"] = status["release_ready"] if primary_model_dirs is not None else status["archive_ready"]
+    status["ready_scope"] = "release" if primary_model_dirs is not None else "archive"
     return status
 
 
@@ -1261,9 +1146,7 @@ def evaluate_local_blending_link_sensitivity(
     directory = Path(output_dir).resolve()
     config_path = directory / "config.json"
     try:
-        current = dict(config) if config is not None else _read_json(
-            config_path, label="fit config"
-        )
+        current = dict(config) if config is not None else _read_json(config_path, label="fit config")
         model_id = str(current.get("model_id"))
         if model_id not in dict(BLENDING_LINK_MODELS):
             return {"required": False, "ready": True, "reason": "not a B-link fit"}
@@ -1297,9 +1180,7 @@ def evaluate_local_blending_link_sensitivity(
         config_name = str(config_names.iloc[0])
         model_dirs = {
             paired_model_id: (
-                directory
-                if paired_model_id == model_id
-                else directory.parent / f"{paired_model_id}-{config_name}"
+                directory if paired_model_id == model_id else directory.parent / f"{paired_model_id}-{config_name}"
             )
             for paired_model_id, _link in BLENDING_LINK_MODELS
         }
@@ -1321,7 +1202,6 @@ def evaluate_local_blending_link_sensitivity(
         "summary": summary,
         "summary_sha256": sha256_file(summary_path),
     }
-
 
 
 # --- The level family's registered link pair (#584 decision 2) ----------------
@@ -1379,8 +1259,7 @@ _PLAN_PROSE_FIELDS: tuple[str, ...] = (
 #: gated family rather than for the seven someone remembered to list. The gates
 #: themselves are still declared per family; only this lookup is derived.
 _PLAN_RESOLVERS: dict[str, tuple[str, str]] = {
-    kind: (descriptor.settings_module, descriptor.resolver_name)
-    for kind, descriptor in _FAMILIES.items()
+    kind: (descriptor.settings_module, descriptor.resolver_name) for kind, descriptor in _FAMILIES.items()
 }
 
 
@@ -1403,16 +1282,10 @@ def _normalise_plan_value(value: Any) -> Any:
 def _comparable_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
     """The structural part of a run plan, normalised for comparison."""
     skip = set(_PLAN_LINK_FIELDS) | set(_PLAN_PROSE_FIELDS)
-    return {
-        str(name): _normalise_plan_value(value)
-        for name, value in plan.items()
-        if name not in skip
-    }
+    return {str(name): _normalise_plan_value(value) for name, value in plan.items() if name not in skip}
 
 
-def _stale_plan_fields(
-    model_id: str, kind: str, stored: Mapping[str, Any]
-) -> list[str]:
+def _stale_plan_fields(model_id: str, kind: str, stored: Mapping[str, Any]) -> list[str]:
     """Which of ``stored``'s fields no longer match what ``model_id``'s module resolves.
 
     Empty means the stored plan is current. A family with no registered resolver
@@ -1439,18 +1312,14 @@ def _stale_plan_fields(
     if spec is None:
         raise ValueError(f"{model_id}'s module declares no SPEC")
     resolver = getattr(
-        importlib.import_module(
-            f"language_reading_predictors.statistical_models.{module_name}"
-        ),
+        importlib.import_module(f"language_reading_predictors.statistical_models.{module_name}"),
         function_name,
     )
     plan = resolver(spec)
     as_dict = getattr(plan, "as_dict", None)
     current = _comparable_plan(as_dict() if callable(as_dict) else dict(vars(plan)))
     return sorted(
-        name
-        for name in set(stored) | set(current)
-        if stored.get(name, "<absent>") != current.get(name, "<absent>")
+        name for name in set(stored) | set(current) if stored.get(name, "<absent>") != current.get(name, "<absent>")
     )
 
 
@@ -1496,22 +1365,16 @@ class _StoredPairSpec:
     card_row_selector: tuple[str, str] | None = None
 
 
-def _stored_pair_card(
-    directory: Path, model_id: str, *, spec: _StoredPairSpec
-) -> dict[str, Any]:
+def _stored_pair_card(directory: Path, model_id: str, *, spec: _StoredPairSpec) -> dict[str, Any]:
     """One side of a stored-artefact pair: its link, its card and its gate verdict."""
     config = _read_json(directory / "config.json", label=f"{model_id} config")
     if str(config.get("model_id")) != model_id:
-        raise ValueError(
-            f"{directory.name} holds {config.get('model_id')!r}, not {model_id}"
-        )
+        raise ValueError(f"{directory.name} holds {config.get('model_id')!r}, not {model_id}")
     if str(config.get("kind")) != spec.kind:
         raise ValueError(f"{model_id} is not {spec.not_this_family}")
     if str(config.get("outcome_symbol")) != "B":
         raise ValueError(f"{model_id} is not a phoneme-blending fit")
-    gate = _read_json(
-        directory / "diagnostics_summary.json", label=f"{model_id} diagnostics"
-    )
+    gate = _read_json(directory / "diagnostics_summary.json", label=f"{model_id} diagnostics")
     if not _convergence.convergence_gate_clean_passed(gate):
         raise ValueError(f"{model_id} did not pass its saved clean convergence gate")
     card_path = directory / spec.card_file
@@ -1520,19 +1383,13 @@ def _stored_pair_card(
         try:
             table = pd.read_csv(card_path)
         except (OSError, pd.errors.ParserError, UnicodeDecodeError) as exc:
-            raise ValueError(
-                f"{model_id} {spec.card_label} is not readable: {card_path}"
-            ) from exc
+            raise ValueError(f"{model_id} {spec.card_label} is not readable: {card_path}") from exc
         if column not in table.columns:
-            raise ValueError(
-                f"{model_id} {spec.card_label} has no {column!r} column to select "
-                f"the {value!r} row from"
-            )
+            raise ValueError(f"{model_id} {spec.card_label} has no {column!r} column to select the {value!r} row from")
         matched = table[table[column].astype(str) == value]
         if len(matched) != 1:
             raise ValueError(
-                f"{model_id} {spec.card_label} must hold exactly one "
-                f"{column}={value!r} row, found {len(matched)}"
+                f"{model_id} {spec.card_label} must hold exactly one {column}={value!r} row, found {len(matched)}"
             )
         row = matched.iloc[0].to_dict()
         card_rows = int(len(table))
@@ -1542,9 +1399,7 @@ def _stored_pair_card(
     else:
         # Table-valued card: verify it exists and is non-empty, and carry its shape.
         if not card_path.is_file():
-            raise ValueError(
-                f"{model_id} has no {spec.card_label} ({spec.card_file})"
-            )
+            raise ValueError(f"{model_id} has no {spec.card_label} ({spec.card_file})")
         table = pd.read_csv(card_path)
         if table.empty:
             raise ValueError(f"{model_id}'s {spec.card_label} is empty")
@@ -1610,11 +1465,7 @@ def _evaluate_stored_blending_link_pair(
     """
     directory = Path(output_dir).resolve()
     try:
-        current = (
-            dict(config)
-            if config is not None
-            else _read_json(directory / "config.json", label="fit config")
-        )
+        current = dict(config) if config is not None else _read_json(directory / "config.json", label="fit config")
         if str(current.get("kind") or "") != spec.kind:
             return {
                 "required": False,
@@ -1623,9 +1474,7 @@ def _evaluate_stored_blending_link_pair(
             }
         plan = current.get("resolved_run_plan") or {}
         model_id = str(current.get("model_id") or "")
-        required = bool(plan.get("link_sensitivity_required_for_release")) or (
-            model_id in registered
-        )
+        required = bool(plan.get("link_sensitivity_required_for_release")) or (model_id in registered)
         if not required:
             return {"required": False, "ready": True, "reason": "no link pairing"}
         if model_id not in registered:
@@ -1672,18 +1521,12 @@ def _evaluate_stored_blending_link_pair(
         for field, label in compared:
             values = {card[field] for card in cards.values()}
             if len(values) != 1:
-                raise ValueError(
-                    f"the paired fits do not share a {label} "
-                    f"({sorted(map(str, values))})"
-                )
+                raise ValueError(f"the paired fits do not share a {label} ({sorted(map(str, values))})")
             recorded = next(iter(values))
             if recorded is None or not str(recorded).strip():
                 # Agreeing on "unrecorded" is not agreement: an unstamped digest
                 # would let two different row sets pass as one pair.
-                raise ValueError(
-                    f"the paired fits do not record a {label}, so the pairing "
-                    "cannot be verified"
-                )
+                raise ValueError(f"the paired fits do not record a {label}, so the pairing cannot be verified")
 
         # --- The run-plan binding (#608 decision 2, as amended 2026-08-25) --------
         #
@@ -1701,9 +1544,7 @@ def _evaluate_stored_blending_link_pair(
         #      came to publish the estimand #594 superseded.
         plan_a, plan_b = (cards[model_id]["_plan"], cards[companion_id]["_plan"])
         mismatched = sorted(
-            name
-            for name in set(plan_a) | set(plan_b)
-            if plan_a.get(name, "<absent>") != plan_b.get(name, "<absent>")
+            name for name in set(plan_a) | set(plan_b) if plan_a.get(name, "<absent>") != plan_b.get(name, "<absent>")
         )
         if mismatched:
             raise ValueError(
@@ -1724,8 +1565,7 @@ def _evaluate_stored_blending_link_pair(
         return {"required": True, "ready": False, "reason": str(exc)}
     provenance = _pair_provenance_note(cards[model_id], cards[companion_id])
     published = {
-        identifier: {k: v for k, v in card.items() if not k.startswith("_")}
-        for identifier, card in cards.items()
+        identifier: {k: v for k, v in card.items() if not k.startswith("_")} for identifier, card in cards.items()
     }
     return {
         "required": True,

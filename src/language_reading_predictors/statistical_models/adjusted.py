@@ -89,9 +89,7 @@ def _optional_positive_int(value: Any, *, name: str) -> int | None:
     return value
 
 
-def _optional_positive_ints(
-    value: Any, *, name: str
-) -> tuple[int, ...] | None:
+def _optional_positive_ints(value: Any, *, name: str) -> tuple[int, ...] | None:
     if value is None:
         return None
     if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
@@ -140,9 +138,7 @@ class AdjustedModelSettings:
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
-        if self.design is not None and (
-            not isinstance(self.design, str) or not self.design
-        ):
+        if self.design is not None and (not isinstance(self.design, str) or not self.design):
             raise TypeError("design must be a non-empty string or None")
         for name in (
             "predictor_symbols",
@@ -170,9 +166,7 @@ class AdjustedModelSettings:
         object.__setattr__(
             self,
             "transition_waves",
-            _optional_positive_ints(
-                self.transition_waves, name="transition_waves"
-            ),
+            _optional_positive_ints(self.transition_waves, name="transition_waves"),
         )
         object.__setattr__(
             self,
@@ -182,17 +176,12 @@ class AdjustedModelSettings:
         object.__setattr__(
             self,
             "predictor_slope_sigma",
-            _positive_float(
-                self.predictor_slope_sigma, name="predictor_slope_sigma"
-            ),
+            _positive_float(self.predictor_slope_sigma, name="predictor_slope_sigma"),
         )
-        if isinstance(self.prior_sensitivity_sigmas, str) or not isinstance(
-            self.prior_sensitivity_sigmas, Sequence
-        ):
+        if isinstance(self.prior_sensitivity_sigmas, str) or not isinstance(self.prior_sensitivity_sigmas, Sequence):
             raise TypeError("prior_sensitivity_sigmas must be a sequence")
         sigmas = tuple(
-            _positive_float(value, name="prior_sensitivity_sigmas")
-            for value in self.prior_sensitivity_sigmas
+            _positive_float(value, name="prior_sensitivity_sigmas") for value in self.prior_sensitivity_sigmas
         )
         if len(sigmas) != len(set(sigmas)):
             raise ValueError("prior_sensitivity_sigmas contains duplicates")
@@ -202,8 +191,7 @@ class AdjustedModelSettings:
         ):
             raise TypeError("gamma_own_sensitivity_sigmas must be a sequence")
         own_sigmas = tuple(
-            _positive_float(value, name="gamma_own_sensitivity_sigmas")
-            for value in self.gamma_own_sensitivity_sigmas
+            _positive_float(value, name="gamma_own_sensitivity_sigmas") for value in self.gamma_own_sensitivity_sigmas
         )
         if len(own_sigmas) != len(set(own_sigmas)):
             raise ValueError("gamma_own_sensitivity_sigmas contains duplicates")
@@ -218,9 +206,7 @@ class AdjustedModelSettings:
     ) -> AdjustedModelSettings:
         unknown = sorted(set(extra) - _FAMILY_KEYS - _GLOBAL_KEYS)
         if unknown:
-            raise ValueError(
-                f"{model_id}: unknown adjusted setting(s): {', '.join(unknown)}"
-            )
+            raise ValueError(f"{model_id}: unknown adjusted setting(s): {', '.join(unknown)}")
         return cls(
             design=extra.get("design"),
             post_time=extra.get("post_time"),
@@ -234,18 +220,12 @@ class AdjustedModelSettings:
             post_wave=extra.get("post_wave"),
             transition_waves=extra.get("transition_waves"),
             common_horizon_last_wave=extra.get("common_horizon_last_wave"),
-            per_transition_sensitivity=extra.get(
-                "per_transition_sensitivity", False
-            ),
+            per_transition_sensitivity=extra.get("per_transition_sensitivity", False),
             group_codes=extra.get("group_codes"),
             require_confirmed_inputs=extra.get("require_confirmed_inputs", False),
             predictor_slope_sigma=extra.get("predictor_slope_sigma", 0.3),
-            prior_sensitivity_sigmas=extra.get(
-                "prior_sensitivity_sigmas", (0.5, 0.7)
-            ),
-            gamma_own_sensitivity_sigmas=extra.get(
-                "gamma_own_sensitivity_sigmas", (0.5,)
-            ),
+            prior_sensitivity_sigmas=extra.get("prior_sensitivity_sigmas", (0.5, 0.7)),
+            gamma_own_sensitivity_sigmas=extra.get("gamma_own_sensitivity_sigmas", (0.5,)),
         )
 
 
@@ -288,9 +268,7 @@ class AdjustedRunPlan:
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-    def with_active_covariates(
-        self, covariates: tuple[str, ...]
-    ) -> AdjustedRunPlan:
+    def with_active_covariates(self, covariates: tuple[str, ...]) -> AdjustedRunPlan:
         if self.port != "rli":
             raise ValueError("active covariates apply only to the RLI port")
         unknown = sorted(set(covariates) - set(self.declared_covariates))
@@ -308,9 +286,7 @@ class AdjustedRunPlan:
             *self.active_covariates,
         )
 
-    def rli_prepare_kwargs(
-        self, *, include_ses: bool = False
-    ) -> dict[str, Any]:
+    def rli_prepare_kwargs(self, *, include_ses: bool = False) -> dict[str, Any]:
         if self.port != "rli" or self.post_time is None:
             raise ValueError("rli_prepare_kwargs requires an RLI plan")
         covariates = self.active_covariates
@@ -332,9 +308,7 @@ class AdjustedRunPlan:
             "covariates": covariates,
         }
 
-    def rli_factory_kwargs(
-        self, *, predictors: Sequence[str] | None = None
-    ) -> dict[str, Any]:
+    def rli_factory_kwargs(self, *, predictors: Sequence[str] | None = None) -> dict[str, Any]:
         if self.port != "rli":
             raise ValueError("rli_factory_kwargs requires an RLI plan")
         return {
@@ -371,9 +345,7 @@ class AdjustedRunPlan:
             "predictor_slope_sigma": self.predictor_slope_sigma,
         }
 
-    def diagnostic_vars(
-        self, predictors: Sequence[str], nuisance: Sequence[str] = ()
-    ) -> list[str]:
+    def diagnostic_vars(self, predictors: Sequence[str], nuisance: Sequence[str] = ()) -> list[str]:
         return [
             "alpha",
             "gamma_own",
@@ -394,10 +366,7 @@ class AdjustedRunPlan:
                 f"One row per RLI child from t1 to t{self.post_time}; the final "
                 "bounded score is conditioned on its own t1 score."
             )
-            sensitivity_checks = (
-                "Every bivariate, slope-prior, own-baseline-prior and SES "
-                "sensitivity refit"
-            )
+            sensitivity_checks = "Every bivariate, slope-prior, own-baseline-prior and SES sensitivity refit"
         else:
             population = (
                 "all observational reading groups"
@@ -426,10 +395,7 @@ class AdjustedRunPlan:
                     f"One row per Byrne child from wave {self.pre_wave} to wave "
                     f"{self.post_wave}, restricted to {population}."
                 )
-                sensitivity_checks = (
-                    "Every bivariate, slope-prior and own-baseline-prior "
-                    "sensitivity refit"
-                )
+                sensitivity_checks = "Every bivariate, slope-prior and own-baseline-prior sensitivity refit"
             else:
                 transitions = ", ".join(
                     f"{pre}->{post}"
@@ -462,11 +428,7 @@ class AdjustedRunPlan:
                 "Each +1 SD items-scale contrast is evaluated at one operating "
                 "point: a child at the sample-mean own baseline with every other "
                 "standardised predictor at zero"
-                + (
-                    " and the group-nuisance dummies at zero (the reference group)"
-                    if self.port == "rlm"
-                    else ""
-                )
+                + (" and the group-nuisance dummies at zero (the reference group)" if self.port == "rlm" else "")
                 + " — two such children who differ by one SD on one predictor. The "
                 "prior pushforward uses the same at-the-mean functional."
             )
@@ -513,13 +475,10 @@ def declared_adjusted_settings(
             )
         if not isinstance(settings, AdjustedModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='adjusted' requires AdjustedModelSettings, "
-                f"got {type(settings).__name__}"
+                f"{spec.model_id}: kind='adjusted' requires AdjustedModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
-    return AdjustedModelSettings.from_legacy_extra(
-        spec.extra, model_id=spec.model_id
-    ), "legacy_extra"
+    return AdjustedModelSettings.from_legacy_extra(spec.extra, model_id=spec.model_id), "legacy_extra"
 
 
 def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
@@ -533,17 +492,12 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
     settings, source = declared_adjusted_settings(spec)
     legacy_study = spec.extra.get("study_id")
     if legacy_study is not None and legacy_study != spec.study_id:
-        raise ValueError(
-            f"{spec.model_id}: legacy study_id conflicts with ModelSpec.study_id"
-        )
+        raise ValueError(f"{spec.model_id}: legacy study_id conflicts with ModelSpec.study_id")
     if settings.predictor_slope_sigma in settings.prior_sensitivity_sigmas:
-        raise ValueError(
-            "prior_sensitivity_sigmas must not repeat predictor_slope_sigma"
-        )
+        raise ValueError("prior_sensitivity_sigmas must not repeat predictor_slope_sigma")
     if GAMMA_OWN_SIGMA in settings.gamma_own_sensitivity_sigmas:
         raise ValueError(
-            "gamma_own_sensitivity_sigmas must not repeat the fitted own-baseline "
-            f"prior SD {GAMMA_OWN_SIGMA:g}"
+            f"gamma_own_sensitivity_sigmas must not repeat the fitted own-baseline prior SD {GAMMA_OWN_SIGMA:g}"
         )
 
     if spec.study_id == "rli":
@@ -553,13 +507,9 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
             "post_wave": settings.post_wave,
             "transition_waves": settings.transition_waves,
             "common_horizon_last_wave": settings.common_horizon_last_wave,
-            "per_transition_sensitivity": (
-                True if settings.per_transition_sensitivity else None
-            ),
+            "per_transition_sensitivity": (True if settings.per_transition_sensitivity else None),
             "group_codes": settings.group_codes,
-            "require_confirmed_inputs": (
-                True if settings.require_confirmed_inputs else None
-            ),
+            "require_confirmed_inputs": (True if settings.require_confirmed_inputs else None),
         }
         supplied = [name for name, value in rlm_only.items() if value is not None]
         if supplied:
@@ -571,35 +521,20 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         post_time = 4 if settings.post_time is None else settings.post_time
         if post_time < 2:
             raise ValueError("post_time must be at least 2")
-        predictor_symbols = (
-            ("L", "B")
-            if settings.predictor_symbols is None
-            else settings.predictor_symbols
-        )
+        predictor_symbols = ("L", "B") if settings.predictor_symbols is None else settings.predictor_symbols
         language_symbols = (
-            ("R", "E", "F")
-            if settings.language_composite_symbols is None
-            else settings.language_composite_symbols
+            ("R", "E", "F") if settings.language_composite_symbols is None else settings.language_composite_symbols
         )
         if not predictor_symbols or not language_symbols:
             raise ValueError("RLI adjusted predictor and language sets cannot be empty")
-        covariates = (
-            ("blocks", "behav")
-            if settings.covariates is None
-            else settings.covariates
-        )
-        ses_covariates = (
-            ("mumedupost16",)
-            if settings.ses_covariates is None
-            else settings.ses_covariates
-        )
+        covariates = ("blocks", "behav") if settings.covariates is None else settings.covariates
+        ses_covariates = ("mumedupost16",) if settings.ses_covariates is None else settings.ses_covariates
         predictor_measures: tuple[str, ...] = ()
         pre_wave = None
         post_wave = None
         group_codes = None
         population = (
-            f"Available RLI children with t1 predictors and {spec.outcome_symbol} "
-            f"observed through t{post_time}."
+            f"Available RLI children with t1 predictors and {spec.outcome_symbol} observed through t{post_time}."
         )
         missing = (
             "The headline uses available rows after missing-indicator covariates; "
@@ -636,39 +571,22 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         per_transition_sensitivity = settings.per_transition_sensitivity
         if transition_waves is None:
             if common_horizon_last_wave is not None or per_transition_sensitivity:
-                raise ValueError(
-                    "transition sensitivities require transition_waves"
-                )
+                raise ValueError("transition sensitivities require transition_waves")
             pre_wave = 1 if settings.pre_wave is None else settings.pre_wave
             post_wave = 3 if settings.post_wave is None else settings.post_wave
             if post_wave <= pre_wave:
                 raise ValueError("post_wave must be later than pre_wave")
         else:
             if settings.pre_wave is not None or settings.post_wave is not None:
-                raise ValueError(
-                    "transition_waves cannot be combined with pre_wave or post_wave"
-                )
+                raise ValueError("transition_waves cannot be combined with pre_wave or post_wave")
             if len(transition_waves) < 3:
-                raise ValueError(
-                    "transition_waves must define at least two transitions"
-                )
-            if any(
-                post != pre + 1
-                for pre, post in zip(
-                    transition_waves[:-1], transition_waves[1:], strict=True
-                )
-            ):
-                raise ValueError(
-                    "transition_waves must be strictly increasing annual waves"
-                )
+                raise ValueError("transition_waves must define at least two transitions")
+            if any(post != pre + 1 for pre, post in zip(transition_waves[:-1], transition_waves[1:], strict=True)):
+                raise ValueError("transition_waves must be strictly increasing annual waves")
             if common_horizon_last_wave is not None and not (
-                transition_waves[0]
-                < common_horizon_last_wave
-                < transition_waves[-1]
+                transition_waves[0] < common_horizon_last_wave < transition_waves[-1]
             ):
-                raise ValueError(
-                    "common_horizon_last_wave must be an interior transition wave"
-                )
+                raise ValueError("common_horizon_last_wave must be an interior transition wave")
             design = "historical_stacked_transitions"
             pre_wave = None
             post_wave = None
@@ -680,37 +598,27 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         requested = (spec.outcome_symbol, *predictor_measures)
         unknown_measures = sorted(set(requested) - set(measures))
         if unknown_measures:
-            raise ValueError(
-                "unknown RLM adjusted measure(s): "
-                + ", ".join(unknown_measures)
-            )
+            raise ValueError("unknown RLM adjusted measure(s): " + ", ".join(unknown_measures))
         if settings.require_confirmed_inputs:
             unresolved = [
                 symbol
                 for symbol in requested
-                if not measures[symbol].n_trials_confirmed
-                or not measures[symbol].instrument_identity_confirmed
+                if not measures[symbol].n_trials_confirmed or not measures[symbol].instrument_identity_confirmed
             ]
             if unresolved:
                 raise ValueError(
                     "RLM adjusted model requires confirmed denominators and "
-                    "instrument identities; unresolved: "
-                    + ", ".join(dict.fromkeys(unresolved))
+                    "instrument identities; unresolved: " + ", ".join(dict.fromkeys(unresolved))
                 )
         group_codes = settings.group_codes
         if group_codes is not None:
             unknown_groups = sorted(set(group_codes) - set(dataset.group_labels))
             if unknown_groups:
-                raise ValueError(
-                    "unknown RLM group_codes: "
-                    + ", ".join(map(str, unknown_groups))
-                )
+                raise ValueError("unknown RLM group_codes: " + ", ".join(map(str, unknown_groups)))
         group_description = (
             "all observational reading groups"
             if group_codes is None
-            else ", ".join(
-                dataset.group_labels[code] for code in group_codes
-            )
+            else ", ".join(dataset.group_labels[code] for code in group_codes)
         )
         if transition_waves is None:
             population = (
@@ -749,15 +657,9 @@ def resolve_adjusted_run_plan(spec: ModelSpec) -> AdjustedRunPlan:
         use_age_predictor=settings.use_age_predictor,
         pre_wave=pre_wave,
         post_wave=post_wave,
-        transition_waves=(
-            None if spec.study_id == "rli" else transition_waves
-        ),
-        common_horizon_last_wave=(
-            None if spec.study_id == "rli" else common_horizon_last_wave
-        ),
-        per_transition_sensitivity=(
-            False if spec.study_id == "rli" else per_transition_sensitivity
-        ),
+        transition_waves=(None if spec.study_id == "rli" else transition_waves),
+        common_horizon_last_wave=(None if spec.study_id == "rli" else common_horizon_last_wave),
+        per_transition_sensitivity=(False if spec.study_id == "rli" else per_transition_sensitivity),
         group_codes=group_codes,
         require_confirmed_inputs=settings.require_confirmed_inputs,
         predictor_slope_sigma=settings.predictor_slope_sigma,

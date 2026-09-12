@@ -47,7 +47,11 @@ def test_settings_reject_an_arbitrary_adjuster_name():
 def test_settings_accept_the_registered_confounder_vocabulary():
     GainFactorsModelSettings(
         adjust_for=(
-            "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto",
+            "hs",
+            "hs_missing",
+            "deapp_c",
+            "deapp_c_missing",
+            "erbto",
             "erbto_missing",
         )
     )
@@ -151,9 +155,7 @@ def _built_gf_005():
     plan = _plan_for("lrp-rli-gf-005")
     prepared = load_and_prepare(**plan.prepare_kwargs())
     adjust = tuple(c for c in plan.adjust_for if c in prepared.covariates)
-    return _gain_factors_factory.build_gain_factors_model(
-        prepared, **plan.factory_kwargs(effective_adjustment=adjust)
-    )
+    return _gain_factors_factory.build_gain_factors_model(prepared, **plan.factory_kwargs(effective_adjustment=adjust))
 
 
 def test_final_mask_refilter_drops_the_erbto_missing_alias(_built_gf_005):
@@ -186,13 +188,9 @@ def test_causal_fit_requires_both_arms_in_period_1():
 
     plan = _plan_for("lrp-rli-gf-001")
     prepared = load_and_prepare(**plan.prepare_kwargs())
-    one_arm = _subset_prepared(
-        prepared, ~((np.asarray(prepared.G) == 0) & (np.asarray(prepared.phase) == 0))
-    )
+    one_arm = _subset_prepared(prepared, ~((np.asarray(prepared.G) == 0) & (np.asarray(prepared.phase) == 0)))
     with pytest.raises(ValueError, match="both randomised arms"):
-        _gain_factors_factory.build_gain_factors_model(
-            one_arm, **plan.factory_kwargs(effective_adjustment=())
-        )
+        _gain_factors_factory.build_gain_factors_model(one_arm, **plan.factory_kwargs(effective_adjustment=()))
 
 
 def test_gain_factory_accepts_the_dispersion_and_own_prior_axes():
@@ -297,9 +295,7 @@ def test_evaluate_itt_release_routes_gain_off_floor_fits(tmp_path):
     )
 
     (tmp_path / "config.json").write_text(json.dumps(_off_floor_config()))
-    decision = evaluate_itt_release(
-        tmp_path, _off_floor_config(), causal_term="beta_trt"
-    )
+    decision = evaluate_itt_release(tmp_path, _off_floor_config(), causal_term="beta_trt")
     assert decision.floor_rule is True
     assert decision.status == "withhold"
 
@@ -384,22 +380,16 @@ def test_off_floor_pages_show_the_indicator_equation():
             f"{model_id}: page shows the graded own-baseline term, but the "
             "factory fits the binary off-floor-at-pre indicator"
         )
-        assert "mathbb{1}" in text, (
-            f"{model_id}: off-floor page should display the indicator equation"
-        )
+        assert "mathbb{1}" in text, f"{model_id}: off-floor page should display the indicator equation"
 
 
 def test_gf_005_delta_is_not_called_provisional():
-    text = (REPO / "docs" / "models" / "lrp-rli-gf-005" / "index.qmd").read_text(
-        encoding="utf-8"
-    )
+    text = (REPO / "docs" / "models" / "lrp-rli-gf-005" / "index.qmd").read_text(encoding="utf-8")
     assert "provisional δ" not in text and "provisional delta" not in text.lower()
 
 
 def test_old_gain_findings_note_is_marked_superseded():
-    text = (REPO / "notes" / "202607161800-findings-gain_factors.md").read_text(
-        encoding="utf-8"
-    )
+    text = (REPO / "notes" / "202607161800-findings-gain_factors.md").read_text(encoding="utf-8")
     assert "Superseded" in text.split("\n\n")[0] or "Superseded (2026-08-26)" in text
 
 
@@ -409,17 +399,13 @@ def test_old_gain_findings_note_is_marked_superseded():
 
 
 def test_setup_partial_requires_a_release_decision():
-    text = (REPO / "docs" / "models" / "_partials" / "_setup.qmd").read_text(
-        encoding="utf-8"
-    )
+    text = (REPO / "docs" / "models" / "_partials" / "_setup.qmd").read_text(encoding="utf-8")
     assert "release_decision.json" in text
     assert "_release_blocked_structurally" in text
 
 
 def test_key_findings_partial_fails_closed_on_missing_or_stale_artefacts():
-    text = (REPO / "docs" / "models" / "_partials" / "_key_findings.qmd").read_text(
-        encoding="utf-8"
-    )
+    text = (REPO / "docs" / "models" / "_partials" / "_key_findings.qmd").read_text(encoding="utf-8")
     # A missing key_findings.json and an unrecognised status both suppress.
     assert text.count("_scientific_results_released = False") >= 8
     # The stored "ok" is re-decided against the directory's current evidence.
@@ -427,9 +413,7 @@ def test_key_findings_partial_fails_closed_on_missing_or_stale_artefacts():
 
 
 def test_results_factors_partial_guards_and_labels():
-    text = (
-        REPO / "docs" / "models" / "_partials" / "_results_factors.qmd"
-    ).read_text(encoding="utf-8")
+    text = (REPO / "docs" / "models" / "_partials" / "_results_factors.qmd").read_text(encoding="utf-8")
     assert 'if _has("tau_forest.png")' in text
     assert 'if _has("rope_summary.png")' in text
     assert "treated-only companion" in text
@@ -452,9 +436,7 @@ def _built_gf_004_with_hearing():
     prepared = load_and_prepare(**plan.prepare_kwargs())
     adjust = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     assert "hs" in adjust
-    built = _gain_factors_factory.build_gain_factors_model(
-        prepared, **plan.factory_kwargs(effective_adjustment=adjust)
-    )
+    built = _gain_factors_factory.build_gain_factors_model(prepared, **plan.factory_kwargs(effective_adjustment=adjust))
     return plan, built, adjust
 
 
@@ -482,9 +464,7 @@ def test_hearing_association_term_is_a_category_contrast_not_a_sd_shift(
     )
 
     plan, built, adjust = _built_gf_004_with_hearing
-    terms = _gf_association_terms(
-        plan, built, adjust_for=adjust, off_floor=False
-    )
+    terms = _gf_association_terms(plan, built, adjust_for=adjust, off_floor=False)
     hs_term = next(t for t in terms if t.label == "hs")
 
     scaler = built.prepared.covariate_scalers["hs"]
@@ -510,11 +490,7 @@ def test_continuous_adjusters_keep_the_sd_shift(_built_gf_004_with_hearing):
     plan, built, adjust = _built_gf_004_with_hearing
     terms = _gf_association_terms(plan, built, adjust_for=adjust, off_floor=False)
     labels = {t.label: t for t in terms}
-    continuous = [
-        name
-        for name in adjust
-        if name in labels and name != "hs" and not name.endswith("_missing")
-    ]
+    continuous = [name for name in adjust if name in labels and name != "hs" and not name.endswith("_missing")]
     assert continuous, "expected at least one continuous adjuster in gf-004"
     for name in continuous:
         assert labels[name].toggle_vector is None

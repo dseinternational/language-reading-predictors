@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Joint-mechanism model construction (levels and transition designs).
-
-"""
+"""Joint-mechanism model construction (levels and transition designs)."""
 
 from __future__ import annotations
 
@@ -13,7 +11,6 @@ from typing import Iterable
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -28,6 +25,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
     _bivariate_lkj_residual,
 )
+
 
 def _add_decoding_contrast_deterministics(
     *,
@@ -180,9 +178,7 @@ def build_joint_mechanism_model(
     )
 
     if design not in {"levels", "transition"}:
-        raise ValueError(
-            f"joint mechanism design must be 'levels' or 'transition'; got {design!r}"
-        )
+        raise ValueError(f"joint mechanism design must be 'levels' or 'transition'; got {design!r}")
     outcome_symbols = tuple(outcome_symbols)
     confounder_symbols = tuple(confounder_symbols)
     adjust_for = tuple(adjust_for)
@@ -212,8 +208,7 @@ def build_joint_mechanism_model(
     expected_mode = "levels" if design == "levels" else "all"
     if prepared.phase_mode != expected_mode:
         raise ValueError(
-            f"joint mechanism design={design!r} requires phase_mode="
-            f"{expected_mode!r}; got {prepared.phase_mode!r}"
+            f"joint mechanism design={design!r} requires phase_mode={expected_mode!r}; got {prepared.phase_mode!r}"
         )
     if design == "transition":
         for s in outcome_symbols:
@@ -289,14 +284,9 @@ def build_joint_mechanism_model(
 
     # Per-outcome observation mask + flattened observed cells (robust to
     # outcome-specific post missingness), mirroring build_joint_model.
-    mask = np.stack(
-        [~np.isnan(prepared.post_counts[s]) for s in outcome_symbols], axis=1
-    )
+    mask = np.stack([~np.isnan(prepared.post_counts[s]) for s in outcome_symbols], axis=1)
     post_counts_int = np.stack(
-        [
-            np.nan_to_num(prepared.post_counts[s], nan=0.0).astype(np.int64)
-            for s in outcome_symbols
-        ],
+        [np.nan_to_num(prepared.post_counts[s], nan=0.0).astype(np.int64) for s in outcome_symbols],
         axis=1,
     )
     n_trials_vec = np.array([prepared.n_trials[s] for s in outcome_symbols], dtype=int)
@@ -317,13 +307,12 @@ def build_joint_mechanism_model(
     with pm.Model(coords=coords) as model:
         G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
         A_std_d = pm.Data(
-            "A_std", np.nan_to_num(np.asarray(prepared.A_std, dtype=float)),
+            "A_std",
+            np.nan_to_num(np.asarray(prepared.A_std, dtype=float)),
             dims="obs_id",
         )
         z_L_d = pm.Data("z_mech_logit", z_L, dims="obs_id")
-        child_idx_d = pm.Data(
-            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
-        )
+        child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         adjust_data = {
             c: pm.Data(
                 f"{c}_adj",
@@ -339,9 +328,7 @@ def build_joint_mechanism_model(
             # Matched to ca-010 / ca-011: the same regularising association prior on
             # the letter-sound slope, so the identified share-retained is comparable
             # with the paired-draws ratio it replaces.
-            beta_mech = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                "beta_mech", dims="outcome"
-            )
+            beta_mech = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc("beta_mech", dims="outcome")
         else:
             # Matched to mech-096 / mech-101, whose Delta this design re-reports.
             beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech", dims="outcome")
@@ -349,25 +336,15 @@ def build_joint_mechanism_model(
         eta = alpha[None, :] + beta_mech[None, :] * pt.shape_padright(z_L_d)
 
         if design == "transition":
-            pre_logit = np.stack(
-                [prepared.pre_logit[s] for s in outcome_symbols], axis=1
-            )
-            pre_logit_d = pm.Data(
-                "pre_logit", pre_logit, dims=("obs_id", "outcome")
-            )
+            pre_logit = np.stack([prepared.pre_logit[s] for s in outcome_symbols], axis=1)
+            pre_logit_d = pm.Data("pre_logit", pre_logit, dims=("obs_id", "outcome"))
             gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own", dims="outcome")
-            phase_d = pm.Data(
-                "phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
-            )
+            phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
             alpha_phase = _priors.declare(
-                              pm.Normal(
-                                              "alpha_phase", mu=0.0, sigma=0.5, dims=("phase", "outcome")
-                                          ),
-                              role="nuisance",
-                              rationale=(
-                                  'Per-phase intercept offset alpha_phase.'
-                              ),
-                          )
+                pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims=("phase", "outcome")),
+                role="nuisance",
+                rationale=("Per-phase intercept offset alpha_phase."),
+            )
             eta = eta + gamma_own[None, :] * pre_logit_d + alpha_phase[phase_d]
 
         if include_group or "G" in confounder_symbols:
@@ -380,9 +357,18 @@ def build_joint_mechanism_model(
             # mechanism family carries. Named per design so no consumer reads one
             # as the other.
             if design == "levels":
-                beta_G = _priors.declare(pm.Normal('beta_group_nuisance', mu=0.0, sigma=1.0, dims='outcome'), role='nuisance', rationale='Per-outcome arm-composition nuisance term, matching the concurrent comparisons. It accounts for arm composition at the wave and is not interpreted as a group effect.')
+                beta_G = _priors.declare(
+                    pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0, dims="outcome"),
+                    role="nuisance",
+                    rationale="Per-outcome arm-composition nuisance term, matching the concurrent comparisons. It accounts for arm composition at the wave and is not interpreted as a group effect.",
+                )
             else:
-                beta_G = _priors.tau_prior().to_pymc('beta_G', dims='outcome', role='association', rationale='Group main effect entered as an adjustment beside the mechanism slopes; an adjusted association, not the randomised treatment effect.')
+                beta_G = _priors.tau_prior().to_pymc(
+                    "beta_G",
+                    dims="outcome",
+                    role="association",
+                    rationale="Group main effect entered as an adjustment beside the mechanism slopes; an adjusted association, not the randomised treatment effect.",
+                )
             eta = eta + beta_G[None, :] * pt.shape_padright(G_d)
 
         if "A" in confounder_symbols:
@@ -390,7 +376,9 @@ def build_joint_mechanism_model(
             eta = eta + gamma_A[None, :] * pt.shape_padright(A_std_d)
 
         for c, cov_d in adjust_data.items():
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', dims='outcome', **_priors.adjustment_metadata(c))
+            gamma_c = _priors.gamma_cross_prior().to_pymc(
+                f"gamma_{c}", dims="outcome", **_priors.adjustment_metadata(c)
+            )
             eta = eta + gamma_c[None, :] * pt.shape_padright(cov_d)
 
         # --- Cross-outcome dependence block ---------------------------------------
@@ -477,11 +465,7 @@ def build_joint_mechanism_model(
         prepared=prepared,
         payload=JointMechanismPayload(
             design=design,
-            joint_dependence=(
-                "lkj_residual_within_wave"
-                if design == "levels"
-                else "lkj_child_intercept"
-            ),
+            joint_dependence=("lkj_residual_within_wave" if design == "levels" else "lkj_child_intercept"),
             likelihood="binomial" if design == "levels" else "beta_binomial",
             loo_unit="child",
             exposure_scale=(

@@ -23,16 +23,11 @@ def _kf_build_corr_factor(output_dir: str | Path, config: Mapping) -> list[dict[
     correlations = _kf_csv(output_dir, "factor_correlation_summary.csv")
     structural = _kf_csv(output_dir, "structural_summary.csv")
     if correlations is None and structural is None:
-        raise _KeyFindingsUnavailable(
-            "neither factor_correlation_summary.csv nor structural_summary.csv is present"
-        )
+        raise _KeyFindingsUnavailable("neither factor_correlation_summary.csv nor structural_summary.csv is present")
     sentences: list[dict[str, str]] = []
     if correlations is not None:
         row = _kf_most_resolved_row(correlations, prob_col="prob_pos")
-        pair = (
-            f"{_kf_plain_label(row['domain_i'])} and "
-            f"{_kf_plain_label(row['domain_j'])}"
-        )
+        pair = f"{_kf_plain_label(row['domain_i'])} and {_kf_plain_label(row['domain_j'])}"
         sentences.extend(
             [
                 _kf_sentence(
@@ -60,17 +55,14 @@ def _kf_build_corr_factor(output_dir: str | Path, config: Mapping) -> list[dict[
         # without factor names in its plan (a legacy stub) keeps the unfiltered
         # ranking rather than failing.
         plan = config.get("resolved_run_plan") or {}
-        factors = list(plan.get("structural_factors") or []) or [
-            domain[0] for domain in (plan.get("domains") or [])
-        ]
+        factors = list(plan.get("structural_factors") or []) or [domain[0] for domain in (plan.get("domains") or [])]
         slopes = structural
         if factors:
             wanted = {f"beta_{name}" for name in factors}
             slopes = structural[structural["coefficient"].astype(str).isin(wanted)]
             if slopes.empty:
                 raise _KeyFindingsUnavailable(
-                    "structural_summary.csv has no factor-slope rows matching the "
-                    "resolved plan's structural factors"
+                    "structural_summary.csv has no factor-slope rows matching the resolved plan's structural factors"
                 )
         row = _kf_most_resolved_row(slopes, prob_col="prob_pos")
         sentences.append(

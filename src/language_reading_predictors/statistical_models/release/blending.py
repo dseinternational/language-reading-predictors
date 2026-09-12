@@ -20,9 +20,8 @@ from language_reading_predictors.statistical_models.release.base import (
     _plan,
 )
 
-def _blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+
+def _blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """Robustness-stage failures for the mandatory phoneme-blending link pair.
 
     Three families now carry a version of the policy, dispatched from here: the ITT
@@ -94,9 +93,7 @@ def _blending_pair_release_failures(
     return ()
 
 
-def _did_blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+def _did_blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """The DiD family's phoneme-blending pairing (#576 finding 2).
 
     Same policy as the ITT and level pairs. It did not exist for ``did``, so
@@ -128,9 +125,7 @@ def _did_blending_pair_release_failures(
     return ()
 
 
-def _level_blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+def _level_blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """The level family's phoneme-blending pairing (#584 decision 2).
 
     Same policy as the ITT pair, one rung down in evidence strength: the level
@@ -157,9 +152,7 @@ def _level_blending_pair_release_failures(
     return ()
 
 
-def _gain_blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+def _gain_blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """The gain family's phoneme-blending pairing (#596).
 
     Same policy and the same evidence tier as the level pair: both fits' stored
@@ -197,9 +190,7 @@ def _gain_blending_pair_release_failures(
     return ()
 
 
-def _aligned_blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+def _aligned_blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """The aligned family's phoneme-blending pairing (#619).
 
     Same policy and the same evidence tier as the level, DiD and gain pairs: both
@@ -234,9 +225,7 @@ def _aligned_blending_pair_release_failures(
     return ()
 
 
-def _concurrent_blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+def _concurrent_blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """The concurrent family's phoneme-blending pairing (#619).
 
     Same policy and evidence tier as the level, DiD, gain and aligned pairs. Two
@@ -265,9 +254,7 @@ def _concurrent_blending_pair_release_failures(
     return ()
 
 
-def _dose_blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+def _dose_blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """The dose family's phoneme-blending pairing (#619).
 
     Same policy and evidence tier as the level, DiD, gain, aligned and concurrent
@@ -294,9 +281,7 @@ def _dose_blending_pair_release_failures(
     return ()
 
 
-def _mediation_blending_pair_release_failures(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str, ...]:
+def _mediation_blending_pair_release_failures(output_dir: Path, config: Mapping[str, Any]) -> tuple[str, ...]:
     """The mediation family's phoneme-blending pairing (#619).
 
     Same policy and evidence tier as the other stored-artefact pairs, but the link
@@ -388,9 +373,7 @@ def _joint_blending_scope_note(output_dir: Path, config: Mapping[str, Any]) -> s
 
     try:
         directory = Path(output_dir).resolve()
-        config_name = str(config.get("config_name") or "") or _config_name(
-            directory, str(config.get("model_id") or "")
-        )
+        config_name = str(config.get("config_name") or "") or _config_name(directory, str(config.get("model_id") or ""))
         if not config_name:
             return _note("this fit's configuration name could not be resolved")
         primary_dir = directory.parent / f"{BLENDING_PRIMARY_MODEL_ID}-{config_name}"
@@ -401,9 +384,7 @@ def _joint_blending_scope_note(output_dir: Path, config: Mapping[str, Any]) -> s
         ours = str(config.get("data_sha256") or "")
         if not theirs or not ours or theirs != ours:
             return _note("the bundle was not fitted on the same input data")
-        status = evaluate_local_blending_link_sensitivity(
-            primary_dir, config=primary_config
-        )
+        status = evaluate_local_blending_link_sensitivity(primary_dir, config=primary_config)
         if status.get("required") and not status.get("ready"):
             return _note(str(status.get("reason") or "the paired evidence is stale"))
     except Exception as exc:  # noqa: BLE001 - a gate that cannot run must fail closed

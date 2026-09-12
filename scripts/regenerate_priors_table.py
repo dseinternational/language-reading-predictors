@@ -34,16 +34,12 @@ def _subdirs(root: Path) -> list[Path]:
     """Published fit directories, excluding in-flight output transactions."""
     if not root.is_dir():
         return []
-    return sorted(
-        d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")
-    )
+    return sorted(d for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))
 
 
 def resolve_targets(target: str) -> list[Path]:
     root = _paths.stat_models_dir()
-    return [
-        d for d in _subdirs(root) if d.name == target or d.name.startswith(f"{target}-")
-    ]
+    return [d for d in _subdirs(root) if d.name == target or d.name.startswith(f"{target}-")]
 
 
 def _normalise(value: object) -> str:
@@ -151,7 +147,9 @@ def regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
     ]
     panels = _priors.model_prior_panels(built.model)
     missing = [
-        f"prior_{key}.{ext}" for key in panels for ext in ("png", "svg")
+        f"prior_{key}.{ext}"
+        for key in panels
+        for ext in ("png", "svg")
         if not (fit_dir / f"prior_{key}.{ext}").exists()
     ]
     if missing:
@@ -164,7 +162,9 @@ def regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
     existing = {path.name for path in fit_dir.glob("prior_*.*")}
     for key, density in panels.items():
         if any(not (fit_dir / f"prior_{key}.{ext}").exists() for ext in ("png", "svg")):
-            _priors.plot_and_save(density, str(fit_dir), f"prior_{key}", title=_priors.model_prior_panel_title(built.model, key))
+            _priors.plot_and_save(
+                density, str(fit_dir), f"prior_{key}", title=_priors.model_prior_panel_title(built.model, key)
+            )
     added = {path.name for path in fit_dir.glob("prior_*.*")} - existing
     table.to_csv(stored_path, index=False)
     orphaned = _drop_orphaned_panels(fit_dir, table)
@@ -202,10 +202,7 @@ def _prune_manifest(fit_dir: Path, removed: set[str], *, added: set[str] | None 
     if not path.exists():
         return
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    kept = [
-        entry for entry in manifest.get("artifacts", [])
-        if entry.get("filename") not in removed
-    ]
+    kept = [entry for entry in manifest.get("artifacts", []) if entry.get("filename") not in removed]
     dropped = len(manifest.get("artifacts", [])) - len(kept)
     known = {entry.get("filename") for entry in kept}
     new_entries = [{"filename": name, "status": "untracked"} for name in sorted(added - known)]

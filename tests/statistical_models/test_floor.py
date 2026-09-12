@@ -78,9 +78,7 @@ def test_is_floored_flags_floored_outcomes(tmp_path):
 
 def test_is_floored_nonword_post_only(tmp_path):
     p = _write_floored(tmp_path)
-    prep = load_and_prepare(
-        path=p, phase_mode="itt", outcomes=("N",), pre_required=()
-    )
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("N",), pre_required=())
     assert is_floored(prep, "N")
     assert proportion_at_zero(prep, "N") >= FLOOR_THRESHOLD
 
@@ -91,9 +89,7 @@ def test_pre_required_exempts_missing_nonword_baseline(tmp_path):
     p = _write_floored(tmp_path)
     with pytest.warns(UserWarning):
         prep_drop = load_and_prepare(path=p, phase_mode="itt", outcomes=("N",))
-    prep_keep = load_and_prepare(
-        path=p, phase_mode="itt", outcomes=("N",), pre_required=()
-    )
+    prep_keep = load_and_prepare(path=p, phase_mode="itt", outcomes=("N",), pre_required=())
     assert prep_drop.n_obs == 27  # three missing-baseline children dropped
     assert prep_keep.n_obs == 30  # all kept (post present, group/age present)
 
@@ -101,9 +97,7 @@ def test_pre_required_exempts_missing_nonword_baseline(tmp_path):
 def test_pre_required_must_be_subset_of_outcomes(tmp_path):
     p = _write_floored(tmp_path)
     with pytest.raises(ValueError):
-        load_and_prepare(
-            path=p, phase_mode="itt", outcomes=("P",), pre_required=("R",)
-        )
+        load_and_prepare(path=p, phase_mode="itt", outcomes=("P",), pre_required=("R",))
 
 
 def _write_known_eligibility(tmp_path):
@@ -116,12 +110,8 @@ def _write_known_eligibility(tmp_path):
         sid = f"S{i:03d}"
         group = 1 if i < 6 else 2
         df.loc[df[V.SUBJECT_ID] == sid, V.GROUP] = group
-        df.loc[
-            (df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 1), V.NONWORD
-        ] = pre[i]
-        df.loc[
-            (df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 2), V.NONWORD
-        ] = post[i]
+        df.loc[(df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 1), V.NONWORD] = pre[i]
+        df.loc[(df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 2), V.NONWORD] = post[i]
     df.to_csv(path, index=False)
     return path
 
@@ -136,12 +126,8 @@ def _write_joint_transition_missingness(tmp_path):
         sid = f"S{i:03d}"
         group = 1 if i < 6 else 2
         df.loc[df[V.SUBJECT_ID] == sid, V.GROUP] = group
-        df.loc[
-            (df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 1), V.NONWORD
-        ] = pre[i]
-        df.loc[
-            (df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 2), V.NONWORD
-        ] = post[i]
+        df.loc[(df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 1), V.NONWORD] = pre[i]
+        df.loc[(df[V.SUBJECT_ID] == sid) & (df[V.TIME] == 2), V.NONWORD] = post[i]
     df.to_csv(path, index=False)
     return path
 
@@ -153,9 +139,7 @@ def test_floor_eligibility_exposes_missing_baselines_and_matches_model(tmp_path)
     baseline values remain visible in the audit table but never become eligible.
     """
     path = _write_known_eligibility(tmp_path)
-    prepared = load_and_prepare(
-        path=path, phase_mode="itt", outcomes=("N",), pre_required=()
-    )
+    prepared = load_and_prepare(path=path, phase_mode="itt", outcomes=("N",), pre_required=())
     eligibility = baseline_floor_eligibility_by_arm(prepared, "N").set_index("arm")
     assert prepared.n_obs == 12
     assert eligibility.loc["intervention", "n_pre_missing"] == 2
@@ -178,9 +162,7 @@ def test_floor_eligibility_exposes_missing_baselines_and_matches_model(tmp_path)
     )
     assert built.prepared.n_obs == 7
     observed = built.model.rvs_to_values[built.model["y_offfloor"]].eval()
-    assert np.array_equal(
-        observed, (built.prepared.post_counts["N"] > 0).astype(np.int64)
-    )
+    assert np.array_equal(observed, (built.prepared.post_counts["N"] > 0).astype(np.int64))
 
 
 def test_floor_status_bounds_enumerate_unknown_baseline_eligibility(tmp_path):
@@ -255,9 +237,7 @@ def test_binary_transition_bounds_jointly_complete_archive_and_absent_children(
         (V.NONWORD, -1, "must lie in"),
     ],
 )
-def test_binary_transition_bounds_reject_invalid_raw_values(
-    tmp_path, column, value, match
-):
+def test_binary_transition_bounds_reject_invalid_raw_values(tmp_path, column, value, match):
     path = _write_known_eligibility(tmp_path)
     prepared = load_and_prepare(
         path=path,
@@ -286,13 +266,9 @@ def test_binary_transition_bounds_reject_invalid_raw_values(
         ("N", {"intervention": 21, "control": 15}, {"intervention": 1, "control": 2}),
     ],
 )
-def test_current_floor_model_analysis_counts(
-    symbol, eligible_by_arm, missing_by_arm
-):
+def test_current_floor_model_analysis_counts(symbol, eligible_by_arm, missing_by_arm):
     """Lock the actual outcome-available subgroup counts used by P/N fits."""
-    prepared = load_and_prepare(
-        phase_mode="itt", outcomes=(symbol,), pre_required=()
-    )
+    prepared = load_and_prepare(phase_mode="itt", outcomes=(symbol,), pre_required=())
     eligibility = baseline_floor_eligibility_by_arm(prepared, symbol).set_index("arm")
     assert prepared.n_obs == 53
     for arm in ("intervention", "control"):
@@ -322,27 +298,15 @@ def test_current_floor_model_analysis_counts(
         ("N", (0.2670454545, 0.3650793651), (0.1570048309, 0.4)),
     ],
 )
-def test_current_floor_transition_missingness_bounds(
-    symbol, archive_bounds, full_bounds
-):
+def test_current_floor_transition_missingness_bounds(symbol, archive_bounds, full_bounds):
     with pytest.warns(UserWarning):
-        prepared = load_and_prepare(
-            phase_mode="itt", outcomes=(symbol,), pre_required=()
-        )
+        prepared = load_and_prepare(phase_mode="itt", outcomes=(symbol,), pre_required=())
     bounds = binary_transition_missingness_bounds(prepared, symbol).set_index("scope")
 
-    assert bounds.loc[
-        "archived_dataset", "risk_difference_lower"
-    ] == pytest.approx(archive_bounds[0])
-    assert bounds.loc[
-        "archived_dataset", "risk_difference_upper"
-    ] == pytest.approx(archive_bounds[1])
-    assert bounds.loc[
-        "full_randomised_population", "risk_difference_lower"
-    ] == pytest.approx(full_bounds[0])
-    assert bounds.loc[
-        "full_randomised_population", "risk_difference_upper"
-    ] == pytest.approx(full_bounds[1])
+    assert bounds.loc["archived_dataset", "risk_difference_lower"] == pytest.approx(archive_bounds[0])
+    assert bounds.loc["archived_dataset", "risk_difference_upper"] == pytest.approx(archive_bounds[1])
+    assert bounds.loc["full_randomised_population", "risk_difference_lower"] == pytest.approx(full_bounds[0])
+    assert bounds.loc["full_randomised_population", "risk_difference_upper"] == pytest.approx(full_bounds[1])
 
 
 def test_floor_specs_override_generic_itt_estimand_metadata():
@@ -355,10 +319,7 @@ def test_floor_specs_override_generic_itt_estimand_metadata():
 
     for spec in (P_SPEC, N_SPEC):
         assert spec.design == (
-            "waitlist_randomised_t1_to_t2_available_case_modified_itt_"
-            "observed_baseline_floor_subgroup"
+            "waitlist_randomised_t1_to_t2_available_case_modified_itt_observed_baseline_floor_subgroup"
         )
-        assert spec.estimand_type == (
-            "available_case_modified_itt_estimate_post_hoc_subgroup_risk_difference"
-        )
+        assert spec.estimand_type == ("available_case_modified_itt_estimate_post_hoc_subgroup_risk_difference")
         assert "observed_baseline_floor_subgroup" in spec.causal_status

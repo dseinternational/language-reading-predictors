@@ -25,15 +25,9 @@ def _kf_build_concurrent(output_dir: str | Path, config: Mapping) -> list[dict[s
     if df is None:
         raise _KeyFindingsUnavailable("concurrent_marginals.csv is not present")
     converged = df["converged"].astype(str).str.lower().isin({"true", "1"})
-    rows = df[
-        (df["adjustment"] == "adjusted")
-        & (df["scale"] == "+1 SD")
-        & converged
-    ]
+    rows = df[(df["adjustment"] == "adjusted") & (df["scale"] == "+1 SD") & converged]
     if rows.empty:
-        raise _KeyFindingsUnavailable(
-            "no converged adjusted +1 SD concurrent marginals are present"
-        )
+        raise _KeyFindingsUnavailable("no converged adjusted +1 SD concurrent marginals are present")
     # Several wave × predictor rows routinely sit at P(>0) ≈ 1 in this family, so
     # the "most resolved row" has to be decided among ties on a stated basis:
     # rows whose P(>0) agree to the nearest 1 % are tied (2 decimals — an order

@@ -48,8 +48,14 @@ SPEC = ModelSpec(
     outcome_symbol="L",
     mechanism_symbol="W",  # the mediator (word reading)
     adjustment=[
-        "G", "A", "W_pre", "W_t1",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "W_pre",
+        "W_t1",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     # Outcome at t3 (mediator W stays at t2): the less-ceilinged ceiling-sensitivity.
     model_settings=MediationModelSettings(outcome_time=3),

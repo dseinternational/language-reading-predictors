@@ -44,9 +44,7 @@ def _subdirs(root: Path) -> list[Path]:
     """
     if not root.is_dir():
         return []
-    return sorted(
-        d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")
-    )
+    return sorted(d for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))
 
 
 def resolve_targets(target: str) -> list[Path]:
@@ -55,11 +53,7 @@ def resolve_targets(target: str) -> list[Path]:
     if target == "all":
         return _subdirs(root)
     # Statistical dirs are named "<id>-<config>"; accept either form.
-    return [
-        d
-        for d in _subdirs(root)
-        if d.name == target or d.name.startswith(f"{target}-")
-    ]
+    return [d for d in _subdirs(root) if d.name == target or d.name.startswith(f"{target}-")]
 
 
 def main() -> None:

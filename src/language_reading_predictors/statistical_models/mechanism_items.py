@@ -152,9 +152,7 @@ def _interp_draws(xs: np.ndarray, fs: np.ndarray, x_ref: float) -> np.ndarray:
     return fs[j - 1] * (1.0 - w) + fs[j] * w
 
 
-def _exposure_to_z(
-    x_exposure: np.ndarray, z_obs: np.ndarray, n_trials: int | None
-) -> Callable[[float], float]:
+def _exposure_to_z(x_exposure: np.ndarray, z_obs: np.ndarray, n_trials: int | None) -> Callable[[float], float]:
     """Map an exposure value to the fitted standardised regressor ``z``.
 
     The factory builds ``z`` as ``(t(x) - mean) / sd`` with ``t`` the logit-safe
@@ -254,9 +252,7 @@ def resolve_mechanism_terms(
         fitted = mbar[:, None] * between[None, :] + within_slope * dev[:, None]
 
         def at_split(value: float) -> np.ndarray:
-            return mbar[:, None] * between[None, :] + within_slope * (
-                z_of(value) - mbar[:, None]
-            )
+            return mbar[:, None] * between[None, :] + within_slope * (z_of(value) - mbar[:, None])
 
         return MechanismTerms(kind=kind, fitted=fitted, contribution_at=at_split)
 
@@ -289,9 +285,7 @@ def _within_slope(post, trace: xr.DataTree, base_kind: str) -> tuple[np.ndarray,
     )
 
 
-def _moderator_contribution(
-    trace: xr.DataTree, n_obs: int, group: str = "posterior"
-) -> np.ndarray:
+def _moderator_contribution(trace: xr.DataTree, n_obs: int, group: str = "posterior") -> np.ndarray:
     """Per-observation moderator contribution ``gamma_mod*z_M + gamma_int*z_L*z_M``.
 
     Zero (broadcast) when the fit has no moderator. Read from the registered
@@ -384,9 +378,7 @@ def mechanism_items_curve(
         exposure_n_trials=exposure_n_trials,
         group=group,
     )
-    eta_base = _reference_linear_predictor(
-        trace, terms, eta_name=eta_name, group=group
-    )
+    eta_base = _reference_linear_predictor(trace, terms, eta_name=eta_name, group=group)
 
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
@@ -495,17 +487,10 @@ def standardised_items_by_row(
         exposure_n_trials=exposure_n_trials,
         group=group,
     )
-    eta_base = _reference_linear_predictor(
-        trace, terms, eta_name=eta_name, group=group
-    )
+    eta_base = _reference_linear_predictor(trace, terms, eta_name=eta_name, group=group)
     scale = 1.0 if outcome_off_floor else float(n_trials_outcome)
     xs, inverse = np.unique(x_exposure, return_inverse=True)
-    y_unique = np.stack(
-        [
-            scale * expit(eta_base + terms.contribution_at(float(v))).mean(axis=0)
-            for v in xs
-        ]
-    )  # (U, S)
+    y_unique = np.stack([scale * expit(eta_base + terms.contribution_at(float(v))).mean(axis=0) for v in xs])  # (U, S)
     return y_unique[inverse]
 
 
@@ -576,9 +561,7 @@ def save_mechanism_items_figure(
     ax.scatter([x_lo, x_hi], [y_lo, y_hi], color=_WORKED_COLOR, zorder=5, s=28)
     for xr_, yr_ in ((x_lo, y_lo), (x_hi, y_hi)):
         ax.plot([xr_, xr_], [ax.get_ylim()[0], yr_], color=_WORKED_COLOR, lw=0.8, ls=":")
-    sentence = _worked_sentence(
-        worked, exposure_noun=exposure_noun, outcome_noun=outcome_noun
-    )
+    sentence = _worked_sentence(worked, exposure_noun=exposure_noun, outcome_noun=outcome_noun)
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     ax.set_title(title, fontsize=10)
@@ -642,9 +625,7 @@ def mechanism_summary_table(worked: dict, *, exposure_unit: str) -> pd.DataFrame
             **common,
         }
 
-    rows = [
-        row(worked, quantiles=(worked["ref_quantile_low"], worked["ref_quantile_high"]))
-    ]
+    rows = [row(worked, quantiles=(worked["ref_quantile_low"], worked["ref_quantile_high"]))]
     if worked.get("secondary"):
         rows.append(row(worked["secondary"], quantiles=None))
     return pd.DataFrame(rows)
@@ -687,11 +668,7 @@ def write_mechanism_items_artifacts(
         outcome_off_floor=outcome_off_floor,
     )
 
-    exposure_noun = (
-        f"on {exposure_label} (raw score)"
-        if exposure_is_covariate
-        else f"on {exposure_label}"
-    )
+    exposure_noun = f"on {exposure_label} (raw score)" if exposure_is_covariate else f"on {exposure_label}"
     x_label = (
         f"{exposure_label} — raw score"
         if exposure_is_covariate or exposure_n_trials is None
@@ -715,16 +692,12 @@ def write_mechanism_items_artifacts(
             "outcome_noun": outcome_noun,
             "x_label": x_label,
             "y_label": y_label,
-            "caption": _worked_sentence(
-                worked, exposure_noun=exposure_noun, outcome_noun=outcome_noun
-            ),
+            "caption": _worked_sentence(worked, exposure_noun=exposure_noun, outcome_noun=outcome_noun),
         }
     )
     # Write the numbers first so the CSV survives even if the plotting backend
     # fails; the figure then re-attaches the same table as its #208 sidecar.
-    curve_df.to_csv(
-        os.path.join(output_dir, "mechanism_curve_items.csv"), index=False
-    )
+    curve_df.to_csv(os.path.join(output_dir, "mechanism_curve_items.csv"), index=False)
     if save_figure:
         save_mechanism_items_figure(
             output_dir,

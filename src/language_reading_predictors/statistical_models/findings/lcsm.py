@@ -74,11 +74,7 @@ def _kf_build_lcsm(output_dir: str | Path, config: Mapping) -> list[dict[str, st
         # outcome's contrast to the focal measure (finding 2c: 081 quoted W under
         # a taught-vocabulary model, 091 quoted L under a word-reading model).
         focal = str(config.get("outcome_symbol") or "")
-        cand = (
-            itt[itt["coefficient"].astype(str).str.startswith(f"itt_w1[{focal}]")]
-            if focal
-            else itt.iloc[0:0]
-        )
+        cand = itt[itt["coefficient"].astype(str).str.startswith(f"itt_w1[{focal}]")] if focal else itt.iloc[0:0]
         check = cand.iloc[0] if len(cand) else _kf_most_resolved_row(itt, prob_col="prob_pos")
         match = re.search(r"itt_w1\[([^\]]+)\]", str(check["coefficient"]))
         measure = _kf_measure_label(match.group(1)) if match else str(check["coefficient"])

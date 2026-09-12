@@ -70,9 +70,7 @@ def test_the_settings_catalogue_is_derived_not_restated():
         SETTINGS_CLASSES,
     )
 
-    assert SETTINGS_CLASSES == {
-        kind: descriptor.settings_class() for kind, descriptor in FAMILIES.items()
-    }
+    assert SETTINGS_CLASSES == {kind: descriptor.settings_class() for kind, descriptor in FAMILIES.items()}
 
 
 def test_the_blending_currency_check_covers_every_family_not_seven():
@@ -98,7 +96,6 @@ def test_the_blending_currency_check_covers_every_family_not_seven():
 
 def test_the_key_findings_builders_match_the_descriptors():
     """Every family that names a builder has one, and every builder is named."""
-
 
     described = {
         kind: descriptor.key_findings_builder

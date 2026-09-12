@@ -57,9 +57,7 @@ def _kf_joint_marginal_phrase(
         )
     row = marginal_rows.get(symbol)
     if row is None:
-        raise _KeyFindingsUnavailable(
-            f"no joint marginal row for contrast outcome {symbol!r}"
-        )
+        raise _KeyFindingsUnavailable(f"no joint marginal row for contrast outcome {symbol!r}")
     return (
         f"{symbol} {_kf_float(row['items_median']):+.1f} items "
         f"(89% {_kf_float(row['items_lo']):+.1f} to "
@@ -85,17 +83,12 @@ def _kf_build_joint(output_dir: str | Path, config: Mapping) -> list[dict[str, s
     df = _kf_csv(output_dir, "joint_treatment_marginal.csv")
     if df is None:
         raise _KeyFindingsUnavailable(
-            "joint_treatment_marginal.csv is not present; this fit predates the "
-            "joint items-scale pushforward"
+            "joint_treatment_marginal.csv is not present; this fit predates the joint items-scale pushforward"
         )
     required = {"outcome", "items_median", "items_lo", "items_hi", "prob_pos"}
     if not required.issubset(df.columns):
-        raise _KeyFindingsUnavailable(
-            "joint_treatment_marginal.csv does not have the expected columns"
-        )
-    marginal_rows = {
-        str(row["outcome"]): row for _, row in df.iterrows()
-    }
+        raise _KeyFindingsUnavailable("joint_treatment_marginal.csv does not have the expected columns")
+    marginal_rows = {str(row["outcome"]): row for _, row in df.iterrows()}
 
     tau = _kf_csv(output_dir, "tau_summary.csv")
     pp_cols = {"outcome", "ame_prob_median", "ame_prob_lo", "ame_prob_hi", "prob_ame_pos"}
@@ -121,12 +114,8 @@ def _kf_build_joint(output_dir: str | Path, config: Mapping) -> list[dict[str, s
         # The declared two-outcome contrast IS this model's estimand, so it
         # leads; the marginal effects underneath it are droppable context.
         pair_a, _, pair_b = str(contrast["contrast"]).partition("_minus_")
-        label = _kf_joint_optional_text(contrast.get("contrast_label")) or str(
-            contrast["contrast"]
-        )
-        kind_word = (
-            _kf_joint_optional_text(contrast.get("contrast_kind")) or "outcome"
-        )
+        label = _kf_joint_optional_text(contrast.get("contrast_label")) or str(contrast["contrast"])
+        kind_word = _kf_joint_optional_text(contrast.get("contrast_kind")) or "outcome"
         sentences.append(
             _kf_sentence(
                 f"The declared {kind_word} contrast — {label} "
@@ -145,9 +134,7 @@ def _kf_build_joint(output_dir: str | Path, config: Mapping) -> list[dict[str, s
         fav = favoured_direction(p_diff)
         positive = fav["favoured_direction"] == "positive"
         interpretation = _kf_joint_optional_text(
-            contrast.get(
-                "positive_interpretation" if positive else "negative_interpretation"
-            )
+            contrast.get("positive_interpretation" if positive else "negative_interpretation")
         )
         sentences.append(
             _kf_sentence(
@@ -170,17 +157,13 @@ def _kf_build_joint(output_dir: str | Path, config: Mapping) -> list[dict[str, s
                 )
             )
         transfer_symbol = _kf_joint_optional_text(contrast.get("transfer_outcome"))
-        transfer_read = _kf_joint_optional_text(
-            contrast.get("transfer_interpretation")
-        )
+        transfer_read = _kf_joint_optional_text(contrast.get("transfer_interpretation"))
         if transfer_symbol:
             sentences.append(
                 _kf_sentence(
                     (f"{transfer_read} " if transfer_read else "")
                     + "Here that marginal effect is "
-                    + _kf_joint_marginal_phrase(
-                        transfer_symbol, tau_rows, marginal_rows
-                    )
+                    + _kf_joint_marginal_phrase(transfer_symbol, tau_rows, marginal_rows)
                     + ".",
                     "transfer",
                 )
@@ -224,8 +207,7 @@ def _kf_build_joint(output_dir: str | Path, config: Mapping) -> list[dict[str, s
         direction = _kf_direction_words(clearest["prob_pos"], is_rd=False)
         sentences.append(
             _kf_sentence(
-                f"For {label}, the clearest directional result: "
-                f"{direction[0].lower() + direction[1:]}",
+                f"For {label}, the clearest directional result: {direction[0].lower() + direction[1:]}",
                 "confidence",
             )
         )
@@ -256,14 +238,10 @@ def _kf_build_joint(output_dir: str | Path, config: Mapping) -> list[dict[str, s
         if {"delta_items", "prob_benefit_ge_delta"}.issubset(df.columns):
             deltas = df[
                 np.isfinite(pd.to_numeric(df["delta_items"], errors="coerce"))
-                & np.isfinite(
-                    pd.to_numeric(df["prob_benefit_ge_delta"], errors="coerce")
-                )
+                & np.isfinite(pd.to_numeric(df["prob_benefit_ge_delta"], errors="coerce"))
             ]
             if not deltas.empty:
-                probabilities = [
-                    _kf_float(v) for v in deltas["prob_benefit_ge_delta"]
-                ]
+                probabilities = [_kf_float(v) for v in deltas["prob_benefit_ge_delta"]]
                 more_likely_than_not = sum(p >= 0.5 for p in probabilities)
                 sentences.append(
                     _kf_sentence(

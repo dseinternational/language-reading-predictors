@@ -56,14 +56,10 @@ def child_log_likelihood(
     if chunk_size < 1:
         raise ValueError(f"chunk_size must be positive (got {chunk_size})")
 
-    payload = built.require_payload(
-        LongCorrFactorPayload, family="long_corr_factor inference"
-    )
+    payload = built.require_payload(LongCorrFactorPayload, family="long_corr_factor inference")
     posterior = trace.posterior
     mean_z = posterior["mean_z"].transpose("chain", "draw", "cell")
-    sigma_z = posterior["Sigma_z"].transpose(
-        "chain", "draw", "cell", "cell_b"
-    )
+    sigma_z = posterior["Sigma_z"].transpose("chain", "draw", "cell", "cell_b")
     expected_cells = np.asarray(payload.cell_names, dtype=str)
     for variable, dimension in ((mean_z, "cell"), (sigma_z, "cell"), (sigma_z, "cell_b")):
         actual_cells = np.asarray(variable.coords[dimension].values, dtype=str)
@@ -79,9 +75,7 @@ def child_log_likelihood(
     all_children: list[int] = []
     for node in payload.z_nodes:
         children = np.asarray(payload.child_of_node[node], dtype=int)
-        cell_indices = np.asarray(
-            payload.cell_indices_of_node[node], dtype=int
-        )
+        cell_indices = np.asarray(payload.cell_indices_of_node[node], dtype=int)
         observed = np.asarray(payload.observed_z_of_node[node], dtype=float)
         expected_shape = (len(children), len(cell_indices))
         if observed.shape != expected_shape:
@@ -93,13 +87,8 @@ def child_log_likelihood(
             if node not in trace.observed_data:
                 raise ValueError(f"LCF persisted observed_data is missing {node!r}")
             persisted = np.asarray(trace.observed_data[node].values, dtype=float)
-            if persisted.shape != observed.shape or not np.allclose(
-                persisted, observed, rtol=0.0, atol=0.0
-            ):
-                raise ValueError(
-                    f"LCF persisted observations for {node!r} do not match the "
-                    "rebuilt model data"
-                )
+            if persisted.shape != observed.shape or not np.allclose(persisted, observed, rtol=0.0, atol=0.0):
+                raise ValueError(f"LCF persisted observations for {node!r} do not match the rebuilt model data")
         groups.append((children, cell_indices, observed))
         all_children.extend(children.tolist())
 
@@ -109,24 +98,17 @@ def child_log_likelihood(
     expected_children = int(payload.n_used_children)
     if len(used_children) != expected_children:
         raise ValueError(
-            f"LCF observed-pattern groups cover {len(used_children)} children; "
-            f"expected {expected_children}"
+            f"LCF observed-pattern groups cover {len(used_children)} children; expected {expected_children}"
         )
     child_column = {child: i for i, child in enumerate(used_children)}
 
-    log_likelihood = np.full(
-        (n_chains, n_draws, expected_children), np.nan, dtype=float
-    )
+    log_likelihood = np.full((n_chains, n_draws, expected_children), np.nan, dtype=float)
     log_2pi = np.log(2.0 * np.pi)
     for chain in range(n_chains):
         for draw_start in range(0, n_draws, chunk_size):
             draw_stop = min(draw_start + chunk_size, n_draws)
-            means = np.asarray(
-                mean_z.isel(chain=chain, draw=slice(draw_start, draw_stop))
-            )
-            covariances = np.asarray(
-                sigma_z.isel(chain=chain, draw=slice(draw_start, draw_stop))
-            )
+            means = np.asarray(mean_z.isel(chain=chain, draw=slice(draw_start, draw_stop)))
+            covariances = np.asarray(sigma_z.isel(chain=chain, draw=slice(draw_start, draw_stop)))
             for children, cell_indices, observed in groups:
                 covariance = covariances[:, cell_indices[:, None], cell_indices]
                 mean = means[:, cell_indices]
@@ -134,17 +116,9 @@ def child_log_likelihood(
                 residual = observed[None, :, :] - mean[:, None, :]
                 whitened = np.linalg.solve(chol, np.swapaxes(residual, 1, 2))
                 quadratic = np.sum(whitened**2, axis=1)
-                log_determinant = 2.0 * np.sum(
-                    np.log(np.diagonal(chol, axis1=1, axis2=2)), axis=1
-                )
-                values = -0.5 * (
-                    len(cell_indices) * log_2pi
-                    + log_determinant[:, None]
-                    + quadratic
-                )
-                columns: np.ndarray = np.asarray(
-                    [child_column[int(child)] for child in children], dtype=int
-                )
+                log_determinant = 2.0 * np.sum(np.log(np.diagonal(chol, axis1=1, axis2=2)), axis=1)
+                values = -0.5 * (len(cell_indices) * log_2pi + log_determinant[:, None] + quadratic)
+                columns: np.ndarray = np.asarray([child_column[int(child)] for child in children], dtype=int)
                 # Advanced indexing places the child dimension first on the target.
                 log_likelihood[chain, draw_start:draw_stop, columns] = values.T
 
@@ -184,11 +158,7 @@ def log_prior(trace: Any, model: pm.Model) -> xr.Dataset:
     from pymc.model.transform.conditioning import remove_value_transforms
 
     posterior_node = trace.posterior
-    posterior = (
-        posterior_node.to_dataset()
-        if hasattr(posterior_node, "to_dataset")
-        else posterior_node
-    )
+    posterior = posterior_node.to_dataset() if hasattr(posterior_node, "to_dataset") else posterior_node
     original_names = [rv.name for rv in model.free_RVs]
     missing = sorted(set(original_names) - set(posterior.data_vars))
     if missing:
@@ -204,10 +174,7 @@ def log_prior(trace: Any, model: pm.Model) -> xr.Dataset:
     }
     inputs = inputs.rename(rename)
     inputs = inputs.astype(
-        {
-            value.name: value.type.dtype
-            for value in untransformed_model.value_vars
-        },
+        {value.name: value.type.dtype for value in untransformed_model.value_vars},
         copy=False,
     )
     logp_fn = untransformed_model.compile_fn(

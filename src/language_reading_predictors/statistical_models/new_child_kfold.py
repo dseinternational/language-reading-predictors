@@ -115,20 +115,12 @@ def subset_panel_children(panel: Any, child_indices: Sequence[int]) -> Any:
         long=long,
         subject_ids=keep_ids,
         n_subjects=len(keep_ids),
-        counts={
-            symbol: np.asarray(values)[positions]
-            for symbol, values in panel.counts.items()
-        },
-        obs_mask={
-            symbol: np.asarray(values)[positions]
-            for symbol, values in panel.obs_mask.items()
-        },
+        counts={symbol: np.asarray(values)[positions] for symbol, values in panel.counts.items()},
+        obs_mask={symbol: np.asarray(values)[positions] for symbol, values in panel.obs_mask.items()},
     )
 
 
-def mask_prepared_children(
-    prepared: Any, held_out: Sequence[int], outcome_symbols: Sequence[str]
-) -> Any:
+def mask_prepared_children(prepared: Any, held_out: Sequence[int], outcome_symbols: Sequence[str]) -> Any:
     """A copy of ``prepared`` with the held-out children's **outcome counts** removed.
 
     The other way to hold a child out is to drop its rows, which is what
@@ -257,9 +249,7 @@ class KFoldValidation:
         }
 
 
-def _fold_assignment(
-    n_children: int, groups: np.ndarray | None, kfold: KFoldPlan
-) -> np.ndarray:
+def _fold_assignment(n_children: int, groups: np.ndarray | None, kfold: KFoldPlan) -> np.ndarray:
     """Deterministic fold index per child, balanced within group where asked.
 
     Children are shuffled with a fixed seed and dealt round-robin within each group, so
@@ -343,12 +333,8 @@ def _transplant(
             raise ValueError(f"fold posterior is missing the free variable {name!r}")
         variable = full_posterior[name]
         candidate = fold_posterior[name]
-        expected = {
-            d: variable.sizes[d] for d in variable.dims if d not in ("chain", "draw")
-        }
-        actual = {
-            d: candidate.sizes[d] for d in candidate.dims if d not in ("chain", "draw")
-        }
+        expected = {d: variable.sizes[d] for d in variable.dims if d not in ("chain", "draw")}
+        actual = {d: candidate.sizes[d] for d in candidate.dims if d not in ("chain", "draw")}
         if expected != actual:
             raise ValueError(
                 f"fold posterior reshaped {name!r} ({actual} vs {expected}); the "
@@ -430,9 +416,7 @@ def run_child_kfold(
             refused[fold] = "fold trace carries no posterior"
             continue
         try:
-            transplanted = _transplant(
-                model, full_posterior, fold_posterior, latents
-            )
+            transplanted = _transplant(model, full_posterior, fold_posterior, latents)
         except ValueError as exc:
             refused[fold] = str(exc)
             rprint(f"[yellow]K-fold {fold}: {exc}[/yellow]")
@@ -467,11 +451,7 @@ def run_child_kfold(
     n_scored = int(scored_mask.sum())
     values = pointwise[scored_mask]
     elpd = float(values.sum()) if n_scored else float("nan")
-    elpd_se = (
-        float(math.sqrt(n_scored * float(np.var(values, ddof=1))))
-        if n_scored > 1
-        else float("nan")
-    )
+    elpd_se = float(math.sqrt(n_scored * float(np.var(values, ddof=1)))) if n_scored > 1 else float("nan")
     pit = (
         pd.concat([f for f in pit_frames if not f.empty], ignore_index=True)
         if any(not f.empty for f in pit_frames)
@@ -542,9 +522,7 @@ def _score_held_out(
         # are generated for.
         if index == 0:
             for node in nodes:
-                predictive[node].append(
-                    np.asarray(redrawn[node].transpose("chain", "draw", ...).values)
-                )
+                predictive[node].append(np.asarray(redrawn[node].transpose("chain", "draw", ...).values))
         with_fresh = transplanted.copy()
         for name in latents:
             with_fresh[name] = redrawn[name]
@@ -558,9 +536,7 @@ def _score_held_out(
             raise ValueError("no log likelihood was computed under the re-drawn latents")
         child_ll: np.ndarray = np.zeros((n_chain, n_draw, n_children), dtype=float)
         for node in nodes:
-            cell = np.asarray(
-                log_likelihood[node].transpose("chain", "draw", ...).values, dtype=float
-            )
+            cell = np.asarray(log_likelihood[node].transpose("chain", "draw", ...).values, dtype=float)
             rows = maps[node]
             for child in range(n_children):
                 child_ll[..., child] += cell[..., rows == child].sum(axis=-1)
@@ -697,9 +673,7 @@ def write_child_kfold(
                 "subject_id": _subject_ids(ctx, result.n_children),
                 "fold": result.fold_of_child,
                 "held_out_elpd": result.pointwise_elpd,
-                "fold_converged": [
-                    result.fold_converged.get(int(f), False) for f in result.fold_of_child
-                ],
+                "fold_converged": [result.fold_converged.get(int(f), False) for f in result.fold_of_child],
             }
         ),
     )

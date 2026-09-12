@@ -156,8 +156,7 @@ def _reuse_existing_trace(context: StatisticalFitContext) -> bool:
     trace_path = os.path.join(source, "trace.nc")
     if not os.path.exists(trace_path):
         raise FileNotFoundError(
-            "reuse-trace mode requires the persisted primary trace at "
-            f"{trace_path}; refusing to run fresh NUTS"
+            f"reuse-trace mode requires the persisted primary trace at {trace_path}; refusing to run fresh NUTS"
         )
     from language_reading_predictors.statistical_models.run_metadata import require_reuse_compatibility
 
@@ -263,9 +262,7 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
     ll = log_likelihood[node]
     unit_dims = [d for d in ll.dims if d not in {"chain", "draw"}]
     if len(unit_dims) != 1:
-        raise ValueError(
-            "child-aggregated y_post log likelihood must have one observation dimension"
-        )
+        raise ValueError("child-aggregated y_post log likelihood must have one observation dimension")
     unit_dim = unit_dims[0]
     rows = np.asarray(constant[map_name].values, dtype=int).ravel()
     if rows.size != ll.sizes[unit_dim]:
@@ -278,9 +275,7 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
         # phantom units to the LOO (2026-08-21 joint-mechanism review, finding 3).
         n_children = int(rows.max()) + 1 if rows.size else 0
     else:
-        n_children = int(constant["G"].size) if "G" in constant else (
-            int(rows.max()) + 1 if rows.size else 0
-        )
+        n_children = int(constant["G"].size) if "G" in constant else (int(rows.max()) + 1 if rows.size else 0)
     if rows.size and (rows.min() < 0 or rows.max() >= n_children):
         raise ValueError("child-row map contains an out-of-range child index")
     # The row-to-unit sum is ``statistics.log_likelihood.aggregate_log_likelihood``
@@ -290,11 +285,7 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
     # also converts to float64 before summing, exactly as this did.
     try:
         aggregated = aggregate_log_likelihood(
-            [
-                LogLikelihoodFactor(
-                    values=ll, row_dim=unit_dim, row_unit_ids=rows.tolist()
-                )
-            ],
+            [LogLikelihoodFactor(values=ll, row_dim=unit_dim, row_unit_ids=rows.tolist())],
             unit_ids=list(range(n_children)),
             unit_dim="loo_child",
         )
@@ -302,12 +293,8 @@ def _joint_log_likelihood_by_child(trace: xr.DataTree) -> xr.DataArray | None:
         # A requested child with no row would previously have become a silent
         # zero-likelihood unit in the PSIS-LOO — the phantom-unit defect the
         # ``loo_child_idx`` branch above already guards against. Fail instead.
-        raise ValueError(
-            f"child-row map leaves a child with no {node!r} likelihood row: {exc}"
-        ) from exc
-    return aggregated.rename("y_post_child").assign_attrs(
-        loo_unit="child", aggregation=aggregation
-    )
+        raise ValueError(f"child-row map leaves a child with no {node!r} likelihood row: {exc}") from exc
+    return aggregated.rename("y_post_child").assign_attrs(loo_unit="child", aggregation=aggregation)
 
 
 def log_density_model(model: pm.Model) -> pm.Model:
@@ -359,9 +346,7 @@ def log_density_model(model: pm.Model) -> pm.Model:
     return untransformed
 
 
-def compute_log_likelihood_and_prior(
-    context: StatisticalFitContext, *, strict: bool = True
-) -> None:
+def compute_log_likelihood_and_prior(context: StatisticalFitContext, *, strict: bool = True) -> None:
     """Add the ``log_likelihood`` and ``log_prior`` groups to the trace.
 
     Both are needed by PSIS-LOO and by power-scaling prior sensitivity
@@ -385,9 +370,7 @@ def compute_log_likelihood_and_prior(
     node per measure makes single-target pointwise PSIS-LOO undefined. ``log_prior`` is
     always guarded.
     """
-    context.trace = attach_log_densities(
-        context.trace, context.model, strict=strict
-    )
+    context.trace = attach_log_densities(context.trace, context.model, strict=strict)
 
 
 def attach_log_densities(trace, model, *, strict: bool = True):
@@ -426,9 +409,7 @@ def compute_log_likelihood_and_loo(context: StatisticalFitContext) -> None:
     child_ll = _joint_log_likelihood_by_child(context.trace)
     if child_ll is not None:
         context.trace.log_likelihood[LOO_CHILD_AGGREGATE_NODE] = child_ll
-        context.loo = az.loo(
-            context.trace, var_name=LOO_CHILD_AGGREGATE_NODE, pointwise=True
-        )
+        context.loo = az.loo(context.trace, var_name=LOO_CHILD_AGGREGATE_NODE, pointwise=True)
     else:
         context.loo = az.loo(context.trace, pointwise=True)
 
@@ -479,11 +460,7 @@ def summary_diagnostics(
 
         ci_pct = int(round(context.reporting.ci_prob * 100))
         interval_cols = _interval_cols(summary.columns)
-        wanted = [
-            c
-            for c in ["mean", "sd", *interval_cols, "ess_bulk", "ess_tail", "r_hat"]
-            if c in summary.columns
-        ]
+        wanted = [c for c in ["mean", "sd", *interval_cols, "ess_bulk", "ess_tail", "r_hat"] if c in summary.columns]
         display_df = summary.reset_index().rename(columns={"index": "variable"})
         print_table(
             ranked_dataframe_table(
@@ -616,9 +593,7 @@ def thin_posterior_only(trace, max_draws: int = 1000):
         return trace
 
 
-def _summarise_deterministics(
-    context: StatisticalFitContext, scalar_var_names: list[str] | None
-) -> None:
+def _summarise_deterministics(context: StatisticalFitContext, scalar_var_names: list[str] | None) -> None:
     """Write ``diagnostics_deterministics.csv`` for vector / GP-weight nodes."""
     with guard_optional(
         context,
@@ -630,24 +605,14 @@ def _summarise_deterministics(
         det_names = [d.name for d in context.model.deterministics if d.name not in scalar]
         # Only summarise nodes actually present in the posterior, and skip the
         # per-observation ``eta`` (n_obs rows) which would dominate the table.
-        present = [
-            n
-            for n in det_names
-            if n in context.trace.posterior and n not in ("eta",)
-        ]
+        present = [n for n in det_names if n in context.trace.posterior and n not in ("eta",)]
         if not present:
             return
-        summary = az.summary(
-            context.trace, var_names=present, round_to=3, ci_kind=context.reporting.interval_kind
-        )
-        save_table(
-            context, "diagnostics_deterministics", summary, index=True, required=False
-        )
+        summary = az.summary(context.trace, var_names=present, round_to=3, ci_kind=context.reporting.interval_kind)
+        save_table(context, "diagnostics_deterministics", summary, index=True, required=False)
 
 
-def _gate_var_names(
-    context: StatisticalFitContext, curated: list[str] | None
-) -> list[str] | None:
+def _gate_var_names(context: StatisticalFitContext, curated: list[str] | None) -> list[str] | None:
     """Full-coverage variable set for the convergence gate (issue #274 item 2).
 
     The per-family ``var_names`` lists passed by the pipeline are hand-curated
@@ -723,9 +688,7 @@ def split_structurally_constant(posterior, names: Iterable[str]) -> tuple[list[s
             continue
         constant_at = (
             None
-            if not values.size
-            or not np.all(np.isfinite(values))
-            or float(np.ptp(values)) != 0.0
+            if not values.size or not np.all(np.isfinite(values)) or float(np.ptp(values)) != 0.0
             else float(values.flat[0])
         )
         if (j > i and constant_at == 0.0) or (i == j == 0 and constant_at == 1.0):
@@ -790,9 +753,7 @@ def write_diagnostics_summary(
     )
 
 
-def reclassify_structural_constants(
-    summary: dict, posterior, *, output_dir=None, tables=None
-) -> dict:
+def reclassify_structural_constants(summary: dict, posterior, *, output_dir=None, tables=None) -> dict:
     """Downgrade exactly-constant coordinates from gate failures to a record.
 
     See :func:`split_structurally_constant`. Applied after the shared writer so
@@ -929,9 +890,7 @@ def gate_derived_estimands(
             f"{', '.join(failures)} missed the Monte-Carlo tolerance[/red]"
         )
     else:
-        rprint(
-            f"  Derived estimands within Monte-Carlo tolerance ({len(records)} checked)."
-        )
+        rprint(f"  Derived estimands within Monte-Carlo tolerance ({len(records)} checked).")
     # The read-modify-rewrite is ``diagnostics.amend_diagnostics_summary`` (#662).
     # It merges the new check into ``checks`` rather than replacing them,
     # recomputes ``passed`` from the merged set — the same verdict this used to
@@ -1007,9 +966,7 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
         # Comma-separated, not a list: this dict is spread into one-row provenance
         # frames (``influence.summarise_influence_refit``,
         # ``subfits.SubfitResult``) where an empty list cannot become a column.
-        _structural, _genuine = split_structurally_constant(
-            trace.posterior, signals.unassessable
-        )
+        _structural, _genuine = split_structurally_constant(trace.posterior, signals.unassessable)
         result["unassessable_parameters"] = ", ".join(_genuine)
         result["structurally_constant_parameters"] = ", ".join(_structural)
         result["converged"] = bool(
@@ -1030,11 +987,7 @@ def subfit_convergence(trace, *, label: str, var_names: list[str] | None = None)
             f"(max R-hat={result['max_rhat']:.4f}, min ESS={result['min_ess']:.0f}, "
             f"min BFMI={result['min_bfmi'] if result['min_bfmi'] is not None else 'missing'}, "
             f"divergences={result['n_divergences']}"
-            + (
-                f", unassessable={result['unassessable_parameters']}"
-                if result.get("unassessable_parameters")
-                else ""
-            )
+            + (f", unassessable={result['unassessable_parameters']}" if result.get("unassessable_parameters") else "")
             + "); its published estimates are flagged not-converged.[/red]"
         )
     return result
@@ -1071,11 +1024,7 @@ def _ess_evolution_vars(
             continue
         size = int(
             np.prod(
-                [
-                    length
-                    for dim, length in posterior[name].sizes.items()
-                    if dim not in {"chain", "draw"}
-                ],
+                [length for dim, length in posterior[name].sizes.items() if dim not in {"chain", "draw"}],
                 dtype=int,
             )
         )
@@ -1171,9 +1120,7 @@ def run_extended_diagnostics(
 _PRIOR_POSTERIOR_RESERVED_DIMS = ("group",)
 
 
-def _prior_posterior_plot_view(
-    trace, var_names: list[str] | None
-) -> tuple[object, list[str] | None]:
+def _prior_posterior_plot_view(trace, var_names: list[str] | None) -> tuple[object, list[str] | None]:
     """Return a trace view whose dimensions cannot collide with the plot's own.
 
     ``plot_prior_posterior`` concatenates the prior and posterior groups along a
@@ -1192,11 +1139,7 @@ def _prior_posterior_plot_view(
     degrades to the original pair, i.e. to the pre-existing behaviour.
     """
     try:
-        renames = {
-            dim: f"{dim} (dimension)"
-            for dim in _PRIOR_POSTERIOR_RESERVED_DIMS
-            if dim in trace.posterior.dims
-        }
+        renames = {dim: f"{dim} (dimension)" for dim in _PRIOR_POSTERIOR_RESERVED_DIMS if dim in trace.posterior.dims}
         if not renames:
             return trace, var_names
         groups = {}
@@ -1245,21 +1188,13 @@ def save_prior_posterior_plot(
             for name in var_names:
                 if name not in posterior:
                     continue
-                non_sample_sizes = [
-                    size
-                    for dim, size in posterior[name].sizes.items()
-                    if dim not in {"chain", "draw"}
-                ]
+                non_sample_sizes = [size for dim, size in posterior[name].sizes.items() if dim not in {"chain", "draw"}]
                 panel_count += int(np.prod(non_sample_sizes, dtype=int))
         except Exception:  # pragma: no cover - plotting remains guarded below
             panel_count = 0
 
     configured_limit = az.rcParams["plot.max_subplots"]
-    if (
-        panel_count
-        and configured_limit is not None
-        and panel_count > configured_limit
-    ):
+    if panel_count and configured_limit is not None and panel_count > configured_limit:
         rc = {"plot.max_subplots": panel_count}
     else:
         rc = {}
@@ -1283,9 +1218,7 @@ def save_prior_posterior_plot(
     with az.rc_context(rc):
         _save_pc(
             out,
-            lambda: azp.plot_prior_posterior(
-                tr, var_names=var_names, **plot_kwargs
-            ),
+            lambda: azp.plot_prior_posterior(tr, var_names=var_names, **plot_kwargs),
             "prior_posterior.png",
             title="Prior vs posterior overlay",
         )
@@ -1323,11 +1256,7 @@ def _psense_plot_view(trace, var_names: list[str]) -> tuple[object, list[str]]:
     """
     try:
         posterior = trace.posterior.to_dataset()
-        clashing = [
-            name
-            for name in _PSENSE_RESERVED_DIMS
-            if name in posterior.variables or name in posterior.dims
-        ]
+        clashing = [name for name in _PSENSE_RESERVED_DIMS if name in posterior.variables or name in posterior.dims]
         if not clashing:
             return trace, var_names
         renames: dict[str, str] = {}
@@ -1372,11 +1301,7 @@ def _psense_layout(trace, var_names: list[str]) -> tuple[dict, dict]:
         for name in var_names:
             if name not in posterior:
                 continue
-            levels = [
-                size
-                for dim, size in posterior[name].sizes.items()
-                if dim not in {"chain", "draw"}
-            ]
+            levels = [size for dim, size in posterior[name].sizes.items() if dim not in {"chain", "draw"}]
             rows += int(np.prod(levels, dtype=int))
     except Exception:
         return {}, {}
@@ -1545,9 +1470,7 @@ def save_trace(context: StatisticalFitContext, filename: str = "trace.nc") -> st
     _attach_prior_groups(context)
     path = os.path.join(context.output_dir, filename)
     context.trace.to_netcdf(path)
-    record_artifact(
-        context, os.path.splitext(filename)[0], filename=filename, kind="netcdf"
-    )
+    record_artifact(context, os.path.splitext(filename)[0], filename=filename, kind="netcdf")
     return path
 
 
@@ -1569,9 +1492,7 @@ def _joint_cell_outcome_index(
         return None, None
     # Per-node map first (``y_obs_cell_outcome`` for the stacked LCSM / growth
     # likelihoods), then the joint family's original name.
-    key = next(
-        (k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if k in cd), None
-    )
+    key = next((k for k in (f"{node}_cell_outcome", "y_post_cell_outcome") if k in cd), None)
     if key is None:
         return None, None
     idx = np.asarray(cd[key].values).ravel().astype(int)
@@ -1593,9 +1514,7 @@ def _joint_cell_outcome_index(
     if not outcomes:
         raise ValueError("joint predictive cells exist but outcome labels are unavailable")
     if outcome_symbol not in outcomes:
-        raise KeyError(
-            f"outcome {outcome_symbol!r} is not in the joint outcome set {outcomes}"
-        )
+        raise KeyError(f"outcome {outcome_symbol!r} is not in the joint outcome set {outcomes}")
     if idx.size and (idx.min() < 0 or idx.max() >= len(outcomes)):
         raise ValueError("joint predictive cell map contains an invalid outcome index")
     return idx, outcomes.index(outcome_symbol)
@@ -1614,9 +1533,7 @@ def _predictive_values_for_outcome(
     if "outcome" in predictive.dims:
         labels = [str(o) for o in predictive.coords["outcome"].values]
         if outcome_symbol not in labels:
-            raise KeyError(
-                f"outcome {outcome_symbol!r} is not in predictive outcomes {labels}"
-            )
+            raise KeyError(f"outcome {outcome_symbol!r} is not in predictive outcomes {labels}")
         predictive = predictive.sel(outcome=outcome_symbol)
         return np.asarray(predictive.values, dtype=float), outcome_symbol
     values = np.asarray(predictive.values, dtype=float)
@@ -1629,14 +1546,10 @@ def _predictive_values_for_outcome(
     return values[..., cell_idx == target], outcome_symbol
 
 
-def _shared_count_histogram_edges(
-    replicated: np.ndarray, observed: np.ndarray
-) -> np.ndarray:
+def _shared_count_histogram_edges(replicated: np.ndarray, observed: np.ndarray) -> np.ndarray:
     """Return unit-width bin edges shared by observed and replicated counts."""
 
-    values = np.concatenate(
-        [np.asarray(replicated, dtype=float).ravel(), np.asarray(observed, dtype=float).ravel()]
-    )
+    values = np.concatenate([np.asarray(replicated, dtype=float).ravel(), np.asarray(observed, dtype=float).ravel()])
     values = values[np.isfinite(values)]
     if not values.size:
         raise ValueError("predictive histogram has no finite values")
@@ -1738,12 +1651,8 @@ def save_prior_predictive_rate_plot(
         rprint("[yellow]No prior samples to plot[/yellow]")
         return
     try:
-        rep = np.asarray(
-            getattr(context.prior_samples, "prior_predictive")[node].values, dtype=float
-        )
-        obs = np.asarray(
-            getattr(context.prior_samples, "observed_data")[node].values, dtype=float
-        ).ravel()
+        rep = np.asarray(getattr(context.prior_samples, "prior_predictive")[node].values, dtype=float)
+        obs = np.asarray(getattr(context.prior_samples, "observed_data")[node].values, dtype=float).ravel()
         obs = obs[np.isfinite(obs)]
         # Same 0/1 reduction as ``_offfloor_cell_rates`` so a raw-count node and a
         # Bernoulli node behave identically.
@@ -1756,11 +1665,17 @@ def save_prior_predictive_rate_plot(
         # Same palette as ``_overlay_count_histograms`` so the rate check reads as a
         # sibling of the count check rather than a different kind of figure.
         plt.hist(
-            rep_rate, bins=30, density=True, alpha=0.55,
-            label="prior predictive", color="#1f77b4",
+            rep_rate,
+            bins=30,
+            density=True,
+            alpha=0.55,
+            label="prior predictive",
+            color="#1f77b4",
         )
         plt.axvline(
-            obs_rate, color="#d62728", linewidth=2,
+            obs_rate,
+            color="#d62728",
+            linewidth=2,
             label=f"observed rate = {obs_rate:.2f}",
         )
         plt.xlabel(f"{outcome_symbol} event rate")
@@ -1853,9 +1768,7 @@ def save_prior_predictive_plot(
             outcome_symbol=outcome_symbol,
         )
         rep = rep.ravel()
-        obs = _observed_values_for_node(
-            context, node=node, outcome_symbol=outcome_symbol
-        )
+        obs = _observed_values_for_node(context, node=node, outcome_symbol=outcome_symbol)
         import pandas as pd
 
         plt.figure(figsize=(6, 4))
@@ -1877,9 +1790,7 @@ def save_prior_predictive_plot(
             .reset_index()
             .rename(columns={"index": "statistic"})
         )
-        save_styled_figure(
-            context.output_dir, filename_stem, data=summary
-        )
+        save_styled_figure(context.output_dir, filename_stem, data=summary)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Prior-predictive plot failed: {exc}[/yellow]")
 
@@ -1911,9 +1822,7 @@ def save_joint_posterior_predictive_plot(
             outcome_symbol=outcome_symbol,
         )
         rep = rep.ravel()
-        obs = _observed_values_for_node(
-            context, node=node, outcome_symbol=outcome_symbol, samples=context.trace
-        )
+        obs = _observed_values_for_node(context, node=node, outcome_symbol=outcome_symbol, samples=context.trace)
         import pandas as pd
 
         plt.figure(figsize=(6, 4))
@@ -1932,9 +1841,7 @@ def save_joint_posterior_predictive_plot(
             .reset_index()
             .rename(columns={"index": "statistic"})
         )
-        save_styled_figure(
-            context.output_dir, filename_stem, data=summary
-        )
+        save_styled_figure(context.output_dir, filename_stem, data=summary)
     except Exception as exc:  # pragma: no cover
         rprint(f"[yellow]Joint posterior-predictive plot failed: {exc}[/yellow]")
 
@@ -2001,24 +1908,18 @@ def _joint_outcome_predictive_tree(
         if tree is None or "y_post" not in tree:
             raise KeyError(f"joint LOO-PIT requires {group}['y_post']")
         data = tree.ds[["y_post"]]
-        cell_dims = [
-            dim for dim in data["y_post"].dims if dim not in {"chain", "draw"}
-        ]
+        cell_dims = [dim for dim in data["y_post"].dims if dim not in {"chain", "draw"}]
         if len(cell_dims) != 1:
             raise ValueError(f"{group}['y_post'] must have one cell dimension")
         cell_dim = cell_dims[0]
         if data.sizes[cell_dim] != cell_idx.size:
-            raise ValueError(
-                f"{group}['y_post'] does not align with the joint cell map"
-            )
+            raise ValueError(f"{group}['y_post'] does not align with the joint cell map")
         return data.isel({cell_dim: keep})
 
     posterior = samples.posterior.ds
     if posterior_var is not None:
         if posterior_var not in posterior:
-            raise KeyError(
-                f"joint LOO-PIT requires posterior[{posterior_var!r}] for relative ESS"
-            )
+            raise KeyError(f"joint LOO-PIT requires posterior[{posterior_var!r}] for relative ESS")
         ess_var = posterior_var
     else:
         ess_var = next(
@@ -2092,11 +1993,7 @@ def save_joint_loo_pit_plot(
         # label gets its label alone rather than a clause that would then be false.
         title=(
             f"{unit_label.capitalize()} PIT calibration ({outcome_symbol})"
-            + (
-                " — the child's other cells remain observed"
-                if unit_label == JOINT_LOO_PIT_UNIT_LABEL
-                else ""
-            )
+            + (" — the child's other cells remain observed" if unit_label == JOINT_LOO_PIT_UNIT_LABEL else "")
         ),
     )
 
@@ -2121,12 +2018,7 @@ def influence_diagnostics(ctx: StatisticalFitContext) -> tuple:
         long = getattr(ctx.prepared, "long", None)
         dataset = getattr(ctx.prepared, "dataset", None)
         subject_col = getattr(dataset, "subject_col", None)
-        if (
-            long is not None
-            and subject_col is not None
-            and subject_col in long
-            and len(k) == len(long)
-        ):
+        if long is not None and subject_col is not None and subject_col in long and len(k) == len(long):
             ids = long[subject_col].to_numpy()
         else:
             child_idx = getattr(ctx.prepared, "child_idx", None)

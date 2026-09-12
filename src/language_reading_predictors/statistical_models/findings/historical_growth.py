@@ -46,11 +46,7 @@ def _kf_build_historical_growth(output_dir: str | Path, config: Mapping) -> list
         contrasts = df.iloc[0:0]
     # Prefer the audited core window; fall back to the extension tail only when
     # the fit supports no core interval at all.
-    core = (
-        within[within["window"].astype(str) == "core"]
-        if "window" in within.columns
-        else within
-    )
+    core = within[within["window"].astype(str) == "core"] if "window" in within.columns else within
     candidates = core if not core.empty else within
     row = _kf_most_resolved_row(candidates, prob_col="p_gt_0")
     group = _kf_plain_label(row.get("readgrp_label", "historical cohort"))
@@ -58,7 +54,7 @@ def _kf_build_historical_growth(output_dir: str | Path, config: Mapping) -> list
     n_subjects = row.get("n_subjects")
     try:
         n_text = f", {int(_kf_float(n_subjects))} children"
-    except (_KeyFindingsUnavailable, TypeError, ValueError):
+    except _KeyFindingsUnavailable, TypeError, ValueError:
         n_text = ""
     window_text = (
         " This interval is on the attrition-selected follow-up extension, not "
@@ -70,11 +66,7 @@ def _kf_build_historical_growth(output_dir: str | Path, config: Mapping) -> list
     fav = favoured_direction(_kf_float(row["p_gt_0"]))
     positive = fav["favoured_direction"] == "positive"
     direction = "positive" if positive else "negative"
-    claim = (
-        "scores tend to increase over that interval"
-        if positive
-        else "scores tend to decrease over that interval"
-    )
+    claim = "scores tend to increase over that interval" if positive else "scores tend to decrease over that interval"
     sentences = [
         _kf_sentence(
             f"For the {group} group, {_kf_plain_label(row['label'])} was "
@@ -116,16 +108,8 @@ def _kf_build_historical_growth(output_dir: str | Path, config: Mapping) -> list
     if cells is not None and "posterior_mean_minus_observed_mean" in cells.columns:
         # The published audit is the complete-case core (Table 2); an extension
         # cell was never in it, so it must not set the reproduction figure.
-        audit = (
-            cells[cells["window"].astype(str) == "core"]
-            if "window" in cells.columns
-            else cells
-        )
-        gaps = [
-            abs(_kf_float(v))
-            for v in audit["posterior_mean_minus_observed_mean"]
-            if np.isfinite(_kf_float(v))
-        ]
+        audit = cells[cells["window"].astype(str) == "core"] if "window" in cells.columns else cells
+        gaps = [abs(_kf_float(v)) for v in audit["posterior_mean_minus_observed_mean"] if np.isfinite(_kf_float(v))]
         if gaps:
             sentences.append(
                 _kf_sentence(

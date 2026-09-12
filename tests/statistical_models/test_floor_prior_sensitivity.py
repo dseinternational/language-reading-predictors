@@ -95,9 +95,7 @@ def _complete_grid(symbol: str = "P") -> pd.DataFrame:
                     "primary_sampling_draws": FIXTURE_SAMPLING["draws"],
                     "primary_sampling_tune": FIXTURE_SAMPLING["tune"],
                     "primary_sampling_chains": FIXTURE_SAMPLING["chains"],
-                    "primary_sampling_target_accept": FIXTURE_SAMPLING[
-                        "target_accept"
-                    ],
+                    "primary_sampling_target_accept": FIXTURE_SAMPLING["target_accept"],
                     "primary_sampling_random_seed": 47,
                     "sampling_draws": FIXTURE_SAMPLING["draws"],
                     "sampling_tune": FIXTURE_SAMPLING["tune"],
@@ -364,11 +362,7 @@ def _ready_bundle(
     tmp_path: Path,
     symbol: str = "P",
 ) -> tuple[pd.DataFrame, PrimaryFloorReference, Path]:
-    model_dir = (
-        tmp_path
-        / "primary"
-        / f"{FLOOR_SENSITIVITY_MODEL_IDS[symbol]}-{FIXTURE_CONFIG}"
-    )
+    model_dir = tmp_path / "primary" / f"{FLOOR_SENSITIVITY_MODEL_IDS[symbol]}-{FIXTURE_CONFIG}"
     reference = _make_primary_reference(
         model_dir,
         symbol,
@@ -1061,8 +1055,7 @@ def _with_reporting_publication_identity(
     reporting_frame = frame.copy(deep=True)
     reporting_frame["config"] = "reporting"
     reporting_references = {
-        symbol: replace(reference, config_name="reporting")
-        for symbol, reference in references.items()
+        symbol: replace(reference, config_name="reporting") for symbol, reference in references.items()
     }
     return reporting_frame, reporting_references
 

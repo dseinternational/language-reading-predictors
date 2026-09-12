@@ -20,7 +20,12 @@ import pytest
 from language_reading_predictors.statistical_models import release as _release
 from language_reading_predictors.statistical_models.definitions import KINDS
 from language_reading_predictors.statistical_models.convergence import convergence_gate_badge_markdown
-from language_reading_predictors.statistical_models.key_findings import KEY_FINDINGS_FILENAME, KEY_FINDINGS_MAX_SENTENCES, _KF_BUILDERS, generate_key_findings
+from language_reading_predictors.statistical_models.key_findings import (
+    KEY_FINDINGS_FILENAME,
+    KEY_FINDINGS_MAX_SENTENCES,
+    _KF_BUILDERS,
+    generate_key_findings,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -28,12 +33,10 @@ REPO = Path(__file__).resolve().parents[2]
 def test_survival_without_a_treatment_term_reports_a_covariate_association(tmp_path):
     from language_reading_predictors.statistical_models.findings.survival import _kf_build_survival
 
-    pd.DataFrame([
-        {"term": "gamma_A", "median": 0.2, "ci_low": -0.1, "ci_high": 0.5, "P(>0)": 0.85}
-    ]).to_csv(tmp_path / "survival_summary.csv", index=False)
-    sentences = _kf_build_survival(
-        tmp_path, {"resolved_run_plan": {"treatment_window": "randomised"}}
+    pd.DataFrame([{"term": "gamma_A", "median": 0.2, "ci_low": -0.1, "ci_high": 0.5, "P(>0)": 0.85}]).to_csv(
+        tmp_path / "survival_summary.csv", index=False
     )
+    sentences = _kf_build_survival(tmp_path, {"resolved_run_plan": {"treatment_window": "randomised"}})
     text = " ".join(str(sentence) for sentence in sentences)
     assert "adjusted association" in text
     assert "contains no assignment contrast" in text
@@ -111,8 +114,7 @@ def _write_core_inventory(d: Path) -> None:
         "artifact_manifest.json",
         {
             "artifacts": [
-                {"filename": name, "status": "written", "required": True}
-                for name in _release._CORE_ARTIFACTS_BASE
+                {"filename": name, "status": "written", "required": True} for name in _release._CORE_ARTIFACTS_BASE
             ]
         },
     )
@@ -186,9 +188,7 @@ def _read_json(d: Path, name: str) -> dict:
     return json.loads((d / name).read_text())
 
 
-def _write_psense(
-    d: Path, *, prior: float = 0.01, likelihood: float = 0.02, term: str = "tau"
-) -> None:
+def _write_psense(d: Path, *, prior: float = 0.01, likelihood: float = 0.02, term: str = "tau") -> None:
     """Write a power-scaling row for the #392 robustness release gate.
 
     Every gated fixture needs one because the gate is deliberately fail-closed: a fit
@@ -349,9 +349,7 @@ def test_convergence_gate_badge_passes_compactly():
 
 
 def test_convergence_gate_badge_fails_closed_and_names_checks():
-    markdown = convergence_gate_badge_markdown(
-        _diag(rhat=False, ess=True, divergences=False, bfmi=True)
-    )
+    markdown = convergence_gate_badge_markdown(_diag(rhat=False, ess=True, divergences=False, bfmi=True))
     assert "callout-important" in markdown
     assert "Sampling-quality gate: failed" in markdown
     assert "R-hat" in markdown
@@ -494,8 +492,7 @@ def test_itt_golden_sentences(tmp_path):
         "available-case modified ITT analysis (89% credible range -0.3 to +5.9)."
     )
     assert texts[1] == (
-        "There is a 94% probability that the true effect is positive — moderate "
-        "evidence that the intervention helps."
+        "There is a 94% probability that the true effect is positive — moderate evidence that the intervention helps."
     )
     assert texts[2] == (
         "The project agreed after its initial results review that a change of at "
@@ -696,12 +693,8 @@ def test_word_reading_key_findings_label_full_57_as_missing_data_sensitivity(
     assert "unrestricted missing outcomes can reverse direction" in sensitivity
     assert "assumption-dependent secondary estimates" in sensitivity
     assert "available-case modified ITT analysis" in payload["sentences"][0]["text"]
-    assert payload["sentences"][1]["text"].startswith(
-        "For the 53-outcome available-case modified ITT model of record"
-    )
-    assert payload["itt_missingness_sensitivity_sha256"] == sha256_file(
-        d / MISSINGNESS_SUMMARY_FILENAME
-    )
+    assert payload["sentences"][1]["text"].startswith("For the 53-outcome available-case modified ITT model of record")
+    assert payload["itt_missingness_sensitivity_sha256"] == sha256_file(d / MISSINGNESS_SUMMARY_FILENAME)
 
 
 def _blending_config(model_id: str, link: str) -> dict:
@@ -735,12 +728,8 @@ def _write_blending_link_summary(d: Path) -> Path:
     )
     (companion_dir / "trace.nc").write_text("companion B trace")
     (companion_dir / "pareto_k.csv").write_text("companion B row map")
-    (companion_dir / "diagnostics_summary.json").write_bytes(
-        (d / "diagnostics_summary.json").read_bytes()
-    )
-    (companion_dir / "analysis_set.csv").write_bytes(
-        (d / "analysis_set.csv").read_bytes()
-    )
+    (companion_dir / "diagnostics_summary.json").write_bytes((d / "diagnostics_summary.json").read_bytes())
+    (companion_dir / "analysis_set.csv").write_bytes((d / "analysis_set.csv").read_bytes())
     # Built by hand rather than through ``_setup_dir``, so it needs the stored
     # path's core inventory explicitly.
     _write_core_inventory(companion_dir)
@@ -752,10 +741,7 @@ def _write_blending_link_summary(d: Path) -> Path:
             if not path.is_file():
                 path.write_bytes(f"{label}:{name}".encode())
         return json.dumps(
-            {
-                name: sha256_file(directory / name)
-                for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
-            },
+            {name: sha256_file(directory / name) for name in BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS},
             sort_keys=True,
             separators=(",", ":"),
         )
@@ -841,18 +827,14 @@ def _write_blending_link_summary(d: Path) -> Path:
             },
         ],
     )
-    (companion_dir / "blending_link_sensitivity.csv").write_bytes(
-        (d / "blending_link_sensitivity.csv").read_bytes()
-    )
+    (companion_dir / "blending_link_sensitivity.csv").write_bytes((d / "blending_link_sensitivity.csv").read_bytes())
     # The local evaluator byte-binds the installed copies to the central archive
     # manifest (finding 1, notes/202608201205-itt-code-review-findings.md); the
     # calling tests therefore nest the fit dirs one level down (``models/<fit>``)
     # so this per-test archive lands inside tmp_path, mirroring production.
     archive = d.parent.parent / "blending_link_sensitivity"
     archive.mkdir(parents=True, exist_ok=True)
-    (archive / "blending_link_sensitivity.csv").write_bytes(
-        (d / "blending_link_sensitivity.csv").read_bytes()
-    )
+    (archive / "blending_link_sensitivity.csv").write_bytes((d / "blending_link_sensitivity.csv").read_bytes())
     return companion_dir
 
 
@@ -899,9 +881,7 @@ def test_blending_key_findings_show_both_current_links(tmp_path):
     assert "Read neither link in isolation" in texts
     assert "95% probability" in texts
     assert "-9.0 items" not in texts
-    assert payload["blending_link_sensitivity_sha256"] == sha256_file(
-        d / "blending_link_sensitivity.csv"
-    )
+    assert payload["blending_link_sensitivity_sha256"] == sha256_file(d / "blending_link_sensitivity.csv")
 
     companion_payload = generate_key_findings(companion_dir)
     assert companion_payload["status"] == "ok", companion_payload.get("reason")
@@ -956,16 +936,11 @@ def test_every_registered_blending_model_is_paired_or_exempt(tmp_path):
     import importlib
     import os
 
-    root = os.path.dirname(
-        importlib.import_module(
-            "language_reading_predictors.statistical_models.mediation"
-        ).__file__
-    )
+    root = os.path.dirname(importlib.import_module("language_reading_predictors.statistical_models.mediation").__file__)
     unaccounted: list[str] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is None or getattr(spec, "outcome_symbol", None) != "B":
@@ -979,21 +954,28 @@ def test_every_registered_blending_model_is_paired_or_exempt(tmp_path):
         # variant is registered with a ``base``, i.e. it is a variant of a model that
         # does. Anything with neither is a B model nothing accounts for.
         paired = spec.model_id in {
-            "lrp-rli-itt-008", "lrp-rli-itt-108",
-            "lrp-rli-lf-006", "lrp-rli-lf-106",
-            "lrp-rli-did-003", "lrp-rli-did-103",
-            "lrp-rli-gf-006", "lrp-rli-gf-306",
-            "lrp-rli-al-006", "lrp-rli-al-306",
-            "lrp-rli-ca-007", "lrp-rli-ca-307",
-            "lrp-rli-dose-084", "lrp-rli-dose-384",
-            "lrp-rli-med-087", "lrp-rli-med-387",
+            "lrp-rli-itt-008",
+            "lrp-rli-itt-108",
+            "lrp-rli-lf-006",
+            "lrp-rli-lf-106",
+            "lrp-rli-did-003",
+            "lrp-rli-did-103",
+            "lrp-rli-gf-006",
+            "lrp-rli-gf-306",
+            "lrp-rli-al-006",
+            "lrp-rli-al-306",
+            "lrp-rli-ca-007",
+            "lrp-rli-ca-307",
+            "lrp-rli-dose-084",
+            "lrp-rli-dose-384",
+            "lrp-rli-med-087",
+            "lrp-rli-med-387",
         }
         exempt = entry is not None and entry.base is not None
         if not (paired or exempt):
             unaccounted.append(spec.model_id)
     assert not unaccounted, (
-        "these registered B models are neither in a link pair nor a recorded "
-        f"variant of one: {unaccounted}"
+        f"these registered B models are neither in a link pair nor a recorded variant of one: {unaccounted}"
     )
 
 
@@ -1198,7 +1180,6 @@ def test_dose_blending_mismatched_pair_fails_closed(tmp_path):
     assert "fitted rows" in payload["reason"]
 
 
-
 def test_aligned_off_floor_uses_resolved_plan_and_percentage_points(tmp_path):
     """The aligned pipeline stores its likelihood in the resolved run plan."""
     config = _config(
@@ -1394,9 +1375,7 @@ def test_level_factors_golden_sentences(tmp_path):
     # not associations — the box must not deny their randomised status.
     assert "not treated-versus-untreated effects" in texts[3]
     # No psense_summary.csv → no caution bullet (base case is four sentences).
-    assert [s["kind"] for s in payload["sentences"]] == [
-        "headline", "confidence", "rope", "causal"
-    ]
+    assert [s["kind"] for s in payload["sentences"]] == ["headline", "confidence", "rope", "causal"]
 
 
 def test_level_factors_caveats_the_headline_as_at_mean_ability(tmp_path):
@@ -1423,9 +1402,7 @@ def test_level_factors_caveats_the_headline_as_at_mean_ability(tmp_path):
     assert "average across the children in this comparison" in causal["text"]
     assert "not randomised" in causal["text"]
     # Carried on the causal sentence, not as a sixth: the box truncates at five.
-    assert [s["kind"] for s in payload["sentences"]] == [
-        "headline", "confidence", "rope", "causal"
-    ]
+    assert [s["kind"] for s in payload["sentences"]] == ["headline", "confidence", "rope", "causal"]
 
 
 def test_level_factors_t1_referenced_plan_names_the_change_in_the_causal_sentence(tmp_path):
@@ -1460,9 +1437,7 @@ def test_level_factors_t1_referenced_plan_names_the_change_in_the_causal_sentenc
     assert "difference-in-differences" in causal["text"]
     assert "chance difference between the arms at t1" in causal["text"]
     assert "average across the children in this comparison" in causal["text"]
-    assert [s["kind"] for s in payload["sentences"]] == [
-        "headline", "confidence", "rope", "causal"
-    ]
+    assert [s["kind"] for s in payload["sentences"]] == ["headline", "confidence", "rope", "causal"]
 
 
 def test_level_factors_free_plan_keeps_the_plain_causal_sentence(tmp_path):
@@ -1524,10 +1499,7 @@ def test_level_factors_keeps_the_causal_sentence_when_psense_also_flags(tmp_path
     kinds = [s["kind"] for s in payload["sentences"]]
     assert kinds == ["headline", "confidence", "rope", "robustness", "causal"]
     assert len(kinds) <= KEY_FINDINGS_MAX_SENTENCES
-    assert (
-        "average across the children in this comparison"
-        in payload["sentences"][-1]["text"]
-    )
+    assert "average across the children in this comparison" in payload["sentences"][-1]["text"]
 
 
 def test_results_factors_partial_gates_the_ability_caveat_on_the_term():
@@ -1800,9 +1772,7 @@ def _write_joint_mechanism_wave_bundle(
             ],
         )
         # Explicit UTF-8: the tick is unwritable under Windows' cp1252 default.
-        (d / psense_file).write_text(
-            ",prior,likelihood,diagnosis\nbeta_mech[W],0.01,0.02,✓\n", encoding="utf-8"
-        )
+        (d / psense_file).write_text(",prior,likelihood,diagnosis\nbeta_mech[W],0.01,0.02,✓\n", encoding="utf-8")
         rows.append(
             {
                 "wave": wave,
@@ -2118,6 +2088,7 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
                 "extra": {"design": "levels", "contrast": ["N", "W"]},
             },
         )
+
         # Two waves, so the builder's per-wave path (range + clearest-wave lead) is
         # exercised, plus the levels-only conditional-slope / share-retained rows.
         def _jm(wave, term, median, lo, hi, prob_pos):
@@ -2185,10 +2156,22 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             d,
             "pooled_levels_summary.csv",
             [
-                {"term": "beta_between", "role": "association", "median": 1.61,
-                 "lo": 1.34, "hi": 1.87, "prob_positive": 1.0},
-                {"term": "beta_within", "role": "association", "median": 0.04,
-                 "lo": -0.06, "hi": 0.14, "prob_positive": 0.742},
+                {
+                    "term": "beta_between",
+                    "role": "association",
+                    "median": 1.61,
+                    "lo": 1.34,
+                    "hi": 1.87,
+                    "prob_positive": 1.0,
+                },
+                {
+                    "term": "beta_within",
+                    "role": "association",
+                    "median": 0.04,
+                    "lo": -0.06,
+                    "hi": 0.14,
+                    "prob_positive": 0.742,
+                },
             ],
         )
         return d, "Between children"
@@ -2399,9 +2382,16 @@ def test_joint_findings_identify_smallest_difference_as_post_hoc(tmp_path):
 def _jm_slope_rows_fixture(converged_t4: bool) -> list[dict]:
     def _jm(wave, term, median, prob_pos, converged):
         return {
-            "wave": wave, "term": term, "label": term, "median": median,
-            "mean": median, "lo50": median - 0.05, "hi50": median + 0.05,
-            "lo": median - 0.2, "hi": median + 0.2, "prob_pos": prob_pos,
+            "wave": wave,
+            "term": term,
+            "label": term,
+            "median": median,
+            "mean": median,
+            "lo50": median - 0.05,
+            "hi50": median + 0.05,
+            "lo": median - 0.2,
+            "hi": median + 0.2,
+            "prob_pos": prob_pos,
             "converged": converged,
         }
 
@@ -2538,9 +2528,7 @@ def _joint_contrast_case(tmp_path: Path) -> Path:
                 "proportion correct more for taught expressive words than for "
                 "not-taught expressive words."
             ),
-            "negative_interpretation": (
-                "A negative contrast means the opposite ordering."
-            ),
+            "negative_interpretation": ("A negative contrast means the opposite ordering."),
             "transfer_outcome": "UE",
             "transfer_interpretation": (
                 "Assess whether expressive generalisation is small from the "
@@ -2848,7 +2836,14 @@ def _moderation_items_rows(**overrides) -> list[dict]:
         {"quantity": "increment_at_moderator_high", "median": 1.745, "lo": -0.451, "hi": 3.788, "prob_pos": 0.90},
         {"quantity": "interaction", "median": -1.147, "lo": -2.327, "hi": -0.049, "prob_pos": 0.047},
         {"quantity": "interaction_if_logit_additive", "median": 0.179, "lo": 0.011, "hi": 0.430, "prob_pos": 0.958},
-        {"quantity": "interaction_logit", "median": -0.159, "lo": -0.298, "hi": -0.024, "prob_pos": 0.029, "scale": "logit"},
+        {
+            "quantity": "interaction_logit",
+            "median": -0.159,
+            "lo": -0.298,
+            "hi": -0.024,
+            "prob_pos": 0.029,
+            "scale": "logit",
+        },
     ]
     out = []
     for r in rows:
@@ -2960,9 +2955,7 @@ def test_mechanism_moderation_items_verdicts_follow_the_evidence_ladder(tmp_path
     _write_rows(
         d,
         "moderation_items.csv",
-        _moderation_items_rows(
-            interaction={"median": -0.7, "lo": -2.2, "hi": 0.7, "prob_pos": 0.21}
-        ),
+        _moderation_items_rows(interaction={"median": -0.7, "lo": -2.2, "hi": 0.7, "prob_pos": 0.21}),
     )
     text = generate_key_findings(d)["sentences"][2]["text"]
     assert "P(negative) = 79%" in text
@@ -2974,9 +2967,7 @@ def test_mechanism_moderation_items_verdicts_follow_the_evidence_ladder(tmp_path
     _write_rows(
         d2,
         "moderation_items.csv",
-        _moderation_items_rows(
-            interaction={"median": -0.2, "lo": -1.8, "hi": 1.4, "prob_pos": 0.42}
-        ),
+        _moderation_items_rows(interaction={"median": -0.2, "lo": -1.8, "hi": 1.4, "prob_pos": 0.42}),
     )
     text2 = generate_key_findings(d2)["sentences"][2]["text"]
     assert "directionally inconclusive" in text2
@@ -2995,9 +2986,7 @@ def test_settled_items_cannot_confirm_an_inconclusive_logit_interaction(tmp_path
     _write_rows(
         d,
         "moderation_items.csv",
-        _moderation_items_rows(
-            interaction={"median": 1.4, "lo": 0.2, "hi": 2.7, "prob_pos": 0.97}
-        ),
+        _moderation_items_rows(interaction={"median": 1.4, "lo": 0.2, "hi": 2.7, "prob_pos": 0.97}),
     )
     text = generate_key_findings(d)["sentences"][2]["text"]
     assert "holds in items too" not in text
@@ -3156,9 +3145,7 @@ def test_all_statistical_reports_use_the_findings_first_order():
             continue
         statistical_reports.append(path)
         missing = [name for name in expected if name not in text]
-        assert not missing, (
-            f"{path.parent.name}: missing expected partials: {', '.join(missing)}"
-        )
+        assert not missing, f"{path.parent.name}: missing expected partials: {', '.join(missing)}"
         positions = [text.index(name) for name in expected]
         assert positions == sorted(positions), path.parent.name
         assert "_partials/_convergence.qmd" not in text, path.parent.name
@@ -3368,7 +3355,7 @@ def test_a_swapped_installed_trace_un_lifts_the_withhold(tmp_path):
 
 
 def test_a_sweep_bound_to_a_different_fit_does_not_lift_the_withhold(tmp_path):
-    """"Computed from the same trace and commit as the posterior" is the stated bar,
+    """ "Computed from the same trace and commit as the posterior" is the stated bar,
     so a sweep carrying another fit's primary hashes is not this fit's evidence."""
     d = _prior_dominant_dir(tmp_path)
     _write_tau_sweep(d)
@@ -3478,9 +3465,7 @@ def test_released_floored_findings_name_the_post_hoc_subgroup(tmp_path):
 def test_nonfloor_available_case_modified_itt_keeps_its_selection_wording(tmp_path):
     d = _setup_dir(tmp_path, "itt")
     _write_csv(d, "rope_summary.csv", _rope_row())
-    causal = next(
-        s for s in generate_key_findings(d)["sentences"] if s["kind"] == "causal"
-    )
+    causal = next(s for s in generate_key_findings(d)["sentences"] if s["kind"] == "causal")
     assert "at the floor of this measure" not in causal["text"]
     assert "available-case modified ITT estimate" in causal["text"]
 
@@ -3648,28 +3633,16 @@ def test_each_family_reads_its_own_causal_term():
     # the t1-referenced parameterisation names the t2 change (#552).
     assert causal_term_for({"kind": "level_factors"}) == "b_grp_time[1]"
     assert (
-        causal_term_for(
-            {"kind": "level_factors", "resolved_run_plan": {"focal_term": "d_grp_time[t2]"}}
-        )
+        causal_term_for({"kind": "level_factors", "resolved_run_plan": {"focal_term": "d_grp_time[t2]"}})
         == "d_grp_time[t2]"
     )
     assert (
-        causal_term_for(
-            {"kind": "level_factors", "resolved_run_plan": {"focal_term": "b_grp_time[1]"}}
-        )
+        causal_term_for({"kind": "level_factors", "resolved_run_plan": {"focal_term": "b_grp_time[1]"}})
         == "b_grp_time[1]"
     )
     assert causal_term_for({"kind": "did"}) == "tau_t2"
-    assert (
-        causal_term_for({"kind": "did", "resolved_run_plan": {"dose": True}})
-        == "beta_dose"
-    )
-    assert (
-        causal_term_for(
-            {"kind": "did", "resolved_run_plan": {"dose": True, "period_varying": True}}
-        )
-        == "mu_dose"
-    )
+    assert causal_term_for({"kind": "did", "resolved_run_plan": {"dose": True}}) == "beta_dose"
+    assert causal_term_for({"kind": "did", "resolved_run_plan": {"dose": True, "period_varying": True}}) == "mu_dose"
 
 
 def test_a_release_gate_that_cannot_be_evaluated_fails_closed(tmp_path, monkeypatch):
@@ -3724,9 +3697,7 @@ def test_release_classes_reproduce_arviz_psense_diagnoses_exactly():
     seen = set()
     for prior in grid:
         for likelihood in grid:
-            frame = pd.DataFrame(
-                [{"prior": prior, "likelihood": likelihood}], index=["tau"]
-            )
+            frame = pd.DataFrame([{"prior": prior, "likelihood": likelihood}], index=["tau"])
             got, _, _, _ = classify_tau_sensitivity(frame)
             diagnosis = arviz_diagnose(prior, likelihood)
             assert got == expected_for[diagnosis], (prior, likelihood, diagnosis, got)
@@ -3781,9 +3752,7 @@ def test_a_scalar_term_is_unaffected_by_the_vector_path(tmp_path):
         classify_tau_sensitivity,
     )
 
-    scalar = pd.DataFrame(
-        [{"prior": 0.01, "likelihood": 0.02, "diagnosis": "✓"}], index=["tau"]
-    )
+    scalar = pd.DataFrame([{"prior": 0.01, "likelihood": 0.02, "diagnosis": "✓"}], index=["tau"])
     assert classify_tau_sensitivity(scalar, term="tau") == ("clear", 0.01, 0.02, "✓")
     assert classify_tau_sensitivity(scalar, term="tau_t2")[0] == "unavailable"
 
@@ -3817,10 +3786,22 @@ def test_pooled_levels_covariate_exposure_and_skills_are_named(tmp_path):
         d,
         "pooled_levels_summary.csv",
         [
-            {"term": "beta_between", "role": "association", "median": 0.91,
-             "lo": 0.61, "hi": 1.25, "prob_positive": 1.0},
-            {"term": "beta_within", "role": "association", "median": 0.14,
-             "lo": -0.04, "hi": 0.31, "prob_positive": 0.886},
+            {
+                "term": "beta_between",
+                "role": "association",
+                "median": 0.91,
+                "lo": 0.61,
+                "hi": 1.25,
+                "prob_positive": 1.0,
+            },
+            {
+                "term": "beta_within",
+                "role": "association",
+                "median": 0.14,
+                "lo": -0.04,
+                "hi": 0.31,
+                "prob_positive": 0.886,
+            },
         ],
     )
     payload = generate_key_findings(d)
@@ -3844,12 +3825,30 @@ def test_lcsm_coupling_headline_excludes_covariate_rows(tmp_path):
         d,
         "coupling_summary.csv",
         [
-            {"coefficient": "g_L (prior L -> W change)", "median": 0.31,
-             "mean": 0.31, "lo": 0.02, "hi": 0.61, "prob_pos": 0.98},
-            {"coefficient": "d_age[W] (age -> W change)", "median": -0.15,
-             "mean": -0.15, "lo": -0.21, "hi": -0.09, "prob_pos": 0.0001},
-            {"coefficient": "b_hs (hs -> W change)", "median": 0.4,
-             "mean": 0.4, "lo": 0.1, "hi": 0.7, "prob_pos": 0.9999},
+            {
+                "coefficient": "g_L (prior L -> W change)",
+                "median": 0.31,
+                "mean": 0.31,
+                "lo": 0.02,
+                "hi": 0.61,
+                "prob_pos": 0.98,
+            },
+            {
+                "coefficient": "d_age[W] (age -> W change)",
+                "median": -0.15,
+                "mean": -0.15,
+                "lo": -0.21,
+                "hi": -0.09,
+                "prob_pos": 0.0001,
+            },
+            {
+                "coefficient": "b_hs (hs -> W change)",
+                "median": 0.4,
+                "mean": 0.4,
+                "lo": 0.1,
+                "hi": 0.7,
+                "prob_pos": 0.9999,
+            },
         ],
     )
     payload = generate_key_findings(d)
@@ -3865,10 +3864,22 @@ def test_lcsm_lagged_coupling_confidence_uses_change_wording(tmp_path):
         d,
         "coupling_summary.csv",
         [
-            {"coefficient": "h_L (prior L change -> W change)", "median": 0.4,
-             "mean": 0.4, "lo": 0.1, "hi": 0.7, "prob_pos": 0.99},
-            {"coefficient": "g_L (prior L -> W change)", "median": 0.1,
-             "mean": 0.1, "lo": -0.2, "hi": 0.4, "prob_pos": 0.7},
+            {
+                "coefficient": "h_L (prior L change -> W change)",
+                "median": 0.4,
+                "mean": 0.4,
+                "lo": 0.1,
+                "hi": 0.7,
+                "prob_pos": 0.99,
+            },
+            {
+                "coefficient": "g_L (prior L -> W change)",
+                "median": 0.1,
+                "mean": 0.1,
+                "lo": -0.2,
+                "hi": 0.4,
+                "prob_pos": 0.7,
+            },
         ],
     )
     payload = generate_key_findings(d)
@@ -3880,31 +3891,43 @@ def test_lcsm_lagged_coupling_confidence_uses_change_wording(tmp_path):
 def test_lcsm_window1_highlight_names_the_focal_outcome(tmp_path):
     """081 previously quoted the word-reading contrast, unnamed, under a
     taught-vocabulary model; the sentence must quote and name the focal row."""
-    d = _setup_dir(
-        tmp_path, "lcsm", config=_config("lcsm", outcome_symbol="TE")
-    )
+    d = _setup_dir(tmp_path, "lcsm", config=_config("lcsm", outcome_symbol="TE"))
     _write_rows(
         d,
         "coupling_summary.csv",
         [
-            {"coefficient": "g_W_TE (prior W -> TE change)", "median": 0.3,
-             "mean": 0.3, "lo": 0.0, "hi": 0.6, "prob_pos": 0.95},
+            {
+                "coefficient": "g_W_TE (prior W -> TE change)",
+                "median": 0.3,
+                "mean": 0.3,
+                "lo": 0.0,
+                "hi": 0.6,
+                "prob_pos": 0.95,
+            },
         ],
     )
     _write_rows(
         d,
         "itt_window1_contrast.csv",
         [
-            {"coefficient": "itt_w1[W] (immediate - waitlist, window-1 latent change)",
-             "median": 0.42, "lo": 0.09, "hi": 0.75, "prob_pos": 0.98},
-            {"coefficient": "itt_w1[TE] (immediate - waitlist, window-1 latent change)",
-             "median": 0.29, "lo": -0.02, "hi": 0.60, "prob_pos": 0.95},
+            {
+                "coefficient": "itt_w1[W] (immediate - waitlist, window-1 latent change)",
+                "median": 0.42,
+                "lo": 0.09,
+                "hi": 0.75,
+                "prob_pos": 0.98,
+            },
+            {
+                "coefficient": "itt_w1[TE] (immediate - waitlist, window-1 latent change)",
+                "median": 0.29,
+                "lo": -0.02,
+                "hi": 0.60,
+                "prob_pos": 0.95,
+            },
         ],
     )
     payload = generate_key_findings(d)
-    highlight = next(
-        s["text"] for s in payload["sentences"] if s["kind"] == "highlight"
-    )
+    highlight = next(s["text"] for s in payload["sentences"] if s["kind"] == "highlight")
     assert "+0.29" in highlight
     assert "+0.42" not in highlight
 
@@ -3924,10 +3947,8 @@ def test_corr_factor_structural_slope_prefers_plan_factors_over_covariates(tmp_p
         d,
         "structural_summary.csv",
         [
-            {"coefficient": "beta_code", "median": 0.35, "mean": 0.35,
-             "lo": 0.10, "hi": 0.61, "prob_pos": 0.986},
-            {"coefficient": "beta_age", "median": -0.35, "mean": -0.35,
-             "lo": -0.53, "hi": -0.17, "prob_pos": 0.0013},
+            {"coefficient": "beta_code", "median": 0.35, "mean": 0.35, "lo": 0.10, "hi": 0.61, "prob_pos": 0.986},
+            {"coefficient": "beta_age", "median": -0.35, "mean": -0.35, "lo": -0.53, "hi": -0.17, "prob_pos": 0.0013},
         ],
     )
     payload = generate_key_findings(d)
@@ -3946,10 +3967,22 @@ def test_growth_interaction_plan_headlines_gamma_int(tmp_path):
         d,
         "growth_association_summary.csv",
         [
-            {"coefficient": "gamma", "outcome": "RG", "median": 0.15,
-             "lo89": 0.06, "hi89": 0.25, "prob_positive": 0.99},
-            {"coefficient": "gamma_int", "outcome": "RG", "median": 0.08,
-             "lo89": -0.02, "hi89": 0.18, "prob_positive": 0.91},
+            {
+                "coefficient": "gamma",
+                "outcome": "RG",
+                "median": 0.15,
+                "lo89": 0.06,
+                "hi89": 0.25,
+                "prob_positive": 0.99,
+            },
+            {
+                "coefficient": "gamma_int",
+                "outcome": "RG",
+                "median": 0.08,
+                "lo89": -0.02,
+                "hi89": 0.18,
+                "prob_positive": 0.91,
+            },
         ],
     )
     payload = generate_key_findings(d)
@@ -3958,20 +3991,22 @@ def test_growth_interaction_plan_headlines_gamma_int(tmp_path):
     assert "interaction" in texts
     assert "+0.08" in texts
     # The gamma main effect stays visible as context, not as the headline.
-    headline = next(
-        s["text"] for s in payload["sentences"] if s["kind"] == "headline"
-    )
+    headline = next(s["text"] for s in payload["sentences"] if s["kind"] == "headline")
     assert "+0.08" in headline
 
-    stale = _setup_dir(
-        tmp_path, "growth", config=cfg, directory_name="growth-stale"
-    )
+    stale = _setup_dir(tmp_path, "growth", config=cfg, directory_name="growth-stale")
     _write_rows(
         stale,
         "growth_association_summary.csv",
         [
-            {"coefficient": "gamma", "outcome": "RG", "median": 0.15,
-             "lo89": 0.06, "hi89": 0.25, "prob_positive": 0.99},
+            {
+                "coefficient": "gamma",
+                "outcome": "RG",
+                "median": 0.15,
+                "lo89": 0.06,
+                "hi89": 0.25,
+                "prob_positive": 0.99,
+            },
         ],
     )
     payload = generate_key_findings(stale)

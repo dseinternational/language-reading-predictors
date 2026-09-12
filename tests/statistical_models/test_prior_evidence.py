@@ -92,15 +92,11 @@ def test_an_absent_prior_group_is_an_expected_absence():
 
 def test_an_absent_term_names_itself():
     with pytest.raises(PriorEvidenceUnavailable, match="eta"):
-        require_prior_evidence(
-            _tree({"tau": 0.2}), terms=("tau", "eta"), what="the check"
-        )
+        require_prior_evidence(_tree({"tau": 0.2}), terms=("tau", "eta"), what="the check")
 
 
 def test_a_present_group_with_every_term_is_returned():
-    group = require_prior_evidence(
-        _tree({"tau": 0.2, "eta": np.zeros(4)}), terms=("tau", "eta")
-    )
+    group = require_prior_evidence(_tree({"tau": 0.2, "eta": np.zeros(4)}), terms=("tau", "eta"))
     assert "tau" in group
 
 
@@ -118,9 +114,7 @@ def test_the_exception_is_a_lookup_error_not_a_catch_all():
 
 def test_marginal_rows_record_an_absent_term_and_still_write_the_table(tmp_path):
     ctx = _ctx(tmp_path, _tree({"eta": np.zeros(4)}))
-    rows = PA.marginal_pushforward_rows(
-        ctx, [("beta_missing", "an absent coefficient")], n_trials=10
-    )
+    rows = PA.marginal_pushforward_rows(ctx, [("beta_missing", "an absent coefficient")], n_trials=10)
     assert [row["status"] for row in rows] == ["unavailable"]
     assert "beta_missing" in str(rows[0]["reason"])
 
@@ -148,9 +142,7 @@ def test_marginal_rows_let_a_wrong_dimension_fail_the_run(tmp_path):
         PA.marginal_pushforward_rows(ctx, [("beta", "a coefficient")], n_trials=10)
 
 
-def test_marginal_rows_propagate_a_defect_rather_than_recording_it(
-    tmp_path, monkeypatch
-):
+def test_marginal_rows_propagate_a_defect_rather_than_recording_it(tmp_path, monkeypatch):
     ctx = _ctx(tmp_path, _tree({"beta": 0.3, "eta": np.zeros(4)}))
 
     def explode(*_args, **_kwargs):
@@ -173,9 +165,7 @@ def test_at_mean_rows_record_an_absent_prior_group(tmp_path):
     assert "prior group" in str(rows[0]["reason"])
 
 
-def test_at_mean_rows_propagate_a_defect_rather_than_recording_it(
-    tmp_path, monkeypatch
-):
+def test_at_mean_rows_propagate_a_defect_rather_than_recording_it(tmp_path, monkeypatch):
     ctx = _ctx(tmp_path, _tree({"alpha": 0.1, "gamma_own": 0.2, "beta_x": 0.3}))
 
     def explode(*_args, **_kwargs):
@@ -270,11 +260,11 @@ def _blanket_handlers(path: pathlib.Path) -> list[str]:
         if "unavailable_pushforward" not in names:
             continue
         caught = node.type
-        caught_names = {
-            child.id
-            for child in ast.walk(caught)
-            if isinstance(child, ast.Name)
-        } if caught is not None else {"<bare except>"}
+        caught_names = (
+            {child.id for child in ast.walk(caught) if isinstance(child, ast.Name)}
+            if caught is not None
+            else {"<bare except>"}
+        )
         if not caught_names <= {"PriorEvidenceUnavailable"}:
             offenders.append(f"{path.name}:{node.lineno} catches {sorted(caught_names)}")
     return offenders
@@ -354,9 +344,9 @@ def test_a_legacy_bare_numeric_table_attaches_no_qualification(tmp_path):
     )
 
     directory = _fit_dir(tmp_path)
-    pd.DataFrame(
-        [{"prior_logit_median": -0.01, "prior_items_median": -0.03, "n_trials": 12}]
-    ).to_csv(directory / "prior_pushforward.csv", index=False)
+    pd.DataFrame([{"prior_logit_median": -0.01, "prior_items_median": -0.03, "n_trials": 12}]).to_csv(
+        directory / "prior_pushforward.csv", index=False
+    )
 
     evaluation = evaluate_publication(directory)
     assert evaluation.publishable is True

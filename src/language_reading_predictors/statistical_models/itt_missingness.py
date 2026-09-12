@@ -43,21 +43,15 @@ if TYPE_CHECKING:
 
 RLI_ARCHIVE_DOI = "10.5255/UKDA-SN-852291"
 RLI_ARCHIVE_URL = "https://reshare.ukdataservice.ac.uk/852291/"
-RLI_ARCHIVE_ZIP_URL = (
-    "https://reshare.ukdataservice.ac.uk/852291/1/DSE_Data.zip"
-)
-RLI_ARCHIVE_ZIP_SHA256 = (
-    "a015edd19d0d35e325f3a14a06cc5894e1beb3cc95ce6db6513b0c763b4a7d3b"
-)
+RLI_ARCHIVE_ZIP_URL = "https://reshare.ukdataservice.ac.uk/852291/1/DSE_Data.zip"
+RLI_ARCHIVE_ZIP_SHA256 = "a015edd19d0d35e325f3a14a06cc5894e1beb3cc95ce6db6513b0c763b4a7d3b"
 #: Where the CSV sits inside the upstream ZIP.  Retained for independent
 #: verification of the committed copy against the deposit: fetch
 #: :data:`RLI_ARCHIVE_ZIP_URL`, check it against
 #: :data:`RLI_ARCHIVE_ZIP_SHA256`, extract this member and check it against
 #: :data:`RLI_ARCHIVE_CSV_SHA256`.
 RLI_ARCHIVE_ZIP_MEMBER = "DSE_Data/dse-rli-trial-data-archive.csv"
-RLI_ARCHIVE_CSV_SHA256 = (
-    "7c6cda3634c302d6b2b253ba01a9043bd0762d3f35a66027f9a2f1f2dbdc5ae7"
-)
+RLI_ARCHIVE_CSV_SHA256 = "7c6cda3634c302d6b2b253ba01a9043bd0762d3f35a66027f9a2f1f2dbdc5ae7"
 RLI_ARCHIVE_CSV_NAME = "dse-rli-trial-data-archive.csv"
 #: The deposited archive as committed to this repository.  Down Syndrome
 #: Education International deposited the ReShare collection and holds the
@@ -70,12 +64,8 @@ RLI_ARCHIVE_LOCAL_CSV = _paths.DATA_DIR / RLI_ARCHIVE_CSV_NAME
 #: Assembly column was appended (``scripts/derive_object_assembly.py``); the
 #: 71-field reconciliation digest below is unaffected, because that column is
 #: not one of the reconciled fields.
-RLI_LOCAL_WIDE_SHA256 = (
-    "f698a4642ce2d8a6007e745be0d04ff7363b5be0068ba9f9f0d27462100eeebf"
-)
-RLI_RECONCILIATION_DIGEST = (
-    "22b745ee81a32a5c654cfd0d480c0ba87dd9aea3a3f51a74ce3447e56ac37c0e"
-)
+RLI_LOCAL_WIDE_SHA256 = "f698a4642ce2d8a6007e745be0d04ff7363b5be0068ba9f9f0d27462100eeebf"
+RLI_RECONCILIATION_DIGEST = "22b745ee81a32a5c654cfd0d480c0ba87dd9aea3a3f51a74ce3447e56ac37c0e"
 
 WORD_READING_N = 79
 RANDOMISED_N = 57
@@ -243,9 +233,7 @@ def missingness_design_record(data: "ScreeningWordReadingData") -> dict[str, Any
             "intervention": int((observed & (arm == 1)).sum()),
             "control": int((observed & (arm == 0)).sum()),
         },
-        "target_in_original_analysis_n": int(
-            np.asarray(data.target_in_original_analysis, dtype=bool).sum()
-        ),
+        "target_in_original_analysis_n": int(np.asarray(data.target_in_original_analysis, dtype=bool).sum()),
         "covariate_names": list(data.covariate_names),
         "target_design_sha256": hasher.hexdigest(),
     }
@@ -281,9 +269,7 @@ def _row_fingerprints(frame: pd.DataFrame) -> pd.Series:
     numeric = frame.apply(pd.to_numeric, errors="raise")
     return numeric.apply(
         lambda row: hashlib.sha256(
-            "\x1f".join(
-                "<NA>" if pd.isna(value) else float(value).hex() for value in row
-            ).encode("ascii")
+            "\x1f".join("<NA>" if pd.isna(value) else float(value).hex() for value in row).encode("ascii")
         ).hexdigest(),
         axis=1,
     )
@@ -299,8 +285,7 @@ def _reconcile_included_rows(
     local_sha256 = sha256_file(local_path)
     if local_sha256 != expected_local_sha256:
         raise ValueError(
-            "local RLI wide-data checksum mismatch: "
-            f"expected {expected_local_sha256}, observed {local_sha256}"
+            f"local RLI wide-data checksum mismatch: expected {expected_local_sha256}, observed {local_sha256}"
         )
     wide = pd.read_csv(local_path, skipinitialspace=True, na_values=["", " "])
     included = archive.loc[pd.to_numeric(archive["included"]).eq(1)].copy()
@@ -312,8 +297,7 @@ def _reconcile_included_rows(
     missing_local = sorted(set(local_columns) - set(wide.columns))
     if missing_source or missing_local:
         raise ValueError(
-            "archive/local reconciliation columns are missing: "
-            f"archive={missing_source}, local={missing_local}"
+            f"archive/local reconciliation columns are missing: archive={missing_source}, local={missing_local}"
         )
     source_values = included[source_columns].rename(columns=ARCHIVE_TO_LOCAL_WIDE)
     local_values = wide[local_columns]
@@ -323,9 +307,7 @@ def _reconcile_included_rows(
         raise ValueError("71-field reconciliation fingerprints are not one-to-one")
     if set(source_fingerprints) != set(local_fingerprints):
         raise ValueError("the 54 archive rows do not reconcile with the repository")
-    digest = hashlib.sha256(
-        "\n".join(sorted(source_fingerprints)).encode("ascii")
-    ).hexdigest()
+    digest = hashlib.sha256("\n".join(sorted(source_fingerprints)).encode("ascii")).hexdigest()
     return local_sha256, len(source_fingerprints), digest
 
 
@@ -350,8 +332,7 @@ def load_randomised_w_archive(
     observed_sha256 = sha256_file(source)
     if observed_sha256 != expected_sha256:
         raise ValueError(
-            "RLI randomised archive checksum mismatch: "
-            f"expected {expected_sha256}, observed {observed_sha256}"
+            f"RLI randomised archive checksum mismatch: expected {expected_sha256}, observed {observed_sha256}"
         )
 
     frame = pd.read_csv(
@@ -364,9 +345,7 @@ def load_randomised_w_archive(
     if missing_columns:
         raise ValueError(f"RLI randomised archive is missing columns: {missing_columns}")
     if len(frame) != RANDOMISED_N:
-        raise ValueError(
-            f"RLI randomised archive must contain {RANDOMISED_N} rows, got {len(frame)}"
-        )
+        raise ValueError(f"RLI randomised archive must contain {RANDOMISED_N} rows, got {len(frame)}")
 
     group_raw = _numeric(frame, "group")
     area_raw = _numeric(frame, "area")
@@ -441,15 +420,13 @@ def load_randomised_w_archive(
     }
     if observed_counts != expected_observed:
         raise ValueError(
-            "word-reading t2 observation counts mismatch: "
-            f"expected {expected_observed}, observed {observed_counts}"
+            f"word-reading t2 observation counts mismatch: expected {expected_observed}, observed {observed_counts}"
         )
     lost = int(np.sum(~included_bool))
     internal_missing = int(np.sum(included_bool & ~observed_mask))
     if lost != LOST_TO_FOLLOW_UP_N or internal_missing != WITHIN_ARCHIVE_W_MISSING_N:
         raise ValueError(
-            "word-reading missingness pattern mismatch: "
-            f"lost={lost}, within_archive_missing={internal_missing}"
+            f"word-reading missingness pattern mismatch: lost={lost}, within_archive_missing={internal_missing}"
         )
 
     if local_wide_path is None:
@@ -566,9 +543,7 @@ def build_screening_w_model(
 
         target_eta0 = alpha + beta_age * X_target[:, 0] + beta_word * X_target[:, 1]
         pm.Deterministic("p0_target", pm.math.sigmoid(target_eta0), dims="target_id")
-        pm.Deterministic(
-            "p1_target", pm.math.sigmoid(target_eta0 + tau), dims="target_id"
-        )
+        pm.Deterministic("p1_target", pm.math.sigmoid(target_eta0 + tau), dims="target_id")
         pm.Deterministic(
             "p0_observed_profiles",
             pm.math.sigmoid(baseline_eta),
@@ -594,9 +569,7 @@ def build_screening_w_model(
 def _draw_matrix(trace: Any, variable: str, *, group: str = "posterior") -> np.ndarray:
     values = np.asarray(getattr(trace, group)[variable].values, dtype=float)
     if values.ndim != 3:
-        raise ValueError(
-            f"{group} variable {variable!r} must be chain x draw x row"
-        )
+        raise ValueError(f"{group} variable {variable!r} must be chain x draw x row")
     return values.reshape((-1, values.shape[-1]))
 
 
@@ -695,9 +668,7 @@ def summarise_missingness_sensitivity(
 
     missing_intervention = (~data.target_outcome_observed) & (data.target_G == 1)
     missing_control = (~data.target_outcome_observed) & (data.target_G == 0)
-    intervention_nonstarter = (
-        (~data.target_in_original_analysis) & (data.target_G == 1)
-    )
+    intervention_nonstarter = (~data.target_in_original_analysis) & (data.target_G == 1)
     intervention_arm = data.target_G == 1
     control_arm = data.target_G == 0
     if (
@@ -742,9 +713,7 @@ def summarise_missingness_sensitivity(
     j2r_p1 = p1_target[:, intervention_arm].copy()
     j2r_p0 = p0_target[:, intervention_arm]
     nonstarter_in_intervention = intervention_nonstarter[intervention_arm]
-    j2r_p1[:, nonstarter_in_intervention] = j2r_p0[
-        :, nonstarter_in_intervention
-    ]
+    j2r_p1[:, nonstarter_in_intervention] = j2r_p0[:, nonstarter_in_intervention]
     j2r_intervention = j2r_p1.mean(axis=1)
     factual_mar_control = p0_target[:, control_arm].mean(axis=1)
     rows.append(
@@ -752,10 +721,7 @@ def summarise_missingness_sensitivity(
             scenario="jump_to_reference_intervention_nonstarter",
             scenario_class="reference_based",
             estimand_class="randomised_arm_factual_completion",
-            target_population=(
-                "randomised-arm factual completion: 29 intervention versus "
-                "28 control profiles"
-            ),
+            target_population=("randomised-arm factual completion: 29 intervention versus 28 control profiles"),
             intervention_mean=j2r_intervention,
             control_mean=factual_mar_control,
             source_sha256=data.data_sha256,
@@ -766,20 +732,14 @@ def summarise_missingness_sensitivity(
     missing_c_in_control = missing_control[control_arm]
     for delta_i in grid:
         completed_i = p1_target[:, intervention_arm].copy()
-        raw_i = (
-            completed_i[:, missing_i_in_intervention]
-            + delta_i / WORD_READING_N
-        )
+        raw_i = completed_i[:, missing_i_in_intervention] + delta_i / WORD_READING_N
         missing_i = np.clip(raw_i, 0.0, 1.0)
         completed_i[:, missing_i_in_intervention] = missing_i
         clipped_i = float(np.mean(raw_i != missing_i))
         intervention = completed_i.mean(axis=1)
         for delta_c in grid:
             completed_c = p0_target[:, control_arm].copy()
-            raw_c = (
-                completed_c[:, missing_c_in_control]
-                + delta_c / WORD_READING_N
-            )
+            raw_c = completed_c[:, missing_c_in_control] + delta_c / WORD_READING_N
             missing_c = np.clip(raw_c, 0.0, 1.0)
             completed_c[:, missing_c_in_control] = missing_c
             clipped_c = float(np.mean(raw_c != missing_c))
@@ -789,10 +749,7 @@ def summarise_missingness_sensitivity(
                     scenario=f"delta_i_{delta_i:+g}_c_{delta_c:+g}",
                     scenario_class="arm_specific_delta_grid",
                     estimand_class="randomised_arm_factual_completion",
-                    target_population=(
-                        "randomised-arm factual completion: 29 intervention "
-                        "versus 28 control profiles"
-                    ),
+                    target_population=("randomised-arm factual completion: 29 intervention versus 28 control profiles"),
                     intervention_mean=intervention,
                     control_mean=control,
                     source_sha256=data.data_sha256,
@@ -869,9 +826,7 @@ def missingness_prior_check(
             prefix="prior_predictive_ceiling_fraction",
         ),
         "alpha_anchor_logit": alpha_anchor,
-        "alpha_anchor_items": float(
-            WORD_READING_N / (1.0 + np.exp(-alpha_anchor))
-        ),
+        "alpha_anchor_items": float(WORD_READING_N / (1.0 + np.exp(-alpha_anchor))),
         "alpha_sigma": SCREENING_ALPHA_SIGMA,
         "prior_draws": int(p0.shape[0]),
         "source_sha256": data.data_sha256,
@@ -969,13 +924,9 @@ def validate_missingness_prior_check(frame: pd.DataFrame) -> tuple[str, ...]:
         values = pd.to_numeric(frame[column], errors="coerce")
         if not values.between(0.0, 1.0, inclusive="both").all():
             errors.append(f"{column} lies outside [0, 1]")
-    if not pd.to_numeric(frame["alpha_sigma"], errors="coerce").eq(
-        SCREENING_ALPHA_SIGMA
-    ).all():
+    if not pd.to_numeric(frame["alpha_sigma"], errors="coerce").eq(SCREENING_ALPHA_SIGMA).all():
         errors.append("screening intercept scale does not match the registered prior")
-    if not pd.to_numeric(frame["prior_draws"], errors="coerce").eq(
-        MISSINGNESS_PRIOR_DRAWS
-    ).all():
+    if not pd.to_numeric(frame["prior_draws"], errors="coerce").eq(MISSINGNESS_PRIOR_DRAWS).all():
         errors.append("prior check does not contain the registered draw count")
     if not frame["source_sha256"].astype(str).eq(RLI_ARCHIVE_CSV_SHA256).all():
         errors.append("prior check is not bound to the registered UKDS file")
@@ -1014,21 +965,9 @@ def missingness_ppc_summary(trace: Any, data: ScreeningWordReadingData) -> pd.Da
                 "n": int(mask.sum()),
                 "observed_mean_items": float(observed[mask].mean()),
                 "posterior_predictive_mean_items": float(predictive_mean[mask].mean()),
-                "mean_absolute_prediction_error_items": float(
-                    np.mean(np.abs(predictive_mean[mask] - observed[mask]))
-                ),
-                "coverage_50": float(
-                    np.mean(
-                        (observed[mask] >= lo50[mask])
-                        & (observed[mask] <= hi50[mask])
-                    )
-                ),
-                "coverage_89": float(
-                    np.mean(
-                        (observed[mask] >= lo89[mask])
-                        & (observed[mask] <= hi89[mask])
-                    )
-                ),
+                "mean_absolute_prediction_error_items": float(np.mean(np.abs(predictive_mean[mask] - observed[mask]))),
+                "coverage_50": float(np.mean((observed[mask] >= lo50[mask]) & (observed[mask] <= hi50[mask]))),
+                "coverage_89": float(np.mean((observed[mask] >= lo89[mask]) & (observed[mask] <= hi89[mask]))),
             }
         )
     return pd.DataFrame(rows)
@@ -1103,23 +1042,15 @@ def validate_missingness_summary(
         rows = frame.loc[scenarios == scenario]
         if len(rows) == 1 and str(rows.iloc[0]["scenario_class"]) != expected_class:
             errors.append(f"{scenario} has the wrong scenario class")
-    common_rows = frame.loc[
-        scenarios.isin(
-            {"screening_model_observed_profiles", "mar_all_57"}
-        )
-    ]
-    if not common_rows["estimand_class"].astype(str).eq(
-        "common_profile_standardisation"
-    ).all():
+    common_rows = frame.loc[scenarios.isin({"screening_model_observed_profiles", "mar_all_57"})]
+    if not common_rows["estimand_class"].astype(str).eq("common_profile_standardisation").all():
         errors.append("bridge or all-57 MAR has the wrong estimand class")
     grid = frame.loc[frame["scenario_class"] == "arm_specific_delta_grid"]
     completion_rows = frame.loc[
         (scenarios == "jump_to_reference_intervention_nonstarter")
         | frame["scenario_class"].astype(str).eq("arm_specific_delta_grid")
     ]
-    if not completion_rows["estimand_class"].astype(str).eq(
-        "randomised_arm_factual_completion"
-    ).all():
+    if not completion_rows["estimand_class"].astype(str).eq("randomised_arm_factual_completion").all():
         errors.append("J2R or delta row has the wrong factual-completion estimand")
     pairs = set(
         zip(
@@ -1133,9 +1064,7 @@ def validate_missingness_summary(
     finite_columns = [
         column
         for column in frame.columns
-        if column.startswith(
-            ("effect_items_", "intervention_mean_items_", "control_mean_items_")
-        )
+        if column.startswith(("effect_items_", "intervention_mean_items_", "control_mean_items_"))
     ]
     finite_values = frame[finite_columns].apply(pd.to_numeric, errors="coerce")
     if not np.isfinite(finite_values.to_numpy(dtype=float)).all():
@@ -1165,9 +1094,10 @@ def validate_missingness_summary(
             errors.append(f"{column} does not equal {expected} in every row")
     if not frame["source_sha256"].astype(str).eq(RLI_ARCHIVE_CSV_SHA256).all():
         errors.append("source archive hash is not the registered UKDS file")
-    if require_converged and not frame["converged"].map(
-        lambda value: str(value).strip().casefold() in {"true", "1", "yes"}
-    ).all():
+    if (
+        require_converged
+        and not frame["converged"].map(lambda value: str(value).strip().casefold() in {"true", "1", "yes"}).all()
+    ):
         errors.append("screening-baseline sub-fit failed or was not checked")
     if not frame["trace_file"].astype(str).eq(MISSINGNESS_TRACE_FILENAME).all():
         errors.append("summary does not bind the registered sub-fit trace")
@@ -1238,15 +1168,10 @@ def run_missingness_subfit(
         "prior_check_filename": MISSINGNESS_PRIOR_FILENAME,
         "provenance_filename": MISSINGNESS_PROVENANCE_FILENAME,
     }
-    mismatched = [
-        name
-        for name, expected in contract.items()
-        if getattr(plan, name, None) != expected
-    ]
+    mismatched = [name for name, expected in contract.items() if getattr(plan, name, None) != expected]
     if mismatched:
         raise ValueError(
-            "resolved ITT missingness plan disagrees with the executable contract: "
-            + ", ".join(mismatched)
+            "resolved ITT missingness plan disagrees with the executable contract: " + ", ".join(mismatched)
         )
     data = load_randomised_w_archive(
         archive_path,
@@ -1314,9 +1239,7 @@ def run_missingness_subfit(
     prior_check = missingness_prior_check(prior_samples, data)
     prior_errors = validate_missingness_prior_check(prior_check)
     if prior_errors:
-        raise RuntimeError(
-            "invalid ITT missingness prior check: " + "; ".join(prior_errors)
-        )
+        raise RuntimeError("invalid ITT missingness prior check: " + "; ".join(prior_errors))
     save_table(
         ctx,
         "itt_missingness_prior_check",
@@ -1365,17 +1288,13 @@ def run_missingness_subfit(
             # constructors are rendered from them rather than restated, so the
             # record cannot drift from the model the factory builds.
             "coefficient_priors": {
-                "alpha": (
-                    "Normal(mean all-57 pre-randomisation screening-W logit, 1.0)"
-                ),
+                "alpha": ("Normal(mean all-57 pre-randomisation screening-W logit, 1.0)"),
                 "tau": str(_provenance_priors.tau_prior()),
                 "beta_screening_age": str(_provenance_priors.gamma_age_prior()),
                 "beta_screening_word": "Normal(0, 1.0)",
                 "kappa": str(_provenance_priors.kappa_prior()),
             },
-            "intercept_anchor_logit": data.covariate_scalers[
-                "screening_word_reading"
-            ]["mean"],
+            "intercept_anchor_logit": data.covariate_scalers["screening_word_reading"]["mean"],
             "intercept_anchor_uses_t2_outcome": False,
             "delta_items_grid": list(plan.delta_items),
             "delta_grid_status": "diagnostic_not_probabilistically_calibrated",

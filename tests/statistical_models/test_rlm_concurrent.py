@@ -71,9 +71,7 @@ def test_rlm_concurrent_plan_rejects_rli_only_covariates():
         title="test",
         outcome_symbol="basread",
         study_id="rlm",
-        model_settings=ConcurrentModelSettings(
-            predictor_symbols=("bpvs",), covariates=("blocks",)
-        ),
+        model_settings=ConcurrentModelSettings(predictor_symbols=("bpvs",), covariates=("blocks",)),
     )
     with pytest.raises(ValueError, match="does not support RLI trait covariates"):
         resolve_concurrent_run_plan(spec)
@@ -135,6 +133,4 @@ def test_rlm_concurrent_factory_builds_mutual_and_single_skill_models():
         include_group=False,
     )
     single_names = {rv.name for rv in single.model.free_RVs}
-    assert {name for name in single_names if name.startswith("beta_")} == {
-        "beta_bpvs"
-    }
+    assert {name for name in single_names if name.startswith("beta_")} == {"beta_bpvs"}

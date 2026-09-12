@@ -65,24 +65,13 @@ _PARTIALS_SRC = _REPO_ROOT / "docs" / "models" / "_partials"
 # Reference-population and contrast-status strings, kept in step with the two
 # ITT call sites in pipelines/itt.py so backfilled CSVs match fresh fits.
 _GRADED = {
-    "population": (
-        "new child; covariate profiles drawn from the fitted available-case modified "
-        "ITT analysis rows"
-    ),
-    "contrast_status": (
-        "randomised assigned-arm contrast (available-case modified ITT estimate)"
-    ),
+    "population": ("new child; covariate profiles drawn from the fitted available-case modified ITT analysis rows"),
+    "contrast_status": ("randomised assigned-arm contrast (available-case modified ITT estimate)"),
     "event_label": "off the floor at follow-up",
 }
 _FLOOR = {
-    "population": (
-        "new child; covariate profiles drawn from the baseline-floored "
-        "at-risk analysis rows"
-    ),
-    "contrast_status": (
-        "randomised assigned-arm contrast (post-hoc subgroup available-case modified "
-        "ITT estimate)"
-    ),
+    "population": ("new child; covariate profiles drawn from the baseline-floored at-risk analysis rows"),
+    "contrast_status": ("randomised assigned-arm contrast (post-hoc subgroup available-case modified ITT estimate)"),
     "event_label": "off the floor at t2",
 }
 
@@ -97,20 +86,14 @@ def _subdirs(root: Path) -> list[Path]:
     """
     if not root.is_dir():
         return []
-    return sorted(
-        d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")
-    )
+    return sorted(d for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))
 
 
 def resolve_targets(target: str) -> list[Path]:
     root = _paths.stat_models_dir()
     if target == "all":
         return _subdirs(root)
-    return [
-        d
-        for d in _subdirs(root)
-        if d.name == target or d.name.startswith(f"{target}-")
-    ]
+    return [d for d in _subdirs(root) if d.name == target or d.name.startswith(f"{target}-")]
 
 
 def _regenerate_one(fit_dir: Path) -> str:
@@ -137,10 +120,7 @@ def _regenerate_one(fit_dir: Path) -> str:
     G = np.asarray(trace.constant_data["G"].values, dtype=float)
 
     floored = bool(plan.get("floor_rule"))
-    likelihood = (
-        "bernoulli" if plan.get("headline_likelihood") == "bernoulli_offfloor"
-        else "beta_binomial"
-    )
+    likelihood = "bernoulli" if plan.get("headline_likelihood") == "bernoulli_offfloor" else "beta_binomial"
     score_mean_link = str(plan.get("score_mean_link", "logit"))
     n_trials = 1 if floored else int(MEASURES[symbol].n_trials)
     ci_prob = float(config.get("ci_prob", 0.89))
@@ -161,28 +141,32 @@ def _regenerate_one(fit_dir: Path) -> str:
         random_seed=random_seed,
     )
 
-    write_predicted_scores_artifacts(
-        str(fit_dir), trace, delta=delta, split=True, **common, **strings
-    )
+    write_predicted_scores_artifacts(str(fit_dir), trace, delta=delta, split=True, **common, **strings)
     tables = write_arm_overlap_artifacts(str(fit_dir), trace, **common, **strings)
 
     # ROPE effect + benefit-curve as individual files. Recompute the items-scale
     # effect draws exactly as figure_artifacts.save_rope_plot does at fit time.
     _, ame_prob = _itt_summary._itt_ame_draws(
-        trace, G=G, term="tau", varying_term="" if floored else "tau_i",
+        trace,
+        G=G,
+        term="tau",
+        varying_term="" if floored else "tau_i",
         score_mean_link=score_mean_link,
     )
     write_rope_figures(
-        str(fit_dir), ame_prob * float(n_trials),
-        symbol=symbol, delta=delta, n_trials=n_trials, split=True,
+        str(fit_dir),
+        ame_prob * float(n_trials),
+        symbol=symbol,
+        delta=delta,
+        n_trials=n_trials,
+        split=True,
     )
 
     # Refresh the copied partials so a re-render surfaces any template changes.
     if _PARTIALS_SRC.is_dir():
         shutil.copytree(_PARTIALS_SRC, fit_dir / "_partials", dirs_exist_ok=True)
 
-    figs = ["predicted_scores", "predicted_effect", "rope_summary",
-            "rope_benefit_curve", *sorted(tables)]
+    figs = ["predicted_scores", "predicted_effect", "rope_summary", "rope_benefit_curve", *sorted(tables)]
     return f"ok ({', '.join(figs)})"
 
 
@@ -211,9 +195,7 @@ def main() -> None:
         if status.startswith("ok"):
             n_ok += 1
         _console.print(f"  {d.name}: {status}")
-    _console.print(
-        f"Regenerated contrast figures for {n_ok} available-case modified ITT fit(s)."
-    )
+    _console.print(f"Regenerated contrast figures for {n_ok} available-case modified ITT fit(s).")
 
 
 if __name__ == "__main__":

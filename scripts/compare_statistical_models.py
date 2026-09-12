@@ -227,7 +227,7 @@ def _gate_status(model_id: str, config: str) -> str:
                 return "MISSING"
             if hsgp_refit_pending(saved_config):
                 return "REVIEW"
-        except (OSError, ValueError):
+        except OSError, ValueError:
             return "MISSING"
     return "PASS" if convergence_gate_clean_passed(payload) else "REVIEW"
 
@@ -336,25 +336,13 @@ def _triangulation_outcomes() -> list[tuple[str, str, str, str]]:
     by_kind: dict[str, dict[str, str]] = {"itt": {}, "did": {}, "gain_factors": {}}
     for definition in MODEL_REGISTRY.values():
         outcome = definition.outcome
-        if (
-            outcome is None
-            or definition.floored
-            or outcome in RESPONSE_LINK_SENSITIVITY_SYMBOLS
-        ):
+        if outcome is None or definition.floored or outcome in RESPONSE_LINK_SENSITIVITY_SYMBOLS:
             continue
         if definition.model_id in primary_itts:
             by_kind["itt"][outcome] = definition.model_id
-        elif (
-            definition.kind == "did"
-            and definition.status is Status.ROBUSTNESS
-            and definition.base in primary_itts
-        ):
+        elif definition.kind == "did" and definition.status is Status.ROBUSTNESS and definition.base in primary_itts:
             by_kind["did"][outcome] = definition.model_id
-        elif (
-            definition.kind == "gain_factors"
-            and definition.status is Status.ASSOCIATION
-            and definition.base is None
-        ):
+        elif definition.kind == "gain_factors" and definition.status is Status.ASSOCIATION and definition.base is None:
             existing = by_kind["gain_factors"].get(outcome)
             if existing is None or definition.model_id < existing:
                 by_kind["gain_factors"][outcome] = definition.model_id
@@ -400,9 +388,7 @@ def _itt_effect(model_id: str, config: str, outcome: str) -> dict | None:
         "logit_median": float(row["tau_logit_median"]),
         "logit_lo": float(row["tau_logit_lo"]),
         "logit_hi": float(row["tau_logit_hi"]),
-        "logit_prob_pos": float(
-            row.get("prob_tau_logit_pos", row.get("prob_tau_pos"))
-        ),
+        "logit_prob_pos": float(row.get("prob_tau_logit_pos", row.get("prob_tau_pos"))),
     }
     if "tau_prob_median" in df.columns:
         out.update(
@@ -592,9 +578,7 @@ def build_triangulation(config: str) -> pd.DataFrame | None:
             probs = [v["prob_pos"] for v in pool.values()]
             los = [v["items_lo"] for v in pool.values()]
             his = [v["items_hi"] for v in pool.values()]
-            direction_agree = all(p >= 0.5 for p in probs) or all(
-                p <= 0.5 for p in probs
-            )
+            direction_agree = all(p >= 0.5 for p in probs) or all(p <= 0.5 for p in probs)
             intervals_overlap = max(los) <= min(his)
         row: dict = {
             "config": config,
@@ -679,8 +663,7 @@ def tau_forest(config: str, out_path: str) -> bool:
         ],
         fmt="o",
         color="#1f77b4",
-        label="LRPITT12 (joint available-case modified ITT)"
-        + ("" if joint_ok else " — REVIEW: not converged"),
+        label="LRPITT12 (joint available-case modified ITT)" + ("" if joint_ok else " — REVIEW: not converged"),
         capsize=3,
     )
     # Univariate overlay, offset vertically for readability.
@@ -716,10 +699,7 @@ def tau_forest(config: str, out_path: str) -> bool:
         return s + (" †" if s in FLOORED_SYMBOLS else "") + (" ‡" if s in uni_review else "")
 
     ax.set_yticklabels([_ylabel(s) for s in outcomes])
-    _caption = [
-        "B excluded — read the required LRPITT08/LRPITT08B ordinary-logit versus "
-        "guessing-floor sensitivity"
-    ]
+    _caption = ["B excluded — read the required LRPITT08/LRPITT08B ordinary-logit versus guessing-floor sensitivity"]
     if floored_present:
         _caption.append(
             "† floored outcome — graded τ shown; post-hoc exploratory headline is "
@@ -772,9 +752,7 @@ def _logit_from_count(count: float, n_trials: int) -> float:
     return float(np.log((count + 0.5) / (n_trials - count + 0.5)))
 
 
-def _mechanism_interval_slope(
-    trace: xr.DataTree, mech_logit: np.ndarray, n_trials: int
-) -> tuple[np.ndarray, str]:
+def _mechanism_interval_slope(trace: xr.DataTree, mech_logit: np.ndarray, n_trials: int) -> tuple[np.ndarray, str]:
     """Posterior draws of the declared-interval slope, per SD of the exposure logit.
 
     **Estimand.** The secant slope of the fitted exposure term across the family's
@@ -802,10 +780,7 @@ def _mechanism_interval_slope(
     x_hi = float(round(float(np.quantile(counts, MECH_REF_QUANTILES[1]))))
     ell_lo, ell_hi = _logit_from_count(x_lo, n_trials), _logit_from_count(x_hi, n_trials)
     if not ell_hi > ell_lo:
-        raise ValueError(
-            "the declared interquartile exposure interval is degenerate; no slope "
-            "is defined over it"
-        )
+        raise ValueError("the declared interquartile exposure interval is degenerate; no slope is defined over it")
     mech_sd = float(np.std(mech_logit, ddof=1))
 
     if "f_mech" in trace.posterior:
@@ -834,9 +809,7 @@ def _mechanism_interval_slope(
     raise ValueError("Trace has neither f_mech nor beta_mech.")
 
 
-def _mechanism_row_average_slope(
-    trace: xr.DataTree, mech_logit: np.ndarray
-) -> np.ndarray:
+def _mechanism_row_average_slope(trace: xr.DataTree, mech_logit: np.ndarray) -> np.ndarray:
     """Fitted-row average derivative of ``f_mech``, retained as a secondary column.
 
     Derivatives are computed on the unique sorted grid (``np.gradient`` needs
@@ -933,9 +906,7 @@ def mechanism_forest(config: str, out_path: str) -> bool:
         try:
             # ddof=1 inside matches ``preprocessing.standardise``, which is what
             # defined the scale ``beta_mech`` is expressed in.
-            slopes, shape = _mechanism_interval_slope(
-                trace, mech_logit, MEASURES[sym].n_trials
-            )
+            slopes, shape = _mechanism_interval_slope(trace, mech_logit, MEASURES[sym].n_trials)
             row_avg = _mechanism_row_average_slope(trace, mech_logit)
         except ValueError as exc:
             print(
@@ -974,9 +945,7 @@ def mechanism_forest(config: str, out_path: str) -> bool:
     plt.gca().invert_yaxis()
     plt.axvline(0.0, color="k", lw=0.75, ls="--")
     plt.xlabel("Mechanism slope (outcome logit per SD of the mechanism logit)")
-    plt.title(
-        "Mechanism-model slopes over the declared interquartile exposure interval"
-    )
+    plt.title("Mechanism-model slopes over the declared interquartile exposure interval")
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -1064,11 +1033,7 @@ def _joint_delta_draws(model_id: str, config: str) -> np.ndarray | None:
     trace = az.from_netcdf(nc)
     if "delta_ls_decoding" not in trace.posterior:
         return None
-    return (
-        trace.posterior["delta_ls_decoding"]
-        .stack(sample=("chain", "draw"))
-        .values.ravel()
-    )
+    return trace.posterior["delta_ls_decoding"].stack(sample=("chain", "draw")).values.ravel()
 
 
 def _fit_config(model_id: str, config: str) -> dict:
@@ -1077,7 +1042,7 @@ def _fit_config(model_id: str, config: str) -> dict:
     try:
         with open(path, encoding="utf-8") as handle:
             return json.load(handle)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return {}
 
 
@@ -1114,9 +1079,7 @@ def _tier1_comparability(rows: list[dict]) -> tuple[bool, str]:
     for field in _TIER1_CONTRACT_FIELDS:
         values = [row.get(field) for row in rows]
         if any(value is None for value in values):
-            missing = ", ".join(
-                str(row["model"]) for row in rows if row.get(field) is None
-            )
+            missing = ", ".join(str(row["model"]) for row in rows if row.get(field) is None)
             reasons.append(f"{field} not recorded by {missing}")
             continue
         numeric = [float(value) for value in values]
@@ -1125,9 +1088,7 @@ def _tier1_comparability(rows: list[dict]) -> tuple[bool, str]:
         if spread > tolerance:
             reasons.append(
                 f"{field} differs across sources ("
-                + ", ".join(
-                    f"{row['model']} {float(row[field]):.6g}" for row in rows
-                )
+                + ", ".join(f"{row['model']} {float(row[field]):.6g}" for row in rows)
                 + ")"
             )
     if not reasons:
@@ -1214,12 +1175,8 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
         for model_id in ("lrp-rli-mech-096", "lrp-rli-mech-101", TIER1_JOINT_MODEL)
     ]
     comparable, comparability_note = _tier1_comparability(contract_rows)
-    contract_frame = pd.DataFrame(
-        [{**row, "config": config, "comparable": comparable} for row in contract_rows]
-    )
-    contract_frame.to_csv(
-        os.path.join(out_dir, "tier1_1a_comparison_contract.csv"), index=False
-    )
+    contract_frame = pd.DataFrame([{**row, "config": config, "comparable": comparable} for row in contract_rows])
+    contract_frame.to_csv(os.path.join(out_dir, "tier1_1a_comparison_contract.csv"), index=False)
     if not comparable:
         print(
             "Tier-1 1A: the joint and marginal sources are NOT a like-for-like "
@@ -1293,10 +1250,7 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
                 identified=False,
                 assumption="independence_product_of_marginals",
                 source="lrp-rli-mech-096 + lrp-rli-mech-101 (paired draws)",
-                gate_ok=(
-                    _gate_ok("lrp-rli-mech-096", config)
-                    and _gate_ok("lrp-rli-mech-101", config)
-                ),
+                gate_ok=(_gate_ok("lrp-rli-mech-096", config) and _gate_ok("lrp-rli-mech-101", config)),
                 comparable=comparable,
                 comparability_note=comparability_note,
                 beta_n_mean=float(np.mean(draws["N"])),
@@ -1328,9 +1282,7 @@ def tier1_decoding_specificity(config: str, out_dir: str) -> bool:
             "product-of-marginals sensitivity row only."
         )
     if contrast_rows:
-        pd.DataFrame(contrast_rows).to_csv(
-            os.path.join(out_dir, "tier1_1a_contrast.csv"), index=False
-        )
+        pd.DataFrame(contrast_rows).to_csv(os.path.join(out_dir, "tier1_1a_contrast.csv"), index=False)
     if df is None:
         # Joint-only: the 1A contrast is written, the 1B forest cannot be.
         return bool(contrast_rows)
@@ -1396,9 +1348,7 @@ def _meaningful_obs_id(trace: az.InferenceData, n_obs: int) -> np.ndarray | None
         values = np.asarray(group.coords["obs_id"].values)
         if values.ndim != 1 or values.size != n_obs:
             continue
-        if np.issubdtype(values.dtype, np.integer) and np.array_equal(
-            values, np.arange(n_obs)
-        ):
+        if np.issubdtype(values.dtype, np.integer) and np.array_equal(values, np.arange(n_obs)):
             continue
         return values
     return None
@@ -1425,11 +1375,7 @@ def _shared_row_identities(
         return None, None
     common_row_vars = set.intersection(
         *(
-            {
-                name
-                for name, data in dataset.data_vars.items()
-                if data.dims == ("obs_id",)
-            }
+            {name for name, data in dataset.data_vars.items() if data.dims == ("obs_id",)}
             for dataset in constants.values()
         )
     )
@@ -1476,7 +1422,7 @@ def _predictive_var_name(trace) -> str | None:
         return None
     try:
         names = set(log_likelihood.data_vars)
-    except (AttributeError, TypeError):  # pragma: no cover - defensive
+    except AttributeError, TypeError:  # pragma: no cover - defensive
         return None
     return LOO_CHILD_AGGREGATE_NODE if LOO_CHILD_AGGREGATE_NODE in names else None
 
@@ -1589,10 +1535,7 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
     traces: dict[str, az.InferenceData] = {}
     for mid in ids:
         if not _gate_ok(mid, config):
-            print(
-                f"[warn] {mid}: convergence gate {_gate_status(mid, config)}; "
-                "excluding from LOO comparison."
-            )
+            print(f"[warn] {mid}: convergence gate {_gate_status(mid, config)}; excluding from LOO comparison.")
             continue
         nc = os.path.join(_run_dir(mid, config), "trace.nc")
         if not os.path.exists(nc):
@@ -1648,18 +1591,10 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
 
     reference_id = next(iter(traces))
     reference = identities[reference_id]
-    mismatched = [
-        mid for mid, identity in identities.items() if not np.array_equal(identity, reference)
-    ]
+    mismatched = [mid for mid, identity in identities.items() if not np.array_equal(identity, reference)]
     if mismatched:
-        reason = (
-            f"ordered analysis rows differ on {identity_source}: "
-            f"{reference_id} vs {', '.join(mismatched)}"
-        )
-        print(
-            f"[warn] {reason}; writing per-model elpd_loo instead of az.compare "
-            "deltas."
-        )
+        reason = f"ordered analysis rows differ on {identity_source}: {reference_id} vs {', '.join(mismatched)}"
+        print(f"[warn] {reason}; writing per-model elpd_loo instead of az.compare deltas.")
         _write_separate_loo(traces, sizes, config, out_path, reason=reason)
         return True
 
@@ -1680,10 +1615,7 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
             )
             if failure:
                 reason += f"; exact-refit repair unavailable ({failure})"
-            print(
-                f"[warn] {reason}; writing per-model elpd_loo instead of az.compare "
-                "deltas."
-            )
+            print(f"[warn] {reason}; writing per-model elpd_loo instead of az.compare deltas.")
             _write_separate_loo(traces, sizes, config, out_path, reason=reason)
             return True
         print(
@@ -1699,9 +1631,7 @@ def _loo_compare(ids: list[str], config: str, out_path: str) -> bool:
         # on rows (or refused outright, which is what an ambiguous two-variable
         # log_likelihood group does to ``az.compare``). Passing ELPD objects rather
         # than traces also matches the ``repaired`` branch above.
-        cmp = az.compare(
-            {mid: _loo_for(t, pointwise=True) for mid, t in traces.items()}
-        )
+        cmp = az.compare({mid: _loo_for(t, pointwise=True) for mid, t in traces.items()})
 
     cmp = cmp.copy()
     cmp.insert(0, "config", config)  # record the tier that produced the row
@@ -1739,9 +1669,7 @@ def _elpd_verdict(elpd_diff: float) -> str:
     return shared_loo.elpd_verdict(elpd_diff)
 
 
-def _reloo_repair(
-    traces: dict, config: str, unreliable: dict[str, float]
-) -> tuple[dict | None, dict[str, int], str]:
+def _reloo_repair(traces: dict, config: str, unreliable: dict[str, float]) -> tuple[dict | None, dict[str, int], str]:
     """Refit the high-Pareto-k points exactly and return repaired traces.
 
     Returns ``(repaired_or_None, refit_counts, failure_reason)``. Repair is attempted
@@ -1812,8 +1740,10 @@ def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
     not the latent ability node, so the gap between the curves bounds what the *measured*
     proxy accounts for and not what general ability does.
     """
-    pairs = [("lrp-rli-mech-058", "Unadjusted for ability (LRP58)", "#1f6fb4", "-"),
-             ("lrp-rli-mech-258", "Ability-adjusted (LRP258, + block design)", "#c2452d", "--")]
+    pairs = [
+        ("lrp-rli-mech-058", "Unadjusted for ability (LRP58)", "#1f6fb4", "-"),
+        ("lrp-rli-mech-258", "Ability-adjusted (LRP258, + block design)", "#c2452d", "--"),
+    ]
     curves, summaries = [], []
     for model_id, _, _, _ in pairs:
         run = _run_dir(model_id, config)
@@ -1836,17 +1766,18 @@ def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
     fig, ax = plt.subplots(figsize=(10, 6.2))
     # One band is filled and the other outlined: two translucent fills over the same
     # region render as a third colour that matches neither legend swatch.
-    ax.fill_between(a["exposure"], a["outcome_lo"], a["outcome_hi"],
-                    color=pairs[0][2], alpha=0.15, lw=0)
+    ax.fill_between(a["exposure"], a["outcome_lo"], a["outcome_hi"], color=pairs[0][2], alpha=0.15, lw=0)
     for edge in ("outcome_lo", "outcome_hi"):
         ax.plot(b["exposure"], b[edge], color=pairs[1][2], lw=1.0, ls=":", alpha=0.9)
     for (model_id, label, colour, style), curve in zip(pairs, curves, strict=True):
-        ax.plot(curve["exposure"], curve["outcome_mean"], color=colour, lw=2.6,
-                ls=style, label=label)
+        ax.plot(curve["exposure"], curve["outcome_mean"], color=colour, lw=2.6, ls=style, label=label)
     ax.set_xlabel("Letter-sound knowledge (LS) — score out of 32")
     ax.set_ylabel("Predicted word reading (WR) — out of 79")
-    ax.set_title("Letter-sound knowledge to word reading, with and without adjustment "
-                 "for measured general ability", fontsize=12.5, pad=14)
+    ax.set_title(
+        "Letter-sound knowledge to word reading, with and without adjustment for measured general ability",
+        fontsize=12.5,
+        pad=14,
+    )
     ax.grid(alpha=0.3, lw=0.6)
     for spine in ("top", "right"):
         ax.spines[spine].set_visible(False)
@@ -1857,7 +1788,8 @@ def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
 
     shift = 100.0 * (sb["items_median"] - sa["items_median"]) / sa["items_median"]
     fig.text(
-        0.5, -0.015,
+        0.5,
+        -0.015,
         f"Headline contrast ({sa['exposure_low']:g} against {sa['exposure_high']:g} "
         "letter sounds — the declared interquartile interval — standardised over every "
         f"fitted child-period):\n{sa['items_median']:+.2f} items "
@@ -1870,11 +1802,14 @@ def mechanism_curve_ability_overlay(config: str, out_dir: str) -> bool:
         "block design is a single noisy\nsubtest, so this bounds what the measured proxy "
         "accounts for, not the latent ability node. The band flares where the data thin "
         "out at the top of the scale.",
-        ha="center", va="top", fontsize=8.6, color="#333333")
+        ha="center",
+        va="top",
+        fontsize=8.6,
+        color="#333333",
+    )
     fig.tight_layout()
     for ext in ("png", "svg"):
-        fig.savefig(os.path.join(out_dir, f"mechanism_curve_ability_overlay.{ext}"),
-                    dpi=170, bbox_inches="tight")
+        fig.savefig(os.path.join(out_dir, f"mechanism_curve_ability_overlay.{ext}"), dpi=170, bbox_inches="tight")
     plt.close(fig)
 
     merged = a[["exposure"]].copy()
@@ -1952,14 +1887,9 @@ def lcsm_reverse_coupling_loo_compare(config: str, out_path: str) -> bool:
         if not os.path.exists(trace_path):
             return False
         traces[model_id] = az.from_netcdf(trace_path)
-    observed = [
-        np.asarray(traces[model_id].observed_data["y_obs"].values) for model_id in ids
-    ]
+    observed = [np.asarray(traces[model_id].observed_data["y_obs"].values) for model_id in ids]
     if observed[0].shape != observed[1].shape or not np.array_equal(*observed):
-        print(
-            "[warn] lcsm 081/181 observed cells differ; the nested pairing's "
-            "precondition fails, not comparing."
-        )
+        print("[warn] lcsm 081/181 observed cells differ; the nested pairing's precondition fails, not comparing.")
         return False
     loo = {model_id: az.loo(traces[model_id], pointwise=True) for model_id in ids}
     comp = az.compare(loo)
@@ -2019,8 +1949,6 @@ def joint_readiness_lxn_w_loo_compare(config: str, out_path: str) -> bool:
         return False
     _copy_compare_beside_runs(out_path, JOINT_READINESS_LXN_W_LOO_IDS, config)
     return True
-
-
 
 
 def phase_varying_slope_loo_compare(config: str, out_path: str, ids: list[str]) -> bool:
@@ -2170,15 +2098,25 @@ def mediation_family_forest(df: pd.DataFrame, out_path: str) -> bool:
     strong = d["indirect_prob_pos"] >= 0.97
     colors = ["#1f77b4" if s else "#9ecae1" for s in strong]
     ax.errorbar(
-        d["indirect_words"], y,
+        d["indirect_words"],
+        y,
         xerr=[d["indirect_words"] - d["indirect_lo"], d["indirect_hi"] - d["indirect_words"]],
-        fmt="none", ecolor="#666666", capsize=3, zorder=1,
+        fmt="none",
+        ecolor="#666666",
+        capsize=3,
+        zorder=1,
     )
     ax.scatter(d["indirect_words"], y, c=colors, s=45, zorder=2)
     for k in y:
-        ax.annotate(f"P={d['indirect_prob_pos'][k]:.2f}",
-                    (d["indirect_hi"][k], y[k]), textcoords="offset points",
-                    xytext=(6, 0), va="center", fontsize=7.5, color="#555555")
+        ax.annotate(
+            f"P={d['indirect_prob_pos'][k]:.2f}",
+            (d["indirect_hi"][k], y[k]),
+            textcoords="offset points",
+            xytext=(6, 0),
+            va="center",
+            fontsize=7.5,
+            color="#555555",
+        )
     ax.axvline(0.0, color="k", lw=0.75, ls="--")
     ax.set_yticks(y)
     ax.set_yticklabels(
@@ -2187,8 +2125,16 @@ def mediation_family_forest(df: pd.DataFrame, out_path: str) -> bool:
     )
     ax.set_xlabel("Indirect effect on word reading (words out of test length; positive = route carries benefit)")
     ax.set_title("Mediation family — routes to word reading (g-formula; all ID-2 adjusted associations)")
-    ax.text(0.99, -0.13, "Darker = strong (P≥0.97). All estimands GA-confounded; letter-sound routes only.",
-            transform=ax.transAxes, ha="right", va="top", fontsize=7.5, color="#555555")
+    ax.text(
+        0.99,
+        -0.13,
+        "Darker = strong (P≥0.97). All estimands GA-confounded; letter-sound routes only.",
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=7.5,
+        color="#555555",
+    )
     plt.tight_layout()
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
@@ -2272,10 +2218,7 @@ def main() -> None:
         itt_joint.to_csv(path, index=False)
         print(f"Wrote {path}")
     else:
-        print(
-            "Skipping available-case modified ITT versus joint comparison: "
-            "one or more runs missing."
-        )
+        print("Skipping available-case modified ITT versus joint comparison: one or more runs missing.")
 
     triangulation = build_triangulation(args.config)
     if triangulation is not None:
@@ -2283,10 +2226,7 @@ def main() -> None:
         triangulation.to_csv(path, index=False)
         print(f"Wrote {path}")
     else:
-        print(
-            "Skipping cross-design triangulation: fewer than two designs available "
-            "for every outcome."
-        )
+        print("Skipping cross-design triangulation: fewer than two designs available for every outcome.")
 
     tau_forest_path = os.path.join(args.out, "tau_forest.png")
     if tau_forest(args.config, tau_forest_path):
@@ -2334,7 +2274,6 @@ def main() -> None:
     else:
         print("Skipping L x N -> W LOO compare: LRP63 / LRP63base runs missing.")
 
-
     for label, ids in (
         ("phase_varying_w", PHASE_VARYING_W_LOO_IDS),
         ("phase_varying_r", PHASE_VARYING_R_LOO_IDS),
@@ -2343,10 +2282,7 @@ def main() -> None:
         if phase_varying_slope_loo_compare(args.config, path, ids):
             print(f"Wrote {path}")
         else:
-            print(
-                f"Skipping {label} LOO compare: {ids[0]} / {ids[1]} runs missing "
-                "or gated."
-            )
+            print(f"Skipping {label} LOO compare: {ids[0]} / {ids[1]} runs missing or gated.")
 
     rw_mod_path = os.path.join(args.out, "rw_moderation_loo_compare.csv")
     if rw_moderation_loo_compare(args.config, rw_mod_path):
@@ -2370,10 +2306,7 @@ def main() -> None:
     if lcsm_reverse_coupling_loo_compare(args.config, lcsm_path):
         print(f"Wrote {lcsm_path}")
     else:
-        print(
-            "Skipping LCSM reverse-coupling LOO compare: LCSM-081 / LCSM-181 "
-            "runs missing."
-        )
+        print("Skipping LCSM reverse-coupling LOO compare: LCSM-081 / LCSM-181 runs missing.")
 
     med_family = build_mediation_family(args.config)
     if med_family is not None:

@@ -17,9 +17,14 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from language_reading_predictors.statistical_models.predictive_checks import ppc_calibration_table, ppc_coverage_markdown, ppc_interval_coverage, ppc_offfloor_cell_table, ppc_offfloor_rate_coverage
+from language_reading_predictors.statistical_models.predictive_checks import (
+    ppc_calibration_table,
+    ppc_coverage_markdown,
+    ppc_interval_coverage,
+    ppc_offfloor_cell_table,
+    ppc_offfloor_rate_coverage,
+)
 from language_reading_predictors.statistical_models.predictive_checks import _ppc_node_arrays
-
 
 
 def _labelled(dataset: xr.Dataset) -> xr.Dataset:
@@ -33,9 +38,7 @@ def _labelled(dataset: xr.Dataset) -> xr.Dataset:
     observations. These synthetic fixtures therefore label their axes the same
     way rather than relying on positional alignment.
     """
-    return dataset.assign_coords(
-        {name: np.arange(size) for name, size in dataset.sizes.items()}
-    )
+    return dataset.assign_coords({name: np.arange(size) for name, size in dataset.sizes.items()})
 
 
 def _count_trace(rep, obs, *, node="y_post"):
@@ -46,13 +49,9 @@ def _count_trace(rep, obs, *, node="y_post"):
     return xr.DataTree.from_dict(
         {
             "posterior_predictive": _labelled(
-                xr.Dataset(
-                    {node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
-                )
+                xr.Dataset({node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))})
             ),
-            "observed_data": _labelled(
-                xr.Dataset({node: (("obs_id",), np.asarray(obs, dtype=float))})
-            ),
+            "observed_data": _labelled(xr.Dataset({node: (("obs_id",), np.asarray(obs, dtype=float))})),
         }
     )
 
@@ -158,12 +157,8 @@ def test_node_arrays_flatten_multidim_obs_in_order():
     obs = np.array([[10.0, 11.0], [12.0, 13.0]])  # (obs_id, domain)
     trace = xr.DataTree.from_dict(
         {
-            "posterior_predictive": _labelled(
-                xr.Dataset({"y_obs": (("chain", "draw", "obs_id", "domain"), rep)})
-            ),
-            "observed_data": _labelled(
-                xr.Dataset({"y_obs": (("obs_id", "domain"), obs)})
-            ),
+            "posterior_predictive": _labelled(xr.Dataset({"y_obs": (("chain", "draw", "obs_id", "domain"), rep)})),
+            "observed_data": _labelled(xr.Dataset({"y_obs": (("obs_id", "domain"), obs)})),
         }
     )
     y_rep, y_obs = _ppc_node_arrays(trace, "y_obs")
@@ -173,11 +168,7 @@ def test_node_arrays_flatten_multidim_obs_in_order():
 
 def test_node_arrays_raises_on_missing_group():
     trace = xr.DataTree.from_dict(
-        {
-            "posterior_predictive": _labelled(
-                xr.Dataset({"y_post": (("chain", "draw", "obs_id"), np.ones((1, 2, 3)))})
-            )
-        }
+        {"posterior_predictive": _labelled(xr.Dataset({"y_post": (("chain", "draw", "obs_id"), np.ones((1, 2, 3)))}))}
     )
     with pytest.raises(KeyError, match="observed_data"):
         _ppc_node_arrays(trace, "y_post")
@@ -190,13 +181,9 @@ def _offfloor_trace(rep, obs, *, node="y_offfloor"):
     return xr.DataTree.from_dict(
         {
             "posterior_predictive": _labelled(
-                xr.Dataset(
-                    {node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
-                )
+                xr.Dataset({node: (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))})
             ),
-            "observed_data": _labelled(
-                xr.Dataset({node: (("obs_id",), np.asarray(obs, dtype=float))})
-            ),
+            "observed_data": _labelled(xr.Dataset({node: (("obs_id",), np.asarray(obs, dtype=float))})),
         }
     )
 
@@ -211,9 +198,7 @@ def test_offfloor_rate_coverage_by_group_cell_known_verdict():
     # Replicated: immediate always 1 (rate 1.0), waitlist always 0 (rate 0.0).
     rep = np.zeros((1, 30, 8))
     rep[:, :, :4] = 1.0
-    cov = ppc_offfloor_rate_coverage(
-        _offfloor_trace(rep, obs), group=group
-    ).set_index("level_pct")
+    cov = ppc_offfloor_rate_coverage(_offfloor_trace(rep, obs), group=group).set_index("level_pct")
     # 2 cells: immediate observed .5 vs predictive point mass 1.0 -> OUTSIDE;
     # waitlist observed 0 vs predictive point mass 0 -> INSIDE. So 1/2 covered.
     assert cov.loc[90, "n_total"] == 2
@@ -372,13 +357,9 @@ def _multi_outcome_context(tmp_path, kind, outcomes, cell_outcome, rep, obs):
     trace = xr.DataTree.from_dict(
         {
             "posterior_predictive": _labelled(
-                xr.Dataset(
-                    {"y_obs": (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))}
-                )
+                xr.Dataset({"y_obs": (("chain", "draw", "obs_id"), np.asarray(rep, dtype=float))})
             ),
-            "observed_data": _labelled(
-                xr.Dataset({"y_obs": (("obs_id",), np.asarray(obs, dtype=float))})
-            ),
+            "observed_data": _labelled(xr.Dataset({"y_obs": (("obs_id",), np.asarray(obs, dtype=float))})),
             "constant_data": _labelled(
                 xr.Dataset(
                     {
@@ -416,9 +397,7 @@ def test_multi_outcome_coverage_emits_a_row_per_outcome_beside_the_pooled_row(
     # a point mass far from what was observed.
     rep = np.concatenate([np.repeat(draws, 2, axis=2), np.full((1, 200, 2), 99.0)], axis=2)
     obs = [5.0, 5.0, 1.0, 1.0]
-    ctx = _multi_outcome_context(
-        tmp_path, "growth", ("W", "L"), [0, 0, 1, 1], rep, obs
-    )
+    ctx = _multi_outcome_context(tmp_path, "growth", ("W", "L"), [0, 0, 1, 1], rep, obs)
 
     ppc_artifacts._save_count_ppc(ctx, "y_obs", None, "growth")
 
@@ -442,9 +421,7 @@ def test_multi_outcome_coverage_falls_back_to_pooled_without_a_cell_map(tmp_path
     from language_reading_predictors.statistical_models import ppc_artifacts
 
     rep = np.random.default_rng(0).normal(5.0, 1.0, (1, 50, 3))
-    ctx = _multi_outcome_context(
-        tmp_path, "lcsm", ("W", "L"), [0, 0, 1], rep, [5.0, 5.0, 5.0]
-    )
+    ctx = _multi_outcome_context(tmp_path, "lcsm", ("W", "L"), [0, 0, 1], rep, [5.0, 5.0, 5.0])
     del ctx.trace["constant_data"]
 
     ppc_artifacts._save_count_ppc(ctx, "y_obs", None, "lcsm")
@@ -460,9 +437,7 @@ def test_single_outcome_families_keep_the_pooled_only_schema(tmp_path):
     from language_reading_predictors.statistical_models import ppc_artifacts
 
     rep = np.random.default_rng(1).normal(5.0, 1.0, (1, 50, 3))
-    ctx = _multi_outcome_context(
-        tmp_path, "gain_factors", ("W",), [0, 0, 0], rep, [5.0, 5.0, 5.0]
-    )
+    ctx = _multi_outcome_context(tmp_path, "gain_factors", ("W",), [0, 0, 0], rep, [5.0, 5.0, 5.0])
 
     ppc_artifacts._save_count_ppc(ctx, "y_obs", "W", "gain_factors")
 

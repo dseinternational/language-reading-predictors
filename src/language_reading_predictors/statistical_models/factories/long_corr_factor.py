@@ -1,18 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Longitudinal correlated-factor model construction.
-
-"""
+"""Longitudinal correlated-factor model construction."""
 
 from __future__ import annotations
-
 
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models.fitted_payloads import (
@@ -26,6 +22,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _LCF_DOMAINS,
 )
 from language_reading_predictors.statistical_models import priors as _priors
+
 
 def build_longitudinal_corr_factor_model(
     panel: WavePanel,
@@ -144,15 +141,8 @@ def build_longitudinal_corr_factor_model(
                 "factor needs at least two indicators to be identified."
             )
     if loading_prior not in {"communality", "free"}:
-        raise ValueError(
-            f"loading_prior must be 'communality' or 'free'; got {loading_prior!r}"
-        )
-    if not (
-        np.isfinite(comm_alpha)
-        and np.isfinite(comm_beta)
-        and comm_alpha > 0.0
-        and comm_beta > 0.0
-    ):
+        raise ValueError(f"loading_prior must be 'communality' or 'free'; got {loading_prior!r}")
+    if not (np.isfinite(comm_alpha) and np.isfinite(comm_beta) and comm_alpha > 0.0 and comm_beta > 0.0):
         raise ValueError(
             "comm_alpha and comm_beta must be finite and positive (Beta shape "
             f"parameters); got {comm_alpha}, {comm_beta}."
@@ -214,17 +204,13 @@ def build_longitudinal_corr_factor_model(
             # A child with no observed cell at all contributes nothing; drop it.
             continue
         pattern_children.setdefault(key, []).append(i)
-    sorted_patterns = sorted(
-        pattern_children.items(), key=lambda kv: (-len(kv[1]), min(kv[1]))
-    )
+    sorted_patterns = sorted(pattern_children.items(), key=lambda kv: (-len(kv[1]), min(kv[1])))
 
     onehot = np.zeros((J, D), dtype=float)
     onehot[np.arange(J), domain_of_idx] = 1.0
 
     iu, ju = np.triu_indices(D, k=1)
-    pair_names = [
-        f"{domain_names[i]}~{domain_names[j]}" for i, j in zip(iu, ju, strict=True)
-    ]
+    pair_names = [f"{domain_names[i]}~{domain_names[j]}" for i, j in zip(iu, ju, strict=True)]
 
     coords = {
         "indicator": ind_names,
@@ -249,14 +235,12 @@ def build_longitudinal_corr_factor_model(
         # measurement parameters. (Declaration order has no statistical effect;
         # the legacy mode shares the ordering for a stable node layout.)
         factor_mean = _priors.declare(
-                          pm.ZeroSumNormal(
-                                      "factor_mean", sigma=factor_mean_sigma, dims=("domain", "wave")
-                                  ),
-                          role="nuisance",
-                          rationale=(
-                              'Exact-zero-sum domain-by-wave mean deviations ; represents wave shifts after pooled indicator standardisation.'
-                          ),
-                      )
+            pm.ZeroSumNormal("factor_mean", sigma=factor_mean_sigma, dims=("domain", "wave")),
+            role="nuisance",
+            rationale=(
+                "Exact-zero-sum domain-by-wave mean deviations ; represents wave shifts after pooled indicator standardisation."
+            ),
+        )
 
         # --- Measurement parameters (wave-invariant loadings + residuals) ---
         # Loading / residual parameterisation (#383 follow-up; see the docstring).
@@ -270,32 +254,26 @@ def build_longitudinal_corr_factor_model(
         # communality) are unchanged in both modes; only which is free differs.
         if loading_prior == "communality":
             comm = _priors.declare(
-                       pm.Beta(
-                                       "communality", alpha=comm_alpha, beta=comm_beta, dims="indicator"
-                                   ),
-                       role="association",
-                       rationale=(
-                           "Indicator communality; the share of a standardised test's variance explained by its domain factor, with the loading / residual pair derived from c under the family's unit-variance budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) in the longitudinal CFA (V the spread of the fitted wave means, so the POOLED indicator variance is exactly 1). Either way the loading-residual ridge is removed and Heywood configurations have zero prior mass."
-                       ),
-                   )
+                pm.Beta("communality", alpha=comm_alpha, beta=comm_beta, dims="indicator"),
+                role="association",
+                rationale=(
+                    "Indicator communality; the share of a standardised test's variance explained by its domain factor, with the loading / residual pair derived from c under the family's unit-variance budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) in the longitudinal CFA (V the spread of the fitted wave means, so the POOLED indicator variance is exactly 1). Either way the loading-residual ridge is removed and Heywood configurations have zero prior mass."
+                ),
+            )
             _W = pt.as_tensor_variable(wave_weights)  # (J, T)
             _m_ind = factor_mean[domain_of_idx, :]  # (J, T) domain means per indicator
             _mbar = pt.sum(_W * _m_ind, axis=1, keepdims=True)  # (J, 1)
             _V = pt.sum(_W * pt.sqr(_m_ind - _mbar), axis=1)  # (J,)
             _denom = 1.0 + comm * _V
             lam = pm.Deterministic("lambda_load", pt.sqrt(comm / _denom), dims="indicator")
-            sigma_ind = pm.Deterministic(
-                "sigma_indicator", pt.sqrt((1.0 - comm) / _denom), dims="indicator"
-            )
+            sigma_ind = pm.Deterministic("sigma_indicator", pt.sqrt((1.0 - comm) / _denom), dims="indicator")
             pm.Deterministic("within_share", 1.0 / _denom, dims="indicator")
         else:
             # Legacy free pair, retained so a sensitivity contrast can vary only
             # the geometry. Defaults reproduce the original HalfNormal(1) pair
             # (TruncatedNormal(0, 1, lower=0) IS HalfNormal(1)).
             lam = _priors.declare(
-                pm.TruncatedNormal(
-                    "lambda_load", mu=0.0, sigma=loading_sigma, lower=0.0, dims="indicator"
-                ),
+                pm.TruncatedNormal("lambda_load", mu=0.0, sigma=loading_sigma, lower=0.0, dims="indicator"),
                 role="association",
                 rationale=(
                     "Free factor loading of a standardised indicator on its domain factor "
@@ -306,21 +284,15 @@ def build_longitudinal_corr_factor_model(
                 ),
             )
             sigma_ind = _priors.declare(
-                pm.HalfNormal(
-                    "sigma_indicator", sigma=residual_sigma, dims="indicator"
-                ),
+                pm.HalfNormal("sigma_indicator", sigma=residual_sigma, dims="indicator"),
                 role="nuisance",
                 rationale=(
                     "Indicator residual SD of the legacy free pair (HalfNormal); unbounded "
                     "support, so it makes sigma > 1 unlikely rather than capping it."
                 ),
             )
-            pm.Deterministic(
-                "communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator"
-            )
-            pm.Deterministic(
-                "within_share", lam**2 + sigma_ind**2, dims="indicator"
-            )
+            pm.Deterministic("communality", lam**2 / (lam**2 + sigma_ind**2), dims="indicator")
+            pm.Deterministic("within_share", lam**2 + sigma_ind**2, dims="indicator")
 
         # --- Trait / state factor structure ---
         # Trait share per factor (across-wave autocorrelation) + trait/state
@@ -332,34 +304,32 @@ def build_longitudinal_corr_factor_model(
         # those pollute the convergence gate). Five matrices: one trait + one state
         # per wave.
         pi = _priors.declare(
-                 pm.Beta("trait_share", alpha=trait_share_a, beta=trait_share_b, dims="domain"),
-                 role="nuisance",
-                 rationale=(
-                     'Domain-specific stable-trait variance share; governs same-domain persistence across waves.'
-                 ),
-             )
+            pm.Beta("trait_share", alpha=trait_share_a, beta=trait_share_b, dims="domain"),
+            role="nuisance",
+            rationale=("Domain-specific stable-trait variance share; governs same-domain persistence across waves."),
+        )
         L_trait = _priors.declare(
-                      pm.LKJCorr("trait_corr_chol", n=D, eta=lkj_eta),
-                      role="association",
-                      rationale=(
-                          "LKJ prior on the shared trait-component correlation "
-                          "(LKJCorrRV(<constant>, 2)); trait-share weighting carries it into "
-                          "every within-wave matrix."
-                      ),
-                  )
+            pm.LKJCorr("trait_corr_chol", n=D, eta=lkj_eta),
+            role="association",
+            rationale=(
+                "LKJ prior on the shared trait-component correlation "
+                "(LKJCorrRV(<constant>, 2)); trait-share weighting carries it into "
+                "every within-wave matrix."
+            ),
+        )
         corr_trait = L_trait @ L_trait.T
         pm.Deterministic("trait_corr", corr_trait, dims=("domain", "domain_b"))
         corr_state = []
         for t in range(T):
             L_s = _priors.declare(
-                      pm.LKJCorr(f"state_corr_chol_w{waves[t]}", n=D, eta=lkj_eta),
-                      role="association",
-                      rationale=(
-                          "LKJ prior on one wave's state-component correlation "
-                          "(LKJCorrRV(<constant>, 2)); together with the shared trait "
-                          "component it induces that wave's reported factor correlation."
-                      ),
-                  )
+                pm.LKJCorr(f"state_corr_chol_w{waves[t]}", n=D, eta=lkj_eta),
+                role="association",
+                rationale=(
+                    "LKJ prior on one wave's state-component correlation "
+                    "(LKJCorrRV(<constant>, 2)); together with the shared trait "
+                    "component it induces that wave's reported factor correlation."
+                ),
+            )
             corr_state.append(L_s @ L_s.T)
 
         sqrt_pi = pt.sqrt(pi)
@@ -387,9 +357,7 @@ def build_longitudinal_corr_factor_model(
             # Gate exactly the released off-diagonals (the full matrix's constant unit
             # diagonal has undefined R-hat and would silently pass); one vector of the
             # unique pairs per wave.
-            pairs = pt.stack(
-                [factor_corr[:, i, j] for i, j in zip(iu, ju, strict=True)], axis=1
-            )  # (wave, factor_pair)
+            pairs = pt.stack([factor_corr[:, i, j] for i, j in zip(iu, ju, strict=True)], axis=1)  # (wave, factor_pair)
             pm.Deterministic("factor_corr_pairs", pairs, dims=("wave", "factor_pair"))
 
         # --- Marginal indicator covariance + mean over the (t, j) stack ---
@@ -446,22 +414,15 @@ def build_longitudinal_corr_factor_model(
 
     payload = LongCorrFactorPayload(
         z_nodes=tuple(z_nodes),
-        child_of_node={
-            key: np.asarray(value, dtype=int) for key, value in child_of_node.items()
-        },
+        child_of_node={key: np.asarray(value, dtype=int) for key, value in child_of_node.items()},
         # Preserve the exact pattern-specific inputs used by the MvNormal nodes.
         # The LOO post-processor evaluates the same density from posterior
         # ``mean_z`` / ``Sigma_z`` without asking PyMC to reconstruct it through
         # transformed LKJCorr value variables.
-        cell_indices_of_node={
-            key: np.asarray(value, dtype=int)
-            for key, value in cell_indices_of_node.items()
-        },
+        cell_indices_of_node={key: np.asarray(value, dtype=int) for key, value in cell_indices_of_node.items()},
         observed_z_of_node=observed_z_of_node,
         domains={key: tuple(value) for key, value in domains.items()},
-        domain_of={
-            ind_names[j]: domain_names[domain_of_idx[j]] for j in range(J)
-        },
+        domain_of={ind_names[j]: domain_names[domain_of_idx[j]] for j in range(J)},
         indicators=tuple(ind_names),
         cell_names=tuple(cell_names),
         standardisers=standardisers,

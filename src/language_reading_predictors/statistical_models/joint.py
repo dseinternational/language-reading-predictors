@@ -254,9 +254,7 @@ class JointModelSettings:
             use_age_linear=extra.get("use_age_linear", False),
             joint_structure=extra.get("joint_structure"),
             loo_unit=extra.get("loo_unit", "child"),
-            prediction_target=extra.get(
-                "prediction_target", PREDICTION_TARGET_NEW_CHILD
-            ),
+            prediction_target=extra.get("prediction_target", PREDICTION_TARGET_NEW_CHILD),
             contrast=JointContrastSettings.from_legacy(
                 extra.get("difference"),
                 extra.get("difference_metadata"),
@@ -516,8 +514,7 @@ def resolve_joint_run_plan(spec: ModelSpec) -> JointRunPlan:
             "contrast's uncertainty, not an effect: u_corr and sigma_outcome are "
             "descriptive of within-child covariance."
             if settings.use_residual_correlation
-            else "A factorised fit does not estimate paired cross-outcome residual "
-            "covariance."
+            else "A factorised fit does not estimate paired cross-outcome residual covariance."
         )
     )
     # The loader's default ``pre_required`` covers every declared outcome, so a

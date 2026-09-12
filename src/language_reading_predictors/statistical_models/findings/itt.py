@@ -35,9 +35,7 @@ def _kf_itt_analysis_population(output_dir: str | Path) -> dict[str, int]:
 
     path = os.path.join(str(output_dir), "analysis_set.csv")
     if not os.path.exists(path):
-        raise _KeyFindingsUnavailable(
-            "analysis_set.csv is missing, so the fitted causal population cannot be verified"
-        )
+        raise _KeyFindingsUnavailable("analysis_set.csv is missing, so the fitted causal population cannot be verified")
     try:
         frame = pd.read_csv(path)
     except (OSError, pd.errors.ParserError, UnicodeDecodeError) as exc:
@@ -55,18 +53,14 @@ def _kf_itt_analysis_population(output_dir: str | Path) -> dict[str, int]:
         "excluded_after_archive_n",
     }
     if len(frame) != 2 or not required.issubset(frame.columns):
-        raise _KeyFindingsUnavailable(
-            "analysis_set.csv does not contain exactly the two required arm rows"
-        )
+        raise _KeyFindingsUnavailable("analysis_set.csv does not contain exactly the two required arm rows")
     # ``available_t1_n`` is the deprecated duplicate of ``analysed_archive_n``
     # (2026-08-22 ITT audit, finding 9): it never held outcome-specific t1
     # availability — which is measure-specific, 50 for N against 53 for W — and
     # fits from this commit on stop writing it. Stored bundles still carry it and
     # are still checked for the equality that made it redundant.
     optional = {"available_t1_n"} & set(frame.columns)
-    numeric = frame[list((required | optional) - {"arm"})].apply(
-        pd.to_numeric, errors="coerce"
-    )
+    numeric = frame[list((required | optional) - {"arm"})].apply(pd.to_numeric, errors="coerce")
     if not np.isfinite(numeric.to_numpy(dtype=float)).all():
         raise _KeyFindingsUnavailable("analysis_set.csv contains non-numeric counts")
     if not np.equal(numeric.to_numpy(), np.floor(numeric.to_numpy())).all():
@@ -77,20 +71,11 @@ def _kf_itt_analysis_population(output_dir: str | Path) -> dict[str, int]:
     if set(work["G"]) != {0, 1} or work["G"].duplicated().any():
         raise _KeyFindingsUnavailable("analysis_set.csv does not identify both arms")
     if not (
-        (work["randomised_n"] - work["analysed_archive_n"])
-        .eq(work["lost_to_follow_up_n"])
-        .all()
-        and (
-            not optional
-            or work["analysed_archive_n"].eq(work["available_t1_n"]).all()
-        )
+        (work["randomised_n"] - work["analysed_archive_n"]).eq(work["lost_to_follow_up_n"]).all()
+        and (not optional or work["analysed_archive_n"].eq(work["available_t1_n"]).all())
         and work["lost_to_follow_up_n"].eq(work["absent_from_archive_n"]).all()
-        and (work["randomised_n"] - work["fitted_n"])
-        .eq(work["not_in_fitted_analysis_n"])
-        .all()
-        and (work["analysed_archive_n"] - work["fitted_n"])
-        .eq(work["excluded_after_archive_n"])
-        .all()
+        and (work["randomised_n"] - work["fitted_n"]).eq(work["not_in_fitted_analysis_n"]).all()
+        and (work["analysed_archive_n"] - work["fitted_n"]).eq(work["excluded_after_archive_n"]).all()
         and (work["randomised_n"] >= work["analysed_archive_n"]).all()
         and (work["analysed_archive_n"] >= work["fitted_n"]).all()
         and (work["fitted_n"] > 0).all()
@@ -101,18 +86,14 @@ def _kf_itt_analysis_population(output_dir: str | Path) -> dict[str, int]:
         "randomised": int(work["randomised_n"].sum()),
         "archived": int(work["analysed_archive_n"].sum()),
         "lost_to_follow_up": int(work["lost_to_follow_up_n"].sum()),
-        "discontinued_but_followed": int(
-            work["discontinued_but_followed_n"].sum()
-        ),
+        "discontinued_but_followed": int(work["discontinued_but_followed_n"].sum()),
         "fitted": int(work["fitted_n"].sum()),
         "fitted_intervention": int(_kf_float(indexed.loc[1, "fitted_n"])),
         "fitted_control": int(_kf_float(indexed.loc[0, "fitted_n"])),
     }
 
 
-def _kf_itt_causal_sentence(
-    population: Mapping[str, int], *, floor_rule: bool = False
-) -> str:
+def _kf_itt_causal_sentence(population: Mapping[str, int], *, floor_rule: bool = False) -> str:
     """Selected-population causal wording shared by every single-outcome ITT.
 
     ``floor_rule`` names the extra qualification the P/N off-floor primaries carry
@@ -123,13 +104,9 @@ def _kf_itt_causal_sentence(
     """
 
     label = (
-        "This is a post-hoc subgroup available-case modified ITT estimate, not a "
-        "full-randomised-cohort ITT estimate. "
+        "This is a post-hoc subgroup available-case modified ITT estimate, not a full-randomised-cohort ITT estimate. "
         if floor_rule
-        else (
-            "This is an available-case modified ITT estimate, not a "
-            "full-randomised-cohort ITT estimate. "
-        )
+        else ("This is an available-case modified ITT estimate, not a full-randomised-cohort ITT estimate. ")
     )
     scope = (
         (
@@ -141,8 +118,7 @@ def _kf_itt_causal_sentence(
         )
         if floor_rule
         else (
-            "Random assignment supports a cause-and-effect reading only under the "
-            "available-case assumption: for the "
+            "Random assignment supports a cause-and-effect reading only under the available-case assumption: for the "
         )
     )
     tail = (
@@ -158,9 +134,7 @@ def _kf_itt_causal_sentence(
         )
     )
     return (
-        label
-        + scope
-        + f"{population['fitted']} fitted children "
+        label + scope + f"{population['fitted']} fitted children "
         f"({population['fitted_intervention']} immediate-intervention and "
         f"{population['fitted_control']} waiting-list), archive inclusion, outcome "
         "observation and any complete-case restriction must not depend jointly on "
@@ -200,9 +174,7 @@ def _kf_blending_link_evidence(
     guessing = summary.loc[BLENDING_COMPANION_MODEL_ID]
     current_model_id = str(config.get("model_id"))
     if current_model_id not in summary.index:
-        raise _KeyFindingsUnavailable(
-            "current B model is not one of the validated paired-link fits"
-        )
+        raise _KeyFindingsUnavailable("current B model is not one of the validated paired-link fits")
     current = summary.loc[current_model_id]
 
     def _effect(row: Mapping | pd.Series) -> str:
@@ -230,9 +202,7 @@ def _kf_itt_missingness_sentence(output_dir: str | Path, config: Mapping) -> str
         return None
     frame = _kf_csv(output_dir, "itt_missingness_sensitivity.csv")
     if frame is None or "scenario" not in frame.columns:
-        raise _KeyFindingsUnavailable(
-            "itt_missingness_sensitivity.csv is absent or malformed"
-        )
+        raise _KeyFindingsUnavailable("itt_missingness_sensitivity.csv is absent or malformed")
     indexed = frame.set_index(frame["scenario"].astype(str), drop=False)
     required = (
         "screening_model_observed_profiles",
@@ -240,9 +210,7 @@ def _kf_itt_missingness_sentence(output_dir: str | Path, config: Mapping) -> str
         "jump_to_reference_intervention_nonstarter",
     )
     if any(scenario not in indexed.index for scenario in required):
-        raise _KeyFindingsUnavailable(
-            "the bridge, MAR or jump-to-reference missingness row is absent"
-        )
+        raise _KeyFindingsUnavailable("the bridge, MAR or jump-to-reference missingness row is absent")
     bridge = indexed.loc[required[0]].to_dict()
     mar = indexed.loc[required[1]].to_dict()
     j2r = indexed.loc[required[2]].to_dict()
@@ -256,13 +224,9 @@ def _kf_itt_missingness_sentence(output_dir: str | Path, config: Mapping) -> str
     delta_c = pd.to_numeric(grid["delta_control_items"], errors="coerce")
     factual_mar_rows = grid.loc[delta_i.eq(0.0) & delta_c.eq(0.0)]
     if len(factual_mar_rows) != 1:
-        raise _KeyFindingsUnavailable(
-            "the factual-arm zero-delta MAR completion is absent"
-        )
+        raise _KeyFindingsUnavailable("the factual-arm zero-delta MAR completion is absent")
     factual_mar = factual_mar_rows.iloc[0]
-    clipping = grid[
-        ["clipped_intervention_fraction", "clipped_control_fraction"]
-    ].apply(pd.to_numeric, errors="coerce")
+    clipping = grid[["clipped_intervention_fraction", "clipped_control_fraction"]].apply(pd.to_numeric, errors="coerce")
     if not np.isfinite(clipping.to_numpy(dtype=float)).all():
         raise _KeyFindingsUnavailable("the missingness clipping audit is non-numeric")
     bounds = _kf_csv(output_dir, "attrition_bounds.csv")
@@ -349,7 +313,7 @@ def _kf_itt_attrition_bounds_clause(output_dir: str | Path, config: Mapping) -> 
         missing_c = int(_kf_float(row["missing_control_n"]))
         lo = _kf_float(row["worst_case_items_lower"])
         hi = _kf_float(row["worst_case_items_upper"])
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if not (np.isfinite(lo) and np.isfinite(hi)) or missing_i + missing_c <= 0:
         return None
@@ -384,9 +348,7 @@ def _kf_build_itt(output_dir: str | Path, config: Mapping) -> list[dict[str, str
     outcome_label = _kf_outcome_label(config)
     population = _kf_itt_analysis_population(output_dir)
     blending_evidence = _kf_blending_link_evidence(output_dir, config)
-    score_mean_link = str(
-        (config.get("resolved_run_plan") or {}).get("score_mean_link", "logit")
-    )
+    score_mean_link = str((config.get("resolved_run_plan") or {}).get("score_mean_link", "logit"))
     sentences: list[dict[str, str]] = []
     if blending_evidence is not None:
         blending_row, blending_sentence = blending_evidence
@@ -408,9 +370,7 @@ def _kf_build_itt(output_dir: str | Path, config: Mapping) -> list[dict[str, str
             )
         )
         sentences.append(_kf_sentence(blending_sentence, "sensitivity"))
-        direction_sentence = _kf_direction_words(
-            blending_row["prob_effect_positive"], is_rd=False
-        )
+        direction_sentence = _kf_direction_words(blending_row["prob_effect_positive"], is_rd=False)
         sentences.append(
             _kf_sentence(
                 f"{link_prefix}{direction_sentence[0].lower()}{direction_sentence[1:]}",
@@ -437,9 +397,7 @@ def _kf_build_itt(output_dir: str | Path, config: Mapping) -> list[dict[str, str
         else:
             tau = _kf_csv_row(output_dir, "tau_summary.csv")
             if tau is None:
-                raise _KeyFindingsUnavailable(
-                    "neither rope_summary.csv nor tau_summary.csv is present"
-                )
+                raise _KeyFindingsUnavailable("neither rope_summary.csv nor tau_summary.csv is present")
             from language_reading_predictors.statistical_models.measures import MEASURES
 
             measure = MEASURES.get(str(config.get("outcome_symbol", "")))
@@ -475,9 +433,7 @@ def _kf_build_itt(output_dir: str | Path, config: Mapping) -> list[dict[str, str
         sentences.append(_kf_sentence(missingness_sentence, "sensitivity"))
     causal_sentence = _kf_itt_causal_sentence(
         population,
-        floor_rule=bool(
-            (config.get("resolved_run_plan") or {}).get("floor_rule", False)
-        ),
+        floor_rule=bool((config.get("resolved_run_plan") or {}).get("floor_rule", False)),
     )
     attrition_clause = _kf_itt_attrition_bounds_clause(output_dir, config)
     if attrition_clause is not None:

@@ -249,12 +249,8 @@ def test_dependence_companions_match_their_parents_except_the_block():
     same outcomes, precision terms, LOO unit and contrast — and its recipe and
     causal status describe the block; its dependence note names the parent."""
     for companion_name, parent_name in _DEPENDENCE_COMPANIONS.items():
-        companion = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{companion_name}"
-        ).SPEC
-        parent = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{parent_name}"
-        ).SPEC
+        companion = importlib.import_module(f"language_reading_predictors.statistical_models.{companion_name}").SPEC
+        parent = importlib.import_module(f"language_reading_predictors.statistical_models.{parent_name}").SPEC
         assert companion.kind == "joint"
         cs, ps = companion.model_settings, parent.model_settings
         assert isinstance(cs, J.JointModelSettings)
@@ -262,12 +258,25 @@ def test_dependence_companions_match_their_parents_except_the_block():
         assert cs.joint_structure == "residual_correlated"
         assert ps.use_residual_correlation is False
         # Everything except the block and the note is identical to the parent.
-        for field in ("outcomes", "use_age_gp", "partial_pool_age_gp",
-                      "use_cross_baselines", "use_age_linear", "loo_unit"):
+        for field in (
+            "outcomes",
+            "use_age_gp",
+            "partial_pool_age_gp",
+            "use_cross_baselines",
+            "use_age_linear",
+            "loo_unit",
+        ):
             assert getattr(cs, field) == getattr(ps, field), (companion_name, field)
-        for field in ("left", "right", "contrast_kind", "contrast_label",
-                      "positive_interpretation", "negative_interpretation",
-                      "transfer_outcome", "transfer_interpretation"):
+        for field in (
+            "left",
+            "right",
+            "contrast_kind",
+            "contrast_label",
+            "positive_interpretation",
+            "negative_interpretation",
+            "transfer_outcome",
+            "transfer_interpretation",
+        ):
             assert getattr(cs.contrast, field) == getattr(ps.contrast, field), (companion_name, field)
         assert parent.model_id in cs.contrast.dependence_note
         assert "residual-correlation block is on" in cs.contrast.dependence_note
@@ -299,12 +308,8 @@ def test_the_release_pairing_constant_matches_the_registered_declarations():
     from the modules that own the declaration."""
     declared = {}
     for companion_name, parent_name in _DEPENDENCE_COMPANIONS.items():
-        parent = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{parent_name}"
-        ).SPEC
-        companion = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{companion_name}"
-        ).SPEC
+        parent = importlib.import_module(f"language_reading_predictors.statistical_models.{parent_name}").SPEC
+        companion = importlib.import_module(f"language_reading_predictors.statistical_models.{companion_name}").SPEC
         declared[parent.model_id] = companion.model_id
     assert J.JOINT_DEPENDENCE_COMPANIONS == declared
 
@@ -336,9 +341,7 @@ def test_the_correlated_estimand_is_recorded_as_latent_conditional():
             )
         )
     )
-    factorised = J.resolve_joint_run_plan(
-        _spec(settings=J.JointModelSettings(outcomes=("TE", "UE")))
-    )
+    factorised = J.resolve_joint_run_plan(_spec(settings=J.JointModelSettings(outcomes=("TE", "UE"))))
     assert "conditional on posterior draws of their own residuals" in correlated.estimand
     assert "NOT invariant by construction" in correlated.estimand
     assert "latent-conditional" not in factorised.estimand
@@ -349,12 +352,8 @@ def test_the_blending_link_policy_scope_is_recorded_for_a_joint_b_fit():
     """Finding 12: the 008/108 pairing governs the B model of record; a joint B row
     is a secondary structural cross-check. The plan records that scope so the
     release decision can verify it instead of relying on the findings-box prose."""
-    with_b = J.resolve_joint_run_plan(
-        _spec(settings=J.JointModelSettings(outcomes=("W", "B")))
-    )
-    without_b = J.resolve_joint_run_plan(
-        _spec(settings=J.JointModelSettings(outcomes=("W", "R")))
-    )
+    with_b = J.resolve_joint_run_plan(_spec(settings=J.JointModelSettings(outcomes=("W", "B"))))
+    without_b = J.resolve_joint_run_plan(_spec(settings=J.JointModelSettings(outcomes=("W", "R"))))
     assert without_b.link_sensitivity_scope is None
     assert with_b.link_sensitivity_scope is not None
     assert "lrp-rli-itt-008" in with_b.link_sensitivity_scope
@@ -371,9 +370,7 @@ def test_a_residual_correlated_fit_must_not_declare_a_dependence_companion():
         use_age_linear=True,
         use_residual_correlation=True,
         joint_structure="residual_correlated",
-        contrast=J.JointContrastSettings(
-            left="TE", right="UE", dependence_companion="lrp-rli-itt-999"
-        ),
+        contrast=J.JointContrastSettings(left="TE", right="UE", dependence_companion="lrp-rli-itt-999"),
     )
     with pytest.raises(ValueError, match="must not declare a dependence_companion"):
         J.resolve_joint_run_plan(_spec(settings=settings))
@@ -386,9 +383,7 @@ def test_the_dependence_companion_is_plan_only_metadata():
         outcomes=("TE", "UE"),
         use_cross_baselines=False,
         use_age_linear=True,
-        contrast=J.JointContrastSettings(
-            left="TE", right="UE", dependence_companion="lrp-rli-itt-215"
-        ),
+        contrast=J.JointContrastSettings(left="TE", right="UE", dependence_companion="lrp-rli-itt-215"),
     )
     plan = J.resolve_joint_run_plan(_spec(settings=settings))
     assert plan.as_dict()["contrast"]["dependence_companion"] == "lrp-rli-itt-215"
@@ -492,9 +487,7 @@ def test_dependence_summary_flags_a_correlation_that_never_left_its_prior():
     1.002, 1.008 and 1.001 say otherwise, and the table has to make that legible
     rather than leaving it to be reconstructed from a wide interval.
     """
-    frame = _dependence_summary.dependence_identification_summary(
-        _dependence_trace(post_sd=1 / 3), ci_prob=0.89
-    )
+    frame = _dependence_summary.dependence_identification_summary(_dependence_trace(post_sd=1 / 3), ci_prob=0.89)
     correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
     assert correlation["prior_source"] == "fitted prior draws"
     assert correlation["posterior_prior_sd_ratio"] == pytest.approx(1.0, abs=0.05)
@@ -505,9 +498,7 @@ def test_dependence_summary_flags_a_correlation_that_never_left_its_prior():
 
 
 def test_dependence_summary_reports_an_informed_correlation_as_informed():
-    frame = _dependence_summary.dependence_identification_summary(
-        _dependence_trace(post_sd=0.05), ci_prob=0.89
-    )
+    frame = _dependence_summary.dependence_identification_summary(_dependence_trace(post_sd=0.05), ci_prob=0.89)
     correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
     assert correlation["posterior_prior_sd_ratio"] < 0.75
     assert correlation["verdict"] == "informed"
@@ -523,9 +514,12 @@ def test_dependence_summary_is_none_without_the_block():
         coords={"chain": np.arange(2), "draw": np.arange(10)},
     )
     del az
-    assert _dependence_summary.dependence_identification_summary(
-        xr.DataTree.from_dict({"posterior": posterior}), ci_prob=0.89
-    ) is None
+    assert (
+        _dependence_summary.dependence_identification_summary(
+            xr.DataTree.from_dict({"posterior": posterior}), ci_prob=0.89
+        )
+        is None
+    )
 
 
 def test_the_lkj_prior_sd_closed_form_matches_the_two_outcome_case():

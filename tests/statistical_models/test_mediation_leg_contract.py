@@ -37,16 +37,12 @@ from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
 
-_MODEL_ROOT = (
-    Path(__file__).parents[2] / "src/language_reading_predictors/statistical_models"
-)
+_MODEL_ROOT = Path(__file__).parents[2] / "src/language_reading_predictors/statistical_models"
 
 
 def _registered():
     for path in sorted(_MODEL_ROOT.glob("lrp_rli_med_*.py")):
-        module = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{path.stem}"
-        )
+        module = importlib.import_module(f"language_reading_predictors.statistical_models.{path.stem}")
         yield module.SPEC
 
 
@@ -66,17 +62,13 @@ def _build(spec):
     else:
         prepared, _ = _prepare_mediation_data(plan)
     active = tuple(
-        symbol
-        for symbol in plan.declared_confounders
-        if symbol in prepared.covariates or symbol in prepared.pre_logit
+        symbol for symbol in plan.declared_confounders if symbol in prepared.covariates or symbol in prepared.pre_logit
     )
     plan = plan.with_effective_confounders(active)
     if spec.kind == "mediation_multi":
         built, _ = _mediation_factory.build_two_mediator_model(prepared, **plan.factory_kwargs())
     elif plan.entrypoint == "period_stacked":
-        built, _ = _mediation_factory.build_period_stacked_mediation_model(
-            prepared, **plan.period_factory_kwargs()
-        )
+        built, _ = _mediation_factory.build_period_stacked_mediation_model(prepared, **plan.period_factory_kwargs())
     else:
         built, _ = _mediation_factory.build_mediation_model(prepared, **plan.factory_kwargs())
     return plan, prepared, built
@@ -107,9 +99,7 @@ def test_every_declared_term_is_fitted(spec):
     missing = [
         symbol
         for symbol in plan.declared_confounders
-        if symbol not in prepared.covariates
-        and symbol not in prepared.pre_logit
-        and symbol not in permitted
+        if symbol not in prepared.covariates and symbol not in prepared.pre_logit and symbol not in permitted
     ]
     assert not missing, f"declared confounder(s) never loaded: {missing}"
     for term in plan.outcome_cross_baselines:
@@ -149,33 +139,21 @@ def test_common_baseline_vector_reaches_both_legs(spec):
     if spec.kind == "mediation_multi":
         for mediator in plan.mediators:
             for symbol in plan.common_baselines:
-                assert covered(symbol, f"a{mediator}", (mediator,)), (
-                    f"{symbol} missing from the {mediator} leg"
-                )
+                assert covered(symbol, f"a{mediator}", (mediator,)), f"{symbol} missing from the {mediator} leg"
         for symbol in plan.common_baselines:
-            assert covered(symbol, "b", (plan.outcome_symbol,)), (
-                f"{symbol} missing from the outcome leg"
-            )
+            assert covered(symbol, "b", (plan.outcome_symbol,)), f"{symbol} missing from the outcome leg"
         return
 
-    mediator_own = (
-        plan.route_symbols
-        if plan.mediator_kind == "gaussian_composite"
-        else (plan.mediator_symbol,)
-    )
+    mediator_own = plan.route_symbols if plan.mediator_kind == "gaussian_composite" else (plan.mediator_symbol,)
     for symbol in plan.common_baselines:
-        assert covered(symbol, "a", mediator_own), (
-            f"{symbol} missing from the mediator leg"
-        )
+        assert covered(symbol, "a", mediator_own), f"{symbol} missing from the mediator leg"
     # A composite mediator enters the outcome leg as one composite baseline term
     # rather than as its route symbols separately.
     if plan.mediator_kind == "gaussian_composite":
         assert "b_base_M" in _coefficients(built)
     else:
         for symbol in plan.common_baselines:
-            assert covered(symbol, "b", (plan.outcome_symbol,)), (
-                f"{symbol} missing from the outcome leg"
-            )
+            assert covered(symbol, "b", (plan.outcome_symbol,)), f"{symbol} missing from the outcome leg"
 
 
 @pytest.mark.parametrize("spec", ALL_SPECS, ids=SPEC_IDS)
@@ -206,18 +184,12 @@ def test_unused_loaded_baseline_cannot_change_row_membership():
 
     spec = next(s for s in ALL_SPECS if s.model_id == "lrp-rli-med-059")
     plan = _resolve(spec)
-    unused = next(
-        symbol
-        for symbol in ("B", "TR")
-        if symbol in MEASURES and symbol not in plan.pre_required
-    )
+    unused = next(symbol for symbol in ("B", "TR") if symbol in MEASURES and symbol not in plan.pre_required)
     baseline = load_and_prepare(**plan.prepare_kwargs())
 
     frame = pd.read_csv(_default_data_path())
     frame.loc[:, MEASURES[unused].column] = np.nan
-    perturbed_path = Path(
-        pytest.importorskip("tempfile").mkdtemp()
-    ) / "rli_data_long.csv"
+    perturbed_path = Path(pytest.importorskip("tempfile").mkdtemp()) / "rli_data_long.csv"
     frame.to_csv(perturbed_path, index=False)
     perturbed = load_and_prepare(path=perturbed_path, **plan.prepare_kwargs())
 
@@ -254,9 +226,7 @@ def test_composite_mediator_rejects_an_offfloor_outcome():
     spec = next(s for s in ALL_SPECS if s.model_id == "lrp-rli-med-062")
     broken = replace(
         spec,
-        model_settings=replace(
-            spec.model_settings, outcome_kind="bernoulli_offfloor"
-        ),
+        model_settings=replace(spec.model_settings, outcome_kind="bernoulli_offfloor"),
     )
     with pytest.raises(ValueError, match="no off-floor outcome leg"):
         resolve_mediation_run_plan(broken)
@@ -282,8 +252,7 @@ def test_period_stacked_primary_is_the_supported_window():
     prepared = load_and_prepare(**plan.period_prepare_kwargs())
     trt = ((prepared.G == 1) | (prepared.phase >= 1)).astype(int)
     by_period = {
-        int(ph): (int(trt[prepared.phase == ph].sum()),
-                  int((1 - trt)[prepared.phase == ph].sum()))
+        int(ph): (int(trt[prepared.phase == ph].sum()), int((1 - trt)[prepared.phase == ph].sum()))
         for ph in sorted(set(prepared.phase.tolist()))
     }
     supported = [ph for ph, (t, u) in by_period.items() if t and u]

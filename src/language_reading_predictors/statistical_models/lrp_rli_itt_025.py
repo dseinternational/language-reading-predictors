@@ -25,10 +25,7 @@ from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-025",
     kind="itt",
-    title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "basic concept knowledge (F)"
-    ),
+    title=("Available-case modified ITT estimate of the assigned-arm contrast in basic concept knowledge (F)"),
     outcome_symbol="F",
     model_settings=IttModelSettings(),
 )

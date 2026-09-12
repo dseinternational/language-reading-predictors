@@ -156,9 +156,7 @@ def _open_readable_trace(path: Path, *, label: str):
             raise ValueError(f"{label} trace has no posterior group")
         for dimension in ("chain", "draw"):
             if int(posterior.sizes.get(dimension, 0)) <= 0:
-                raise ValueError(
-                    f"{label} trace has no non-empty posterior {dimension!r} dimension"
-                )
+                raise ValueError(f"{label} trace has no non-empty posterior {dimension!r} dimension")
     except Exception:
         _close_trace(trace)
         raise
@@ -247,9 +245,7 @@ def load_influence_reference(
     metadata = _read_json(model_dir / "config.json")
     diagnostics = _read_json(model_dir / "diagnostics_summary.json")
     if not _convergence.convergence_gate_clean_passed(diagnostics):
-        raise ValueError(
-            f"the completed {spec.model_id}-{config} fit did not pass its convergence gate"
-        )
+        raise ValueError(f"the completed {spec.model_id}-{config} fit did not pass its convergence gate")
     if metadata.get("model_id") != spec.model_id or metadata.get("kind") != spec.kind:
         raise ValueError(
             "saved fit identity does not match the current registered specification: "
@@ -301,9 +297,7 @@ def load_influence_reference(
     indices = pareto["observation_index"].to_numpy(dtype=float)
     if not np.equal(indices, np.floor(indices)).all():
         raise ValueError(f"{pareto_path} contains non-integer observation indices")
-    if not np.allclose(
-        pareto["good_k_threshold"], pareto["good_k_threshold"].iloc[0]
-    ):
+    if not np.allclose(pareto["good_k_threshold"], pareto["good_k_threshold"].iloc[0]):
         raise ValueError(f"{pareto_path} contains inconsistent Pareto-k thresholds")
     if pareto["observation_index"].duplicated().any():
         raise ValueError(f"{pareto_path} contains duplicate observation indices")
@@ -493,17 +487,13 @@ def _normalise_summary(summary: pd.DataFrame, spec: ModelSpec) -> pd.DataFrame:
     return _normalise_summary_symbol(summary, spec.outcome_symbol)
 
 
-def _normalise_summary_symbol(
-    summary: pd.DataFrame, outcome_symbol: str | None
-) -> pd.DataFrame:
+def _normalise_summary_symbol(summary: pd.DataFrame, outcome_symbol: str | None) -> pd.DataFrame:
     """Normalise a saved summary when only report metadata is available."""
     out = summary.copy()
     if "outcome" not in out.columns:
         out.insert(0, "outcome", outcome_symbol)
     rename = {
-        column: column.replace("tau_prob_", "ame_prob_", 1)
-        for column in out.columns
-        if column.startswith("tau_prob_")
+        column: column.replace("tau_prob_", "ame_prob_", 1) for column in out.columns if column.startswith("tau_prob_")
     }
     out = out.rename(columns=rename)
     required = {"outcome", "ame_prob_median", "prob_ame_pos"}
@@ -517,9 +507,7 @@ def _normalise_summary_symbol(
 
 def _suffix_summary_metrics(frame: pd.DataFrame, suffix: str) -> pd.DataFrame:
     """Suffix every treatment-summary field except the outcome join key."""
-    return frame.rename(
-        columns={column: f"{column}_{suffix}" for column in frame if column != "outcome"}
-    )
+    return frame.rename(columns={column: f"{column}_{suffix}" for column in frame if column != "outcome"})
 
 
 def _trace_treatment_data(
@@ -534,24 +522,13 @@ def _trace_treatment_data(
         raise ValueError(f"{label} trace has no constant treatment indicator G")
     treatment = constant["G"]
     G = np.asarray(treatment.values, dtype=float)
-    if (
-        G.ndim != 1
-        or tuple(treatment.dims) != ("obs_id",)
-        or int(treatment.sizes.get("obs_id", -1)) != expected_n
-    ):
-        raise ValueError(
-            f"{label} trace treatment indicator does not match the expected "
-            "observation count"
-        )
+    if G.ndim != 1 or tuple(treatment.dims) != ("obs_id",) or int(treatment.sizes.get("obs_id", -1)) != expected_n:
+        raise ValueError(f"{label} trace treatment indicator does not match the expected observation count")
     if not np.isin(G, (0.0, 1.0)).all() or np.unique(G).size != 2:
         raise ValueError(f"{label} trace treatment indicator is not a two-arm design")
     posterior = trace.posterior
-    if "eta" not in posterior or int(posterior["eta"].sizes.get("obs_id", -1)) != (
-        expected_n
-    ):
-        raise ValueError(
-            f"{label} trace eta does not match the expected observation count"
-        )
+    if "eta" not in posterior or int(posterior["eta"].sizes.get("obs_id", -1)) != (expected_n):
+        raise ValueError(f"{label} trace eta does not match the expected observation count")
     return G, constant
 
 
@@ -575,10 +552,7 @@ def _trace_itt_moderators(
             or int(moderator_data.sizes.get("obs_id", -1)) != expected_n
             or not np.isfinite(moderator).all()
         ):
-            raise ValueError(
-                f"{label} trace treatment moderator does not match the expected "
-                "observation count"
-            )
+            raise ValueError(f"{label} trace treatment moderator does not match the expected observation count")
         moderators.append(("gamma_tau_int", moderator))
     return moderators
 
@@ -610,9 +584,7 @@ def _joint_contrast_influence(
     to leave-out-sample movement. The columns are constant across the per-outcome
     rows, which is what they describe -- one declared contrast per fit.
     """
-    full = _joint_summary.tau_difference_summary(
-        primary_trace, outcomes, pair, ci_prob=ci_prob, G=primary_G
-    )
+    full = _joint_summary.tau_difference_summary(primary_trace, outcomes, pair, ci_prob=ci_prob, G=primary_G)
     retained = _joint_summary.tau_difference_summary(
         primary_trace,
         outcomes,
@@ -621,15 +593,10 @@ def _joint_contrast_influence(
         G=primary_G,
         row_mask=retained_mask,
     )
-    refit = _joint_summary.tau_difference_summary(
-        refit_trace, outcomes, pair, ci_prob=ci_prob, G=refit_G
-    )
+    refit = _joint_summary.tau_difference_summary(refit_trace, outcomes, pair, ci_prob=ci_prob, G=refit_G)
     for label, frame in (("retained", retained), ("refit", refit)):
         if str(frame["contrast"]) != str(full["contrast"]):
-            raise ValueError(
-                f"the {label} contrast is {frame['contrast']!r}, not "
-                f"{full['contrast']!r}"
-            )
+            raise ValueError(f"the {label} contrast is {frame['contrast']!r}, not {full['contrast']!r}")
     columns: dict[str, Any] = {
         "contrast": str(full["contrast"]),
         "contrast_scale": str(full["headline_scale"]),
@@ -649,20 +616,16 @@ def _joint_contrast_influence(
         ):
             columns[f"contrast_{metric}_{label}"] = float(frame[metric])
     columns["contrast_composition_shift_median"] = (
-        columns["contrast_diff_prob_median_full_retained"]
-        - columns["contrast_diff_prob_median_full"]
+        columns["contrast_diff_prob_median_full_retained"] - columns["contrast_diff_prob_median_full"]
     )
     columns["contrast_refit_shift_median"] = (
-        columns["contrast_diff_prob_median_without_flagged"]
-        - columns["contrast_diff_prob_median_full_retained"]
+        columns["contrast_diff_prob_median_without_flagged"] - columns["contrast_diff_prob_median_full_retained"]
     )
     columns["contrast_total_shift_median"] = (
-        columns["contrast_diff_prob_median_without_flagged"]
-        - columns["contrast_diff_prob_median_full"]
+        columns["contrast_diff_prob_median_without_flagged"] - columns["contrast_diff_prob_median_full"]
     )
     columns["contrast_direction_flipped"] = bool(
-        (columns["contrast_diff_prob_median_full"] > 0)
-        != (columns["contrast_diff_prob_median_without_flagged"] > 0)
+        (columns["contrast_diff_prob_median_full"] > 0) != (columns["contrast_diff_prob_median_without_flagged"] > 0)
     )
     return columns
 
@@ -685,15 +648,11 @@ def summarise_influence_refit(
     """
     built = influence_build.built
     ci_prob = float(reference.metadata.get("ci_prob", 0.95))
-    score_mean_link = (
-        resolve_itt_run_plan(spec).score_mean_link if spec.kind == "itt" else "logit"
-    )
+    score_mean_link = resolve_itt_run_plan(spec).score_mean_link if spec.kind == "itt" else "logit"
     contrast_pair: tuple[str, str] | None = None
     if spec.kind == "joint":
         outcomes = list(trace.posterior["outcome"].values.astype(str))
-        refit = _joint_summary.tau_summary_joint(
-            trace, outcomes, ci_prob=ci_prob, G=built.prepared.G
-        )
+        refit = _joint_summary.tau_summary_joint(trace, outcomes, ci_prob=ci_prob, G=built.prepared.G)
         contrast_pair = resolve_joint_run_plan(spec).difference
     else:
         payload = built.require_payload(IttPayload, family="itt influence")
@@ -718,9 +677,7 @@ def summarise_influence_refit(
         raise ValueError("retained primary rows do not match the leave-out sample size")
 
     contrast_columns: dict[str, Any] = {}
-    primary_trace = _open_readable_trace(
-        reference.model_dir / "trace.nc", label="primary"
-    )
+    primary_trace = _open_readable_trace(reference.model_dir / "trace.nc", label="primary")
     try:
         primary_G, primary_constant = _trace_treatment_data(
             primary_trace,
@@ -773,33 +730,20 @@ def summarise_influence_refit(
     finally:
         _close_trace(primary_trace)
     primary_retained = _normalise_summary(primary_retained, spec)
-    outcome_sets = [
-        set(frame["outcome"].astype(str))
-        for frame in (full, primary_retained, refit)
-    ]
+    outcome_sets = [set(frame["outcome"].astype(str)) for frame in (full, primary_retained, refit)]
     if not outcome_sets[0] == outcome_sets[1] == outcome_sets[2]:
-        raise ValueError(
-            "full, retained-population, and influence-refit summaries cover "
-            "different outcomes"
-        )
+        raise ValueError("full, retained-population, and influence-refit summaries cover different outcomes")
     merged = _suffix_summary_metrics(full, "full").merge(
         _suffix_summary_metrics(primary_retained, "full_retained"), on="outcome"
     )
-    merged = merged.merge(
-        _suffix_summary_metrics(refit, "without_flagged"), on="outcome"
-    )
+    merged = merged.merge(_suffix_summary_metrics(refit, "without_flagged"), on="outcome")
     merged["composition_shift_ame_prob_median"] = (
-        merged["ame_prob_median_full_retained"]
-        - merged["ame_prob_median_full"]
+        merged["ame_prob_median_full_retained"] - merged["ame_prob_median_full"]
     )
     merged["refit_shift_ame_prob_median"] = (
-        merged["ame_prob_median_without_flagged"]
-        - merged["ame_prob_median_full_retained"]
+        merged["ame_prob_median_without_flagged"] - merged["ame_prob_median_full_retained"]
     )
-    merged["total_shift_ame_prob_median"] = (
-        merged["ame_prob_median_without_flagged"]
-        - merged["ame_prob_median_full"]
-    )
+    merged["total_shift_ame_prob_median"] = merged["ame_prob_median_without_flagged"] - merged["ame_prob_median_full"]
     # Backward-compatible alias: this has always meant the total full-sample to
     # leave-out-sample contrast, not the common-population refit component.
     merged["delta_ame_prob_median"] = merged["total_shift_ame_prob_median"]
@@ -839,30 +783,20 @@ def summarise_influence_refit(
         "excluded_subject_id": ";".join(influence_build.excluded_subject_ids),
         "excluded_subject_ids": ";".join(influence_build.excluded_subject_ids),
         "n_excluded_children": len(influence_build.excluded_subject_ids),
-        "excluded_observation_indices": ";".join(
-            str(int(value)) for value in flagged["observation_index"]
-        ),
+        "excluded_observation_indices": ";".join(str(int(value)) for value in flagged["observation_index"]),
         "reference_pareto_k": float(flagged["pareto_k"].max()),
-        "reference_pareto_k_values": ";".join(
-            f"{float(value):.17g}" for value in flagged["pareto_k"]
-        ),
+        "reference_pareto_k_values": ";".join(f"{float(value):.17g}" for value in flagged["pareto_k"]),
         "good_k_threshold": float(flagged["good_k_threshold"].iloc[0]),
         "n_full": len(influence_build.full_subject_ids),
         "n_without_flagged": int(built.prepared.n_obs),
         "data_path": influence_build.data_path,
         "data_sha256": influence_build.data_sha256,
         "spec_extra_json": json.dumps(_json_normalise(spec.extra), sort_keys=True),
-        "model_settings_json": json.dumps(
-            _json_normalise(declared_settings_dict(spec)), sort_keys=True
-        ),
+        "model_settings_json": json.dumps(_json_normalise(declared_settings_dict(spec)), sort_keys=True),
         "resolved_run_plan_json": (
             json.dumps(
                 _json_normalise(
-                    (
-                        resolve_itt_run_plan(spec)
-                        if spec.kind == "itt"
-                        else resolve_joint_run_plan(spec)
-                    ).as_dict()
+                    (resolve_itt_run_plan(spec) if spec.kind == "itt" else resolve_joint_run_plan(spec)).as_dict()
                 ),
                 sort_keys=True,
             )
@@ -951,9 +885,7 @@ def _compare_summary_metrics(
             recomputed_by_outcome.loc[declared_by_outcome.index, metric],
             errors="coerce",
         ).to_numpy()
-        if not np.isfinite(left).all() or not np.allclose(
-            left, right, rtol=1e-10, atol=1e-12
-        ):
+        if not np.isfinite(left).all() or not np.allclose(left, right, rtol=1e-10, atol=1e-12):
             raise ValueError(f"saved {column} values do not match their bound artefact")
 
 
@@ -982,9 +914,7 @@ def _registered_leave_out_free_variable_contract(
     influence_build = build_influence_model(spec, reference)
     names = tuple(rv.name for rv in influence_build.built.model.free_RVs)
     if not names or len(names) != len(set(names)):
-        raise ValueError(
-            "registered leave-out model has an empty or duplicate free-variable contract"
-        )
+        raise ValueError("registered leave-out model has an empty or duplicate free-variable contract")
     return names
 
 
@@ -1034,11 +964,7 @@ def evaluate_influence_bundle(
             raise ValueError("influence model id does not match current primary config")
         if model_kind != str(report_config.get("kind")):
             raise ValueError("influence model kind does not match current primary config")
-        score_mean_link = str(
-            (report_config.get("resolved_run_plan") or {}).get(
-                "score_mean_link", "logit"
-            )
-        )
+        score_mean_link = str((report_config.get("resolved_run_plan") or {}).get("score_mean_link", "logit"))
         if str(_one_value(summary, "config")) != expected_config:
             raise ValueError("influence sampling config does not match the report directory")
         if (
@@ -1048,28 +974,15 @@ def evaluate_influence_bundle(
             raise ValueError("influence sensitivity method is not the direct leave-out contract")
         if str(_one_value(summary, "loo_unit")) != "child":
             raise ValueError("influence sensitivity is not bound to the child-level LOO unit")
-        if (
-            str(_one_value(summary, "ame_comparison_population"))
-            != "common_retained_children"
-        ):
-            raise ValueError(
-                "influence AME comparison is not standardised to retained children"
-            )
-        if (
-            str(_one_value(summary, "shift_decomposition"))
-            != "total_shift=composition_shift+refit_shift"
-        ):
+        if str(_one_value(summary, "ame_comparison_population")) != "common_retained_children":
+            raise ValueError("influence AME comparison is not standardised to retained children")
+        if str(_one_value(summary, "shift_decomposition")) != "total_shift=composition_shift+refit_shift":
             raise ValueError("influence AME shift decomposition contract is invalid")
-        if (
-            str(_one_value(summary, "delta_ame_prob_median_alias"))
-            != "total_shift_ame_prob_median"
-        ):
+        if str(_one_value(summary, "delta_ame_prob_median_alias")) != "total_shift_ame_prob_median":
             raise ValueError("legacy influence AME delta alias is ambiguous")
         if str(_one_value(summary, "convergence_scope")) != "all_free_variables":
             raise ValueError("influence convergence scope is not all free variables")
-        if str(_one_value(summary, "data_sha256")) != str(
-            report_config.get("data_sha256")
-        ):
+        if str(_one_value(summary, "data_sha256")) != str(report_config.get("data_sha256")):
             raise ValueError("influence data checksum does not match current primary config")
         if int(_one_value(summary, "n_full")) != int(report_config.get("n_obs", -1)):
             raise ValueError("influence full-sample count does not match current primary config")
@@ -1084,9 +997,7 @@ def evaluate_influence_bundle(
         if missing:
             raise ValueError(f"current pareto_k.csv is missing columns: {missing}")
         n_full = int(report_config.get("n_obs", -1))
-        observation_indices = pd.to_numeric(
-            pareto["observation_index"], errors="coerce"
-        )
+        observation_indices = pd.to_numeric(pareto["observation_index"], errors="coerce")
         pareto_k = pd.to_numeric(pareto["pareto_k"], errors="coerce")
         thresholds = pd.to_numeric(pareto["good_k_threshold"], errors="coerce")
         if (
@@ -1105,16 +1016,10 @@ def evaluate_influence_bundle(
             or integer_indices.duplicated().any()
             or pareto["subject_id"].astype(str).duplicated().any()
         ):
-            raise ValueError(
-                "current Pareto-k rows do not map one-to-one onto the primary children"
-            )
+            raise ValueError("current Pareto-k rows do not map one-to-one onto the primary children")
         flagged = pareto.loc[pareto_k > thresholds]
         current_excluded = set(flagged["subject_id"].astype(str))
-        declared_excluded = {
-            value
-            for value in str(_one_value(summary, "excluded_subject_ids")).split(";")
-            if value
-        }
+        declared_excluded = {value for value in str(_one_value(summary, "excluded_subject_ids")).split(";") if value}
         if not current_excluded or declared_excluded != current_excluded:
             raise ValueError("excluded children do not match the current Pareto-k flags")
         if int(_one_value(summary, "n_excluded_children")) != len(current_excluded):
@@ -1152,13 +1057,9 @@ def evaluate_influence_bundle(
         try:
             declared_identity = json.loads(str(_one_value(summary, "identity_json")))
         except (TypeError, json.JSONDecodeError) as exc:
-            raise ValueError(
-                "influence summary has no readable trace identity contract"
-            ) from exc
+            raise ValueError("influence summary has no readable trace identity contract") from exc
         if declared_identity != expected_identity:
-            raise ValueError(
-                "influence trace identity contract does not match the current analysis"
-            )
+            raise ValueError("influence trace identity contract does not match the current analysis")
 
         primary_summary = _normalise_summary_symbol(
             pd.read_csv(primary_dir / "tau_summary.csv"),
@@ -1173,9 +1074,7 @@ def evaluate_influence_bundle(
             atol=1e-12,
         ):
             raise ValueError("influence credible-interval coverage does not match primary fit")
-        primary_trace = _open_readable_trace(
-            primary_dir / "trace.nc", label="primary"
-        )
+        primary_trace = _open_readable_trace(primary_dir / "trace.nc", label="primary")
         primary_G, primary_constant = _trace_treatment_data(
             primary_trace,
             expected_n=n_full,
@@ -1250,18 +1149,14 @@ def evaluate_influence_bundle(
             raise ValueError("sensitivity trace_file must be a report-local basename")
         declared_trace_hash = str(_one_value(summary, "sensitivity_trace_sha256"))
         expected_suffix = f"-{declared_trace_hash[:16]}.nc"
-        if not trace_filename.startswith(f"{INFLUENCE_TRACE_STEM}-") or not trace_filename.endswith(
-            expected_suffix
-        ):
+        if not trace_filename.startswith(f"{INFLUENCE_TRACE_STEM}-") or not trace_filename.endswith(expected_suffix):
             raise ValueError("sensitivity trace filename is not hash-suffixed")
         resolved_trace = trace_path or (primary_dir / trace_filename)
         if not resolved_trace.is_file():
             raise FileNotFoundError(f"sensitivity trace is missing: {resolved_trace}")
         if sha256_file(resolved_trace) != declared_trace_hash:
             raise ValueError("sensitivity trace SHA-256 does not match the summary")
-        sensitivity_trace = _open_readable_trace(
-            resolved_trace, label="sensitivity"
-        )
+        sensitivity_trace = _open_readable_trace(resolved_trace, label="sensitivity")
 
         free_contract = str(_one_value(summary, "free_variables"))
         free_names = free_contract.split("|") if free_contract else []
@@ -1273,60 +1168,35 @@ def evaluate_influence_bundle(
             model_output_root=primary_dir.parent,
         )
         if tuple(free_names) != registered_free_names:
-            raise ValueError(
-                "declared free-variable contract does not match the current "
-                "registered leave-out model"
-            )
+            raise ValueError("declared free-variable contract does not match the current registered leave-out model")
         if len(free_names) != int(_one_value(summary, "n_free_variables")):
             raise ValueError("free-variable count does not match the declared contract")
         contract_hash = hashlib.sha256(free_contract.encode("utf-8")).hexdigest()
         if str(_one_value(summary, "free_variables_sha256")) != contract_hash:
             raise ValueError("free-variable contract SHA-256 does not match")
         try:
-            trace_free_names = json.loads(
-                str(
-                    sensitivity_trace.posterior.attrs[
-                        INFLUENCE_FREE_VARIABLES_ATTR
-                    ]
-                )
-            )
+            trace_free_names = json.loads(str(sensitivity_trace.posterior.attrs[INFLUENCE_FREE_VARIABLES_ATTR]))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
-            raise ValueError(
-                "sensitivity trace has no readable free-variable contract attribute"
-            ) from exc
+            raise ValueError("sensitivity trace has no readable free-variable contract attribute") from exc
         if trace_free_names != free_names:
-            raise ValueError(
-                "sensitivity trace free-variable contract does not match the summary"
-            )
+            raise ValueError("sensitivity trace free-variable contract does not match the summary")
         missing_free = sorted(set(free_names) - set(sensitivity_trace.posterior.data_vars))
         if missing_free:
             raise ValueError(f"sensitivity trace is missing free variables: {missing_free}")
         try:
-            trace_identity = json.loads(
-                str(sensitivity_trace.posterior.attrs[INFLUENCE_IDENTITY_ATTR])
-            )
+            trace_identity = json.loads(str(sensitivity_trace.posterior.attrs[INFLUENCE_IDENTITY_ATTR]))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
-            raise ValueError(
-                "sensitivity trace has no readable identity contract attribute"
-            ) from exc
+            raise ValueError("sensitivity trace has no readable identity contract attribute") from exc
         if trace_identity != declared_identity:
-            raise ValueError(
-                "sensitivity trace identity contract does not match the summary"
-            )
+            raise ValueError("sensitivity trace identity contract does not match the summary")
         sampling_json = str(_one_value(summary, "sampling_json"))
         try:
             declared_sampling = json.loads(sampling_json)
-            trace_sampling = json.loads(
-                str(sensitivity_trace.posterior.attrs[INFLUENCE_SAMPLING_ATTR])
-            )
+            trace_sampling = json.loads(str(sensitivity_trace.posterior.attrs[INFLUENCE_SAMPLING_ATTR]))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
-            raise ValueError(
-                "sensitivity trace or summary has no readable sampling contract"
-            ) from exc
+            raise ValueError("sensitivity trace or summary has no readable sampling contract") from exc
         if not isinstance(declared_sampling, dict) or trace_sampling != declared_sampling:
-            raise ValueError(
-                "sensitivity trace sampling contract does not match the summary"
-            )
+            raise ValueError("sensitivity trace sampling contract does not match the summary")
         sampling = report_config.get("sampling")
         if not isinstance(sampling, dict):
             raise ValueError("current primary config has no sampling contract")
@@ -1377,9 +1247,7 @@ def evaluate_influence_bundle(
                 atol=1e-12,
             ):
                 raise ValueError(f"saved {column} does not match the sensitivity trace")
-        recorded_divergences = pd.to_numeric(
-            summary["n_divergences"], errors="coerce"
-        ).to_numpy()
+        recorded_divergences = pd.to_numeric(summary["n_divergences"], errors="coerce").to_numpy()
         if not np.equal(recorded_divergences, recomputed["n_divergences"]).all():
             raise ValueError("saved divergence count does not match the sensitivity trace")
 
@@ -1408,29 +1276,15 @@ def evaluate_influence_bundle(
         recomputed_summary = _normalise_summary_symbol(
             recomputed_summary, str(report_config.get("outcome_symbol") or "")
         )
-        _compare_summary_metrics(
-            summary, recomputed_summary, declared_suffix="without_flagged"
-        )
+        _compare_summary_metrics(summary, recomputed_summary, declared_suffix="without_flagged")
 
         full_ame = pd.to_numeric(summary["ame_prob_median_full"], errors="coerce")
-        retained_ame = pd.to_numeric(
-            summary["ame_prob_median_full_retained"], errors="coerce"
-        )
-        leave_out_ame = pd.to_numeric(
-            summary["ame_prob_median_without_flagged"], errors="coerce"
-        )
-        composition_shift = pd.to_numeric(
-            summary["composition_shift_ame_prob_median"], errors="coerce"
-        )
-        refit_shift = pd.to_numeric(
-            summary["refit_shift_ame_prob_median"], errors="coerce"
-        )
-        total_shift = pd.to_numeric(
-            summary["total_shift_ame_prob_median"], errors="coerce"
-        )
-        legacy_delta = pd.to_numeric(
-            summary["delta_ame_prob_median"], errors="coerce"
-        )
+        retained_ame = pd.to_numeric(summary["ame_prob_median_full_retained"], errors="coerce")
+        leave_out_ame = pd.to_numeric(summary["ame_prob_median_without_flagged"], errors="coerce")
+        composition_shift = pd.to_numeric(summary["composition_shift_ame_prob_median"], errors="coerce")
+        refit_shift = pd.to_numeric(summary["refit_shift_ame_prob_median"], errors="coerce")
+        total_shift = pd.to_numeric(summary["total_shift_ame_prob_median"], errors="coerce")
+        legacy_delta = pd.to_numeric(summary["delta_ame_prob_median"], errors="coerce")
         vectors = (
             full_ame,
             retained_ame,
@@ -1445,23 +1299,14 @@ def evaluate_influence_bundle(
         expected_composition = retained_ame - full_ame
         expected_refit = leave_out_ame - retained_ame
         expected_total = leave_out_ame - full_ame
-        if not np.allclose(
-            composition_shift, expected_composition, rtol=1e-10, atol=1e-12
-        ):
+        if not np.allclose(composition_shift, expected_composition, rtol=1e-10, atol=1e-12):
+            raise ValueError("saved composition AME shifts do not equal retained minus full AMEs")
+        if not np.allclose(refit_shift, expected_refit, rtol=1e-10, atol=1e-12):
             raise ValueError(
-                "saved composition AME shifts do not equal retained minus full AMEs"
-            )
-        if not np.allclose(
-            refit_shift, expected_refit, rtol=1e-10, atol=1e-12
-        ):
-            raise ValueError(
-                "saved common-population refit AME shifts do not equal leave-out "
-                "minus retained-primary AMEs"
+                "saved common-population refit AME shifts do not equal leave-out minus retained-primary AMEs"
             )
         if not np.allclose(total_shift, expected_total, rtol=1e-10, atol=1e-12):
-            raise ValueError(
-                "saved total AME shifts do not equal leave-out minus full AMEs"
-            )
+            raise ValueError("saved total AME shifts do not equal leave-out minus full AMEs")
         if not np.allclose(
             total_shift,
             composition_shift + refit_shift,
@@ -1470,9 +1315,7 @@ def evaluate_influence_bundle(
         ):
             raise ValueError("saved AME shift components do not sum to the total shift")
         if not np.allclose(legacy_delta, total_shift, rtol=1e-10, atol=1e-12):
-            raise ValueError(
-                "legacy delta_ame_prob_median is not the declared total-shift alias"
-            )
+            raise ValueError("legacy delta_ame_prob_median is not the declared total-shift alias")
         max_refit = float(refit_shift.abs().max())
         max_composition = float(composition_shift.abs().max())
         max_total = float(total_shift.abs().max())
@@ -1550,8 +1393,7 @@ def write_influence_artifacts(
         failed_csv = central_dir / f"influence_sensitivity_failed-{run_token}.csv"
         _atomic_write_csv(bound_summary, failed_csv)
         raise InfluenceBundleError(
-            "influence refit was preserved centrally but not installed beside the "
-            f"report: {validation['reason']}"
+            f"influence refit was preserved centrally but not installed beside the report: {validation['reason']}"
         )
 
     central_csv = central_dir / INFLUENCE_SENSITIVITY_FILENAME
@@ -1584,9 +1426,7 @@ def run_influence_sensitivity(
 ) -> pd.DataFrame:
     """Run one validated direct leave-all-flagged-children-out sensitivity refit."""
     _module, spec = resolve_registered_spec(model_id)
-    reference = load_influence_reference(
-        spec, config, model_output_root=model_output_root
-    )
+    reference = load_influence_reference(spec, config, model_output_root=model_output_root)
     influence_build = build_influence_model(spec, reference)
     trace, sampling = _sample_influence_model(
         influence_build.built,

@@ -88,9 +88,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # The score-mean link the factory BUILT, not the one the module declared, so the
     # cohort marginal and its prior pushforward cannot drift from the likelihood
     # (#619).
-    link = built.require_payload(
-        AlignedPayload, family="aligned"
-    ).score_mean_link
+    link = built.require_payload(AlignedPayload, family="aligned").score_mean_link
 
     render_model_graph(ctx)
 
@@ -103,9 +101,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         PrimaryFitPlan(
             diagnostic_vars=tuple(_al_vars),
             ppc_var_names=(obs_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol, node=obs_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol, node=obs_node),
         ),
     )
     _diag.save_prior_posterior_plot(ctx, var_names=_al_vars)
@@ -113,9 +109,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Factor summary")
     # Per-protocol design: NOTHING is a clean randomised effect, so no term is
     # flagged causal -- every coefficient (cohort included) is an association.
-    fs = _factors_summary.factor_summary(
-        ctx.trace, _al_coef_names, ci_prob=ctx.reporting.ci_prob, causal_terms=()
-    )
+    fs = _factors_summary.factor_summary(ctx.trace, _al_coef_names, ci_prob=ctx.reporting.ci_prob, causal_terms=())
     save_table(ctx, "factor_summary", fs)
     # Per-protocol: every term is an association, so the forest shows them all.
     save_association_forest(ctx, _al_coef_names, ())
@@ -137,8 +131,12 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         cohort = built.prepared.G.astype(float)
         n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
         cme = _gain_factors_summary.treatment_marginal_effect(
-            ctx.trace, trt=cohort, n_trials=n_marg, term="beta_cohort",
-            ci_prob=ctx.reporting.ci_prob, score_mean_link=link,
+            ctx.trace,
+            trt=cohort,
+            n_trials=n_marg,
+            term="beta_cohort",
+            ci_prob=ctx.reporting.ci_prob,
+            score_mean_link=link,
         )
         save_table(ctx, "cohort_marginal", pd.DataFrame([cme]))
         meta_extra["cohort_marginal"] = cme
@@ -173,18 +171,19 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             # failure here is a defect in the transform, not missing evidence, and
             # must fail the fit rather than be recorded as "check unavailable".
             pf = _predictive.prior_pushforward(
-                ctx.prior_samples, G=cohort, n_trials=n_marg,
-                term="beta_cohort", varying_term="", ci_prob=ctx.reporting.ci_prob,
+                ctx.prior_samples,
+                G=cohort,
+                n_trials=n_marg,
+                term="beta_cohort",
+                varying_term="",
+                ci_prob=ctx.reporting.ci_prob,
                 score_mean_link=link,
             )
             rows = [
                 _predictive.labelled_pushforward(
                     pf,
                     estimand="beta_cohort",
-                    estimand_label=(
-                        "the per-protocol cohort contrast (an association, not a "
-                        "randomised effect)"
-                    ),
+                    estimand_label=("the per-protocol cohort contrast (an association, not a randomised effect)"),
                     role="association",
                 )
             ]

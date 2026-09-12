@@ -104,9 +104,7 @@ def save_ppc(context: StatisticalFitContext, *, primary_node: str = "y_post") ->
         _save_legacy_ppc_overlay(context)
 
 
-def cell_outcome_labels(
-    context: StatisticalFitContext, node: str, outcomes: Sequence[str]
-) -> list[str] | None:
+def cell_outcome_labels(context: StatisticalFitContext, node: str, outcomes: Sequence[str]) -> list[str] | None:
     """One outcome symbol per flattened cell of ``node``, from the saved cell map.
 
     ``None`` when no map is present or it does not align, so a per-outcome split
@@ -129,9 +127,7 @@ def cell_outcome_labels(
     return [str(outcomes[i]) for i in index]
 
 
-def _save_count_ppc(
-    context: StatisticalFitContext, node: str, symbol: str | None, kind: str
-) -> None:
+def _save_count_ppc(context: StatisticalFitContext, node: str, symbol: str | None, kind: str) -> None:
     """Count-interval coverage CSV + calibration panel (+ overlay for single-measure)."""
     with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         cov = _predictive.ppc_interval_coverage(context.trace, node=node)
@@ -143,15 +139,9 @@ def _save_count_ppc(
             # keep the pooled row as the summary the shared coverage sentence
             # reads, exactly as the joint-mechanism family already does.
             plan = getattr(context, "resolved_plan", None)
-            labels = cell_outcome_labels(
-                context, node, tuple(getattr(plan, "outcomes", ()) or ())
-            )
+            labels = cell_outcome_labels(context, node, tuple(getattr(plan, "outcomes", ()) or ()))
             if labels is not None:
-                frames.append(
-                    _predictive.ppc_interval_coverage_by_group(
-                        context.trace, node=node, group_labels=labels
-                    )
-                )
+                frames.append(_predictive.ppc_interval_coverage_by_group(context.trace, node=node, group_labels=labels))
             else:
                 rprint(
                     f"[yellow]PPC per-outcome coverage unavailable for '{kind}' "
@@ -164,16 +154,16 @@ def _save_count_ppc(
             required=False,
         )
     with guard_optional(
-        context, "PPC calibration figure",
-        filename="ppc_calibration.png", kind="figure", verb="skipped",
+        context,
+        "PPC calibration figure",
+        filename="ppc_calibration.png",
+        kind="figure",
+        verb="skipped",
     ):
         cal = _predictive.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
         _ppc_calibration_figure(context, symbol, cal)
     if kind in _PPC_FAMILY_OWN_OVERLAY_KINDS:
-        rprint(
-            f"[dim]PPC distribution overlay left to the '{kind}' family's own "
-            "per-outcome writer.[/dim]"
-        )
+        rprint(f"[dim]PPC distribution overlay left to the '{kind}' family's own per-outcome writer.[/dim]")
     elif kind in _PPC_MULTI_OUTCOME_KINDS:
         _save_multi_outcome_ppc_overlays(context, node, kind)
     else:
@@ -206,24 +196,19 @@ def _save_per_node_count_ppc(context: StatisticalFitContext) -> None:
         return
 
     frames: list[pd.DataFrame] = []
-    with guard_optional(
-        context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
-    ):
+    with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         for node in nodes:
             frames.append(_predictive.ppc_interval_coverage(context.trace, node=node))
-        save_table(
-            context, "ppc_summary", pd.concat(frames, ignore_index=True), required=False
-        )
+        save_table(context, "ppc_summary", pd.concat(frames, ignore_index=True), required=False)
 
     for position, (node, symbol) in enumerate(zip(nodes, symbols, strict=True)):
-        stem = (
-            "ppc_calibration"
-            if position == 0
-            else f"ppc_calibration_{symbol.lower()}"
-        )
+        stem = "ppc_calibration" if position == 0 else f"ppc_calibration_{symbol.lower()}"
         with guard_optional(
-            context, f"PPC calibration table ({symbol})",
-            filename=f"{stem}.csv", kind="figure", verb="skipped",
+            context,
+            f"PPC calibration table ({symbol})",
+            filename=f"{stem}.csv",
+            kind="figure",
+            verb="skipped",
         ):
             cal = _predictive.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
             _ppc_calibration_figure(context, symbol, cal, filename_stem=stem)
@@ -232,9 +217,7 @@ def _save_per_node_count_ppc(context: StatisticalFitContext) -> None:
             node,
             symbol,
             filename_stem=(
-                "posterior_predictive_check"
-                if position == 0
-                else f"posterior_predictive_check_{symbol.lower()}"
+                "posterior_predictive_check" if position == 0 else f"posterior_predictive_check_{symbol.lower()}"
             ),
         )
 
@@ -248,9 +231,7 @@ def _mediation_leg_symbol(node: str, outcome_symbol: str | None) -> str:
     return node.rsplit("_", 1)[0]
 
 
-def _save_mediation_per_leg_ppc(
-    context: StatisticalFitContext, outcome_symbol: str | None
-) -> None:
+def _save_mediation_per_leg_ppc(context: StatisticalFitContext, outcome_symbol: str | None) -> None:
     """Coverage, calibration and overlay for EVERY mediation leg (#585 finding 8).
 
     Nodes come from the resolved run plan (``observation_nodes``), so the order is
@@ -284,55 +265,49 @@ def _save_mediation_per_leg_ppc(
     for position, node in enumerate(ordered):
         symbol = _mediation_leg_symbol(node, outcome_symbol)
         is_last = position == len(ordered) - 1
-        stem = (
-            "posterior_predictive_check"
-            if is_last
-            else f"posterior_predictive_check_{symbol.lower()}"
-        )
+        stem = "posterior_predictive_check" if is_last else f"posterior_predictive_check_{symbol.lower()}"
         cal_stem = "ppc_calibration" if is_last else f"ppc_calibration_{symbol.lower()}"
         if node.endswith("_offfloor"):
             with guard_optional(
-                context, f"PPC off-floor coverage ({symbol})",
-                filename="ppc_summary.csv", kind="table",
+                context,
+                f"PPC off-floor coverage ({symbol})",
+                filename="ppc_summary.csv",
+                kind="table",
             ):
-                frames.append(
-                    _predictive.ppc_offfloor_rate_coverage(
-                        context.trace, node=node, group=group
-                    )
-                )
+                frames.append(_predictive.ppc_offfloor_rate_coverage(context.trace, node=node, group=group))
             with guard_optional(
-                context, f"PPC off-floor figure ({symbol})",
-                filename=f"{stem}.png", kind="figure", verb="skipped",
+                context,
+                f"PPC off-floor figure ({symbol})",
+                filename=f"{stem}.png",
+                kind="figure",
+                verb="skipped",
             ):
-                cells = _predictive.ppc_offfloor_cell_table(
-                    context.trace, node=node, group=group, ci_prob=0.9
-                )
+                cells = _predictive.ppc_offfloor_cell_table(context.trace, node=node, group=group, ci_prob=0.9)
                 _ppc_offfloor_figure(context, symbol, cells, filename_stem=stem)
         elif node == "M_post":
             # Gaussian route composite: no denominator, so no interval coverage.
             _ppc_overlay_figure(context, node, symbol, filename_stem=stem)
         else:
             with guard_optional(
-                context, f"PPC coverage ({symbol})",
-                filename="ppc_summary.csv", kind="table",
+                context,
+                f"PPC coverage ({symbol})",
+                filename="ppc_summary.csv",
+                kind="table",
             ):
-                frames.append(
-                    _predictive.ppc_interval_coverage(context.trace, node=node)
-                )
+                frames.append(_predictive.ppc_interval_coverage(context.trace, node=node))
             with guard_optional(
-                context, f"PPC calibration ({symbol})",
-                filename=f"{cal_stem}.csv", kind="figure", verb="skipped",
+                context,
+                f"PPC calibration ({symbol})",
+                filename=f"{cal_stem}.csv",
+                kind="figure",
+                verb="skipped",
             ):
-                cal = _predictive.ppc_calibration_table(
-                    context.trace, node=node, ci_prob=0.9
-                )
+                cal = _predictive.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
                 _ppc_calibration_figure(context, symbol, cal, filename_stem=cal_stem)
             _ppc_overlay_figure(context, node, symbol, filename_stem=stem)
 
     if frames:
-        with guard_optional(
-            context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
-        ):
+        with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
             save_table(
                 context,
                 "ppc_summary",
@@ -341,9 +316,7 @@ def _save_mediation_per_leg_ppc(
             )
 
 
-def _save_multi_outcome_ppc_overlays(
-    context: StatisticalFitContext, node: str, kind: str
-) -> None:
+def _save_multi_outcome_ppc_overlays(context: StatisticalFitContext, node: str, kind: str) -> None:
     """One overlay per measure for a stacked multi-outcome likelihood.
 
     ``joint`` / ``lcsm`` / ``growth`` flatten every measure into a single likelihood
@@ -372,9 +345,7 @@ def _save_multi_outcome_ppc_overlays(
         return
 
     label_array = np.asarray(labels)
-    idx = np.array(
-        [outcomes.index(label) for label in label_array], dtype=int
-    )
+    idx = np.array([outcomes.index(label) for label in label_array], dtype=int)
     for position, sym in enumerate(outcomes):
         if not np.any(idx == position):
             # A declared outcome with no rows in this fit's cell map. Skip rather
@@ -386,28 +357,25 @@ def _save_multi_outcome_ppc_overlays(
             sym,
             row_mask=(idx == position),
             filename_stem=(
-                "posterior_predictive_check"
-                if position == 0
-                else f"posterior_predictive_check_{sym.lower()}"
+                "posterior_predictive_check" if position == 0 else f"posterior_predictive_check_{sym.lower()}"
             ),
         )
 
 
-def _save_offfloor_ppc(
-    context: StatisticalFitContext, node: str, symbol: str | None
-) -> None:
+def _save_offfloor_ppc(context: StatisticalFitContext, node: str, symbol: str | None) -> None:
     """Off-floor RATE coverage CSV + per-cell observed-vs-predicted rate figure."""
     group = _offfloor_group_labels(context)
     with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
         cov = _predictive.ppc_offfloor_rate_coverage(context.trace, node=node, group=group)
         save_table(context, "ppc_summary", cov, required=False)
     with guard_optional(
-        context, "PPC off-floor figure",
-        filename="posterior_predictive_check.png", kind="figure", verb="skipped",
+        context,
+        "PPC off-floor figure",
+        filename="posterior_predictive_check.png",
+        kind="figure",
+        verb="skipped",
     ):
-        cells = _predictive.ppc_offfloor_cell_table(
-            context.trace, node=node, group=group, ci_prob=0.9
-        )
+        cells = _predictive.ppc_offfloor_cell_table(context.trace, node=node, group=group, ci_prob=0.9)
         _ppc_offfloor_figure(context, symbol, cells)
 
 
@@ -431,9 +399,7 @@ def _offfloor_group_labels(context: StatisticalFitContext) -> np.ndarray | None:
     return arm
 
 
-def _ppc_measure_label(
-    symbol: str | None, study_id: str | None = None
-) -> tuple[str, int | None]:
+def _ppc_measure_label(symbol: str | None, study_id: str | None = None) -> tuple[str, int | None]:
     """Human label + denominator for the PPC axes (falls back gracefully).
 
     ``study_id`` routes a non-RLI symbol to its own study catalogue, so a Byrne
@@ -449,7 +415,7 @@ def _ppc_measure_label(
 
             _dataset, catalogue = resolve_dataset(study_id)
             measure = catalogue.get(symbol)
-        except (KeyError, TypeError):  # pragma: no cover - defensive
+        except KeyError, TypeError:  # pragma: no cover - defensive
             measure = None
     if measure is not None:
         return measure.label, int(measure.n_trials)
@@ -485,28 +451,27 @@ def _ppc_overlay_figure(
             y_rep, y_obs = y_rep[row_mask], y_obs[row_mask]
         finite = np.isfinite(y_obs)
         y_rep, y_obs = y_rep[finite], y_obs[finite]
-        label, n_trials = _ppc_measure_label(
-            symbol, getattr(context.spec, "study_id", None)
-        )
+        label, n_trials = _ppc_measure_label(symbol, getattr(context.spec, "study_id", None))
         hi = int(n_trials) if n_trials else int(max(y_obs.max(), y_rep.max()))
         bins = np.arange(0, hi + 2) - 0.5  # integer-centred bins
         centers = 0.5 * (bins[:-1] + bins[1:])
         obs_dens, _ = np.histogram(y_obs, bins=bins, density=True)
         n_samples = y_rep.shape[1]
         idx = np.unique(np.linspace(0, n_samples - 1, min(n_samples, 200)).astype(int))
-        rep_dens = np.stack(
-            [np.histogram(y_rep[:, s], bins=bins, density=True)[0] for s in idx]
-        )
+        rep_dens = np.stack([np.histogram(y_rep[:, s], bins=bins, density=True)[0] for s in idx])
         lo_band = np.quantile(rep_dens, 0.05, axis=0)
         hi_band = np.quantile(rep_dens, 0.95, axis=0)
         med_band = np.median(rep_dens, axis=0)
         plt.figure(figsize=FIGSIZE_LG)
         plt.fill_between(
-            centers, lo_band, hi_band, color=COLOUR_BLUE, alpha=0.3,
+            centers,
+            lo_band,
+            hi_band,
+            color=COLOUR_BLUE,
+            alpha=0.3,
             label="posterior-predictive 90% band",
         )
-        plt.plot(centers, med_band, color=COLOUR_BLUE, lw=1.2, alpha=0.85,
-                 label="posterior-predictive median")
+        plt.plot(centers, med_band, color=COLOUR_BLUE, lw=1.2, alpha=0.85, label="posterior-predictive median")
         plt.plot(centers, obs_dens, color="black", lw=2, label="observed")
         axis_lbl = f"{label} — score (0–{hi} items)" if n_trials else f"{label} — score"
         plt.xlabel(axis_lbl)
@@ -541,12 +506,13 @@ def _ppc_calibration_figure(
     caller passes its own ``filename_stem`` so the panels do not overwrite.
     """
     with guard_optional(
-        context, "PPC calibration figure",
-        filename=f"{filename_stem}.png", kind="figure", verb="failed",
+        context,
+        "PPC calibration figure",
+        filename=f"{filename_stem}.png",
+        kind="figure",
+        verb="failed",
     ):
-        label, n_trials = _ppc_measure_label(
-            symbol, getattr(context.spec, "study_id", None)
-        )
+        label, n_trials = _ppc_measure_label(symbol, getattr(context.spec, "study_id", None))
         obs = cal["observed"].to_numpy(float)
         med = cal["pp_median"].to_numpy(float)
         lo = cal["pp_lo"].to_numpy(float)
@@ -554,16 +520,28 @@ def _ppc_calibration_figure(
         inside = cal["inside"].to_numpy(bool)
         lim_hi = float(n_trials) if n_trials else float(max(obs.max(), hi.max()))
         plt.figure(figsize=(5.5, 5.5))
-        plt.plot([0, lim_hi], [0, lim_hi], color="#888", ls="--", lw=1,
-                 label="perfect calibration (y = x)")
+        plt.plot([0, lim_hi], [0, lim_hi], color="#888", ls="--", lw=1, label="perfect calibration (y = x)")
         plt.errorbar(
-            obs, med, yerr=np.vstack((med - lo, hi - med)), fmt="none",
-            ecolor=COLOUR_BLUE, alpha=0.35, capsize=0, zorder=1,
+            obs,
+            med,
+            yerr=np.vstack((med - lo, hi - med)),
+            fmt="none",
+            ecolor=COLOUR_BLUE,
+            alpha=0.35,
+            capsize=0,
+            zorder=1,
         )
-        plt.scatter(obs[inside], med[inside], s=18, color=COLOUR_BLUE,
-                    label="observed inside 90% range", zorder=2)
-        plt.scatter(obs[~inside], med[~inside], s=26, color=COLOUR_RED, marker="x",
-                    lw=1.6, label="observed outside 90% range", zorder=3)
+        plt.scatter(obs[inside], med[inside], s=18, color=COLOUR_BLUE, label="observed inside 90% range", zorder=2)
+        plt.scatter(
+            obs[~inside],
+            med[~inside],
+            s=26,
+            color=COLOUR_RED,
+            marker="x",
+            lw=1.6,
+            label="observed outside 90% range",
+            zorder=3,
+        )
         plt.xlabel(f"observed {label} score")
         plt.ylabel("posterior-predictive median (90% range)")
         plt.title(f"Per-observation calibration: {label}")
@@ -585,8 +563,11 @@ def _ppc_offfloor_figure(
     each cell) plus the per-cell data CSV.
     """
     with guard_optional(
-        context, "PPC off-floor figure",
-        filename=f"{filename_stem}.png", kind="figure", verb="failed",
+        context,
+        "PPC off-floor figure",
+        filename=f"{filename_stem}.png",
+        kind="figure",
+        verb="failed",
     ):
         label, _ = _ppc_measure_label(symbol)
         x = np.arange(len(cells))
@@ -596,11 +577,15 @@ def _ppc_offfloor_figure(
         obs = cells["observed_rate"].to_numpy(float)
         plt.figure(figsize=(max(5.0, 1.6 * len(cells) + 2.0), 4))
         plt.errorbar(
-            x, med, yerr=np.vstack((med - lo, hi - med)), fmt="o", color=COLOUR_BLUE,
-            capsize=4, label="posterior-predictive median and 90% range",
+            x,
+            med,
+            yerr=np.vstack((med - lo, hi - med)),
+            fmt="o",
+            color=COLOUR_BLUE,
+            capsize=4,
+            label="posterior-predictive median and 90% range",
         )
-        plt.scatter(x, obs, marker="x", s=60, lw=2, color=COLOUR_RED,
-                    label="observed", zorder=3)
+        plt.scatter(x, obs, marker="x", s=60, lw=2, color=COLOUR_RED, label="observed", zorder=3)
         plt.xticks(x, cells["cell"].tolist())
         plt.ylabel("off-floor rate")
         plt.ylim(-0.02, 1.02)
@@ -614,8 +599,11 @@ def _save_legacy_ppc_overlay(context: StatisticalFitContext) -> None:
     # (returns a PlotCollection with .savefig). Used for measurement / latent nodes
     # that have no single count outcome. Guarded — a PPC plot failure must not abort.
     with guard_optional(
-        context, "PPC plot",
-        filename="posterior_predictive_check.png", kind="figure", verb="failed",
+        context,
+        "PPC plot",
+        filename="posterior_predictive_check.png",
+        kind="figure",
+        verb="failed",
     ):
         import arviz_plots as azp
 

@@ -223,11 +223,7 @@ def _readiness_knee(
     # over all draws to keep the chain layout; the reported median/CI pool the
     # ``increasing`` subset (share ``increasing_frac``).
     if n_chains is not None and n_draws is not None:
-        result.update(
-            derived_mc_diagnostics(
-                knee_L, n_chains=n_chains, n_draws=n_draws, prefix="knee_"
-            )
-        )
+        result.update(derived_mc_diagnostics(knee_L, n_chains=n_chains, n_draws=n_draws, prefix="knee_"))
     return result
 
 
@@ -303,17 +299,24 @@ def readiness_threshold(
         # Continuous-covariate exposure: the knee lives in the exposure's own units.
         # ``exposure_values`` must be in the same observation order as the curve rows.
         result = _readiness_knee(
-            f, None,
+            f,
+            None,
             count_values=np.asarray(exposure_values, dtype=float).reshape(-1),
-            ci_prob=ci_prob, n_bins=n_bins, n_chains=n_chains, n_draws=n_draws,
+            ci_prob=ci_prob,
+            n_bins=n_bins,
+            n_chains=n_chains,
+            n_draws=n_draws,
         )
     else:
-        ell = np.asarray(
-            trace.constant_data["mech_post_logit"].values
-        ).reshape(-1)  # (n_obs,)
+        ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)  # (n_obs,)
         result = _readiness_knee(
-            f, ell, n_trials=n_trials, ci_prob=ci_prob, n_bins=n_bins,
-            n_chains=n_chains, n_draws=n_draws,
+            f,
+            ell,
+            n_trials=n_trials,
+            ci_prob=ci_prob,
+            n_bins=n_bins,
+            n_chains=n_chains,
+            n_draws=n_draws,
         )
     result["scale"] = scale
     return result

@@ -35,9 +35,7 @@ def _kf_build_did(output_dir: str | Path, config: Mapping) -> list[dict[str, str
         # ``dose_interpretation`` marker too, not just the pooled column
         # (#390: the period-varying fit regenerated as "predates the
         # arm-by-wave schema" and lost its release decision).
-        if "dose_interpretation" in did or any(
-            str(k).startswith("beta_dose") for k in did
-        ):
+        if "dose_interpretation" in did or any(str(k).startswith("beta_dose") for k in did):
             return [
                 _kf_sentence(
                     "This companion model estimates how outcomes vary with the "
@@ -125,11 +123,7 @@ def _kf_build_did(output_dir: str | Path, config: Mapping) -> list[dict[str, str
     # leg over its own wave's fitted rows, so where those differ it mixes the change
     # over time with a change in who is being averaged (#576 MQ6).
     common_available = bool(did.get("delta_crossover_items_common_available", False))
-    key = (
-        "delta_crossover_items_common_median"
-        if common_available
-        else "delta_crossover_items_median"
-    )
+    key = "delta_crossover_items_common_median" if common_available else "delta_crossover_items_median"
     if common_available or bool(did.get("delta_crossover_items_available", False)):
         try:
             catch = _kf_float(did[key])

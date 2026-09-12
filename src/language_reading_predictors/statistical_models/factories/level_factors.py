@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""DAG-focused level-factor model construction.
-
-"""
+"""DAG-focused level-factor model construction."""
 
 from __future__ import annotations
 
@@ -13,7 +11,6 @@ from typing import Iterable
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -40,6 +37,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _rlm_dispersion_kappa,
     _tau_sigma_for,
 )
+
 
 def build_level_factors_model(
     prepared: PreparedData,
@@ -182,22 +180,14 @@ def build_level_factors_model(
     if prepared.phase_mode != "levels":
         raise ValueError("build_level_factors_model requires phase_mode='levels'")
     if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
-        raise ValueError(
-            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
-            f"got {likelihood!r}"
-        )
+        raise ValueError(f"likelihood must be 'beta_binomial' or 'bernoulli_offfloor', got {likelihood!r}")
     if arm_gap_reference not in ("t1", "free"):
-        raise ValueError(
-            f"arm_gap_reference must be 't1' or 'free', got {arm_gap_reference!r}"
-        )
+        raise ValueError(f"arm_gap_reference must be 't1' or 'free', got {arm_gap_reference!r}")
     if arm_gap_reference == "t1" and not group_by_time:
         raise ValueError(
-            "arm_gap_reference='t1' requires group_by_time=True (a pooled group "
-            "coefficient has no t1 gap to centre on)"
+            "arm_gap_reference='t1' requires group_by_time=True (a pooled group coefficient has no t1 gap to centre on)"
         )
-    if arm_gap_prior_sigma is not None and not (
-        group_by_time and arm_gap_reference == "t1"
-    ):
+    if arm_gap_prior_sigma is not None and not (group_by_time and arm_gap_reference == "t1"):
         # Only the t1-referenced parameterisation has an arm_gap_t1 term; silently
         # ignoring the override on a free/pooled build would report a sensitivity
         # cell that never varied anything.
@@ -217,15 +207,9 @@ def build_level_factors_model(
     # score mean (the off-floor branch models a binary indicator, which has no
     # chance floor to respect).
     if score_mean_link not in SCORE_MEAN_LINKS:
-        raise ValueError(
-            f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-            f"got {score_mean_link!r}"
-        )
+        raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {score_mean_link!r}")
     if score_mean_link == "three_choice_guessing_floor" and outcome_symbol != "B":
-        raise ValueError(
-            "three_choice_guessing_floor is only valid for phoneme blending (B), "
-            f"got {outcome_symbol!r}"
-        )
+        raise ValueError(f"three_choice_guessing_floor is only valid for phoneme blending (B), got {outcome_symbol!r}")
     if likelihood != "beta_binomial" and score_mean_link != "logit":
         raise ValueError(
             "score_mean_link applies to the graded Beta-Binomial mean; the "
@@ -286,15 +270,8 @@ def build_level_factors_model(
         child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
         G_d = pm.Data("G", G_f, dims="obs_id")
-        ability_d = (
-            pm.Data(f"{ability_covariate}_std", ability, dims="obs_id")
-            if ability is not None
-            else None
-        )
-        adjust_d = {
-            c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
-            for c in adjust_for
-        }
+        ability_d = pm.Data(f"{ability_covariate}_std", ability, dims="obs_id") if ability is not None else None
+        adjust_d = {c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id") for c in adjust_for}
 
         # Identified, recentred intercepts (#389 finding 2; see the docstring).
         # The former free alpha + free four-element alpha_time pair carried a
@@ -304,20 +281,22 @@ def build_level_factors_model(
         # wave-deviation vector, so both are identified and the anchor uses no
         # treatment-affected data. The #273 "small global offset" reading this
         # replaces is recorded in the git history of that decision.
-        alpha_offset = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc('alpha_offset', rationale='Zero-centred offset around the pooled pre-randomisation t1 logit anchor. ' + _priors.EMPIRICAL_BAYES_SENTENCE)
+        alpha_offset = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc(
+            "alpha_offset",
+            rationale="Zero-centred offset around the pooled pre-randomisation t1 logit anchor. "
+            + _priors.EMPIRICAL_BAYES_SENTENCE,
+        )
         alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
         alpha_time = _priors.declare(
-                         pm.ZeroSumNormal(
-                                     "alpha_time", sigma=alpha_time_prior_sigma, dims="phase"
-                                 ),
-                         role="nuisance",
-                         rationale=(
-                             "Per-timepoint intercept deviations: in the level family an exact "
-                             "zero-sum wave-deviation vector around the anchored mean level "
-                             "(#389 finding 2); in the block-exposure family a free per-wave "
-                             "offset."
-                         ),
-                     )
+            pm.ZeroSumNormal("alpha_time", sigma=alpha_time_prior_sigma, dims="phase"),
+            role="nuisance",
+            rationale=(
+                "Per-timepoint intercept deviations: in the level family an exact "
+                "zero-sum wave-deviation vector around the anchored mean level "
+                "(#389 finding 2); in the block-exposure family a free per-wave "
+                "offset."
+            ),
+        )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         eta = alpha + alpha_time[phase_d] + gamma_A * A_std_d
 
@@ -330,8 +309,21 @@ def build_level_factors_model(
             # carries the change from t1 at each later wave on the outcome-tier
             # tau prior, so the prior sits on the randomised t2 *difference*
             # directly rather than on two raw gaps whose difference it would be.
-            arm_gap_t1 = (_priors.gamma_cross_prior() if arm_gap_prior_sigma is None else _priors.gamma_cross_prior(sigma=arm_gap_prior_sigma)).to_pymc('arm_gap_t1', role='nuisance', rationale='Covariate-adjusted pre-randomisation arm gap. A balance quantity from which the later changes are measured; never interpreted as an effect.')
-            d_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc('d_grp_time', dims='post_phase', role='regime', rationale='Change in the adjusted arm gap from t1. The t2 element is the randomised treated-versus-untreated change; the t3/t4 elements are randomised early-start versus delayed-start schedule contrasts.')
+            arm_gap_t1 = (
+                _priors.gamma_cross_prior()
+                if arm_gap_prior_sigma is None
+                else _priors.gamma_cross_prior(sigma=arm_gap_prior_sigma)
+            ).to_pymc(
+                "arm_gap_t1",
+                role="nuisance",
+                rationale="Covariate-adjusted pre-randomisation arm gap. A balance quantity from which the later changes are measured; never interpreted as an effect.",
+            )
+            d_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
+                "d_grp_time",
+                dims="post_phase",
+                role="regime",
+                rationale="Change in the adjusted arm gap from t1. The t2 element is the randomised treated-versus-untreated change; the t3/t4 elements are randomised early-start versus delayed-start schedule contrasts.",
+            )
             b_grp = pm.Deterministic(
                 "b_grp_time",
                 pt.concatenate([pt.stack([arm_gap_t1]), arm_gap_t1 + d_grp]),
@@ -339,7 +331,12 @@ def build_level_factors_model(
             )
             eta = eta + b_grp[phase_d] * G_d
         elif group_by_time:
-            b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc('b_grp_time', dims='phase', role='association', rationale='Free per-timepoint group-gap vector: only b_grp_time[1] is the randomised treated-versus-untreated t2 contrast. Other elements describe pre-randomisation balance or randomised treatment schedules.')
+            b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
+                "b_grp_time",
+                dims="phase",
+                role="association",
+                rationale="Free per-timepoint group-gap vector: only b_grp_time[1] is the randomised treated-versus-untreated t2 contrast. Other elements describe pre-randomisation balance or randomised treatment schedules.",
+            )
             eta = eta + b_grp[phase_d] * G_d
         else:
             beta_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc("beta_grp")
@@ -363,12 +360,14 @@ def build_level_factors_model(
         # Raw-covariate adjusters (revised-DAG exogenous confounders HS/SP/RW): linear
         # gamma terms, mirroring build_mechanism_model's adjust_for path (#247).
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c))
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}", **_priors.adjustment_metadata(c))
             eta = eta + gamma_c * adjust_d[c]
 
         if use_subject_random_intercept:
             eta = _add_child_random_intercept(
-                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma,
+                eta,
+                child_idx_d,
+                sigma_prior_sigma=sigma_child_prior_sigma,
                 rationale=(
                     "Child random-intercept SD on the level logit. A levels model "
                     "has no own-baseline term, so this intercept carries the "
@@ -385,9 +384,7 @@ def build_level_factors_model(
                 # decision 4). ``kappa`` survives as the Deterministic the reports
                 # speak in; ``inv_sqrt_kappa`` is what is sampled.
                 kappa = _rlm_dispersion_kappa(
-                    float(_priors.inv_sqrt_kappa_prior().sigma)
-                    if kappa_prior_sigma is None
-                    else kappa_prior_sigma,
+                    float(_priors.inv_sqrt_kappa_prior().sigma) if kappa_prior_sigma is None else kappa_prior_sigma,
                     rationale=(
                         "Beta-Binomial dispersion on the 1/sqrt(kappa) scale; "
                         "kappa is derived. Zero on this scale is the Binomial "
@@ -397,9 +394,7 @@ def build_level_factors_model(
                 )
             elif kappa_prior_family == "halfnormal_concentration":
                 kappa = (
-                    _priors.kappa_prior()
-                    if kappa_prior_sigma is None
-                    else _priors.kappa_prior(sigma=kappa_prior_sigma)
+                    _priors.kappa_prior() if kappa_prior_sigma is None else _priors.kappa_prior(sigma=kappa_prior_sigma)
                 ).to_pymc("kappa")
             else:
                 raise ValueError(
@@ -407,22 +402,26 @@ def build_level_factors_model(
                     f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
                 )
             beta_binomial_from_score_mean_link(
-                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                "y_post",
+                eta,
+                n_trials=prepared.n_trials[own],
+                kappa=kappa,
                 score_mean_link=score_mean_link,
-                observed=post, dims="obs_id",
+                observed=post,
+                dims="obs_id",
             )
         else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
             pm.Bernoulli(
-                "y_offfloor", logit_p=eta,
-                observed=(post > 0).astype(np.int64), dims="obs_id",
+                "y_offfloor",
+                logit_p=eta,
+                observed=(post > 0).astype(np.int64),
+                dims="obs_id",
             )
 
     return BuiltModel(
         model=model,
         prepared=prepared,
         payload=LevelFactorsPayload(
-            alpha_anchor=alpha_anchor,
-            arm_gap_reference=arm_gap_reference,
-            score_mean_link=score_mean_link
+            alpha_anchor=alpha_anchor, arm_gap_reference=arm_gap_reference, score_mean_link=score_mean_link
         ),
     )

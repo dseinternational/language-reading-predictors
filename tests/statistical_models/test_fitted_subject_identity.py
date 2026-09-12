@@ -15,7 +15,13 @@ import pymc as pm
 import pytest
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.run_metadata import REUSE_CONTRACT_KEY, fitted_subject_identity, require_reuse_compatibility, write_run_metadata, write_model_recipe
+from language_reading_predictors.statistical_models.run_metadata import (
+    REUSE_CONTRACT_KEY,
+    fitted_subject_identity,
+    require_reuse_compatibility,
+    write_run_metadata,
+    write_model_recipe,
+)
 
 
 def _expected_digest(subject_ids: list[str]) -> str:
@@ -41,12 +47,8 @@ def _context(tmp_path, model_id: str, subject_ids: list[str]):
             n_phases=1,
             dropped_rows=0,
         ),
-        reporting=SimpleNamespace(
-            output_dir=str(output_dir), ci_prob=0.89, config_name="reporting"
-        ),
-        sampling=SimpleNamespace(
-            draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
-        ),
+        reporting=SimpleNamespace(output_dir=str(output_dir), ci_prob=0.89, config_name="reporting"),
+        sampling=SimpleNamespace(draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47),
         output_dir=str(output_dir),
     )
 
@@ -109,9 +111,7 @@ def _compatible_publication(tmp_path, context):
 
 def test_fitted_subject_identity_has_pinned_ordered_encoding_without_raw_ids():
     subject_ids = ["child-02", "child-β", "child-02"]
-    identity = fitted_subject_identity(
-        SimpleNamespace(subject_ids=np.asarray(subject_ids, dtype=object))
-    )
+    identity = fitted_subject_identity(SimpleNamespace(subject_ids=np.asarray(subject_ids, dtype=object)))
 
     assert identity == {
         "algorithm": "sha256",
@@ -142,17 +142,13 @@ def test_fitted_subject_identity_is_order_and_multiplicity_sensitive():
         ("lrp-rli-med-087", "lrp-rli-med-187"),
     ],
 )
-def test_config_can_audit_mediation_companion_primary_row_identity(
-    tmp_path, parent_id, companion_id
-):
+def test_config_can_audit_mediation_companion_primary_row_identity(tmp_path, parent_id, companion_id):
     fitted_rows = ["S003", "S001", "S004"]
     configs = []
     for model_id in (parent_id, companion_id):
         context = _context(tmp_path, model_id, fitted_rows)
         write_run_metadata(context)
-        config = json.loads(
-            (tmp_path / model_id / "config.json").read_text(encoding="utf-8")
-        )
+        config = json.loads((tmp_path / model_id / "config.json").read_text(encoding="utf-8"))
         configs.append(config)
 
     parent, companion = configs
@@ -188,9 +184,7 @@ def test_reuse_contract_accepts_the_same_config_data_and_tier(tmp_path):
         ("data_sha256", "b" * 64),
     ],
 )
-def test_reuse_contract_rejects_prior_config_data_or_tier_drift(
-    tmp_path, field, replacement
-):
+def test_reuse_contract_rejects_prior_config_data_or_tier_drift(tmp_path, field, replacement):
     context = _reuse_context(tmp_path)
     source = _compatible_publication(tmp_path, context)
     config_path = source / "config.json"

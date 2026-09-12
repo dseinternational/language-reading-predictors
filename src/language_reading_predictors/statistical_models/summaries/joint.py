@@ -41,12 +41,7 @@ def _joint_observed_row_masks(
     cols = np.asarray(constant["y_post_cell_outcome"].values, dtype=int).ravel()
     if rows.size != cols.size:
         raise ValueError("joint flattened-cell row and outcome maps differ in length")
-    if rows.size and (
-        rows.min() < 0
-        or rows.max() >= n_obs
-        or cols.min() < 0
-        or cols.max() >= n_outcomes
-    ):
+    if rows.size and (rows.min() < 0 or rows.max() >= n_obs or cols.min() < 0 or cols.max() >= n_outcomes):
         raise ValueError("joint flattened-cell map contains an out-of-range index")
     masks[:] = False
     masks[cols, rows] = True
@@ -97,12 +92,7 @@ def _joint_ame_draws(
     if missing:
         raise KeyError(f"joint outcomes absent from posterior: {missing}")
     outcome_indices = [available.index(outcome) for outcome in outcome_names]
-    tau = (
-        tau_da.sel(outcome=outcome_names)
-        .stack(sample=("chain", "draw"))
-        .transpose("outcome", "sample")
-        .values
-    )
+    tau = tau_da.sel(outcome=outcome_names).stack(sample=("chain", "draw")).transpose("outcome", "sample").values
     eta = (
         eta_da.sel(outcome=outcome_names)
         .stack(sample=("chain", "draw"))
@@ -131,20 +121,13 @@ def _joint_ame_draws(
                     f"{eta.shape[1]} observations; pass the fitted-subset mask."
                 )
         elif np.issubdtype(selected.dtype, np.integer):
-            if selected.size and (
-                int(selected.min()) < 0 or int(selected.max()) >= eta.shape[1]
-            ):
-                raise ValueError(
-                    f"integer row_mask has indices outside [0, {eta.shape[1]})."
-                )
+            if selected.size and (int(selected.min()) < 0 or int(selected.max()) >= eta.shape[1]):
+                raise ValueError(f"integer row_mask has indices outside [0, {eta.shape[1]}).")
             selector = np.zeros(eta.shape[1], dtype=bool)
             selector[selected] = True
             selected = selector
         else:
-            raise ValueError(
-                "row_mask must be a boolean mask or integer index array, "
-                f"got dtype {selected.dtype}."
-            )
+            raise ValueError(f"row_mask must be a boolean mask or integer index array, got dtype {selected.dtype}.")
         masks = masks & selected[None, :]
         if np.any(masks.sum(axis=1) == 0):
             raise ValueError("row_mask leaves a joint outcome with no observations")

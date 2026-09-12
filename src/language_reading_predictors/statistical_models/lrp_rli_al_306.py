@@ -50,10 +50,7 @@ from language_reading_predictors.statistical_models.pipelines.aligned import fit
 SPEC = ModelSpec(
     model_id="lrp-rli-al-306",
     kind="aligned",
-    title=(
-        "Aligned-40-week per-protocol gain for phoneme blending (B): "
-        "three-choice guessing-floor link sensitivity"
-    ),
+    title=("Aligned-40-week per-protocol gain for phoneme blending (B): three-choice guessing-floor link sensitivity"),
     outcome_symbol="B",
     # Deliberately a one-key diff from lrp-rli-al-006's declaration, in the same
     # style, so a reader can verify by eye that the pair differs only in the link.

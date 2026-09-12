@@ -102,12 +102,7 @@ def level_t2_marginal_effect(
     if not mask.any():
         raise ValueError(f"No rows at t2_phase={t2_phase}; phases present: {np.unique(phase)}")
 
-    eta = (
-        posterior[eta_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     if eta.shape[0] != phase.shape[0]:
         raise ValueError(
             f"phase has {phase.shape[0]} rows but eta has {eta.shape[0]} observations; "
@@ -136,9 +131,7 @@ def level_t2_marginal_effect(
                 f"balance_term {balance_term!r} is not in the {group} group; pass "
                 "the term the plan records (None under the free comparator)."
             )
-        balance_draws = (
-            posterior[balance_term].stack(sample=("chain", "draw")).values.ravel()
-        )  # (S,)
+        balance_draws = posterior[balance_term].stack(sample=("chain", "draw")).values.ravel()  # (S,)
         delta_rows = delta_rows + balance_draws[None, :]
     if interaction_term in posterior and ability is not None:
         g_ab = posterior[interaction_term].stack(sample=("chain", "draw")).values.ravel()  # (S,)
@@ -168,9 +161,7 @@ def level_t2_marginal_effect(
     return contrast_draws, ame_prob
 
 
-def level_window_comparator_cards(
-    output_dir: str | Path, config: Mapping
-) -> list[dict[str, Any]] | None:
+def level_window_comparator_cards(output_dir: str | Path, config: Mapping) -> list[dict[str, Any]] | None:
     """The four-wave and t1/t2 cards side by side, when both fits are present.
 
     #584 decision 3 keeps the four-wave levels fit as the model of record and adds a
@@ -197,9 +188,7 @@ def level_window_comparator_cards(
         return None
     try:
         legacy = model_ids.to_legacy(model_id)
-        counterpart_legacy = (
-            legacy[:-1] if legacy.endswith("a") else f"{legacy}a"
-        )
+        counterpart_legacy = legacy[:-1] if legacy.endswith("a") else f"{legacy}a"
         counterpart = model_ids.to_canonical(counterpart_legacy, kind="level_factors")
     except Exception:  # noqa: BLE001 - an unmapped id simply has no counterpart
         return None
@@ -213,7 +202,7 @@ def level_window_comparator_cards(
             with open(config_path, encoding="utf-8") as handle:
                 stored = json.load(handle)
             row = pd.read_csv(rope_path).iloc[0]
-        except (OSError, ValueError, KeyError, IndexError):
+        except OSError, ValueError, KeyError, IndexError:
             return None
         if str(stored.get("model_id")) != expected_id:
             return None

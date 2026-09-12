@@ -166,8 +166,7 @@ class NewChildPlan:
     def __post_init__(self) -> None:
         if self.prediction_target not in PREDICTION_TARGETS:
             raise ValueError(
-                "prediction_target must be one of "
-                f"{', '.join(PREDICTION_TARGETS)}; got {self.prediction_target!r}"
+                f"prediction_target must be one of {', '.join(PREDICTION_TARGETS)}; got {self.prediction_target!r}"
             )
         if self.prediction_target != PREDICTION_TARGET_NEW_CHILD:
             raise ValueError(
@@ -302,26 +301,16 @@ def _prepared_child_index(ctx: Any, n_rows: int) -> np.ndarray | None:
     subject_ids = getattr(prepared, "subject_ids", None)
     dataset = getattr(prepared, "dataset", None)
     subject_col = getattr(dataset, "subject_col", None)
-    if (
-        long is not None
-        and subject_ids is not None
-        and subject_col
-        and subject_col in long
-        and len(long) == n_rows
-    ):
+    if long is not None and subject_ids is not None and subject_col and subject_col in long and len(long) == n_rows:
         position = {value: index for index, value in enumerate(list(subject_ids))}
         try:
-            return np.asarray(
-                [position[value] for value in long[subject_col]], dtype=int
-            )
+            return np.asarray([position[value] for value in long[subject_col]], dtype=int)
         except KeyError:  # pragma: no cover - a panel row outside its own id list
             return None
     return None
 
 
-def child_row_maps(
-    ctx: Any, observed_nodes: Sequence[str]
-) -> tuple[dict[str, np.ndarray], int]:
+def child_row_maps(ctx: Any, observed_nodes: Sequence[str]) -> tuple[dict[str, np.ndarray], int]:
     """``({node: row -> child index}, n_children)`` for the fit's likelihood nodes.
 
     Recognises the same two persisted maps ``diagnostics._joint_log_likelihood_by_child``
@@ -349,9 +338,7 @@ def child_row_maps(
         if chosen is None:
             chosen = _prepared_child_index(ctx, n_rows)
         if chosen is None:
-            raise NewChildEvidenceUnavailable(
-                f"no child map aligns with the {n_rows} rows of node {node!r}"
-            )
+            raise NewChildEvidenceUnavailable(f"no child map aligns with the {n_rows} rows of node {node!r}")
         if chosen.min() < 0:
             raise ValueError(f"child map for {node!r} contains a negative index")
         maps[node] = chosen
@@ -374,16 +361,14 @@ def verify_child_latents(model: pm.Model, plan: NewChildPlan) -> tuple[str, ...]
     unknown = [name for name in plan.latent_vars if name not in free]
     if unknown:
         raise ValueError(
-            f"declared child latent(s) {', '.join(sorted(unknown))} are not free "
-            "random variables of this model"
+            f"declared child latent(s) {', '.join(sorted(unknown))} are not free random variables of this model"
         )
     declared = set(plan.latent_vars)
     child_dims = set(plan.child_dims)
     undeclared = sorted(
         rv.name
         for rv in model.free_RVs
-        if rv.name not in declared
-        and child_dims & set(model.named_vars_to_dims.get(rv.name) or ())
+        if rv.name not in declared and child_dims & set(model.named_vars_to_dims.get(rv.name) or ())
     )
     if undeclared:
         raise ValueError(
@@ -418,9 +403,7 @@ def _posterior_tree(posterior: xr.Dataset) -> xr.DataTree:
     return tree
 
 
-def _aggregate_to_child(
-    values: np.ndarray, rows: np.ndarray, n_children: int
-) -> np.ndarray:
+def _aggregate_to_child(values: np.ndarray, rows: np.ndarray, n_children: int) -> np.ndarray:
     """Sum a ``(chain, draw, row)`` array within child, giving ``(chain, draw, child)``."""
     out = np.zeros((*values.shape[:-1], n_children), dtype=float)
     for child in range(n_children):
@@ -464,9 +447,7 @@ def _observed_node_names(model: pm.Model, plan: NewChildPlan) -> tuple[str, ...]
     return tuple(rv.name for rv in model.observed_RVs)
 
 
-def run_new_child_validation(
-    ctx: StatisticalFitContext, plan: NewChildPlan
-) -> NewChildValidation:
+def run_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -> NewChildValidation:
     """Integrate out the child latents, PSIS the result, and PIT the same draws.
 
     Raises :class:`NewChildEvidenceUnavailable` when the fit legitimately has nothing
@@ -547,9 +528,7 @@ def run_new_child_validation(
         # are generated for.
         if index == 0:
             for node in nodes:
-                predictive[node].append(
-                    np.asarray(redrawn[node].transpose("chain", "draw", ...).values)
-                )
+                predictive[node].append(np.asarray(redrawn[node].transpose("chain", "draw", ...).values))
         if latents or running is None:
             # With no child latent the likelihood is a deterministic function of the
             # posterior draw, so every pass would recompute the same numbers; the
@@ -579,19 +558,12 @@ def run_new_child_validation(
             )
             for node in nodes:
                 if node not in log_likelihood:
-                    raise ValueError(
-                        f"log likelihood for {node!r} was not computed under the "
-                        "re-drawn latents"
-                    )
+                    raise ValueError(f"log likelihood for {node!r} was not computed under the re-drawn latents")
                 cell_ll = log_likelihood[node].transpose("chain", "draw", ...)
-                child_ll += _aggregate_to_child(
-                    np.asarray(cell_ll.values, dtype=float), maps[node], n_children
-                )
+                child_ll += _aggregate_to_child(np.asarray(cell_ll.values, dtype=float), maps[node], n_children)
             running = child_ll if running is None else np.logaddexp(running, child_ll)
             half = index % 2
-            halves[half] = (
-                child_ll if halves[half] is None else np.logaddexp(halves[half], child_ll)
-            )
+            halves[half] = child_ll if halves[half] is None else np.logaddexp(halves[half], child_ll)
             half_counts[half] += 1
 
     if running is None:  # pragma: no cover - n_latent_draws >= 2 is validated on the plan
@@ -666,11 +638,7 @@ def _pit_groups(
     # produced ONE calibration group per node for the joint-mechanism family, pooling a
     # 79-item word-reading count with a 6-item nonword one: exactly the incompatible-
     # denominator pooling every other predictive check in this repo refuses.
-    outcomes = tuple(
-        getattr(plan_obj, "outcomes", None)
-        or getattr(plan_obj, "outcome_symbols", None)
-        or ()
-    )
+    outcomes = tuple(getattr(plan_obj, "outcomes", None) or getattr(plan_obj, "outcome_symbols", None) or ())
     groups: list[tuple[str, str, np.ndarray]] = []
     for node in nodes:
         labels = cell_outcome_labels(ctx, node, outcomes) if outcomes else None
@@ -747,13 +715,7 @@ def _new_child_pit(
             )
         )
         tree["observed_data"] = xr.DataTree(
-            xr.Dataset(
-                {
-                    "y_child": xr.DataArray(
-                        observed_totals, dims=("pit_unit",), coords={"pit_unit": unit}
-                    )
-                }
-            )
+            xr.Dataset({"y_child": xr.DataArray(observed_totals, dims=("pit_unit",), coords={"pit_unit": unit})})
         )
         values = _loo_pit(tree, var_names=["y_child"], random_state=plan.random_seed)
         frames.append(
@@ -806,9 +768,7 @@ def _subject_ids(ctx: StatisticalFitContext, n_children: int) -> list[Any]:
     return list(range(n_children))
 
 
-def write_new_child_validation(
-    ctx: StatisticalFitContext, plan: NewChildPlan
-) -> NewChildValidation | None:
+def write_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -> NewChildValidation | None:
     """Run the validation and persist its tables plus a PIT figure per measure.
 
     Returns ``None`` only for the expected-absence case, which is recorded as a skip;
@@ -856,10 +816,7 @@ def write_new_child_validation(
     if not result.reliable:
         reasons = []
         if result.n_unreliable:
-            reasons.append(
-                f"{result.n_unreliable} of {result.n_children} children exceed "
-                f"good_k = {result.good_k:.2f}"
-            )
+            reasons.append(f"{result.n_unreliable} of {result.n_children} children exceed good_k = {result.good_k:.2f}")
         if not result.integration_reliable:
             reasons.append(
                 f"the latent integral's half-split error ({result.latent_mc_error:.3g} "

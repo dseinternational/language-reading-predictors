@@ -21,15 +21,11 @@ import numpy as np
 import pytest
 
 
-
-
 def _haldane_logit(counts: np.ndarray, n_trials: int) -> np.ndarray:
     return np.log((counts + 0.5) / (n_trials - counts + 0.5))
 
 
-def _logistic_draws(
-    L: np.ndarray, l0: float, *, n_sample: int, seed: int = 0
-) -> np.ndarray:
+def _logistic_draws(L: np.ndarray, l0: float, *, n_sample: int, seed: int = 0) -> np.ndarray:
     """Increasing logistic curves in the count L with steepest rise at ``l0``."""
     rng = np.random.default_rng(seed)
     base = 1.5 / (1.0 + np.exp(-0.4 * (L - l0)))
@@ -42,9 +38,7 @@ def test_recovers_known_knee_and_half_rise():
     n_trials, l0 = 32, 16.0
     counts = np.linspace(0.0, 32.0, 120)
     ell = _haldane_logit(counts, n_trials)
-    out = _readiness_summary._readiness_knee(
-        _logistic_draws(counts, l0, n_sample=300), ell, n_trials=n_trials
-    )
+    out = _readiness_summary._readiness_knee(_logistic_draws(counts, l0, n_sample=300), ell, n_trials=n_trials)
 
     # The knee is quantised to between-bin midpoints, so allow ~a bin width.
     assert abs(out["knee_count_median"] - l0) < 5.5
@@ -129,9 +123,7 @@ def test_curve_accelerating_to_the_edge_is_boundary_pinned():
     rng = np.random.default_rng(4)
     # Convex and still steepening where the data stop — the letter-sound shape.
     amp = rng.normal(1.0, 0.05, size=400).clip(0.5)
-    f = ((counts / 32.0) ** 3)[:, None] * amp[None, :] + rng.normal(
-        0.0, 0.01, size=(counts.size, 400)
-    )
+    f = ((counts / 32.0) ** 3)[:, None] * amp[None, :] + rng.normal(0.0, 0.01, size=(counts.size, 400))
 
     out = _readiness_summary._readiness_knee(f, ell, n_trials=n_trials)
 
@@ -186,9 +178,7 @@ def test_low_end_steepest_interval_reports_no_below_slope():
     rng = np.random.default_rng(5)
     # Saturating: steepest at the very start, flat thereafter.
     amp = rng.normal(1.0, 0.05, size=300).clip(0.5)
-    f = (1.0 - np.exp(-0.6 * counts))[:, None] * amp[None, :] + rng.normal(
-        0.0, 0.01, size=(counts.size, 300)
-    )
+    f = (1.0 - np.exp(-0.6 * counts))[:, None] * amp[None, :] + rng.normal(0.0, 0.01, size=(counts.size, 300))
 
     out = _readiness_summary._readiness_knee(f, ell, n_trials=n_trials)
 

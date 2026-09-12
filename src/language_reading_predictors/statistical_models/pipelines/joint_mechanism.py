@@ -373,9 +373,7 @@ def _jm_ratio_stability(trace, *, contrast: tuple[str, str]) -> dict | None:
     }
 
 
-def _jm_abs_slope_reduction(
-    trace, ci_prob: float, *, contrast: tuple[str, str]
-) -> dict | None:
+def _jm_abs_slope_reduction(trace, ci_prob: float, *, contrast: tuple[str, str]) -> dict | None:
     """Per-draw ``|beta_focal| - |beta_focal_given_held|`` on the logit-per-SD scale.
 
     The denominator-free reading of the same comparison: how much of the
@@ -387,16 +385,11 @@ def _jm_abs_slope_reduction(
     near-zero-denominator behaviour.
     """
     posterior = trace.posterior
-    if (
-        "beta_mech_focal_given_held" not in posterior
-        or "beta_mech" not in posterior
-    ):
+    if "beta_mech_focal_given_held" not in posterior or "beta_mech" not in posterior:
         return None
     focal = contrast[1]
     conditional = np.asarray(posterior["beta_mech_focal_given_held"].values).ravel()
-    unconditional = np.asarray(
-        posterior["beta_mech"].sel(outcome=focal).values
-    ).ravel()
+    unconditional = np.asarray(posterior["beta_mech"].sel(outcome=focal).values).ravel()
     if conditional.shape != unconditional.shape:
         return None
     draws = np.abs(unconditional) - np.abs(conditional)
@@ -454,8 +447,11 @@ def _jm_marginal_ppc(
     prepared = ctx.prepared if prepared is None else prepared
     written: list[pd.DataFrame] = []
     with guard_optional(
-        ctx, f"{name}.csv",
-        filename=f"{name}.csv", kind="table", verb="skipped",
+        ctx,
+        f"{name}.csv",
+        filename=f"{name}.csv",
+        kind="table",
+        verb="skipped",
     ):
         post = trace.posterior
         required = {"eta", "u_resid", "sigma_u_resid", "rho_outcome"}
@@ -478,20 +474,15 @@ def _jm_marginal_ppc(
         u_new = np.stack(
             [
                 sigma[:, None, 0] * z[..., 0],
-                sigma[:, None, 1]
-                * (rho[:, None] * z[..., 0] + tail[:, None] * z[..., 1]),
+                sigma[:, None, 1] * (rho[:, None] * z[..., 0] + tail[:, None] * z[..., 1]),
             ],
             axis=-1,
         )
         p = 1.0 / (1.0 + np.exp(-(core + u_new)))
 
         row = np.asarray(trace.constant_data["y_post_cell_row"].values).astype(int)
-        col = np.asarray(
-            trace.constant_data["y_post_cell_outcome"].values
-        ).astype(int)
-        n_trials = np.array(
-            [prepared.n_trials[s] for s in outcome_symbols], dtype=int
-        )[col]
+        col = np.asarray(trace.constant_data["y_post_cell_outcome"].values).astype(int)
+        n_trials = np.array([prepared.n_trials[s] for s in outcome_symbols], dtype=int)[col]
         y_rep = rng.binomial(n_trials[None, :], p[:, row, col])  # (draw, cell)
 
         y_obs = np.asarray(trace.observed_data["y_post"].values, dtype=float)
@@ -505,13 +496,8 @@ def _jm_marginal_ppc(
         # same convention ``ppc_interval_coverage_by_group`` uses for the
         # conditional table, so a reader filtering one file's split filters the
         # other's identically.
-        groups: list[tuple[object, str, np.ndarray]] = [
-            (None, "observations", np.ones(y_obs.shape[0], dtype=bool))
-        ]
-        groups += [
-            (symbol, f"observations ({symbol})", col == index)
-            for index, symbol in enumerate(outcome_symbols)
-        ]
+        groups: list[tuple[object, str, np.ndarray]] = [(None, "observations", np.ones(y_obs.shape[0], dtype=bool))]
+        groups += [(symbol, f"observations ({symbol})", col == index) for index, symbol in enumerate(outcome_symbols)]
         rows = []
         for level in ci_levels:
             lo = np.quantile(y_rep, (1.0 - level) / 2.0, axis=0)
@@ -544,9 +530,7 @@ def _jm_marginal_ppc(
     return written[0] if written else None
 
 
-def _jm_cell_outcome_labels(
-    ctx: StatisticalFitContext, outcome_symbols: tuple[str, ...]
-) -> list[str] | None:
+def _jm_cell_outcome_labels(ctx: StatisticalFitContext, outcome_symbols: tuple[str, ...]) -> list[str] | None:
     """One outcome symbol per flattened ``y_post`` cell, from the saved cell map.
 
     ``None`` when the map is absent or does not align, so a per-outcome coverage
@@ -587,26 +571,17 @@ def _jm_primary_fit_plan(
     artefacts — LOO and LOO-PIT — are skipped, and the density groups psense needs
     are attached directly instead.
     """
+
     def _plot_prior(c: StatisticalFitContext) -> None:
         for index, symbol in enumerate(outcome_symbols):
-            stem = (
-                "prior_predictive_check"
-                if index == 0
-                else f"prior_predictive_check_{symbol.lower()}"
-            )
+            stem = "prior_predictive_check" if index == 0 else f"prior_predictive_check_{symbol.lower()}"
             _diag.save_prior_predictive_plot(c, symbol, filename_stem=stem)
 
     def _run_ppc(c: StatisticalFitContext) -> None:
         _diag.sample_posterior_predictive(c, var_names=["y_post"])
         for index, symbol in enumerate(outcome_symbols):
-            stem = (
-                "posterior_predictive_check"
-                if index == 0
-                else f"posterior_predictive_check_{symbol.lower()}"
-            )
-            _diag.save_joint_posterior_predictive_plot(
-                c, symbol, filename_stem=stem
-            )
+            stem = "posterior_predictive_check" if index == 0 else f"posterior_predictive_check_{symbol.lower()}"
+            _diag.save_joint_posterior_predictive_plot(c, symbol, filename_stem=stem)
         # Coverage is denominator-agnostic for flattened child x outcome cells, but
         # pooling W and N hides outcome-specific miscalibration and weights the two
         # by their observed cell counts -- and these outcomes differ sharply (79
@@ -614,18 +589,12 @@ def _jm_primary_fit_plan(
         # per-outcome rows and keep the pooled row as the secondary summary the
         # shared coverage sentence reads (2026-08-23 joint audit, lower-priority
         # reporting correction).
-        with guard_optional(
-            c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
-        ):
+        with guard_optional(c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
             coverage = _predictive.ppc_interval_coverage(c.trace, node="y_post")
             frames = [coverage]
             labels = _jm_cell_outcome_labels(c, outcome_symbols)
             if labels is not None:
-                frames.append(
-                    _predictive.ppc_interval_coverage_by_group(
-                        c.trace, node="y_post", group_labels=labels
-                    )
-                )
+                frames.append(_predictive.ppc_interval_coverage_by_group(c.trace, node="y_post", group_labels=labels))
             save_table(
                 c,
                 "ppc_summary",
@@ -682,9 +651,7 @@ def _jm_primary_fit_plan(
             new_child_plan,
             kfold_plan,
             lambda _training, held_out: _joint_mechanism_factory.build_joint_mechanism_model(
-                mask_prepared_children(
-                    c.prepared, held_out, run_plan.outcome_symbols
-                ),
+                mask_prepared_children(c.prepared, held_out, run_plan.outcome_symbols),
                 exposure_scale=exposure_scale,
                 **run_plan.factory_kwargs(),
             ),
@@ -734,9 +701,7 @@ def _jm_write_slopes(
     df = pd.DataFrame(rows)
     missing = _JM_SLOPE_REQUIRED.difference(df.columns)
     if missing:
-        raise ValueError(
-            f"joint_mechanism_slopes is missing required columns: {sorted(missing)}"
-        )
+        raise ValueError(f"joint_mechanism_slopes is missing required columns: {sorted(missing)}")
     if not (df["term"] == "delta_ls_decoding").any():
         raise ValueError("joint_mechanism_slopes has no delta_ls_decoding row")
     save_table(ctx, "joint_mechanism_slopes", df)
@@ -819,10 +784,7 @@ def _jm_wave_eligibility(
         any_outcome |= observed[symbol]
         both_outcomes &= observed[symbol]
     n_usable = int(np.count_nonzero(usable & any_outcome))
-    per_outcome = {
-        symbol: int(np.count_nonzero(usable & observed[symbol]))
-        for symbol in outcome_symbols
-    }
+    per_outcome = {symbol: int(np.count_nonzero(usable & observed[symbol])) for symbol in outcome_symbols}
     n_overlap = int(np.count_nonzero(usable & both_outcomes))
     reasons: list[str] = []
     if n_usable < plan.min_wave_rows:
@@ -831,9 +793,7 @@ def _jm_wave_eligibility(
         if count < plan.min_wave_outcome_rows:
             reasons.append(f"{count} {symbol} cells < {plan.min_wave_outcome_rows}")
     if n_overlap < plan.min_wave_overlap_rows:
-        reasons.append(
-            f"{n_overlap} jointly observed rows < {plan.min_wave_overlap_rows}"
-        )
+        reasons.append(f"{n_overlap} jointly observed rows < {plan.min_wave_overlap_rows}")
     return {
         "wave": f"t{timepoint}",
         "timepoint": timepoint,
@@ -867,9 +827,7 @@ def _jm_exposure_logit_sd(built, mechanism_symbol: str) -> float | None:
     prepared = built.prepared
     if mechanism_symbol not in prepared.post_counts:
         return None
-    values = logit_safe(
-        prepared.post_counts[mechanism_symbol], prepared.n_trials[mechanism_symbol]
-    )
+    values = logit_safe(prepared.post_counts[mechanism_symbol], prepared.n_trials[mechanism_symbol])
     values = np.asarray(values, dtype=float)
     values = values[np.isfinite(values)]
     if values.size < 2:
@@ -893,9 +851,7 @@ def _jm_copy_wave_artifacts(ctx: StatisticalFitContext, *, timepoint: int) -> No
         frame = ctx.tables.get(source)
         if frame is None:
             continue
-        save_table(
-            ctx, target, frame, index=source == "psense_summary", register=False
-        )
+        save_table(ctx, target, frame, index=source == "psense_summary", register=False)
 
 
 def _jm_wave_psense(
@@ -915,21 +871,15 @@ def _jm_wave_psense(
     silent skip cannot pass as a recorded result.
     """
     stem = _JM_WAVE_PSENSE.format(timepoint=timepoint)
-    with guard_optional(
-        ctx, f"{stem}_summary.csv", filename=f"{stem}_summary.csv", kind="table"
-    ):
+    with guard_optional(ctx, f"{stem}_summary.csv", filename=f"{stem}_summary.csv", kind="table"):
         names = {rv.name for rv in built.model.free_RVs} | set(built.model.named_vars)
         var_names = plan.psense_vars(names)
         if not var_names:
             return
         with_densities = _diag.attach_log_densities(trace, built.model, strict=False)
-        frame = _diag.psense_artifacts(
-            with_densities, ctx.output_dir, var_names, stem=stem
-        )
+        frame = _diag.psense_artifacts(with_densities, ctx.output_dir, var_names, stem=stem)
         if frame is not None:
-            record_artifact(
-                ctx, stem, filename=f"{stem}_summary.csv", df=frame
-            )
+            record_artifact(ctx, stem, filename=f"{stem}_summary.csv", df=frame)
 
 
 def _fit_joint_mechanism_levels(
@@ -998,9 +948,7 @@ def _fit_joint_mechanism_levels(
     skipped: list[str] = []
     for w in wave_indices:
         sub = _subset_prepared(prepared_all, prepared_all.phase == w)
-        record = _jm_wave_eligibility(
-            sub, plan=plan, outcome_symbols=outcome_symbols, timepoint=w + 1
-        )
+        record = _jm_wave_eligibility(sub, plan=plan, outcome_symbols=outcome_symbols, timepoint=w + 1)
         eligibility.append(record)
         if not record["fitted"]:
             skipped.append(f"t{w + 1} ({record['skipped_because']})")
@@ -1028,22 +976,10 @@ def _fit_joint_mechanism_levels(
     primary_wave = max(wave_built, key=lambda w: (wave_built[w].prepared.n_obs, w))
     for record in eligibility:
         built = wave_built.get(record["timepoint"] - 1)
-        record["fitted_rows"] = (
-            int(built.prepared.n_obs) if built is not None else None
-        )
-        record["factory_dropped"] = (
-            record["usable_rows"] - int(built.prepared.n_obs)
-            if built is not None
-            else None
-        )
-        record["exposure_logit_sd"] = (
-            _jm_exposure_logit_sd(built, plan.mechanism_symbol)
-            if built is not None
-            else None
-        )
-        record["hosts_fit_artifacts"] = (
-            built is not None and record["timepoint"] - 1 == primary_wave
-        )
+        record["fitted_rows"] = int(built.prepared.n_obs) if built is not None else None
+        record["factory_dropped"] = record["usable_rows"] - int(built.prepared.n_obs) if built is not None else None
+        record["exposure_logit_sd"] = _jm_exposure_logit_sd(built, plan.mechanism_symbol) if built is not None else None
+        record["hosts_fit_artifacts"] = built is not None and record["timepoint"] - 1 == primary_wave
     eligibility_df = pd.DataFrame(eligibility)
     save_table(ctx, "joint_mechanism_wave_eligibility", eligibility_df)
 
@@ -1062,9 +998,7 @@ def _fit_joint_mechanism_levels(
             section_header(f"Build model (artefact-hosting wave t{tp})")
             attach_built(ctx, built)
             render_model_graph(ctx)
-            model_names = {rv.name for rv in ctx.model.free_RVs} | set(
-                ctx.model.named_vars
-            )
+            model_names = {rv.name for rv in ctx.model.free_RVs} | set(ctx.model.named_vars)
             diag_vars = plan.diagnostic_vars(model_names)
             psense_vars = plan.psense_vars(model_names)
             gate = shared_stages().run_primary_fit(
@@ -1093,8 +1027,7 @@ def _fit_joint_mechanism_levels(
                 var_names=[rv.name for rv in ctx.model.free_RVs] + reported,
             )
             convergence["converged"] = bool(
-                _convergence.convergence_gate_clean_passed(gate)
-                and convergence.get("converged")
+                _convergence.convergence_gate_clean_passed(gate) and convergence.get("converged")
             )
             trace_file = "trace.nc"
             # The fit-level files are written under their house names by the shared
@@ -1148,8 +1081,7 @@ def _fit_joint_mechanism_levels(
                 # The bundle a published wave must carry, named so the release
                 # evaluator can check it without re-deriving the convention.
                 "trace_file": trace_file,
-                "marginal_ppc_file": _JM_WAVE_MARGINAL_PPC.format(timepoint=tp)
-                + ".csv",
+                "marginal_ppc_file": _JM_WAVE_MARGINAL_PPC.format(timepoint=tp) + ".csv",
                 "psense_file": _JM_WAVE_PSENSE.format(timepoint=tp) + "_summary.csv",
                 "convergence_vars": ", ".join(reported),
             }
@@ -1195,8 +1127,7 @@ def _fit_joint_mechanism_levels(
             "timepoints": [w + 1 for w in sorted(wave_built)],
             "n_published_fits": int(len(diagnostics_df)),
             "all_published_fits_converged": bool(
-                not diagnostics_df.empty
-                and diagnostics_df["converged"].eq(True).all()
+                not diagnostics_df.empty and diagnostics_df["converged"].eq(True).all()
             ),
             # Wave-specific eligibility, kept apart from the panel ``dropped_rows``
             # ledger a wave subset inherits unchanged (2026-08-23 review, gap 3).
@@ -1236,9 +1167,7 @@ def _fit_joint_mechanism_levels(
     return finalize_report(ctx)
 
 
-def _plot_joint_mechanism_by_wave(
-    ctx: StatisticalFitContext, df: pd.DataFrame, ci_prob: float
-) -> None:
+def _plot_joint_mechanism_by_wave(ctx: StatisticalFitContext, df: pd.DataFrame, ci_prob: float) -> None:
     """Per-wave forest of the two letter-sound slopes and their identified difference.
 
     One figure per file (PNG + SVG + CSV via ``save_styled_figure``), not a panel, so
@@ -1258,10 +1187,7 @@ def _plot_joint_mechanism_by_wave(
     )
     y = np.arange(len(keep))[::-1]
     plt.figure(figsize=(7.2, 0.42 * len(keep) + 1.6))
-    colours = [
-        COLOUR_BLUE if str(t).startswith("beta_mech[") else "#B45309"
-        for t in keep["term"]
-    ]
+    colours = [COLOUR_BLUE if str(t).startswith("beta_mech[") else "#B45309" for t in keep["term"]]
     for i, (_, row) in enumerate(keep.iterrows()):
         plt.errorbar(
             row["median"],
@@ -1271,30 +1197,22 @@ def _plot_joint_mechanism_by_wave(
             color=colours[i],
             capsize=3,
         )
-        plt.plot(
-            [row["lo50"], row["hi50"]], [y[i], y[i]], color=colours[i], lw=3.0, alpha=0.7
-        )
+        plt.plot([row["lo50"], row["hi50"]], [y[i], y[i]], color=colours[i], lw=3.0, alpha=0.7)
     plt.axvline(0.0, color="grey", ls=":", lw=1)
     plt.yticks(
         y,
         [
-            f"{r['wave']}  {r['term']}"
-            + ("" if converged.iloc[i] else "  [GATE-FAIL]")
+            f"{r['wave']}  {r['term']}" + ("" if converged.iloc[i] else "  [GATE-FAIL]")
             for i, (_, r) in enumerate(keep.iterrows())
         ],
         fontsize=8,
     )
-    plt.xlabel(
-        f"logit per SD of letter sounds (median, inner 50%, outer "
-        f"{int(ci_prob * 100)}%)"
-    )
+    plt.xlabel(f"logit per SD of letter sounds (median, inner 50%, outer {int(ci_prob * 100)}%)")
     plt.title("Letter-sound slopes and their identified difference, by wave")
     save_styled_figure(ctx.output_dir, "joint_mechanism_by_wave", data=keep)
 
 
-def _jm_comparator_population(
-    ctx: StatisticalFitContext, outcome_symbols: tuple[str, ...]
-) -> dict:
+def _jm_comparator_population(ctx: StatisticalFitContext, outcome_symbols: tuple[str, ...]) -> dict:
     """Fitted-row identity for the matched single-outcome comparison.
 
     2026-08-23 joint audit, finding 7. ``jm-002`` is described as changing only the
@@ -1316,8 +1234,7 @@ def _jm_comparator_population(
             "single-outcome comparator's"
         ),
         "exposure_standardisation": (
-            "computed over these rows, so the exposure SD differs from a "
-            "comparator fitted on a different row set"
+            "computed over these rows, so the exposure SD differs from a comparator fitted on a different row set"
         ),
         "comparison_status": "approximate_not_like_for_like",
     }

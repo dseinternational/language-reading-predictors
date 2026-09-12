@@ -103,9 +103,7 @@ _PSENSE_CLEAR_MARKERS = frozenset(
 )
 
 
-def _kf_psense_diagnosis(
-    output_dir: str | Path, term: str, *, filename: str = "psense_summary.csv"
-) -> str | None:
+def _kf_psense_diagnosis(output_dir: str | Path, term: str, *, filename: str = "psense_summary.csv") -> str | None:
     """Power-scaling diagnosis for ``term`` from ``psense_summary.csv`` (#389 finding 3).
 
     Returns the ``diagnosis`` string (e.g. "potential prior-data conflict") when the
@@ -194,11 +192,7 @@ def _kf_most_resolved_row(
     # inspectable.
     by = ["_kf_resolution", *(column for column, _ in tie_breakers)]
     ascending = [False, *(bool(flag) for _, flag in tie_breakers)]
-    return (
-        usable.sort_values(by, ascending=ascending, kind="stable")
-        .iloc[0]
-        .to_dict()
-    )
+    return usable.sort_values(by, ascending=ascending, kind="stable").iloc[0].to_dict()
 
 
 def _kf_plain_label(value: Any) -> str:
@@ -276,16 +270,14 @@ def _kf_outcome_label(config: Mapping) -> str:
             study_measure = study_measures.get(symbol)
             if study_measure is not None:
                 return study_measure.label
-        except (KeyError, TypeError):
+        except KeyError, TypeError:
             measure = None
     if measure is not None:
         return measure.label
     return config.get("title") or symbol or "the outcome"
 
 
-def _kf_direction_words(
-    prob_pos: Any, *, is_rd: bool, rd_event: str = "coming off the floor"
-) -> str:
+def _kf_direction_words(prob_pos: Any, *, is_rd: bool, rd_event: str = "coming off the floor") -> str:
     """The harm-aware confidence sentence body (#179): evidence for the
     *favoured* direction, so a clearly negative effect reads as evidence of harm
     rather than 'inconclusive'.
@@ -304,18 +296,10 @@ def _kf_direction_words(
     label = fav["favoured_direction_label"]
     if fav["favoured_direction"] == "positive":
         sign_word = "positive"
-        claim = (
-            f"the intervention raises the chance of {rd_event}"
-            if is_rd
-            else "the intervention helps"
-        )
+        claim = f"the intervention raises the chance of {rd_event}" if is_rd else "the intervention helps"
     else:
         sign_word = "negative"
-        claim = (
-            f"the intervention lowers the chance of {rd_event}"
-            if is_rd
-            else "the intervention is harmful"
-        )
+        claim = f"the intervention lowers the chance of {rd_event}" if is_rd else "the intervention is harmful"
     # State the probability for the FAVOURED direction so the number and the
     # evidence label qualify the same claim (harm-aware, #179): a clearly
     # negative effect reads "97% probability ... negative — strong evidence of

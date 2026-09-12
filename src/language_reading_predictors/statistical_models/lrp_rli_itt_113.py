@@ -26,8 +26,7 @@ SPEC = ModelSpec(
     model_id="lrp-rli-itt-113",
     kind="itt",
     title=(
-        "SES-adjusted available-case modified ITT estimate of the assigned-arm "
-        "contrast in letter-sound knowledge (L)"
+        "SES-adjusted available-case modified ITT estimate of the assigned-arm contrast in letter-sound knowledge (L)"
     ),
     outcome_symbol="L",
     adjustment=list(SES_ADJUSTERS),

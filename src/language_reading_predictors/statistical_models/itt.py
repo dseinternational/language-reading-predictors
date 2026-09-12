@@ -106,9 +106,7 @@ def _tuple_of_strings(
 ) -> tuple[str, ...] | None:
     if value is None and optional:
         return None
-    if not isinstance(value, (list, tuple)) or not all(
-        isinstance(item, str) and item for item in value
-    ):
+    if not isinstance(value, (list, tuple)) or not all(isinstance(item, str) and item for item in value):
         suffix = " or None" if optional else ""
         raise TypeError(f"{name} must be a sequence of non-empty strings{suffix}")
     return tuple(value)
@@ -178,17 +176,12 @@ class IttModelSettings:
             )
         for name in ("tau_sigma", "alpha_sigma", "gamma_own_sigma", "kappa_sigma"):
             value = getattr(self, name)
-            if value is not None and (
-                isinstance(value, bool)
-                or not isinstance(value, (int, float))
-                or value <= 0
-            ):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0):
                 raise ValueError(f"{name} must be a positive number or None")
             if value is not None:
                 object.__setattr__(self, name, float(value))
         if self.tau_moderator_symbol is not None and (
-            not isinstance(self.tau_moderator_symbol, str)
-            or not self.tau_moderator_symbol
+            not isinstance(self.tau_moderator_symbol, str) or not self.tau_moderator_symbol
         ):
             raise TypeError("tau_moderator_symbol must be a non-empty string or None")
         for name in ("floor_rule_provenance", "floor_estimand_role"):
@@ -197,8 +190,7 @@ class IttModelSettings:
                 raise TypeError(f"{name} must be a non-empty string or None")
         if self.kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
             raise ValueError(
-                "kappa_prior_family must be one of "
-                f"{sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
+                f"kappa_prior_family must be one of {sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
             )
         if self.floor_rule and self.kappa_prior_family != "halfnormal_concentration":
             # The floor rule's Bernoulli off-floor likelihood has no ``kappa`` at
@@ -209,10 +201,7 @@ class IttModelSettings:
                 "parameter, so kappa_prior_family must stay at its default"
             )
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-                f"got {self.score_mean_link!r}"
-            )
+            raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {self.score_mean_link!r}")
 
     @classmethod
     def for_floor_outcome(cls) -> IttModelSettings:
@@ -239,69 +228,45 @@ class IttModelSettings:
                 f"{model_id}: unknown ITT setting(s): {', '.join(unknown)}. "
                 "Use IttModelSettings so misspellings fail before data loading."
             )
-        outcomes = (
-            _tuple_of_strings(extra["outcomes"], name="outcomes", optional=True)
-            if "outcomes" in extra
-            else None
-        )
+        outcomes = _tuple_of_strings(extra["outcomes"], name="outcomes", optional=True) if "outcomes" in extra else None
         cross_symbols = (
-            _tuple_of_strings(
-                extra["cross_symbols"], name="cross_symbols", optional=True
-            )
+            _tuple_of_strings(extra["cross_symbols"], name="cross_symbols", optional=True)
             if "cross_symbols" in extra
             else None
         )
         pre_required = (
-            _tuple_of_strings(
-                extra["pre_required"], name="pre_required", optional=True
-            )
+            _tuple_of_strings(extra["pre_required"], name="pre_required", optional=True)
             if "pre_required" in extra
             else None
         )
         tau_moderator_symbol = extra.get("tau_moderator_symbol")
-        if tau_moderator_symbol is not None and not isinstance(
-            tau_moderator_symbol, str
-        ):
+        if tau_moderator_symbol is not None and not isinstance(tau_moderator_symbol, str):
             raise TypeError("ITT setting 'tau_moderator_symbol' must be str or None")
         return cls(
             outcomes=outcomes,
             cross_symbols=cross_symbols,
-            adjust_for=_tuple_of_strings(
-                extra.get("adjust_for", ()), name="adjust_for"
-            ),
-            restrict_complete=_tuple_of_strings(
-                extra.get("restrict_complete", ()), name="restrict_complete"
-            ),
+            adjust_for=_tuple_of_strings(extra.get("adjust_for", ()), name="adjust_for"),
+            restrict_complete=_tuple_of_strings(extra.get("restrict_complete", ()), name="restrict_complete"),
             pre_required=pre_required,
             drop_missing_pre=_legacy_bool(extra, "drop_missing_pre", True),
             use_age_gp=_legacy_bool(extra, "use_age_gp", False),
-            use_own_baseline_gp=_legacy_bool(
-                extra, "use_own_baseline_gp", False
-            ),
+            use_own_baseline_gp=_legacy_bool(extra, "use_own_baseline_gp", False),
             use_varying_tau=_legacy_bool(extra, "use_varying_tau", False),
             use_age_linear=_legacy_bool(extra, "use_age_linear", False),
             use_own_baseline=_legacy_bool(extra, "use_own_baseline", True),
             tau_moderator_symbol=tau_moderator_symbol,
-            tau_moderator_is_covariate=_legacy_bool(
-                extra, "tau_moderator_is_covariate", False
-            ),
-            tau_moderator_interaction=_legacy_bool(
-                extra, "tau_moderator_interaction", True
-            ),
+            tau_moderator_is_covariate=_legacy_bool(extra, "tau_moderator_is_covariate", False),
+            tau_moderator_interaction=_legacy_bool(extra, "tau_moderator_interaction", True),
             tau_sigma=_legacy_optional_float(extra, "tau_sigma"),
             alpha_sigma=_legacy_optional_float(extra, "alpha_sigma"),
             gamma_own_sigma=_legacy_optional_float(extra, "gamma_own_sigma"),
             kappa_sigma=_legacy_optional_float(extra, "kappa_sigma"),
-            kappa_prior_family=str(
-                extra.get("kappa_prior_family", "halfnormal_concentration")
-            ),
+            kappa_prior_family=str(extra.get("kappa_prior_family", "halfnormal_concentration")),
             score_mean_link=extra.get("score_mean_link", "logit"),
             floor_rule=_legacy_bool(extra, "floor_rule", False),
             floor_rule_provenance=extra.get("floor_rule_provenance"),
             floor_estimand_role=extra.get("floor_estimand_role"),
-            missingness_sensitivity=_legacy_bool(
-                extra, "missingness_sensitivity", False
-            ),
+            missingness_sensitivity=_legacy_bool(extra, "missingness_sensitivity", False),
         )
 
 
@@ -403,9 +368,7 @@ class IttRunPlan:
             "use_age_gp": self.use_age_gp,
             "use_own_baseline_gp": self.use_own_baseline_gp,
             "use_varying_tau": self.use_varying_tau,
-            "adjust_for": self.adjust_for
-            if effective_adjustment is None
-            else effective_adjustment,
+            "adjust_for": self.adjust_for if effective_adjustment is None else effective_adjustment,
             "cross_symbols": self.cross_symbols,
             "use_age_linear": self.use_age_linear,
             "use_own_baseline": self.use_own_baseline,
@@ -469,27 +432,18 @@ class IttRunPlan:
         if self.use_own_baseline_gp:
             baseline_terms.append("a flexible smooth function of the t1 score")
         if self.cross_symbols:
-            baseline_terms.append(
-                "cross-baselines: " + ", ".join(self.cross_symbols)
-            )
+            baseline_terms.append("cross-baselines: " + ", ".join(self.cross_symbols))
         baseline_text = "; ".join(baseline_terms) if baseline_terms else "none"
         adjustment_text = ", ".join(self.adjust_for) if self.adjust_for else "none"
         if self.tau_moderator_symbol is None:
             moderation_text = "none"
         else:
-            moderation_text = (
-                f"{self.tau_moderator_symbol}; the model includes its main effect"
-                + (
-                    " and allows the treatment effect to vary with it"
-                    if self.tau_moderator_interaction
-                    else " but keeps the treatment effect constant"
-                )
+            moderation_text = f"{self.tau_moderator_symbol}; the model includes its main effect" + (
+                " and allows the treatment effect to vary with it"
+                if self.tau_moderator_interaction
+                else " but keeps the treatment effect constant"
             )
-        restriction_text = (
-            ", ".join(self.restrict_complete)
-            if self.restrict_complete
-            else "none"
-        )
+        restriction_text = ", ".join(self.restrict_complete) if self.restrict_complete else "none"
         robustness_text = ""
         if self.link_sensitivity_required_for_release:
             robustness_text = (
@@ -547,19 +501,11 @@ def declared_itt_settings(spec: ModelSpec) -> tuple[IttModelSettings, str]:
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: ITT settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: ITT settings cannot be split between model_settings and extra")
         if not isinstance(settings, IttModelSettings):
-            raise TypeError(
-                f"{spec.model_id}: kind='itt' requires IttModelSettings, got "
-                f"{type(settings).__name__}"
-            )
+            raise TypeError(f"{spec.model_id}: kind='itt' requires IttModelSettings, got {type(settings).__name__}")
         return settings, "typed"
-    return IttModelSettings.from_legacy_extra(
-        spec.extra, model_id=spec.model_id
-    ), "legacy_extra"
+    return IttModelSettings.from_legacy_extra(spec.extra, model_id=spec.model_id), "legacy_extra"
 
 
 def _tag_settings_source(
@@ -570,10 +516,7 @@ def _tag_settings_source(
 ) -> dict[str, Any]:
     """Add declaration provenance without allowing a settings field to replace it."""
     if "source" in serialized:
-        raise ValueError(
-            f"{spec.model_id}: model_settings field 'source' is reserved for "
-            "declaration provenance"
-        )
+        raise ValueError(f"{spec.model_id}: model_settings field 'source' is reserved for declaration provenance")
     return {"source": source, **serialized}
 
 
@@ -586,8 +529,7 @@ def declared_settings_dict(spec: ModelSpec) -> dict[str, Any]:
         settings = spec.model_settings
         if not is_dataclass(settings) or isinstance(settings, type):
             raise TypeError(
-                f"{spec.model_id}: typed model_settings must be a dataclass instance, "
-                f"got {type(settings).__name__}"
+                f"{spec.model_id}: typed model_settings must be a dataclass instance, got {type(settings).__name__}"
             )
         return _tag_settings_source(spec, asdict(settings), source="typed")
     return dict(spec.extra)
@@ -606,9 +548,7 @@ def _reject_duplicates(model_id: str, name: str, values: tuple[str, ...]) -> Non
         raise ValueError(f"{model_id}: {name} contains duplicate symbols: {values!r}")
 
 
-def _reject_unknown_measures(
-    model_id: str, name: str, values: Sequence[str]
-) -> None:
+def _reject_unknown_measures(model_id: str, name: str, values: Sequence[str]) -> None:
     """Reject outcome symbols with no registered measure, during resolution."""
     unknown = sorted({symbol for symbol in values if symbol not in MEASURES})
     if unknown:
@@ -657,25 +597,15 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
     # Only the *baseline* branch names a measure; with
     # ``tau_moderator_is_covariate`` the symbol is a covariate column (``blocks``,
     # or ``"A"`` for age) that ``MEASURES`` knows nothing about.
-    if (
-        settings.tau_moderator_symbol is not None
-        and not settings.tau_moderator_is_covariate
-    ):
-        _reject_unknown_measures(
-            spec.model_id, "tau_moderator_symbol", (settings.tau_moderator_symbol,)
-        )
+    if settings.tau_moderator_symbol is not None and not settings.tau_moderator_is_covariate:
+        _reject_unknown_measures(spec.model_id, "tau_moderator_symbol", (settings.tau_moderator_symbol,))
     if own not in outcomes:
-        raise ValueError(
-            f"{spec.model_id}: outcome_symbol {own!r} must appear in outcomes={outcomes!r}"
-        )
+        raise ValueError(f"{spec.model_id}: outcome_symbol {own!r} must appear in outcomes={outcomes!r}")
     if own in cross_symbols:
         raise ValueError(f"{spec.model_id}: the outcome cannot be its own cross-baseline")
     missing_cross = sorted(set(cross_symbols) - set(outcomes))
     if missing_cross:
-        raise ValueError(
-            f"{spec.model_id}: cross-baselines are not loaded as outcomes: "
-            f"{', '.join(missing_cross)}"
-        )
+        raise ValueError(f"{spec.model_id}: cross-baselines are not loaded as outcomes: {', '.join(missing_cross)}")
     # ``ModelSpec.adjustment`` and the typed ``adjust_for`` hold the same
     # scientific fact — which covariates this model adjusts for — in two places,
     # with nothing keeping them equal (2026-08-22 ITT audit, finding 9). All 31
@@ -698,10 +628,7 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
     if settings.pre_required is not None:
         missing_pre = sorted(set(settings.pre_required) - set(outcomes))
         if missing_pre:
-            raise ValueError(
-                f"{spec.model_id}: pre_required contains unloaded outcome(s): "
-                f"{', '.join(missing_pre)}"
-            )
+            raise ValueError(f"{spec.model_id}: pre_required contains unloaded outcome(s): {', '.join(missing_pre)}")
         # ``pre_required`` was checked only as a *subset* of the loaded outcomes,
         # never against the terms that actually consume a baseline (2026-08-22 ITT
         # audit, finding 7). A model keeping ``use_own_baseline`` / cross-baselines
@@ -713,9 +640,7 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         needs_pre: list[str] = []
         if settings.use_own_baseline and own not in settings.pre_required:
             needs_pre.append(own)
-        needs_pre.extend(
-            symbol for symbol in cross_symbols if symbol not in settings.pre_required
-        )
+        needs_pre.extend(symbol for symbol in cross_symbols if symbol not in settings.pre_required)
         if needs_pre:
             raise ValueError(
                 f"{spec.model_id}: these baselines enter the linear predictor "
@@ -723,42 +648,21 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
                 f"to complete pre scores: {', '.join(sorted(set(needs_pre)))}"
             )
     if settings.use_age_gp and settings.use_age_linear:
-        raise ValueError(
-            f"{spec.model_id}: use_age_gp and use_age_linear are mutually exclusive"
-        )
+        raise ValueError(f"{spec.model_id}: use_age_gp and use_age_linear are mutually exclusive")
     if settings.floor_rule and settings.use_varying_tau:
-        raise ValueError(
-            f"{spec.model_id}: floor_rule cannot use a varying treatment effect"
-        )
+        raise ValueError(f"{spec.model_id}: floor_rule cannot use a varying treatment effect")
     if settings.floor_rule and settings.tau_moderator_symbol is not None:
-        raise ValueError(
-            f"{spec.model_id}: floor_rule cannot use treatment-effect moderation"
-        )
+        raise ValueError(f"{spec.model_id}: floor_rule cannot use treatment-effect moderation")
     if settings.score_mean_link == "three_choice_guessing_floor" and own != "B":
         raise ValueError(
-            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
-            f"phoneme blending (B), got {own!r}"
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for phoneme blending (B), got {own!r}"
         )
     if settings.floor_rule and settings.score_mean_link != "logit":
-        raise ValueError(
-            f"{spec.model_id}: floor_rule requires score_mean_link='logit'"
-        )
-    if (
-        settings.tau_moderator_symbol is None
-        and not settings.tau_moderator_interaction
-    ):
-        raise ValueError(
-            f"{spec.model_id}: tau_moderator_interaction has no effect without a "
-            "tau_moderator_symbol"
-        )
-    if (
-        settings.tau_moderator_symbol is None
-        and settings.tau_moderator_is_covariate
-    ):
-        raise ValueError(
-            f"{spec.model_id}: tau_moderator_is_covariate requires a "
-            "tau_moderator_symbol"
-        )
+        raise ValueError(f"{spec.model_id}: floor_rule requires score_mean_link='logit'")
+    if settings.tau_moderator_symbol is None and not settings.tau_moderator_interaction:
+        raise ValueError(f"{spec.model_id}: tau_moderator_interaction has no effect without a tau_moderator_symbol")
+    if settings.tau_moderator_symbol is None and settings.tau_moderator_is_covariate:
+        raise ValueError(f"{spec.model_id}: tau_moderator_is_covariate requires a tau_moderator_symbol")
     if settings.tau_moderator_symbol is not None:
         moderator = settings.tau_moderator_symbol
         if settings.tau_moderator_is_covariate:
@@ -769,60 +673,39 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
                 )
             if moderator == "A" and settings.use_age_linear:
                 raise ValueError(
-                    f"{spec.model_id}: age moderation already supplies a linear age "
-                    "main effect; disable use_age_linear"
+                    f"{spec.model_id}: age moderation already supplies a linear age main effect; disable use_age_linear"
                 )
         elif moderator not in outcomes:
-            raise ValueError(
-                f"{spec.model_id}: baseline moderator {moderator!r} must be loaded "
-                "in outcomes"
-            )
-        elif (moderator == own and settings.use_own_baseline) or (
-            moderator in cross_symbols
-        ):
+            raise ValueError(f"{spec.model_id}: baseline moderator {moderator!r} must be loaded in outcomes")
+        elif (moderator == own and settings.use_own_baseline) or (moderator in cross_symbols):
             raise ValueError(
                 f"{spec.model_id}: baseline moderator {moderator!r} already gets a "
                 "linear main effect; remove the duplicate baseline term"
             )
     if settings.floor_rule:
         if own not in FLOORED:
-            raise ValueError(
-                f"{spec.model_id}: floor_rule is only registered for "
-                f"{sorted(FLOORED)}, got {own!r}"
-            )
+            raise ValueError(f"{spec.model_id}: floor_rule is only registered for {sorted(FLOORED)}, got {own!r}")
         if settings.use_own_baseline or settings.use_own_baseline_gp:
             raise ValueError(
-                f"{spec.model_id}: floor_rule uses baseline only for eligibility; "
-                "disable own-baseline model terms"
+                f"{spec.model_id}: floor_rule uses baseline only for eligibility; disable own-baseline model terms"
             )
         if cross_symbols:
             raise ValueError(f"{spec.model_id}: floor_rule cannot use cross-baselines")
         if settings.pre_required != ():
             raise ValueError(
-                f"{spec.model_id}: floor_rule must set pre_required=() so missing "
-                "eligibility remains visible"
+                f"{spec.model_id}: floor_rule must set pre_required=() so missing eligibility remains visible"
             )
         if not settings.floor_rule_provenance or not settings.floor_estimand_role:
-            raise ValueError(
-                f"{spec.model_id}: floor_rule requires provenance and estimand role"
-            )
+            raise ValueError(f"{spec.model_id}: floor_rule requires provenance and estimand role")
     elif settings.floor_rule_provenance or settings.floor_estimand_role:
+        raise ValueError(f"{spec.model_id}: floor metadata is only valid when floor_rule=True")
+    if settings.missingness_sensitivity and (own != "W" or settings.floor_rule or spec.model_id != "lrp-rli-itt-010"):
         raise ValueError(
-            f"{spec.model_id}: floor metadata is only valid when floor_rule=True"
-        )
-    if settings.missingness_sensitivity and (
-        own != "W" or settings.floor_rule or spec.model_id != "lrp-rli-itt-010"
-    ):
-        raise ValueError(
-            f"{spec.model_id}: missingness_sensitivity is registered only for "
-            "the lrp-rli-itt-010 word-reading primary"
+            f"{spec.model_id}: missingness_sensitivity is registered only for the lrp-rli-itt-010 word-reading primary"
         )
 
     covariates_to_load = list(settings.adjust_for)
-    if (
-        settings.tau_moderator_is_covariate
-        and settings.tau_moderator_symbol not in {None, "A"}
-    ):
+    if settings.tau_moderator_is_covariate and settings.tau_moderator_symbol not in {None, "A"}:
         covariates_to_load.append(settings.tau_moderator_symbol)
 
     missingness_plan = None
@@ -897,9 +780,7 @@ def resolve_itt_run_plan(spec: ModelSpec) -> IttRunPlan:
         floor_rule=settings.floor_rule,
         floor_rule_provenance=settings.floor_rule_provenance,
         floor_estimand_role=settings.floor_estimand_role,
-        headline_likelihood=(
-            "bernoulli_offfloor" if settings.floor_rule else "beta_binomial"
-        ),
+        headline_likelihood=("bernoulli_offfloor" if settings.floor_rule else "beta_binomial"),
     )
 
 
@@ -922,9 +803,7 @@ def prepare_itt_data(
 
         loader = load_and_prepare
     prepared = loader(**plan.prepare_kwargs())
-    adjustment = tuple(
-        name for name in plan.adjust_for if name in prepared.covariates
-    )
+    adjustment = tuple(name for name in plan.adjust_for if name in prepared.covariates)
     return prepared, adjustment
 
 
@@ -1038,9 +917,7 @@ def write_itt_ppc_calibration(
         score_ppc_distribution_shape,
     )
 
-    predictive = np.asarray(
-        context.trace.posterior_predictive[node].values, dtype=float
-    )
+    predictive = np.asarray(context.trace.posterior_predictive[node].values, dtype=float)
     frames = []
     shape_frames = []
     if len(outcomes) == 1 and predictive.shape[-1] == prepared.n_obs:
@@ -1062,12 +939,8 @@ def write_itt_ppc_calibration(
         )
     else:
         constant = context.trace.constant_data
-        cell_rows = np.asarray(
-            constant["y_post_cell_row"].values, dtype=int
-        ).ravel()
-        cell_outcomes = np.asarray(
-            constant["y_post_cell_outcome"].values, dtype=int
-        ).ravel()
+        cell_rows = np.asarray(constant["y_post_cell_row"].values, dtype=int).ravel()
+        cell_outcomes = np.asarray(constant["y_post_cell_outcome"].values, dtype=int).ravel()
         if predictive.shape[-1] != cell_rows.size:
             raise ValueError("joint posterior-predictive cells do not match cell map")
         for outcome_index, symbol in enumerate(outcomes):
@@ -1093,12 +966,8 @@ def write_itt_ppc_calibration(
             )
 
     calibration = pd.concat(frames, ignore_index=True)
-    save_table(
-        context, os.path.splitext(filename)[0], calibration, filename=filename
-    )
+    save_table(context, os.path.splitext(filename)[0], calibration, filename=filename)
     if shape_frames:
         shape_calibration = pd.concat(shape_frames, ignore_index=True)
-        save_table(
-            context, "posterior_predictive_shape_calibration", shape_calibration
-        )
+        save_table(context, "posterior_predictive_shape_calibration", shape_calibration)
     return calibration

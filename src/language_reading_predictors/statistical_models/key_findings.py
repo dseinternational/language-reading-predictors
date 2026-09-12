@@ -160,8 +160,7 @@ def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
     kind = config.get("kind") or "this"
     return [
         _kf_sentence(
-            f"A plain-language key-findings summary has not yet been written for "
-            f"the {kind} model family.",
+            f"A plain-language key-findings summary has not yet been written for the {kind} model family.",
             "note",
         ),
         _kf_sentence(
@@ -171,8 +170,7 @@ def _kf_build_fallback(output_dir, config: Mapping) -> list[dict[str, str]]:
             "causal",
         ),
         _kf_sentence(
-            "See the results section below for the full estimates with their "
-            "uncertainty.",
+            "See the results section below for the full estimates with their uncertainty.",
             "note",
         ),
     ]
@@ -192,9 +190,7 @@ _KF_BUILDERS = {
 _KF_DROPPABLE_ROLES = ("rope", "note")
 
 
-def _kf_with_release_note(
-    sentences: list[dict[str, str]], note: str
-) -> list[dict[str, str]]:
+def _kf_with_release_note(sentences: list[dict[str, str]], note: str) -> list[dict[str, str]]:
     """Insert a robustness note before the causal sentence, within the cap.
 
     The box truncates at :data:`KEY_FINDINGS_MAX_SENTENCES`, and #464 recorded the
@@ -206,13 +202,9 @@ def _kf_with_release_note(
     verbatim under ``release`` in the payload either way.
     """
     result = list(sentences)
-    causal_at = next(
-        (i for i, s in enumerate(result) if s.get("kind") == "causal"), len(result)
-    )
+    causal_at = next((i for i, s in enumerate(result) if s.get("kind") == "causal"), len(result))
     if len(result) >= KEY_FINDINGS_MAX_SENTENCES:
-        droppable = [
-            i for i, s in enumerate(result) if s.get("kind") in _KF_DROPPABLE_ROLES
-        ]
+        droppable = [i for i, s in enumerate(result) if s.get("kind") in _KF_DROPPABLE_ROLES]
         if not droppable:
             return result
         removed = droppable[-1]
@@ -329,18 +321,14 @@ def generate_key_findings(output_dir, *, decision=None) -> dict:
                 sha256_file,
             )
 
-            payload["blending_link_sensitivity_sha256"] = sha256_file(
-                os.path.join(out, BLENDING_SENSITIVITY_FILENAME)
-            )
+            payload["blending_link_sensitivity_sha256"] = sha256_file(os.path.join(out, BLENDING_SENSITIVITY_FILENAME))
     if str(config.get("model_id")) == "lrp-rli-itt-010":
         from language_reading_predictors.statistical_models.itt_missingness import (
             MISSINGNESS_SUMMARY_FILENAME,
             sha256_file,
         )
 
-        payload["itt_missingness_sensitivity_sha256"] = sha256_file(
-            os.path.join(out, MISSINGNESS_SUMMARY_FILENAME)
-        )
+        payload["itt_missingness_sensitivity_sha256"] = sha256_file(os.path.join(out, MISSINGNESS_SUMMARY_FILENAME))
     return _write_key_findings(out, payload)
 
 

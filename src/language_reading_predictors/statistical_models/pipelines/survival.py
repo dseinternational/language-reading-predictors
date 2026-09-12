@@ -168,9 +168,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     for name, k in panel.imputed_covariate_rows.items():
         if k:
-            rprint(
-                f"  [yellow]{k} row(s) had a missing baseline {name}; mean-imputed (z=0).[/yellow]"
-            )
+            rprint(f"  [yellow]{k} row(s) had a missing baseline {name}; mean-imputed (z=0).[/yellow]")
 
     hazard_link = plan.hazard_link
     use_treatment = plan.use_treatment
@@ -208,8 +206,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     )
     save_table(ctx, "survival_summary", summary)
     tau_reading = (
-        "tau = available-case modified-ITT interval-1 assignment contrast "
-        "(at-floor subgroup)"
+        "tau = available-case modified-ITT interval-1 assignment contrast (at-floor subgroup)"
         if plan.treatment_window == "randomised"
         else "pooled tau is prior-mediated beyond interval 1; prognostic"
     )

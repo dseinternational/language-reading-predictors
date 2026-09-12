@@ -34,15 +34,11 @@ _META_FIELDS = (
 def _gain_factor_specs() -> list[ModelSpec]:
     """Every registered gain-factor model's SPEC (primary and treated-only)."""
     root = os.path.dirname(
-        importlib.import_module(
-            "language_reading_predictors.statistical_models.gain_factors"
-        ).__file__
+        importlib.import_module("language_reading_predictors.statistical_models.gain_factors").__file__
     )
     specs: list[ModelSpec] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_rli_gf_*.py"))):
-        mod = importlib.import_module(
-            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
-        )
+        mod = importlib.import_module("language_reading_predictors.statistical_models." + os.path.basename(path)[:-3])
         spec = getattr(mod, "SPEC", None)
         if spec is not None and spec.kind == "gain_factors":
             specs.append(spec)
@@ -71,9 +67,7 @@ def test_settings_reject_an_unknown_interaction_term():
     # #455: build_gain_factors_model rejects this, but only after an output directory
     # has been reset and the panel loaded. A typo is the realistic case.
     with pytest.raises(ValueError, match="interaction term 'abilty' not available"):
-        GainFactorsModelSettings(
-            interactions=(("trt", "abilty"),), ability_covariate="blocks"
-        )
+        GainFactorsModelSettings(interactions=(("trt", "abilty"),), ability_covariate="blocks")
 
 
 def test_settings_reject_ability_interaction_without_an_ability_covariate():
@@ -107,9 +101,7 @@ def test_settings_reject_trt_interactions_on_headline_specs():
     # #391 finding 3 decision: the causal headline is interaction-free in trt. A
     # spec that wants the moderation questions must say so explicitly.
     with pytest.raises(ValueError, match="interaction-free in trt"):
-        GainFactorsModelSettings(
-            ability_covariate="blocks", interactions=(("trt", "ability"),)
-        )
+        GainFactorsModelSettings(ability_covariate="blocks", interactions=(("trt", "ability"),))
 
 
 def test_settings_reject_trt_interactions_on_treated_only_specs():
@@ -206,8 +198,6 @@ def test_active_interactions_matches_the_factory_filter():
     """
     import inspect
 
-
-
     src = inspect.getsource(_gain_factors_factory.build_gain_factors_model)
     assert 'pair for pair in interactions if include_trt or "trt" not in pair' in src
     assert "include_trt = not treated_only" in src
@@ -215,12 +205,8 @@ def test_active_interactions_matches_the_factory_filter():
     declared = (("trt", "ability"), ("trt", "own"), ("age", "ability"), ("own", "TR"))
     for treated_only in (False, True):
         include_trt = not treated_only
-        expected = tuple(
-            p for p in declared if include_trt or "trt" not in p
-        )
-        assert (
-            resolve_active_interactions(declared, treated_only=treated_only) == expected
-        )
+        expected = tuple(p for p in declared if include_trt or "trt" not in p)
+        assert resolve_active_interactions(declared, treated_only=treated_only) == expected
 
 
 def test_interaction_vocabulary_matches_the_factory_term_set():
@@ -231,8 +217,6 @@ def test_interaction_vocabulary_matches_the_factory_term_set():
     """
     import inspect
 
-
-
     src = inspect.getsource(_gain_factors_factory.build_gain_factors_model)
     assert 'valid_terms = {"trt", "age", "own", *skill_symbols}' in src
     assert 'valid_terms.add("ability")' in src
@@ -242,9 +226,7 @@ def test_interaction_vocabulary_matches_the_factory_term_set():
             expected = {"trt", "age", "own", *skills}
             if ability is not None:
                 expected.add("ability")
-            settings = GainFactorsModelSettings(
-                skill_symbols=skills, ability_covariate=ability
-            )
+            settings = GainFactorsModelSettings(skill_symbols=skills, ability_covariate=ability)
             assert set(settings.interaction_vocabulary()) == expected
 
 
@@ -342,9 +324,7 @@ def test_resolve_off_floor_estimand_is_status_not_transition():
 def test_resolve_splits_adjust_for_by_wave():
     # deapp_c (speech) is a language-proximal confounder → baseline (t1) timing;
     # hs (hearing) is exogenous → contemporaneous (post). Mirrors #247 timing.
-    plan = resolve_gain_factors_run_plan(
-        _spec(ability_covariate="blocks", adjust_for=("hs", "deapp_c"))
-    )
+    plan = resolve_gain_factors_run_plan(_spec(ability_covariate="blocks", adjust_for=("hs", "deapp_c")))
     assert "blocks" in plan.baseline_covariates
     assert "deapp_c" in plan.baseline_covariates
     assert "hs" in plan.post_covariates
@@ -372,9 +352,7 @@ def test_every_registered_gain_factor_model_resolves_with_metadata():
         assert isinstance(plan, GainFactorsRunPlan)
         recorded = plan.as_dict()
         for field in _META_FIELDS:
-            assert isinstance(recorded[field], str) and recorded[field], (
-                f"{spec.model_id}: {field} not recorded"
-            )
+            assert isinstance(recorded[field], str) and recorded[field], f"{spec.model_id}: {field} not recorded"
         # The outcome is always loaded as its own first outcome.
         assert plan.prepare_kwargs()["outcomes"][0] == spec.outcome_symbol
         saw_primary |= not (plan.treated_only or plan.moderation_variant)
@@ -418,10 +396,21 @@ def test_the_registered_blending_link_pair_is_paired_both_ways():
     # Same analysis, one difference: the pair is only comparable if everything else
     # about the two fits agrees.
     for field in (
-        "outcome_symbol", "skill_symbols", "ability_covariate", "adjust_for",
-        "interactions", "treated_only", "likelihood", "off_floor",
-        "moderation_variant", "baseline_covariates", "pre_covariates",
-        "post_covariates", "estimand", "causal_status", "analysis_population",
+        "outcome_symbol",
+        "skill_symbols",
+        "ability_covariate",
+        "adjust_for",
+        "interactions",
+        "treated_only",
+        "likelihood",
+        "off_floor",
+        "moderation_variant",
+        "baseline_covariates",
+        "pre_covariates",
+        "post_covariates",
+        "estimand",
+        "causal_status",
+        "analysis_population",
     ):
         assert getattr(primary, field) == getattr(companion, field), field
 
@@ -455,9 +444,7 @@ def test_the_b_variants_are_exempt_from_the_blending_link_pairing():
 
 def test_the_guessing_floor_link_is_rejected_for_a_non_blending_outcome():
     with pytest.raises(ValueError, match="only valid for phoneme blending"):
-        resolve_gain_factors_run_plan(
-            _spec(score_mean_link="three_choice_guessing_floor")
-        )
+        resolve_gain_factors_run_plan(_spec(score_mean_link="three_choice_guessing_floor"))
 
 
 def test_settings_reject_the_guessing_floor_on_the_off_floor_branch():
@@ -481,10 +468,7 @@ def test_the_link_reaches_the_factory_and_the_recipe():
     did not pass it on would fit an ordinary-link model under a floor-link label."""
     specs = {spec.model_id: spec for spec in _gain_factor_specs()}
     companion = resolve_gain_factors_run_plan(specs["lrp-rli-gf-306"])
-    assert (
-        companion.factory_kwargs()["score_mean_link"]
-        == "three_choice_guessing_floor"
-    )
+    assert companion.factory_kwargs()["score_mean_link"] == "three_choice_guessing_floor"
     recipe = companion.recipe_markdown(title="t")
     assert "Score-mean link: three_choice_guessing_floor" in recipe
     assert "lrp-rli-gf-006" in recipe

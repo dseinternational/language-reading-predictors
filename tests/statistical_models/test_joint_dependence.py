@@ -92,9 +92,7 @@ def _contrast_width(rho: float, *, shuffle_second_outcome: bool = False) -> dict
         tau[0, :, 1] = rng.permutation(tau[0, :, 1])
     G = np.tile([1.0, 0.0], 20)
     eta0 = np.zeros((G.size, 2))
-    summary = tau_difference_summary(
-        _joint_trace(tau, eta0, G), ["A", "B"], ("A", "B"), ci_prob=CI_PROB
-    )
+    summary = tau_difference_summary(_joint_trace(tau, eta0, G), ["A", "B"], ("A", "B"), ci_prob=CI_PROB)
     return {
         "median": float(summary["diff_logit_median"]),
         "width": float(summary["diff_logit_hi"]) - float(summary["diff_logit_lo"]),
@@ -114,12 +112,8 @@ def test_the_contrast_estimator_tracks_cross_outcome_dependence():
 
     assert positive["width"] < independent["width"] < negative["width"]
     # Against the exact Gaussian relation: width ratios follow sqrt(1 - rho).
-    assert positive["width"] / independent["width"] == pytest.approx(
-        np.sqrt(0.4), rel=0.05
-    )
-    assert negative["width"] / independent["width"] == pytest.approx(
-        np.sqrt(1.6), rel=0.05
-    )
+    assert positive["width"] / independent["width"] == pytest.approx(np.sqrt(0.4), rel=0.05)
+    assert negative["width"] / independent["width"] == pytest.approx(np.sqrt(1.6), rel=0.05)
     for other in (independent, positive):
         assert other["median"] == pytest.approx(negative["median"], abs=0.02)
 
@@ -220,24 +214,19 @@ def simulated_dependence_fits(tmp_path_factory) -> dict[float, dict]:
             )
         G = np.asarray(prepared.G, dtype=float)
         _, ame = _joint_summary._joint_ame_draws(idata, ["W", "R"], G=G)
-        summary = _joint_summary.tau_difference_summary(
-            idata, ["W", "R"], ("W", "R"), ci_prob=CI_PROB, G=G
-        )
+        summary = _joint_summary.tau_difference_summary(idata, ["W", "R"], ("W", "R"), ci_prob=CI_PROB, G=G)
         fits[rho] = {
             "residual_correlation": idata.posterior["u_corr_pair"].values.ravel(),
             "ame_correlation": float(np.corrcoef(ame[0], ame[1])[0, 1]),
             "marginal_sds": (float(ame[0].std()), float(ame[1].std())),
-            "contrast_width": float(summary["diff_prob_hi"])
-            - float(summary["diff_prob_lo"]),
+            "contrast_width": float(summary["diff_prob_hi"]) - float(summary["diff_prob_lo"]),
             "contrast_median": float(summary["diff_prob_median"]),
         }
     return fits
 
 
 @pytest.mark.parametrize("rho", SIMULATED_RHOS)
-def test_the_fitted_block_recovers_the_simulated_dependence(
-    simulated_dependence_fits, rho
-):
+def test_the_fitted_block_recovers_the_simulated_dependence(simulated_dependence_fits, rho):
     """The LKJ block points the right way under each simulated sign."""
     corr = simulated_dependence_fits[rho]["residual_correlation"]
     positive = float(np.mean(corr > 0))
@@ -263,11 +252,7 @@ def test_the_declared_contrast_carries_the_fitted_dependence(
     """
     negative, independent, positive = (simulated_dependence_fits[r] for r in SIMULATED_RHOS)
 
-    assert (
-        negative["ame_correlation"]
-        < independent["ame_correlation"]
-        < positive["ame_correlation"]
-    )
+    assert negative["ame_correlation"] < independent["ame_correlation"] < positive["ame_correlation"]
     # The tolerance is what it has always been. What #667 changed is the draw count
     # that has to support it: at 500 draws, under numpy 2.5.3 / pymc 6.3.2, this
     # correlation carried a seed-to-seed sd of 0.05, leaving abs=0.1 barely two

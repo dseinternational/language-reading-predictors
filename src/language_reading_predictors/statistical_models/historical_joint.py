@@ -189,13 +189,9 @@ class HistoricalJointModelSettings:
             object.__setattr__(self, name, _positive_float(getattr(self, name), name=name))
         if self.within_correlation and self.extension_waves:
             raise ValueError(
-                "within_correlation requires a balanced complete-case window; "
-                "extension_waves must be empty"
+                "within_correlation requires a balanced complete-case window; extension_waves must be empty"
             )
-        if (
-            self.within_correlation
-            and self.dispersion_prior_sigma != _DEFAULT_DISPERSION_SIGMA
-        ):
+        if self.within_correlation and self.dispersion_prior_sigma != _DEFAULT_DISPERSION_SIGMA:
             # The within-child branch has a Binomial likelihood with no
             # Beta-Binomial concentration term, so this setting has no effect
             # there. Silently discarding an explicitly-declared value is exactly
@@ -243,9 +239,7 @@ class HistoricalJointModelSettings:
             extension_waves=extra.get("extension_waves", ()),
             eta_prior_sigma=extra.get("eta_prior_sigma", 1.5),
             sigma_subject_prior_sigma=extra.get("sigma_subject_prior_sigma", 1.0),
-            dispersion_prior_sigma=extra.get(
-                "dispersion_prior_sigma", _DEFAULT_DISPERSION_SIGMA
-            ),
+            dispersion_prior_sigma=extra.get("dispersion_prior_sigma", _DEFAULT_DISPERSION_SIGMA),
             lkj_eta=extra.get("lkj_eta", 2.0),
             within_correlation=extra.get("within_correlation", False),
             sigma_within_prior_sigma=extra.get("sigma_within_prior_sigma", 0.5),
@@ -468,11 +462,7 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         "share an observation coordinate, so their contributions sum per child-wave "
         "row. What rules out PSIS here is that predicting an unseen child means "
         "integrating out that child's stable"
-        + (
-            " and wave-specific"
-            if settings.within_correlation
-            else ""
-        )
+        + (" and wave-specific" if settings.within_correlation else "")
         + " latent departures, and the resulting leave-one-child-out importance "
         "ratios are far too heavy-tailed to smooth. Each fold is refitted on its "
         "training children and the held-out children are scored with their latent "
@@ -561,11 +551,7 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         waves=settings.waves,
         extension_waves=settings.extension_waves,
         complete_case=True,
-        likelihood=(
-            "logistic_normal_binomial"
-            if settings.within_correlation
-            else "beta_binomial"
-        ),
+        likelihood=("logistic_normal_binomial" if settings.within_correlation else "beta_binomial"),
         observation_nodes=tuple(f"score_{measure}" for measure in settings.measures),
         eta_prior_sigma=settings.eta_prior_sigma,
         sigma_subject_prior_sigma=settings.sigma_subject_prior_sigma,
@@ -574,19 +560,11 @@ def resolve_historical_joint_run_plan(spec: ModelSpec) -> HistoricalJointRunPlan
         # must not name a prior the posterior lacks, and before the 2026-08-21
         # review (finding 10) it nulled the unused kappa but kept live
         # within-child scales for the between-child model, which has neither.
-        dispersion_prior_sigma=(
-            None
-            if settings.within_correlation
-            else settings.dispersion_prior_sigma
-        ),
+        dispersion_prior_sigma=(None if settings.within_correlation else settings.dispersion_prior_sigma),
         lkj_eta=settings.lkj_eta,
         within_correlation=settings.within_correlation,
-        sigma_within_prior_sigma=(
-            settings.sigma_within_prior_sigma if settings.within_correlation else None
-        ),
-        within_lkj_eta=(
-            settings.within_lkj_eta if settings.within_correlation else None
-        ),
+        sigma_within_prior_sigma=(settings.sigma_within_prior_sigma if settings.within_correlation else None),
+        within_lkj_eta=(settings.within_lkj_eta if settings.within_correlation else None),
         compute_loo=False,
         loo_unit="child",
         prediction_target=settings.prediction_target,

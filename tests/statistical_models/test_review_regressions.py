@@ -329,8 +329,13 @@ def test_kfold_saves_reuses_and_binds_each_training_partition(tmp_path, monkeypa
     ctx.model, ctx.prepared = built.model, built.prepared
     ctx.reporting = SimpleNamespace(config_name="reporting", ci_prob=0.89)
     ctx.resolved_plan = None
-    ctx.spec = ModelSpec(model_id="lrp-rli-hg-999", kind="historical_growth", title="K-fold reuse",
-                         study_id="rlm", outcome_symbol="basread")
+    ctx.spec = ModelSpec(
+        model_id="lrp-rli-hg-999",
+        kind="historical_growth",
+        title="K-fold reuse",
+        study_id="rlm",
+        outcome_symbol="basread",
+    )
     rng = np.random.default_rng(44)
     trace = xr.DataTree.from_dict(
         {

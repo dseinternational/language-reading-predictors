@@ -21,9 +21,7 @@ from language_reading_predictors.statistical_models.findings.common import (
 )
 
 
-def _kf_dose_companion_location(
-    output_dir: str | Path, config: Mapping
-) -> tuple[str, str | None]:
+def _kf_dose_companion_location(output_dir: str | Path, config: Mapping) -> tuple[str, str | None]:
     """The registered opposite-link twin's id and the directory it would occupy.
 
     The companion sits beside the fit as ``<companion_id>-<config_name>`` -- the
@@ -50,9 +48,7 @@ def _kf_dose_companion_location(
     return companion_id, os.path.join(parent, f"{companion_id}-{config_name}")
 
 
-def _kf_dose_blending_link_sentence(
-    output_dir: str | Path, config: Mapping
-) -> dict[str, str] | None:
+def _kf_dose_blending_link_sentence(output_dir: str | Path, config: Mapping) -> dict[str, str] | None:
     """The dose family's paired-link sentence, or ``None`` when not a B dose fit.
 
     Mirrors :func:`_kf_level_blending_link_sentence` for ``dose_response`` (#619).
@@ -71,10 +67,7 @@ def _kf_dose_blending_link_sentence(
     evidence, so the fit carries an explicit "pair not yet fitted" caveat instead
     of a paired sentence it cannot write. The release gate still withholds it.
     """
-    if (
-        str(config.get("kind")) != "dose_response"
-        or str(config.get("outcome_symbol")) != "B"
-    ):
+    if str(config.get("kind")) != "dose_response" or str(config.get("outcome_symbol")) != "B":
         return None
     from language_reading_predictors.statistical_models.blending_sensitivity import (
         evaluate_dose_blending_link_pair,
@@ -94,17 +87,10 @@ def _kf_dose_blending_link_sentence(
             DOSE_BLENDING_PRIMARY_MODEL_ID,
             DOSE_BLENDING_COMPANION_MODEL_ID,
         }
-        if (
-            registered
-            and companion_dir is not None
-            and not os.path.isfile(os.path.join(companion_dir, "config.json"))
-        ):
-            this_link = str(
-                (config.get("resolved_run_plan") or {}).get("score_mean_link", "logit")
-            )
+        if registered and companion_dir is not None and not os.path.isfile(os.path.join(companion_dir, "config.json")):
+            this_link = str((config.get("resolved_run_plan") or {}).get("score_mean_link", "logit"))
             link_clause = (
-                "This model uses the ordinary link, which allows fitted means "
-                "below that guessing level"
+                "This model uses the ordinary link, which allows fitted means below that guessing level"
                 if this_link == "logit"
                 else "This model holds the fitted mean at or above that guessing level"
             )
@@ -118,9 +104,7 @@ def _kf_dose_blending_link_sentence(
                 "association as provisional until the pair is fitted together.",
                 "caveat",
             )
-        raise _KeyFindingsUnavailable(
-            str(status.get("reason") or "the B link pair is not ready")
-        )
+        raise _KeyFindingsUnavailable(str(status.get("reason") or "the B link pair is not ready"))
     cards = status["cards"]
     other_id = next(k for k in cards if k != this_id)
     ordinary, floored = (
@@ -197,8 +181,7 @@ def _kf_build_dose_response(output_dir: str | Path, config: Mapping) -> list[dic
                         "children already on the intervention"
                     ),
                     negative_claim=(
-                        "attending more sessions accompanies a lower outcome among "
-                        "children already on the intervention"
+                        "attending more sessions accompanies a lower outcome among children already on the intervention"
                     ),
                 ),
                 "confidence",
@@ -207,9 +190,7 @@ def _kf_build_dose_response(output_dir: str | Path, config: Mapping) -> list[dic
     else:
         slopes = _kf_csv(output_dir, "dose_slope_summary.csv")
         if slopes is None:
-            raise _KeyFindingsUnavailable(
-                "neither dose_marginal_summary.csv nor dose_slope_summary.csv is present"
-            )
+            raise _KeyFindingsUnavailable("neither dose_marginal_summary.csv nor dose_slope_summary.csv is present")
         row = slopes.iloc[0].to_dict()
         sentences.append(
             _kf_sentence(

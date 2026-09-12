@@ -29,9 +29,7 @@ def _dependence_verdict(ratio: float | None) -> str:
     return "informed"
 
 
-def dependence_identification_summary(
-    trace: xr.DataTree, *, ci_prob: float
-) -> pd.DataFrame | None:
+def dependence_identification_summary(trace: xr.DataTree, *, ci_prob: float) -> pd.DataFrame | None:
     """How far the LKJ residual-dependence block is informed by the data.
 
     Returns ``None`` for a fit without the block. One row per free parameter of
@@ -86,15 +84,11 @@ def dependence_identification_summary(
             continue
         labels = [str(v) for v in posterior[name].coords[dim].values]
         for index, label in enumerate(labels):
-            post = np.asarray(
-                posterior[name].isel({dim: index}).values, dtype=float
-            ).ravel()
+            post = np.asarray(posterior[name].isel({dim: index}).values, dtype=float).ravel()
             prior_sd: float | None = None
             prior_source = "unavailable"
             if prior is not None and name in prior:
-                draws = np.asarray(
-                    prior[name].isel({dim: index}).values, dtype=float
-                ).ravel()
+                draws = np.asarray(prior[name].isel({dim: index}).values, dtype=float).ravel()
                 if draws.size > 1:
                     prior_sd = float(draws.std(ddof=1))
                     prior_source = "fitted prior draws"
@@ -106,11 +100,7 @@ def dependence_identification_summary(
                 prior_sd = residual_correlation_prior_sd(n_outcomes)
                 prior_source = "LKJ closed form"
             post_sd = float(post.std(ddof=1))
-            ratio = (
-                post_sd / prior_sd
-                if prior_sd is not None and prior_sd > 0
-                else None
-            )
+            ratio = post_sd / prior_sd if prior_sd is not None and prior_sd > 0 else None
             rows.append(
                 {
                     "parameter": f"{name}[{label}]",

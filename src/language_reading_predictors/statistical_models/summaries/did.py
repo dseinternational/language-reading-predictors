@@ -130,9 +130,7 @@ def did_summary(
         }
 
     def _summ(name: str) -> dict[str, float | str]:
-        return _summ_draws(
-            name, posterior[name].stack(sample=("chain", "draw")).values
-        )
+        return _summ_draws(name, posterior[name].stack(sample=("chain", "draw")).values)
 
     out: dict[str, float | bool | str] = {}
 
@@ -148,10 +146,7 @@ def did_summary(
         required = {"arm_gap_t1", "arm_gap_t3", "delta_crossover", "eta_base"}
         missing = sorted(required.difference(posterior.data_vars))
         if missing:
-            raise KeyError(
-                "arm-by-wave DiD trace is missing required posterior nodes: "
-                + ", ".join(missing)
-            )
+            raise KeyError("arm-by-wave DiD trace is missing required posterior nodes: " + ", ".join(missing))
         for name in ("arm_gap_t1", "tau_t2", "arm_gap_t3", "delta_crossover"):
             out.update(_summ(name))
         if "delta_crossover_i" in posterior:
@@ -161,19 +156,14 @@ def did_summary(
                 .transpose("waitlist_child", "sample")
                 .values
             )
-            out.update(
-                _summ_draws(
-                    "delta_crossover_sample_average", child_draws.mean(axis=0)
-                )
-            )
+            out.update(_summ_draws("delta_crossover_sample_average", child_draws.mean(axis=0)))
             out["delta_crossover_sample_n_children"] = int(child_draws.shape[0])
         if dose and "beta_dose" in posterior:
             out.update(_summ("beta_dose"))
 
         if wave is None:
             raise ValueError(
-                "wave is required for arm-by-wave outcome-scale standardisation; "
-                "pass the fitted prepared.phase array."
+                "wave is required for arm-by-wave outcome-scale standardisation; pass the fitted prepared.phase array."
             )
         wave_arr = np.asarray(wave)
         if wave_arr.ndim != 1:
@@ -181,10 +171,7 @@ def did_summary(
         if not np.issubdtype(wave_arr.dtype, np.integer):
             raise ValueError(f"wave must contain integer phase codes, got {wave_arr.dtype}.")
         eta_base = (
-            posterior["eta_base"]
-            .stack(sample=("chain", "draw"))
-            .transpose("obs_id", "sample")
-            .values
+            posterior["eta_base"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
         )  # (n_obs, S)
         if wave_arr.shape[0] != eta_base.shape[0]:
             raise ValueError(
@@ -202,9 +189,7 @@ def did_summary(
         for wave_code, wave_name, term_name in wave_terms:
             rows = wave_arr == wave_code
             if not np.any(rows):
-                raise ValueError(
-                    f"wave contains no {wave_name} rows (expected phase code {wave_code})."
-                )
+                raise ValueError(f"wave contains no {wave_name} rows (expected phase code {wave_code}).")
             if varying_catch_up and wave_code == 2:
                 # The fitted waitlist-child catch-up deviations (v_delta) enter
                 # the waitlist t3 rows but are absent from eta_base, so a scalar
@@ -212,17 +197,9 @@ def did_summary(
                 # partial-integration reason delta_crossover_items is withheld
                 # below. Omit rather than publish a partially-integrated summary.
                 continue
-            gap = (
-                posterior[term_name]
-                .stack(sample=("chain", "draw"))
-                .values.ravel()
-            )
-            waitlist = apply_score_mean_link(
-                expit(eta_base[rows]), score_mean_link
-            ).mean(axis=0)
-            immediate = apply_score_mean_link(
-                expit(eta_base[rows] + gap[None, :]), score_mean_link
-            ).mean(axis=0)
+            gap = posterior[term_name].stack(sample=("chain", "draw")).values.ravel()
+            waitlist = apply_score_mean_link(expit(eta_base[rows]), score_mean_link).mean(axis=0)
+            immediate = apply_score_mean_link(expit(eta_base[rows] + gap[None, :]), score_mean_link).mean(axis=0)
             arm_gap = immediate - waitlist
             _effect_summary(waitlist, prefix=f"{wave_name}_waitlist_items")
             _effect_summary(immediate, prefix=f"{wave_name}_immediate_items")
@@ -233,8 +210,7 @@ def did_summary(
         out["arm_gap_t3_items_available"] = not varying_catch_up
         if varying_catch_up:
             out["arm_gap_t3_items_omission_reason"] = (
-                "the fitted waitlist-child catch-up deviations are not "
-                "integrated by a scalar arm-gap toggle"
+                "the fitted waitlist-child catch-up deviations are not integrated by a scalar arm-gap toggle"
             )
 
         if not varying_catch_up:
@@ -269,20 +245,11 @@ def did_summary(
                     common_effects: dict[str, np.ndarray] = {}
                     for wave_code, term_name in ((1, "tau_t2"), (2, "arm_gap_t3")):
                         rows = (wave_arr == wave_code) & in_common
-                        gap = (
-                            posterior[term_name]
-                            .stack(sample=("chain", "draw"))
-                            .values.ravel()
-                        )
+                        gap = posterior[term_name].stack(sample=("chain", "draw")).values.ravel()
                         base = eta_base[rows]
-                        common_effects[term_name] = (
-                            apply_score_mean_link(
-                                expit(base + gap[None, :]), score_mean_link
-                            ).mean(axis=0)
-                            - apply_score_mean_link(
-                                expit(base), score_mean_link
-                            ).mean(axis=0)
-                        )
+                        common_effects[term_name] = apply_score_mean_link(
+                            expit(base + gap[None, :]), score_mean_link
+                        ).mean(axis=0) - apply_score_mean_link(expit(base), score_mean_link).mean(axis=0)
                     for term_name, prefix in (
                         ("tau_t2", "tau_t2_items_common"),
                         ("arm_gap_t3", "arm_gap_t3_items_common"),
@@ -300,12 +267,9 @@ def did_summary(
         else:
             out["delta_crossover_items_available"] = False
             out["delta_crossover_items_omission_reason"] = (
-                "child-specific catch-up requires an explicitly integrated "
-                "waitlist-child counterfactual"
+                "child-specific catch-up requires an explicitly integrated waitlist-child counterfactual"
             )
-        out["arm_wave_marginal_estimand"] = (
-            "wave-specific fitted-row standardized immediate-minus-waitlist arm gap"
-        )
+        out["arm_wave_marginal_estimand"] = "wave-specific fitted-row standardized immediate-minus-waitlist arm gap"
         out["arm_wave_marginal_effect_source"] = (
             "population-mean arm gaps; child-specific catch-up is not integrated"
             if "delta_crossover_i" in posterior
@@ -313,8 +277,7 @@ def did_summary(
         )
         out["score_mean_link"] = str(score_mean_link)
         out["tau_t2_interpretation"] = (
-            "randomised assignment contrast: immediate treatment versus no treatment "
-            "yet, read at t2"
+            "randomised assignment contrast: immediate treatment versus no treatment yet, read at t2"
         )
         out["arm_gap_t3_interpretation"] = (
             "randomised assignment contrast between treatment schedules: early-start "
@@ -322,8 +285,7 @@ def did_summary(
             "untreated effect"
         )
         out["delta_crossover_interpretation"] = (
-            "change between two randomised regime contrasts (t2 gap minus t3 gap); "
-            "not an identified catch-up mechanism"
+            "change between two randomised regime contrasts (t2 gap minus t3 gap); not an identified catch-up mechanism"
         )
         out["off_floor"] = bool(off_floor)
         return out
@@ -354,18 +316,10 @@ def did_summary(
     # row belonging to that child; using the scalar population mean here would not
     # report the model that was actually fitted.
     delta = posterior["delta"].stack(sample=("chain", "draw")).values.ravel()  # (S,)
-    eta_base = (
-        posterior["eta_base"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta_base = posterior["eta_base"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     if "delta_i" in posterior:
         if child_idx is None:
-            raise ValueError(
-                "child_idx is required when the DiD posterior contains child-specific "
-                "delta_i draws."
-            )
+            raise ValueError("child_idx is required when the DiD posterior contains child-specific delta_i draws.")
         idx = np.asarray(child_idx)
         if idx.ndim != 1:
             raise ValueError(f"child_idx must be 1-D, got a {idx.ndim}-D array.")
@@ -377,15 +331,10 @@ def did_summary(
                 f"{eta_base.shape[0]} observations; pass the fitted-subset mapping."
             )
         child_delta = (
-            posterior["delta_i"]
-            .stack(sample=("chain", "draw"))
-            .transpose("child", "sample")
-            .values
+            posterior["delta_i"].stack(sample=("chain", "draw")).transpose("child", "sample").values
         )  # (n_child, S)
         if idx.size and (int(idx.min()) < 0 or int(idx.max()) >= child_delta.shape[0]):
-            raise ValueError(
-                f"child_idx contains positions outside [0, {child_delta.shape[0]})."
-            )
+            raise ValueError(f"child_idx contains positions outside [0, {child_delta.shape[0]}).")
         row_delta = child_delta[idx]  # (n_obs, S)
         effect_source = "child_specific_delta_i"
     else:
@@ -399,20 +348,12 @@ def did_summary(
     cell_names: list[str] = []
     for name, raw_mask in (standardization_cells or {}).items():
         if not name.isascii() or not name.isidentifier():
-            raise ValueError(
-                "standardization cell names must be non-empty ASCII identifiers; "
-                f"got {name!r}."
-            )
+            raise ValueError(f"standardization cell names must be non-empty ASCII identifiers; got {name!r}.")
         mask = np.asarray(raw_mask)
         if mask.ndim != 1:
-            raise ValueError(
-                f"standardization cell {name!r} must be 1-D, got {mask.ndim}-D."
-            )
+            raise ValueError(f"standardization cell {name!r} must be 1-D, got {mask.ndim}-D.")
         if mask.dtype != bool:
-            raise ValueError(
-                f"standardization cell {name!r} must be a boolean mask, got "
-                f"{mask.dtype}."
-            )
+            raise ValueError(f"standardization cell {name!r} must be a boolean mask, got {mask.dtype}.")
         if mask.shape[0] != eta_base.shape[0]:
             raise ValueError(
                 f"standardization cell {name!r} has {mask.shape[0]} rows but "
@@ -424,9 +365,7 @@ def did_summary(
         out[f"delta_items_{name}_n_rows"] = int(mask.sum())
         cell_names.append(name)
 
-    out["delta_marginal_estimand"] = (
-        "fitted-row sample-average model-implied treated-versus-untreated contrast"
-    )
+    out["delta_marginal_estimand"] = "fitted-row sample-average model-implied treated-versus-untreated contrast"
     out["delta_marginal_effect_source"] = effect_source
     out["delta_standardization_cells"] = ",".join(cell_names)
     out["off_floor"] = bool(off_floor)
@@ -462,9 +401,7 @@ def did_cell_ppc(
     if phase_arr.ndim != 1 or group_arr.ndim != 1:
         raise ValueError("phase and G must both be one-dimensional")
     if phase_arr.shape != group_arr.shape:
-        raise ValueError(
-            f"phase and G must align; got {phase_arr.shape} and {group_arr.shape}"
-        )
+        raise ValueError(f"phase and G must align; got {phase_arr.shape} and {group_arr.shape}")
     if not np.issubdtype(phase_arr.dtype, np.integer):
         raise ValueError(f"phase must contain integer codes, got {phase_arr.dtype}")
     if not set(np.unique(group_arr)).issubset({0, 1}):
@@ -476,21 +413,13 @@ def did_cell_ppc(
         pp_da = trace.posterior_predictive[node]
         observed = np.asarray(trace.observed_data[node].values).reshape(-1)
     except (AttributeError, KeyError) as exc:
-        raise KeyError(
-            f"trace must contain posterior_predictive and observed_data for {node!r}"
-        ) from exc
+        raise KeyError(f"trace must contain posterior_predictive and observed_data for {node!r}") from exc
 
     sample_dims = {"chain", "draw"}
     obs_dims = [d for d in pp_da.dims if d not in sample_dims]
     if len(obs_dims) != 1:
-        raise ValueError(
-            f"{node!r} must have one observation dimension, got {pp_da.dims}"
-        )
-    replicated = (
-        pp_da.stack(sample=("chain", "draw"))
-        .transpose(obs_dims[0], "sample")
-        .values
-    )
+        raise ValueError(f"{node!r} must have one observation dimension, got {pp_da.dims}")
+    replicated = pp_da.stack(sample=("chain", "draw")).transpose(obs_dims[0], "sample").values
     n_obs = phase_arr.shape[0]
     if replicated.shape[0] != n_obs or observed.shape[0] != n_obs:
         raise ValueError(
@@ -506,9 +435,7 @@ def did_cell_ppc(
         for arm_code, arm_name in ((0, "waitlist"), (1, "immediate")):
             mask = (phase_arr == phase_code) & (group_arr == arm_code)
             if not np.any(mask):
-                raise ValueError(
-                    f"no rows for {prefix}{int(phase_code) + 1}/{arm_name}"
-                )
+                raise ValueError(f"no rows for {prefix}{int(phase_code) + 1}/{arm_name}")
             observed_cell = observed[mask]
             replicated_cell = replicated[mask]
             observed_mean = float(np.mean(observed_cell))
@@ -521,8 +448,7 @@ def did_cell_ppc(
             # necessarily 1.0 when the observed zero-rate is exactly 0 (and small when
             # it is exactly 1), which spuriously flagged well-fitting cells (#390 P2).
             zero_mid_p = float(
-                np.mean(replicated_zero > observed_zero)
-                + 0.5 * np.mean(replicated_zero == observed_zero)
+                np.mean(replicated_zero > observed_zero) + 0.5 * np.mean(replicated_zero == observed_zero)
             )
             rows.append(
                 {
@@ -538,19 +464,11 @@ def did_cell_ppc(
                     "p_rep_mean_ge_observed": p_mean,
                     "mean_tail_flag": bool(p_mean <= 0.025 or p_mean >= 0.975),
                     "observed_zero_rate": observed_zero,
-                    "replicated_zero_rate_median": float(
-                        np.median(replicated_zero)
-                    ),
-                    "replicated_zero_rate_lo": float(
-                        np.quantile(replicated_zero, lo_q)
-                    ),
-                    "replicated_zero_rate_hi": float(
-                        np.quantile(replicated_zero, hi_q)
-                    ),
+                    "replicated_zero_rate_median": float(np.median(replicated_zero)),
+                    "replicated_zero_rate_lo": float(np.quantile(replicated_zero, lo_q)),
+                    "replicated_zero_rate_hi": float(np.quantile(replicated_zero, hi_q)),
                     "zero_rate_ppc_mid_p": zero_mid_p,
-                    "zero_tail_flag": bool(
-                        zero_mid_p <= 0.025 or zero_mid_p >= 0.975
-                    ),
+                    "zero_tail_flag": bool(zero_mid_p <= 0.025 or zero_mid_p >= 0.975),
                 }
             )
     return pd.DataFrame(rows)
@@ -594,10 +512,7 @@ def did_within_child_ppc(
     if posterior_predictive is None or node not in posterior_predictive:
         raise KeyError(f"posterior predictive group has no node {node!r}")
     replicated = (
-        posterior_predictive[node]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values.astype(float)
+        posterior_predictive[node].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values.astype(float)
     )
     observed = np.asarray(trace.observed_data[node].values, dtype=float)
     phase_arr = np.asarray(phase, dtype=int)
@@ -605,21 +520,19 @@ def did_within_child_ppc(
     arm_arr = np.asarray(G, dtype=int)
     n_obs = phase_arr.shape[0]
     for name, array in (
-        ("subject_ids", ids), ("G", arm_arr), ("observed", observed),
+        ("subject_ids", ids),
+        ("G", arm_arr),
+        ("observed", observed),
         ("replicated", replicated),
     ):
         if array.shape[0] != n_obs:
-            raise ValueError(
-                f"fitted arrays are misaligned: phase={n_obs}, {name}={array.shape[0]}"
-            )
+            raise ValueError(f"fitted arrays are misaligned: phase={n_obs}, {name}={array.shape[0]}")
 
     lo_q = (1 - ci_prob) / 2
     hi_q = 1 - lo_q
     rows: list[dict[str, float | int | str | bool]] = []
 
-    def _record(
-        statistic: str, pair: str, arm: str, obs_value: float, rep_values: np.ndarray
-    ) -> None:
+    def _record(statistic: str, pair: str, arm: str, obs_value: float, rep_values: np.ndarray) -> None:
         finite = np.isfinite(rep_values)
         if not np.isfinite(obs_value) or not finite.any():
             return
@@ -665,11 +578,16 @@ def did_within_child_ppc(
         arms_here = np.asarray([arm_arr[r] for r in idx_a])
         started = len(rows)
         _record(
-            "within_child_change_sd", pair, "both",
-            float(np.std(change_obs, ddof=1)), change_rep.std(axis=0, ddof=1),
+            "within_child_change_sd",
+            pair,
+            "both",
+            float(np.std(change_obs, ddof=1)),
+            change_rep.std(axis=0, ddof=1),
         )
         _record(
-            "across_child_correlation", pair, "both",
+            "across_child_correlation",
+            pair,
+            "both",
             float(_corr(observed[idx_a][:, None], observed[idx_b][:, None])[0]),
             _corr(replicated[idx_a], replicated[idx_b]),
         )
@@ -678,7 +596,9 @@ def did_within_child_ppc(
             if arm_mask.sum() < 2:
                 continue
             _record(
-                "within_child_change_mean", pair, arm_name,
+                "within_child_change_mean",
+                pair,
+                arm_name,
                 float(np.mean(change_obs[arm_mask])),
                 change_rep[arm_mask].mean(axis=0),
             )

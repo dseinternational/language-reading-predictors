@@ -55,15 +55,9 @@ def growth_association_summary(
                 (name for name in ("reading_group", "group") if name in sub.dims),
                 None,
             )
-            groups: list[object | None] = (
-                list(sub.coords[group_dim].values) if group_dim is not None else [None]
-            )
+            groups: list[object | None] = list(sub.coords[group_dim].values) if group_dim is not None else [None]
             for group in groups:
-                cell = (
-                    sub.sel({group_dim: group})
-                    if group is not None and group_dim is not None
-                    else sub
-                )
+                cell = sub.sel({group_dim: group}) if group is not None and group_dim is not None else sub
                 d = cell.stack(sample=("chain", "draw")).values.ravel()
                 prob_pos = float(np.mean(d > 0))
                 rows.append(

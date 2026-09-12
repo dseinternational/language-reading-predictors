@@ -23,7 +23,11 @@ from typing import Any, Callable, Literal
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import section_header
-from language_reading_predictors.statistical_models import artifacts as _artifacts, diagnostics as _diag, release as _release
+from language_reading_predictors.statistical_models import (
+    artifacts as _artifacts,
+    diagnostics as _diag,
+    release as _release,
+)
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
@@ -99,9 +103,7 @@ class PrimaryFitPlan:
     psense_vars: tuple[str, ...] | None = None
     """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
 
-    psense_timing: Literal[
-        "before_ppc", "after_ppc", "before_trace", "after_trace", "skip"
-    ] = "before_ppc"
+    psense_timing: Literal["before_ppc", "after_ppc", "before_trace", "after_trace", "skip"] = "before_ppc"
     """Where power scaling runs, or ``"skip"`` for a fit that reports none.
 
     ``after_trace`` runs after trace persistence and the figures written by
@@ -183,9 +185,7 @@ class SharedFitStages:
         _diag.sample_posterior_predictive(ctx, var_names=names)
         self.hooks.save_ppc(ctx, primary_node=names[-1])
 
-    def run_primary_fit(
-        self, ctx: StatisticalFitContext, plan: PrimaryFitPlan
-    ) -> dict[str, Any]:
+    def run_primary_fit(self, ctx: StatisticalFitContext, plan: PrimaryFitPlan) -> dict[str, Any]:
         """Execute the invariant primary-fit sequence for a built, attached model.
 
         Prior prediction, posterior sampling with optional PSIS-LOO, the
@@ -231,14 +231,11 @@ class SharedFitStages:
             # branches below are mutually exclusive by construction (#637 stage 4).
             if "power_scaling" in ctx.lifecycle_stages:
                 raise RuntimeError(
-                    "power-scaling sensitivity ran twice in one primary fit; "
-                    f"stages so far: {ctx.lifecycle_stages}"
+                    f"power-scaling sensitivity ran twice in one primary fit; stages so far: {ctx.lifecycle_stages}"
                 )
             if plan.prepare_psense is not None:
                 plan.prepare_psense(ctx)
-            psense_vars = (
-                list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
-            )
+            psense_vars = list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
             _record("power_scaling")
             _diag.run_psense(ctx, var_names=psense_vars)
 
@@ -286,8 +283,7 @@ class SharedFitStages:
             _run_psense()
         if plan.psense_timing != "skip" and "power_scaling" not in ctx.lifecycle_stages:
             raise RuntimeError(
-                f"psense_timing={plan.psense_timing!r} named a slot that never ran; "
-                f"stages: {ctx.lifecycle_stages}"
+                f"psense_timing={plan.psense_timing!r} named a slot that never ran; stages: {ctx.lifecycle_stages}"
             )
         return gate
 
@@ -313,16 +309,11 @@ class SharedFitStages:
         """
 
         section_header("Report")
-        decision = _release.evaluate_publication(
-            ctx.output_dir, artifacts=getattr(ctx, "artifacts", None)
-        )
+        decision = _release.evaluate_publication(ctx.output_dir, artifacts=getattr(ctx, "artifacts", None))
         _release.write_release_decision(ctx, decision)
         rprint(f"  Release decision: {decision.summary()}")
         findings = _findings.generate_key_findings(ctx.output_dir, decision=decision)
-        rprint(
-            "  Key findings: "
-            f"{findings['status']} ({len(findings['sentences'])} sentences)"
-        )
+        rprint(f"  Key findings: {findings['status']} ({len(findings['sentences'])} sentences)")
         self.hooks.copy_report_template(ctx)
         # Manifest last-but-one: after the template copy so the report support
         # files are inventoried, before publication so it ships with the fit.

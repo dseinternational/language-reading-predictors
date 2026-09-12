@@ -37,9 +37,7 @@ DOSE_MODELS = ("077", "083", "084", "177", "277")
 
 
 def _plan(model_id: str):
-    module = importlib.import_module(
-        f"language_reading_predictors.statistical_models.lrp_rli_dose_{model_id}"
-    )
+    module = importlib.import_module(f"language_reading_predictors.statistical_models.lrp_rli_dose_{model_id}")
     return D.resolve_dose_response_run_plan(module.SPEC)
 
 
@@ -103,9 +101,7 @@ def test_transition_start_without_ability_symbols_is_rejected_before_io():
                 kind="dose_response",
                 title="t",
                 outcome_symbol="W",
-                model_settings=D.DoseResponseModelSettings(
-                    ability_baseline_wave="transition_start"
-                ),
+                model_settings=D.DoseResponseModelSettings(ability_baseline_wave="transition_start"),
             )
         )
 
@@ -125,8 +121,7 @@ def test_untreated_rows_contribute_nothing_to_any_dose_term(model_id):
     for name in ("attend_treated_std", "attend_child_mean_std", "attend_within_dev_std"):
         values = np.asarray(built.model[name].get_value())
         assert np.allclose(values[untreated], 0.0), (
-            f"{name} is non-zero on an untreated row, so a dose slope would absorb "
-            "part of the extensive margin"
+            f"{name} is non-zero on an untreated row, so a dose slope would absorb part of the extensive margin"
         )
 
 
@@ -195,15 +190,11 @@ def test_phase_intercepts_are_reference_coded_and_full_rank():
     design = np.column_stack(
         [
             np.ones(built.prepared.n_obs),
-            *[
-                (np.asarray(built.prepared.phase) == p).astype(float)
-                for p in range(n_phases)
-            ],
+            *[(np.asarray(built.prepared.phase) == p).astype(float) for p in range(n_phases)],
         ]
     )
     assert np.linalg.matrix_rank(design) == n_phases, (
-        "the unconstrained intercept design really is rank-deficient, which is what "
-        "reference coding removes"
+        "the unconstrained intercept design really is rank-deficient, which is what reference coding removes"
     )
 
 
@@ -247,12 +238,9 @@ def test_contrast_aligns_to_the_factory_rows_not_the_loader_rows():
     loader = load_and_prepare(**plan.prepare_kwargs())
     built = _dose_response_factory.build_dose_response_model(loader, **plan.factory_kwargs())
     assert built.prepared.n_obs < loader.n_obs, (
-        "this guard needs a model whose factory drops rows; if dose-177 stops "
-        "doing so, point it at one that does"
+        "this guard needs a model whose factory drops rows; if dose-177 stops doing so, point it at one that does"
     )
-    contrast = P.resolve_dose_contrast(
-        built.payload, np.asarray(built.prepared.phase, dtype=int)
-    )
+    contrast = P.resolve_dose_contrast(built.payload, np.asarray(built.prepared.phase, dtype=int))
     assert contrast.delta_std.shape == (built.prepared.n_obs,)
     assert np.asarray(built.payload.treated).shape == (built.prepared.n_obs,)
 
@@ -265,9 +253,7 @@ def test_the_old_global_sd_step_would_have_left_support():
     loader = prepared.covariate_scalers["attend"]
     raw = np.asarray(built.payload.raw_attend)
     phase = np.asarray(built.prepared.phase, dtype=int)
-    phase_max = np.array(
-        [raw[phase == p].max() for p in range(built.prepared.n_phases)]
-    )
+    phase_max = np.array([raw[phase == p].max() for p in range(built.prepared.n_phases)])
     outside = (raw + loader.sd) > phase_max[phase]
     assert outside.sum() > len(raw) // 2, (
         "the pre-#587 +1 global-SD step put most shifted rows above their own "
@@ -326,9 +312,7 @@ def _draws_group(n_rows, n_draws, slopes, eta_value=0.0, seed=0):
                 ).copy(),
                 dims=("chain", "draw", "phase"),
             ),
-            "mu_dose": xr.DataArray(
-                np.full((1, n_draws), float(np.mean(slopes))), dims=("chain", "draw")
-            ),
+            "mu_dose": xr.DataArray(np.full((1, n_draws), float(np.mean(slopes))), dims=("chain", "draw")),
         }
     )
 
@@ -349,21 +333,28 @@ def test_prior_and_posterior_marginals_use_the_same_phase_indexed_transform():
     prior = _draws_group(phase_idx.size, 64, slopes, seed=1)
 
     from_posterior = P.dose_marginal_draws(
-        posterior, phase_idx=phase_idx, delta_std=delta, n_trials=79,
+        posterior,
+        phase_idx=phase_idx,
+        delta_std=delta,
+        n_trials=79,
         period_varying=True,
     )
     from_prior = P.dose_marginal_draws(
-        prior, phase_idx=phase_idx, delta_std=delta, n_trials=79,
+        prior,
+        phase_idx=phase_idx,
+        delta_std=delta,
+        n_trials=79,
         period_varying=True,
     )
     assert np.allclose(from_posterior, from_prior)
 
     # And it is genuinely phase-indexed, not the scalar shortcut.
-    scalar_only = _draws_group(
-        phase_idx.size, 64, [np.mean(slopes)] * 3, seed=1
-    )
+    scalar_only = _draws_group(phase_idx.size, 64, [np.mean(slopes)] * 3, seed=1)
     from_scalar = P.dose_marginal_draws(
-        scalar_only, phase_idx=phase_idx, delta_std=delta, n_trials=79,
+        scalar_only,
+        phase_idx=phase_idx,
+        delta_std=delta,
+        n_trials=79,
         period_varying=True,
     )
     assert not np.allclose(from_posterior, from_scalar), (
@@ -378,24 +369,38 @@ def test_shared_transform_respects_the_row_mask_and_the_contrast():
     group = _draws_group(4, 32, slopes, seed=2)
     mask = np.array([True, True, False, False])
     full = P.dose_marginal_draws(
-        group, phase_idx=phase_idx, delta_std=np.ones(4), n_trials=10,
+        group,
+        phase_idx=phase_idx,
+        delta_std=np.ones(4),
+        n_trials=10,
         period_varying=True,
     )
     masked = P.dose_marginal_draws(
-        group, phase_idx=phase_idx, delta_std=np.ones(4), n_trials=10,
-        period_varying=True, row_mask=mask,
+        group,
+        phase_idx=phase_idx,
+        delta_std=np.ones(4),
+        n_trials=10,
+        period_varying=True,
+        row_mask=mask,
     )
     assert not np.allclose(full, masked)
     doubled = P.dose_marginal_draws(
-        group, phase_idx=phase_idx, delta_std=np.zeros(4), n_trials=10,
+        group,
+        phase_idx=phase_idx,
+        delta_std=np.zeros(4),
+        n_trials=10,
         period_varying=True,
     )
     assert np.allclose(doubled, 0.0), "a zero contrast must move nothing"
 
     with pytest.raises(ValueError, match="selects no rows"):
         P.dose_marginal_draws(
-            group, phase_idx=phase_idx, delta_std=np.ones(4), n_trials=10,
-            period_varying=True, row_mask=np.zeros(4, dtype=bool),
+            group,
+            phase_idx=phase_idx,
+            delta_std=np.ones(4),
+            n_trials=10,
+            period_varying=True,
+            row_mask=np.zeros(4, dtype=bool),
         )
 
 
@@ -412,9 +417,7 @@ def test_unknown_measure_symbols_are_rejected():
                 kind="dose_response",
                 title="t",
                 outcome_symbol="ZZZ",
-                model_settings=D.DoseResponseModelSettings(
-                    adjust_baseline_symbol="ZZZ", outcomes=("ZZZ",)
-                ),
+                model_settings=D.DoseResponseModelSettings(adjust_baseline_symbol="ZZZ", outcomes=("ZZZ",)),
             )
         )
 
@@ -448,24 +451,18 @@ def test_comparison_is_copied_beside_both_paired_runs_under_the_partial_s_name()
     assert "_copy_compare_beside_runs" in body
     assert 'filename="dose_loo_compare.csv"' in body
 
-    partial = (REPO / "docs/models/_partials/_results_dose_response.qmd").read_text(
-        encoding="utf-8"
-    )
+    partial = (REPO / "docs/models/_partials/_results_dose_response.qmd").read_text(encoding="utf-8")
     assert '_csv("dose_loo_compare.csv")' in partial, (
         "the partial must read the same filename the comparison writes beside the run"
     )
 
 
 def test_results_partial_reports_medians_and_the_real_comparison_columns():
-    partial = (REPO / "docs/models/_partials/_results_dose_response.qmd").read_text(
-        encoding="utf-8"
-    )
+    partial = (REPO / "docs/models/_partials/_results_dose_response.qmd").read_text(encoding="utf-8")
     assert "posterior median" in partial
     assert "_main['median']" in partial
     assert "posterior mean" not in partial, "the house standard is the median (#271)"
-    assert "`dse`" in partial and "se_diff" not in partial, (
-        "az.compare writes `dse`, not `se_diff`"
-    )
+    assert "`dse`" in partial and "se_diff" not in partial, "az.compare writes `dse`, not `se_diff`"
     assert "per additional session" not in partial, (
         "the coefficient is per 1 SD of treated-row sessions, not per session"
     )
@@ -475,9 +472,7 @@ def test_results_partial_reports_medians_and_the_real_comparison_columns():
 def test_report_templates_do_not_claim_terms_the_fit_does_not_have(model_id):
     """Finding 14: two templates displayed a cumulative-dose term nothing fits."""
     plan = _plan(model_id)
-    template = (
-        REPO / f"docs/models/lrp-rli-dose-{model_id}/index.qmd"
-    ).read_text(encoding="utf-8")
+    template = (REPO / f"docs/models/lrp-rli-dose-{model_id}/index.qmd").read_text(encoding="utf-8")
     if plan.dose_stage_covariate is None:
         assert "\\gamma_{\\text{stage}}" not in template
         assert "cumulative-dose control, subject random intercept" not in template
@@ -504,10 +499,9 @@ def test_dag_contradicting_prose_is_gone_from_every_dose_module():
         assert "IS" in line, f"{parent} no longer points into IS; update the prose"
 
     for model_id in DOSE_MODELS:
-        source = (
-            REPO
-            / f"src/language_reading_predictors/statistical_models/lrp_rli_dose_{model_id}.py"
-        ).read_text(encoding="utf-8")
+        source = (REPO / f"src/language_reading_predictors/statistical_models/lrp_rli_dose_{model_id}.py").read_text(
+            encoding="utf-8"
+        )
         # Every module must acknowledge the unblocked latent-ability path. The old
         # prose asserted the opposite ("no ability -> dose edge assumed", "v5 has
         # age -> outcome but no age -> dose"); dose-077 now quotes those claims only
@@ -545,9 +539,7 @@ def test_the_registered_blending_link_pair_is_paired_both_ways():
     )
 
     def _plan(module: str):
-        mod = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{module}"
-        )
+        mod = importlib.import_module(f"language_reading_predictors.statistical_models.{module}")
         return resolve_dose_response_run_plan(mod.SPEC)
 
     primary, companion = _plan("lrp_rli_dose_084"), _plan("lrp_rli_dose_384")
@@ -558,12 +550,25 @@ def test_the_registered_blending_link_pair_is_paired_both_ways():
     assert primary.link_sensitivity_required_for_release
     assert companion.link_sensitivity_required_for_release
     for field in (
-        "outcome_symbol", "adjust_baseline_symbol", "dose_covariate",
-        "dose_stage_covariate", "period_varying_dose",
-        "use_subject_random_intercept", "ability_adjust_symbols",
-        "ability_baseline_wave", "decompose_between_within", "outcomes",
-        "adjust_group", "adjust_age", "focal_term", "exposure", "dose_margin",
-        "dose_contrast", "estimand", "causal_status", "analysis_population",
+        "outcome_symbol",
+        "adjust_baseline_symbol",
+        "dose_covariate",
+        "dose_stage_covariate",
+        "period_varying_dose",
+        "use_subject_random_intercept",
+        "ability_adjust_symbols",
+        "ability_baseline_wave",
+        "decompose_between_within",
+        "outcomes",
+        "adjust_group",
+        "adjust_age",
+        "focal_term",
+        "exposure",
+        "dose_margin",
+        "dose_contrast",
+        "estimand",
+        "causal_status",
+        "analysis_population",
     ):
         assert getattr(primary, field) == getattr(companion, field), field
     # The companion must carry the primary's sampler setting too, or the comparison
@@ -583,9 +588,7 @@ def test_only_a_blending_outcome_requires_the_link_pair():
         ("lrp_rli_dose_083", False),
         ("lrp_rli_dose_084", True),
     ):
-        mod = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{module}"
-        )
+        mod = importlib.import_module(f"language_reading_predictors.statistical_models.{module}")
         plan = resolve_dose_response_run_plan(mod.SPEC)
         assert plan.link_sensitivity_required_for_release is expected, module
 
@@ -606,9 +609,7 @@ def test_the_dose_marginal_transform_maps_through_the_link():
         np.linspace(-1.0, 1.0, n_rows * n_draws).reshape(1, n_draws, n_rows),
         dims=("chain", "draw", "obs_id"),
     )
-    beta = xr.DataArray(
-        np.full((1, n_draws), 0.5), dims=("chain", "draw")
-    )
+    beta = xr.DataArray(np.full((1, n_draws), 0.5), dims=("chain", "draw"))
     group = xr.Dataset({"eta": eta, "beta_dose": beta})
     kw = dict(
         phase_idx=np.zeros(n_rows, dtype=int),
@@ -617,9 +618,7 @@ def test_the_dose_marginal_transform_maps_through_the_link():
         period_varying=False,
     )
     ordinary = P.dose_marginal_draws(group, **kw)
-    floored = P.dose_marginal_draws(
-        group, **kw, score_mean_link="three_choice_guessing_floor"
-    )
+    floored = P.dose_marginal_draws(group, **kw, score_mean_link="three_choice_guessing_floor")
     assert np.all(np.abs(floored) < np.abs(ordinary))
     # The floor link scales the response range by exactly 2/3.
     assert np.allclose(floored, ordinary * (2.0 / 3.0))

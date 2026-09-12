@@ -60,9 +60,7 @@ def _subdirs(root: Path) -> list[Path]:
     """
     if not root.is_dir():
         return []
-    return sorted(
-        d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")
-    )
+    return sorted(d for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))
 
 
 def resolve_targets(target: str) -> list[Path]:
@@ -73,12 +71,7 @@ def resolve_targets(target: str) -> list[Path]:
         return [d for d in candidates if any(d.name.startswith(f"{mid}-") for mid in supported)]
     if target in IS_CALIBRATION_SOURCES:
         return [d for d in candidates if d.name.startswith(f"{target}-")]
-    return [
-        d
-        for d in candidates
-        if d.name == target
-        and any(d.name.startswith(f"{mid}-") for mid in supported)
-    ]
+    return [d for d in candidates if d.name == target and any(d.name.startswith(f"{mid}-") for mid in supported)]
 
 
 def _config_name(output_dir: Path, model_id: str) -> str:

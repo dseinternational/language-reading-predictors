@@ -88,20 +88,14 @@ _LIKELIHOODS = frozenset({"beta_binomial", "bernoulli_offfloor"})
 #: intervention sessions (``attend``), which is a declared collider that must
 #: never be conditioned on in this family. A typed vocabulary makes that a
 #: resolution-time failure rather than a silently fitted ``gamma_attend``.
-_ALLOWED_ADJUSTERS = frozenset(MISSINGNESS_INDICATOR_PAIRS) | frozenset(
-    MISSINGNESS_INDICATOR_PAIRS.values()
-)
+_ALLOWED_ADJUSTERS = frozenset(MISSINGNESS_INDICATOR_PAIRS) | frozenset(MISSINGNESS_INDICATOR_PAIRS.values())
 
 #: Dispersion-prior families for the graded Beta-Binomial likelihood (#575
 #: finding 10a, mirroring the ITT/level/mechanism factories).
-_KAPPA_PRIOR_FAMILIES = frozenset(
-    {"halfnormal_concentration", "halfnormal_inverse_sqrt"}
-)
+_KAPPA_PRIOR_FAMILIES = frozenset({"halfnormal_concentration", "halfnormal_inverse_sqrt"})
 
 
-def resolve_active_interactions(
-    interactions: Any, *, treated_only: bool
-) -> tuple[tuple[str, str], ...]:
+def resolve_active_interactions(interactions: Any, *, treated_only: bool) -> tuple[tuple[str, str], ...]:
     """The interactions a fit actually contains, given ``treated_only``.
 
     In a treated-only fit every kept row is on intervention, so the treatment
@@ -192,28 +186,17 @@ class GainFactorsModelSettings:
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
-        object.__setattr__(
-            self, "skill_symbols", _tuple_of_strings(self.skill_symbols, name="skill_symbols")
-        )
-        object.__setattr__(
-            self, "adjust_for", _tuple_of_strings(self.adjust_for, name="adjust_for")
-        )
-        object.__setattr__(
-            self, "interactions", _tuple_of_pairs(self.interactions, name="interactions")
-        )
+        object.__setattr__(self, "skill_symbols", _tuple_of_strings(self.skill_symbols, name="skill_symbols"))
+        object.__setattr__(self, "adjust_for", _tuple_of_strings(self.adjust_for, name="adjust_for"))
+        object.__setattr__(self, "interactions", _tuple_of_pairs(self.interactions, name="interactions"))
         if self.ability_covariate is not None and (
             not isinstance(self.ability_covariate, str) or not self.ability_covariate
         ):
             raise TypeError("ability_covariate must be a non-empty string or None")
         if self.likelihood not in _LIKELIHOODS:
-            raise ValueError(
-                f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
-            )
+            raise ValueError(f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}")
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-                f"got {self.score_mean_link!r}"
-            )
+            raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {self.score_mean_link!r}")
         object.__setattr__(
             self,
             "descriptive_skills",
@@ -226,23 +209,17 @@ class GainFactorsModelSettings:
                 "skill_symbols; the role annotates declared skills only"
             )
         if len(self.descriptive_skills) != len(set(self.descriptive_skills)):
-            raise ValueError(
-                f"descriptive_skills contains duplicates: {self.descriptive_skills!r}"
-            )
+            raise ValueError(f"descriptive_skills contains duplicates: {self.descriptive_skills!r}")
         if self.kappa_prior_family not in _KAPPA_PRIOR_FAMILIES:
             raise ValueError(
-                f"kappa_prior_family must be one of {sorted(_KAPPA_PRIOR_FAMILIES)}, "
-                f"got {self.kappa_prior_family!r}"
+                f"kappa_prior_family must be one of {sorted(_KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
             )
         if (
             not isinstance(self.gamma_own_prior_sigma, (int, float))
             or isinstance(self.gamma_own_prior_sigma, bool)
             or not self.gamma_own_prior_sigma > 0
         ):
-            raise ValueError(
-                "gamma_own_prior_sigma must be a positive number, "
-                f"got {self.gamma_own_prior_sigma!r}"
-            )
+            raise ValueError(f"gamma_own_prior_sigma must be a positive number, got {self.gamma_own_prior_sigma!r}")
         # Adjustment-set hygiene (#575 finding 11, mirroring the level family's
         # #584 checks and adding the typed vocabulary). The resolver used to
         # accept any string: ``adjust_for=("attend",)`` loaded cleanly and fitted
@@ -261,14 +238,11 @@ class GainFactorsModelSettings:
         duplicates = sorted({c for c in self.adjust_for if self.adjust_for.count(c) > 1})
         if duplicates:
             raise ValueError(
-                f"adjust_for repeats {', '.join(duplicates)}; each adjuster enters "
-                "the linear predictor once"
+                f"adjust_for repeats {', '.join(duplicates)}; each adjuster enters the linear predictor once"
             )
         indicator_bases = {v: k for k, v in MISSINGNESS_INDICATOR_PAIRS.items()}
         unpaired = sorted(
-            c
-            for c in self.adjust_for
-            if c in indicator_bases and indicator_bases[c] not in self.adjust_for
+            c for c in self.adjust_for if c in indicator_bases and indicator_bases[c] not in self.adjust_for
         )
         if unpaired:
             raise ValueError(
@@ -302,10 +276,7 @@ class GainFactorsModelSettings:
         for pair in self.interactions:
             for term in pair:
                 if term not in valid_terms:
-                    raise ValueError(
-                        f"interaction term {term!r} not available; "
-                        f"have {sorted(valid_terms)}"
-                    )
+                    raise ValueError(f"interaction term {term!r} not available; have {sorted(valid_terms)}")
         # Interaction-pair hygiene (#575 finding 11). A self-pair builds z**2 while
         # the marginal reporting applies the linear partner-times-increment formula
         # (wrong for a square); an exact or reversed duplicate builds two distinct
@@ -365,9 +336,7 @@ class GainFactorsModelSettings:
         return frozenset(terms)
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> GainFactorsModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> GainFactorsModelSettings:
         """Strictly translate the former ``spec.extra`` dictionary boundary.
 
         Rejects unknown keys so a misspelling fails before data loading rather than
@@ -466,9 +435,7 @@ class GainFactorsRunPlan:
         resolution. The two differ only for a treated-only fit — see
         :func:`resolve_active_interactions`.
         """
-        return resolve_active_interactions(
-            self.interactions, treated_only=self.treated_only
-        )
+        return resolve_active_interactions(self.interactions, treated_only=self.treated_only)
 
     def as_dict(self) -> dict[str, Any]:
         """Return the JSON-ready run-plan contract for ``config.json``."""
@@ -492,17 +459,13 @@ class GainFactorsRunPlan:
             "post_covariates": self.post_covariates,
         }
 
-    def factory_kwargs(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> dict[str, Any]:
+    def factory_kwargs(self, *, effective_adjustment: tuple[str, ...] | None = None) -> dict[str, Any]:
         """Arguments for ``build_gain_factors_model`` for this plan."""
         return {
             "outcome_symbol": self.outcome_symbol,
             "skill_symbols": self.skill_symbols,
             "ability_covariate": self.ability_covariate,
-            "adjust_for": self.adjust_for
-            if effective_adjustment is None
-            else effective_adjustment,
+            "adjust_for": self.adjust_for if effective_adjustment is None else effective_adjustment,
             # The effective set, not the declared one. Byte-identical in the built
             # model — the factory applies the same filter — but it means the arguments
             # the plan hands over are the arguments the fit actually uses.
@@ -514,15 +477,9 @@ class GainFactorsRunPlan:
             "gamma_own_prior_sigma": self.gamma_own_prior_sigma,
         }
 
-    def coefficient_names(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> list[str]:
+    def coefficient_names(self, *, effective_adjustment: tuple[str, ...] | None = None) -> list[str]:
         """Interpretable coefficients written to the gain-factor table."""
-        adjust_for = (
-            self.adjust_for
-            if effective_adjustment is None
-            else effective_adjustment
-        )
+        adjust_for = self.adjust_for if effective_adjustment is None else effective_adjustment
         names: list[str] = []
         if not self.treated_only:
             names.append("beta_trt")
@@ -535,9 +492,7 @@ class GainFactorsRunPlan:
         names += [f"gamma_int_{left}_{right}" for left, right in self.active_interactions]
         return names
 
-    def diagnostic_vars(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> list[str]:
+    def diagnostic_vars(self, *, effective_adjustment: tuple[str, ...] | None = None) -> list[str]:
         """Variables scanned by summaries and the convergence gate."""
         tail = ["sigma_child"] if self.off_floor else ["kappa", "sigma_child"]
         return [
@@ -549,9 +504,7 @@ class GainFactorsRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Undergraduate-friendly explanation generated from the resolved plan."""
-        upstream = tuple(
-            s for s in self.skill_symbols if s not in self.descriptive_skills
-        )
+        upstream = tuple(s for s in self.skill_symbols if s not in self.descriptive_skills)
         skills = ", ".join(upstream) if upstream else "none"
         descriptive = ", ".join(self.descriptive_skills)
         adjust = ", ".join(self.adjust_for) if self.adjust_for else "none"
@@ -565,9 +518,7 @@ class GainFactorsRunPlan:
             inter += (
                 " (declared but not fitted, because the treatment indicator is "
                 "constant in a treated-only fit and so is dropped along with its "
-                "interactions: "
-                + "; ".join(f"{a} x {b}" for a, b in dropped)
-                + ")"
+                "interactions: " + "; ".join(f"{a} x {b}" for a, b in dropped) + ")"
             )
         pairing = (
             " This fit is one half of the mandatory phoneme-blending response-link "
@@ -590,13 +541,11 @@ class GainFactorsRunPlan:
             "## Terms\n\n"
             f"Outcome: `{self.outcome_symbol}`. Upstream skill baselines: {skills}. "
             + (
-                f"Downstream descriptive skill associates (not DAG-parent "
-                f"adjusters): {descriptive}. "
+                f"Downstream descriptive skill associates (not DAG-parent adjusters): {descriptive}. "
                 if descriptive
                 else ""
             )
-            + 
-            f"Ability covariate: {self.ability_covariate or 'none'}. Requested "
+            + f"Ability covariate: {self.ability_covariate or 'none'}. Requested "
             f"adjustment terms: {adjust}. Interactions: {inter}. "
             f"Score-mean link: {self.score_mean_link}.{pairing}\n\n"
             "Covariate slopes on time-varying baselines are fitted on the stacked "
@@ -622,14 +571,10 @@ def declared_gain_factors_settings(
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: gain-factor settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: gain-factor settings cannot be split between model_settings and extra")
         if not isinstance(settings, GainFactorsModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='gain_factors' requires "
-                f"GainFactorsModelSettings, got {type(settings).__name__}"
+                f"{spec.model_id}: kind='gain_factors' requires GainFactorsModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
@@ -641,28 +586,20 @@ def declared_gain_factors_settings(
 def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
     """Resolve and validate a gain-factor specification before any data are loaded."""
     if spec.kind != "gain_factors":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'gain_factors', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'gain_factors', got {spec.kind!r}")
     if not spec.outcome_symbol:
         raise ValueError(f"{spec.model_id}: outcome_symbol is required for a gain-factor model")
 
     settings, source = declared_gain_factors_settings(spec)
     own = spec.outcome_symbol
     if own in settings.skill_symbols:
-        raise ValueError(
-            f"{spec.model_id}: the outcome {own!r} cannot also be an upstream "
-            "skill baseline"
-        )
+        raise ValueError(f"{spec.model_id}: the outcome {own!r} cannot also be an upstream skill baseline")
     if len(settings.skill_symbols) != len(set(settings.skill_symbols)):
-        raise ValueError(
-            f"{spec.model_id}: skill_symbols contains duplicates: {settings.skill_symbols!r}"
-        )
+        raise ValueError(f"{spec.model_id}: skill_symbols contains duplicates: {settings.skill_symbols!r}")
     off_floor = settings.likelihood == "bernoulli_offfloor"
     if settings.score_mean_link == "three_choice_guessing_floor" and own != "B":
         raise ValueError(
-            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
-            f"phoneme blending (B), got {own!r}"
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for phoneme blending (B), got {own!r}"
         )
 
     # The mandatory phoneme-blending link pairing (#596, under the #608 policy).
@@ -693,9 +630,7 @@ def resolve_gain_factors_run_plan(spec: ModelSpec) -> GainFactorsRunPlan:
     # confounders (e.g. hearing) at the post row (#247 timing).
     pre_adj, post_adj = split_covariates_by_wave(settings.adjust_for)
     baseline_adj, post_adj = split_confounders_by_timing(post_adj)
-    baseline_covariates = (
-        (settings.ability_covariate,) if settings.ability_covariate else ()
-    ) + baseline_adj
+    baseline_covariates = ((settings.ability_covariate,) if settings.ability_covariate else ()) + baseline_adj
 
     if off_floor:
         design = (

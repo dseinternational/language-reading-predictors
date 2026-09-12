@@ -126,10 +126,7 @@ class ModelSpec:
         if self.causal_status is None:
             self.causal_status = "randomised_assignment_conditional_on_observed_analysis_set"
         if self.dataset_ref is None:
-            self.dataset_ref = (
-                "rli:rli_data_long.csv; 54 analysed after 3 losses to follow-up "
-                "from 57 randomised"
-            )
+            self.dataset_ref = "rli:rli_data_long.csv; 54 analysed after 3 losses to follow-up from 57 randomised"
 
     @property
     def banner(self) -> str:
@@ -147,9 +144,7 @@ class ModelSpec:
         try:
             if _mids.looks_canonical(self.model_id):
                 return _mids.parse_canonical(self.model_id)
-            return _mids.parse_legacy(
-                self.model_id, kind=self.kind, study=self.study_id
-            )
+            return _mids.parse_legacy(self.model_id, kind=self.kind, study=self.study_id)
         except _mids.ModelIdError:
             return None
 
@@ -245,9 +240,7 @@ class StatisticalFitContext:
         """
         if self.output_transaction is not None:
             self.output_transaction.abandon()
-        self.output_transaction = OutputTransaction.create(
-            Path(self.final_output_dir)
-        )
+        self.output_transaction = OutputTransaction.create(Path(self.final_output_dir))
 
     def publish_output_dir(self) -> str:
         """Promote this run with an atomic same-filesystem staging rename."""
@@ -289,9 +282,7 @@ def spec_target_accept(spec: ModelSpec) -> float | None:
     source = "spec.target_accept" if typed is not None else "spec.extra['target_accept']"
     target_accept = float(target_accept)
     if not 0.0 < target_accept < 1.0:
-        raise ValueError(
-            f"{source} must be in the open interval (0, 1); got {target_accept!r}"
-        )
+        raise ValueError(f"{source} must be in the open interval (0, 1); got {target_accept!r}")
     return target_accept
 
 

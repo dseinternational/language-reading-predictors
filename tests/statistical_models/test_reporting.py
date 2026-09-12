@@ -16,16 +16,39 @@ from scipy.special import expit
 from language_reading_predictors.statistical_models.preprocessing import logit_safe
 from dse_research_utils.statistics.evidence import evidence_label, favoured_direction
 from dse_research_utils.statistics.intervals import eti_bands
-from language_reading_predictors.statistical_models.predictive_checks import level_prior_pushforward, proportion_at_zero_ppc
+from language_reading_predictors.statistical_models.predictive_checks import (
+    level_prior_pushforward,
+    proportion_at_zero_ppc,
+)
 from language_reading_predictors.statistical_models.summaries.concurrent import ConcurrentTerm, concurrent_marginals
 from language_reading_predictors.statistical_models.summaries.did import did_cell_ppc, did_summary
 from language_reading_predictors.statistical_models.summaries.factors import AssociationTerm, association_marginals
 from language_reading_predictors.statistical_models.summaries.gain_factors import treatment_marginal_effect
-from language_reading_predictors.statistical_models.summaries.itt import offfloor_mover_table, tau_moderation_summary, tau_summary_itt, tau_summary_offfloor
-from language_reading_predictors.statistical_models.summaries.joint import joint_treatment_marginals, tau_contrast_matrix, tau_difference_summary, tau_summary_joint
+from language_reading_predictors.statistical_models.summaries.itt import (
+    offfloor_mover_table,
+    tau_moderation_summary,
+    tau_summary_itt,
+    tau_summary_offfloor,
+)
+from language_reading_predictors.statistical_models.summaries.joint import (
+    joint_treatment_marginals,
+    tau_contrast_matrix,
+    tau_difference_summary,
+    tau_summary_joint,
+)
 from language_reading_predictors.statistical_models.summaries.level_factors import level_t2_marginal_effect
-from language_reading_predictors.statistical_models.summaries.long_corr_factor import disattenuation_crosscheck, longitudinal_conditional_slopes, longitudinal_factor_correlations
-from language_reading_predictors.statistical_models.summaries.rope import drop_retired_90_band, rope_markdown, rope_sensitivity, rope_sensitivity_markdown, rope_summary
+from language_reading_predictors.statistical_models.summaries.long_corr_factor import (
+    disattenuation_crosscheck,
+    longitudinal_conditional_slopes,
+    longitudinal_factor_correlations,
+)
+from language_reading_predictors.statistical_models.summaries.rope import (
+    drop_retired_90_band,
+    rope_markdown,
+    rope_sensitivity,
+    rope_sensitivity_markdown,
+    rope_summary,
+)
 
 
 def _trace(eta, tau, tau_i=None):
@@ -211,9 +234,7 @@ def test_rope_sensitivity_agrees_with_rope_summary_at_shared_delta():
     G = (rng.random(10) > 0.5).astype(float)
     card = rope_summary(_trace(eta, tau), G=G, n_trials=20, delta=1.0, ci_prob=0.9)
     sens = rope_sensitivity(_trace(eta, tau), G=G, n_trials=20, deltas=[1.0])
-    assert sens.iloc[0]["prob_benefit_ge_delta"] == pytest.approx(
-        card["prob_benefit_ge_delta"]
-    )
+    assert sens.iloc[0]["prob_benefit_ge_delta"] == pytest.approx(card["prob_benefit_ge_delta"])
 
 
 def test_rope_sensitivity_markdown_renders():
@@ -354,8 +375,14 @@ def test_gain_factor_direction_follows_marginal_effect_not_coefficient():
     assert tm["prob_trt_pos"] == pytest.approx(0.0)  # marginal effect negative
 
     rope_ame = rope_summary(
-        trace, G=trt, n_trials=10, delta=0.5, term="beta_trt", varying_term="",
-        moderators=mods, direction_from_ame=True,
+        trace,
+        G=trt,
+        n_trials=10,
+        delta=0.5,
+        term="beta_trt",
+        varying_term="",
+        moderators=mods,
+        direction_from_ame=True,
     )
     assert rope_ame["pd_coef"] == pytest.approx(1.0)
     assert rope_ame["pd"] == pytest.approx(0.0)
@@ -363,7 +390,12 @@ def test_gain_factor_direction_follows_marginal_effect_not_coefficient():
 
     # ITT default is unchanged: pd still tracks the coefficient, no pd_coef emitted.
     rope_coef = rope_summary(
-        trace, G=trt, n_trials=10, delta=0.5, term="beta_trt", varying_term="",
+        trace,
+        G=trt,
+        n_trials=10,
+        delta=0.5,
+        term="beta_trt",
+        varying_term="",
         moderators=mods,
     )
     assert rope_coef["pd"] == pytest.approx(1.0)
@@ -396,9 +428,7 @@ def _joint_trace(tau: np.ndarray, eta0: np.ndarray, G: np.ndarray):
 
 def test_joint_summaries_use_common_probability_scale():
     rng = np.random.default_rng(22)
-    tau = np.stack(
-        [rng.normal(0.6, 0.02, 200), rng.normal(0.3, 0.02, 200)], axis=-1
-    )[None, ...]
+    tau = np.stack([rng.normal(0.6, 0.02, 200), rng.normal(0.3, 0.02, 200)], axis=-1)[None, ...]
     G = np.array([1.0, 0.0, 1.0, 0.0])
     # A is near the floor, while B is at the high-information midpoint. Thus
     # tau_A > tau_B on the logit scale but AME_A < AME_B on the probability scale.
@@ -415,9 +445,7 @@ def test_joint_summaries_use_common_probability_scale():
 
 def test_joint_summary_row_mask_uses_a_common_averaging_population():
     rng = np.random.default_rng(220)
-    tau = np.stack(
-        [rng.normal(0.5, 0.02, 200), rng.normal(0.3, 0.02, 200)], axis=-1
-    )[None, ...]
+    tau = np.stack([rng.normal(0.5, 0.02, 200), rng.normal(0.3, 0.02, 200)], axis=-1)[None, ...]
     G = np.array([1.0, 0.0, 1.0, 0.0])
     eta0 = np.array([[-3.0, -1.0], [0.0, 1.0], [2.0, 3.0], [-2.0, 0.0]])
     retained = np.array([False, True, True, True])
@@ -432,13 +460,11 @@ def test_joint_summary_row_mask_uses_a_common_averaging_population():
 
     for outcome_index in range(2):
         draws = tau[0, :, outcome_index]
-        contribution = expit(
-            eta0[retained, outcome_index, None] + draws[None, :]
-        ) - expit(eta0[retained, outcome_index, None])
-        expected = np.median(contribution.mean(axis=0))
-        assert summary.loc[outcome_index, "ame_prob_median"] == pytest.approx(
-            float(expected)
+        contribution = expit(eta0[retained, outcome_index, None] + draws[None, :]) - expit(
+            eta0[retained, outcome_index, None]
         )
+        expected = np.median(contribution.mean(axis=0))
+        assert summary.loc[outcome_index, "ame_prob_median"] == pytest.approx(float(expected))
 
     with pytest.raises(ValueError, match="boolean row_mask"):
         tau_summary_joint(
@@ -451,9 +477,7 @@ def test_joint_summary_row_mask_uses_a_common_averaging_population():
 
 def test_joint_difference_uses_metadata_and_retains_logit_secondary():
     rng = np.random.default_rng(23)
-    tau = np.stack(
-        [rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1
-    )[None, ...]
+    tau = np.stack([rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1)[None, ...]
     G = np.array([1.0, 0.0])
     trace = _joint_trace(tau, np.zeros((2, 2)), G)
     metadata = {
@@ -463,9 +487,7 @@ def test_joint_difference_uses_metadata_and_retains_logit_secondary():
         "transfer_outcome": "B",
         "transfer_interpretation": "Read the marginal B effect.",
     }
-    out = tau_difference_summary(
-        trace, ["A", "B"], ("A", "B"), ci_prob=0.95, metadata=metadata
-    )
+    out = tau_difference_summary(trace, ["A", "B"], ("A", "B"), ci_prob=0.95, metadata=metadata)
     assert out["headline_scale"] == "proportion_correct_risk_difference"
     assert out["diff_prob_median"] > 0
     assert out["diff_logit_median"] > 0
@@ -481,25 +503,21 @@ def test_joint_difference_row_mask_restandardises_the_declared_contrast():
     The mask restricts the standardisation population exactly as it does for
     ``tau_summary_joint``, and the contrast is still differenced per draw."""
     rng = np.random.default_rng(2309)
-    tau = np.stack(
-        [rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1
-    )[None, ...]
+    tau = np.stack([rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1)[None, ...]
     G = np.array([1.0, 0.0, 1.0, 0.0])
     eta0 = np.array([[-3.0, -1.0], [0.0, 1.0], [2.0, 3.0], [-2.0, 0.0]])
     retained = np.array([False, True, True, True])
     trace = _joint_trace(tau, eta0, G)
 
-    masked = tau_difference_summary(
-        trace, ["A", "B"], ("A", "B"), ci_prob=0.95, row_mask=retained
-    )
+    masked = tau_difference_summary(trace, ["A", "B"], ("A", "B"), ci_prob=0.95, row_mask=retained)
     full = tau_difference_summary(trace, ["A", "B"], ("A", "B"), ci_prob=0.95)
 
     per_outcome = []
     for outcome_index in range(2):
         draws = tau[0, :, outcome_index]
-        contribution = expit(
-            eta0[retained, outcome_index, None] + draws[None, :]
-        ) - expit(eta0[retained, outcome_index, None])
+        contribution = expit(eta0[retained, outcome_index, None] + draws[None, :]) - expit(
+            eta0[retained, outcome_index, None]
+        )
         per_outcome.append(contribution.mean(axis=0))
     expected = np.median(per_outcome[0] - per_outcome[1])
     assert masked["diff_prob_median"] == pytest.approx(float(expected))
@@ -507,9 +525,7 @@ def test_joint_difference_row_mask_restandardises_the_declared_contrast():
     # from full-sample marginals would not have moved.
     assert masked["diff_prob_median"] != pytest.approx(full["diff_prob_median"])
     # The difference is still taken per draw, never between summary statistics.
-    assert masked["prob_diff_pos"] == pytest.approx(
-        float(np.mean((per_outcome[0] - per_outcome[1]) > 0))
-    )
+    assert masked["prob_diff_pos"] == pytest.approx(float(np.mean((per_outcome[0] - per_outcome[1]) > 0)))
 
 
 def test_joint_contrast_influence_decomposes_the_declared_contrast():
@@ -521,16 +537,12 @@ def test_joint_contrast_influence_decomposes_the_declared_contrast():
     )
 
     rng = np.random.default_rng(9099)
-    tau = np.stack(
-        [rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1
-    )[None, ...]
+    tau = np.stack([rng.normal(0.5, 0.05, 300), rng.normal(0.1, 0.05, 300)], axis=-1)[None, ...]
     G = np.array([1.0, 0.0, 1.0, 0.0])
     eta0 = np.array([[-3.0, -1.0], [0.0, 1.0], [2.0, 3.0], [-2.0, 0.0]])
     retained = np.array([False, True, True, True])
     primary = _joint_trace(tau, eta0, G)
-    refit_tau = np.stack(
-        [rng.normal(0.42, 0.05, 300), rng.normal(0.12, 0.05, 300)], axis=-1
-    )[None, ...]
+    refit_tau = np.stack([rng.normal(0.42, 0.05, 300), rng.normal(0.12, 0.05, 300)], axis=-1)[None, ...]
     refit = _joint_trace(refit_tau, eta0[retained], G[retained])
 
     columns = _joint_contrast_influence(
@@ -547,13 +559,10 @@ def test_joint_contrast_influence_decomposes_the_declared_contrast():
     assert columns["contrast"] == "A_minus_B"
     assert columns["contrast_scale"] == "proportion_correct_risk_difference"
     assert columns["contrast_total_shift_median"] == pytest.approx(
-        columns["contrast_composition_shift_median"]
-        + columns["contrast_refit_shift_median"]
+        columns["contrast_composition_shift_median"] + columns["contrast_refit_shift_median"]
     )
     assert columns["contrast_diff_prob_median_full_retained"] == pytest.approx(
-        tau_difference_summary(
-            primary, ["A", "B"], ("A", "B"), ci_prob=0.89, row_mask=retained
-        )["diff_prob_median"]
+        tau_difference_summary(primary, ["A", "B"], ("A", "B"), ci_prob=0.89, row_mask=retained)["diff_prob_median"]
     )
     assert columns["contrast_direction_flipped"] is False
 
@@ -743,9 +752,7 @@ def _did_arm_wave_trace(
 
 
 def test_did_summary_arm_wave_reports_standardized_cells_and_contrasts():
-    eta_base = np.array(
-        [[[-1.0, -0.5, -0.8, 0.2, -0.2, 0.4], [-0.9, -0.4, -0.6, 0.1, 0.0, 0.5]]]
-    )
+    eta_base = np.array([[[-1.0, -0.5, -0.8, 0.2, -0.2, 0.4], [-0.9, -0.4, -0.6, 0.1, 0.0, 0.5]]])
     arm_gap_t1 = np.array([[0.1, -0.1]])
     tau_t2 = np.array([[0.6, 0.8]])
     arm_gap_t3 = np.array([[0.2, 0.3]])
@@ -772,24 +779,12 @@ def test_did_summary_arm_wave_reports_standardized_cells_and_contrasts():
     _wait_t3, _imm_t3, gap_t3 = _gap(wave == 2, arm_gap_t3)
     assert out["arm_gap_t1_median"] == pytest.approx(float(np.median(arm_gap_t1)))
     assert out["tau_t2_median"] == pytest.approx(float(np.median(tau_t2)))
-    assert out["delta_crossover_median"] == pytest.approx(
-        float(np.median(tau_t2 - arm_gap_t3))
-    )
-    assert out["t1_waitlist_items_median"] == pytest.approx(
-        float(np.median(wait_t1 * n_trials))
-    )
-    assert out["t1_immediate_items_mean"] == pytest.approx(
-        float(np.mean(imm_t1 * n_trials))
-    )
-    assert out["arm_gap_t1_items_median"] == pytest.approx(
-        float(np.median(gap_t1 * n_trials))
-    )
-    assert out["tau_t2_items_median"] == pytest.approx(
-        float(np.median(gap_t2 * n_trials))
-    )
-    assert out["delta_crossover_items_median"] == pytest.approx(
-        float(np.median((gap_t2 - gap_t3) * n_trials))
-    )
+    assert out["delta_crossover_median"] == pytest.approx(float(np.median(tau_t2 - arm_gap_t3)))
+    assert out["t1_waitlist_items_median"] == pytest.approx(float(np.median(wait_t1 * n_trials)))
+    assert out["t1_immediate_items_mean"] == pytest.approx(float(np.mean(imm_t1 * n_trials)))
+    assert out["arm_gap_t1_items_median"] == pytest.approx(float(np.median(gap_t1 * n_trials)))
+    assert out["tau_t2_items_median"] == pytest.approx(float(np.median(gap_t2 * n_trials)))
+    assert out["delta_crossover_items_median"] == pytest.approx(float(np.median((gap_t2 - gap_t3) * n_trials)))
     assert out["delta_crossover_items_available"] is True
     assert out["arm_gap_t3_items_available"] is True
     assert out["tau_t2_items_n_rows"] == 2
@@ -818,12 +813,8 @@ def test_did_summary_varying_crossover_reports_waitlist_sample_average():
     )
 
     sample_average = delta_i.reshape(-1, delta_i.shape[2]).mean(axis=1)
-    assert out["delta_crossover_sample_average_median"] == pytest.approx(
-        float(np.median(sample_average))
-    )
-    assert out["delta_crossover_sample_average_mean"] == pytest.approx(
-        float(np.mean(sample_average))
-    )
+    assert out["delta_crossover_sample_average_median"] == pytest.approx(float(np.median(sample_average)))
+    assert out["delta_crossover_sample_average_mean"] == pytest.approx(float(np.mean(sample_average)))
     assert out["delta_crossover_sample_n_children"] == 2
     assert out["delta_crossover_items_available"] is False
     assert "delta_crossover_items_median" not in out
@@ -896,9 +887,7 @@ def test_did_cell_ppc_stratifies_every_wave_arm_cell():
         ]
     )
     trace = SimpleNamespace(
-        posterior_predictive=xr.Dataset(
-            {"y_post": (("chain", "draw", "obs_id"), replicated)}
-        ),
+        posterior_predictive=xr.Dataset({"y_post": (("chain", "draw", "obs_id"), replicated)}),
         observed_data=xr.Dataset({"y_post": (("obs_id",), observed)}),
     )
 
@@ -939,9 +928,7 @@ def test_did_cell_ppc_zero_rate_boundaries_are_not_falsely_flagged():
         ]
     )
     trace = SimpleNamespace(
-        posterior_predictive=xr.Dataset(
-            {"y_post": (("chain", "draw", "obs_id"), replicated)}
-        ),
+        posterior_predictive=xr.Dataset({"y_post": (("chain", "draw", "obs_id"), replicated)}),
         observed_data=xr.Dataset({"y_post": (("obs_id",), observed)}),
     )
 
@@ -956,9 +943,7 @@ def test_did_cell_ppc_zero_rate_boundaries_are_not_falsely_flagged():
 
 def test_did_cell_ppc_validates_row_alignment_and_dose_labels():
     trace = SimpleNamespace(
-        posterior_predictive=xr.Dataset(
-            {"y_post": (("chain", "draw", "obs_id"), np.ones((1, 2, 4)))}
-        ),
+        posterior_predictive=xr.Dataset({"y_post": (("chain", "draw", "obs_id"), np.ones((1, 2, 4)))}),
         observed_data=xr.Dataset({"y_post": (("obs_id",), np.ones(4))}),
     )
     out = did_cell_ppc(
@@ -1008,9 +993,7 @@ def test_did_summary_varying_effect_uses_each_fitted_child_slope():
     # Child 0 has a small effect and child 1 a large effect. The row-specific
     # delta_i mapping must drive both the all-row and named-cell standardisations;
     # using the population mean delta would produce a different answer.
-    eta_base = np.array(
-        [[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4], [0.4, 0.1, -0.2, 0.6]]]
-    )
+    eta_base = np.array([[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4], [0.4, 0.1, -0.2, 0.6]]])
     beta_period = np.array([[0.1, 0.2, 0.15]])
     delta = np.array([[0.55, 0.65, 0.6]])
     delta_i = np.array([[[0.1, 1.0], [0.2, 1.1], [0.0, 1.2]]])
@@ -1042,9 +1025,7 @@ def test_did_summary_varying_effect_uses_each_fitted_child_slope():
     assert out["delta_items_p1_n_rows"] == 2
     assert out["delta_items_p2_n_rows"] == 2
 
-    wrong = (
-        expit(eta + delta.reshape(-1)[None, :]) - expit(eta)
-    ).mean(axis=0) * n_trials
+    wrong = (expit(eta + delta.reshape(-1)[None, :]) - expit(eta)).mean(axis=0) * n_trials
     assert out["delta_items_median"] != pytest.approx(float(np.median(wrong)))
 
 
@@ -1128,9 +1109,7 @@ def test_offfloor_mover_table_arm_coding_and_counts():
 
 
 def test_offfloor_mover_table_empty_arm_is_nan():
-    prepared = SimpleNamespace(
-        post_counts={"P": np.array([1.0, 0.0])}, G=np.array([1, 1])
-    )
+    prepared = SimpleNamespace(post_counts={"P": np.array([1.0, 0.0])}, G=np.array([1, 1]))
     df = offfloor_mover_table(prepared, "P").set_index("arm")
     assert df.loc["control", "n"] == 0
     assert np.isnan(df.loc["control", "prop_off_floor"])
@@ -1140,9 +1119,7 @@ def test_tau_moderation_summary_reports_present_coeffs():
     rng = np.random.default_rng(0)
     gint = rng.normal(0.3, 0.1, size=(1, 500))
     gmod = rng.normal(-0.2, 0.1, size=(1, 500))
-    out = tau_moderation_summary(
-        _posterior(gamma_tau_int=gint, gamma_tau_mod=gmod), ci_prob=0.9
-    )
+    out = tau_moderation_summary(_posterior(gamma_tau_int=gint, gamma_tau_mod=gmod), ci_prob=0.9)
     assert out["gamma_tau_int_mean"] == pytest.approx(float(np.mean(gint)))
     assert out["gamma_tau_int_lo"] < out["gamma_tau_int_mean"] < out["gamma_tau_int_hi"]
     assert out["prob_gamma_tau_int_pos"] == pytest.approx(float(np.mean(gint > 0)))
@@ -1150,9 +1127,7 @@ def test_tau_moderation_summary_reports_present_coeffs():
 
 
 def test_tau_moderation_summary_skips_absent_coeffs():
-    out = tau_moderation_summary(
-        _posterior(gamma_tau_mod=np.array([[0.1, 0.2, 0.3]])), ci_prob=0.9
-    )
+    out = tau_moderation_summary(_posterior(gamma_tau_mod=np.array([[0.1, 0.2, 0.3]])), ci_prob=0.9)
     assert "gamma_tau_mod_mean" in out
     assert not any(k.startswith("gamma_tau_int") for k in out)
 
@@ -1247,16 +1222,14 @@ def test_joint_marginals_respect_outcome_specific_missingness():
     trace = SimpleNamespace(posterior=posterior, constant_data=constant)
     n_trials = {"W": 100, "L": 30}
 
-    jm = joint_treatment_marginals(
-        trace, outcomes=outcomes, G=G, n_trials=n_trials, deltas={}, ci_prob=0.89
-    ).set_index("outcome")
+    jm = joint_treatment_marginals(trace, outcomes=outcomes, G=G, n_trials=n_trials, deltas={}, ci_prob=0.89).set_index(
+        "outcome"
+    )
     ts = tau_summary_joint(trace, outcomes, ci_prob=0.89, G=G).set_index("outcome")
 
     # (1) The item- and probability-scale summaries now agree: items == AME × denom.
     for o in outcomes:
-        assert jm.loc[o, "items_median"] == pytest.approx(
-            ts.loc[o, "ame_prob_median"] * n_trials[o]
-        )
+        assert jm.loc[o, "items_median"] == pytest.approx(ts.loc[o, "ame_prob_median"] * n_trials[o])
     # (2) L uses only its observed rows {0, 1}, not the near-ceiling row 2, so it
     #     differs materially from the (buggy) all-rows average.
     masked_L = (expit(tau_L) - 0.5) * n_trials["L"]
@@ -1284,9 +1257,7 @@ def test_treatment_marginal_effect_folds_onto_core_and_reports_median():
     trt = np.array([1.0, 0.0, 1.0])
     n_trials = 20
 
-    out = treatment_marginal_effect(
-        _trace_named(eta, beta_trt=beta), trt=trt, n_trials=n_trials, ci_prob=0.9
-    )
+    out = treatment_marginal_effect(_trace_named(eta, beta_trt=beta), trt=trt, n_trials=n_trials, ci_prob=0.9)
 
     b = beta.reshape(-1)  # (S,)
     e = eta.reshape(-1, 3)  # (S, n_obs)
@@ -1305,9 +1276,7 @@ def test_treatment_marginal_effect_row_mask_restricts_to_subset():
     # AME must equal the hand-rolled AME over just the masked rows, differ from the
     # all-rows AME, and leave the logit-scale prob_trt_pos (a summary of the draws)
     # untouched.
-    eta = np.array(
-        [[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4], [0.4, 0.1, -0.2, 0.6]]]
-    )
+    eta = np.array([[[0.0, 1.0, -0.5, 0.3], [0.2, -1.0, 0.3, -0.4], [0.4, 0.1, -0.2, 0.6]]])
     beta = np.array([[0.4, 0.6, 0.5]])
     trt = np.array([1.0, 0.0, 1.0, 0.0])
     n_trials = 20
@@ -1331,9 +1300,7 @@ def test_treatment_marginal_effect_row_mask_restricts_to_subset():
 
     # An integer index array is an accepted alternative form and must agree with the
     # boolean mask selecting the same rows.
-    out_idx = treatment_marginal_effect(
-        trace, trt=trt, n_trials=n_trials, row_mask=np.array([0, 1])
-    )
+    out_idx = treatment_marginal_effect(trace, trt=trt, n_trials=n_trials, row_mask=np.array([0, 1]))
     assert out_idx["trt_prob_median"] == pytest.approx(out["trt_prob_median"])
 
 
@@ -1386,12 +1353,12 @@ def test_treatment_marginal_effect_nets_out_interactions():
     z_ability = np.array([1.2, -0.8, 0.4, -1.5])  # standardised moderator, per obs
     trt = np.array([1.0, 0.0, 1.0, 0.0])
     n_trials = 20
-    trace = _trace_named_vec(
-        eta, scalars={"beta_trt": beta, "gamma_int_trt_ability": gint}
-    )
+    trace = _trace_named_vec(eta, scalars={"beta_trt": beta, "gamma_int_trt_ability": gint})
 
     out = treatment_marginal_effect(
-        trace, trt=trt, n_trials=n_trials,
+        trace,
+        trt=trt,
+        n_trials=n_trials,
         moderators=[("gamma_int_trt_ability", z_ability)],
         ci_prob=0.9,
     )
@@ -1422,8 +1389,12 @@ def test_rope_summary_accepts_named_treatment_term():
 
     out = rope_summary(
         _trace_named(eta, beta_trt=beta),
-        G=G, n_trials=n_trials, delta=delta, ci_prob=0.9,
-        term="beta_trt", varying_term="",
+        G=G,
+        n_trials=n_trials,
+        delta=delta,
+        ci_prob=0.9,
+        term="beta_trt",
+        varying_term="",
     )
     b = beta.reshape(-1)
     e = eta.reshape(-1, 8)
@@ -1433,9 +1404,7 @@ def test_rope_summary_accepts_named_treatment_term():
     assert out["pd"] == pytest.approx(float(np.mean(b > 0)))
     assert out["prob_benefit_ge_delta"] == pytest.approx(float(np.mean(items >= delta)))
     # Renaming the var to the default name reproduces the same card.
-    same = rope_summary(
-        _trace_named(eta, tau=beta), G=G, n_trials=n_trials, delta=delta, ci_prob=0.9
-    )
+    same = rope_summary(_trace_named(eta, tau=beta), G=G, n_trials=n_trials, delta=delta, ci_prob=0.9)
     assert out["items_median"] == pytest.approx(same["items_median"])
 
 
@@ -1462,13 +1431,13 @@ def test_level_t2_marginal_effect_nets_group_ability_interaction():
             "gamma_grp_ability": (("chain", "draw"), g_ab),
         },
         coords={
-            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
-            "obs_id": np.arange(n_obs), "phase": np.arange(n_phase),
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs),
+            "phase": np.arange(n_phase),
         },
     )
-    contrast, ame = level_t2_marginal_effect(
-        SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability
-    )
+    contrast, ame = level_t2_marginal_effect(SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability)
 
     b_flat = b_grp.reshape(-1, n_phase)  # (S, phase)
     g_flat = g_ab.reshape(-1)  # (S,)
@@ -1499,9 +1468,7 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
     rng = np.random.default_rng(7)
     arm_gap = rng.normal(-0.3, 0.1, (n_chain, n_draw))
     d_grp = rng.normal(0.4, 0.2, (n_chain, n_draw, 3))
-    b_grp = np.concatenate(
-        [arm_gap[..., None], arm_gap[..., None] + d_grp], axis=-1
-    )  # the derived levels view
+    b_grp = np.concatenate([arm_gap[..., None], arm_gap[..., None] + d_grp], axis=-1)  # the derived levels view
     g_ab = rng.normal(-0.1, 0.1, (n_chain, n_draw))
     eta = rng.normal(0.0, 1.0, (n_chain, n_draw, n_obs))
     phase = np.array([0, 1, 2, 3, 1, 0])
@@ -1516,8 +1483,10 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
             "gamma_grp_ability": (("chain", "draw"), g_ab),
         },
         coords={
-            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
-            "obs_id": np.arange(n_obs), "phase": np.arange(4),
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs),
+            "phase": np.arange(4),
             "post_phase": ["t2", "t3", "t4"],
         },
     )
@@ -1540,9 +1509,7 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
         diffs = []
         for i in rows:
             # arm-free baseline: the complete group contribution comes out
-            e0 = e_flat[s_, i] - (
-                c_flat[s_] + d_t2[s_] + g_flat[s_] * ability[i]
-            ) * G[i]
+            e0 = e_flat[s_, i] - (c_flat[s_] + d_t2[s_] + g_flat[s_] * ability[i]) * G[i]
             diffs.append(expit(e0 + d_t2[s_]) - expit(e0))
         ref.append(np.mean(diffs))
     assert contrast == pytest.approx(d_t2)
@@ -1569,20 +1536,27 @@ def test_level_t2_marginal_effect_t1_referenced_adds_back_only_the_t2_change():
     # A balance term the group does not carry is a caller error, not a silent skip.
     with pytest.raises(ValueError, match="balance_term"):
         level_t2_marginal_effect(
-            SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability,
-            contrast_term="d_grp_time", contrast_index=0, balance_term="nope",
+            SimpleNamespace(posterior=ds),
+            phase=phase,
+            G=G,
+            ability=ability,
+            contrast_term="d_grp_time",
+            contrast_index=0,
+            balance_term="nope",
         )
     # The raw t2 gap (the free comparator's focal element) differs by the balance
     # term, so the two parameterisations do not report the same logit contrast.
-    raw, _ = level_t2_marginal_effect(
-        SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability
-    )
+    raw, _ = level_t2_marginal_effect(SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability)
     assert raw == pytest.approx(d_t2 + arm_gap.reshape(-1))
     # An out-of-range element is a caller error, not a silent wrap-around.
     with pytest.raises(ValueError, match="contrast_index"):
         level_t2_marginal_effect(
-            SimpleNamespace(posterior=ds), phase=phase, G=G, ability=ability,
-            contrast_term="d_grp_time", contrast_index=3,
+            SimpleNamespace(posterior=ds),
+            phase=phase,
+            G=G,
+            ability=ability,
+            contrast_term="d_grp_time",
+            contrast_index=3,
         )
 
 
@@ -1624,14 +1598,20 @@ def test_level_t2_marginal_effect_is_the_arm_free_standardised_functional():
             "b_grp_time": (("chain", "draw", "phase"), b_grp),
         },
         coords={
-            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
-            "obs_id": np.arange(n_obs), "phase": np.arange(4),
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs),
+            "phase": np.arange(4),
             "post_phase": ["t2", "t3", "t4"],
         },
     )
     trace = SimpleNamespace(posterior=ds)
     contrast, ame = level_t2_marginal_effect(
-        trace, phase=phase, G=G, contrast_term="d_grp_time", contrast_index=0,
+        trace,
+        phase=phase,
+        G=G,
+        contrast_term="d_grp_time",
+        contrast_index=0,
         balance_term="arm_gap_t1",
     )
     c, d = arm_gap.reshape(-1), d_grp.reshape(-1, 3)[:, 0]
@@ -1642,21 +1622,24 @@ def test_level_t2_marginal_effect_is_the_arm_free_standardised_functional():
         return e_flat[s_, i] - (c[s_] + (d[s_] if phase[i] == 1 else 0.0)) * G[i]
 
     # 1. what the function returns
-    expected = np.array([
-        np.mean([expit(arm_free(s_, i) + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
-        for s_ in range(n_draw)
-    ])
+    expected = np.array(
+        [np.mean([expit(arm_free(s_, i) + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows]) for s_ in range(n_draw)]
+    )
     # 2. the response-scale DiD on the same arm-free profiles
-    response_did = np.array([
-        np.mean([expit(arm_free(s_, i) + c[s_] + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
-        - np.mean([expit(arm_free(s_, i) + c[s_]) - expit(arm_free(s_, i)) for i in t1_rows])
-        for s_ in range(n_draw)
-    ])
+    response_did = np.array(
+        [
+            np.mean([expit(arm_free(s_, i) + c[s_] + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
+            - np.mean([expit(arm_free(s_, i) + c[s_]) - expit(arm_free(s_, i)) for i in t1_rows])
+            for s_ in range(n_draw)
+        ]
+    )
     # 3. the full t2 arm contrast, which keeps the chance imbalance in
-    full_t2 = np.array([
-        np.mean([expit(arm_free(s_, i) + c[s_] + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
-        for s_ in range(n_draw)
-    ])
+    full_t2 = np.array(
+        [
+            np.mean([expit(arm_free(s_, i) + c[s_] + d[s_]) - expit(arm_free(s_, i)) for i in t2_rows])
+            for s_ in range(n_draw)
+        ]
+    )
 
     assert contrast == pytest.approx(d)
     assert ame == pytest.approx(expected)
@@ -1706,9 +1689,7 @@ def test_level_t2_marginal_effect_requires_t2_rows():
         coords={"chain": [0], "draw": [0, 1], "obs_id": np.arange(3), "phase": np.arange(4)},
     )
     with pytest.raises(ValueError, match="No rows at t2_phase"):
-        level_t2_marginal_effect(
-            SimpleNamespace(posterior=ds), phase=np.array([0, 2, 3]), G=np.ones(3)
-        )
+        level_t2_marginal_effect(SimpleNamespace(posterior=ds), phase=np.array([0, 2, 3]), G=np.ones(3))
 
 
 def test_level_prior_pushforward_uses_prior_group_and_reports_items_schema():
@@ -1726,8 +1707,10 @@ def test_level_prior_pushforward_uses_prior_group_and_reports_items_schema():
             "gamma_grp_ability": (("chain", "draw"), rng.normal(0.0, 0.1, (n_chain, n_draw))),
         },
         coords={
-            "chain": np.arange(n_chain), "draw": np.arange(n_draw),
-            "obs_id": np.arange(n_obs), "phase": np.arange(n_phase),
+            "chain": np.arange(n_chain),
+            "draw": np.arange(n_draw),
+            "obs_id": np.arange(n_obs),
+            "phase": np.arange(n_phase),
         },
     )
     # A distinct posterior group: if the pushforward wrongly read it, the logit
@@ -1740,20 +1723,22 @@ def test_level_prior_pushforward_uses_prior_group_and_reports_items_schema():
     G = np.array([1.0, 1.0, 0.0, 1.0, 0.0, 1.0])
     ability = np.array([0.5, -1.0, 0.2, 0.3, 0.8, -0.4])
 
-    pf = level_prior_pushforward(
-        trace, phase=phase, G=G, n_trials=79, ability=ability, ci_prob=0.95
-    )
+    pf = level_prior_pushforward(trace, phase=phase, G=G, n_trials=79, ability=ability, ci_prob=0.95)
     assert set(pf) == {
-        "prior_logit_median", "prior_logit_lo", "prior_logit_hi",
-        "prior_items_median", "prior_items_lo50", "prior_items_hi50",
-        "prior_items_lo", "prior_items_hi", "n_trials",
+        "prior_logit_median",
+        "prior_logit_lo",
+        "prior_logit_hi",
+        "prior_items_median",
+        "prior_items_lo50",
+        "prior_items_hi50",
+        "prior_items_lo",
+        "prior_items_hi",
+        "n_trials",
     }
     assert pf["n_trials"] == 79
     # Read the prior group's b_grp_time[t2] directly and confirm the logit summary
     # matches it (so the pushforward used the prior, not the +100 posterior).
-    contrast, _ = level_t2_marginal_effect(
-        trace, phase=phase, G=G, ability=ability, group="prior"
-    )
+    contrast, _ = level_t2_marginal_effect(trace, phase=phase, G=G, ability=ability, group="prior")
     assert pf["prior_logit_median"] == pytest.approx(float(np.median(contrast)))
     assert pf["prior_logit_lo"] < pf["prior_logit_hi"]
 
@@ -1805,9 +1790,7 @@ def test_proportion_at_zero_ppc_counts_exact_ties_in_both_tails():
         coords={"chain": [0], "draw": [0, 1, 2], "obs_id": np.arange(2)},
     )
 
-    out = proportion_at_zero_ppc(
-        prepared, "N", SimpleNamespace(posterior_predictive=pp)
-    )
+    out = proportion_at_zero_ppc(prepared, "N", SimpleNamespace(posterior_predictive=pp))
 
     assert out["ppc_upper_tail"] == pytest.approx(1.0)
     assert out["ppc_lower_tail"] == pytest.approx(1.0)
@@ -1943,10 +1926,7 @@ def test_rope_markdown_harm_wording_for_negative_effect():
     assert "P(intervention helps)" in md  # probability shown first
     # the harm claim carries a strong label, not "inconclusive" (the magnitude
     # clause may still say inconclusive for the separate benefit-≥-δ claim)
-    assert (
-        "is harmful — *very strong evidence*" in md
-        or "is harmful — *strong evidence*" in md
-    )
+    assert "is harmful — *very strong evidence*" in md or "is harmful — *strong evidence*" in md
 
 
 # ---------------------------------------------------------------------------
@@ -1983,8 +1963,13 @@ def test_association_marginals_sign_and_scale_consistency():
     gamma = rng.normal(0.5, 0.2, (1, 400))  # mostly-positive skill-baseline coefficient
     trace = _trace_named_vec(eta, scalars={"gamma_L": gamma})
     term = AssociationTerm(
-        "L", "gamma_L", main_scale=1.5, interactions=(),
-        n_items=40, mean_prop=0.4, sd_items=6.0,
+        "L",
+        "gamma_L",
+        main_scale=1.5,
+        interactions=(),
+        n_items=40,
+        mean_prop=0.4,
+        sd_items=6.0,
     )
 
     df = association_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
@@ -2013,13 +1998,15 @@ def test_association_marginals_per_k_items_row_for_bounded_count():
     trace = _trace_named_vec(eta, scalars={"gamma_L": gamma})
     p = 0.35
     term = AssociationTerm(
-        "L", "gamma_L", main_scale=main_scale, interactions=(),
-        n_items=n_items, mean_prop=p,
+        "L",
+        "gamma_L",
+        main_scale=main_scale,
+        interactions=(),
+        n_items=n_items,
+        mean_prop=p,
     )
 
-    df = association_marginals(
-        trace, terms=[term], n_trials=n_trials, k_items=k, ci_prob=0.9
-    )
+    df = association_marginals(trace, terms=[term], n_trials=n_trials, k_items=k, ci_prob=0.9)
     assert set(df.scale) == {"+1 SD", f"+{k} items"}
     k_row = df[df.scale == f"+{k} items"].iloc[0]
 
@@ -2028,10 +2015,7 @@ def test_association_marginals_per_k_items_row_for_bounded_count():
     )
 
     y = p * (n_items + 1) - 0.5
-    dz = float(
-        logit_safe(np.asarray([y + k]), n_items)[0]
-        - logit_safe(np.asarray([y]), n_items)[0]
-    ) / main_scale
+    dz = float(logit_safe(np.asarray([y + k]), n_items)[0] - logit_safe(np.asarray([y]), n_items)[0]) / main_scale
     ref = _assoc_ame_ref(eta, gamma, main_scale=main_scale, dz=dz)
     assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
     assert k_row["items_median"] == pytest.approx(n_trials * k_row["prob_median"])
@@ -2050,8 +2034,13 @@ def test_association_marginals_caps_k_at_the_items_the_scale_has_left():
     # Mean count 4.5 of 6 -> Haldane proportion (4.5+0.5)/7; only one whole item fits.
     p = 5.0 / 7.0
     term = AssociationTerm(
-        "N", "gamma_N", main_scale=1.2, interactions=(),
-        n_items=n_items, mean_prop=p, k_items=5,
+        "N",
+        "gamma_N",
+        main_scale=1.2,
+        interactions=(),
+        n_items=n_items,
+        mean_prop=p,
+        k_items=5,
     )
     df = association_marginals(trace, terms=[term], n_trials=n_items, ci_prob=0.9)
     labels = set(df.scale)
@@ -2063,10 +2052,7 @@ def test_association_marginals_caps_k_at_the_items_the_scale_has_left():
     )
 
     k_row = df[df.scale == "+1 items"].iloc[0]
-    dz = float(
-        logit_safe(np.asarray([5.5]), n_items)[0]
-        - logit_safe(np.asarray([4.5]), n_items)[0]
-    ) / 1.2
+    dz = float(logit_safe(np.asarray([5.5]), n_items)[0] - logit_safe(np.asarray([4.5]), n_items)[0]) / 1.2
     ref = _assoc_ame_ref(eta, gamma, main_scale=1.2, dz=dz)
     assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
     # And the shift is a sane magnitude, not the old clipped-ceiling explosion.
@@ -2083,8 +2069,13 @@ def test_association_marginals_omits_the_items_row_at_the_ceiling():
     trace = _trace_named_vec(eta, scalars={"gamma_B": gamma})
     p = (9.6 + 0.5) / (n_items + 1)  # mean count 9.6 of 10: floor(10 - 9.6) = 0 items left
     term = AssociationTerm(
-        "B", "gamma_B", main_scale=1.0, interactions=(),
-        n_items=n_items, mean_prop=p, k_items=1,
+        "B",
+        "gamma_B",
+        main_scale=1.0,
+        interactions=(),
+        n_items=n_items,
+        mean_prop=p,
+        k_items=1,
     )
     df = association_marginals(trace, terms=[term], n_trials=n_items, ci_prob=0.9)
     assert list(df.scale) == ["+1 SD"]
@@ -2096,14 +2087,14 @@ def test_association_marginals_nets_interaction_contribution():
     rng = np.random.default_rng(13)
     n_obs, n_trials = 7, 20
     eta = rng.normal(0.0, 1.0, (1, 300, n_obs))
-    gamma = rng.normal(0.3, 0.2, (1, 300))          # gamma_ability
-    gint = rng.normal(-0.2, 0.15, (1, 300))         # gamma_int_trt_ability
+    gamma = rng.normal(0.3, 0.2, (1, 300))  # gamma_ability
+    gint = rng.normal(-0.2, 0.15, (1, 300))  # gamma_int_trt_ability
     z_trt = (rng.random(n_obs) > 0.5).astype(float)  # partner = treatment indicator
-    trace = _trace_named_vec(
-        eta, scalars={"gamma_ability": gamma, "gamma_int_trt_ability": gint}
-    )
+    trace = _trace_named_vec(eta, scalars={"gamma_ability": gamma, "gamma_int_trt_ability": gint})
     term = AssociationTerm(
-        "ability", "gamma_ability", main_scale=1.0,
+        "ability",
+        "gamma_ability",
+        main_scale=1.0,
         interactions=(("gamma_int_trt_ability", z_trt),),
     )
 
@@ -2111,7 +2102,10 @@ def test_association_marginals_nets_interaction_contribution():
     sd_row = df[df.scale == "+1 SD"].iloc[0]
 
     ref = _assoc_ame_ref(
-        eta, gamma, main_scale=1.0, dz=1.0,
+        eta,
+        gamma,
+        main_scale=1.0,
+        dz=1.0,
         interactions=[(gint, z_trt)],
     )
     assert sd_row["prob_median"] == pytest.approx(float(np.median(ref)))
@@ -2126,12 +2120,9 @@ def test_association_marginals_off_floor_items_equal_prob():
     eta = rng.normal(-0.3, 1.0, (1, 250, 8))
     gamma = rng.normal(0.4, 0.2, (1, 250))
     trace = _trace_named_vec(eta, scalars={"gamma_L": gamma})
-    term = AssociationTerm("L", "gamma_L", main_scale=1.2, interactions=(),
-                           n_items=40, mean_prop=0.3)
+    term = AssociationTerm("L", "gamma_L", main_scale=1.2, interactions=(), n_items=40, mean_prop=0.3)
 
-    df = association_marginals(
-        trace, terms=[term], n_trials=1, off_floor=True, ci_prob=0.9
-    )
+    df = association_marginals(trace, terms=[term], n_trials=1, off_floor=True, ci_prob=0.9)
     assert bool(df["off_floor"].iloc[0]) is True
     for _, r in df.iterrows():
         assert r["items_median"] == pytest.approx(r["prob_median"])
@@ -2151,13 +2142,9 @@ def test_association_marginals_row_mask_restricts_averaging_population():
     mask = np.array([True, True, False, False, False, False])
     masked = association_marginals(trace, terms=[term], n_trials=10, row_mask=mask)
     ref = _assoc_ame_ref(eta[:, :, :2], gamma, main_scale=1.0, dz=1.0)
-    assert masked[masked.scale == "+1 SD"].iloc[0]["prob_median"] == pytest.approx(
-        float(np.median(ref))
-    )
+    assert masked[masked.scale == "+1 SD"].iloc[0]["prob_median"] == pytest.approx(float(np.median(ref)))
     with pytest.raises(ValueError, match="boolean row_mask has 3 entries"):
-        association_marginals(
-            trace, terms=[term], n_trials=10, row_mask=np.array([True, False, True])
-        )
+        association_marginals(trace, terms=[term], n_trials=10, row_mask=np.array([True, False, True]))
 
 
 def _assoc_toggle_ref(eta, coef, x, *, interactions=()):
@@ -2197,8 +2184,12 @@ def test_association_marginals_binary_toggle_nets_out_the_observed_indicator():
     trace = _trace_named_vec(eta, scalars={"gamma_own_offfloor": gamma})
 
     term = AssociationTerm(
-        "own", "gamma_own_offfloor", main_scale=1.0, interactions=(),
-        perturbation_label="off-floor at pre (0 to 1)", toggle_vector=x,
+        "own",
+        "gamma_own_offfloor",
+        main_scale=1.0,
+        interactions=(),
+        perturbation_label="off-floor at pre (0 to 1)",
+        toggle_vector=x,
     )
     df = association_marginals(trace, terms=[term], n_trials=1, off_floor=True, ci_prob=0.9)
     row = df.iloc[0]
@@ -2211,7 +2202,9 @@ def test_association_marginals_binary_toggle_nets_out_the_observed_indicator():
     fwd = association_marginals(
         trace,
         terms=[AssociationTerm("own", "gamma_own_offfloor", main_scale=1.0)],
-        n_trials=1, off_floor=True, ci_prob=0.9,
+        n_trials=1,
+        off_floor=True,
+        ci_prob=0.9,
     ).iloc[0]
     assert abs(row["prob_median"]) > abs(fwd["prob_median"])
 
@@ -2222,12 +2215,16 @@ def test_association_marginals_binary_toggle_nets_out_the_observed_indicator():
     tog0 = association_marginals(
         trace0,
         terms=[AssociationTerm("own", "gamma_own_offfloor", main_scale=1.0, toggle_vector=x0)],
-        n_trials=1, off_floor=True, ci_prob=0.9,
+        n_trials=1,
+        off_floor=True,
+        ci_prob=0.9,
     ).iloc[0]
     fwd0 = association_marginals(
         trace0,
         terms=[AssociationTerm("own", "gamma_own_offfloor", main_scale=1.0)],
-        n_trials=1, off_floor=True, ci_prob=0.9,
+        n_trials=1,
+        off_floor=True,
+        ci_prob=0.9,
     ).iloc[0]
     assert tog0["prob_median"] == pytest.approx(fwd0["prob_median"])
 
@@ -2242,18 +2239,15 @@ def test_association_marginals_binary_toggle_includes_interactions():
     gamma = rng.normal(1.5, 0.3, (1, 250))
     gint = rng.normal(-0.4, 0.2, (1, 250))
     eta_base = rng.normal(-0.8, 0.7, (1, 250, n_obs))
-    eta = (
-        eta_base
-        + gamma[..., None] * x[None, None, :]
-        + gint[..., None] * (z_trt * x)[None, None, :]
-    )
-    trace = _trace_named_vec(
-        eta, scalars={"gamma_own_offfloor": gamma, "gamma_int_trt_own": gint}
-    )
+    eta = eta_base + gamma[..., None] * x[None, None, :] + gint[..., None] * (z_trt * x)[None, None, :]
+    trace = _trace_named_vec(eta, scalars={"gamma_own_offfloor": gamma, "gamma_int_trt_own": gint})
     term = AssociationTerm(
-        "own", "gamma_own_offfloor", main_scale=1.0,
+        "own",
+        "gamma_own_offfloor",
+        main_scale=1.0,
         interactions=(("gamma_int_trt_own", z_trt),),
-        perturbation_label="off-floor at pre (0 to 1)", toggle_vector=x,
+        perturbation_label="off-floor at pre (0 to 1)",
+        toggle_vector=x,
     )
     df = association_marginals(trace, terms=[term], n_trials=1, off_floor=True, ci_prob=0.9)
     ref = _assoc_toggle_ref(eta, gamma, x, interactions=[(gint, z_trt)])
@@ -2269,19 +2263,32 @@ def test_association_marginals_binary_toggle_rejects_k_items_and_bad_length():
     with pytest.raises(ValueError, match="incoherent"):
         association_marginals(
             trace,
-            terms=[AssociationTerm(
-                "own", "gamma_own_offfloor", main_scale=1.0,
-                n_items=26, mean_prop=0.2, toggle_vector=x,
-            )],
-            n_trials=1, off_floor=True,
+            terms=[
+                AssociationTerm(
+                    "own",
+                    "gamma_own_offfloor",
+                    main_scale=1.0,
+                    n_items=26,
+                    mean_prop=0.2,
+                    toggle_vector=x,
+                )
+            ],
+            n_trials=1,
+            off_floor=True,
         )
     with pytest.raises(ValueError, match="toggle_vector for 'own' has 4 rows"):
         association_marginals(
             trace,
-            terms=[AssociationTerm(
-                "own", "gamma_own_offfloor", main_scale=1.0, toggle_vector=np.zeros(4),
-            )],
-            n_trials=1, off_floor=True,
+            terms=[
+                AssociationTerm(
+                    "own",
+                    "gamma_own_offfloor",
+                    main_scale=1.0,
+                    toggle_vector=np.zeros(4),
+                )
+            ],
+            n_trials=1,
+            off_floor=True,
         )
 
 
@@ -2312,9 +2319,7 @@ def test_concurrent_marginals_sign_and_scale_consistency():
     eta = rng.normal(0.0, 1.0, (1, 400, n_obs))
     beta = rng.normal(0.5, 0.2, (1, 400))
     trace = _trace_named_vec(eta, scalars={"beta_L": beta})
-    term = ConcurrentTerm(
-        "L", "beta_L", sd_logit=1.3, n_items=32, mean_items=12.8, k_items=3
-    )
+    term = ConcurrentTerm("L", "beta_L", sd_logit=1.3, n_items=32, mean_items=12.8, k_items=3)
 
     df = concurrent_marginals(trace, terms=[term], n_trials=n_trials, ci_prob=0.9)
     sd_row = df[df.scale == "+1 SD"].iloc[0]
@@ -2351,8 +2356,7 @@ def test_concurrent_marginals_k_items_row_uses_fitted_haldane_logit():
     k_row = df[df.scale == f"+{k} items"].iloc[0]
 
     dz = (
-        logit_safe(np.asarray([mean_items + k]), n_items)[0]
-        - logit_safe(np.asarray([mean_items]), n_items)[0]
+        logit_safe(np.asarray([mean_items + k]), n_items)[0] - logit_safe(np.asarray([mean_items]), n_items)[0]
     ) / sd_logit
     ref = _concurrent_ame_ref(eta, beta, dz=dz)
     assert k_row["prob_median"] == pytest.approx(float(np.median(ref)))
@@ -2375,9 +2379,7 @@ def test_concurrent_marginals_skips_k_row_for_nonfinite_mean_items():
     eta = rng.normal(0.0, 1.0, (1, 200, 6))
     beta = rng.normal(0.2, 0.2, (1, 200))
     trace = _trace_named_vec(eta, scalars={"beta_L": beta})
-    term = ConcurrentTerm(
-        "L", "beta_L", sd_logit=1.0, n_items=32, mean_items=np.nan, k_items=3
-    )
+    term = ConcurrentTerm("L", "beta_L", sd_logit=1.0, n_items=32, mean_items=np.nan, k_items=3)
     df = concurrent_marginals(trace, terms=[term], n_trials=79)
     assert list(df.scale) == ["+1 SD"]
 
@@ -2391,9 +2393,7 @@ def test_concurrent_marginals_k_row_caps_at_ceiling():
     beta = rng.normal(0.4, 0.2, (1, 200))
     trace = _trace_named_vec(eta, scalars={"beta_B": beta})
     # mean 0.88 on a 10-item scale: +5 → 1.38 (over ceiling); only +1 (→0.98) fits.
-    term = ConcurrentTerm(
-        "B", "beta_B", sd_logit=1.2, n_items=10, mean_items=8.8, k_items=5
-    )
+    term = ConcurrentTerm("B", "beta_B", sd_logit=1.2, n_items=10, mean_items=8.8, k_items=5)
     df = concurrent_marginals(trace, terms=[term], n_trials=79)
     assert set(df.scale) == {"+1 SD", "+1 items"}  # capped from +5 to +1
 
@@ -2405,9 +2405,7 @@ def test_concurrent_marginals_k_row_skipped_at_full_ceiling():
     eta = rng.normal(0.0, 1.0, (1, 150, 6))
     beta = rng.normal(0.3, 0.2, (1, 150))
     trace = _trace_named_vec(eta, scalars={"beta_B": beta})
-    term = ConcurrentTerm(
-        "B", "beta_B", sd_logit=1.0, n_items=10, mean_items=9.7, k_items=2
-    )
+    term = ConcurrentTerm("B", "beta_B", sd_logit=1.0, n_items=10, mean_items=9.7, k_items=2)
     df = concurrent_marginals(trace, terms=[term], n_trials=79)
     assert list(df.scale) == ["+1 SD"]
 
@@ -2523,27 +2521,18 @@ def test_level_window_comparator_cards_pairs_the_two_windows(tmp_path):
             ),
             encoding="utf-8",
         )
-        pd.DataFrame(
-            [{"items_median": median, "items_lo": -1.0, "items_hi": 4.0, "pd": 0.9}]
-        ).to_csv(directory / "rope_summary.csv", index=False)
+        pd.DataFrame([{"items_median": median, "items_lo": -1.0, "items_hi": 4.0, "pd": 0.9}]).to_csv(
+            directory / "rope_summary.csv", index=False
+        )
 
     _fit("lrp-rli-lf-001", ("t1", "t2", "t3", "t4"), 2.30)
-    config = json.loads(
-        (tmp_path / "lrp-rli-lf-001-reporting" / "config.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    config = json.loads((tmp_path / "lrp-rli-lf-001-reporting" / "config.json").read_text(encoding="utf-8"))
     # Without the comparator there is nothing to compare: the model of record is
     # not withheld for it, so this returns None rather than raising.
-    assert (
-        level_window_comparator_cards(tmp_path / "lrp-rli-lf-001-reporting", config)
-        is None
-    )
+    assert level_window_comparator_cards(tmp_path / "lrp-rli-lf-001-reporting", config) is None
 
     _fit("lrp-rli-lf-201", ("t1", "t2"), 2.53)
-    cards = level_window_comparator_cards(
-        tmp_path / "lrp-rli-lf-001-reporting", config
-    )
+    cards = level_window_comparator_cards(tmp_path / "lrp-rli-lf-001-reporting", config)
     assert [card["model_id"] for card in cards] == [
         "lrp-rli-lf-001",
         "lrp-rli-lf-201",
@@ -2551,14 +2540,8 @@ def test_level_window_comparator_cards_pairs_the_two_windows(tmp_path):
     assert cards[0]["window"] == "all four waves"
     assert cards[-1]["window"] == "t1-t2 only"
     # Read from either side of the pair.
-    comparator_config = json.loads(
-        (tmp_path / "lrp-rli-lf-201-reporting" / "config.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    comparator_config = json.loads((tmp_path / "lrp-rli-lf-201-reporting" / "config.json").read_text(encoding="utf-8"))
     assert [
         card["model_id"]
-        for card in level_window_comparator_cards(
-            tmp_path / "lrp-rli-lf-201-reporting", comparator_config
-        )
+        for card in level_window_comparator_cards(tmp_path / "lrp-rli-lf-201-reporting", comparator_config)
     ] == ["lrp-rli-lf-001", "lrp-rli-lf-201"]

@@ -1,9 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Dose-response model construction.
-
-"""
+"""Dose-response model construction."""
 
 from __future__ import annotations
 
@@ -13,7 +11,6 @@ from typing import Iterable
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -36,6 +33,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _broadcast_phase_zero_optional,
     _tau_sigma_for,
 )
+
 
 def build_dose_response_model(
     prepared: PreparedData,
@@ -134,31 +132,20 @@ def build_dose_response_model(
     if outcome_symbol not in prepared.pre_logit:
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
     if adjust_baseline_symbol not in prepared.pre_logit:
-        raise KeyError(
-            f"Baseline {adjust_baseline_symbol!r} missing from prepared data"
-        )
+        raise KeyError(f"Baseline {adjust_baseline_symbol!r} missing from prepared data")
     if dose_covariate not in prepared.covariates:
         raise KeyError(
             f"Dose covariate {dose_covariate!r} missing from prepared.covariates; "
             "pass it via load_and_prepare(covariates=...)"
         )
     if dose_stage_covariate is not None and dose_stage_covariate not in prepared.covariates:
-        raise KeyError(
-            f"Dose-stage covariate {dose_stage_covariate!r} missing from "
-            "prepared.covariates"
-        )
+        raise KeyError(f"Dose-stage covariate {dose_stage_covariate!r} missing from prepared.covariates")
     ability_adjust_symbols = tuple(ability_adjust_symbols)
     for s in ability_adjust_symbols:
         if s not in prepared.pre_logit:
-            raise KeyError(
-                f"Ability-adjuster {s!r} has no pre-score; add it to "
-                "load_and_prepare(outcomes=...)"
-            )
+            raise KeyError(f"Ability-adjuster {s!r} has no pre-score; add it to load_and_prepare(outcomes=...)")
     if ability_baseline_wave not in {"t1", "transition_start"}:
-        raise ValueError(
-            "ability_baseline_wave must be 't1' or 'transition_start'; got "
-            f"{ability_baseline_wave!r}"
-        )
+        raise ValueError(f"ability_baseline_wave must be 't1' or 'transition_start'; got {ability_baseline_wave!r}")
 
     # Ability adjusters are resolved to their t1 value *before* the outcome mask, so
     # the phase-zero row a child needs for the broadcast is still present even when
@@ -196,10 +183,7 @@ def build_dose_response_model(
     # what makes the recorded "standardised over the fitted rows" claim true; the
     # loader scaler is defined over the pre-mask row set.
     loader_scaler = prepared.covariate_scalers[dose_covariate]
-    raw_dose = (
-        np.asarray(prepared.covariates[dose_covariate], dtype=float) * loader_scaler.sd
-        + loader_scaler.mean
-    )
+    raw_dose = np.asarray(prepared.covariates[dose_covariate], dtype=float) * loader_scaler.sd + loader_scaler.mean
     treated = (raw_dose > 0.0).astype(float)
     if not treated.any():
         raise ValueError(
@@ -227,9 +211,7 @@ def build_dose_response_model(
         rows = treated_mask & (phase_idx == p)
         if rows.any():
             q1, q3 = np.percentile(raw_dose[rows], [25.0, 75.0])
-            phase_support.append(
-                (float(raw_dose[rows].min()), float(q1), float(q3), float(raw_dose[rows].max()))
-            )
+            phase_support.append((float(raw_dose[rows].min()), float(q1), float(q3), float(raw_dose[rows].max())))
         else:
             phase_support.append((float("nan"),) * 4)
 
@@ -245,9 +227,7 @@ def build_dose_response_model(
         G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
         phase_d = pm.Data("phase_idx", phase_idx.astype(np.int64), dims="obs_id")
-        child_idx_d = pm.Data(
-            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
-        )
+        child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         # Whole-child LOO map (#587 finding 4). ``diagnostics`` picks this up and
         # aggregates the pointwise likelihood within child, because a transition row's
         # own baseline IS the previous transition's fitted outcome — leaving one row
@@ -255,12 +235,8 @@ def build_dose_response_model(
         pm.Data("loo_child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         treated_d = pm.Data("treated", treated, dims="obs_id")
         late_d = pm.Data("late_phase", (phase_idx >= 1).astype(float), dims="obs_id")
-        dose_between_d = pm.Data(
-            f"{dose_covariate}_child_mean_std", dose_between, dims="obs_id"
-        )
-        dose_within_d = pm.Data(
-            f"{dose_covariate}_within_dev_std", dose_within, dims="obs_id"
-        )
+        dose_between_d = pm.Data(f"{dose_covariate}_child_mean_std", dose_between, dims="obs_id")
+        dose_within_d = pm.Data(f"{dose_covariate}_within_dev_std", dose_within, dims="obs_id")
         dose_d = pm.Data(f"{dose_covariate}_treated_std", dose_c, dims="obs_id")
         dose_stage_d = None
         if dose_stage_covariate is not None:
@@ -271,18 +247,18 @@ def build_dose_response_model(
             )
         ability_data: dict[str, pt.TensorVariable] = {}
         for s in ability_adjust_symbols:
-            ability_data[s] = pm.Data(
-                f"{s}_pre_logit", ability_values[s], dims="obs_id"
-            )
+            ability_data[s] = pm.Data(f"{s}_pre_logit", ability_values[s], dims="obs_id")
 
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
         # Reference-coded phase intercepts (#587 finding 11): a grand intercept plus
         # three unconstrained phase indicators is a rank-3 design in four columns, so
         # the nuisance split was prior-identified only. Period 1 is the reference and
         # the later periods carry free deviations from it.
-        alpha_phase_free = _priors.declare(pm.Normal('alpha_phase_free', mu=0.0, sigma=0.5, dims='phase_later'), role='nuisance', rationale='Reference-coded period intercept deviations from period 1 (alpha_phase[1] = 0), so the intercept design has full rank (#587 finding 11).')
+        alpha_phase_free = _priors.declare(
+            pm.Normal("alpha_phase_free", mu=0.0, sigma=0.5, dims="phase_later"),
+            role="nuisance",
+            rationale="Reference-coded period intercept deviations from period 1 (alpha_phase[1] = 0), so the intercept design has full rank (#587 finding 11).",
+        )
         alpha_phase = pm.Deterministic(
             "alpha_phase",
             pt.concatenate([pt.zeros(1), alpha_phase_free]),
@@ -295,53 +271,65 @@ def build_dose_response_model(
         # Extensive margin: on the intervention this period versus not. In period 1
         # this is exactly the randomised arm contrast (every immediate-arm child
         # attended, every waitlist child attended zero sessions).
-        theta_treated = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol)).to_pymc('theta_treated', rationale='On-intervention presence — the extensive margin. Read in period 1 this is the randomised contrast (every immediate-arm child attended, every waitlist child attended none); it is the only randomisation-identified term in this family.')
+        theta_treated = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol)).to_pymc(
+            "theta_treated",
+            rationale="On-intervention presence — the extensive margin. Read in period 1 this is the randomised contrast (every immediate-arm child attended, every waitlist child attended none); it is the only randomisation-identified term in this family.",
+        )
         eta = eta + theta_treated * treated_d
 
         if adjust_group:
             # Arm enters only from period 2, where both arms are on the intervention
             # and it reads as intervention order / treatment history. In period 1 it
             # would be exactly collinear with ``treated``.
-            beta_arm_late = _priors.gamma_cross_prior().to_pymc('beta_arm_late', role='association', rationale="Assigned-arm (G) backdoor adjustment in the post-crossover periods only, where both arms are on the intervention and arm reads as intervention order; an adjusted association, not the randomised treatment effect. Period 1's arm difference is carried by theta_treated, with which it would be exactly collinear there (#587).")
+            beta_arm_late = _priors.gamma_cross_prior().to_pymc(
+                "beta_arm_late",
+                role="association",
+                rationale="Assigned-arm (G) backdoor adjustment in the post-crossover periods only, where both arms are on the intervention and arm reads as intervention order; an adjusted association, not the randomised treatment effect. Period 1's arm difference is carried by theta_treated, with which it would be exactly collinear there (#587).",
+            )
             eta = eta + beta_arm_late * G_d * late_d
         if adjust_age:
             gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
             eta = eta + gamma_A * A_std_d
 
         if use_subject_random_intercept:
-            eta = _add_child_random_intercept(
-                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
-            )
+            eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma)
 
         # Intensive margin. The dose is centred and standardised over the fitted
         # on-intervention rows, so every slope is per 1 SD of *treated* sessions and
         # every untreated row contributes exactly zero here.
         if decompose_between_within:
-            beta_dose_between = _priors.beta_mech_prior().to_pymc('beta_dose_between', role='association', rationale="Between-child intensive-margin session association: a child whose study-average attendance is 1 SD higher than another's. Split from the within-child slope Mundlak-style so neither is a blend of the two (#587).")
+            beta_dose_between = _priors.beta_mech_prior().to_pymc(
+                "beta_dose_between",
+                role="association",
+                rationale="Between-child intensive-margin session association: a child whose study-average attendance is 1 SD higher than another's. Split from the within-child slope Mundlak-style so neither is a blend of the two (#587).",
+            )
             eta = eta + beta_dose_between * dose_between_d
             dose_slope_target = dose_within_d
         else:
             dose_slope_target = dose_d
 
         if period_varying_dose:
-            mu_dose = _priors.beta_mech_prior().to_pymc('mu_dose', role='association', rationale="Average (pooled) per-period dose-response slope; outcome-logit change per 1 SD of treated-row sessions — the model's focal adjusted-association estimand, on the intensive margin only.")
-            sigma_dose = _priors.sigma_dose_phase_prior().to_pymc('sigma_dose', role='nuisance')
+            mu_dose = _priors.beta_mech_prior().to_pymc(
+                "mu_dose",
+                role="association",
+                rationale="Average (pooled) per-period dose-response slope; outcome-logit change per 1 SD of treated-row sessions — the model's focal adjusted-association estimand, on the intensive margin only.",
+            )
+            sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose", role="nuisance")
             beta_dose_phase_raw = _priors.declare(
-                                      pm.Normal(
-                                                      "beta_dose_phase_raw", mu=0.0, sigma=1.0, dims="phase"
-                                                  ),
-                                      role="nuisance",
-                                      rationale=(
-                                          "Standard-normal non-centred period-dose offset; scaled by "
-                                          "sigma_dose."
-                                      ),
-                                  )
+                pm.Normal("beta_dose_phase_raw", mu=0.0, sigma=1.0, dims="phase"),
+                role="nuisance",
+                rationale=("Standard-normal non-centred period-dose offset; scaled by sigma_dose."),
+            )
             beta_dose_phase = pm.Deterministic(
                 "beta_dose_phase", mu_dose + sigma_dose * beta_dose_phase_raw, dims="phase"
             )
             eta = eta + beta_dose_phase[phase_d] * dose_slope_target
         else:
-            beta_dose = _priors.beta_mech_prior().to_pymc('beta_dose', role='association', rationale="Single pooled dose-response slope (no period variation); the comparator's focal adjusted-association estimand, not a mechanism slope.")
+            beta_dose = _priors.beta_mech_prior().to_pymc(
+                "beta_dose",
+                role="association",
+                rationale="Single pooled dose-response slope (no period variation); the comparator's focal adjusted-association estimand, not a mechanism slope.",
+            )
             eta = eta + beta_dose * dose_slope_target
 
         # Dose-stage control (prior cumulative dose), so a dose-stage effect is

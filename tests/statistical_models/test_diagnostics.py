@@ -23,7 +23,12 @@ import xarray as xr
 from dse_research_utils.statistics import sampling_quality as sampling_quality_mod
 from language_reading_predictors.statistical_models import diagnostics as diag
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.run_metadata import REUSE_CONTRACT_KEY, _reuse_compatibility_contract, require_reuse_compatibility, write_run_metadata
+from language_reading_predictors.statistical_models.run_metadata import (
+    REUSE_CONTRACT_KEY,
+    _reuse_compatibility_contract,
+    require_reuse_compatibility,
+    write_run_metadata,
+)
 
 
 def _primary_reuse_context(tmp_path):
@@ -159,9 +164,7 @@ def test_reuse_still_fails_closed_on_every_bound_contract_field(tmp_path, field)
 
 
 @pytest.mark.parametrize("field", ["config_name", "trace_sha256"])
-def test_primary_reuse_rejects_contract_or_trace_hash_drift_before_loading(
-    tmp_path, monkeypatch, field
-):
+def test_primary_reuse_rejects_contract_or_trace_hash_drift_before_loading(tmp_path, monkeypatch, field):
     context, source = _primary_reuse_context(tmp_path)
     config_path = source / "config.json"
     config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -175,9 +178,7 @@ def test_primary_reuse_rejects_contract_or_trace_hash_drift_before_loading(
     monkeypatch.setattr(
         diag.az,
         "from_netcdf",
-        lambda *_args, **_kwargs: pytest.fail(
-            "an incompatible primary trace must not be loaded"
-        ),
+        lambda *_args, **_kwargs: pytest.fail("an incompatible primary trace must not be loaded"),
     )
     monkeypatch.setattr(
         diag.pm,
@@ -319,9 +320,7 @@ def test_psense_excludes_the_child_level_loo_aggregate_from_the_likelihood(tmp_p
         {
             "posterior": trace.posterior.to_dataset(),
             "log_prior": trace.log_prior.to_dataset(),
-            "log_likelihood": trace.log_likelihood.to_dataset().drop_vars(
-                diag.LOO_CHILD_AGGREGATE_NODE
-            ),
+            "log_likelihood": trace.log_likelihood.to_dataset().drop_vars(diag.LOO_CHILD_AGGREGATE_NODE),
         }
     )
     assert diag.psense_likelihood_var_names(single) is None
@@ -336,18 +335,14 @@ def test_psense_excludes_the_child_level_loo_aggregate_from_the_likelihood(tmp_p
     # And it is genuinely different from the doubled (both-variables) value.
     doubled = azs.psense_summary(trace, var_names=["theta"])
     doubled_df = doubled.to_dataframe() if hasattr(doubled, "to_dataframe") else pd.DataFrame(doubled)
-    assert float(doubled_df["likelihood"].iloc[0]) > float(
-        expected_df["likelihood"].iloc[0]
-    )
+    assert float(doubled_df["likelihood"].iloc[0]) > float(expected_df["likelihood"].iloc[0])
 
 
 def _psense_trace(posterior_names: tuple[str, ...]) -> xr.DataTree:
     """A minimal trace with the groups ``plot_psense_dist`` needs."""
     rng = np.random.default_rng(0)
     chains, draws, obs = 2, 200, 30
-    posterior = xr.Dataset(
-        {n: (("chain", "draw"), rng.normal(size=(chains, draws))) for n in posterior_names}
-    )
+    posterior = xr.Dataset({n: (("chain", "draw"), rng.normal(size=(chains, draws))) for n in posterior_names})
     return xr.DataTree.from_dict(
         {
             "posterior": posterior,
@@ -526,9 +521,7 @@ def test_marked_repeated_rows_are_aggregated_by_child():
                 {"y_post": (("chain", "draw", "obs_id"), values)},
                 coords={"chain": [0], "draw": [0, 1]},
             ),
-            "constant_data": xr.Dataset(
-                {"loo_child_idx": ("obs_id", np.array([0, 1, 0]))}
-            ),
+            "constant_data": xr.Dataset({"loo_child_idx": ("obs_id", np.array([0, 1, 0]))}),
         }
     )
     got = diag._joint_log_likelihood_by_child(trace)
@@ -554,9 +547,7 @@ def _repeated_transition_joint_trace() -> xr.DataTree:
                 {"tau": (("chain", "draw", "outcome"), np.zeros((1, 1, 2)))},
                 coords={"chain": [0], "draw": [0], "outcome": ["W", "N"]},
             ),
-            "observed_data": xr.Dataset(
-                {"y_post": ("cell", np.arange(12))}, coords={"cell": range(12)}
-            ),
+            "observed_data": xr.Dataset({"y_post": ("cell", np.arange(12))}, coords={"cell": range(12)}),
             "posterior_predictive": xr.Dataset(
                 {"y_post": (("chain", "draw", "cell"), values)},
                 coords={"chain": [0], "draw": [0], "cell": range(12)},
@@ -601,17 +592,13 @@ def test_the_outcome_loo_pit_tree_keeps_the_cell_unit_the_stored_loo_aggregates(
     other, and the figure title names the unit it actually leaves out.
     """
     trace = _repeated_transition_joint_trace()
-    context = SimpleNamespace(
-        trace=trace, prior_samples=None, spec=SimpleNamespace(extra={}), model=None
-    )
+    context = SimpleNamespace(trace=trace, prior_samples=None, spec=SimpleNamespace(extra={}), model=None)
     selected = diag._joint_outcome_predictive_tree(context, "N")
     focal = selected.log_likelihood["y_post"]
     cell_dim = next(d for d in focal.dims if d not in {"chain", "draw"})
     # Three transitions for each of the two children, kept as separate units.
     assert focal.sizes[cell_dim] == 6
-    np.testing.assert_array_equal(
-        selected.observed_data["y_post"].values, np.array([3, 4, 5, 9, 10, 11])
-    )
+    np.testing.assert_array_equal(selected.observed_data["y_post"].values, np.array([3, 4, 5, 9, 10, 11]))
     aggregated = diag._joint_log_likelihood_by_child(trace)
     assert aggregated.sizes["loo_child"] < focal.sizes[cell_dim]
     assert diag.JOINT_LOO_PIT_UNIT_LABEL == "conditional leave-one-cell-out"
@@ -671,12 +658,8 @@ def test_joint_predictive_selection_never_pools_outcome_denominators():
     )
     samples = SimpleNamespace(
         prior=prior,
-        prior_predictive=xr.Dataset(
-            {"y_post": (("chain", "draw", "cell"), values)}
-        ),
-        constant_data=xr.Dataset(
-            {"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}
-        ),
+        prior_predictive=xr.Dataset({"y_post": (("chain", "draw", "cell"), values)}),
+        constant_data=xr.Dataset({"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}),
     )
     context = SimpleNamespace(
         prior_samples=samples,
@@ -703,12 +686,8 @@ def test_joint_predictive_selection_uses_one_coordinate_fallback():
     )
     samples = SimpleNamespace(
         prior=prior,
-        prior_predictive=xr.Dataset(
-            {"y_post": (("chain", "draw", "cell"), values)}
-        ),
-        constant_data=xr.Dataset(
-            {"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}
-        ),
+        prior_predictive=xr.Dataset({"y_post": (("chain", "draw", "cell"), values)}),
+        constant_data=xr.Dataset({"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}),
     )
     context = SimpleNamespace(
         prior_samples=samples,
@@ -735,12 +714,8 @@ def test_joint_predictive_selection_fails_closed_on_bad_map():
             {"tau": (("chain", "draw", "outcome"), np.zeros((1, 1, 2)))},
             coords={"outcome": ["A", "B"]},
         ),
-        prior_predictive=xr.Dataset(
-            {"y_post": (("chain", "draw", "cell"), np.zeros((1, 1, 4)))}
-        ),
-        constant_data=xr.Dataset(
-            {"y_post_cell_outcome": ("bad_cell", np.array([0, 1, 0]))}
-        ),
+        prior_predictive=xr.Dataset({"y_post": (("chain", "draw", "cell"), np.zeros((1, 1, 4)))}),
+        constant_data=xr.Dataset({"y_post_cell_outcome": ("bad_cell", np.array([0, 1, 0]))}),
     )
     context = SimpleNamespace(
         prior_samples=samples,
@@ -810,9 +785,7 @@ def test_joint_loo_pit_tree_selects_matching_outcome_cells():
             "observed_data": observed,
             "posterior_predictive": replicated,
             "log_likelihood": log_likelihood,
-            "constant_data": xr.Dataset(
-                {"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}
-            ),
+            "constant_data": xr.Dataset({"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}),
         }
     )
     context = SimpleNamespace(
@@ -824,9 +797,7 @@ def test_joint_loo_pit_tree_selects_matching_outcome_cells():
 
     selected = diag._joint_outcome_predictive_tree(context, "B")
 
-    np.testing.assert_array_equal(
-        selected.observed_data["y_post"].values, np.array([101, 102])
-    )
+    np.testing.assert_array_equal(selected.observed_data["y_post"].values, np.array([101, 102]))
     np.testing.assert_array_equal(
         selected.posterior_predictive["y_post"].values,
         replicated["y_post"].values[..., [1, 3]],
@@ -857,9 +828,7 @@ def _joint_trace_without_tau(posterior_var: str = "beta_mech") -> xr.DataTree:
     return xr.DataTree.from_dict(
         {
             "posterior": posterior,
-            "observed_data": xr.Dataset(
-                {"y_post": ("cell", np.array([1, 101, 2, 102]))}
-            ),
+            "observed_data": xr.Dataset({"y_post": ("cell", np.array([1, 101, 2, 102]))}),
             "posterior_predictive": xr.Dataset(
                 {
                     "y_post": (
@@ -876,9 +845,7 @@ def _joint_trace_without_tau(posterior_var: str = "beta_mech") -> xr.DataTree:
                     )
                 }
             ),
-            "constant_data": xr.Dataset(
-                {"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}
-            ),
+            "constant_data": xr.Dataset({"y_post_cell_outcome": ("cell", np.array([0, 1, 0, 1]))}),
         }
     )
 
@@ -900,14 +867,10 @@ def test_joint_loo_pit_tree_falls_back_when_tau_is_absent():
 
     # The fallback carries *a* posterior group for the relative-ESS calculation.
     assert "beta_mech" in selected.posterior
-    np.testing.assert_array_equal(
-        selected.observed_data["y_post"].values, np.array([101, 102])
-    )
+    np.testing.assert_array_equal(selected.observed_data["y_post"].values, np.array([101, 102]))
     # An explicitly named variable is honoured, and a missing one still raises
     # rather than silently picking something else.
-    assert "beta_mech" in diag._joint_outcome_predictive_tree(
-        context, "N", posterior_var="beta_mech"
-    ).posterior
+    assert "beta_mech" in diag._joint_outcome_predictive_tree(context, "N", posterior_var="beta_mech").posterior
     with pytest.raises(KeyError, match="tau"):
         diag._joint_outcome_predictive_tree(context, "N", posterior_var="tau")
 
@@ -930,9 +893,7 @@ def test_save_joint_loo_pit_plot_writes_file_without_tau(tmp_path):
     assert (tmp_path / "loo_pit_n.png").exists()
 
 
-def test_the_joint_loo_pit_figure_names_the_unit_it_actually_leaves_out(
-    tmp_path, monkeypatch
-):
+def test_the_joint_loo_pit_figure_names_the_unit_it_actually_leaves_out(tmp_path, monkeypatch):
     """This plot subsets one outcome's flattened cells and keeps no child map, so it
     leaves out one **cell** — the omitted cell's child keeps its other transitions,
     its other outcome and its fitted random effect. Presenting it as the calibration
@@ -954,24 +915,17 @@ def test_the_joint_loo_pit_figure_names_the_unit_it_actually_leaves_out(
 
     diag.save_joint_loo_pit_plot(context, "N", filename_stem="loo_pit_n")
     assert diag.JOINT_LOO_PIT_UNIT_LABEL == "conditional leave-one-cell-out"
-    assert titles == [
-        "Conditional leave-one-cell-out PIT calibration (N) — "
-        "the child's other cells remain observed"
-    ]
+    assert titles == ["Conditional leave-one-cell-out PIT calibration (N) — the child's other cells remain observed"]
 
     # A family whose likelihood really is one cell per child may say so.
     titles.clear()
-    diag.save_joint_loo_pit_plot(
-        context, "N", filename_stem="loo_pit_n", unit_label="leave-one-child-out"
-    )
+    diag.save_joint_loo_pit_plot(context, "N", filename_stem="loo_pit_n", unit_label="leave-one-child-out")
     # …and gets its own label alone: the "other cells remain observed" clause is a
     # property of the cell-level unit, so it must not travel with a different one.
     assert titles == ["Leave-one-child-out PIT calibration (N)"]
 
 
-def _synthetic_trace(
-    shift, *, n=800, chains=4, seed=1, n_div=0, kappa_shift=None
-):
+def _synthetic_trace(shift, *, n=800, chains=4, seed=1, n_div=0, kappa_shift=None):
     """A DataTree with a tunable between-chain mean shift and divergence count.
 
     ``shift`` sets each chain's mean to ``shift * chain_index``, so a larger shift
@@ -982,12 +936,7 @@ def _synthetic_trace(
     draws = np.stack([rng.normal(loc=shift * c, scale=1.0, size=n) for c in range(chains)])
     variables = {"tau": (("chain", "draw"), draws)}
     if kappa_shift is not None:
-        kappa = np.stack(
-            [
-                rng.normal(loc=kappa_shift * c, scale=1.0, size=n)
-                for c in range(chains)
-            ]
-        )
+        kappa = np.stack([rng.normal(loc=kappa_shift * c, scale=1.0, size=n) for c in range(chains)])
         variables["kappa"] = (("chain", "draw"), kappa)
     post = xr.Dataset(
         variables,
@@ -1048,9 +997,7 @@ def test_subfit_convergence_catches_bad_nuisance_parameter():
     trace = _synthetic_trace(0.0, kappa_shift=0.5)
 
     tau_only = diag.subfit_convergence(trace, label="tau-only", var_names=["tau"])
-    complete = diag.subfit_convergence(
-        trace, label="all-free-rvs", var_names=["tau", "kappa"]
-    )
+    complete = diag.subfit_convergence(trace, label="all-free-rvs", var_names=["tau", "kappa"])
 
     assert tau_only["converged"] is True
     assert complete["max_rhat"] > diag.RHAT_MAX
@@ -1062,12 +1009,8 @@ def test_subfit_convergence_flags_low_bfmi(monkeypatch):
     # seam to patch; ``diag._bfmi_per_chain`` is no longer on this call path.
     # The extractor moved to ``dse_research_utils`` in v0.12.0, so the patch has
     # to target the module that resolves the name.
-    monkeypatch.setattr(
-        sampling_quality_mod, "_bfmi_per_chain", lambda _trace: np.asarray([0.2, 0.8])
-    )
-    result = diag.subfit_convergence(
-        _synthetic_trace(0.0), label="low-bfmi", var_names=["tau"]
-    )
+    monkeypatch.setattr(sampling_quality_mod, "_bfmi_per_chain", lambda _trace: np.asarray([0.2, 0.8]))
+    result = diag.subfit_convergence(_synthetic_trace(0.0), label="low-bfmi", var_names=["tau"])
     assert result["min_bfmi"] == pytest.approx(0.2)
     assert result["converged"] is False
 
@@ -1077,9 +1020,7 @@ def test_subfit_convergence_marks_diagnostic_errors_unchecked(monkeypatch):
         raise RuntimeError("synthetic diagnostics failure")
 
     monkeypatch.setattr(diag.az, "summary", fail_summary)
-    result = diag.subfit_convergence(
-        _synthetic_trace(0.0), label="uncheckable", var_names=["tau"]
-    )
+    result = diag.subfit_convergence(_synthetic_trace(0.0), label="uncheckable", var_names=["tau"])
     assert result == {
         "converged": None,
         "max_rhat": None,
@@ -1099,12 +1040,7 @@ def test_gate_var_names_unions_free_rvs_with_curated_and_filters_present():
     # drop any name a given fit does not instantiate.
     rv = lambda name: SimpleNamespace(name=name)  # noqa: E731
     model = SimpleNamespace(free_RVs=[rv("mu"), rv("u_child_raw"), rv("sigma_child")])
-    post = xr.Dataset(
-        {
-            k: (("chain", "draw"), np.zeros((2, 5)))
-            for k in ("mu", "u_child_raw", "sigma_child", "tau")
-        }
-    )
+    post = xr.Dataset({k: (("chain", "draw"), np.zeros((2, 5))) for k in ("mu", "u_child_raw", "sigma_child", "tau")})
     ctx = SimpleNamespace(model=model, trace=SimpleNamespace(posterior=post))
 
     names = diag._gate_var_names(ctx, ["tau", "beta_absent"])
@@ -1141,15 +1077,11 @@ def test_thin_posterior_only_keeps_prior_full():
     assert thinned.prior.sizes["draw"] == 1000  # prior untouched (was the bug)
 
     # A small posterior is returned unchanged.
-    small = xr.DataTree.from_dict(
-        {"posterior": xr.Dataset({"tau": (("chain", "draw"), np.zeros((2, 250)))})}
-    )
+    small = xr.DataTree.from_dict({"posterior": xr.Dataset({"tau": (("chain", "draw"), np.zeros((2, 250)))})})
     assert diag.thin_posterior_only(small, max_draws=1000) is small
 
 
-def test_prior_posterior_overlay_raises_subplot_limit_for_curated_vectors(
-    monkeypatch, tmp_path
-):
+def test_prior_posterior_overlay_raises_subplot_limit_for_curated_vectors(monkeypatch, tmp_path):
     # The full joint ITT overlay has five ten-outcome arrays (50 panels), above
     # ArviZ's default 40-panel safety limit.  An explicit curated selection must
     # render without permanently changing the process-wide rcParams setting.
@@ -1178,9 +1110,7 @@ def test_prior_posterior_overlay_raises_subplot_limit_for_curated_vectors(
     monkeypatch.setattr(
         diag,
         "_save_pc",
-        lambda _out, make, _name, title=None: observed.update(
-            result=make(), title=title
-        ),
+        lambda _out, make, _name, title=None: observed.update(result=make(), title=title),
     )
     original_limit = az.rcParams["plot.max_subplots"]
     selected = ["alpha", "tau", "gamma_own", "kappa", "gamma_A"]
@@ -1301,16 +1231,10 @@ def test_pymc_still_mangles_underscore_named_transforms():
             self.name = name
 
     for clean in ("log", "logodds", "ordered", "cholesky-cov"):
-        assert (
-            get_untransformed_name(get_transformed_name("v", _Transform(clean)))
-            == "v"
-        )
+        assert get_untransformed_name(get_transformed_name("v", _Transform(clean))) == "v"
 
     for broken in ("cholesky_corr", "log_exp_m1"):
-        assert (
-            get_untransformed_name(get_transformed_name("v", _Transform(broken)))
-            != "v"
-        )
+        assert get_untransformed_name(get_transformed_name("v", _Transform(broken))) != "v"
 
 
 def test_log_density_model_repairs_the_lkjcorr_naming_seam():
@@ -1327,9 +1251,7 @@ def test_log_density_model_repairs_the_lkjcorr_naming_seam():
 
     repaired = diag.log_density_model(model)
     assert repaired is not model
-    assert {value.name for value in repaired.value_vars} == {
-        rv.name for rv in repaired.free_RVs
-    }
+    assert {value.name for value in repaired.value_vars} == {rv.name for rv in repaired.free_RVs}
 
     out = compute_log_prior(trace.copy(), model=repaired, progressbar=False)
     out = pm.compute_log_likelihood(out, model=repaired, progressbar=False)
@@ -1399,17 +1321,13 @@ def test_sampling_quality_names_variables_whose_diagnostics_are_non_finite():
         sampling_quality,
     )
 
-    signals = sampling_quality(
-        _degenerate_trace(), var_names=["good", "stuck"]
-    )
+    signals = sampling_quality(_degenerate_trace(), var_names=["good", "stuck"])
     # The NaN-skipping extrema still report the healthy parameter, which is the
     # right extraction behaviour - but the skipped row is now named.
     assert np.isfinite(signals.max_rhat)
     assert signals.unassessable == ("stuck",)
 
-    clean = sampling_quality(
-        _degenerate_trace(include_constant=False), var_names=["good"]
-    )
+    clean = sampling_quality(_degenerate_trace(include_constant=False), var_names=["good"])
     assert clean.unassessable == ()
 
 
@@ -1418,9 +1336,7 @@ def test_subfit_gate_fails_when_a_parameter_cannot_be_assessed():
         subfit_convergence,
     )
 
-    verdict = subfit_convergence(
-        _degenerate_trace(), label="audit-577", var_names=["good", "stuck"]
-    )
+    verdict = subfit_convergence(_degenerate_trace(), label="audit-577", var_names=["good", "stuck"])
     # Zero divergences, R-hat 1.0003 and ESS ~3900 on the parameter it *could*
     # measure: without the unassessable check this passed.
     assert verdict["n_divergences"] == 0
@@ -1435,7 +1351,6 @@ def test_subfit_gate_fails_when_a_parameter_cannot_be_assessed():
     )
     assert clean["unassessable_parameters"] == ""
     assert clean["converged"] is True
-
 
 
 def test_a_clean_fit_records_that_the_assessable_check_ran(tmp_path):
@@ -1518,7 +1433,6 @@ def test_the_structure_signature_moves_when_a_prior_default_moves():
     edited in the factory.
     """
 
-
     _prepared, registered, retuned = _two_itt_models(tau_sigma=0.9)
     a = _metadata._model_design_identity(SimpleNamespace(model=registered.model))
     b = _metadata._model_design_identity(SimpleNamespace(model=retuned.model))
@@ -1535,7 +1449,6 @@ def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
     standardisation — passed every check the contract had.
     """
     from dataclasses import replace as _replace
-
 
     from language_reading_predictors.statistical_models.factories.itt import build_itt_model
     from language_reading_predictors.statistical_models.itt import (
@@ -1564,11 +1477,10 @@ def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
     # so the two hashes stay independent and a refusal can name which one moved.
     assert a["structure_sha256"] == b["structure_sha256"]
     # And this is precisely what the pre-existing identity could not see.
-    assert describe_fitted_data(
-        SimpleNamespace(model=built.model, prepared=prepared)
-    ).digest == describe_fitted_data(
-        SimpleNamespace(model=built_rebuilt.model, prepared=rebuilt)
-    ).digest
+    assert (
+        describe_fitted_data(SimpleNamespace(model=built.model, prepared=prepared)).digest
+        == describe_fitted_data(SimpleNamespace(model=built_rebuilt.model, prepared=rebuilt)).digest
+    )
 
 
 def test_the_reuse_contract_carries_the_new_bindings():
@@ -1676,9 +1588,7 @@ def test_reclassify_structural_constants_flips_the_verdict_and_rewrites(tmp_path
     path = tmp_path / "diagnostics_summary.json"
     path.write_text(json.dumps(summary))
     tables: dict = {}
-    out = reclassify_structural_constants(
-        summary, posterior, output_dir=tmp_path, tables=tables
-    )
+    out = reclassify_structural_constants(summary, posterior, output_dir=tmp_path, tables=tables)
     assert out["passed"] is True
     # The fit's table cache must agree with the amended file (#662): it used to
     # keep the pre-reclassification verdict the shared writer had stored.
@@ -1749,9 +1659,7 @@ def test_subfit_convergence_reclassifies_structural_constants():
 
 
 def _derived_gate_ctx(tmp_path):
-    (tmp_path / "diagnostics_summary.json").write_text(
-        json.dumps({"checks": {"rhat": True}, "passed": True})
-    )
+    (tmp_path / "diagnostics_summary.json").write_text(json.dumps({"checks": {"rhat": True}, "passed": True}))
     return SimpleNamespace(output_dir=str(tmp_path), tables={})
 
 
@@ -1781,9 +1689,7 @@ def test_derived_gate_passes_a_complete_branch_summary(tmp_path, quantities):
 
 def test_derived_gate_fails_an_empty_summary(tmp_path):
     ctx = _derived_gate_ctx(tmp_path)
-    payload = diag.gate_derived_estimands(
-        ctx, pd.DataFrame(columns=["quantity"]), quantities=("total", "NDE", "NIE")
-    )
+    payload = diag.gate_derived_estimands(ctx, pd.DataFrame(columns=["quantity"]), quantities=("total", "NDE", "NIE"))
     assert payload["checks"]["derived_estimands"] is False
     assert payload["passed"] is False
     assert payload["derived_estimands_failing"] == [
@@ -1796,21 +1702,15 @@ def test_derived_gate_fails_an_empty_summary(tmp_path):
 def test_derived_gate_fails_a_partial_summary_naming_the_missing(tmp_path):
     ctx = _derived_gate_ctx(tmp_path)
     summary = pd.DataFrame([_derived_row("total")])
-    payload = diag.gate_derived_estimands(
-        ctx, summary, quantities=("total", "NDE", "NIE")
-    )
+    payload = diag.gate_derived_estimands(ctx, summary, quantities=("total", "NDE", "NIE"))
     assert payload["passed"] is False
     assert payload["derived_estimands_failing"] == ["NDE (missing)", "NIE (missing)"]
 
 
 def test_derived_gate_fails_a_duplicated_quantity(tmp_path):
     ctx = _derived_gate_ctx(tmp_path)
-    summary = pd.DataFrame(
-        [_derived_row("total"), _derived_row("total"), _derived_row("NDE"), _derived_row("NIE")]
-    )
-    payload = diag.gate_derived_estimands(
-        ctx, summary, quantities=("total", "NDE", "NIE")
-    )
+    summary = pd.DataFrame([_derived_row("total"), _derived_row("total"), _derived_row("NDE"), _derived_row("NIE")])
+    payload = diag.gate_derived_estimands(ctx, summary, quantities=("total", "NDE", "NIE"))
     assert payload["passed"] is False
     assert payload["derived_estimands_failing"] == ["total (duplicated)"]
 
@@ -1819,27 +1719,25 @@ def test_derived_gate_still_fails_a_present_row_below_the_ess_floor(tmp_path):
     ctx = _derived_gate_ctx(tmp_path)
     rows = [_derived_row("total"), _derived_row("NDE"), _derived_row("NIE")]
     rows[1]["ess_bulk"] = 12.0
-    payload = diag.gate_derived_estimands(
-        ctx, pd.DataFrame(rows), quantities=("total", "NDE", "NIE")
-    )
+    payload = diag.gate_derived_estimands(ctx, pd.DataFrame(rows), quantities=("total", "NDE", "NIE"))
     assert payload["passed"] is False
     assert payload["derived_estimands_failing"] == ["NDE"]
 
 
 def test_loo_influence_counts_nonfinite_values_once_and_preserves_zero_threshold():
     ctx = SimpleNamespace(
-        loo=SimpleNamespace(pareto_k=np.array([np.nan, np.inf, -np.inf, .1, -.1]), good_k=0.),
+        loo=SimpleNamespace(pareto_k=np.array([np.nan, np.inf, -np.inf, 0.1, -0.1]), good_k=0.0),
         prepared=SimpleNamespace(subject_ids=np.arange(5)),
     )
     _, threshold, unusable = diag.influence_diagnostics(ctx)
-    assert threshold == 0.
+    assert threshold == 0.0
     assert unusable == 4  # Infinity also exceeds zero, but counts only once.
 
 
 @pytest.mark.parametrize("threshold", [np.nan, np.inf])
 def test_loo_influence_refuses_nonfinite_threshold(threshold):
     ctx = SimpleNamespace(
-        loo=SimpleNamespace(pareto_k=np.array([.1, .2]), good_k=threshold),
+        loo=SimpleNamespace(pareto_k=np.array([0.1, 0.2]), good_k=threshold),
         prepared=SimpleNamespace(subject_ids=np.arange(2)),
     )
     with pytest.raises(ValueError, match="threshold must be finite"):

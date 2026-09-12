@@ -37,12 +37,10 @@ def _kf_build_pooled_levels(output_dir: str | Path, config: Mapping) -> list[dic
     if bool(plan.get("mechanism_is_covariate", False)) and sd_raw is not None:
         try:
             unit = f"1 SD ≈ {float(sd_raw):.1f} raw points"
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             unit = None
         if unit is not None:
-            exposure = (
-                f"{exposure[:-1]}; {unit})" if exposure.endswith(")") else f"{exposure} ({unit})"
-            )
+            exposure = f"{exposure[:-1]}; {unit})" if exposure.endswith(")") else f"{exposure} ({unit})"
 
     sentences: list[dict[str, str]] = []
     between = rows.get("beta_between")

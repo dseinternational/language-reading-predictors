@@ -32,9 +32,7 @@ def _kf_build_adjusted(output_dir: str | Path, config: Mapping) -> list[dict[str
     if "predictor" in df.columns:
         df = df[~df["predictor"].astype(str).str.endswith("_missing")]
         if df.empty:
-            raise _KeyFindingsUnavailable(
-                "predicted_gain_words.csv carries only missing-indicator rows"
-            )
+            raise _KeyFindingsUnavailable("predicted_gain_words.csv carries only missing-indicator rows")
     row = _kf_most_resolved_row(df, prob_col="prob_pos")
     label = _kf_plain_label(row.get("label", row.get("predictor", "predictor")))
     # House standard is the posterior median (METHODS.md); the mean was reported

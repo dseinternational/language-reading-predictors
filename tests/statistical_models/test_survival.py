@@ -42,13 +42,17 @@ def _fixture() -> pd.DataFrame:
     }
     for sid, (grp, nonword, yl, ew, age) in spec.items():
         for t in (1, 2, 3, 4):
-            rows.append({
-                "subject_id": sid, "time": t, "group": grp,
-                "nonword": nonword[t - 1],
-                "yarclet": yl if t == 1 else np.nan,
-                "ewrswr": ew if t == 1 else np.nan,
-                "age": age if t == 1 else np.nan,
-            })
+            rows.append(
+                {
+                    "subject_id": sid,
+                    "time": t,
+                    "group": grp,
+                    "nonword": nonword[t - 1],
+                    "yarclet": yl if t == 1 else np.nan,
+                    "ewrswr": ew if t == 1 else np.nan,
+                    "age": age if t == 1 else np.nan,
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -96,16 +100,9 @@ def test_treatment_window_controls_where_tau_enters_eta():
         m = built.model
         point = m.initial_point()
         rvs = list(m.free_RVs)
-        eta_fn = pytensor.function(
-            [m[rv.name] for rv in rvs], m["eta"], on_unused_input="ignore"
-        )
+        eta_fn = pytensor.function([m[rv.name] for rv in rvs], m["eta"], on_unused_input="ignore")
         zero = [np.zeros_like(point[rv.name]) for rv in rvs]
-        one = [
-            np.ones_like(point[rv.name])
-            if rv.name == "tau"
-            else np.zeros_like(point[rv.name])
-            for rv in rvs
-        ]
+        one = [np.ones_like(point[rv.name]) if rv.name == "tau" else np.zeros_like(point[rv.name]) for rv in rvs]
         return np.asarray(eta_fn(*one)) - np.asarray(eta_fn(*zero))
 
     randomised = _tau_reach("randomised")
@@ -153,9 +150,7 @@ def test_child_aggregation_recognises_the_survival_likelihood_node():
                 {"y_event": (("chain", "draw", "obs_id"), ll)},
                 coords={"chain": range(2), "draw": range(5)},
             ),
-            "constant_data": xr.Dataset(
-                {"loo_child_idx": (("obs_id",), rows_to_child)}
-            ),
+            "constant_data": xr.Dataset({"loo_child_idx": (("obs_id",), rows_to_child)}),
         }
     )
     aggregated = _joint_log_likelihood_by_child(trace)
@@ -209,6 +204,7 @@ def test_readiness_knee_finds_a_late_rising_curve():
 def test_hazard_prior_explains_the_assignment_window():
     from language_reading_predictors.statistical_models.priors import priors_table
     from language_reading_predictors.statistical_models.survival import build_survival_model
+
     prepared = prepare_survival("N", df=_fixture())
     for window in ("randomised", "pooled"):
         built = build_survival_model(prepared, treatment_window=window)

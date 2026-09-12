@@ -60,17 +60,13 @@ def _kf_mechanism_shape_caveat(output_dir: str | Path, config: Mapping) -> dict[
                     "range, so no threshold is located within the data"
                 )
             else:
-                reasons.append(
-                    "the fitted curve does not bend clearly enough to locate a "
-                    "threshold"
-                )
+                reasons.append("the fitted curve does not bend clearly enough to locate a threshold")
     psense = _kf_csv(output_dir, "psense_summary.csv")
     if psense is not None and "diagnosis" in psense.columns and len(psense.columns):
         names = psense[psense.columns[0]].astype(str)
         # "✓" is this column's *clear* marker, so anything else is the flag.
         flagged = psense[
-            names.str.startswith("f_mech__")
-            & ~psense["diagnosis"].astype(str).str.strip().isin(["✓", "", "nan"])
+            names.str.startswith("f_mech__") & ~psense["diagnosis"].astype(str).str.strip().isin(["✓", "", "nan"])
         ]
         if len(flagged):
             reasons.append(
@@ -81,9 +77,7 @@ def _kf_mechanism_shape_caveat(output_dir: str | Path, config: Mapping) -> dict[
     if not reasons:
         return None
     return _kf_sentence(
-        "Read the strength and direction of this association, not its shape: "
-        + "; ".join(reasons)
-        + ".",
+        "Read the strength and direction of this association, not its shape: " + "; ".join(reasons) + ".",
         "note",
     )
 
@@ -117,13 +111,9 @@ def mechanism_headline_estimand(output_dir: str | Path) -> dict | None:
     )
     record: dict = {"source": "mechanism_summary.csv"}
     for key in keys:
-        if key in row and not (
-            isinstance(row[key], float) and not np.isfinite(row[key])
-        ):
+        if key in row and not (isinstance(row[key], float) and not np.isfinite(row[key])):
             value = row[key]
-            record[key] = (
-                float(value) if isinstance(value, (int, float, np.floating)) else str(value)
-            )
+            record[key] = float(value) if isinstance(value, (int, float, np.floating)) else str(value)
     return record
 
 
@@ -161,14 +151,11 @@ def _kf_mechanism_slope_sentences(output_dir: str | Path) -> list[dict[str, str]
 
     # ``by`` collapses repeated components, so the per-period rows are taken from
     # the table itself; only the singleton components are looked up by key.
-    slopes = [
-        r for _, r in table.iterrows() if str(r.get("component")) == "phase_slope"
-    ]
+    slopes = [r for _, r in table.iterrows() if str(r.get("component")) == "phase_slope"]
     scale = by.get("phase_scale")
     if slopes:
         listed = "; ".join(
-            f"{str(r['period'])} {_kf_float(r['median']):+.2f} "
-            f"({_kf_float(r['lo']):+.2f} to {_kf_float(r['hi']):+.2f})"
+            f"{str(r['period'])} {_kf_float(r['median']):+.2f} ({_kf_float(r['lo']):+.2f} to {_kf_float(r['hi']):+.2f})"
             for r in slopes
         )
         spread = (
@@ -248,15 +235,11 @@ def _kf_build_mechanism(output_dir: str | Path, config: Mapping) -> list[dict[st
     else:
         curve = _kf_csv(output_dir, "mechanism_curve.csv")
         if curve is None:
-            raise _KeyFindingsUnavailable(
-                "neither mechanism_summary.csv nor mechanism_curve.csv is present"
-            )
+            raise _KeyFindingsUnavailable("neither mechanism_summary.csv nor mechanism_curve.csv is present")
         x_col = "mech_x" if "mech_x" in curve.columns else "mech_logit"
         required = {x_col, "f_mean", "f_lo", "f_hi"}
         if not required.issubset(curve.columns):
-            raise _KeyFindingsUnavailable(
-                "mechanism_curve.csv does not have the expected columns"
-            )
+            raise _KeyFindingsUnavailable("mechanism_curve.csv does not have the expected columns")
         ordered = curve.sort_values(x_col)
         low_row, high_row = ordered.iloc[0], ordered.iloc[-1]
         sentences.append(
@@ -303,9 +286,7 @@ def _kf_build_mechanism(output_dir: str | Path, config: Mapping) -> list[dict[st
         lo50 = _kf_float(interaction["gamma_int_lo50"])
         hi50 = _kf_float(interaction["gamma_int_hi50"])
         p = _kf_float(interaction["prob_gamma_int_pos"])
-        exposure_label = _kf_lower_first(
-            _kf_measure_label(config.get("mechanism_symbol") or "the exposure")
-        )
+        exposure_label = _kf_lower_first(_kf_measure_label(config.get("mechanism_symbol") or "the exposure"))
         outcome_mid = _kf_lower_first(outcome_label)
         moderator_label = _kf_moderator_label(config)
         focal = _kf_sentence(
@@ -334,9 +315,7 @@ def _kf_build_mechanism(output_dir: str | Path, config: Mapping) -> list[dict[st
             ),
             "confidence",
         )
-        items_sentence = _kf_moderation_items_sentence(
-            output_dir, config, prob_gamma_int_pos=p
-        )
+        items_sentence = _kf_moderation_items_sentence(output_dir, config, prob_gamma_int_pos=p)
         if items_sentence is None:
             sentences = [focal, direction, *sentences]
         else:
@@ -350,9 +329,7 @@ def _kf_build_mechanism(output_dir: str | Path, config: Mapping) -> list[dict[st
             # reports, so it is folded into it rather than added as a sixth sentence
             # that truncation would silently drop (#464 / #586).
             if context is not None and shape_caveat is not None:
-                context = _kf_sentence(
-                    context["text"].rstrip(".") + ". " + shape_caveat["text"], "note"
-                )
+                context = _kf_sentence(context["text"].rstrip(".") + ". " + shape_caveat["text"], "note")
             elif context is None and shape_caveat is not None:
                 context = shape_caveat
             sentences = [
@@ -386,9 +363,7 @@ def _kf_moderator_label(config: Mapping) -> str:
     return _kf_lower_first(_kf_measure_label(symbol))
 
 
-def _kf_mechanism_curve_context(
-    summary: Mapping | None, outcome_label: str
-) -> dict[str, str] | None:
+def _kf_mechanism_curve_context(summary: Mapping | None, outcome_label: str) -> dict[str, str] | None:
     """The unmoderated curve's end-to-end contrast as one context sentence.
 
     Used on moderated fits once the items-scale moderation sentence is present:
@@ -458,9 +433,7 @@ def _kf_moderation_items_sentence(
     exposure_unit = _kf_dag_unit(inter.get("exposure_unit", "items"))
     moderator_unit = _kf_dag_unit(inter.get("moderator_unit", ""))
     moderator_label = _kf_moderator_label(config)
-    exposure_label = _kf_lower_first(
-        _kf_measure_label(config.get("mechanism_symbol") or "the exposure")
-    )
+    exposure_label = _kf_lower_first(_kf_measure_label(config.get("mechanism_symbol") or "the exposure"))
     outcome_label = _kf_lower_first(_kf_outcome_label(config))
     fav_items = favoured_direction(_kf_float(inter["prob_pos"]))
     fav_logit = favoured_direction(_kf_float(prob_gamma_int_pos))
@@ -484,8 +457,7 @@ def _kf_moderation_items_sentence(
         )
     elif settled and items_dir == fav_logit["favoured_direction"]:
         verdict = (
-            f"{label} evidence that the {pattern} holds in items too, so it is not "
-            "an artefact of the bounded scale"
+            f"{label} evidence that the {pattern} holds in items too, so it is not an artefact of the bounded scale"
         )
     elif settled:
         verdict = (

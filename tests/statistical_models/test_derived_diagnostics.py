@@ -42,9 +42,7 @@ def test_missing_draws_do_not_turn_multiple_chains_into_one(missing):
 def test_undefined_mediated_ratios_keep_summaries_but_have_no_chain_diagnostics():
     total = np.ones(4000)
     total[0] = 0
-    actual = _proportion_row(
-        np.full(4000, 0.4), total, 0.055, 0.945, n_chains=4, n_draws=1000
-    )
+    actual = _proportion_row(np.full(4000, 0.4), total, 0.055, 0.945, n_chains=4, n_draws=1000)
     assert actual["prob_median"] == pytest.approx(0.4)
     assert np.isnan(actual["ess_bulk"])
     assert np.isnan(actual["ess_tail"])

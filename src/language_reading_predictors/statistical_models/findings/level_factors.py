@@ -31,9 +31,7 @@ def _kf_level_blending_link_sentence(output_dir: str | Path, config: Mapping) ->
     establishes. Fails closed: an unready pair raises, which withholds the box
     rather than publishing a single-link headline.
     """
-    if str(config.get("kind")) != "level_factors" or str(
-        config.get("outcome_symbol")
-    ) != "B":
+    if str(config.get("kind")) != "level_factors" or str(config.get("outcome_symbol")) != "B":
         return None
     from language_reading_predictors.statistical_models.blending_sensitivity import (
         evaluate_level_blending_link_pair,
@@ -43,9 +41,7 @@ def _kf_level_blending_link_sentence(output_dir: str | Path, config: Mapping) ->
     if not status.get("required"):
         return None
     if not status.get("ready"):
-        raise _KeyFindingsUnavailable(
-            str(status.get("reason") or "the B link pair is not ready")
-        )
+        raise _KeyFindingsUnavailable(str(status.get("reason") or "the B link pair is not ready"))
     cards = status["cards"]
     this_id = str(config.get("model_id"))
     other_id = next(k for k in cards if k != this_id)
@@ -77,13 +73,9 @@ def _kf_build_level_factors(output_dir: str | Path, config: Mapping) -> list[dic
     outcome_label = _kf_outcome_label(config)
     rope = _kf_csv_row(output_dir, "rope_summary.csv")
     if rope is None:
-        raise _KeyFindingsUnavailable(
-            "rope_summary.csv (the t2 items-scale contrast) is not present"
-        )
+        raise _KeyFindingsUnavailable("rope_summary.csv (the t2 items-scale contrast) is not present")
     sentences: list[dict[str, str]] = []
-    headline, is_rd = _kf_headline_from_rope(
-        rope, outcome_label, "at the end of the randomised period (t2)"
-    )
+    headline, is_rd = _kf_headline_from_rope(rope, outcome_label, "at the end of the randomised period (t2)")
     sentences.append(_kf_sentence(headline, "headline"))
     # Phoneme blending: the paired-link sentence rides immediately behind the
     # headline, because the headline alone is a single-link number (#584 decision 2).
@@ -105,17 +97,13 @@ def _kf_build_level_factors(output_dir: str | Path, config: Mapping) -> list[dic
             # The level-family off-floor outcome is off-floor STATUS at each
             # wave (score > 0) — prevalence, not a floor-exit transition — so
             # the t2 sentence names the status estimand (#490 review follow-up).
-            _kf_direction_words(
-                rope["pd"], is_rd=is_rd, rd_event="being off the floor at t2"
-            ),
+            _kf_direction_words(rope["pd"], is_rd=is_rd, rd_event="being off the floor at t2"),
             "confidence",
         )
     )
     sentences.append(_kf_sentence(_kf_rope_sentence(rope, is_rd=is_rd), "rope"))
     plan = config.get("resolved_run_plan") or {}
-    t1_referenced = str(plan.get("arm_gap_reference", "free")) == "t1" and bool(
-        plan.get("group_by_time", True)
-    )
+    t1_referenced = str(plan.get("arm_gap_reference", "free")) == "t1" and bool(plan.get("group_by_time", True))
     causal = (
         "Only this t2 comparison compares being taught with not yet being taught. "
         + (

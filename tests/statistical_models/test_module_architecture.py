@@ -128,9 +128,7 @@ def test_nested_modules_keep_distinct_names_and_cycles_are_detected(tmp_path, mo
         (tmp_path / folder).mkdir()
         (tmp_path / folder / "__init__.py").write_text("", encoding="utf-8")
         (tmp_path / folder / "base.py").write_text("", encoding="utf-8")
-    (tmp_path / "factories/a.py").write_text(
-        f"from {SM}.factories import b\n", encoding="utf-8"
-    )
+    (tmp_path / "factories/a.py").write_text(f"from {SM}.factories import b\n", encoding="utf-8")
     (tmp_path / "factories/b.py").write_text("from . import a\n", encoding="utf-8")
     edges = _edges()
     assert {"factories.base", "pipelines.base", "release.base"} <= edges.keys()
@@ -142,8 +140,7 @@ def test_root_submodule_imports_are_edges_but_function_names_are_not(tmp_path, m
     (tmp_path / "reporting.py").write_text("def summary(): pass\n", encoding="utf-8")
     source = tmp_path / "reader.py"
     source.write_text(
-        f"from {SM} import reporting as report\n"
-        f"from {SM}.reporting import summary\n",
+        f"from {SM} import reporting as report\nfrom {SM}.reporting import summary\n",
         encoding="utf-8",
     )
     assert _module_imports(source) == {"__init__", "reporting"}
@@ -159,10 +156,26 @@ def test_factories_no_longer_imports_level_factor_policy():
 #: ``factories.py`` split by family (#637 stage 3b). ``base`` holds what more than
 #: one family needs; every other module is one family's construction code.
 FACTORY_MODULES = (
-    "base", "itt", "joint", "joint_mechanism", "mechanism", "dose_response", "did",
-    "mediation", "adjusted", "concurrent", "horseshoe", "corr_factor",
-    "gain_factors", "level_factors", "block_exposure", "aligned", "lcsm", "growth",
-    "long_corr_factor", "historical",
+    "base",
+    "itt",
+    "joint",
+    "joint_mechanism",
+    "mechanism",
+    "dose_response",
+    "did",
+    "mediation",
+    "adjusted",
+    "concurrent",
+    "horseshoe",
+    "corr_factor",
+    "gain_factors",
+    "level_factors",
+    "block_exposure",
+    "aligned",
+    "lcsm",
+    "growth",
+    "long_corr_factor",
+    "historical",
 )
 
 
@@ -191,24 +204,26 @@ def test_no_factory_family_module_imports_a_sibling():
 def test_the_factories_facade_defines_nothing_of_its_own():
     tree = ast.parse((PACKAGE / "factories" / "__init__.py").read_text(encoding="utf-8"))
     defined = [
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
     ]
     assert defined == [], defined
 
 
 def test_no_factory_module_is_still_hub_sized():
     largest = max(
-        (len((PACKAGE / "factories" / f"{m}.py").read_text(encoding="utf-8").splitlines()), m)
-        for m in FACTORY_MODULES
+        (len((PACKAGE / "factories" / f"{m}.py").read_text(encoding="utf-8").splitlines()), m) for m in FACTORY_MODULES
     )
     assert largest[0] < 1400, largest
 
 
 #: ``release.py`` split by responsibility (#637 stage 3c), in decision order.
 RELEASE_MODULES = (
-    "base", "robustness", "blending", "family_checks", "dependence", "publication",
+    "base",
+    "robustness",
+    "blending",
+    "family_checks",
+    "dependence",
+    "publication",
 )
 
 #: Which release modules each one may read. Each check reads ``base``; only
@@ -255,17 +270,14 @@ def test_the_release_modules_form_the_declared_one_way_graph():
 def test_the_release_facade_defines_nothing_of_its_own():
     tree = ast.parse((PACKAGE / "release" / "__init__.py").read_text(encoding="utf-8"))
     defined = [
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
     ]
     assert defined == [], defined
 
 
 def test_no_release_module_is_still_hub_sized():
     largest = max(
-        (len((PACKAGE / "release" / f"{m}.py").read_text(encoding="utf-8").splitlines()), m)
-        for m in RELEASE_MODULES
+        (len((PACKAGE / "release" / f"{m}.py").read_text(encoding="utf-8").splitlines()), m) for m in RELEASE_MODULES
     )
     assert largest[0] < 1500, largest
 
@@ -280,8 +292,6 @@ def test_each_split_module_exists_and_is_smaller_than_the_hub_it_left(module):
 def test_the_reporting_facade_re_exports_every_name_the_split_modules_own():
     """A call site that imported it from ``reporting`` must still find it there."""
     import importlib
-
-
 
     for module in SPLIT_MODULES:
         loaded = importlib.import_module(f"{SM}.{module}")
@@ -305,9 +315,7 @@ def test_the_facade_defines_nothing_of_its_own():
     """It is a compatibility seam. New behaviour belongs in an owning module."""
     tree = ast.parse((PACKAGE / "reporting.py").read_text(encoding="utf-8"))
     defined = [
-        node.name
-        for node in tree.body
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
     ]
     assert defined == [], defined
 
@@ -367,9 +375,7 @@ def _facade_attributes_reached() -> dict[str, set[str]]:
     """
     repository = PACKAGE.parents[2]
     reached: dict[str, set[str]] = {name: set() for name in FACADES}
-    for path in sorted(repository.glob("src/**/*.py")) + sorted(
-        repository.glob("scripts/**/*.py")
-    ):
+    for path in sorted(repository.glob("src/**/*.py")) + sorted(repository.glob("scripts/**/*.py")):
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError:  # pragma: no cover - a syntax error fails elsewhere

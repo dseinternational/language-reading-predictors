@@ -47,10 +47,7 @@ def derived_mc_diagnostics(
         raise ValueError("n_chains and n_draws must both be positive")
     arr = np.asarray(draws, dtype=float).ravel()
     if arr.size != n_chains * n_draws or not np.all(np.isfinite(arr)):
-        return {
-            f"{prefix}{name}": float("nan")
-            for name in ("ess_bulk", "ess_tail", "mcse_median")
-        }
+        return {f"{prefix}{name}": float("nan") for name in ("ess_bulk", "ess_tail", "mcse_median")}
     da = xr.DataArray(arr.reshape(n_chains, n_draws), dims=("chain", "draw"))
     return {
         f"{prefix}ess_bulk": float(az.ess(da, method="bulk")),

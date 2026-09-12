@@ -86,8 +86,7 @@ def draw_score_check(observed: np.ndarray, replicated: np.ndarray, output: Path)
     ax = fig.subplots()
     bins = np.arange(MEASURES[SPEC.outcome_symbol].n_trials + 2) - 0.5
     ax.hist(replicated.ravel(), bins=bins, density=True, alpha=0.5, label="Simulated scores")
-    ax.hist(observed, bins=bins, density=True, histtype="step", linewidth=2,
-            label="Observed synthetic scores")
+    ax.hist(observed, bins=bins, density=True, histtype="step", linewidth=2, label="Observed synthetic scores")
     ax.set(xlabel="Items answered correctly", ylabel="Proportion per item bin")
     ax.legend()
     fig.tight_layout()
@@ -122,34 +121,46 @@ def main() -> None:
     with built.model:
         prior = pm.sample_prior_predictive(draws=500, random_seed=args.seed)
     prior_summary = prior_pushforward(
-        prior, G=built.prepared.G, n_trials=n_items, ci_prob=REPORTING_CI_PROB,
+        prior,
+        G=built.prepared.G,
+        n_trials=n_items,
+        ci_prob=REPORTING_CI_PROB,
     )
     pd.DataFrame([prior_summary]).to_csv(output / "prior_effect_summary.csv", index=False)
-    draw_score_check(observed, prior.prior_predictive["y_post"].values,
-                     output / "prior_score_check.png")
+    draw_score_check(observed, prior.prior_predictive["y_post"].values, output / "prior_score_check.png")
     if args.prior_only:
         return
 
     with built.model:
         trace = pm.sample(
-            draws=args.draws, tune=args.tune, chains=args.chains, cores=args.chains,
-            target_accept=0.95, nuts_sampler="nutpie", random_seed=args.seed,
+            draws=args.draws,
+            tune=args.tune,
+            chains=args.chains,
+            cores=args.chains,
+            target_accept=0.95,
+            nuts_sampler="nutpie",
+            random_seed=args.seed,
             progressbar=False,
         )
         pm.sample_posterior_predictive(
-            trace, var_names=["y_post"], extend_inferencedata=True,
-            random_seed=args.seed, progressbar=False,
+            trace,
+            var_names=["y_post"],
+            extend_inferencedata=True,
+            random_seed=args.seed,
+            progressbar=False,
         )
 
-    diagnostics = az.summary(trace, var_names=["alpha", "tau", "gamma_own", "gamma_A", "kappa"],
-                             kind="diagnostics")
+    diagnostics = az.summary(trace, var_names=["alpha", "tau", "gamma_own", "gamma_A", "kappa"], kind="diagnostics")
     diagnostics.to_csv(output / "sampling_diagnostics.csv")
     print(diagnostics.to_string())
     print(f"Divergent transitions: {int(trace.sample_stats['diverging'].sum())}")
     replicated = trace.posterior_predictive["y_post"].stack(sample=("chain", "draw"))
     score_ppc_distribution_shape(
-        plan.outcome_symbol, replicated.transpose("sample", "obs_id").values, observed,
-        n_trials=n_items, ci_prob=0.95,
+        plan.outcome_symbol,
+        replicated.transpose("sample", "obs_id").values,
+        observed,
+        n_trials=n_items,
+        ci_prob=0.95,
     ).to_csv(output / "posterior_predictive_checks.csv", index=False)
     draw_score_check(observed, replicated.values, output / "posterior_score_check.png")
 
@@ -160,8 +171,10 @@ def main() -> None:
     summary = tau_summary_itt(trace, G=built.prepared.G, ci_prob=REPORTING_CI_PROB)
     pd.DataFrame([summary]).to_csv(output / "treatment_summary.csv", index=False)
     lower, upper = np.quantile(effect_items, ((1 - REPORTING_CI_PROB) / 2, (1 + REPORTING_CI_PROB) / 2))
-    print(f"Synthetic assigned-arm difference: median {np.median(effect_items):.2f} items; "
-          f"89% equal-tailed interval {lower:.2f} to {upper:.2f} items")
+    print(
+        f"Synthetic assigned-arm difference: median {np.median(effect_items):.2f} items; "
+        f"89% equal-tailed interval {lower:.2f} to {upper:.2f} items"
+    )
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from language_reading_predictors.statistical_models.release.base import (
     _stored_bool,
 )
 
+
 def _mediation_t3_release_failures(
     output_dir: Path, config: Mapping[str, Any]
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -50,10 +51,7 @@ def _mediation_t3_release_failures(
     extra = config.get("extra") or {}
     if not isinstance(extra, Mapping):
         return (), ("config.json (mediation t3 configuration is unreadable)",)
-    required = (
-        extra.get("estimand") in ("natural", "interventional")
-        and extra.get("outcome_time") is None
-    )
+    required = extra.get("estimand") in ("natural", "interventional") and extra.get("outcome_time") is None
     if not required:
         return (), ()
 
@@ -66,18 +64,10 @@ def _mediation_t3_release_failures(
         if "converged" not in summary.columns:
             artifact_failures.append("mediation_summary_t3.csv (no convergence column)")
         elif not bool(
-            summary["converged"]
-            .map(lambda value: str(value).strip().casefold() in {"true", "1", "yes"})
-            .all()
+            summary["converged"].map(lambda value: str(value).strip().casefold() in {"true", "1", "yes"}).all()
         ):
-            computation_failures.append(
-                "mediation t3 sensitivity summary convergence failed or was unchecked"
-            )
-        trace_files = (
-            set(summary["trace_file"].dropna().astype(str))
-            if "trace_file" in summary.columns
-            else set()
-        )
+            computation_failures.append("mediation t3 sensitivity summary convergence failed or was unchecked")
+        trace_files = set(summary["trace_file"].dropna().astype(str)) if "trace_file" in summary.columns else set()
         if trace_files != {MEDIATION_T3_TRACE_FILENAME}:
             artifact_failures.append("mediation_summary_t3.csv (invalid trace binding)")
 
@@ -86,35 +76,23 @@ def _mediation_t3_release_failures(
     if provenance is None or provenance.empty or "label" not in provenance.columns:
         artifact_failures.append("subfit_provenance.csv")
     else:
-        rows = provenance.loc[
-            provenance["label"].astype(str) == f"{model_id} t3 sensitivity"
-        ]
+        rows = provenance.loc[provenance["label"].astype(str) == f"{model_id} t3 sensitivity"]
         if len(rows) != 1:
-            artifact_failures.append(
-                "subfit_provenance.csv (no unique mediation t3 row)"
-            )
+            artifact_failures.append("subfit_provenance.csv (no unique mediation t3 row)")
         else:
             row = rows.iloc[0]
             if str(row.get("role", "")).strip() != "sensitivity":
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid mediation t3 role)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid mediation t3 role)")
             if "converged" not in provenance.columns:
-                artifact_failures.append(
-                    "subfit_provenance.csv (no convergence column)"
-                )
+                artifact_failures.append("subfit_provenance.csv (no convergence column)")
             elif str(row.get("converged", "")).strip().casefold() not in {
                 "true",
                 "1",
                 "yes",
             }:
-                computation_failures.append(
-                    "mediation t3 sensitivity provenance failed or was unchecked"
-                )
+                computation_failures.append("mediation t3 sensitivity provenance failed or was unchecked")
             if str(row.get("trace_file", "")).strip() != MEDIATION_T3_TRACE_FILENAME:
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid mediation t3 trace binding)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid mediation t3 trace binding)")
 
     if not (output_dir / MEDIATION_T3_TRACE_FILENAME).is_file():
         artifact_failures.append(MEDIATION_T3_TRACE_FILENAME)
@@ -172,33 +150,23 @@ def _joint_mechanism_wave_release_failures(
     if missing_columns:
         return (
             (),
-            (
-                "joint_mechanism_fit_diagnostics.csv (no "
-                f"{', '.join(missing_columns)} column)",
-            ),
+            (f"joint_mechanism_fit_diagnostics.csv (no {', '.join(missing_columns)} column)",),
             (),
         )
 
     if int((diagnostics["role"].astype(str).str.strip() == "anchor").sum()) != 1:
-        artefacts.append(
-            "joint_mechanism_fit_diagnostics.csv (no unique artefact-hosting wave)"
-        )
+        artefacts.append("joint_mechanism_fit_diagnostics.csv (no unique artefact-hosting wave)")
 
     provenance = _read_csv(output_dir, "subfit_provenance.csv")
     model_id = str(config.get("model_id") or "")
     for _, row in diagnostics.iterrows():
         wave = str(row["wave"]).strip()
         if _stored_bool(row.get("converged")) is not True:
-            computation.append(
-                f"joint-mechanism wave {wave} failed or was not convergence-checked"
-            )
+            computation.append(f"joint-mechanism wave {wave} failed or was not convergence-checked")
         for column in ("trace_file", "marginal_ppc_file", "psense_file"):
             filename = str(row.get(column) or "").strip()
             if not filename:
-                artefacts.append(
-                    f"joint_mechanism_fit_diagnostics.csv (wave {wave} declares no "
-                    f"{column})"
-                )
+                artefacts.append(f"joint_mechanism_fit_diagnostics.csv (wave {wave} declares no {column})")
             elif not (output_dir / filename).is_file():
                 artefacts.append(filename)
         if str(row["role"]).strip() == "anchor":
@@ -209,9 +177,7 @@ def _joint_mechanism_wave_release_failures(
         if provenance is None or "label" not in provenance.columns:
             artefacts.append("subfit_provenance.csv")
             continue
-        rows = provenance.loc[
-            provenance["label"].astype(str) == f"{model_id} wave {wave}"
-        ]
+        rows = provenance.loc[provenance["label"].astype(str) == f"{model_id} wave {wave}"]
         if len(rows) != 1:
             artefacts.append(f"subfit_provenance.csv (no unique {wave} row)")
             continue
@@ -221,9 +187,7 @@ def _joint_mechanism_wave_release_failures(
         if str(record.get("trace_file", "")).strip() != str(row["trace_file"]).strip():
             artefacts.append(f"subfit_provenance.csv (invalid {wave} trace binding)")
         if _stored_bool(record.get("converged")) is not True:
-            computation.append(
-                f"joint-mechanism wave {wave} provenance failed or was unchecked"
-            )
+            computation.append(f"joint-mechanism wave {wave} provenance failed or was unchecked")
 
     published = set(diagnostics["wave"].astype(str).str.strip())
     slopes = _read_csv(output_dir, "joint_mechanism_slopes.csv")
@@ -232,14 +196,9 @@ def _joint_mechanism_wave_release_failures(
     else:
         reported = set(slopes["wave"].astype(str).str.strip())
         if reported != published:
-            artefacts.append(
-                "joint_mechanism_slopes.csv (waves do not match "
-                "joint_mechanism_fit_diagnostics.csv)"
-            )
+            artefacts.append("joint_mechanism_slopes.csv (waves do not match joint_mechanism_fit_diagnostics.csv)")
 
-    qualifications.extend(
-        _joint_mechanism_coverage_qualifications(output_dir, diagnostics)
-    )
+    qualifications.extend(_joint_mechanism_coverage_qualifications(output_dir, diagnostics))
     return tuple(computation), tuple(sorted(set(artefacts))), tuple(qualifications)
 
 
@@ -270,10 +229,7 @@ def _concurrent_published_fit_release_failures(
     if missing_columns:
         return (
             (),
-            (
-                "concurrent_fit_diagnostics.csv (no "
-                f"{', '.join(missing_columns)} column)",
-            ),
+            (f"concurrent_fit_diagnostics.csv (no {', '.join(missing_columns)} column)",),
         )
     computation: list[str] = []
     for _, row in diagnostics.iterrows():
@@ -321,9 +277,7 @@ def _adjusted_ses_release_failures(
         return (), ("ses_sensitivity.csv",)
     if "converged" not in summary.columns:
         return (), ("ses_sensitivity.csv (no convergence column)",)
-    if not all(
-        _stored_bool(value) is True for value in summary["converged"].tolist()
-    ):
+    if not all(_stored_bool(value) is True for value in summary["converged"].tolist()):
         return (
             ("adjusted SES sensitivity convergence failed or was unchecked",),
             (),
@@ -377,10 +331,7 @@ def _gain_period1_release_failures(
     if missing_columns:
         return (
             (),
-            (
-                "period1_sensitivity.csv (no "
-                f"{', '.join(missing_columns)} column)",
-            ),
+            (f"period1_sensitivity.csv (no {', '.join(missing_columns)} column)",),
             (),
         )
     fits = summary["fit"].astype(str).str.strip()
@@ -389,10 +340,7 @@ def _gain_period1_release_failures(
     if len(primary_rows) != 1 or len(refit_rows) != 1:
         return (
             (),
-            (
-                "period1_sensitivity.csv (no unique primary_period_stacked / "
-                "period1_only row pair)",
-            ),
+            ("period1_sensitivity.csv (no unique primary_period_stacked / period1_only row pair)",),
             (),
         )
     artefacts: list[str] = []
@@ -403,8 +351,7 @@ def _gain_period1_release_failures(
     refit = refit_rows.iloc[0]
     if _stored_bool(refit.get("converged")) is not True:
         computation.append(
-            "the mandatory gain-factors period-1-only refit sensitivity failed "
-            "or was not convergence-checked"
+            "the mandatory gain-factors period-1-only refit sensitivity failed or was not convergence-checked"
         )
 
     robustness: list[str] = []
@@ -418,16 +365,14 @@ def _gain_period1_release_failures(
             (float(primary["beta_trt_lo"]), float(primary["beta_trt_hi"])),
             (float(refit["beta_trt_lo"]), float(refit["beta_trt_hi"])),
         )
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         artefacts.append("period1_sensitivity.csv (non-numeric headline columns)")
     else:
         if not all(np.isfinite(v) for v in (*medians, *intervals[0], *intervals[1])):
             artefacts.append("period1_sensitivity.csv (non-finite headline columns)")
         else:
             direction_stable = np.sign(medians[0]) == np.sign(medians[1])
-            overlap = max(intervals[0][0], intervals[1][0]) <= min(
-                intervals[0][1], intervals[1][1]
-            )
+            overlap = max(intervals[0][0], intervals[1][0]) <= min(intervals[0][1], intervals[1][1])
             if not (direction_stable and overlap):
                 robustness.append(
                     "the period-1-only refit materially disagrees with the "
@@ -436,9 +381,7 @@ def _gain_period1_release_failures(
     return tuple(computation), tuple(artefacts), tuple(robustness)
 
 
-def _joint_mechanism_coverage_qualifications(
-    output_dir: Path, diagnostics: pd.DataFrame
-) -> list[str]:
+def _joint_mechanism_coverage_qualifications(output_dir: Path, diagnostics: pd.DataFrame) -> list[str]:
     """Apply the predeclared new-child coverage floors to every published wave."""
     notes: list[str] = []
     for _, row in diagnostics.iterrows():
@@ -452,9 +395,7 @@ def _joint_mechanism_coverage_qualifications(
         for _, entry in coverage.iterrows():
             level = pd.to_numeric(entry.get("level_pct"), errors="coerce")
             value = pd.to_numeric(entry.get("coverage"), errors="coerce")
-            floor = JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS.get(
-                int(level) if pd.notna(level) else -1
-            )
+            floor = JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS.get(int(level) if pd.notna(level) else -1)
             if floor is None or pd.isna(value) or float(value) >= floor:
                 continue
             stored = entry.get("outcome")
@@ -547,9 +488,9 @@ def _growth_influence_release_failures(
         return (), ("pareto_k.csv (invalid growth observation-cell map)",), ()
 
     reliable = pareto["loo_reliable"].map(_stored_bool)
-    numeric = pareto[
-        ["observation_index", "wave", "pareto_k", "good_k_threshold"]
-    ].apply(pd.to_numeric, errors="coerce")
+    numeric = pareto[["observation_index", "wave", "pareto_k", "good_k_threshold"]].apply(
+        pd.to_numeric, errors="coerce"
+    )
     indices = numeric["observation_index"]
     expected_reliable = numeric["pareto_k"] <= numeric["good_k_threshold"]
     numeric_valid = bool(np.isfinite(numeric.to_numpy(dtype=float)).all())
@@ -568,9 +509,7 @@ def _growth_influence_release_failures(
         or not numeric_valid
         or indices.duplicated().any()
         or pareto[["subject_id", "outcome"]].isna().any().any()
-        or not np.array_equal(
-            reliable.to_numpy(dtype=bool), expected_reliable.to_numpy()
-        )
+        or not np.array_equal(reliable.to_numpy(dtype=bool), expected_reliable.to_numpy())
     ):
         return (), ("pareto_k.csv (internally inconsistent growth diagnostics)",), ()
 
@@ -600,28 +539,13 @@ def _growth_influence_release_failures(
         summary_verdict: bool | None = None
     else:
         outcomes = set(pareto["outcome"].astype(str))
-        expected_rows = {
-            (coefficient, outcome)
-            for coefficient in ("gamma", "delta")
-            for outcome in outcomes
-        }
-        actual_rows = set(
-            summary[["coefficient", "outcome"]]
-            .astype(str)
-            .itertuples(index=False, name=None)
-        )
-        if (
-            summary.duplicated(subset=["coefficient", "outcome"]).any()
-            or actual_rows != expected_rows
-        ):
-            artifact_failures.append(
-                "growth_influence_sensitivity.csv (invalid coefficient rows)"
-            )
+        expected_rows = {(coefficient, outcome) for coefficient in ("gamma", "delta") for outcome in outcomes}
+        actual_rows = set(summary[["coefficient", "outcome"]].astype(str).itertuples(index=False, name=None))
+        if summary.duplicated(subset=["coefficient", "outcome"]).any() or actual_rows != expected_rows:
+            artifact_failures.append("growth_influence_sensitivity.csv (invalid coefficient rows)")
         counts = pd.to_numeric(summary["n_excluded_cells"], errors="coerce")
         children = pd.to_numeric(summary["n_excluded_children"], errors="coerce")
-        fully_excluded = pd.to_numeric(
-            summary["n_fully_excluded_children"], errors="coerce"
-        )
+        fully_excluded = pd.to_numeric(summary["n_fully_excluded_children"], errors="coerce")
         expected_children = flagged["subject_id"].astype(str).nunique()
         # A child is *fully* excluded only when every one of its observed cells is
         # unreliable — matching the writer, which keeps a child whose retained-cell
@@ -631,9 +555,7 @@ def _growth_influence_release_failures(
         # *after* the reduction, so it flagged children with **any** unreliable cell —
         # numerically identical to ``expected_children`` above, making the check both
         # redundant and unsatisfiable for any fit with a partially-excluded child.
-        none_reliable_by_child = (~reliable).groupby(
-            pareto["subject_id"].astype(str)
-        ).all()
+        none_reliable_by_child = (~reliable).groupby(pareto["subject_id"].astype(str)).all()
         expected_fully_excluded = int(none_reliable_by_child.sum())
         if (
             counts.isna().any()
@@ -643,9 +565,7 @@ def _growth_influence_release_failures(
             or fully_excluded.isna().any()
             or not (fully_excluded == expected_fully_excluded).all()
         ):
-            artifact_failures.append(
-                "growth_influence_sensitivity.csv (excluded-cell map mismatch)"
-            )
+            artifact_failures.append("growth_influence_sensitivity.csv (excluded-cell map mismatch)")
 
         stability_numeric = summary[
             [
@@ -663,49 +583,25 @@ def _growth_influence_release_failures(
             np.isfinite(stability_numeric.to_numpy(dtype=float)).all()
             and not direction_stable.isna().any()
             and not intervals_overlap.isna().any()
-            and (
-                stability_numeric["primary_lo89"]
-                <= stability_numeric["primary_hi89"]
-            ).all()
-            and (
-                stability_numeric["primary_lo89"]
-                <= stability_numeric["primary_median"]
-            ).all()
-            and (
-                stability_numeric["primary_median"]
-                <= stability_numeric["primary_hi89"]
-            ).all()
-            and (
-                stability_numeric["sensitivity_lo89"]
-                <= stability_numeric["sensitivity_hi89"]
-            ).all()
-            and (
-                stability_numeric["sensitivity_lo89"]
-                <= stability_numeric["sensitivity_median"]
-            ).all()
-            and (
-                stability_numeric["sensitivity_median"]
-                <= stability_numeric["sensitivity_hi89"]
-            ).all()
+            and (stability_numeric["primary_lo89"] <= stability_numeric["primary_hi89"]).all()
+            and (stability_numeric["primary_lo89"] <= stability_numeric["primary_median"]).all()
+            and (stability_numeric["primary_median"] <= stability_numeric["primary_hi89"]).all()
+            and (stability_numeric["sensitivity_lo89"] <= stability_numeric["sensitivity_hi89"]).all()
+            and (stability_numeric["sensitivity_lo89"] <= stability_numeric["sensitivity_median"]).all()
+            and (stability_numeric["sensitivity_median"] <= stability_numeric["sensitivity_hi89"]).all()
         )
         if not stability_values_valid:
-            artifact_failures.append(
-                "growth_influence_sensitivity.csv (invalid coefficient stability values)"
-            )
+            artifact_failures.append("growth_influence_sensitivity.csv (invalid coefficient stability values)")
         else:
-            expected_direction_stable = (
-                np.sign(stability_numeric["primary_median"])
-                == np.sign(stability_numeric["sensitivity_median"])
+            expected_direction_stable = np.sign(stability_numeric["primary_median"]) == np.sign(
+                stability_numeric["sensitivity_median"]
             )
-            expected_intervals_overlap = (
-                np.maximum(
-                    stability_numeric["primary_lo89"],
-                    stability_numeric["sensitivity_lo89"],
-                )
-                <= np.minimum(
-                    stability_numeric["primary_hi89"],
-                    stability_numeric["sensitivity_hi89"],
-                )
+            expected_intervals_overlap = np.maximum(
+                stability_numeric["primary_lo89"],
+                stability_numeric["sensitivity_lo89"],
+            ) <= np.minimum(
+                stability_numeric["primary_hi89"],
+                stability_numeric["sensitivity_hi89"],
             )
             if not (
                 np.array_equal(
@@ -717,36 +613,23 @@ def _growth_influence_release_failures(
                     expected_intervals_overlap.to_numpy(dtype=bool),
                 )
             ):
-                artifact_failures.append(
-                    "growth_influence_sensitivity.csv "
-                    "(coefficient stability verdict mismatch)"
-                )
-            elif not (
-                direction_stable.to_numpy(dtype=bool).all()
-                and intervals_overlap.to_numpy(dtype=bool).all()
-            ):
+                artifact_failures.append("growth_influence_sensitivity.csv (coefficient stability verdict mismatch)")
+            elif not (direction_stable.to_numpy(dtype=bool).all() and intervals_overlap.to_numpy(dtype=bool).all()):
                 robustness_failures.append(
                     "growth observation-cell influence sensitivity did not preserve "
                     "every coefficient's median direction with overlapping 89% intervals"
                 )
         declared = summary["sensitivity_converged"].map(_stored_bool)
         if declared.isna().any():
-            artifact_failures.append(
-                "growth_influence_sensitivity.csv (invalid convergence verdict)"
-            )
+            artifact_failures.append("growth_influence_sensitivity.csv (invalid convergence verdict)")
             summary_verdict = None
         elif declared.nunique() != 1:
-            artifact_failures.append(
-                "growth_influence_sensitivity.csv (inconsistent convergence verdict)"
-            )
+            artifact_failures.append("growth_influence_sensitivity.csv (inconsistent convergence verdict)")
             summary_verdict = None
         else:
             summary_verdict = bool(declared.iloc[0])
             if not summary_verdict:
-                computation_failures.append(
-                    "growth observation-cell influence sensitivity failed its "
-                    "convergence gate"
-                )
+                computation_failures.append("growth observation-cell influence sensitivity failed its convergence gate")
 
     provenance = _read_csv(output_dir, "subfit_provenance.csv")
     model_id = str(config.get("model_id") or "")
@@ -758,39 +641,25 @@ def _growth_influence_release_failures(
     else:
         rows = provenance.loc[provenance["label"].astype(str) == label]
         if len(rows) != 1:
-            artifact_failures.append(
-                "subfit_provenance.csv (no unique growth influence row)"
-            )
+            artifact_failures.append("subfit_provenance.csv (no unique growth influence row)")
         else:
             provenance_row = rows.iloc[0]
             if str(provenance_row.get("role", "")).strip() != "sensitivity":
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid growth influence role)"
-                )
-            if (
-                str(provenance_row.get("trace_file", "")).strip()
-                != GROWTH_INFLUENCE_TRACE_FILENAME
-            ):
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid growth influence trace binding)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid growth influence role)")
+            if str(provenance_row.get("trace_file", "")).strip() != GROWTH_INFLUENCE_TRACE_FILENAME:
+                artifact_failures.append("subfit_provenance.csv (invalid growth influence trace binding)")
             values = _missingness_diagnostics(provenance_row)
             declared = _stored_bool(provenance_row.get("converged"))
             if values is None or declared is None:
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid growth influence diagnostics)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid growth influence diagnostics)")
             else:
                 provenance_verdict = declared
                 passed = _missingness_diagnostics_pass(values)
                 if declared != passed:
-                    artifact_failures.append(
-                        "subfit_provenance.csv (growth influence verdict mismatch)"
-                    )
+                    artifact_failures.append("subfit_provenance.csv (growth influence verdict mismatch)")
                 if not passed:
                     computation_failures.append(
-                        "growth observation-cell influence sensitivity failed its "
-                        "convergence gate"
+                        "growth observation-cell influence sensitivity failed its convergence gate"
                     )
 
     trace_path = output_dir / GROWTH_INFLUENCE_TRACE_FILENAME
@@ -803,9 +672,7 @@ def _growth_influence_release_failures(
 
         recorded = str(provenance_row.get("trace_sha256", "")).strip().lower()
         if len(recorded) != 64 or recorded != sha256_file(trace_path):
-            artifact_failures.append(
-                "subfit_provenance.csv (growth influence trace hash mismatch)"
-            )
+            artifact_failures.append("subfit_provenance.csv (growth influence trace hash mismatch)")
 
     # The growth pipeline records this verdict inside ``config["extra"]``
     # (``pipelines.growth`` builds it as part of the spec's extra payload), so read
@@ -824,18 +691,12 @@ def _growth_influence_release_failures(
     if metadata_verdict is None:
         artifact_failures.append("config.json (growth influence verdict is missing)")
     elif not metadata_verdict:
-        computation_failures.append(
-            "growth observation-cell influence sensitivity failed its convergence gate"
-        )
+        computation_failures.append("growth observation-cell influence sensitivity failed its convergence gate")
     stored_verdicts = {
-        verdict
-        for verdict in (summary_verdict, provenance_verdict, metadata_verdict)
-        if verdict is not None
+        verdict for verdict in (summary_verdict, provenance_verdict, metadata_verdict) if verdict is not None
     }
     if len(stored_verdicts) > 1:
-        artifact_failures.append(
-            "growth influence convergence verdicts disagree across artifacts"
-        )
+        artifact_failures.append("growth influence convergence verdicts disagree across artifacts")
     return (
         tuple(dict.fromkeys(computation_failures)),
         tuple(dict.fromkeys(artifact_failures)),
@@ -843,9 +704,7 @@ def _growth_influence_release_failures(
     )
 
 
-def _missingness_diagnostics_match(
-    left: Mapping[str, float | int], right: Mapping[str, float | int]
-) -> bool:
+def _missingness_diagnostics_match(left: Mapping[str, float | int], right: Mapping[str, float | int]) -> bool:
     """Whether two serialisations carry the same unrounded gate evidence."""
 
     return bool(
@@ -890,10 +749,7 @@ def _missingness_design_dimension_error(
             if size is None:
                 return f"the /prior group's {name} has no target dimension"
             if size != expected_targets:
-                return (
-                    f"the /prior group's {name} covers {size} target profiles, "
-                    f"not the registered {expected_targets}"
-                )
+                return f"the /prior group's {name} covers {size} target profiles, not the registered {expected_targets}"
     if expected_observations is not None:
         size = _trailing_size(trace["prior_predictive"], "y_post")
         if size is None:
@@ -935,21 +791,13 @@ def _missingness_trace_diagnostics(
         )
 
         trace = az.from_netcdf(trace_path)
-        groups = {
-            str(group).strip("/")
-            for group in getattr(trace, "groups", ())
-            if str(group).strip("/")
-        }
+        groups = {str(group).strip("/") for group in getattr(trace, "groups", ()) if str(group).strip("/")}
         required_groups = {"prior", "prior_predictive"}
         if not required_groups.issubset(groups):
-            missing = ", ".join(
-                f"/{group}" for group in sorted(required_groups - groups)
-            )
+            missing = ", ".join(f"/{group}" for group in sorted(required_groups - groups))
             return None, f"missing required trace group(s): {missing}"
         prior_vars = set(getattr(trace["prior"], "data_vars", {}))
-        prior_predictive_vars = set(
-            getattr(trace["prior_predictive"], "data_vars", {})
-        )
+        prior_predictive_vars = set(getattr(trace["prior_predictive"], "data_vars", {}))
         if not {"p0_target", "p1_target"}.issubset(prior_vars):
             return None, "the /prior group lacks the registered target probabilities"
         if "y_post" not in prior_predictive_vars:
@@ -1033,9 +881,7 @@ def _itt_missingness_release_failures(
 
     computation_failures: list[str] = []
     artifact_failures: list[str] = []
-    stored_diagnostics: list[
-        tuple[str, dict[str, float | int], bool | None]
-    ] = []
+    stored_diagnostics: list[tuple[str, dict[str, float | int], bool | None]] = []
     saved_missingness_plan = plan.get("missingness_plan") or {}
     expected_plan = {
         "source_csv_sha256": RLI_ARCHIVE_CSV_SHA256,
@@ -1084,9 +930,7 @@ def _itt_missingness_release_failures(
             "converged",
         }
         if not required_diagnostic_columns.issubset(summary.columns):
-            artifact_failures.append(
-                f"{MISSINGNESS_SUMMARY_FILENAME} (missing raw subfit diagnostics)"
-            )
+            artifact_failures.append(f"{MISSINGNESS_SUMMARY_FILENAME} (missing raw subfit diagnostics)")
         else:
             summary_values = _missingness_diagnostics(summary.iloc[0])
             rows_agree = summary_values is not None and all(
@@ -1097,8 +941,7 @@ def _itt_missingness_release_failures(
             declared = {_stored_bool(value) for value in summary["converged"]}
             if not rows_agree or len(declared) != 1 or None in declared:
                 artifact_failures.append(
-                    f"{MISSINGNESS_SUMMARY_FILENAME} "
-                    "(inconsistent or invalid raw subfit diagnostics)"
+                    f"{MISSINGNESS_SUMMARY_FILENAME} (inconsistent or invalid raw subfit diagnostics)"
                 )
             else:
                 stored_diagnostics.append(
@@ -1109,9 +952,7 @@ def _itt_missingness_release_failures(
                     )
                 )
 
-    provenance_payload, provenance_error = _read_json(
-        output_dir / MISSINGNESS_PROVENANCE_FILENAME
-    )
+    provenance_payload, provenance_error = _read_json(output_dir / MISSINGNESS_PROVENANCE_FILENAME)
     if provenance_error is not None or not isinstance(provenance_payload, Mapping):
         artifact_failures.append(MISSINGNESS_PROVENANCE_FILENAME)
     else:
@@ -1126,9 +967,7 @@ def _itt_missingness_release_failures(
             or source.get("reconciled_included_n") != 54
             or source.get("reconciliation_digest") != RLI_RECONCILIATION_DIGEST
         ):
-            artifact_failures.append(
-                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid source binding)"
-            )
+            artifact_failures.append(f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid source binding)")
         if (
             not isinstance(analysis, Mapping)
             or analysis.get("observed_outcome_n") != 53
@@ -1138,14 +977,11 @@ def _itt_missingness_release_failures(
             or analysis.get("observed_outcome_by_arm")
             != {"intervention": OBSERVED_INTERVENTION_N, "control": OBSERVED_CONTROL_N}
             or analysis.get("lost_to_follow_up_n") != LOST_TO_FOLLOW_UP_N
-            or analysis.get("within_archive_word_reading_missing_n")
-            != WITHIN_ARCHIVE_W_MISSING_N
+            or analysis.get("within_archive_word_reading_missing_n") != WITHIN_ARCHIVE_W_MISSING_N
             or analysis.get("screening_covariates") != list(SCREENING_COVARIATES)
             or analysis.get("delta_items_grid") != list(DEFAULT_DELTA_ITEMS)
         ):
-            artifact_failures.append(
-                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid analysis contract)"
-            )
+            artifact_failures.append(f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid analysis contract)")
         # The recorded design (2026-08-22 ITT audit, finding 8). Absent on fits
         # written before the block existed, which therefore re-decide exactly as
         # before; present, it must agree with the registered trial contract
@@ -1166,38 +1002,26 @@ def _itt_missingness_release_failures(
                 },
                 "covariate_names": list(SCREENING_COVARIATES),
             }
-            disagreeing = sorted(
-                key
-                for key, value in expected_design.items()
-                if recorded_design.get(key) != value
-            )
+            disagreeing = sorted(key for key, value in expected_design.items() if recorded_design.get(key) != value)
             if disagreeing:
                 artifact_failures.append(
                     f"{MISSINGNESS_PROVENANCE_FILENAME} (recorded design disagrees "
                     f"with the registered trial contract: {', '.join(disagreeing)})"
                 )
             if not str(recorded_design.get("target_design_sha256") or ""):
-                artifact_failures.append(
-                    f"{MISSINGNESS_PROVENANCE_FILENAME} "
-                    "(recorded design carries no digest)"
-                )
+                artifact_failures.append(f"{MISSINGNESS_PROVENANCE_FILENAME} (recorded design carries no digest)")
         actual_trace_sha256 = sha256_file(trace_path) if trace_path.is_file() else None
         if (
             not isinstance(trace, Mapping)
             or trace.get("file") != MISSINGNESS_TRACE_FILENAME
             or trace.get("sha256") != actual_trace_sha256
         ):
-            artifact_failures.append(
-                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid trace binding)"
-            )
+            artifact_failures.append(f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid trace binding)")
         if isinstance(trace, Mapping):
             trace_values = _missingness_diagnostics(trace)
             trace_declared = _stored_bool(trace.get("converged"))
             if trace_values is None or trace_declared is None:
-                artifact_failures.append(
-                    f"{MISSINGNESS_PROVENANCE_FILENAME} "
-                    "(invalid raw subfit diagnostics)"
-                )
+                artifact_failures.append(f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid raw subfit diagnostics)")
             else:
                 stored_diagnostics.append(
                     (
@@ -1212,18 +1036,13 @@ def _itt_missingness_release_failures(
         if (
             not isinstance(outputs, Mapping)
             or outputs.get("summary_file") != MISSINGNESS_SUMMARY_FILENAME
-            or outputs.get("summary_sha256")
-            != (sha256_file(summary_path) if summary_path.is_file() else None)
+            or outputs.get("summary_sha256") != (sha256_file(summary_path) if summary_path.is_file() else None)
             or outputs.get("ppc_file") != MISSINGNESS_PPC_FILENAME
-            or outputs.get("ppc_sha256")
-            != (sha256_file(ppc_path) if ppc_path.is_file() else None)
+            or outputs.get("ppc_sha256") != (sha256_file(ppc_path) if ppc_path.is_file() else None)
             or outputs.get("prior_check_file") != MISSINGNESS_PRIOR_FILENAME
-            or outputs.get("prior_check_sha256")
-            != (sha256_file(prior_path) if prior_path.is_file() else None)
+            or outputs.get("prior_check_sha256") != (sha256_file(prior_path) if prior_path.is_file() else None)
         ):
-            artifact_failures.append(
-                f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid output binding)"
-            )
+            artifact_failures.append(f"{MISSINGNESS_PROVENANCE_FILENAME} (invalid output binding)")
 
     prior_check = _read_csv(output_dir, MISSINGNESS_PRIOR_FILENAME)
     if prior_check is None or prior_check.empty:
@@ -1282,16 +1101,11 @@ def _itt_missingness_release_failures(
                 strict=True,
             )
         )
-        numeric_ppc = ppc[list(required_ppc - {"arm"})].apply(
-            pd.to_numeric, errors="coerce"
-        )
-        if observed_n != expected_n or not np.isfinite(
-            numeric_ppc.to_numpy(dtype=float)
-        ).all():
+        numeric_ppc = ppc[list(required_ppc - {"arm"})].apply(pd.to_numeric, errors="coerce")
+        if observed_n != expected_n or not np.isfinite(numeric_ppc.to_numpy(dtype=float)).all():
             artifact_failures.append(f"{MISSINGNESS_PPC_FILENAME} (invalid values)")
         elif not (
-            numeric_ppc["coverage_50"].between(0.0, 1.0).all()
-            and numeric_ppc["coverage_89"].between(0.0, 1.0).all()
+            numeric_ppc["coverage_50"].between(0.0, 1.0).all() and numeric_ppc["coverage_89"].between(0.0, 1.0).all()
         ):
             artifact_failures.append(f"{MISSINGNESS_PPC_FILENAME} (invalid coverage)")
 
@@ -1301,29 +1115,19 @@ def _itt_missingness_release_failures(
     else:
         rows = subfits.loc[subfits["label"].astype(str) == MISSINGNESS_SUBFIT_LABEL]
         if len(rows) != 1:
-            artifact_failures.append(
-                "subfit_provenance.csv (no unique ITT missingness row)"
-            )
+            artifact_failures.append("subfit_provenance.csv (no unique ITT missingness row)")
         else:
             row = rows.iloc[0]
             if str(row.get("role", "")).strip() != "sensitivity":
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid ITT missingness role)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid ITT missingness role)")
             if str(row.get("trace_file", "")).strip() != MISSINGNESS_TRACE_FILENAME:
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid ITT missingness trace binding)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid ITT missingness trace binding)")
             subfit_values = _missingness_diagnostics(row)
             subfit_declared = _stored_bool(row.get("converged"))
             if subfit_values is None or subfit_declared is None:
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid raw ITT missingness diagnostics)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid raw ITT missingness diagnostics)")
             else:
-                stored_diagnostics.append(
-                    ("subfit_provenance.csv", subfit_values, subfit_declared)
-                )
+                stored_diagnostics.append(("subfit_provenance.csv", subfit_values, subfit_declared))
             n_obs = pd.to_numeric(row.get("n_obs"), errors="coerce")
             n_children = pd.to_numeric(row.get("n_children"), errors="coerce")
             if not (
@@ -1333,9 +1137,7 @@ def _itt_missingness_release_failures(
                 and float(n_children) == 53.0
                 and bool(str(row.get("data_digest", "")).strip())
             ):
-                artifact_failures.append(
-                    "subfit_provenance.csv (invalid ITT missingness data identity)"
-                )
+                artifact_failures.append("subfit_provenance.csv (invalid ITT missingness data identity)")
     if not trace_path.is_file():
         artifact_failures.append(MISSINGNESS_TRACE_FILENAME)
     trace_diagnostics, trace_diagnostics_error = _missingness_trace_diagnostics(
@@ -1345,23 +1147,16 @@ def _itt_missingness_release_failures(
     )
     if trace_diagnostics_error is not None or trace_diagnostics is None:
         if trace_path.is_file():
-            artifact_failures.append(
-                f"{MISSINGNESS_TRACE_FILENAME} ({trace_diagnostics_error})"
-            )
+            artifact_failures.append(f"{MISSINGNESS_TRACE_FILENAME} ({trace_diagnostics_error})")
     else:
         trace_passed = _missingness_diagnostics_pass(trace_diagnostics)
         if not trace_passed:
             computation_failures.append(
-                "ITT screening-baseline missingness sub-fit failed the raw "
-                "sampling-quality thresholds"
+                "ITT screening-baseline missingness sub-fit failed the raw sampling-quality thresholds"
             )
         for label, values, declared in stored_diagnostics:
             if not _missingness_diagnostics_match(values, trace_diagnostics):
-                artifact_failures.append(
-                    f"{label} (raw subfit diagnostics do not match the trace)"
-                )
+                artifact_failures.append(f"{label} (raw subfit diagnostics do not match the trace)")
             elif declared != _missingness_diagnostics_pass(values):
-                artifact_failures.append(
-                    f"{label} (stored convergence verdict contradicts raw diagnostics)"
-                )
+                artifact_failures.append(f"{label} (stored convergence verdict contradicts raw diagnostics)")
     return tuple(computation_failures), tuple(artifact_failures)

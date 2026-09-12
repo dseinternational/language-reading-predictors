@@ -28,11 +28,7 @@ def _kf_build_long_corr_factor(output_dir: str | Path, config: Mapping) -> list[
     target = _kf_measure_label(row["target_indicator"])
     # Lead with the median (house standard, 2026-08-21 review, finding 10); a
     # stored pre-fix CSV carries only the mean, so fall back rather than fail.
-    point = (
-        row["items_per_item_median"]
-        if "items_per_item_median" in row
-        else row["items_per_item_mean"]
-    )
+    point = row["items_per_item_median"] if "items_per_item_median" in row else row["items_per_item_mean"]
     return [
         _kf_sentence(
             f"At wave {int(_kf_float(row['wave']))}, the clearest translated latent "

@@ -47,11 +47,7 @@ def horseshoe_ranking(trace: xr.DataTree, *, delta: float = 0.1) -> pd.DataFrame
             "sign": "+" if median > 0 else ("-" if median < 0 else "0"),
         }
         if lam is not None:
-            row["lambda_mean"] = float(
-                lam.isel(predictor=i)
-                .stack(sample=("chain", "draw"))
-                .values.mean()
-            )
+            row["lambda_mean"] = float(lam.isel(predictor=i).stack(sample=("chain", "draw")).values.mean())
         rows.append(row)
     df = pd.DataFrame(rows).sort_values("p_abs_gt_delta", ascending=False).reset_index(drop=True)
     df.insert(0, "rank", np.arange(1, len(df) + 1))

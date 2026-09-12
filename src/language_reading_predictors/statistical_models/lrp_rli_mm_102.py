@@ -49,8 +49,7 @@ SPEC = ModelSpec(
     model_id="lrp-rli-mm-102",
     kind="corr_factor",
     title=(
-        "Focal-slope prior sensitivity for the errors-in-variables code->word "
-        "mechanism (beta_code at Normal(0, 1))"
+        "Focal-slope prior sensitivity for the errors-in-variables code->word mechanism (beta_code at Normal(0, 1))"
     ),
     outcome_symbol="W",
     model_settings=CorrFactorModelSettings(
@@ -72,10 +71,10 @@ SPEC = ModelSpec(
         ),
         focal_slope_sigma=1.0,
     ),
-        # Identical to LRPMM02 in every respect except focal_slope_sigma.
-        # The single free variable: the focal beta_code prior moves from the
-        # association-scale N(0, 0.3) to the primary-mechanism N(0, 1); beta_G
-        # deliberately stays at the association scale (recommendation 1).
+    # Identical to LRPMM02 in every respect except focal_slope_sigma.
+    # The single free variable: the focal beta_code prior moves from the
+    # association-scale N(0, 0.3) to the primary-mechanism N(0, 1); beta_G
+    # deliberately stays at the association scale (recommendation 1).
     target_accept=0.999,
 )
 

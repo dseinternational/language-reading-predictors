@@ -38,8 +38,7 @@ SPEC = ModelSpec(
     model_id="lrp-rlm-jc-002",
     kind="historical_joint",
     title=(
-        "Byrne within-child joint coupling: word reading, receptive vocabulary "
-        "and digit recall, balanced waves 1-3"
+        "Byrne within-child joint coupling: word reading, receptive vocabulary and digit recall, balanced waves 1-3"
     ),
     outcome_symbol=None,
     study_id="rlm",
