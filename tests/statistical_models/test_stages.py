@@ -37,7 +37,7 @@ def _patch_primary_fit_diag(monkeypatch, events):
         lambda _ctx: events.append("loo"),
     )
     monkeypatch.setattr(
-        stages._report, "write_loo_summary", lambda _ctx: events.append("loo_summary")
+        stages._metadata, "write_loo_summary", lambda _ctx: events.append("loo_summary")
     )
     monkeypatch.setattr(
         stages._diag,
@@ -119,7 +119,7 @@ def test_sampling_stage_keeps_sampling_loo_reporting_order(monkeypatch):
         lambda _ctx: events.append("loo"),
     )
     monkeypatch.setattr(
-        stages._report,
+        stages._metadata,
         "write_loo_summary",
         lambda _ctx: events.append("loo_summary"),
     )
@@ -153,7 +153,7 @@ def test_sample_and_loo_skips_the_loo_block_when_disabled(monkeypatch):
         raise AssertionError("LOO must not run when compute_loo=False")
 
     monkeypatch.setattr(stages._diag, "compute_log_likelihood_and_loo", _fail)
-    monkeypatch.setattr(stages._report, "write_loo_summary", _fail)
+    monkeypatch.setattr(stages._metadata, "write_loo_summary", _fail)
 
     runner.sample_and_loo(ctx, compute_loo=False)
 
@@ -521,7 +521,7 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
     ctx = SimpleNamespace(output_dir=str(tmp_path))
     metadata = []
     monkeypatch.setattr(
-        stages._report,
+        stages._metadata,
         "write_run_metadata",
         lambda context, *, extra: metadata.append((context, extra)),
     )
@@ -534,7 +534,7 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
         events.append("key_findings")
         return {"status": "ok", "sentences": ["one"]}
 
-    monkeypatch.setattr(stages._report, "generate_key_findings", _fake_findings)
+    monkeypatch.setattr(stages._findings, "generate_key_findings", _fake_findings)
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
 
     runner.write_metadata(ctx, extra={"family": "example"})

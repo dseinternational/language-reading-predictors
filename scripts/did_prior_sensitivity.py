@@ -68,7 +68,7 @@ import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.factories import build_did_model
+from language_reading_predictors.statistical_models.factories.did import build_did_model
 from language_reading_predictors.statistical_models.fitted_payloads import (
     DidDosePayload,
 )
@@ -158,7 +158,7 @@ def _items_translation(
     from language_reading_predictors.statistical_models.pipelines.dose_response import (
         dose_marginal_draws,
     )
-    from language_reading_predictors.statistical_models.reporting import did_summary
+    from language_reading_predictors.statistical_models.summaries.did import did_summary
 
     lo_q = (1.0 - ci_prob) / 2.0
     if not plan.dose:
@@ -213,9 +213,7 @@ def _fit_cell(
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
 
     plan = _resolve_plan(model_id)
     focal = plan.effect_term

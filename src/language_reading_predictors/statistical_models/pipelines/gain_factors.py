@@ -14,6 +14,15 @@ baseline main effect (#391 finding 2).
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import base as _base_factory
+from language_reading_predictors.statistical_models.factories import gain_factors as _gain_factors_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import factors as _factors_summary
+from language_reading_predictors.statistical_models.summaries import gain_factors as _gain_factors_summary
+from language_reading_predictors.statistical_models.summaries import rope as _rope_summary
+
+
 import numpy as np
 import pandas as pd
 
@@ -23,11 +32,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -55,6 +60,7 @@ from language_reading_predictors.statistical_models.gain_factors import (
     resolve_gain_factors_run_plan,
 )
 from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
     load_and_prepare,
     standardise,
 )
@@ -74,11 +80,11 @@ from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 def _gf_association_terms(
     plan: GainFactorsRunPlan,
-    built: _factories.BuiltModel,
+    built: _base_factory.BuiltModel,
     *,
     adjust_for: tuple[str, ...],
     off_floor: bool,
-) -> list[_report.AssociationTerm]:
+) -> list[_factors_summary.AssociationTerm]:
     """Per-covariate ``AssociationTerm`` list for the gain items-scale marginals (#310).
 
     Reconstructs — from the *fitted* subset ``built.prepared`` — the exact standardised
@@ -98,7 +104,7 @@ def _gf_association_terms(
     from scipy.special import expit as _expit
     from scipy.special import logit as _logit
 
-    AT = _report.AssociationTerm
+    AT = _factors_summary.AssociationTerm
     bp = built.prepared
     own = plan.outcome_symbol
     skill_symbols = plan.skill_symbols
@@ -161,7 +167,7 @@ def _gf_association_terms(
         # the 10-item blending one.
         return max(1, round(n / 10))
 
-    terms: list[_report.AssociationTerm] = []
+    terms: list[_factors_summary.AssociationTerm] = []
     if not off_floor:
         p_own = float(np.mean(_expit(bp.pre_logit[own])))
         n_own = int(bp.n_trials[own])
@@ -223,6 +229,290 @@ def _gf_association_terms(
     return terms
 
 
+def _write_period_one_treatment_comparison(
+    ctx: StatisticalFitContext,
+    built: _base_factory.BuiltModel[GainFactorsPayload],
+    prepared: PreparedData,
+    payload: GainFactorsPayload,
+    plan: GainFactorsRunPlan,
+    *,
+    loader_adjust_for: tuple[str, ...],
+) -> dict[str, object]:
+    """Compare treatment conditions over period 1 and audit later-period borrowing."""
+    spec = ctx.spec
+    off_floor = plan.off_floor
+    moderation_variant = plan.moderation_variant
+    link = payload.score_mean_link
+    meta_extra: dict[str, object] = {}
+    trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
+    # The marginal treatment effect is averaged over the **period-1** rows only
+    # (#247 P2): period 1 is the genuinely randomised, all-untreated-baseline
+    # transition, so its switch-on-vs-off contrast is the available-case
+    # modified ITT estimate. The post-crossover transitions (phase >= 1) carry no untreated
+    # observations and baselines that may already be treatment-affected, so
+    # pooling them yields a model-based transported contrast, not that estimate.
+    # The logit-scale beta_trt posterior itself is unchanged; only its
+    # probability/items-scale marginalisation is restricted.
+    p1_mask = built.prepared.phase == 0
+    # Net out the *full* per-row treatment contribution — ``beta_trt`` plus every
+    # fitted treatment interaction (``gamma_int_trt_*``) — so the marginal effect
+    # reflects the modelled heterogeneity, not ``beta_trt`` alone. The factory
+    # exposes the exact standardised moderator vectors it used.
+    trt_moderators = payload.trt_interaction_moderators
+    # Off-floor models are Bernoulli on Pr(post > 0); the "items" scale then
+    # collapses to the off-floor risk difference (n_trials = 1).
+    n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
+    tme = _gain_factors_summary.treatment_marginal_effect(
+        ctx.trace,
+        trt=trt,
+        n_trials=n_marg,
+        moderators=trt_moderators,
+        ci_prob=ctx.reporting.ci_prob,
+        row_mask=p1_mask,
+        score_mean_link=link,
+    )
+    save_table(ctx, "treatment_marginal", pd.DataFrame([tme]))
+    meta_extra["treatment_marginal"] = tme
+    print_table(
+        metrics_table(
+            [{"metric": k, "value": v} for k, v in tme.items()],
+            title="Treatment items-scale marginal effect",
+            columns=["metric", "value"],
+        )
+    )
+
+    # Prior pushforward on the same scale (estimand-scale prior check, #125).
+    with guard_optional(
+        ctx, "prior pushforward", filename="prior_pushforward.csv", kind="table"
+    ):
+        pf = _predictive.prior_pushforward(
+            ctx.prior_samples, G=trt, n_trials=n_marg,
+            term="beta_trt", varying_term="", moderators=trt_moderators,
+            ci_prob=ctx.reporting.ci_prob, row_mask=p1_mask,
+            score_mean_link=link,
+        )
+        save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
+
+    # ROPE-anchored continuous report for the one causal term (beta_trt),
+    # mirroring fit_itt (notes/202606261304-evidence-strength-and-rope-
+    # reporting.md): separates direction (pd) from a *meaningful* benefit
+    # (P(items >= delta)). Graded outcomes with an agreed items-scale delta
+    # (ROPE_DELTA -> W/R/E/L/B) use the items scale; the floored outcome P (off-
+    # floor) uses the provisional risk-difference delta (ROPE_DELTA_PROB, #130
+    # follow-up); F/T have no agreed delta and are skipped.
+    from language_reading_predictors.statistical_models.measures import (
+        ROPE_DELTA,
+        ROPE_DELTA_PROB,
+        ROPE_DELTA_PROB_GRID,
+    )
+
+    delta_items = ROPE_DELTA.get(spec.outcome_symbol)
+    delta_prob = ROPE_DELTA_PROB.get(spec.outcome_symbol)
+    if delta_items is not None and not off_floor:
+        rope_s = _rope_summary.rope_summary(
+            ctx.trace,
+            G=trt,
+            n_trials=n_marg,
+            delta=delta_items,
+            ci_prob=ctx.reporting.ci_prob,
+            term="beta_trt",
+            varying_term="",
+            moderators=trt_moderators,
+            row_mask=p1_mask,
+            score_mean_link=link,
+            # Treatment interactions make beta_trt and the AME diverge in sign, so
+            # the reported direction follows the marginal effect, not the coefficient (#391).
+            direction_from_ame=True,
+        )
+        rope_df = pd.DataFrame([rope_s])
+        save_table(ctx, "rope_summary", rope_df)
+        meta_extra["rope_summary"] = rope_s
+        print_table(
+            metrics_table(
+                [{"metric": k, "value": v} for k, v in rope_s.items()],
+                title=f"ROPE summary ({spec.outcome_symbol}, delta={delta_items:g} items)",
+                columns=["metric", "value"],
+            )
+        )
+        save_rope_plot(
+            ctx, spec.outcome_symbol, trt, n_marg, delta_items,
+            term="beta_trt", varying_term="", moderators=trt_moderators,
+            row_mask=p1_mask, split=True, score_mean_link=link,
+        )
+    elif off_floor and delta_prob is not None:
+        # Off-floor risk-difference ROPE, matching the floored ITT path
+        # (#125 Area 4). The 10 pp δ was signed off by the education lead
+        # (2026-07-01, #144), so it is NOT provisional; the ITT floored path
+        # sets provisional_delta=False and this mirrors it.
+        rope_s = _rope_summary.rope_summary(
+            ctx.trace, G=trt, n_trials=1, delta=delta_prob,
+            ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
+            moderators=trt_moderators, row_mask=p1_mask,
+            direction_from_ame=True,  # direction from the off-floor RD AME, not beta_trt (#391)
+        )
+        rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
+        rope_s["delta_scale"] = "risk_difference"
+        save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
+        meta_extra["rope_summary"] = rope_s
+        save_rope_plot(
+            ctx, spec.outcome_symbol, trt, 1, delta_prob,
+            term="beta_trt", varying_term="", moderators=trt_moderators,
+            row_mask=p1_mask, split=True,
+        )
+        # δ-sensitivity sweep on the risk-difference scale (#144): 10/15/20 pp,
+        # the grid the sign-off mandates (mirrors the floored ITT path).
+        sens_df = _rope_summary.rope_sensitivity(
+            ctx.trace, G=trt, n_trials=1, deltas=ROPE_DELTA_PROB_GRID,
+            term="beta_trt", varying_term="", moderators=trt_moderators,
+            row_mask=p1_mask,
+        )
+        save_table(ctx, "rope_sensitivity", sens_df)
+
+    # Predicted-scores contrast panel + icon array (#316), averaged over the
+    # same period-1 reference rows as treatment_marginal.csv and integrating
+    # the child random intercept for a *new* typical child (the fitted
+    # children's intercepts are swapped for fresh population draws).
+    write_predicted_scores(
+        ctx,
+        outcome_symbol=spec.outcome_symbol,
+        G=trt,
+        n_trials=n_marg,
+        term="beta_trt",
+        varying_term="",
+        moderators=trt_moderators,
+        row_mask=p1_mask,
+        likelihood="bernoulli" if off_floor else "beta_binomial",
+        score_mean_link=link,
+        child_re=True,
+        child_idx=built.prepared.child_idx,
+        delta=delta_prob if off_floor else delta_items,
+        population=(
+            "covariate profiles drawn from the period-1 "
+            "randomised-transition rows"
+        ),
+        contrast_status=(
+            "model-dependent interaction-aware contrast (associational "
+            "moderation variant; partly informed by post-crossover data)"
+            if moderation_variant
+            else "randomised on-intervention contrast (period-1 anchor)"
+        ),
+        event_label="off the floor at the period end",
+        split=True,
+    )
+
+    # --- Period-1-only refit sensitivity (#575 finding 2) ---
+    # The model of record stacks every transition, so beta_trt is fitted on a
+    # likelihood whose shared parameters (period effects, child intercepts,
+    # covariate slopes) borrow from post-crossover rows; the period-1
+    # restriction above is applied only when averaging the marginal. This
+    # refit keeps the identical specification but drops every post-crossover
+    # row from the likelihood, so the comparison quantifies that borrowing
+    # for the causal headline. With each child observed once, the child
+    # intercept is only jointly identified with the overdispersion and leans
+    # on its prior; that is the price of keeping the refit a pure row
+    # restriction rather than a second specification.
+    if plan.period1_sensitivity_required:
+        section_header("Period-1-only refit sensitivity")
+        from dataclasses import replace as _dc_replace
+
+        from language_reading_predictors.statistical_models.preprocessing import (
+            _subset_prepared,
+        )
+        from language_reading_predictors.statistical_models.subfits import (
+            run_subfit,
+        )
+
+        p1_frame = _dc_replace(
+            _subset_prepared(prepared, np.asarray(prepared.phase) == 0),
+            n_phases=1,
+        )
+        p1_built = _gain_factors_factory.build_gain_factors_model(
+            p1_frame,
+            **plan.factory_kwargs(effective_adjustment=loader_adjust_for),
+        )
+        res = run_subfit(
+            ctx,
+            p1_built,
+            label="period1_only",
+            role="sensitivity",
+            trace_filename="trace_period1_only.nc",
+            extra_var_names=["beta_trt"],
+        )
+        p1_payload = p1_built.require_payload(
+            GainFactorsPayload, family="gain_factors"
+        )
+        trt_p1 = (
+            (p1_built.prepared.G == 1) | (p1_built.prepared.phase >= 1)
+        ).astype(float)
+        tme_p1 = _gain_factors_summary.treatment_marginal_effect(
+            res.trace,
+            trt=trt_p1,
+            n_trials=n_marg,
+            moderators=p1_payload.trt_interaction_moderators,
+            ci_prob=ctx.reporting.ci_prob,
+            row_mask=None,
+            score_mean_link=link,
+        )
+        _b = ctx.trace.posterior["beta_trt"].values.ravel()
+        _b1 = res.trace.posterior["beta_trt"].values.ravel()
+        _lo_q = (1 - ctx.reporting.ci_prob) / 2
+        _hi_q = 1 - _lo_q
+
+        def _p1_row(
+            fit_label: str,
+            b_draws: np.ndarray,
+            tme_row: dict[str, float],
+            built_x: _base_factory.BuiltModel[GainFactorsPayload],
+        ) -> dict[str, object]:
+            return {
+                "fit": fit_label,
+                "n_rows": int(built_x.prepared.n_obs),
+                "n_children": int(built_x.prepared.n_children),
+                "beta_trt_median": float(np.median(b_draws)),
+                "beta_trt_lo": float(np.quantile(b_draws, _lo_q)),
+                "beta_trt_hi": float(np.quantile(b_draws, _hi_q)),
+                "trt_items_median": tme_row["trt_items_median"],
+                "trt_items_lo": tme_row["trt_items_lo"],
+                "trt_items_hi": tme_row["trt_items_hi"],
+                "prob_trt_pos": tme_row["prob_trt_pos"],
+            }
+        p1_df = pd.DataFrame(
+            [
+                {
+                    **_p1_row("primary_period_stacked", _b, tme, built),
+                    "converged": None,
+                    "max_rhat": None,
+                    "min_ess": None,
+                },
+                {
+                    **_p1_row("period1_only", _b1, tme_p1, p1_built),
+                    "converged": res.convergence.get("converged"),
+                    "max_rhat": res.convergence.get("max_rhat"),
+                    "min_ess": res.convergence.get("min_ess"),
+                },
+            ]
+        )
+        save_table(ctx, "period1_sensitivity", p1_df)
+        meta_extra["period1_sensitivity"] = {
+            "beta_trt_shift": float(np.median(_b1) - np.median(_b)),
+            "items_shift": float(
+                tme_p1["trt_items_median"] - tme["trt_items_median"]
+            ),
+            "period1_converged": res.convergence.get("converged"),
+        }
+        print_table(
+            metrics_table(
+                [
+                    {"metric": k, "value": v}
+                    for k, v in meta_extra["period1_sensitivity"].items()
+                ],
+                title="Period-1-only refit sensitivity",
+                columns=["metric", "value"],
+            )
+        )
+    return meta_extra
+
+
 def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     require_spec(spec, "gain_factors", outcome=True)
 
@@ -234,7 +524,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     plan = resolve_gain_factors_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     skill_symbols = plan.skill_symbols
     ability_covariate = plan.ability_covariate
@@ -249,7 +539,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     obs_node = plan.obs_node
 
     section_header("Prepare data")
-    prepared = load_and_prepare(**plan.prepare_kwargs())
+    prepared: PreparedData = load_and_prepare(**plan.prepare_kwargs())
     # Re-filter after loading — a constant ``_missing`` indicator is dropped by the
     # loader and must not be built or reported as adjusted-for. This is the
     # loader-frame filter only; the factory re-filters on the FINAL analysis mask.
@@ -258,7 +548,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_gain_factors_model(
+    built = _gain_factors_factory.build_gain_factors_model(
         prepared, **plan.factory_kwargs(effective_adjustment=loader_adjust_for)
     )
     attach_built(ctx, built)
@@ -289,6 +579,11 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     _focal_gf = None if treated_only else "beta_trt"
     _gf_diag = plan.diagnostic_vars(effective_adjustment=adjust_for)
     _gf_coef_names = plan.coefficient_names(effective_adjustment=adjust_for)
+    def save_prior_posterior_figures(c: StatisticalFitContext) -> None:
+        _diag.save_prior_posterior_plot(c, var_names=_gf_diag)
+        if _focal_gf is not None:
+            save_forest_plot(c, [_focal_gf])
+
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
@@ -303,11 +598,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             # declares ``skip`` rather than reaching the slot and doing nothing.
             psense_timing="after_trace" if _focal_gf is not None else "skip",
             psense_vars=(_focal_gf,) if _focal_gf is not None else None,
-            after_trace_audit=lambda c: (
-                _diag.save_prior_posterior_plot(c, var_names=_gf_diag),
-                save_forest_plot(c, [_focal_gf]) if _focal_gf is not None else None,
-            )
-            and None,
+            after_trace_audit=save_prior_posterior_figures,
             extended_term=_focal_gf,
         ),
     )
@@ -319,7 +610,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     gf_causal_terms: tuple[str, ...] = (
         () if moderation_variant else ("beta_trt",)
     )
-    fs = _report.factor_summary(
+    fs = _factors_summary.factor_summary(
         ctx.trace, _gf_coef_names, ci_prob=ctx.reporting.ci_prob,
         causal_terms=gf_causal_terms,
     )
@@ -381,272 +672,9 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # treated_only (the on-intervention indicator is then constant and beta_trt
     # is absent).
     if not treated_only:
-        trt = ((built.prepared.G == 1) | (built.prepared.phase >= 1)).astype(float)
-        # The marginal treatment effect is averaged over the **period-1** rows only
-        # (#247 P2): period 1 is the genuinely randomised, all-untreated-baseline
-        # transition, so its switch-on-vs-off contrast is the available-case
-        # modified ITT estimate. The post-crossover transitions (phase >= 1) carry no untreated
-        # observations and baselines that may already be treatment-affected, so
-        # pooling them yields a model-based transported contrast, not that estimate.
-        # The logit-scale beta_trt posterior itself is unchanged; only its
-        # probability/items-scale marginalisation is restricted.
-        p1_mask = built.prepared.phase == 0
-        # Net out the *full* per-row treatment contribution — ``beta_trt`` plus every
-        # fitted treatment interaction (``gamma_int_trt_*``) — so the marginal effect
-        # reflects the modelled heterogeneity, not ``beta_trt`` alone. The factory
-        # exposes the exact standardised moderator vectors it used.
-        trt_moderators = payload.trt_interaction_moderators
-        # Off-floor models are Bernoulli on Pr(post > 0); the "items" scale then
-        # collapses to the off-floor risk difference (n_trials = 1).
-        n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
-        tme = _report.treatment_marginal_effect(
-            ctx.trace,
-            trt=trt,
-            n_trials=n_marg,
-            moderators=trt_moderators,
-            ci_prob=ctx.reporting.ci_prob,
-            row_mask=p1_mask,
-            score_mean_link=link,
-        )
-        save_table(ctx, "treatment_marginal", pd.DataFrame([tme]))
-        meta_extra["treatment_marginal"] = tme
-        print_table(
-            metrics_table(
-                [{"metric": k, "value": v} for k, v in tme.items()],
-                title="Treatment items-scale marginal effect",
-                columns=["metric", "value"],
-            )
-        )
-
-        # Prior pushforward on the same scale (estimand-scale prior check, #125).
-        with guard_optional(
-            ctx, "prior pushforward", filename="prior_pushforward.csv", kind="table"
-        ):
-            pf = _report.prior_pushforward(
-                ctx.prior_samples, G=trt, n_trials=n_marg,
-                term="beta_trt", varying_term="", moderators=trt_moderators,
-                ci_prob=ctx.reporting.ci_prob, row_mask=p1_mask,
-                score_mean_link=link,
-            )
-            save_table(ctx, "prior_pushforward", pd.DataFrame([pf]), required=False)
-
-        # ROPE-anchored continuous report for the one causal term (beta_trt),
-        # mirroring fit_itt (notes/202606261304-evidence-strength-and-rope-
-        # reporting.md): separates direction (pd) from a *meaningful* benefit
-        # (P(items >= delta)). Graded outcomes with an agreed items-scale delta
-        # (ROPE_DELTA -> W/R/E/L/B) use the items scale; the floored outcome P (off-
-        # floor) uses the provisional risk-difference delta (ROPE_DELTA_PROB, #130
-        # follow-up); F/T have no agreed delta and are skipped.
-        from language_reading_predictors.statistical_models.measures import (
-            ROPE_DELTA,
-            ROPE_DELTA_PROB,
-            ROPE_DELTA_PROB_GRID,
-        )
-
-        delta_items = ROPE_DELTA.get(spec.outcome_symbol)
-        delta_prob = ROPE_DELTA_PROB.get(spec.outcome_symbol)
-        if delta_items is not None and not off_floor:
-            rope_s = _report.rope_summary(
-                ctx.trace,
-                G=trt,
-                n_trials=n_marg,
-                delta=delta_items,
-                ci_prob=ctx.reporting.ci_prob,
-                term="beta_trt",
-                varying_term="",
-                moderators=trt_moderators,
-                row_mask=p1_mask,
-                score_mean_link=link,
-                # Treatment interactions make beta_trt and the AME diverge in sign, so
-                # the reported direction follows the marginal effect, not the coefficient (#391).
-                direction_from_ame=True,
-            )
-            rope_df = pd.DataFrame([rope_s])
-            save_table(ctx, "rope_summary", rope_df)
-            meta_extra["rope_summary"] = rope_s
-            print_table(
-                metrics_table(
-                    [{"metric": k, "value": v} for k, v in rope_s.items()],
-                    title=f"ROPE summary ({spec.outcome_symbol}, delta={delta_items:g} items)",
-                    columns=["metric", "value"],
-                )
-            )
-            save_rope_plot(
-                ctx, spec.outcome_symbol, trt, n_marg, delta_items,
-                term="beta_trt", varying_term="", moderators=trt_moderators,
-                row_mask=p1_mask, split=True, score_mean_link=link,
-            )
-        elif off_floor and delta_prob is not None:
-            # Off-floor risk-difference ROPE, matching the floored ITT path
-            # (#125 Area 4). The 10 pp δ was signed off by the education lead
-            # (2026-07-01, #144), so it is NOT provisional; the ITT floored path
-            # sets provisional_delta=False and this mirrors it.
-            rope_s = _report.rope_summary(
-                ctx.trace, G=trt, n_trials=1, delta=delta_prob,
-                ci_prob=ctx.reporting.ci_prob, term="beta_trt", varying_term="",
-                moderators=trt_moderators, row_mask=p1_mask,
-                direction_from_ame=True,  # direction from the off-floor RD AME, not beta_trt (#391)
-            )
-            rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
-            rope_s["delta_scale"] = "risk_difference"
-            save_table(ctx, "rope_summary", pd.DataFrame([rope_s]))
-            meta_extra["rope_summary"] = rope_s
-            save_rope_plot(
-                ctx, spec.outcome_symbol, trt, 1, delta_prob,
-                term="beta_trt", varying_term="", moderators=trt_moderators,
-                row_mask=p1_mask, split=True,
-            )
-            # δ-sensitivity sweep on the risk-difference scale (#144): 10/15/20 pp,
-            # the grid the sign-off mandates (mirrors the floored ITT path).
-            sens_df = _report.rope_sensitivity(
-                ctx.trace, G=trt, n_trials=1, deltas=ROPE_DELTA_PROB_GRID,
-                term="beta_trt", varying_term="", moderators=trt_moderators,
-                row_mask=p1_mask,
-            )
-            save_table(ctx, "rope_sensitivity", sens_df)
-
-        # Predicted-scores contrast panel + icon array (#316), averaged over the
-        # same period-1 reference rows as treatment_marginal.csv and integrating
-        # the child random intercept for a *new* typical child (the fitted
-        # children's intercepts are swapped for fresh population draws).
-        write_predicted_scores(
-            ctx,
-            outcome_symbol=spec.outcome_symbol,
-            G=trt,
-            n_trials=n_marg,
-            term="beta_trt",
-            varying_term="",
-            moderators=trt_moderators,
-            row_mask=p1_mask,
-            likelihood="bernoulli" if off_floor else "beta_binomial",
-            score_mean_link=link,
-            child_re=True,
-            child_idx=built.prepared.child_idx,
-            delta=delta_prob if off_floor else delta_items,
-            population=(
-                "covariate profiles drawn from the period-1 "
-                "randomised-transition rows"
-            ),
-            contrast_status=(
-                "model-dependent interaction-aware contrast (associational "
-                "moderation variant; partly informed by post-crossover data)"
-                if moderation_variant
-                else "randomised on-intervention contrast (period-1 anchor)"
-            ),
-            event_label="off the floor at the period end",
-            split=True,
-        )
-
-        # --- Period-1-only refit sensitivity (#575 finding 2) ---
-        # The model of record stacks every transition, so beta_trt is fitted on a
-        # likelihood whose shared parameters (period effects, child intercepts,
-        # covariate slopes) borrow from post-crossover rows; the period-1
-        # restriction above is applied only when averaging the marginal. This
-        # refit keeps the identical specification but drops every post-crossover
-        # row from the likelihood, so the comparison quantifies that borrowing
-        # for the causal headline. With each child observed once, the child
-        # intercept is only jointly identified with the overdispersion and leans
-        # on its prior; that is the price of keeping the refit a pure row
-        # restriction rather than a second specification.
-        if plan.period1_sensitivity_required:
-            section_header("Period-1-only refit sensitivity")
-            from dataclasses import replace as _dc_replace
-
-            from language_reading_predictors.statistical_models.preprocessing import (
-                _subset_prepared,
-            )
-            from language_reading_predictors.statistical_models.subfits import (
-                run_subfit,
-            )
-
-            p1_frame = _dc_replace(
-                _subset_prepared(prepared, np.asarray(prepared.phase) == 0),
-                n_phases=1,
-            )
-            p1_built = _factories.build_gain_factors_model(
-                p1_frame,
-                **plan.factory_kwargs(effective_adjustment=loader_adjust_for),
-            )
-            res = run_subfit(
-                ctx,
-                p1_built,
-                label="period1_only",
-                role="sensitivity",
-                trace_filename="trace_period1_only.nc",
-                extra_var_names=["beta_trt"],
-            )
-            p1_payload = p1_built.require_payload(
-                GainFactorsPayload, family="gain_factors"
-            )
-            trt_p1 = (
-                (p1_built.prepared.G == 1) | (p1_built.prepared.phase >= 1)
-            ).astype(float)
-            tme_p1 = _report.treatment_marginal_effect(
-                res.trace,
-                trt=trt_p1,
-                n_trials=n_marg,
-                moderators=p1_payload.trt_interaction_moderators,
-                ci_prob=ctx.reporting.ci_prob,
-                row_mask=None,
-                score_mean_link=link,
-            )
-            _b = ctx.trace.posterior["beta_trt"].values.ravel()
-            _b1 = res.trace.posterior["beta_trt"].values.ravel()
-            _lo_q = (1 - ctx.reporting.ci_prob) / 2
-            _hi_q = 1 - _lo_q
-
-            def _p1_row(
-                fit_label: str,
-                b_draws: np.ndarray,
-                tme_row: dict[str, float],
-                built_x: _factories.BuiltModel[GainFactorsPayload],
-            ) -> dict[str, object]:
-                return {
-                    "fit": fit_label,
-                    "n_rows": int(built_x.prepared.n_obs),
-                    "n_children": int(built_x.prepared.n_children),
-                    "beta_trt_median": float(np.median(b_draws)),
-                    "beta_trt_lo": float(np.quantile(b_draws, _lo_q)),
-                    "beta_trt_hi": float(np.quantile(b_draws, _hi_q)),
-                    "trt_items_median": tme_row["trt_items_median"],
-                    "trt_items_lo": tme_row["trt_items_lo"],
-                    "trt_items_hi": tme_row["trt_items_hi"],
-                    "prob_trt_pos": tme_row["prob_trt_pos"],
-                }
-            p1_df = pd.DataFrame(
-                [
-                    {
-                        **_p1_row("primary_period_stacked", _b, tme, built),
-                        "converged": None,
-                        "max_rhat": None,
-                        "min_ess": None,
-                    },
-                    {
-                        **_p1_row("period1_only", _b1, tme_p1, p1_built),
-                        "converged": res.convergence.get("converged"),
-                        "max_rhat": res.convergence.get("max_rhat"),
-                        "min_ess": res.convergence.get("min_ess"),
-                    },
-                ]
-            )
-            save_table(ctx, "period1_sensitivity", p1_df)
-            meta_extra["period1_sensitivity"] = {
-                "beta_trt_shift": float(np.median(_b1) - np.median(_b)),
-                "items_shift": float(
-                    tme_p1["trt_items_median"] - tme["trt_items_median"]
-                ),
-                "period1_converged": res.convergence.get("converged"),
-            }
-            print_table(
-                metrics_table(
-                    [
-                        {"metric": k, "value": v}
-                        for k, v in meta_extra["period1_sensitivity"].items()
-                    ],
-                    title="Period-1-only refit sensitivity",
-                    columns=["metric", "value"],
-                )
-            )
+        meta_extra.update(_write_period_one_treatment_comparison(
+            ctx, built, prepared, payload, plan, loader_adjust_for=loader_adjust_for
+        ))
 
     # --- Per-covariate items-scale association marginals (#310) ---
     # The adjusted-association analogue of the treatment marginal: for each covariate
@@ -662,7 +690,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     )
     if assoc_terms:
         n_assoc = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
-        am = _report.association_marginals(
+        am = _factors_summary.association_marginals(
             ctx.trace,
             terms=assoc_terms,
             n_trials=n_assoc,

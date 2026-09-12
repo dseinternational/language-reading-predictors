@@ -19,15 +19,11 @@ import numpy as np
 import pymc as pm
 import xarray as xr
 
-from language_reading_predictors.statistical_models.factories import (
-    build_horseshoe_model,
-)
+from language_reading_predictors.statistical_models.factories.horseshoe import build_horseshoe_model
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    horseshoe_ranking,
-)
+from language_reading_predictors.statistical_models.summaries.horseshoe import horseshoe_ranking
 
 from .test_factories import _write_synthetic
 

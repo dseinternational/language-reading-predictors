@@ -3,22 +3,16 @@
 
 """Historical-cohort growth and joint-growth model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -159,10 +153,7 @@ def build_historical_growth_model(
                                ),
                        role="nuisance",
                        rationale=(
-                           "Group-by-wave population level per cell/measure on the logit scale "
-                           "(Normal(0, 1.5)); the fitted cells (mean_items) and growth "
-                           "intervals are deterministics of it — descriptive, not a treatment "
-                           "effect."
+                           'Group-by-wave population level per cell/measure on the logit scale; the fitted cells (mean_items) and growth intervals are deterministics of it — descriptive, not a treatment effect.'
                        ),
                    )
         sigma_subject = _priors.declare(
@@ -171,17 +162,14 @@ def build_historical_growth_model(
                                     ),
                             role="nuisance",
                             rationale=(
-                                "Group-indexed between-subject random-intercept SD (HalfNormal(1)); "
-                                "between-child heterogeneity that differs by cohort group."
+                                'Group-indexed between-subject random-intercept SD; between-child heterogeneity that differs by cohort group.'
                             ),
                         )
         z_subject = _priors.declare(
                         pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject"),
                         role="nuisance",
                         rationale=(
-                            "Non-centred standard-normal per-subject offsets (Normal(0, 1)); "
-                            "group-centred and scaled by sigma_subject to form the subject "
-                            "random effects."
+                            'Non-centred standard-normal per-subject offsets; group-centred and scaled by sigma_subject to form the subject random effects.'
                         ),
                     )
         # Group-centre the subject offsets for identifiability against
@@ -388,10 +376,7 @@ def build_rlm_joint_growth_model(
                                ),
                        role="nuisance",
                        rationale=(
-                           "Group-by-wave population level per cell/measure on the logit scale "
-                           "(Normal(0, 1.5)); the fitted cells (mean_items) and growth "
-                           "intervals are deterministics of it — descriptive, not a treatment "
-                           "effect."
+                           'Group-by-wave population level per cell/measure on the logit scale; the fitted cells (mean_items) and growth intervals are deterministics of it — descriptive, not a treatment effect.'
                        ),
                    )
         sigma_subject = _priors.declare(
@@ -402,8 +387,7 @@ def build_rlm_joint_growth_model(
                                     ),
                             role="nuisance",
                             rationale=(
-                                "Group-indexed between-subject random-intercept SD (HalfNormal(1)); "
-                                "between-child heterogeneity that differs by cohort group."
+                                'Group-indexed between-subject random-intercept SD; between-child heterogeneity that differs by cohort group.'
                             ),
                         )
         kappa = None
@@ -427,9 +411,7 @@ def build_rlm_joint_growth_model(
                    pm.LKJCorr("measure_corr_chol", n=M, eta=lkj_eta),
                    role="association",
                    rationale=(
-                       "LKJ(eta=2) prior on the Cholesky factor of the between-child "
-                       "cross-measure correlation (LKJCorrRV(<constant>, 2)); R = chol @ "
-                       "chol.T is the headline reading-language-memory coupling estimand."
+                       'Cholesky factor of the between-child cross-measure correlation. R = chol @ chol.T is the reported reading-language-memory association.'
                    ),
                )
         measure_corr = pm.Deterministic(
@@ -450,9 +432,7 @@ def build_rlm_joint_growth_model(
                                 ),
                         role="nuisance",
                         rationale=(
-                            "Non-centred standard-normal per-subject offsets (Normal(0, 1)); "
-                            "group-centred and scaled by sigma_subject to form the subject "
-                            "random effects."
+                            'Non-centred standard-normal per-subject offsets; group-centred and scaled by sigma_subject to form the subject random effects.'
                         ),
                     )
         corr_z = z_subject @ chol.T  # rows ~ MVN(0, R)
@@ -481,12 +461,7 @@ def build_rlm_joint_growth_model(
                                            ),
                                role="nuisance",
                                rationale=(
-                                   "Scale of the wave-specific within-child departure on the logit "
-                                   "scale (HalfNormal(0.5)). This model's likelihood is Binomial "
-                                   "rather than Beta-Binomial, so this term carries ALL extra-Binomial "
-                                   "variance — true within-child fluctuation and measurement noise "
-                                   "together — and the double sum-to-zero centring makes the realised "
-                                   "departure SD smaller than this parameter."
+                                   "Scale of the wave-specific within-child departure on the logit scale. This model's likelihood is Binomial rather than Beta-Binomial, so this term carries ALL extra-Binomial variance — true within-child fluctuation and measurement noise together — and the double sum-to-zero centring makes the realised departure SD smaller than this parameter."
                                ),
                            )
             within_chol = _priors.declare(
@@ -523,10 +498,7 @@ def build_rlm_joint_growth_model(
                                        ),
                            role="nuisance",
                            rationale=(
-                               "Non-centred standard-normal per-row, per-measure within-child "
-                               "offsets (Normal(0, 1)); correlated through within_corr_chol, "
-                               "double-centred within child and within group-by-wave cell, and "
-                               "scaled by sigma_within."
+                               'Non-centred standard-normal per-row, per-measure within-child offsets; correlated through within_corr_chol, double-centred within child and within group-by-wave cell, and scaled by sigma_within.'
                            ),
                        )
             raw_within = z_within @ within_chol.T

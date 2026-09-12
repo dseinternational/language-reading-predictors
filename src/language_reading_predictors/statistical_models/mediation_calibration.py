@@ -62,16 +62,14 @@ from scipy.stats import norm, t
 from language_reading_predictors import paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import MediationData
+from language_reading_predictors.statistical_models.factories.mediation import MediationData
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     load_and_prepare,
     logit_safe,
     standardise,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    convergence_gate_clean_passed,
-)
+from language_reading_predictors.statistical_models.convergence import convergence_gate_clean_passed
 
 
 @dataclass(frozen=True)

@@ -25,9 +25,7 @@ from language_reading_predictors.statistical_models import (
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
-from language_reading_predictors.statistical_models.factories import (
-    build_historical_growth_model,
-)
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 from language_reading_predictors.statistical_models.historical_growth import (
     HistoricalGrowthModelSettings,
     check_declared_waves,
@@ -42,7 +40,7 @@ from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
 )
-from language_reading_predictors.statistical_models.reporting import write_run_metadata
+from language_reading_predictors.statistical_models.run_metadata import write_run_metadata
 
 from .test_datasets import _dataset, _write_synthetic
 

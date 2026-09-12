@@ -16,6 +16,10 @@ is triangulation only (#84).
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import mediation as _mediation_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from collections.abc import Iterable
 
 import pandas as pd
@@ -26,12 +30,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    mediation_settings as _settings,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, mediation_settings as _settings
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -143,7 +142,7 @@ def _fit_t3_sensitivity(
         pre_required=plan.pre_required,
         **lag_kwargs,
     )
-    built_t3, med_t3 = _factories.build_mediation_model(
+    built_t3, med_t3 = _mediation_factory.build_mediation_model(
         prepared_t3,
         mediator_symbol=plan.mediator_symbol,
         outcome_symbol=outcome_symbol,
@@ -251,7 +250,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         )
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     prepared, confounders = _prepare_mediation_data(plan)
@@ -262,7 +261,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         # currency check compares resolution with resolution. The
         # loader's constant-column removals stay recorded in extra
         # (2026-08-26 batch).
-        _report.write_model_recipe(ctx, plan=plan)
+        _metadata.write_model_recipe(ctx, plan=plan)
     ctx.prepared = prepared
 
     print_header(ctx)
@@ -272,7 +271,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     outcome_kind = plan.outcome_kind
     off_floor = outcome_kind == "bernoulli_offfloor"
     mediator_node, outcome_node = plan.observation_nodes
-    built, med_data = _factories.build_mediation_model(
+    built, med_data = _mediation_factory.build_mediation_model(
         prepared,
         **plan.factory_kwargs(),
     )
@@ -517,7 +516,7 @@ def fit_mediation_period_stacked(
         )
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     mediator_symbol = plan.mediator_symbol
@@ -538,12 +537,12 @@ def fit_mediation_period_stacked(
         # currency check compares resolution with resolution. The
         # loader's constant-column removals stay recorded in extra
         # (2026-08-26 batch).
-        _report.write_model_recipe(ctx, plan=plan)
+        _metadata.write_model_recipe(ctx, plan=plan)
 
     print_header(ctx)
 
     section_header("Build model")
-    built, med_data = _factories.build_period_stacked_mediation_model(
+    built, med_data = _mediation_factory.build_period_stacked_mediation_model(
         prepared,
         **plan.period_factory_kwargs(),
     )
@@ -744,7 +743,7 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     plan = _settings.resolve_mediation_multi_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     mediators = plan.mediators
@@ -764,14 +763,14 @@ def fit_mediation_multi(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
         # currency check compares resolution with resolution. The
         # loader's constant-column removals stay recorded in extra
         # (2026-08-26 batch).
-        _report.write_model_recipe(ctx, plan=plan)
+        _metadata.write_model_recipe(ctx, plan=plan)
     ctx.prepared = prepared
 
     print_header(ctx)
 
     section_header("Build model")
 
-    built, med_data = _factories.build_two_mediator_model(
+    built, med_data = _mediation_factory.build_two_mediator_model(
         prepared,
         **plan.factory_kwargs(),
     )

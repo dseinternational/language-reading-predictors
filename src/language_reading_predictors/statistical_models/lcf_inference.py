@@ -24,7 +24,7 @@ import numpy as np
 import pymc as pm
 import xarray as xr
 
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import (
     FittedPayload,
     LongCorrFactorPayload,

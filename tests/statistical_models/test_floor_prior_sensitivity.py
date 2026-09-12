@@ -20,10 +20,8 @@ from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    rope_summary,
-    tau_summary_offfloor,
-)
+from language_reading_predictors.statistical_models.summaries.itt import tau_summary_offfloor
+from language_reading_predictors.statistical_models.summaries.rope import rope_summary
 from language_reading_predictors.statistical_models.sensitivity import (
     FLOOR_SENSITIVITY_AGE_ADJUSTMENTS,
     FLOOR_SENSITIVITY_AXIS,

@@ -43,6 +43,9 @@ emits the PNG + SVG sibling + data CSV.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 from collections.abc import Mapping, Sequence
 
 import matplotlib.pyplot as plt
@@ -330,7 +333,7 @@ def write_group_arm_trajectory(
     outcome_symbol: str,
     item_label: str,
     off_floor: bool = False,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     crossover_wave: int = 1,
     eta_name: str = "eta",
     obs_node: str = "y_post",
@@ -575,7 +578,7 @@ def write_child_fit_obsid(
     eta_name: str = "eta",
     pareto_k: np.ndarray | None = None,
     seed: int = 47,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     x_label: str = "assessment wave",
     n_panels: int = 12,
     name: str = "child_fit_panels",
@@ -747,7 +750,7 @@ def write_outcome_trajectory(
     panel,
     *,
     latent_name: str,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     max_draws: int = 4000,
     name: str = "group_trajectory",
 ) -> pd.DataFrame:
@@ -861,7 +864,7 @@ def write_child_fit_panel(
     kappa_name: str = "kappa",
     pareto_k: np.ndarray | None = None,
     seed: int = 47,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     n_panels: int = 12,
     max_draws: int = 4000,
     name: str = "child_fit_panels",

@@ -23,6 +23,9 @@ predictive associations, never causal effects.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -465,14 +468,7 @@ def build_rlm_lcsm_recovery_model(
             1.0,
             dims=("child", "trans", "outcome"),
         )
-        kappa = _priors.declare(
-                    pm.HalfNormal("kappa", 50.0, dims="outcome"),
-                    role="nuisance",
-                    panel="kappa",
-                    rationale=(
-                        "Beta-binomial concentration kappa ~ HalfNormal(50)."
-                    ),
-                )
+        kappa = _priors.kappa_prior(sigma=50.0).to_pymc('kappa', dims='outcome', role='nuisance', rationale='Beta-binomial concentration.')
 
         states: list[pt.TensorVariable] = [
             mu_initial[group] + z_initial @ initial_cholesky.T
@@ -521,7 +517,7 @@ def recovery_rows(
     scope: CandidateScope,
     simulation: int,
     truth: RlmSimulationTruth,
-    ci_prob: float = 0.89,
+    ci_prob: float = REPORTING_CI_PROB,
     support_threshold: float = 0.90,
 ) -> list[dict[str, Any]]:
     """Extract one auditable recovery row per pre-specified reverse edge."""

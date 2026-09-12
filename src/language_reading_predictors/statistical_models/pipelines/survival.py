@@ -18,6 +18,9 @@ mid-section is one :func:`stages.SharedFitStages.run_primary_fit` call driven by
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import numpy as np
 import pandas as pd
 from rich import print as rprint
@@ -27,11 +30,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    reporting as _report,
-    survival as _survival,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, survival as _survival
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -151,7 +150,7 @@ def fit_survival(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     plan = _survival.resolve_survival_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     panel = _survival.prepare_survival(**plan.prepare_kwargs())

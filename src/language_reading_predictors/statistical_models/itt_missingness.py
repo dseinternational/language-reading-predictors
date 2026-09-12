@@ -39,7 +39,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
 )
 
 if TYPE_CHECKING:
-    from language_reading_predictors.statistical_models.factories import BuiltModel
+    from language_reading_predictors.statistical_models.factories.base import BuiltModel
 
 RLI_ARCHIVE_DOI = "10.5255/UKDA-SN-852291"
 RLI_ARCHIVE_URL = "https://reshare.ukdataservice.ac.uk/852291/"
@@ -512,7 +512,7 @@ def build_screening_w_model(
     import pymc as pm
 
     from language_reading_predictors.statistical_models import priors as _priors
-    from language_reading_predictors.statistical_models.factories import BuiltModel
+    from language_reading_predictors.statistical_models.factories.base import BuiltModel
     from language_reading_predictors.statistical_models.likelihood import (
         beta_binomial_from_logit,
     )

@@ -27,6 +27,12 @@ wave after seeing its posterior.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import convergence as _convergence
+from language_reading_predictors.statistical_models.factories import joint_mechanism as _joint_mechanism_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -38,12 +44,7 @@ from language_reading_predictors.models._reporting import (
     print_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    joint_mechanism as _joint_mechanism,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, joint_mechanism as _joint_mechanism
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -616,12 +617,12 @@ def _jm_primary_fit_plan(
         with guard_optional(
             c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
         ):
-            coverage = _report.ppc_interval_coverage(c.trace, node="y_post")
+            coverage = _predictive.ppc_interval_coverage(c.trace, node="y_post")
             frames = [coverage]
             labels = _jm_cell_outcome_labels(c, outcome_symbols)
             if labels is not None:
                 frames.append(
-                    _report.ppc_interval_coverage_by_group(
+                    _predictive.ppc_interval_coverage_by_group(
                         c.trace, node="y_post", group_labels=labels
                     )
                 )
@@ -680,7 +681,7 @@ def _jm_primary_fit_plan(
             c,
             new_child_plan,
             kfold_plan,
-            lambda _training, held_out: _factories.build_joint_mechanism_model(
+            lambda _training, held_out: _joint_mechanism_factory.build_joint_mechanism_model(
                 mask_prepared_children(
                     c.prepared, held_out, run_plan.outcome_symbols
                 ),
@@ -964,7 +965,7 @@ def _fit_joint_mechanism_levels(
 
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     ci = ctx.reporting.ci_prob
 
     section_header("Prepare data")
@@ -976,10 +977,10 @@ def _fit_joint_mechanism_levels(
         # rewrite; config.json keeps the RESOLVER's plan so the #623
         # currency check compares resolution with resolution (2026-08-26
         # batch; latent here — caught by the pipeline-boundary test).
-        _report.write_model_recipe(ctx, plan=plan)
+        _metadata.write_model_recipe(ctx, plan=plan)
 
     def _build(sub):
-        return _factories.build_joint_mechanism_model(
+        return _joint_mechanism_factory.build_joint_mechanism_model(
             sub,
             **plan.factory_kwargs(),
         )
@@ -1092,7 +1093,7 @@ def _fit_joint_mechanism_levels(
                 var_names=[rv.name for rv in ctx.model.free_RVs] + reported,
             )
             convergence["converged"] = bool(
-                _report.convergence_gate_clean_passed(gate)
+                _convergence.convergence_gate_clean_passed(gate)
                 and convergence.get("converged")
             )
             trace_file = "trace.nc"
@@ -1329,7 +1330,7 @@ def _jm_comparator_population(
                 observed[symbol] = int(np.count_nonzero(np.isfinite(np.asarray(values, dtype=float))))
         if observed:
             record["observed_cells_by_outcome"] = observed
-    identity = _report.fitted_subject_identity(ctx.prepared)
+    identity = _metadata.fitted_subject_identity(ctx.prepared)
     if identity is not None:
         record["fitted_subject_identity"] = identity
     return record
@@ -1352,7 +1353,7 @@ def _fit_joint_mechanism_transition(
 
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     ci = ctx.reporting.ci_prob
 
     section_header("Prepare data")
@@ -1366,12 +1367,12 @@ def _fit_joint_mechanism_transition(
         # rewrite; config.json keeps the RESOLVER's plan so the #623
         # currency check compares resolution with resolution (2026-08-26
         # batch; latent here — caught by the pipeline-boundary test).
-        _report.write_model_recipe(ctx, plan=plan)
+        _metadata.write_model_recipe(ctx, plan=plan)
 
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_joint_mechanism_model(
+    built = _joint_mechanism_factory.build_joint_mechanism_model(
         prepared,
         **plan.factory_kwargs(),
     )
@@ -1405,7 +1406,7 @@ def _fit_joint_mechanism_transition(
             contrast=contrast,
             ci_prob=ci,
             wave="stacked",
-            converged=_report.convergence_gate_clean_passed(gate),
+            converged=_convergence.convergence_gate_clean_passed(gate),
         ),
         contrast=contrast,
     )

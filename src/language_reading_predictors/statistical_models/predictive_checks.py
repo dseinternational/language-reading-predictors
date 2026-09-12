@@ -13,6 +13,9 @@ of the observed data the fitted model's prediction intervals contain.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
 
@@ -26,11 +29,9 @@ from dse_research_utils.statistics.predictive import (
 from dse_research_utils.statistics.samples import sample_matrix
 from scipy.special import expit
 
-from language_reading_predictors.statistical_models.estimands import (
-    _itt_ame_draws,
-    _joint_ame_draws,
-    level_t2_marginal_effect,
-)
+from language_reading_predictors.statistical_models.summaries.itt import _itt_ame_draws
+from language_reading_predictors.statistical_models.summaries.joint import _joint_ame_draws
+from language_reading_predictors.statistical_models.summaries.level_factors import level_t2_marginal_effect
 from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
     apply_score_mean_link,
@@ -168,7 +169,7 @@ def prior_pushforward(
     varying_term: str = "tau_i",
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     row_mask: np.ndarray | None = None,
     score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float]:
@@ -210,7 +211,7 @@ def marginal_prior_pushforward(
     term: str,
     n_trials: int,
     eta_name: str = "eta",
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     convention: Literal["net_out", "forward"] = "net_out",
     row_mask: np.ndarray | None = None,
     term_index: Mapping[str, Any] | None = None,
@@ -279,7 +280,7 @@ def joint_prior_pushforward(
     outcomes: Sequence[str],
     G: np.ndarray,
     n_trials: Mapping[str, int],
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     row_mask: np.ndarray | None = None,
 ) -> list[dict[str, Any]]:
     """One labelled prior-pushforward row per outcome of a joint ITT fit (#381).
@@ -313,7 +314,7 @@ def indicator_prior_check(
     trace: xr.DataTree,
     *,
     nodes: Sequence[str],
-    ci_prob: float = 0.89,
+    ci_prob: float = REPORTING_CI_PROB,
 ) -> pd.DataFrame:
     """Indicator-scale prior-predictive check for the measurement families (#381).
 
@@ -915,7 +916,7 @@ def level_prior_pushforward(
     G: np.ndarray,
     n_trials: int,
     ability: np.ndarray | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     contrast_term: str = "b_grp_time",
     contrast_index: int | None = None,
     balance_term: str | None = None,

@@ -18,6 +18,11 @@ not computed for either fit.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import corr_factor as _corr_factor_factory
+from language_reading_predictors.statistical_models import posteriors as _posterior
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import pandas as pd
 from rich import print as rprint
 
@@ -26,12 +31,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    corr_factor as _corr_factor,
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import corr_factor as _corr_factor, diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -75,7 +75,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     plan = _corr_factor.resolve_corr_factor_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     # The correlated-factor CFA is a small-n latent model; even with the factor
     # scores marginalised out of the measurement likelihood a few boundary
     # divergences survive at the tier-default target_accept, so lift it via the spec
@@ -102,7 +102,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         # currency check compares resolution with resolution. The
         # loader's constant-column removals stay recorded in extra
         # (2026-08-26 batch).
-        _report.write_model_recipe(ctx, plan=plan)
+        _metadata.write_model_recipe(ctx, plan=plan)
         rprint(
             "[yellow]fit_correlated_factor: dropped constant structural covariate(s) "
             f"{list(_dropped_structural)} (not in prepared.covariates on the fitted "
@@ -111,7 +111,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_correlated_factor_model(
+    built = _corr_factor_factory.build_correlated_factor_model(
         prepared,
         **plan.rli_factory_kwargs(),
     )
@@ -230,7 +230,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     )
     _bf_dim = "struct_domain" if plan.structural_factors is not None else "domain"
     struct_rows = [
-        _report.coef_row(
+        _posterior.coef_row(
             f"beta_{d}", post["beta_factor"].isel({_bf_dim: k}).values, hdi
         )
         for k, d in enumerate(struct_names)
@@ -240,7 +240,7 @@ def fit_correlated_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFi
         + (["beta_age"] if plan.use_age else [])
         + [f"beta_{c}" for c in structural_covs]
     )
-    struct_rows += [_report.coef_row(t, post[t].values, hdi) for t in extra_terms]
+    struct_rows += [_posterior.coef_row(t, post[t].values, hdi) for t in extra_terms]
     struct_df = pd.DataFrame(struct_rows)
     save_table(ctx, "structural_summary", struct_df)
     print_table(
@@ -287,7 +287,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     plan = _corr_factor.resolve_corr_factor_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
     lo_q = (1.0 - hdi) / 2.0
 
@@ -298,7 +298,7 @@ def fit_rlm_corr_factor(spec: ModelSpec, config: str = "dev") -> StatisticalFitC
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_rlm_corr_factor_model(
+    built = _corr_factor_factory.build_rlm_corr_factor_model(
         battery,
         **plan.rlm_factory_kwargs(),
     )

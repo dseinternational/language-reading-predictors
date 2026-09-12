@@ -24,7 +24,7 @@ from language_reading_predictors.statistical_models.floor import (
     is_floored,
     proportion_at_zero,
 )
-from language_reading_predictors.statistical_models.factories import build_itt_model
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,

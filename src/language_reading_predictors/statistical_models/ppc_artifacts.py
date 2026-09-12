@@ -12,6 +12,9 @@ measurement/latent) and writes the calibration and overlay figures. Split out of
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+
+
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -24,7 +27,7 @@ from dse_research_utils.plot.styles import (
 )
 from rich import print as rprint
 
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     save_table,
@@ -131,7 +134,7 @@ def _save_count_ppc(
 ) -> None:
     """Count-interval coverage CSV + calibration panel (+ overlay for single-measure)."""
     with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
-        cov = _report.ppc_interval_coverage(context.trace, node=node)
+        cov = _predictive.ppc_interval_coverage(context.trace, node=node)
         frames = [cov]
         if kind in _PPC_MULTI_OUTCOME_KINDS:
             # A stacked multi-outcome node pools measures with different
@@ -145,7 +148,7 @@ def _save_count_ppc(
             )
             if labels is not None:
                 frames.append(
-                    _report.ppc_interval_coverage_by_group(
+                    _predictive.ppc_interval_coverage_by_group(
                         context.trace, node=node, group_labels=labels
                     )
                 )
@@ -164,7 +167,7 @@ def _save_count_ppc(
         context, "PPC calibration figure",
         filename="ppc_calibration.png", kind="figure", verb="skipped",
     ):
-        cal = _report.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
+        cal = _predictive.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
         _ppc_calibration_figure(context, symbol, cal)
     if kind in _PPC_FAMILY_OWN_OVERLAY_KINDS:
         rprint(
@@ -207,7 +210,7 @@ def _save_per_node_count_ppc(context: StatisticalFitContext) -> None:
         context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
     ):
         for node in nodes:
-            frames.append(_report.ppc_interval_coverage(context.trace, node=node))
+            frames.append(_predictive.ppc_interval_coverage(context.trace, node=node))
         save_table(
             context, "ppc_summary", pd.concat(frames, ignore_index=True), required=False
         )
@@ -222,7 +225,7 @@ def _save_per_node_count_ppc(context: StatisticalFitContext) -> None:
             context, f"PPC calibration table ({symbol})",
             filename=f"{stem}.csv", kind="figure", verb="skipped",
         ):
-            cal = _report.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
+            cal = _predictive.ppc_calibration_table(context.trace, node=node, ci_prob=0.9)
             _ppc_calibration_figure(context, symbol, cal, filename_stem=stem)
         _ppc_overlay_figure(
             context,
@@ -293,7 +296,7 @@ def _save_mediation_per_leg_ppc(
                 filename="ppc_summary.csv", kind="table",
             ):
                 frames.append(
-                    _report.ppc_offfloor_rate_coverage(
+                    _predictive.ppc_offfloor_rate_coverage(
                         context.trace, node=node, group=group
                     )
                 )
@@ -301,7 +304,7 @@ def _save_mediation_per_leg_ppc(
                 context, f"PPC off-floor figure ({symbol})",
                 filename=f"{stem}.png", kind="figure", verb="skipped",
             ):
-                cells = _report.ppc_offfloor_cell_table(
+                cells = _predictive.ppc_offfloor_cell_table(
                     context.trace, node=node, group=group, ci_prob=0.9
                 )
                 _ppc_offfloor_figure(context, symbol, cells, filename_stem=stem)
@@ -314,13 +317,13 @@ def _save_mediation_per_leg_ppc(
                 filename="ppc_summary.csv", kind="table",
             ):
                 frames.append(
-                    _report.ppc_interval_coverage(context.trace, node=node)
+                    _predictive.ppc_interval_coverage(context.trace, node=node)
                 )
             with guard_optional(
                 context, f"PPC calibration ({symbol})",
                 filename=f"{cal_stem}.csv", kind="figure", verb="skipped",
             ):
-                cal = _report.ppc_calibration_table(
+                cal = _predictive.ppc_calibration_table(
                     context.trace, node=node, ci_prob=0.9
                 )
                 _ppc_calibration_figure(context, symbol, cal, filename_stem=cal_stem)
@@ -396,13 +399,13 @@ def _save_offfloor_ppc(
     """Off-floor RATE coverage CSV + per-cell observed-vs-predicted rate figure."""
     group = _offfloor_group_labels(context)
     with guard_optional(context, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"):
-        cov = _report.ppc_offfloor_rate_coverage(context.trace, node=node, group=group)
+        cov = _predictive.ppc_offfloor_rate_coverage(context.trace, node=node, group=group)
         save_table(context, "ppc_summary", cov, required=False)
     with guard_optional(
         context, "PPC off-floor figure",
         filename="posterior_predictive_check.png", kind="figure", verb="skipped",
     ):
-        cells = _report.ppc_offfloor_cell_table(
+        cells = _predictive.ppc_offfloor_cell_table(
             context.trace, node=node, group=group, ci_prob=0.9
         )
         _ppc_offfloor_figure(context, symbol, cells)
@@ -475,7 +478,7 @@ def _ppc_overlay_figure(
         kind="figure",
         verb="failed",
     ):
-        y_rep, y_obs = _report._ppc_node_arrays(context.trace, node)
+        y_rep, y_obs = _predictive._ppc_node_arrays(context.trace, node)
         if row_mask is not None:
             # One measure's rows out of a stacked likelihood, selected by the
             # factory-persisted cell map (never a re-derived index).

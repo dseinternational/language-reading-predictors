@@ -22,6 +22,9 @@ two-mediator MED-064 calibration is handled separately by its fit pipeline (#335
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import mediation as _mediation_factory
+
+
 import argparse
 import json
 from pathlib import Path
@@ -30,7 +33,7 @@ import pandas as pd
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import factories as _factories
+
 from language_reading_predictors.statistical_models.mediation_calibration import (
     IS_CALIBRATION_SOURCES,
     generate_is_calibration,
@@ -102,7 +105,7 @@ def regenerate_one(output_dir: Path, models: dict) -> pd.DataFrame:
     plan = resolve_mediation_run_plan(spec)
     prepared, confounders = prepare_mediation_data(spec)
     plan = plan.with_effective_confounders(confounders)
-    built, med_data = _factories.build_mediation_model(
+    built, med_data = _mediation_factory.build_mediation_model(
         prepared,
         **plan.factory_kwargs(),
     )

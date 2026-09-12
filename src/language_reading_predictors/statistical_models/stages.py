@@ -13,18 +13,17 @@ historical monolithic pipeline.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import key_findings as _findings
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import section_header
-from language_reading_predictors.statistical_models import (
-    artifacts as _artifacts,
-    diagnostics as _diag,
-    release as _release,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import artifacts as _artifacts, diagnostics as _diag, release as _release
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
@@ -105,13 +104,8 @@ class PrimaryFitPlan:
     ] = "before_ppc"
     """Where power scaling runs, or ``"skip"`` for a fit that reports none.
 
-    ``after_trace`` is the slot the established late families use: they persist
-    the trace and write their prior-vs-posterior overlay and forest first, and
-    power-scale last. That used to be ``"family_tail"``, which did **nothing**
-    inside the runner — six pipelines called ``run_psense`` themselves afterwards,
-    so the runner could neither order the stage nor enforce that it ran exactly
-    once (#637 stage 4). The figures those families wrote first are now the
-    :attr:`after_trace_audit` hook, and the published order is unchanged.
+    ``after_trace`` runs after trace persistence and the figures written by
+    :attr:`after_trace_audit`.
 
     ``skip`` is for a fit with nothing to power-scale — a treated-only gain-factor
     variant has no focal term — and is declared rather than achieved by omission,
@@ -172,7 +166,7 @@ class SharedFitStages:
         if compute_loo:
             section_header("LOO-PSIS")
             _diag.compute_log_likelihood_and_loo(ctx)
-            _report.write_loo_summary(ctx)
+            _metadata.write_loo_summary(ctx)
             self.hooks.write_loo_influence(ctx)
             self.hooks.print_loo_row(ctx)
 
@@ -305,7 +299,7 @@ class SharedFitStages:
     ) -> None:
         """Write the common run record plus optional family-specific metadata."""
 
-        _report.write_run_metadata(ctx, extra=extra)
+        _metadata.write_run_metadata(ctx, extra=extra)
 
     def finalize_report(self, ctx: StatisticalFitContext) -> StatisticalFitContext:
         """Decide the release, generate key findings, copy the report, finish.
@@ -324,7 +318,7 @@ class SharedFitStages:
         )
         _release.write_release_decision(ctx, decision)
         rprint(f"  Release decision: {decision.summary()}")
-        findings = _report.generate_key_findings(ctx.output_dir, decision=decision)
+        findings = _findings.generate_key_findings(ctx.output_dir, decision=decision)
         rprint(
             "  Key findings: "
             f"{findings['status']} ({len(findings['sentences'])} sentences)"

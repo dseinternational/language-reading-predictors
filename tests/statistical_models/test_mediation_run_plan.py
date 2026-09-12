@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import importlib
 import inspect
 from dataclasses import asdict, replace
@@ -13,7 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.mediation_settings import (
     MediationModelSettings,
@@ -288,11 +291,11 @@ def test_effective_confounders_are_a_validated_subset():
 
 def test_reporting_reuses_attached_plan_and_reconstructs_both_kinds():
     single = resolve_mediation_run_plan(_spec(settings=MediationModelSettings()))
-    assert R._resolved_run_plan(SimpleNamespace(spec=_spec(), resolved_plan=single)) is single
+    assert _metadata._resolved_run_plan(SimpleNamespace(spec=_spec(), resolved_plan=single)) is single
     multi_spec = _spec(
         kind="mediation_multi", settings=MediationMultiModelSettings()
     )
-    multi = R._resolved_run_plan(SimpleNamespace(spec=multi_spec, resolved_plan=None))
+    multi = _metadata._resolved_run_plan(SimpleNamespace(spec=multi_spec, resolved_plan=None))
     assert isinstance(multi, MediationMultiRunPlan)
 
 

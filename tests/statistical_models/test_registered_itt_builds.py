@@ -17,10 +17,8 @@ from pathlib import Path
 import pytest
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_itt_model,
-    build_joint_model,
-)
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
+from language_reading_predictors.statistical_models.factories.joint import build_joint_model
 from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
     resolve_itt_run_plan,

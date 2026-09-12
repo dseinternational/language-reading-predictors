@@ -12,6 +12,11 @@ family's dose companions publish from their own fits (#394 step 6).
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import dose_response as _dose_response_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from dataclasses import dataclass
 
 import numpy as np
@@ -27,12 +32,7 @@ from language_reading_predictors.models._reporting import (
     print_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    dose_response as _dose_response,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, dose_response as _dose_response
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -78,7 +78,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     plan = _dose_response.resolve_dose_response_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.prepare_kwargs())
@@ -88,7 +88,7 @@ def fit_dose_response(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     section_header("Build model")
 
-    built = _factories.build_dose_response_model(
+    built = _dose_response_factory.build_dose_response_model(
         prepared,
         **plan.factory_kwargs(),
     )
@@ -685,7 +685,7 @@ def write_dose_slope_summary(
         )
     except PriorEvidenceUnavailable as exc:
         pushforward_rows = [
-            _report.unavailable_pushforward(
+            _predictive.unavailable_pushforward(
                 estimand=focal,
                 estimand_label=(
                     f"the association of {contrast_label} with "
@@ -713,8 +713,8 @@ def write_dose_slope_summary(
             prior_group[focal].stack(sample=("chain", "draw")).values.ravel()
         )
         pushforward_rows = [
-            _report.labelled_pushforward(
-                _report.pushforward_values(
+            _predictive.labelled_pushforward(
+                _predictive.pushforward_values(
                     prior_logit, prior_items, n_trials=n_trials, ci_prob=ci_prob
                 ),
                 estimand=focal,

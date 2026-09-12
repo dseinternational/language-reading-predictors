@@ -58,9 +58,7 @@ from scipy.special import expit
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.factories import (
-    build_gain_factors_model,
-)
+from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
 from language_reading_predictors.statistical_models.measures import (
     DISTAL_OUTCOMES,
     MEASURES,
@@ -197,9 +195,7 @@ def _fit_cell(
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
 
     plan = _resolve_plan(model_id)
     outcome = plan.outcome_symbol

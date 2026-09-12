@@ -22,11 +22,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from language_reading_predictors.statistical_models.factories import (
-    build_mediation_model,
-    build_period_stacked_mediation_model,
-    build_two_mediator_model,
-)
+from language_reading_predictors.statistical_models.factories.mediation import build_mediation_model, build_period_stacked_mediation_model, build_two_mediator_model
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.mediation import (
     _proportion_row,
@@ -136,21 +132,7 @@ def test_word_reading_confounder_is_distinct_from_blending_baseline(tmp_path):
     assert "b_B" not in built.model.named_vars
 
     from language_reading_predictors.statistical_models import priors
-    from language_reading_predictors.statistical_models.prior_artifacts import (
-        _prior_table_overrides,
-    )
-
-    context = SimpleNamespace(
-        spec=SimpleNamespace(kind="mediation", outcome_symbol="B", extra={}),
-        model=built.model,
-    )
-    ctor, role, rationale = _prior_table_overrides(context)
-    prior_rows = priors.priors_table(
-        built.model,
-        ctor_overrides=ctor,
-        role_overrides=role,
-        rationale_overrides=rationale,
-    ).set_index("parameter")
+    prior_rows = priors.priors_table(built.model).set_index("parameter")
     assert prior_rows.loc["b_W", ["panel", "role"]].tolist() == [
         "gamma_own",
         "precision",

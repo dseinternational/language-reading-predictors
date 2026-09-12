@@ -3,22 +3,17 @@
 
 """Regularised-horseshoe predictor-ranking model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors

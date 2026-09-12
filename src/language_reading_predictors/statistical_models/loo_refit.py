@@ -47,7 +47,7 @@ from dse_research_utils.statistics.diagnostics import (
 )
 
 from language_reading_predictors.statistical_models import mechanism as _mechanism
-from language_reading_predictors.statistical_models.factories import _subset
+from language_reading_predictors.statistical_models.preprocessing import _subset
 from language_reading_predictors.statistical_models.fitted_payloads import (
     MechanismDesign,
     MechanismPayload,

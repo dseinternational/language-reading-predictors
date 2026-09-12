@@ -64,9 +64,7 @@ from language_reading_predictors.statistical_models.measures import (
     MEASURES,
     ROPE_DELTA_PROB,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    convergence_gate_clean_passed,
-)
+from language_reading_predictors.statistical_models.convergence import convergence_gate_clean_passed
 
 # Heavily-floored outcomes whose exploratory available-case modified ITT headline is the binary off-floor
 # effect (a risk difference), not the graded logit tau shown in the joint. Any of

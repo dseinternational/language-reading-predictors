@@ -22,6 +22,12 @@ quoted anywhere without failing closed (2026-08-20 ITT review, finding 1).
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import convergence as _convergence
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+from language_reading_predictors.statistical_models.summaries import rope as _rope_summary
+
+
 import json
 import shutil
 from collections.abc import Callable, Mapping
@@ -35,7 +41,7 @@ import pandas as pd
 
 from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors.statistical_models import diagnostics as _diag
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.family_registry import (
     FAMILIES as _FAMILIES,
 )
@@ -371,7 +377,7 @@ def _load_fit_record(
     saved_gate = _read_json(
         required["diagnostics_summary.json"], label="diagnostics summary"
     )
-    if not _report.convergence_gate_clean_passed(saved_gate):
+    if not _convergence.convergence_gate_clean_passed(saved_gate):
         raise ValueError(f"{expected_model_id} did not pass its saved clean gate")
 
     saved_summary = _one_csv_row(required["tau_summary.csv"], label="tau summary")
@@ -414,13 +420,13 @@ def _load_fit_record(
         )
         if convergence.get("converged") is not True:
             raise ValueError("trace does not pass the recomputed all-variable gate")
-        summary = _report.tau_summary_itt(
+        summary = _itt_summary.tau_summary_itt(
             trace,
             ci_prob=float(config.get("ci_prob", 0.89)),
             G=treatment_array,
             score_mean_link=link,
         )
-        rope = _report.rope_summary(
+        rope = _rope_summary.rope_summary(
             trace,
             G=treatment_array,
             n_trials=10,
@@ -428,7 +434,7 @@ def _load_fit_record(
             ci_prob=float(config.get("ci_prob", 0.89)),
             score_mean_link=link,
         )
-        prior = _report.prior_pushforward(
+        prior = _predictive.prior_pushforward(
             trace,
             G=treatment_array,
             n_trials=10,
@@ -769,7 +775,7 @@ def _validate_archive_trace(
                 raise ValueError(f"trace does not reproduce {column}")
         if int(row["n_divergences"]) != int(convergence["n_divergences"]):
             raise ValueError("trace does not reproduce n_divergences")
-        summary = _report.tau_summary_itt(
+        summary = _itt_summary.tau_summary_itt(
             trace,
             ci_prob=float(row["ci_prob"]),
             G=treatment,
@@ -781,7 +787,7 @@ def _validate_archive_trace(
                 value *= 10.0
             if not _values_match(row[output_name], value):
                 raise ValueError(f"trace does not reproduce {output_name}")
-        rope = _report.rope_summary(
+        rope = _rope_summary.rope_summary(
             trace,
             G=treatment,
             n_trials=10,
@@ -795,7 +801,7 @@ def _validate_archive_trace(
         ):
             if not _values_match(row[column], rope[key]):
                 raise ValueError(f"trace does not reproduce {column}")
-        prior = _report.prior_pushforward(
+        prior = _predictive.prior_pushforward(
             trace,
             G=treatment,
             n_trials=10,
@@ -1506,7 +1512,7 @@ def _stored_pair_card(
     gate = _read_json(
         directory / "diagnostics_summary.json", label=f"{model_id} diagnostics"
     )
-    if not _report.convergence_gate_clean_passed(gate):
+    if not _convergence.convergence_gate_clean_passed(gate):
         raise ValueError(f"{model_id} did not pass its saved clean convergence gate")
     card_path = directory / spec.card_file
     if spec.card_columns and spec.card_row_selector is not None:

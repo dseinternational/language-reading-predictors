@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import glob
 import importlib
 import inspect
@@ -13,7 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models import survival as S
 from language_reading_predictors.statistical_models.context import ModelSpec
 
@@ -208,8 +211,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     plan = S.resolve_survival_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
 
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated survival run plan" in text

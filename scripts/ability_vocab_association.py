@@ -42,10 +42,7 @@ from scipy.special import expit
 
 from language_reading_predictors import paths
 from language_reading_predictors.statistical_models.measures import MEASURES
-from language_reading_predictors.statistical_models.reporting import (
-    evidence_label,
-    favoured_direction,
-)
+from dse_research_utils.statistics.evidence import evidence_label, favoured_direction
 
 # The ability-adjusted available-case modified ITT family (LRPITT17-24), restricted to the six vocabulary
 # outcomes (LRPITT23/24 are the L/W reading companions -- add them with --models

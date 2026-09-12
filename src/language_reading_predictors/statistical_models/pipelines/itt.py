@@ -16,6 +16,14 @@ this module is orchestration only (#394 step 5).
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import base as _base_factory
+from language_reading_predictors.statistical_models.factories import itt as _itt_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+from language_reading_predictors.statistical_models.summaries import rope as _rope_summary
+
+
 import os
 from collections.abc import Sequence
 from typing import Any
@@ -30,11 +38,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     save_table,
@@ -84,7 +88,7 @@ from language_reading_predictors.statistical_models.subfits import run_subfit
 
 def emit_itt_extras(
     ctx: StatisticalFitContext,
-    built: _factories.BuiltModel[IttPayload],
+    built: _base_factory.BuiltModel[IttPayload],
     *,
     n_trials: int,
     overlay_vars: list[str],
@@ -93,25 +97,17 @@ def emit_itt_extras(
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     score_mean_link: str = "logit",
 ) -> None:
-    """Area 1/4 extras for an ITT-style fit (issue #125).
+    """Write the prior effect summary and prior/posterior comparison figures.
 
-    Power scaling is **not** run here: it is the primary-fit runner's
-    ``after_trace`` slot, so the lifecycle can order it and enforce that it runs
-    exactly once (#637 stage 4). The published order is unchanged — these figures
-    still precede it.
-
-    Writes ``prior_pushforward.csv`` (the estimand-scale prior check), the causal
-    forest, the prior-vs-posterior overlay, and power-scaling sensitivity. Reads
-    the persisted ``prior`` group (on ``ctx.prior_samples``) and the full trace,
-    so call after ``save_trace``. ``n_trials=1`` gives the risk-difference scale
-    for the binary off-floor model. ``moderators`` carries any treatment
-    interactions so the prior is pushed through the same full-contribution AME.
+    Call after trace persistence. The shared runner performs power scaling next.
+    ``n_trials=1`` reports a risk difference for the binary off-floor model.
+    ``moderators`` includes each fitted treatment interaction in the marginal.
     """
     with guard_optional(
         ctx, "prior pushforward",
         filename="prior_pushforward.csv", kind="table", verb="skipped",
     ):
-        pf = _report.prior_pushforward(
+        pf = _predictive.prior_pushforward(
             ctx.prior_samples,
             G=built.prepared.G,
             n_trials=n_trials,
@@ -180,7 +176,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     plan = resolve_itt_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     prepared, adjust_for = prepare_itt_data(plan, loader=load_and_prepare)
@@ -200,7 +196,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         plan,
         prepared,
         effective_adjustment=adjust_for,
-        builder=_factories.build_itt_model,
+        builder=_itt_factory.build_itt_model,
     )
     payload = built.require_payload(IttPayload, family="itt")
     attach_built(ctx, built)
@@ -249,7 +245,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     # Treatment-effect summary on both scales.
     section_header("Available-case modified ITT estimate summary")
-    tau_s = _report.tau_summary_itt(
+    tau_s = _itt_summary.tau_summary_itt(
         ctx.trace,
         ci_prob=ctx.reporting.ci_prob,
         # built.prepared is the (possibly row-subset) frame the model was fit
@@ -279,7 +275,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     delta_items = ROPE_DELTA.get(spec.outcome_symbol)
     if delta_items is not None:
-        rope_s = _report.rope_summary(
+        rope_s = _rope_summary.rope_summary(
             ctx.trace,
             G=built.prepared.G,
             n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
@@ -310,7 +306,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
         # δ-sensitivity sweep (issue #144): P(benefit ≥ δ) at the adopted δ and a
         # stricter 2·δ (word reading at δ = 1 and 2), for every graded outcome.
-        sens_df = _report.rope_sensitivity(
+        sens_df = _rope_summary.rope_sensitivity(
             ctx.trace,
             G=built.prepared.G,
             n_trials=int(built.prepared.n_trials[spec.outcome_symbol]),
@@ -368,7 +364,7 @@ def fit_itt(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # gamma_tau_int and the moderator main effect gamma_tau_mod, when a linear
     # tau moderator was fit. Returns {} (nothing written) for the standard
     # main-effect ITT models, so this is a no-op unless the moderator is present.
-    tau_mod_s = _report.tau_moderation_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
+    tau_mod_s = _itt_summary.tau_moderation_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
     if tau_mod_s:
         tau_mod_df = pd.DataFrame([tau_mod_s])
         save_table(ctx, "tau_moderation_summary", tau_mod_df)
@@ -541,7 +537,7 @@ def fit_itt_floor_rule(
         at_risk,
         effective_adjustment=adjust_for,
         likelihood="bernoulli_offfloor",
-        builder=_factories.build_itt_model,
+        builder=_itt_factory.build_itt_model,
     )
     attach_built(ctx, built)
     render_model_graph(ctx)
@@ -583,7 +579,7 @@ def fit_itt_floor_rule(
         "Off-floor available-case modified ITT estimate "
         "(post-hoc exploratory headline)"
     )
-    off = _report.tau_summary_offfloor(
+    off = _itt_summary.tau_summary_offfloor(
         ctx.trace, ci_prob=ctx.reporting.ci_prob, G=built.prepared.G
     )
     save_table(ctx, "tau_summary", pd.DataFrame([off]))
@@ -599,7 +595,7 @@ def fit_itt_floor_rule(
         )
     )
 
-    movers = _report.offfloor_mover_table(built.prepared, own)
+    movers = _itt_summary.offfloor_mover_table(built.prepared, own)
     save_table(ctx, "offfloor_movers", movers)
     print_table(
         ranked_dataframe_table(
@@ -621,7 +617,7 @@ def fit_itt_floor_rule(
 
     delta_prob = ROPE_DELTA_PROB.get(own)
     if delta_prob is not None:
-        rope_s = _report.rope_summary(
+        rope_s = _rope_summary.rope_summary(
             ctx.trace,
             G=built.prepared.G,
             n_trials=1,
@@ -637,7 +633,7 @@ def fit_itt_floor_rule(
         )
 
         # δ-sensitivity sweep on the risk-difference scale (issue #144): 10/15/20 pp.
-        sens_df = _report.rope_sensitivity(
+        sens_df = _rope_summary.rope_sensitivity(
             ctx.trace,
             G=built.prepared.G,
             n_trials=1,
@@ -693,7 +689,7 @@ def fit_itt_floor_rule(
     )
 
     def _fit_secondary(
-        built_x: _factories.BuiltModel[IttPayload],
+        built_x: _base_factory.BuiltModel[IttPayload],
         *,
         label: str,
         trace_filename: str,
@@ -712,7 +708,7 @@ def fit_itt_floor_rule(
             posterior_predictive=["y_post"],
             trace_filename=trace_filename,
         )
-        summ = _report.tau_summary_itt(
+        summ = _itt_summary.tau_summary_itt(
             res.trace, ci_prob=ctx.reporting.ci_prob, G=built_x.prepared.G
         )
         summ.update(res.convergence)
@@ -728,7 +724,7 @@ def fit_itt_floor_rule(
         prepared,
         effective_adjustment=adjust_for,
         likelihood="beta_binomial",
-        builder=_factories.build_itt_model,
+        builder=_itt_factory.build_itt_model,
     )
     trace_g, graded = _fit_secondary(
         built_g,
@@ -758,7 +754,7 @@ def fit_itt_floor_rule(
             off_floor_data,
             effective_adjustment=adjust_for,
             likelihood="beta_binomial",
-            builder=_factories.build_itt_model,
+            builder=_itt_factory.build_itt_model,
         )
         _trace_h, hurdle = _fit_secondary(
             built_h,
@@ -776,7 +772,7 @@ def fit_itt_floor_rule(
 
     # Proportion-at-zero PPC on the graded model: assess whether the graded
     # Beta-Binomial reproduces the observed floor.
-    ppc0 = _report.proportion_at_zero_ppc(built_g.prepared, own, trace_g)
+    ppc0 = _predictive.proportion_at_zero_ppc(built_g.prepared, own, trace_g)
     save_proportion_at_zero_plot(ctx, own, ppc0)
     save_table(
         ctx,

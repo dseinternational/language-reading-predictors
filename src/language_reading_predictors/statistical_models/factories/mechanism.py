@@ -3,9 +3,6 @@
 
 """Mechanism dose-response model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
@@ -495,10 +492,10 @@ def build_mechanism_model(
                                   ),
                           role="nuisance",
                           rationale=(
-                              "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
+                              'Per-phase intercept offset alpha_phase.'
                           ),
                       )
-        beta_G = _priors.tau_prior().to_pymc("beta_G")
+        beta_G = _priors.tau_prior().to_pymc('beta_G', role='association', rationale='Group main effect entered as a DAG backdoor adjustment beside the mechanism slopes; an adjusted association, not the randomised treatment effect.')
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
         eta = (
@@ -525,7 +522,7 @@ def build_mechanism_model(
         # (erbto), session dose (attend). Linear gamma terms, mirroring the
         # build_itt_model adjust_for path (#245).
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c))
             eta = eta + gamma_c * adjust_data[c]
 
         # Linear moderation of the mechanism effect by the moderator M.
@@ -592,7 +589,7 @@ def build_mechanism_model(
                 # the within-child deviation is the one a period-varying sensitivity
                 # would vary. Same arrangement as the dose family's
                 # ``beta_dose_between`` beside its period slopes.
-                beta_between = _priors.beta_mech_prior().to_pymc("beta_between")
+                beta_between = _priors.beta_mech_prior().to_pymc('beta_between', rationale='Between-child association: outcome logit per 1 SD of the fitted-row mean exposure {unit} for a child. It can reflect stable child characteristics, including latent general ability.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
                 eta = eta + beta_between * mech_between_d
                 slope_target = mech_within_d
             else:
@@ -600,10 +597,8 @@ def build_mechanism_model(
             if phase_varying_slope:
                 # Partially-pooled per-period slopes (#604): a shared mean plus
                 # shrunk per-period deviations, non-centred for geometry.
-                mu_mech = _priors.beta_mech_prior().to_pymc("mu_mech")
-                sigma_mech_phase = _priors.sigma_mech_phase_prior().to_pymc(
-                    "sigma_mech_phase"
-                )
+                mu_mech = _priors.beta_mech_prior().to_pymc('mu_mech', role='association', rationale='Shared mean of the partially pooled per-period exposure slopes. Each period slope is an adjusted association.')
+                sigma_mech_phase = _priors.sigma_mech_phase_prior().to_pymc('sigma_mech_phase', role='nuisance', rationale='Between-period SD of the exposure slope. Controls shrinkage toward the shared mean; variation alone does not establish a change in mechanism.')
                 beta_mech_phase_raw = _priors.declare(
                     pm.Normal("beta_mech_phase_raw", mu=0.0, sigma=1.0, dims="phase"),
                     role="nuisance",
@@ -621,7 +616,7 @@ def build_mechanism_model(
                 )
                 eta = eta + beta_mech_phase[phase_d] * slope_target
             elif decompose_between_within:
-                beta_within = _priors.beta_mech_prior().to_pymc("beta_within")
+                beta_within = _priors.beta_mech_prior().to_pymc('beta_within', rationale='Within-child association: outcome logit per 1 SD of the deviation from the mean exposure {unit} for that child. Stable child differences are removed, but temporal order and time-varying confounding remain concerns.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
                 eta = eta + beta_within * slope_target
             else:
                 beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech")

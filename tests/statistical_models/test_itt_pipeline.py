@@ -11,6 +11,14 @@ build tests.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import predictive_checks as _owner_predictive_checks
+from language_reading_predictors.statistical_models import run_metadata as _owner_run_metadata
+from language_reading_predictors.statistical_models.factories import itt as _owner_factories_itt
+from language_reading_predictors.statistical_models.factories import joint as _owner_factories_joint
+from language_reading_predictors.statistical_models.summaries import itt as _owner_summaries_itt
+from language_reading_predictors.statistical_models.summaries import joint as _owner_summaries_joint
+from language_reading_predictors.statistical_models.summaries import rope as _owner_summaries_rope
+
 import hashlib
 import json
 from pathlib import Path
@@ -27,7 +35,7 @@ from language_reading_predictors.statistical_models import (
     runtime,
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import (
     IttPayload,
     JointPayload,
@@ -312,7 +320,7 @@ def fast_pipeline(monkeypatch, tmp_path):
     )
 
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_itt,
         "tau_summary_itt",
         lambda *args, **kwargs: {
             "tau_prob_median": 0.08,
@@ -324,7 +332,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_itt,
         "tau_summary_offfloor",
         lambda *args, **kwargs: {
             "tau_prob_median": 0.10,
@@ -336,7 +344,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_rope,
         "rope_summary",
         lambda *args, **kwargs: {
             "delta": kwargs["delta"],
@@ -344,7 +352,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_rope,
         "rope_sensitivity",
         lambda *args, **kwargs: pd.DataFrame(
             {
@@ -353,9 +361,9 @@ def fast_pipeline(monkeypatch, tmp_path):
             }
         ),
     )
-    monkeypatch.setattr(itt_pipeline._report, "tau_moderation_summary", lambda *args, **kwargs: {})
+    monkeypatch.setattr(_owner_summaries_itt, "tau_moderation_summary", lambda *args, **kwargs: {})
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_predictive_checks,
         "proportion_at_zero_ppc",
         lambda *args, **kwargs: {
             "obs_prop_at_zero": 0.75,
@@ -612,7 +620,7 @@ def test_tau_summary_itt_names_probability_scale_direction_and_keeps_alias():
         }
     )
 
-    result = itt_pipeline._report.tau_summary_itt(
+    result = _owner_summaries_itt.tau_summary_itt(
         SimpleNamespace(posterior=posterior),
         ci_prob=0.95,
         G=group,
@@ -650,7 +658,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
             IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
         )
 
-    monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
+    monkeypatch.setattr(_owner_factories_itt, "build_itt_model", build)
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-901",
@@ -811,7 +819,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
             IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
         )
 
-    monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
+    monkeypatch.setattr(_owner_factories_itt, "build_itt_model", build)
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-902",
@@ -921,9 +929,9 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             ),
         )
 
-    monkeypatch.setattr(itt_pipeline._factories, "build_joint_model", build)
+    monkeypatch.setattr(_owner_factories_joint, "build_joint_model", build)
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_joint,
         "tau_summary_joint",
         lambda *args, **kwargs: pd.DataFrame(
             {
@@ -949,7 +957,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
         )
 
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_joint,
         "joint_treatment_marginals",
         marginals,
     )
@@ -962,7 +970,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             columns=["TE", "UE"],
         )
 
-    monkeypatch.setattr(itt_pipeline._report, "tau_contrast_matrix", contrast)
+    monkeypatch.setattr(_owner_summaries_joint, "tau_contrast_matrix", contrast)
 
     def difference(*args, **kwargs):
         difference_calls.append(kwargs)
@@ -975,7 +983,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             **metadata,
         }
 
-    monkeypatch.setattr(itt_pipeline._report, "tau_difference_summary", difference)
+    monkeypatch.setattr(_owner_summaries_joint, "tau_difference_summary", difference)
 
     ctx = joint_pipeline.fit_joint(SPEC, config="dev")
     out = Path(ctx.output_dir)
@@ -1042,7 +1050,7 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
     )
     monkeypatch.setattr(itt_pipeline, "load_and_prepare", lambda **kwargs: prepared)
     monkeypatch.setattr(
-        itt_pipeline._factories,
+        _owner_factories_itt,
         "build_itt_model",
         lambda data, **kwargs: BuiltModel(
             _FakeModel(),
@@ -1053,11 +1061,11 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
 
     for module, name, label in (
         (itt_pipeline, "load_and_prepare", "prepare"),
-        (itt_pipeline._factories, "build_itt_model", "build"),
+        (_owner_factories_itt, "build_itt_model", "build"),
         (runtime, "emit_priors", "emit_priors"),
         (itt_pipeline, "shared_stages", "primary_lifecycle"),
         (itt_pipeline, "emit_itt_extras", "sensitivity"),
-        (itt_pipeline._report, "write_run_metadata", "metadata"),
+        (_owner_run_metadata, "write_run_metadata", "metadata"),
         (itt_pipeline, "finalize_report", "finalize"),
     ):
         record(module, name, label)

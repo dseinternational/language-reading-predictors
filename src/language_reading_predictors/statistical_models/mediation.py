@@ -62,6 +62,9 @@ sections.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -71,11 +74,7 @@ from dse_research_utils.math.constants import EPSILON
 from language_reading_predictors.statistical_models.likelihood import (
     apply_score_mean_link,
 )
-from language_reading_predictors.statistical_models.factories import (
-    MediationData,
-    PeriodStackedMediationData,
-    TwoMediatorData,
-)
+from language_reading_predictors.statistical_models.factories.mediation import MediationData, PeriodStackedMediationData, TwoMediatorData
 from language_reading_predictors.statistical_models.mediation_integration import (
     count_cells,
     count_mass,
@@ -134,9 +133,7 @@ def _effect_row(
     # Posterior sampling precision of the integrated effect. Nonlinear functions
     # can mix differently from their parent coefficients, so check each effect.
     if n_chains is not None and n_draws is not None:
-        from language_reading_predictors.statistical_models.reporting import (
-            derived_mc_diagnostics,
-        )
+        from language_reading_predictors.statistical_models.posteriors import derived_mc_diagnostics
 
         row.update(
             derived_mc_diagnostics(draws, n_chains=n_chains, n_draws=n_draws)
@@ -196,9 +193,7 @@ def _proportion_row(
         "total_prob_pos": float(np.mean(total > 0)),  # context, explicitly named
     }
     if prop.size and n_chains is not None and n_draws is not None:
-        from language_reading_predictors.statistical_models.reporting import (
-            derived_mc_diagnostics,
-        )
+        from language_reading_predictors.statistical_models.posteriors import derived_mc_diagnostics
 
         row.update(derived_mc_diagnostics(prop, n_chains=n_chains, n_draws=n_draws))
     return row
@@ -208,7 +203,7 @@ def decompose(
     trace: xr.DataTree,
     med: MediationData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     interventional: bool = False,
     b_m_shift: float = 0.0,
     score_mean_link: str = "logit",
@@ -390,7 +385,7 @@ def sensitivity_sweep(
     trace: xr.DataTree,
     med: MediationData | PeriodStackedMediationData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     n_deltas: int = 21,
     delta_max: float | None = None,
     decompose_fn=None,
@@ -503,7 +498,7 @@ def decompose_period_stacked(
     trace: xr.DataTree,
     med: PeriodStackedMediationData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     b_m_shift: float = 0.0,
     row_mask: np.ndarray | None = None,
     score_mean_link: str = "logit",
@@ -894,9 +889,7 @@ def decompose_two_mediator(
     _nc, _nd = int(post.sizes["chain"]), int(post.sizes["draw"])
 
     def row(name: str, draws: np.ndarray) -> dict:
-        from language_reading_predictors.statistical_models.reporting import (
-            derived_mc_diagnostics,
-        )
+        from language_reading_predictors.statistical_models.posteriors import derived_mc_diagnostics
 
         return {
             "quantity": name,
@@ -960,7 +953,7 @@ def sensitivity_sweep_two_mediator(
     trace: xr.DataTree,
     med: TwoMediatorData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     n_deltas: int = 21,
     delta_max: float | dict[str, float] | None = None,
     **decompose_kw,

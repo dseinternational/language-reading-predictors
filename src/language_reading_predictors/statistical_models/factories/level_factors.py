@@ -3,22 +3,17 @@
 
 """DAG-focused level-factor model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -309,9 +304,7 @@ def build_level_factors_model(
         # wave-deviation vector, so both are identified and the anchor uses no
         # treatment-affected data. The #273 "small global offset" reading this
         # replaces is recorded in the git history of that decision.
-        alpha_offset = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha_offset")
+        alpha_offset = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc('alpha_offset', rationale='Zero-centred offset around the pooled pre-randomisation t1 logit anchor. ' + _priors.EMPIRICAL_BAYES_SENTENCE)
         alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
         alpha_time = _priors.declare(
                          pm.ZeroSumNormal(
@@ -337,14 +330,8 @@ def build_level_factors_model(
             # carries the change from t1 at each later wave on the outcome-tier
             # tau prior, so the prior sits on the randomised t2 *difference*
             # directly rather than on two raw gaps whose difference it would be.
-            arm_gap_t1 = (
-                _priors.gamma_cross_prior()
-                if arm_gap_prior_sigma is None
-                else _priors.gamma_cross_prior(sigma=arm_gap_prior_sigma)
-            ).to_pymc("arm_gap_t1")
-            d_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
-                "d_grp_time", dims="post_phase"
-            )
+            arm_gap_t1 = (_priors.gamma_cross_prior() if arm_gap_prior_sigma is None else _priors.gamma_cross_prior(sigma=arm_gap_prior_sigma)).to_pymc('arm_gap_t1', role='nuisance', rationale='Covariate-adjusted pre-randomisation arm gap. A balance quantity from which the later changes are measured; never interpreted as an effect.')
+            d_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc('d_grp_time', dims='post_phase', role='regime', rationale='Change in the adjusted arm gap from t1. The t2 element is the randomised treated-versus-untreated change; the t3/t4 elements are randomised early-start versus delayed-start schedule contrasts.')
             b_grp = pm.Deterministic(
                 "b_grp_time",
                 pt.concatenate([pt.stack([arm_gap_t1]), arm_gap_t1 + d_grp]),
@@ -352,9 +339,7 @@ def build_level_factors_model(
             )
             eta = eta + b_grp[phase_d] * G_d
         elif group_by_time:
-            b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc(
-                "b_grp_time", dims="phase"
-            )
+            b_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc('b_grp_time', dims='phase', role='association', rationale='Free per-timepoint group-gap vector: only b_grp_time[1] is the randomised treated-versus-untreated t2 contrast. Other elements describe pre-randomisation balance or randomised treatment schedules.')
             eta = eta + b_grp[phase_d] * G_d
         else:
             beta_grp = _priors.tau_prior(sigma=_tau_sigma).to_pymc("beta_grp")
@@ -378,12 +363,18 @@ def build_level_factors_model(
         # Raw-covariate adjusters (revised-DAG exogenous confounders HS/SP/RW): linear
         # gamma terms, mirroring build_mechanism_model's adjust_for path (#247).
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c))
             eta = eta + gamma_c * adjust_d[c]
 
         if use_subject_random_intercept:
             eta = _add_child_random_intercept(
-                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
+                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma,
+                rationale=(
+                    "Child random-intercept SD on the level logit. A levels model "
+                    "has no own-baseline term, so this intercept carries the "
+                    "between-child spread in level. See #584 decision 4 for the "
+                    "scale calibration."
+                ),
             )
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
@@ -396,7 +387,13 @@ def build_level_factors_model(
                 kappa = _rlm_dispersion_kappa(
                     float(_priors.inv_sqrt_kappa_prior().sigma)
                     if kappa_prior_sigma is None
-                    else kappa_prior_sigma
+                    else kappa_prior_sigma,
+                    rationale=(
+                        "Beta-Binomial dispersion on the 1/sqrt(kappa) scale; "
+                        "kappa is derived. Zero on this scale is the Binomial "
+                        "limit, with no extra dispersion. See #584 decision 4 "
+                        "for the calibration at the level-model denominators."
+                    ),
                 )
             elif kappa_prior_family == "halfnormal_concentration":
                 kappa = (

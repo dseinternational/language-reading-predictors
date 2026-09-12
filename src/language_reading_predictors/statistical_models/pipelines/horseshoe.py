@@ -19,17 +19,17 @@ outcome if intervened on.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import horseshoe as _horseshoe_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import horseshoe as _horseshoe_summary
+
+
 from language_reading_predictors.models._reporting import (
     print_table,
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    horseshoe as _horseshoe,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, horseshoe as _horseshoe
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -80,7 +80,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # near the neck); make_context applies that per-model override here.
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.rli_prepare_kwargs())
@@ -88,7 +88,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_horseshoe_model(
+    built = _horseshoe_factory.build_horseshoe_model(
         prepared,
         **plan.rli_factory_kwargs(),
     )
@@ -118,7 +118,7 @@ def fit_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     section_header("Predictor ranking")
-    ranking = _report.horseshoe_ranking(ctx.trace, delta=plan.delta)
+    ranking = _horseshoe_summary.horseshoe_ranking(ctx.trace, delta=plan.delta)
     save_table(ctx, "predictor_ranking", ranking)
     print_table(ranked_dataframe_table(ranking.head(10), title="Horseshoe predictor ranking (top 10)"))
     write_prior_pushforward(
@@ -171,7 +171,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
 
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     frame = load_rlm_span_frame(**plan.rlm_prepare_kwargs())
@@ -180,7 +180,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_rlm_horseshoe_model(
+    built = _horseshoe_factory.build_rlm_horseshoe_model(
         frame,
         **plan.rlm_factory_kwargs(predictors=predictors),
     )
@@ -206,7 +206,7 @@ def fit_rlm_horseshoe(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     section_header("Predictor ranking")
-    ranking = _report.horseshoe_ranking(ctx.trace, delta=plan.delta)
+    ranking = _horseshoe_summary.horseshoe_ranking(ctx.trace, delta=plan.delta)
     save_table(ctx, "predictor_ranking", ranking)
     print_table(
         ranked_dataframe_table(ranking, title="Horseshoe predictor ranking")

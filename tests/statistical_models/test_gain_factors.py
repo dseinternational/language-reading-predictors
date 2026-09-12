@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import gain_factors as _gain_factors_factory
+
+
 import glob
 import importlib
 import os
@@ -203,9 +206,9 @@ def test_active_interactions_matches_the_factory_filter():
     """
     import inspect
 
-    from language_reading_predictors.statistical_models import factories
 
-    src = inspect.getsource(factories.build_gain_factors_model)
+
+    src = inspect.getsource(_gain_factors_factory.build_gain_factors_model)
     assert 'pair for pair in interactions if include_trt or "trt" not in pair' in src
     assert "include_trt = not treated_only" in src
 
@@ -228,9 +231,9 @@ def test_interaction_vocabulary_matches_the_factory_term_set():
     """
     import inspect
 
-    from language_reading_predictors.statistical_models import factories
 
-    src = inspect.getsource(factories.build_gain_factors_model)
+
+    src = inspect.getsource(_gain_factors_factory.build_gain_factors_model)
     assert 'valid_terms = {"trt", "age", "own", *skill_symbols}' in src
     assert 'valid_terms.add("ability")' in src
 

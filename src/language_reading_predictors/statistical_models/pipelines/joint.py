@@ -12,6 +12,13 @@ family's analysis-set and PPC-calibration audits, imported from
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import joint as _joint_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import dependence as _dependence_summary
+from language_reading_predictors.statistical_models.summaries import joint as _joint_summary
+
+
 import pandas as pd
 
 from language_reading_predictors.models._reporting import (
@@ -20,12 +27,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    joint as _joint,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, joint as _joint
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     save_table,
@@ -79,7 +81,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     plan = _joint.resolve_joint_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     # A joint model may target an explicit outcome set (e.g. the taught-vs-not-
@@ -91,7 +93,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Build model")
 
-    built = _factories.build_joint_model(
+    built = _joint_factory.build_joint_model(
         prepared,
         **plan.factory_kwargs(),
     )
@@ -130,12 +132,12 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         with guard_optional(
             c, "ppc_summary.csv", filename="ppc_summary.csv", kind="table"
         ):
-            coverage = _report.ppc_interval_coverage(c.trace, node="y_post")
+            coverage = _predictive.ppc_interval_coverage(c.trace, node="y_post")
             frames = [coverage]
             labels = cell_outcome_labels(c, "y_post", joint_outcomes)
             if labels is not None:
                 frames.append(
-                    _report.ppc_interval_coverage_by_group(
+                    _predictive.ppc_interval_coverage_by_group(
                         c.trace, node="y_post", group_labels=labels
                     )
                 )
@@ -193,7 +195,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     section_header("Treatment-effect summary")
     outcomes = list(ctx.trace.posterior["outcome"].values)
-    tau_df = _report.tau_summary_joint(
+    tau_df = _joint_summary.tau_summary_joint(
         ctx.trace,
         outcomes,
         ci_prob=ctx.reporting.ci_prob,
@@ -211,7 +213,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # interval also carries its extra layer's own parameter uncertainty, which on
     # these fits is the larger of the two channels; ``release_decision.json`` records
     # the split (2026-08-24 review of the joint audit).
-    dependence = _report.dependence_identification_summary(
+    dependence = _dependence_summary.dependence_identification_summary(
         ctx.trace, ci_prob=ctx.reporting.ci_prob
     )
     if dependence is not None and not dependence.empty:
@@ -241,7 +243,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # probabilities where a project-agreed minimally-important difference exists.
     from language_reading_predictors.statistical_models.measures import ROPE_DELTA
 
-    joint_marginal = _report.joint_treatment_marginals(
+    joint_marginal = _joint_summary.joint_treatment_marginals(
         ctx.trace,
         outcomes=outcomes,
         G=built.prepared.G,
@@ -263,7 +265,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     except PriorEvidenceUnavailable as exc:
         pf_rows = [
-            _report.unavailable_pushforward(
+            _predictive.unavailable_pushforward(
                 estimand="tau",
                 estimand_label="the per-outcome treatment effects",
                 role="causal",
@@ -273,7 +275,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     else:
         # Narrow by design (#637 stage 1): a wrong outcome dimension or a missing
         # denominator is a defect, not absent prior evidence.
-        pf_rows = _report.joint_prior_pushforward(
+        pf_rows = _predictive.joint_prior_pushforward(
             ctx.prior_samples,
             outcomes=outcomes,
             G=built.prepared.G,
@@ -282,13 +284,13 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         )
     write_prior_pushforward(ctx, pf_rows)
 
-    contrast = _report.tau_contrast_matrix(
+    contrast = _joint_summary.tau_contrast_matrix(
         ctx.trace, outcomes, G=built.prepared.G, scale="probability"
     )
     save_table(ctx, "tau_contrast_matrix", contrast, index=True)
     save_contrast_heatmap(ctx, contrast)
 
-    logit_contrast = _report.tau_contrast_matrix(
+    logit_contrast = _joint_summary.tau_contrast_matrix(
         ctx.trace, outcomes, G=built.prepared.G, scale="logit"
     )
     save_table(ctx, "tau_contrast_matrix_logit", logit_contrast, index=True)
@@ -308,7 +310,7 @@ def fit_joint(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     if difference is not None:
         pair = difference
         section_header("Treatment-effect difference")
-        diff_s = _report.tau_difference_summary(
+        diff_s = _joint_summary.tau_difference_summary(
             ctx.trace,
             outcomes,
             pair,

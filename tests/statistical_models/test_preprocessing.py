@@ -902,7 +902,7 @@ def test_subset_helpers_slice_every_per_row_field_together(tmp_path):
     """
     import dataclasses
 
-    from language_reading_predictors.statistical_models.factories import _subset
+    from language_reading_predictors.statistical_models.preprocessing import _subset
     from language_reading_predictors.statistical_models.preprocessing import (
         _subset_prepared,
     )

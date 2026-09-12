@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import json
 import os
 from pathlib import Path
@@ -20,12 +23,7 @@ import xarray as xr
 from dse_research_utils.statistics import sampling_quality as sampling_quality_mod
 from language_reading_predictors.statistical_models import diagnostics as diag
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.reporting import (
-    REUSE_CONTRACT_KEY,
-    _reuse_compatibility_contract,
-    require_reuse_compatibility,
-    write_run_metadata,
-)
+from language_reading_predictors.statistical_models.run_metadata import REUSE_CONTRACT_KEY, _reuse_compatibility_contract, require_reuse_compatibility, write_run_metadata
 
 
 def _primary_reuse_context(tmp_path):
@@ -42,6 +40,8 @@ def _primary_reuse_context(tmp_path):
             model_id="lrp-rli-hg-999",
             kind="historical_growth",
             title="primary reuse contract",
+            study_id="rlm",
+            outcome_symbol="basread",
         ),
         prepared=SimpleNamespace(
             subject_ids=np.asarray(["S1", "S2", "S3"], dtype=object),
@@ -74,6 +74,7 @@ def _primary_reuse_context(tmp_path):
     # which is why nothing noticed that ``write_run_metadata`` never persisted
     # ``model_design_identity``: the reader was only ever shown a config the
     # writer could not have produced.
+    _metadata.write_model_recipe(context)
     write_run_metadata(replace_namespace(context, output_dir=str(source)))
     return context, source
 
@@ -114,9 +115,7 @@ def test_metadata_written_by_a_normal_fit_passes_reuse_validation(tmp_path):
 
 def test_the_documented_field_list_matches_the_serialised_contract(tmp_path):
     """The doc list and the contract cannot drift apart unnoticed."""
-    from language_reading_predictors.statistical_models.reporting import (
-        _REUSE_CONFIG_FIELDS,
-    )
+    from language_reading_predictors.statistical_models.run_metadata import _REUSE_CONFIG_FIELDS
 
     context, _source = _primary_reuse_context(tmp_path)
     contract = _reuse_compatibility_contract(context)
@@ -1465,9 +1464,7 @@ def test_a_clean_fit_records_that_the_assessable_check_ran(tmp_path):
 
 
 def test_an_unassessable_parameter_is_recorded_and_fails_the_stored_gate(tmp_path):
-    from language_reading_predictors.statistical_models.reporting import (
-        convergence_gate_failures,
-    )
+    from language_reading_predictors.statistical_models.convergence import convergence_gate_failures
 
     context = SimpleNamespace(
         trace=_degenerate_trace(),
@@ -1493,7 +1490,7 @@ def test_an_unassessable_parameter_is_recorded_and_fails_the_stored_gate(tmp_pat
 
 def _two_itt_models(**overrides):
     """The registered W model, plus a variant built from the same rows."""
-    from language_reading_predictors.statistical_models.factories import build_itt_model
+    from language_reading_predictors.statistical_models.factories.itt import build_itt_model
     from language_reading_predictors.statistical_models.itt import (
         prepare_itt_data,
         resolve_itt_run_plan,
@@ -1520,11 +1517,11 @@ def test_the_structure_signature_moves_when_a_prior_default_moves():
     arrays — none of which move when a prior default, a term or a denominator is
     edited in the factory.
     """
-    from language_reading_predictors.statistical_models import reporting as R
+
 
     _prepared, registered, retuned = _two_itt_models(tau_sigma=0.9)
-    a = R._model_design_identity(SimpleNamespace(model=registered.model))
-    b = R._model_design_identity(SimpleNamespace(model=retuned.model))
+    a = _metadata._model_design_identity(SimpleNamespace(model=registered.model))
+    b = _metadata._model_design_identity(SimpleNamespace(model=retuned.model))
     assert a["structure_sha256"] and a["design_sha256"]
     assert a["structure_sha256"] != b["structure_sha256"]
     # The rows and predictors are untouched, so the design digest must not move.
@@ -1539,8 +1536,8 @@ def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
     """
     from dataclasses import replace as _replace
 
-    from language_reading_predictors.statistical_models import reporting as R
-    from language_reading_predictors.statistical_models.factories import build_itt_model
+
+    from language_reading_predictors.statistical_models.factories.itt import build_itt_model
     from language_reading_predictors.statistical_models.itt import (
         prepare_itt_data,
         resolve_itt_run_plan,
@@ -1559,8 +1556,8 @@ def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
     built = build_itt_model(prepared, **plan.factory_kwargs())
     built_rebuilt = build_itt_model(rebuilt, **plan.factory_kwargs())
 
-    a = R._model_design_identity(SimpleNamespace(model=built.model))
-    b = R._model_design_identity(SimpleNamespace(model=built_rebuilt.model))
+    a = _metadata._model_design_identity(SimpleNamespace(model=built.model))
+    b = _metadata._model_design_identity(SimpleNamespace(model=built_rebuilt.model))
     assert a["design_sha256"] != b["design_sha256"]
     # Structure is unchanged — only the numbers inside the Data nodes moved. The
     # graph identity records each shared node's dtype and shape, not its contents,
@@ -1575,9 +1572,7 @@ def test_the_design_digest_moves_when_a_predictor_is_rebuilt():
 
 
 def test_the_reuse_contract_carries_the_new_bindings():
-    from language_reading_predictors.statistical_models.reporting import (
-        _REUSE_CONFIG_FIELDS,
-    )
+    from language_reading_predictors.statistical_models.run_metadata import _REUSE_CONFIG_FIELDS
 
     assert "model_design_identity" in _REUSE_CONFIG_FIELDS
     assert "environment_lock_sha256" in _REUSE_CONFIG_FIELDS

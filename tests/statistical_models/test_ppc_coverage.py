@@ -17,16 +17,8 @@ import numpy as np
 import pytest
 import xarray as xr
 
-from language_reading_predictors.statistical_models.reporting import (
-    ppc_calibration_table,
-    ppc_coverage_markdown,
-    ppc_interval_coverage,
-    ppc_offfloor_cell_table,
-    ppc_offfloor_rate_coverage,
-)
-from language_reading_predictors.statistical_models.reporting import (
-    _ppc_node_arrays,
-)
+from language_reading_predictors.statistical_models.predictive_checks import ppc_calibration_table, ppc_coverage_markdown, ppc_interval_coverage, ppc_offfloor_cell_table, ppc_offfloor_rate_coverage
+from language_reading_predictors.statistical_models.predictive_checks import _ppc_node_arrays
 
 
 

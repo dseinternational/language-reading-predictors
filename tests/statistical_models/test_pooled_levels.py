@@ -119,40 +119,7 @@ def test_estimand_names_the_coefficients_the_posterior_carries():
     assert "beta_between" not in blended.estimand
 
 
-def test_priors_table_presents_nothing_in_the_family_as_causal():
-    """``beta_G`` reuses the tau constructor, so without an override the priors
-    table would label a term pooled over post-crossover waves as "causal"; the
-    exposure slopes reuse the beta_mech constructor under names the name-based
-    lookup does not know."""
-    from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.prior_artifacts import (
-        _prior_table_overrides,
-    )
-
-    spec = _spec()
-    ctx = SimpleNamespace(
-        spec=spec,
-        resolved_plan=P.resolve_pooled_levels_run_plan(spec),
-        model=SimpleNamespace(
-            free_RVs=[
-                SimpleNamespace(name=n)
-                for n in ("beta_between", "beta_within", "beta_G", "gamma_hs",
-                          "gamma_hs_missing", "gamma_blocks", "gamma_A", "alpha_wave")
-            ]
-        ),
-    )
-    ctor, role, rationale = _prior_table_overrides(ctx)
-    assert "causal" not in role.values()
-    assert role["beta_G"] == "association"
-    assert "not the randomised treatment effect" in rationale["beta_G"]
-    assert ctor["beta_between"] == ctor["beta_within"] == "beta_mech"
-    assert role["alpha_wave"] == "nuisance"
-    assert role["gamma_hs"] == role["gamma_blocks"] == "association"
-    # missing-indicator terms keep the universal nuisance treatment; age keeps
-    # its own precision-covariate constructor and role
-    assert role["gamma_hs_missing"] == "nuisance"
-    assert "gamma_A" not in role
 
 
 def test_model_recipe_is_written_for_the_family(tmp_path):
@@ -160,9 +127,7 @@ def test_model_recipe_is_written_for_the_family(tmp_path):
     resolves a pooled-levels plan, so the plan must be able to render one."""
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.reporting import (
-        write_model_recipe,
-    )
+    from language_reading_predictors.statistical_models.run_metadata import write_model_recipe
 
     spec = _spec()
     ctx = SimpleNamespace(spec=spec, resolved_plan=None, output_dir=str(tmp_path))
@@ -314,34 +279,3 @@ def test_registered_pl_003_to_006_resolve_as_the_issue_specifies():
         assert "attend" not in plan.adjust_for, name
         assert plan.use_wave_intercepts and plan.decompose_between_within, name
         assert plan.settings_source == "typed_settings", name
-
-
-def test_priors_table_documents_skill_adjusters_and_raw_exposures():
-    from types import SimpleNamespace
-
-    from language_reading_predictors.statistical_models.prior_artifacts import (
-        _prior_table_overrides,
-    )
-
-    spec = _spec(skill_symbols=("TR",))
-    ctx = SimpleNamespace(
-        spec=spec,
-        resolved_plan=P.resolve_pooled_levels_run_plan(spec),
-        model=SimpleNamespace(
-            free_RVs=[SimpleNamespace(name=n) for n in ("beta_between", "gamma_TR", "gamma_hs")]
-        ),
-    )
-    ctor, role, rationale = _prior_table_overrides(ctx)
-    assert ctor["gamma_TR"] == "gamma_cross"
-    assert role["gamma_TR"] == "association"
-    assert "same-wave logit of TR" in rationale["gamma_TR"]
-    assert "exposure logit" in rationale["beta_between"]
-
-    cspec = _covariate_spec()
-    cctx = SimpleNamespace(
-        spec=cspec,
-        resolved_plan=P.resolve_pooled_levels_run_plan(cspec),
-        model=SimpleNamespace(free_RVs=[SimpleNamespace(name="beta_between")]),
-    )
-    _, _, crationale = _prior_table_overrides(cctx)
-    assert "exposure raw score" in crationale["beta_between"]

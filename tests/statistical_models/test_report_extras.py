@@ -15,21 +15,11 @@ import pytest
 import xarray as xr
 from scipy.special import expit
 
-from language_reading_predictors.statistical_models.reporting import (
-    _indicator_prior_verdict,
-    evidence_label,
-    factor_summary,
-    indicator_prior_check,
-    joint_prior_pushforward,
-    labelled_pushforward,
-    marginal_prior_pushforward,
-    prior_pushforward,
-    pushforward_scale_for,
-    pushforward_values,
-    rope_markdown,
-    tau_summary_itt,
-    unavailable_pushforward,
-)
+from dse_research_utils.statistics.evidence import evidence_label
+from language_reading_predictors.statistical_models.predictive_checks import _indicator_prior_verdict, indicator_prior_check, joint_prior_pushforward, labelled_pushforward, marginal_prior_pushforward, prior_pushforward, pushforward_scale_for, pushforward_values, unavailable_pushforward
+from language_reading_predictors.statistical_models.summaries.factors import factor_summary
+from language_reading_predictors.statistical_models.summaries.itt import tau_summary_itt
+from language_reading_predictors.statistical_models.summaries.rope import rope_markdown
 from language_reading_predictors.statistical_models.figure_artifacts import (
     save_contrast_heatmap,
 )

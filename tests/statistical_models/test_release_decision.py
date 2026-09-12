@@ -42,10 +42,7 @@ from language_reading_predictors.statistical_models.release import (
     evaluate_publication,
     write_release_decision,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    KEY_FINDINGS_FILENAME,
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import KEY_FINDINGS_FILENAME, generate_key_findings
 
 REPO = Path(__file__).resolve().parents[2]
 PARTIAL = REPO / "docs/models/_partials/_key_findings.qmd"

@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import inspect
 from types import SimpleNamespace
 
 import pytest
 
 from language_reading_predictors.statistical_models import long_corr_factor as L
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 
 
@@ -193,8 +196,8 @@ def test_reporting_dispatch_and_recipe_use_attached_plan(tmp_path):
     plan = L.resolve_long_corr_factor_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
 
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated longitudinal-factor run plan" in text

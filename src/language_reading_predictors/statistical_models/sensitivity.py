@@ -2001,11 +2001,9 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
     import arviz as az
 
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        rope_summary,
-        tau_summary_offfloor,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.itt import tau_summary_offfloor
+    from language_reading_predictors.statistical_models.summaries.rope import rope_summary
 
     expected_provenance = floor_trace_provenance(row)
     expected_sampling = expected_provenance["sampling"]
@@ -2129,10 +2127,8 @@ def _validate_standard_trace(path: Path, row: Mapping[str, Any]) -> None:
     import arviz as az
 
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        tau_summary_itt,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.itt import tau_summary_itt
 
     expected_provenance = standard_trace_provenance(row)
     expected_sampling = expected_provenance["sampling"]

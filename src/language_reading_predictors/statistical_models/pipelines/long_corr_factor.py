@@ -25,6 +25,12 @@ association, never causal.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import base as _base_factory
+from language_reading_predictors.statistical_models.factories import long_corr_factor as _long_corr_factor_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import long_corr_factor as _long_corr_factor_summary
+
+
 import numpy as np
 import pandas as pd
 from rich import print as rprint
@@ -34,14 +40,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    lcf_inference as _lcf_inference,
-    lcf_summaries as _lcf_summaries,
-    long_corr_factor as _long_corr_factor,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, lcf_inference as _lcf_inference, lcf_summaries as _lcf_summaries, long_corr_factor as _long_corr_factor
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -81,7 +80,7 @@ _lcf_log_prior = _lcf_inference.log_prior
 
 
 def _lcf_stitch_loo(
-    ctx: StatisticalFitContext, built: _factories.BuiltModel[FittedPayload]
+    ctx: StatisticalFitContext, built: _base_factory.BuiltModel[FittedPayload]
 ) -> None:
     """Pointwise PSIS-LOO for the longitudinal CFA (custom, per-child stitch).
 
@@ -104,7 +103,7 @@ def _lcf_stitch_loo(
     ctx.trace.log_likelihood["lcf_child"] = stitched
     ctx.trace["log_prior"] = _lcf_log_prior(ctx.trace, ctx.model)
     ctx.loo = az.loo(ctx.trace, var_name="lcf_child", pointwise=True)
-    _report.write_loo_summary(ctx)
+    _metadata.write_loo_summary(ctx)
     print_loo_row(ctx)
 
 
@@ -134,7 +133,7 @@ def fit_longitudinal_corr_factor(
     plan = _long_corr_factor.resolve_long_corr_factor_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     # A small-n latent model; even fully marginalised a few boundary divergences can
     # survive at the tier default, so lift target_accept via the spec (as mm-001 does).
 
@@ -145,7 +144,7 @@ def fit_longitudinal_corr_factor(
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_longitudinal_corr_factor_model(
+    built = _long_corr_factor_factory.build_longitudinal_corr_factor_model(
         panel,
         **plan.factory_kwargs(),
     )
@@ -258,7 +257,7 @@ def fit_longitudinal_corr_factor(
 
     # --- Per-wave latent factor correlations (the headline) ---
     section_header("Per-wave latent factor correlations")
-    corr_df = _report.longitudinal_factor_correlations(ctx.trace, ci_prob=hdi)
+    corr_df = _long_corr_factor_summary.longitudinal_factor_correlations(ctx.trace, ci_prob=hdi)
     save_table(ctx, "factor_correlation_by_wave", corr_df)
     print_table(
         ranked_dataframe_table(
@@ -272,7 +271,7 @@ def fit_longitudinal_corr_factor(
 
     # --- Conditional (partial) latent slopes ---
     section_header("Conditional latent slopes")
-    slope_df = _report.longitudinal_conditional_slopes(ctx.trace, ci_prob=hdi)
+    slope_df = _long_corr_factor_summary.longitudinal_conditional_slopes(ctx.trace, ci_prob=hdi)
     save_table(ctx, "latent_conditional_slopes", slope_df)
 
     # --- Trait / state (across-wave) structure ---
@@ -297,7 +296,7 @@ def fit_longitudinal_corr_factor(
     # --- Latent-versus-observed comparison (#312 triangulation anchor) --------
     section_header("Latent-versus-observed correlation comparison")
     obs_df = _lcf_observed_domain_corr(built)
-    xcheck_df = _report.disattenuation_crosscheck(corr_df, obs_df)
+    xcheck_df = _long_corr_factor_summary.disattenuation_crosscheck(corr_df, obs_df)
     save_table(ctx, "disattenuation_crosscheck", xcheck_df)
     # Nullable flags: a wave/pair with no observed comparator is neither below
     # nor above (2026-08-21 review, finding 10).

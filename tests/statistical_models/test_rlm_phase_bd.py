@@ -14,13 +14,10 @@ import pandas as pd
 import pymc as pm
 import pytest
 
-from language_reading_predictors.statistical_models.factories import (
-    build_rlm_adjusted_model,
-    build_rlm_corr_factor_model,
-    build_rlm_horseshoe_model,
-    build_rlm_joint_growth_model,
-    build_rlm_transition_adjusted_model,
-)
+from language_reading_predictors.statistical_models.factories.adjusted import build_rlm_adjusted_model, build_rlm_transition_adjusted_model
+from language_reading_predictors.statistical_models.factories.corr_factor import build_rlm_corr_factor_model
+from language_reading_predictors.statistical_models.factories.historical import build_rlm_joint_growth_model
+from language_reading_predictors.statistical_models.factories.horseshoe import build_rlm_horseshoe_model
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
     load_rlm_span_frame,

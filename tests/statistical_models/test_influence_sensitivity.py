@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import itt as _owner_summaries_itt
+
 import hashlib
 import json
 from pathlib import Path
@@ -15,7 +17,7 @@ import xarray as xr
 
 from language_reading_predictors.statistical_models import influence
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import IttPayload
 from language_reading_predictors.statistical_models.lrp_rli_itt_012 import (
     SPEC as JOINT_SPEC,
@@ -345,7 +347,7 @@ def _candidate_bundle(tmp_path, *, divergent: bool = False):
     primary_trace.to_netcdf(model_dir / "trace.nc")
     full = pd.DataFrame(
         [
-            influence._report.tau_summary_itt(
+            _owner_summaries_itt.tau_summary_itt(
                 primary_trace,
                 ci_prob=0.95,
                 G=np.asarray(primary_trace.constant_data["G"].values),

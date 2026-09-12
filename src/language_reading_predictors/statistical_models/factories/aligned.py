@@ -3,21 +3,15 @@
 
 """Onset-aligned per-protocol model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pymc as pm
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -154,28 +148,18 @@ def build_aligned_model(
             # (2026-08-21 aligned review, finding 6). The intercept stays
             # tiered via _alpha_sigma_for because its item-scale argument is
             # about the level, not the contrast.
-            beta_cohort = _priors.tau_prior().to_pymc(
-                "beta_cohort",
-                role="association",
-                rationale=(
-                    "Per-protocol cohort contrast (immediate versus wait-list at "
-                    "aligned endpoints) carried on the treatment prior "
-                    "tau ~ Normal(0, 0.5). NOT randomised: confounded by "
-                    "age-at-onset and cohort timing, so no term in this family is "
-                    "flagged causal."
-                ),
-            )
+            beta_cohort = _priors.tau_prior().to_pymc('beta_cohort', role='association', rationale='Per-protocol cohort contrast (immediate vs wait-list) at onset-aligned endpoints; an adjusted association confounded by age-at-onset and cohort/timing, never the randomised treatment effect.')
             eta = eta + beta_cohort * cohort_d
         if ability_covariate is not None:
             ability_d = pm.Data(
                 f"{ability_covariate}_std",
                 prepared.covariates[ability_covariate], dims="obs_id",
             )
-            gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
+            gamma_ability = _priors.gamma_cross_prior().to_pymc('gamma_ability', rationale='Cognitive-ability (block design) covariate coupling; an adjusted association, not a cross-baseline coupling.')
             eta = eta + gamma_ability * ability_d
         if use_dose:
             dose_d = pm.Data("dose_std", prepared.covariates["dose"], dims="obs_id")
-            gamma_dose = _priors.gamma_cross_prior().to_pymc("gamma_dose")
+            gamma_dose = _priors.gamma_cross_prior().to_pymc('gamma_dose', rationale='Within-arm cumulative-session dose coupling; a collider-adjusted sensitivity association, never a causal dose effect.')
             eta = eta + gamma_dose * dose_d
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")

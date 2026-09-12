@@ -69,10 +69,7 @@ import pymc as pm
 
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    BuiltModel,
-    _add_child_random_intercept,
-)
+from language_reading_predictors.statistical_models.factories.base import BuiltModel, _add_child_random_intercept
 from language_reading_predictors.statistical_models.fitted_payloads import FittedPayload
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.mechanism import (
@@ -729,7 +726,7 @@ def build_pooled_levels_model(
         wave_d = pm.Data("wave_idx", wave_idx, dims="obs_id")
 
         if use_wave_intercepts:
-            alpha = _priors.alpha_prior().to_pymc("alpha_wave", dims="wave")
+            alpha = _priors.alpha_prior().to_pymc('alpha_wave', dims='wave', role='nuisance', rationale='Per-wave intercepts absorb the secular change in outcome level so the exposure slopes compare rows within waves.')
             eta = alpha[wave_d]
         else:
             eta = _priors.alpha_prior().to_pymc("alpha")
@@ -743,16 +740,16 @@ def build_pooled_levels_model(
             # and word-reading scores; 0.70 against 0.51 on the raw counts).
             # Splitting the exposure into the child mean and the deviation from it
             # estimates each cleanly and leaves nothing blended.
-            beta_between = _priors.beta_mech_prior().to_pymc("beta_between")
-            beta_within = _priors.beta_mech_prior().to_pymc("beta_within")
+            beta_between = _priors.beta_mech_prior().to_pymc('beta_between', rationale='Between-child association: outcome logit per 1 pooled row-level SD of the study-average exposure {unit} for a child.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
+            beta_within = _priors.beta_mech_prior().to_pymc('beta_within', rationale='Within-child association: outcome logit per 1 pooled row-level SD of a wave deviation from the mean exposure {unit} for that child.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
             eta = eta + beta_between * mech_bar_d + beta_within * mech_dev_d
         else:
-            beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech")
+            beta_mech = _priors.beta_mech_prior().to_pymc('beta_mech', rationale='Blended pooled association: outcome logit per 1 SD of the same-wave exposure {unit}.'.format(unit='raw score' if mechanism_is_covariate else 'logit'))
             eta = eta + beta_mech * mech_d
 
         if include_group:
             g = pm.Data("G", np.asarray(prepared.G, dtype=float)[keep], dims="obs_id")
-            eta = eta + _priors.tau_prior().to_pymc("beta_G") * g
+            eta = eta + _priors.tau_prior().to_pymc('beta_G', role='association', rationale='Arm main effect pooled over the fitted waves, including post-crossover waves. An adjusted association conditional on same-wave skills, not the randomised treatment effect.') * g
 
         age = pm.Data("A_std", np.asarray(prepared.A_std, dtype=float)[keep], dims="obs_id")
         eta = eta + _priors.gamma_age_prior().to_pymc("gamma_A") * age
@@ -761,13 +758,13 @@ def build_pooled_levels_model(
         # family's measure adjusters; adjusted associations, never effects.
         for sym, z in skill_std.items():
             sk = pm.Data(f"{sym}_post_logit_std", z, dims="obs_id")
-            eta = eta + _priors.gamma_cross_prior().to_pymc(f"gamma_{sym}") * sk
+            eta = eta + _priors.gamma_cross_prior().to_pymc(f'gamma_{sym}', rationale=f'Same-wave skill adjuster for {sym}: a possibly treatment-affected level. An adjusted association, never an effect.') * sk
 
         for name, values in prepared.covariates.items():
             if mechanism_is_covariate and name == mechanism_symbol:
                 continue  # the exposure carries the focal slopes, not a gamma_
             cov = pm.Data(f"{name}_std", np.asarray(values, dtype=float)[keep], dims="obs_id")
-            eta = eta + _priors.predictor_slope_prior().to_pymc(f"gamma_{name}") * cov
+            eta = eta + _priors.predictor_slope_prior().to_pymc(f'gamma_{name}', **_priors.adjustment_metadata(name, rationale=f'Adjustment slope for {name}: a same-wave covariate or a baseline covariate broadcast across waves; an adjusted association.')) * cov
 
         if use_subject_random_intercept:
             eta = _add_child_random_intercept(eta, child_idx)

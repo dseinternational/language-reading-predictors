@@ -2,37 +2,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Rewrite ``priors_table.csv`` and the prior-PDF panels over a stored fit.
+"""Refresh explanations and missing density panels for a stored fit.
 
-The published prior table used to derive each parameter's **role**, **rationale**
-and **panel** from its name: an exact-name map, then a prefix, a suffix, and in
-several branches the rendered distribution string. #637 stage 2 replaced that for
-every variable built through a named constructor, which records a
-``PriorDescriptor`` when it is created — but a descriptor exists only in a model
-that has been *built*, so a fit stored before that change keeps whatever the name
-map said.
-
-Where the two disagreed, the name map was wrong. ``lrp-rli-jm-001`` is the case
-that prompted this script: its levels design deliberately carries ``beta_mech`` on
-``predictor_slope_prior`` — ``Normal(0, 0.3)``, matched to ``ca-010`` / ``ca-011``
-— while the name map keyed on the *name* ``beta_mech`` and published "Linear-
-mechanism slope beta_mech ~ Normal(0, 1)" beside a ``distribution`` column that
-correctly read ``Normal(0, 0.3)``, with a ``panel`` pointing at the wider density.
-A reader deciding whether a flat fitted slope is evidence or prior shrinkage was
-shown the wrong prior.
-
-**No resampling.** The prior table is a property of the model's *structure*, not
-of its posterior: this rebuilds the model from the fit's own recorded plan and
-re-runs the same writer the fit used, then checks the rebuilt free-variable set
-against the stored table before writing anything. Nothing else in the directory is
-touched, and the stored trace is never opened.
-
-    regenerate_priors_table.py lrp-rli-jm-001-reporting          # one fit dir
-    regenerate_priors_table.py lrp-rli-jm-001 --dry-run          # show the diff
-
-A family whose build this script cannot reproduce is reported as a skip with that
-reason rather than half-written: the alternative is a table describing a model
-other than the one that was fitted, which is the defect being repaired.
+Only checked family rebuilds are supported. The recorded run plan, variable names
+and prior distributions must match before the script writes anything. Existing
+panels still used by the corrected table are retained. The trace is never sampled.
+Use --dry-run to inspect the changes.
 """
 
 from __future__ import annotations
@@ -42,16 +17,12 @@ import json
 import sys
 import warnings
 from pathlib import Path
-from types import SimpleNamespace
 
 import pandas as pd
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models import priors as _priors
-from language_reading_predictors.statistical_models.prior_artifacts import (
-    _prior_table_overrides,
-)
 from language_reading_predictors.statistical_models.registry import discover_models
 
 _console = Console()
@@ -99,9 +70,7 @@ def _build_joint_mechanism_levels(spec, config: dict):
     rebuild targets the same rows the stored table describes rather than guessing.
     """
     from language_reading_predictors.statistical_models import joint_mechanism as _jm
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
         _subset_prepared,
         load_and_prepare,
@@ -114,10 +83,15 @@ def _build_joint_mechanism_levels(spec, config: dict):
     if timepoint is None:
         return None, "config.json records no artifact_hosting_timepoint"
 
+    recorded = config.get("resolved_run_plan")
+    if not recorded:
+        return None, "no recorded run plan to validate the rebuild"
     prepared_all = load_and_prepare(**plan.prepare_kwargs())
     active = tuple(c for c in plan.declared_adjustment if c in prepared_all.covariates)
     if active != plan.active_adjustment:
         plan = plan.with_active_adjustment(active)
+    if json.loads(json.dumps(plan.as_dict())) != recorded:
+        return None, "the current plan differs from the stored fit; refit before replacing its priors"
     sub = _subset_prepared(prepared_all, prepared_all.phase == int(timepoint) - 1)
     return build_joint_mechanism_model(sub, **plan.factory_kwargs()), None
 
@@ -162,39 +136,39 @@ def regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
             "the module has changed since this fit",
         )
 
-    context = SimpleNamespace(
-        spec=spec,
-        model=built.model,
-        prepared=built.prepared,
-        resolved_plan=getattr(built, "plan", None),
-        output_dir=str(fit_dir),
-        tables={},
-        reporting=SimpleNamespace(ci_prob=float(config.get("ci_prob") or 0.89)),
+    table = _priors.priors_table(built.model)
+    distributions_match = all(
+        str(old).replace(" ", "") == str(new).replace(" ", "")
+        for old, new in zip(stored["distribution"], table["distribution"], strict=True)
     )
-    # Exactly what ``emit_priors`` will write, family overrides included. Previewing
-    # the bare table would show a diff the write does not make — and would have
-    # reported two regressions here that the overrides in fact prevent.
-    ctor_overrides, role_overrides, rationale_overrides = _prior_table_overrides(context)
-    table = _priors.priors_table(
-        built.model,
-        ctor_overrides=ctor_overrides,
-        role_overrides=role_overrides,
-        rationale_overrides=rationale_overrides,
-    )
+    if not distributions_match:
+        return "needs refit", "the rebuilt prior distributions differ from the stored table"
     changed = [
         f"{row.parameter}: {column} {getattr(old, column)!r} -> {getattr(row, column)!r}"
         for old, row in zip(stored.itertuples(), table.itertuples(), strict=True)
         for column in ("distribution", "role", "rationale", "panel")
         if _normalise(getattr(old, column)) != _normalise(getattr(row, column))
     ]
+    panels = _priors.model_prior_panels(built.model)
+    missing = [
+        f"prior_{key}.{ext}" for key in panels for ext in ("png", "svg")
+        if not (fit_dir / f"prior_{key}.{ext}").exists()
+    ]
+    if missing:
+        changed.append(f"missing density panels: {', '.join(missing)}")
     if not changed:
         return "unchanged", "the stored table already matches the rebuilt model"
     if dry_run:
         return "would rewrite", "; ".join(changed)
 
+    existing = {path.name for path in fit_dir.glob("prior_*.*")}
+    for key, density in panels.items():
+        if any(not (fit_dir / f"prior_{key}.{ext}").exists() for ext in ("png", "svg")):
+            _priors.plot_and_save(density, str(fit_dir), f"prior_{key}", title=_priors.model_prior_panel_title(built.model, key))
+    added = {path.name for path in fit_dir.glob("prior_*.*")} - existing
     table.to_csv(stored_path, index=False)
     orphaned = _drop_orphaned_panels(fit_dir, table)
-    _prune_manifest(fit_dir, orphaned)
+    _prune_manifest(fit_dir, orphaned, added=added)
     detail = "; ".join(changed)
     if orphaned:
         detail += f" [removed {', '.join(sorted(orphaned))}]"
@@ -202,36 +176,27 @@ def regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
 
 
 def _drop_orphaned_panels(fit_dir: Path, table: pd.DataFrame) -> set[str]:
-    """Delete prior-PDF panels the corrected table no longer points at.
-
-    Only the orphans. ``emit_priors`` would redraw *every* panel, and a panel
-    redrawn now is laid out by today's matplotlib rather than the fit's — different
-    canvas dimensions for an identical density, which would make four unrelated
-    figures differ from the rest of the corpus for no reason. Leaving the orphan is
-    not an option either: ``prior_beta_mech.png`` plots ``Normal(0, 1)``, a density
-    this model does not use, which is the defect being repaired.
-    """
+    """Remove unused density panels, retaining overlays and predictive checks."""
     wanted = {str(panel) for panel in table["panel"] if str(panel) not in {"", "nan"}}
     removed: set[str] = set()
-    for key in _priors.ALL_PRIORS:
+    for panel in _priors.prior_density_panel_files(fit_dir):
+        key = panel.stem.removeprefix("prior_")
         if key in wanted:
             continue
-        for ext in ("png", "svg"):
-            panel = fit_dir / f"prior_{key}.{ext}"
-            if panel.exists():
-                panel.unlink()
-                removed.add(panel.name)
+        panel.unlink()
+        removed.add(panel.name)
     return removed
 
 
-def _prune_manifest(fit_dir: Path, removed: set[str]) -> None:
-    """Drop manifest rows for the deleted panels, changing nothing else.
+def _prune_manifest(fit_dir: Path, removed: set[str], *, added: set[str] | None = None) -> None:
+    """Update manifest rows for changed panels only.
 
     A full rescan would also absorb whatever has appeared in the directory since
     the fit — a rendered ``index.html`` and its Quarto asset tree — turning a
     fit-time inventory into a directory listing.
     """
-    if not removed:
+    added = added or set()
+    if not removed and not added:
         return
     path = fit_dir / "artifact_manifest.json"
     if not path.exists():
@@ -242,8 +207,10 @@ def _prune_manifest(fit_dir: Path, removed: set[str]) -> None:
         if entry.get("filename") not in removed
     ]
     dropped = len(manifest.get("artifacts", [])) - len(kept)
-    manifest["artifacts"] = kept
-    manifest["n_untracked"] = int(manifest.get("n_untracked", 0)) - dropped
+    known = {entry.get("filename") for entry in kept}
+    new_entries = [{"filename": name, "status": "untracked"} for name in sorted(added - known)]
+    manifest["artifacts"] = kept + new_entries
+    manifest["n_untracked"] = int(manifest.get("n_untracked", 0)) - dropped + len(new_entries)
     path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
 

@@ -20,6 +20,19 @@ precisely because the family makes no causal claim.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from collections.abc import Callable
+from typing import Any
+
+import xarray as xr
+
+
+from language_reading_predictors.statistical_models import convergence as _convergence
+from language_reading_predictors.statistical_models.factories import concurrent as _concurrent_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import concurrent as _concurrent_summary
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -31,11 +44,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
@@ -48,9 +57,11 @@ from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
     make_context,
 )
-from language_reading_predictors.statistical_models.factories import default_of
+from language_reading_predictors.statistical_models.factories.base import BuiltModel, default_of
 from language_reading_predictors.statistical_models.plotting import save_styled_figure
 from language_reading_predictors.statistical_models.preprocessing import (
+    PreparedData,
+    RlmConcurrentFrame,
     _subset_prepared,
     filter_informative_covariates,
     load_and_prepare,
@@ -65,7 +76,7 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
-from language_reading_predictors.statistical_models.reporting import beta_summary
+from language_reading_predictors.statistical_models.posteriors import beta_summary
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -150,7 +161,7 @@ def _ca_concurrent_terms(
         mean_items = float(np.nanmean(vals))
         k = max(1, round(m.n_trials / 10))
         terms.append(
-            _report.ConcurrentTerm(
+            _concurrent_summary.ConcurrentTerm(
                 label=sym,
                 coef=f"beta_{sym}",
                 sd_logit=float(scaler.sd),
@@ -335,6 +346,150 @@ def _write_concurrent_outputs(
     return association_df, marginal_df, diagnostic_df
 
 
+@dataclass
+class ConcurrentWaveFit:
+    """Fitted rows, draws and checks for one concurrent wave."""
+
+    prepared: PreparedData | RlmConcurrentFrame
+    preds: list[str]
+    covariates: list[str]
+    dropped_covariates: list[str]
+    trace: xr.DataTree | None = None
+    convergence: dict[str, Any] | None = None
+
+
+def _compare_wave_associations(
+    ctx: StatisticalFitContext,
+    fit: ConcurrentWaveFit,
+    *,
+    tp: int,
+    build_single_skill: Callable[..., BuiltModel],
+    measure_catalogue,
+    labels: dict[str, str],
+    n_trials: int,
+    score_mean_link,
+) -> tuple[list[dict], list[pd.DataFrame], list[dict]]:
+    """Compare each skill's adjusted and single-skill association at one wave."""
+    if fit.trace is None or fit.convergence is None:
+        raise ValueError("A concurrent wave must be fitted before it is summarised")
+    spec = ctx.spec
+    hdi = ctx.reporting.ci_prob
+    N_focal = n_trials
+    link = score_mean_link
+    assoc_rows: list[dict] = []
+    marg_frames: list[pd.DataFrame] = []
+    fit_diagnostic_rows: list[dict] = []
+    sub, preds, trace = fit.prepared, fit.preds, fit.trace
+    covs = fit.covariates
+    dropped_covs = fit.dropped_covariates
+    covariate_text = "|".join(covs)
+    dropped_covariate_text = "|".join(dropped_covs)
+    adj_conv = fit.convergence
+    fit_diagnostic_rows.append(
+        {
+            "timepoint": tp,
+            "fit_kind": "adjusted",
+            "predictor": "all",
+            "n": sub.n_obs,
+            "n_predictors": len(preds),
+            "n_covariates": len(covs),
+            "effective_covariates": covariate_text,
+            "dropped_covariates": dropped_covariate_text,
+            **adj_conv,
+        }
+    )
+
+    # Natural-scale marginals for the mutually-adjusted associations at this wave.
+    terms = _ca_concurrent_terms(sub, preds, measure_catalogue)
+    terms_by_symbol = {term.label: term for term in terms}
+    adj_mdf = _concurrent_summary.concurrent_marginals(
+        trace, terms=terms, n_trials=N_focal, ci_prob=hdi,
+        score_mean_link=link,
+    )
+    adj_mdf.insert(0, "timepoint", tp)
+    adj_mdf.insert(1, "adjustment", "adjusted")
+    adj_mdf["label"] = adj_mdf["term"].map(
+        lambda sym: _ca_label(sym, labels)
+    )
+    adj_mdf["converged"] = adj_conv["converged"]
+    marg_frames.append(adj_mdf)
+
+    # Per-predictor: adjusted beta plus the legacy-labelled ``bivariate``
+    # single-skill beta (same trait adjustment, but no age/group/other skills).
+    for sym in preds:
+        adj = beta_summary(trace, f"beta_{sym}", hdi)
+        b = build_single_skill(sub, [sym], covs)
+        bres = run_subfit(
+            ctx,
+            b,
+            label=f"{spec.model_id} t{tp} single-skill {sym}",
+            role="bivariate",
+        )
+        bt, bconv = bres.trace, bres.convergence
+        biv = beta_summary(bt, f"beta_{sym}", hdi)
+        biv_mdf = _concurrent_summary.concurrent_marginals(
+            bt,
+            terms=[terms_by_symbol[sym]],
+            n_trials=N_focal,
+            ci_prob=hdi,
+            score_mean_link=link,
+        )
+        biv_mdf.insert(0, "timepoint", tp)
+        biv_mdf.insert(1, "adjustment", "bivariate")
+        biv_mdf["label"] = biv_mdf["term"].map(
+            lambda key: _ca_label(key, labels)
+        )
+        biv_mdf["converged"] = bconv["converged"]
+        marg_frames.append(biv_mdf)
+
+        adj_sd = _ca_sd_margin(adj_mdf, sym)
+        biv_sd = _ca_sd_margin(biv_mdf, sym)
+        predictor_n = int(np.isfinite(sub.post_counts[sym]).sum())
+        assoc_rows.append(
+            {
+                "timepoint": tp,
+                "predictor": sym,
+                "label": _ca_label(sym, labels),
+                "n": sub.n_obs,
+                "predictor_n": predictor_n,
+                "predictor_imputed_n": sub.n_obs - predictor_n,
+                "ame_contrast": "+1 SD",
+                "adj_median": adj["median"],
+                "adj_mean": adj["mean"],
+                "adj_lo": adj["lo"],
+                "adj_hi": adj["hi"],
+                "adj_lo50": adj["lo50"],
+                "adj_hi50": adj["hi50"],
+                "adj_prob_pos": adj["prob_pos"],
+                **_ca_margin_fields("adj", adj_sd),
+                "biv_median": biv["median"],
+                "biv_mean": biv["mean"],
+                "biv_lo": biv["lo"],
+                "biv_hi": biv["hi"],
+                "biv_lo50": biv["lo50"],
+                "biv_hi50": biv["hi50"],
+                "biv_prob_pos": biv["prob_pos"],
+                **_ca_margin_fields("biv", biv_sd),
+                "adj_converged": adj_conv["converged"],
+                "biv_converged": bconv["converged"],
+            }
+        )
+        fit_diagnostic_rows.append(
+            {
+                "timepoint": tp,
+                "fit_kind": "bivariate",
+                "predictor": sym,
+                "n": sub.n_obs,
+                "n_predictors": 1,
+                "n_covariates": len(covs),
+                "effective_covariates": covariate_text,
+                "dropped_covariates": dropped_covariate_text,
+                **bconv,
+            }
+        )
+    return assoc_rows, marg_frames, fit_diagnostic_rows
+
+
 def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     """Per-wave concurrent conditional associations (LRP-CA, #312).
 
@@ -374,9 +529,9 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     # build_concurrent_model default is filled via default_of here — the anti-drift
     # single source #394 retains until typed family defaults replace it.
     factory_for_defaults = (
-        _factories.build_concurrent_model
+        _concurrent_factory.build_concurrent_model
         if port == "rli"
-        else _factories.build_rlm_concurrent_model
+        else _concurrent_factory.build_rlm_concurrent_model
     )
     sigma0 = (
         float(plan.predictor_slope_sigma)
@@ -400,7 +555,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
 
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
     N_focal = measure_catalogue[outcome].n_trials
 
@@ -433,7 +588,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     # predictor whose same-wave logit has positive variance on the wave's rows —
     # anything constant/all-missing at that wave is dropped, and a wave with no usable
     # predictor is skipped below).
-    wave_subsets: dict[int, object] = {}
+    wave_subsets: dict[int, PreparedData | RlmConcurrentFrame] = {}
     wave_n: dict[int, int] = {}
     wave_preds: dict[int, list[str]] = {}
     dropped_by_wave: dict[int, list[str]] = {}
@@ -484,7 +639,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
 
     def _build(sub, preds, covs, *, age, group):
         if port == "rli":
-            return _factories.build_concurrent_model(
+            return _concurrent_factory.build_concurrent_model(
                 sub,
                 outcome_symbol=outcome,
                 predictor_symbols=preds,
@@ -494,7 +649,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                 predictor_slope_sigma=sigma0,
                 score_mean_link=link,
             )
-        return _factories.build_rlm_concurrent_model(
+        return _concurrent_factory.build_rlm_concurrent_model(
             sub,
             predictor_symbols=preds,
             include_age=age,
@@ -503,7 +658,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         )
 
     # ---- Fit each wave's mutually-adjusted model --------------------------------
-    wave_fits: dict[int, dict] = {}
+    wave_fits: dict[int, ConcurrentWaveFit] = {}
 
     def _fit_non_primary_wave(w: int) -> None:
         sub = wave_subsets[w]
@@ -517,14 +672,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         res = run_subfit(
             ctx, built, label=f"{spec.model_id} wave t{tp}", role="wave"
         )
-        wave_fits[w] = {
-            "trace": res.trace,
-            "prepared": built.prepared,
-            "preds": preds,
-            "covariates": covs,
-            "dropped_covariates": dropped_covariates_by_wave[w],
-            "convergence": res.convergence,
-        }
+        wave_fits[w] = ConcurrentWaveFit(trace=res.trace, prepared=built.prepared, preds=preds, covariates=covs, dropped_covariates=dropped_covariates_by_wave[w], convergence=res.convergence)
 
     # Preserve the established chronological fit order: waves before the anchor
     # remain before its build/sampling, while later waves run immediately after the
@@ -548,17 +696,10 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
     )
     attach_built(ctx, primary_built)
     render_model_graph(ctx)
-    wave_fits[primary_wave] = {
-        "trace": None,
-        "prepared": primary_built.prepared,
-        "preds": primary_preds,
-        "covariates": primary_covs,
-        "dropped_covariates": dropped_covariates_by_wave[primary_wave],
-        "convergence": None,
-    }
+    wave_fits[primary_wave] = ConcurrentWaveFit(trace=None, prepared=primary_built.prepared, preds=primary_preds, covariates=primary_covs, dropped_covariates=dropped_covariates_by_wave[primary_wave], convergence=None)
 
     prim = wave_fits[primary_wave]
-    beta_names = [f"beta_{s}" for s in prim["preds"]]
+    beta_names = [f"beta_{s}" for s in prim.preds]
     diag_vars = ["alpha", "kappa", *beta_names]
     if include_age:
         diag_vars.append("beta_age")
@@ -567,10 +708,10 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             diag_vars.append("beta_group_nuisance")
         else:
             diag_vars.extend(_rlm_group_nuisance_names(primary_built.prepared))
-    diag_vars.extend(f"gamma_{name}" for name in prim["covariates"])
+    diag_vars.extend(f"gamma_{name}" for name in prim.covariates)
 
     def _finish_wave_fits(c: StatisticalFitContext) -> None:
-        wave_fits[primary_wave]["trace"] = c.trace
+        wave_fits[primary_wave].trace = c.trace
         after_primary = False
         for w in wave_indices:
             if w == primary_wave:
@@ -588,10 +729,10 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             var_names=[rv.name for rv in c.model.free_RVs],
         )
         primary_conv["converged"] = bool(
-            _report.convergence_gate_clean_passed(gate)
+            _convergence.convergence_gate_clean_passed(gate)
             and primary_conv.get("converged")
         )
-        wave_fits[primary_wave]["convergence"] = primary_conv
+        wave_fits[primary_wave].convergence = primary_conv
 
     shared_stages().run_primary_fit(
         ctx,
@@ -621,7 +762,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
                     f"the adjusted association of +1 SD {_ca_label(s, labels)} with "
                     f"{measure_catalogue[outcome].label} at t{primary_tp}",
                 )
-                for s in prim["preds"]
+                for s in prim.preds
             ],
             n_trials=N_focal,
             convention="forward",
@@ -639,114 +780,17 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
             continue
         tp = display_wave(w)
         fit = wave_fits[w]
-        sub, preds, trace = fit["prepared"], fit["preds"], fit["trace"]
-        covs = fit["covariates"]
-        dropped_covs = fit["dropped_covariates"]
-        covariate_text = "|".join(covs)
-        dropped_covariate_text = "|".join(dropped_covs)
-        adj_conv = fit["convergence"]
-        fit_diagnostic_rows.append(
-            {
-                "timepoint": tp,
-                "fit_kind": "adjusted",
-                "predictor": "all",
-                "n": sub.n_obs,
-                "n_predictors": len(preds),
-                "n_covariates": len(covs),
-                "effective_covariates": covariate_text,
-                "dropped_covariates": dropped_covariate_text,
-                **adj_conv,
-            }
+        rows, marginals, diagnostics = _compare_wave_associations(
+            ctx, fit, tp=tp,
+            build_single_skill=lambda sub, preds, covs: _build(
+                sub, preds, covs, age=False, group=False
+            ),
+            measure_catalogue=measure_catalogue, labels=labels,
+            n_trials=N_focal, score_mean_link=link,
         )
-
-        # Natural-scale marginals for the mutually-adjusted associations at this wave.
-        terms = _ca_concurrent_terms(sub, preds, measure_catalogue)
-        terms_by_symbol = {term.label: term for term in terms}
-        adj_mdf = _report.concurrent_marginals(
-            trace, terms=terms, n_trials=N_focal, ci_prob=hdi,
-            score_mean_link=link,
-        )
-        adj_mdf.insert(0, "timepoint", tp)
-        adj_mdf.insert(1, "adjustment", "adjusted")
-        adj_mdf["label"] = adj_mdf["term"].map(
-            lambda sym: _ca_label(sym, labels)
-        )
-        adj_mdf["converged"] = adj_conv["converged"]
-        marg_frames.append(adj_mdf)
-
-        # Per-predictor: adjusted beta plus the legacy-labelled ``bivariate``
-        # single-skill beta (same trait adjustment, but no age/group/other skills).
-        for sym in preds:
-            adj = beta_summary(trace, f"beta_{sym}", hdi)
-            b = _build(sub, [sym], covs, age=False, group=False)
-            bres = run_subfit(
-                ctx,
-                b,
-                label=f"{spec.model_id} t{tp} single-skill {sym}",
-                role="bivariate",
-            )
-            bt, bconv = bres.trace, bres.convergence
-            biv = beta_summary(bt, f"beta_{sym}", hdi)
-            biv_mdf = _report.concurrent_marginals(
-                bt,
-                terms=[terms_by_symbol[sym]],
-                n_trials=N_focal,
-                ci_prob=hdi,
-                score_mean_link=link,
-            )
-            biv_mdf.insert(0, "timepoint", tp)
-            biv_mdf.insert(1, "adjustment", "bivariate")
-            biv_mdf["label"] = biv_mdf["term"].map(
-                lambda key: _ca_label(key, labels)
-            )
-            biv_mdf["converged"] = bconv["converged"]
-            marg_frames.append(biv_mdf)
-
-            adj_sd = _ca_sd_margin(adj_mdf, sym)
-            biv_sd = _ca_sd_margin(biv_mdf, sym)
-            predictor_n = int(np.isfinite(sub.post_counts[sym]).sum())
-            assoc_rows.append(
-                {
-                    "timepoint": tp,
-                    "predictor": sym,
-                    "label": _ca_label(sym, labels),
-                    "n": sub.n_obs,
-                    "predictor_n": predictor_n,
-                    "predictor_imputed_n": sub.n_obs - predictor_n,
-                    "ame_contrast": "+1 SD",
-                    "adj_median": adj["median"],
-                    "adj_mean": adj["mean"],
-                    "adj_lo": adj["lo"],
-                    "adj_hi": adj["hi"],
-                    "adj_lo50": adj["lo50"],
-                    "adj_hi50": adj["hi50"],
-                    "adj_prob_pos": adj["prob_pos"],
-                    **_ca_margin_fields("adj", adj_sd),
-                    "biv_median": biv["median"],
-                    "biv_mean": biv["mean"],
-                    "biv_lo": biv["lo"],
-                    "biv_hi": biv["hi"],
-                    "biv_lo50": biv["lo50"],
-                    "biv_hi50": biv["hi50"],
-                    "biv_prob_pos": biv["prob_pos"],
-                    **_ca_margin_fields("biv", biv_sd),
-                    "adj_converged": adj_conv["converged"],
-                    "biv_converged": bconv["converged"],
-                }
-            )
-            fit_diagnostic_rows.append(
-                {
-                    "timepoint": tp,
-                    "fit_kind": "bivariate",
-                    "predictor": sym,
-                    "n": sub.n_obs,
-                    "n_predictors": 1,
-                    "n_covariates": len(covs),
-                    "effective_covariates": covariate_text,
-                    "dropped_covariates": dropped_covariate_text,
-                    **bconv,
-                }
-            )
+        assoc_rows.extend(rows)
+        marg_frames.extend(marginals)
+        fit_diagnostic_rows.extend(diagnostics)
 
     assoc_df, marg_df, fit_diagnostics_df = _write_concurrent_outputs(
         ctx,
@@ -828,7 +872,7 @@ def fit_concurrent(spec: ModelSpec, config: str = "dev") -> StatisticalFitContex
         "study_id": plan.study_id,
         "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
         "estimand": "concurrent conditional associations (per wave)",
-        "predictors": prim["preds"],
+        "predictors": prim.preds,
         "predictors_requested": predictor_symbols,
         "dropped_by_wave": {
             f"t{display_wave(w)}": dropped_by_wave[w] for w in wave_indices

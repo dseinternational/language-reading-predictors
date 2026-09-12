@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import importlib
 import inspect
 from types import SimpleNamespace
@@ -12,12 +15,10 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import historical_joint as HJ
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_rlm_joint_growth_model,
-    default_of,
-)
+from language_reading_predictors.statistical_models.factories.base import default_of
+from language_reading_predictors.statistical_models.factories.historical import build_rlm_joint_growth_model
 
 
 _LEGACY_REGISTERED_EXTRA = {
@@ -184,8 +185,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     spec = _spec(settings=HJ.HistoricalJointModelSettings(extension_waves=(4, 5)))
     plan = HJ.resolve_historical_joint_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated historical-joint run plan" in text

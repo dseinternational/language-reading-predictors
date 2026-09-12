@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import inspect
 from dataclasses import asdict
 from types import SimpleNamespace
 
 import pytest
 
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.adjusted import (
     AdjustedModelSettings,
     AdjustedRunPlan,
@@ -342,7 +345,7 @@ def test_wrong_port_entrypoint_fails_before_context_or_data(monkeypatch):
 def test_reporting_reuses_attached_plan_and_recipe():
     spec = get_spec()
     plan = resolve_adjusted_run_plan(spec)
-    assert R._resolved_run_plan(SimpleNamespace(spec=spec, resolved_plan=plan)) is plan
+    assert _metadata._resolved_run_plan(SimpleNamespace(spec=spec, resolved_plan=plan)) is plan
     recipe = plan.recipe_markdown(title="Adjusted test")
     assert "Codex/GPT-5" in recipe
     assert "Adjusted between-child association" in recipe

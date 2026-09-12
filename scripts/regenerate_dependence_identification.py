@@ -38,10 +38,8 @@ from language_reading_predictors.statistical_models.release import (
     evaluate_publication,
     write_release_decision,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    dependence_identification_summary,
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import generate_key_findings
+from language_reading_predictors.statistical_models.summaries.dependence import dependence_identification_summary
 
 _console = Console()
 _FILENAME = "dependence_identification.csv"

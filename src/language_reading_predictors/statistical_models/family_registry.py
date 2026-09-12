@@ -1,38 +1,24 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""One description of each model family (#637 stage 4).
+"""Family settings, plan resolvers, pipeline entry points and findings builders.
 
-A ``ModelSpec.kind`` is answered in four places, and until now each kept its own
-catalogue of the twenty-three families:
-
-* which typed settings class it declares (``family_settings.SETTINGS_CLASSES``);
-* which function resolves its run plan (an if-chain in ``run_metadata``, and a
-  seven-entry subset in ``blending_sensitivity._PLAN_RESOLVERS``);
-* which module under ``pipelines/`` owns it and what its entry points are (a
-  table maintained in the boundary tests);
-* which builder writes its key findings (``key_findings._KF_BUILDERS``).
-
-Four catalogues of the same fact drift. The seven-entry subset is the clearest
-case: it exists because the currency check needs a resolver per family, and adding
-a family to it was a separate act of memory from adding the family.
-
-:data:`FAMILIES` is the one description. Each catalogue is derived from it, and
-the tests parameterise over it rather than over a copy — which is what #637 means
-by "derive family test parameters from the descriptor instead of maintaining
-parallel catalogues".
-
-Deliberately **declarative**: names of modules and functions, resolved on demand,
-so importing this module does not pull in twenty-three families' worth of PyMC.
+Modules are imported only when requested so reading the catalogue does not build
+models or import every family's numerical dependencies.
 """
 
 from __future__ import annotations
 
 import importlib
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any, Callable, cast
+
+from language_reading_predictors.statistical_models.run_plans import ResolvedRunPlan
 
 from language_reading_predictors.statistical_models.definitions import KINDS
+
+if TYPE_CHECKING:
+    from language_reading_predictors.statistical_models.context import ModelSpec
 
 __all__ = [
     "FamilyDescriptor",
@@ -71,10 +57,10 @@ class FamilyDescriptor:
         module = importlib.import_module(f"{SM}.{self.settings_module}")
         return getattr(module, self.settings_class_name)
 
-    def resolver(self) -> Callable[..., Any]:
+    def resolver(self) -> Callable[[ModelSpec], ResolvedRunPlan]:
         """Import and return the run-plan resolver."""
         module = importlib.import_module(f"{SM}.{self.settings_module}")
-        return getattr(module, self.resolver_name)
+        return cast("Callable[[ModelSpec], ResolvedRunPlan]", getattr(module, self.resolver_name))
 
     def pipeline(self) -> Any:
         """Import and return the family's orchestration module."""
@@ -209,7 +195,7 @@ def settings_class_for_kind(kind: str) -> type:
     return descriptor_for(kind).settings_class()
 
 
-def resolve_run_plan(spec: Any) -> Any:
+def resolve_run_plan(spec: ModelSpec) -> ResolvedRunPlan:
     """Resolve ``spec``'s validated run plan through its family's own resolver."""
     return descriptor_for(spec.kind).resolver()(spec)
 

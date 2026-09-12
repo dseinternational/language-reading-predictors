@@ -21,13 +21,18 @@ separate scientific change after this boundary is reviewed.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import base as _base_factory
+from language_reading_predictors.statistical_models.factories import mechanism as _mechanism_factory
+from language_reading_predictors.statistical_models import fitted_payloads as _fitted_payloads
+
+
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
 
-from language_reading_predictors.statistical_models import factories as _factories
+
 from language_reading_predictors.statistical_models.fitted_payloads import (
     MechanismPayload,
 )
@@ -1088,8 +1093,8 @@ def build_mechanism_for_plan(
     plan: MechanismPlan,
     prepared: PreparedData | None = None,
     *,
-    frozen_design: _factories.MechanismDesign | None = None,
-) -> _factories.BuiltModel[MechanismPayload]:
+    frozen_design: _fitted_payloads.MechanismDesign | None = None,
+) -> _base_factory.BuiltModel[MechanismPayload]:
     """Build the mechanism model for ``plan``, optionally on a row subset.
 
     ``prepared`` defaults to the plan's full analysis frame. A refit passes a
@@ -1097,7 +1102,7 @@ def build_mechanism_for_plan(
     rows. The factory keywords are shared by reference, which is the point: a refit
     cannot silently differ in likelihood, priors or adjustment set.
     """
-    return _factories.build_mechanism_model(
+    return _mechanism_factory.build_mechanism_model(
         plan.prepared if prepared is None else prepared,
         **plan.factory_kwargs,
         frozen_design=frozen_design,

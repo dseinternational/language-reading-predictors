@@ -3,22 +3,17 @@
 
 """Joint (multi-outcome) ITT model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -248,13 +243,7 @@ def build_joint_model(
                 "u_chol",
                 role="nuisance",
                 rationale=(
-                    "Packed Cholesky factor of the within-child residual covariance "
-                    "across the jointly fitted outcomes (LKJCholeskyCov(2, 4, "
-                    "HalfNormal(0, 0.5))): an LKJ(eta = 4) correlation prior, weakly "
-                    "favouring small correlations, with HalfNormal(0.5) per-outcome "
-                    "residual SDs. A dependence model for the paired contrast's "
-                    "uncertainty — reported through sigma_outcome and u_corr_pair — "
-                    "not an effect."
+                    'Packed Cholesky factor of residual covariance across the jointly fitted outcomes. The LKJ correlation prior favours smaller correlations, with positive per-outcome residual scales. This dependence model contributes to uncertainty in paired contrasts and is reported through sigma_outcome and u_corr_pair.'
                 ),
             )
             # u_corr is outcome × outcome (not outcome × baseline) — use
@@ -271,9 +260,7 @@ def build_joint_model(
                                     ),
                         role="nuisance",
                         rationale=(
-                            "Non-centred standard-normal per-child, per-outcome residual "
-                            "offsets (Normal(0, 1)); scaled by the Cholesky factor u_chol to "
-                            "form the within-child residual offsets u = z @ chol.T."
+                            'Non-centred standard-normal per-child, per-outcome residual offsets; scaled by the Cholesky factor u_chol to form the within-child residual offsets u = z @ chol.T.'
                         ),
                     )
             # u_i = chol @ z_i ⇒ rowwise U = Z @ chol.T.

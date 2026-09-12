@@ -67,6 +67,9 @@ Targets mirror ``regenerate_psense.py``:
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import readiness as _readiness_summary
+
+
 import argparse
 import importlib
 import json
@@ -82,7 +85,7 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.hsgp_migration import hsgp_refit_pending
 from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
 from language_reading_predictors.statistical_models import mechanism as _mechanism
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -256,13 +259,13 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
                 prepared.covariates[run_plan.mechanism_symbol], dtype=float
             )
             values = scaler.inverse(z) if scaler is not None else z
-            summary = _report.readiness_threshold(
+            summary = _readiness_summary.readiness_threshold(
                 trace, exposure_values=values, ci_prob=ci_prob
             )
             x_obs = values
         else:
             n_trials = MEASURES[run_plan.mechanism_symbol].n_trials
-            summary = _report.readiness_threshold(
+            summary = _readiness_summary.readiness_threshold(
                 trace, n_trials=n_trials, ci_prob=ci_prob
             )
             ell = np.asarray(
@@ -465,7 +468,7 @@ def _items_scale_knee(trace, run_plan, prepared, *, x_obs, ci_prob: float) -> di
                 None if run_plan.mechanism_is_covariate else exposure_n_trials
             ),
         )
-        items = _report.readiness_threshold(
+        items = _readiness_summary.readiness_threshold(
             trace,
             exposure_values=np.asarray(x_obs, dtype=float),
             ci_prob=ci_prob,

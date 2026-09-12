@@ -3,22 +3,17 @@
 
 """Available-case modified intention-to-treat model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -345,7 +340,7 @@ def build_itt_model(
             eta = eta + gamma_s * cross_pre_data[s]
 
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c, role='precision' if c in {'blocks', 'area', 'mumedupost16', 'dadedupost16', 'agebooks'} else 'association', rationale=f'Pre-randomisation baseline adjustment covariate ({c}); not a cross-baseline skill coupling.'))
             eta = eta + gamma_c * adjust_data[c]
 
         if use_age_linear:

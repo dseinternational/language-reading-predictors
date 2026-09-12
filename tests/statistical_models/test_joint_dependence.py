@@ -25,6 +25,9 @@ Two levels of evidence, because the claim has two halves:
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import joint as _joint_summary
+
+
 from types import SimpleNamespace
 
 import numpy as np
@@ -32,9 +35,7 @@ import pymc as pm
 import pytest
 import xarray as xr
 
-from language_reading_predictors.statistical_models.reporting import (
-    tau_difference_summary,
-)
+from language_reading_predictors.statistical_models.summaries.joint import tau_difference_summary
 
 CI_PROB = 0.89
 
@@ -184,10 +185,8 @@ def simulated_dependence_fits(tmp_path_factory) -> dict[float, dict]:
     parents' through marginal uncertainty rather than covariance (2026-08-24 review of
     the joint audit).
     """
-    from language_reading_predictors.statistical_models import reporting as _report
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_model,
-    )
+
+    from language_reading_predictors.statistical_models.factories.joint import build_joint_model
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -220,8 +219,8 @@ def simulated_dependence_fits(tmp_path_factory) -> dict[float, dict]:
                 progressbar=False,
             )
         G = np.asarray(prepared.G, dtype=float)
-        _, ame = _report._joint_ame_draws(idata, ["W", "R"], G=G)
-        summary = _report.tau_difference_summary(
+        _, ame = _joint_summary._joint_ame_draws(idata, ["W", "R"], G=G)
+        summary = _joint_summary.tau_difference_summary(
             idata, ["W", "R"], ("W", "R"), ci_prob=CI_PROB, G=G
         )
         fits[rho] = {

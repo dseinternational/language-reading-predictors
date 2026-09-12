@@ -20,7 +20,7 @@ import pytest
 import xarray as xr
 from scipy.stats import multivariate_normal
 
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import (
     LongCorrFactorPayload,
 )

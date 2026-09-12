@@ -49,6 +49,9 @@ two against drift by asserting identical average-marginal-effect draws.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -899,7 +902,7 @@ def write_predicted_scores_artifacts(
     child_sd_name: str | None = None,
     child_idx: np.ndarray | None = None,
     delta: float | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     population: str = "new typical child; covariates from the fitted reference rows",
     contrast_status: str = "randomised contrast",
     event_label: str = "off the floor at follow-up",

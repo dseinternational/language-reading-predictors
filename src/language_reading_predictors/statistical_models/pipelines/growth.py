@@ -13,6 +13,11 @@ adjusted, latent-ability-confounded association, never causal.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import growth as _growth_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import growth as _growth_summary
+
+
 import numpy as np
 import pandas as pd
 from rich import print as rprint
@@ -22,11 +27,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -90,7 +91,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     plan = resolve_growth_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     outcomes = plan.outcomes
     baseline_cov = plan.baseline_covariate
@@ -120,7 +121,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_growth_model(panel, **plan.factory_kwargs())
+    built = _growth_factory.build_growth_model(panel, **plan.factory_kwargs())
     attach_built(ctx, built)
 
     render_model_graph(ctx)
@@ -179,7 +180,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             sensitivity_panel = exclude_growth_observation_cells(
                 panel, flagged["observation_index"].to_numpy(dtype=int)
             )
-            sensitivity_built = _factories.build_growth_model(
+            sensitivity_built = _growth_factory.build_growth_model(
                 sensitivity_panel, **plan.factory_kwargs()
             )
             sensitivity_result = run_subfit(
@@ -216,9 +217,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # round out the trajectory characterisation. All adjusted associations.
     display_baseline = baseline_label[0].upper() + baseline_label[1:]
     section_header(f"{display_baseline} -> trajectory shape")
-    gs = _report.growth_association_summary(
-        ctx.trace, coefs=summary_coefs(plan), ci_prob=ctx.reporting.ci_prob
-    )
+    gs = _growth_summary.growth_association_summary(ctx.trace, coefs=summary_coefs(plan))
     save_table(ctx, "growth_association_summary", gs)
     save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
     print_table(

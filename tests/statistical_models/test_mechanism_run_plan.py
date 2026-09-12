@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import glob
 import importlib
 import inspect
@@ -15,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import mechanism as M
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 
 _META_FIELDS = (
@@ -461,9 +464,7 @@ def test_the_direct_factory_rejects_every_invalid_mechanism_design(
 ):
     """Identical rejection, whichever entry point declares the design."""
     from language_reading_predictors.statistical_models import priors
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
 
     kwargs = dict(factory_kwargs)
     if kwargs.get("mech_lengthscale_prior") == "tight":
@@ -697,8 +698,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     spec = _spec(outcomes=("W", "L"), linear_mechanism=True)
     plan = M.resolve_mechanism_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated mechanism run plan" in text
@@ -749,7 +750,7 @@ def test_reporting_rejects_stale_attached_plan():
         resolved_plan=M.resolve_mechanism_run_plan(stale_spec),
     )
     with pytest.raises(ValueError, match="does not match the current model specification"):
-        R._resolved_run_plan(ctx)
+        _metadata._resolved_run_plan(ctx)
 
 
 def test_pipeline_has_no_direct_mechanism_setting_reads():
@@ -1136,9 +1137,7 @@ VALID_MECHANISM_DESIGNS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]
 def test_every_valid_mechanism_design_builds_the_terms_it_declares(
     factory_kwargs, expected, forbidden, mechanism_prepared
 ):
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
 
     built = build_mechanism_model(
         mechanism_prepared,

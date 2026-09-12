@@ -29,6 +29,10 @@ Usage::
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+from language_reading_predictors.statistical_models.summaries import rope as _rope_summary
+
+
 import argparse
 import os
 import shutil
@@ -41,8 +45,8 @@ import pymc as pm
 from scipy import stats
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import reporting as _report
-from language_reading_predictors.statistical_models.factories import build_itt_model
+
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
 from language_reading_predictors.statistical_models.itt import resolve_itt_run_plan
 from language_reading_predictors.statistical_models.measures import MEASURES, ROPE_DELTA
 from language_reading_predictors.statistical_models.preprocessing import load_and_prepare
@@ -134,7 +138,7 @@ def fit_outcome(mod_name, sym, draws, tune, chains, seed):
     G = np.asarray(built.prepared.G)
     n_trials = int(built.prepared.n_trials[sym])
     # Per-draw items-scale average marginal effect (shared core).
-    _, ame_prob = _report._itt_ame_draws(trace, G=G)
+    _, ame_prob = _itt_summary._itt_ame_draws(trace, G=G)
     items = ame_prob * n_trials
     # Record convergence for this refit: the evidence-strength note is built from
     # these tau/s, so a silently non-converged refit must be surfaced and must
@@ -298,7 +302,7 @@ def print_cards(results):
     for sym in ("L", "W"):
         r = by[sym]
         delta = ROPE_DELTA[sym]
-        s = _report.rope_summary(r["trace"], G=r["G"], n_trials=r["n_trials"], delta=delta)
+        s = _rope_summary.rope_summary(r["trace"], G=r["G"], n_trials=r["n_trials"], delta=delta)
         print(
             f"{sym} {LABELS[sym]} (n={r['n']}, {r['n_trials']} items, delta={delta:g})\n"
             f"  items: median {s['items_median']:+.2f}  "

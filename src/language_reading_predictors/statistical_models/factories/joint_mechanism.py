@@ -3,22 +3,17 @@
 
 """Joint-mechanism model construction (levels and transition designs).
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -370,7 +365,7 @@ def build_joint_mechanism_model(
                                           ),
                               role="nuisance",
                               rationale=(
-                                  "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
+                                  'Per-phase intercept offset alpha_phase.'
                               ),
                           )
             eta = eta + gamma_own[None, :] * pre_logit_d + alpha_phase[phase_d]
@@ -385,30 +380,9 @@ def build_joint_mechanism_model(
             # mechanism family carries. Named per design so no consumer reads one
             # as the other.
             if design == "levels":
-                beta_G = _priors.declare(
-                             pm.Normal(
-                                                 "beta_group_nuisance", mu=0.0, sigma=1.0, dims="outcome"
-                                             ),
-                             role="nuisance",
-                             rationale=(
-                                 "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) "
-                                 "held outside the horseshoe / adjustment set to absorb cohort "
-                                 "composition (reference = largest group); never a ranked predictor "
-                                 "slope or a group-effect estimate."
-                             ),
-                         )
+                beta_G = _priors.declare(pm.Normal('beta_group_nuisance', mu=0.0, sigma=1.0, dims='outcome'), role='nuisance', rationale='Per-outcome arm-composition nuisance term, matching the concurrent comparisons. It accounts for arm composition at the wave and is not interpreted as a group effect.')
             else:
-                beta_G = _priors.tau_prior().to_pymc(
-                    "beta_G",
-                    dims="outcome",
-                    role="association",
-                    rationale=(
-                        "Randomised arm entered as an adjusted-association "
-                        "covariate on the treatment prior tau ~ Normal(0, 0.5); "
-                        "this design's deliverable is the conditional slope and "
-                        "its ratio, not an arm effect."
-                    ),
-                )
+                beta_G = _priors.tau_prior().to_pymc('beta_G', dims='outcome', role='association', rationale='Group main effect entered as an adjustment beside the mechanism slopes; an adjusted association, not the randomised treatment effect.')
             eta = eta + beta_G[None, :] * pt.shape_padright(G_d)
 
         if "A" in confounder_symbols:
@@ -416,7 +390,7 @@ def build_joint_mechanism_model(
             eta = eta + gamma_A[None, :] * pt.shape_padright(A_std_d)
 
         for c, cov_d in adjust_data.items():
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}", dims="outcome")
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', dims='outcome', **_priors.adjustment_metadata(c))
             eta = eta + gamma_c[None, :] * pt.shape_padright(cov_d)
 
         # --- Cross-outcome dependence block ---------------------------------------

@@ -30,10 +30,8 @@ from language_reading_predictors.statistical_models.predicted_scores import (
     predicted_scores_table,
     write_predicted_scores_artifacts,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    _itt_ame_draws,
-    treatment_marginal_effect,
-)
+from language_reading_predictors.statistical_models.summaries.gain_factors import treatment_marginal_effect
+from language_reading_predictors.statistical_models.summaries.itt import _itt_ame_draws
 
 
 def _trace(eta, tau, *, tau_i=None, kappa=None, extra=None):

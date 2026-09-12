@@ -21,11 +21,9 @@ import pytest
 import xarray as xr
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.statistical_models.factories import build_growth_model
+from language_reading_predictors.statistical_models.factories.growth import build_growth_model
 from language_reading_predictors.statistical_models.preprocessing import load_wave_panel
-from language_reading_predictors.statistical_models.reporting import (
-    growth_association_summary,
-)
+from language_reading_predictors.statistical_models.summaries.growth import growth_association_summary
 
 _OUTCOMES = ("R", "E", "T", "W", "L")
 
@@ -139,7 +137,7 @@ def test_growth_association_summary_direction_bands_and_role():
     means = np.array([0.30, 0.00, -0.20])
     gamma = rng.normal(means, 0.08, size=(2, 400, 3))
     delta = rng.normal(0.0, 0.05, size=(2, 400, 3))
-    df = growth_association_summary(_growth_trace(gamma, delta), ci_prob=0.89)
+    df = growth_association_summary(_growth_trace(gamma, delta))
 
     # gamma + delta only (beta / loading absent are skipped, not errored).
     assert set(df["coefficient"]) == {"gamma", "delta"}

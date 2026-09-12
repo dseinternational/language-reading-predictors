@@ -21,6 +21,11 @@ outcome items for readability — not into an effect of changing the predictor.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import convergence as _convergence
+from language_reading_predictors.statistical_models.factories import adjusted as _adjusted_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -32,12 +37,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    adjusted as _adjusted,
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import adjusted as _adjusted, diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -59,7 +59,7 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
-from language_reading_predictors.statistical_models.reporting import beta_summary
+from language_reading_predictors.statistical_models.posteriors import beta_summary
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -385,7 +385,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # notes/202607172359-credible-interval-standard.md).
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
 
     section_header("Prepare data")
@@ -406,13 +406,13 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         # currency check compares resolution with resolution. The
         # loader's constant-column removals stay recorded in extra
         # (2026-08-26 batch).
-        _report.write_model_recipe(ctx, plan=plan)
+        _metadata.write_model_recipe(ctx, plan=plan)
     # Headline predictor key order: skills, language composite, age, tested covariates.
     headline = list(plan.headline_predictors())
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_adjusted_model(
+    built = _adjusted_factory.build_adjusted_model(
         prepared,
         **plan.rli_factory_kwargs(),
     )
@@ -436,7 +436,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             compute_loo=plan.compute_loo,
         ),
     )
-    _primary_converged = _report.convergence_gate_clean_passed(_primary_gate)
+    _primary_converged = _convergence.convergence_gate_clean_passed(_primary_gate)
     _diag.save_prior_posterior_plot(ctx, var_names=_adjusted_diag_vars)
 
     # --- Adjusted vs bivariate associations --------------------------------
@@ -450,7 +450,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     bivariate: dict[str, dict] = {}
     biv_converged: dict[str, object] = {}
     for k in reported:
-        b = _factories.build_adjusted_model(
+        b = _adjusted_factory.build_adjusted_model(
             prepared,
             **plan.rli_factory_kwargs(predictors=(k,)),
         )
@@ -526,7 +526,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     ps_df = _prior_sweep_table(
         ctx,
         plan=plan,
-        build=lambda **kw: _factories.build_adjusted_model(
+        build=lambda **kw: _adjusted_factory.build_adjusted_model(
             prepared, **{**plan.rli_factory_kwargs(), **kw}
         ),
         predictors=reported,
@@ -557,7 +557,7 @@ def fit_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ]
         ses_covs_fit = [c for c in ses_covs if c in prepared_ses.covariates]
         ses_predictors = ses_headline + ses_covs_fit
-        b = _factories.build_adjusted_model(
+        b = _adjusted_factory.build_adjusted_model(
             prepared_ses,
             **plan.rli_factory_kwargs(predictors=ses_predictors),
         )
@@ -794,7 +794,7 @@ def _fit_rlm_transition_adjusted(
     prior_sens = list(plan.prior_sensitivity_sigmas)
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
 
     section_header("Prepare stacked transition data")
@@ -805,7 +805,7 @@ def _fit_rlm_transition_adjusted(
     save_table(ctx, "analysis_set_by_transition", _rlm_transition_analysis_set(frame))
 
     section_header("Build pooled transition model")
-    built = _factories.build_rlm_transition_adjusted_model(
+    built = _adjusted_factory.build_rlm_transition_adjusted_model(
         frame, **plan.rlm_factory_kwargs(headline)
     )
     attach_built(ctx, built)
@@ -829,7 +829,7 @@ def _fit_rlm_transition_adjusted(
             compute_loo=plan.compute_loo,
         ),
     )
-    primary_converged = _report.convergence_gate_clean_passed(primary_gate)
+    primary_converged = _convergence.convergence_gate_clean_passed(primary_gate)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     section_header("Predictor associations (adjusted vs bivariate)")
@@ -837,7 +837,7 @@ def _fit_rlm_transition_adjusted(
     bivariate: dict[str, dict] = {}
     bivariate_converged: dict[str, object] = {}
     for key in headline:
-        candidate = _factories.build_rlm_transition_adjusted_model(
+        candidate = _adjusted_factory.build_rlm_transition_adjusted_model(
             frame, **plan.rlm_factory_kwargs((key,))
         )
         result = run_subfit(
@@ -895,7 +895,7 @@ def _fit_rlm_transition_adjusted(
         _prior_sweep_table(
             ctx,
             plan=plan,
-            build=lambda **kw: _factories.build_rlm_transition_adjusted_model(
+            build=lambda **kw: _adjusted_factory.build_rlm_transition_adjusted_model(
                 frame, **{**plan.rlm_factory_kwargs(headline), **kw}
             ),
             predictors=reported,
@@ -915,7 +915,7 @@ def _fit_rlm_transition_adjusted(
                 "transition_waves": common_waves,
             }
         )
-        candidate = _factories.build_rlm_transition_adjusted_model(
+        candidate = _adjusted_factory.build_rlm_transition_adjusted_model(
             common_frame, **plan.rlm_factory_kwargs(headline)
         )
         result = run_subfit(
@@ -963,7 +963,7 @@ def _fit_rlm_transition_adjusted(
 
     if plan.per_transition_sensitivity:
         section_header("Transition-specific slope sensitivity")
-        candidate = _factories.build_rlm_transition_adjusted_model(
+        candidate = _adjusted_factory.build_rlm_transition_adjusted_model(
             frame,
             **plan.rlm_factory_kwargs(headline),
             varying_slopes=True,
@@ -1070,7 +1070,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # House-standard 89% equal-tailed intervals, as in the RLI port.
     ctx = make_context(spec, config, ci_prob=0.89)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     hdi = ctx.reporting.ci_prob
 
     section_header("Prepare data")
@@ -1080,7 +1080,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_rlm_adjusted_model(
+    built = _adjusted_factory.build_rlm_adjusted_model(
         frame, **plan.rlm_factory_kwargs(headline)
     )
     attach_built(ctx, built)
@@ -1098,7 +1098,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
             compute_loo=plan.compute_loo,
         ),
     )
-    _primary_converged = _report.convergence_gate_clean_passed(_primary_gate)
+    _primary_converged = _convergence.convergence_gate_clean_passed(_primary_gate)
     _diag.save_prior_posterior_plot(ctx, var_names=diag_vars)
 
     # --- Adjusted vs bivariate associations --------------------------------
@@ -1107,7 +1107,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     bivariate: dict[str, dict] = {}
     biv_converged: dict[str, object] = {}
     for k in headline:
-        b = _factories.build_rlm_adjusted_model(
+        b = _adjusted_factory.build_rlm_adjusted_model(
             frame, **plan.rlm_factory_kwargs((k,))
         )
         res = run_subfit(
@@ -1176,7 +1176,7 @@ def fit_rlm_adjusted(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     sens = _prior_sweep_table(
         ctx,
         plan=plan,
-        build=lambda **kw: _factories.build_rlm_adjusted_model(
+        build=lambda **kw: _adjusted_factory.build_rlm_adjusted_model(
             frame, **{**plan.rlm_factory_kwargs(headline), **kw}
         ),
         predictors=reported,

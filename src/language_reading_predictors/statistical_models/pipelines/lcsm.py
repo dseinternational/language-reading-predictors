@@ -14,6 +14,10 @@ are adjusted associations; nothing but that window-1 contrast is causal.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import lcsm as _lcsm_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from itertools import combinations
 from typing import Any, Mapping
 
@@ -24,12 +28,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    lcsm as _lcsm,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, lcsm as _lcsm
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -46,7 +45,7 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
-from language_reading_predictors.statistical_models.reporting import coef_row
+from language_reading_predictors.statistical_models.posteriors import coef_row
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -167,7 +166,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     outcomes = plan.outcomes
@@ -183,7 +182,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_lcsm_model(
+    built = _lcsm_factory.build_lcsm_model(
         panel,
         **plan.factory_kwargs(),
     )

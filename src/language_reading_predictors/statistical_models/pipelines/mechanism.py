@@ -14,6 +14,13 @@ associations, never as "X drives Y".
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import posteriors as _posterior
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import joint as _joint_summary
+from language_reading_predictors.statistical_models.summaries import readiness as _readiness_summary
+
+
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -28,11 +35,7 @@ from language_reading_predictors.models._reporting import (
     print_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    mechanism as _mechanism,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, mechanism as _mechanism
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -87,7 +90,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     run_plan = _mechanism.resolve_mechanism_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = run_plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
     # Some mechanism fits keep the HSGP curve and need a higher target_accept for
     # the residual boundary divergences (LRP58/71/158); honour it with the shared
     # CLI > model-specific > preset precedence.
@@ -223,7 +226,7 @@ def fit_mechanism(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
     # Linear-moderation summary (gamma_int / gamma_mod), when a moderator is set.
     if moderator_symbol is not None:
         section_header("Interaction summary")
-        gi = _report.gamma_interaction_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
+        gi = _joint_summary.gamma_interaction_summary(ctx.trace, ci_prob=ctx.reporting.ci_prob)
         gi_df = pd.DataFrame([gi])
         save_table(ctx, "interaction_summary", gi_df)
         print_table(
@@ -611,7 +614,7 @@ def _write_mechanism_slope_summary(ctx: StatisticalFitContext) -> pd.DataFrame |
     rows: list[dict] = []
 
     def add(name: str, draws, question: str, causal_note: str, **extra) -> None:
-        row = _report.coef_row(name, draws, ci_prob)
+        row = _posterior.coef_row(name, draws, ci_prob)
         row.update(
             question=question,
             causal_status="adjusted association",
@@ -881,7 +884,7 @@ def _write_mechanism_prior_pushforward(
         # the linear-predictor scale and ``outcome_difference_*`` the same contrast
         # in items, so the two scales describe one quantity rather than two.
         rows = [
-            _report.labelled_pushforward(
+            _predictive.labelled_pushforward(
                 {
                     "prior_logit_median": worked["logit_difference_median"],
                     "prior_logit_lo": worked["logit_difference_lo"],
@@ -904,7 +907,7 @@ def _write_mechanism_prior_pushforward(
         # exposure vector past this point is a defect in the curve, not absent
         # prior evidence, and must fail the fit.
         rows = [
-            _report.unavailable_pushforward(
+            _predictive.unavailable_pushforward(
                 estimand="mechanism_curve",
                 estimand_label=label,
                 role="association",
@@ -946,7 +949,7 @@ def _items_scale_knee(
             n_trials_outcome=MEASURES[outcome].n_trials,
             exposure_n_trials=None if is_covariate else exposure_n_trials,
         )
-        items = _report.readiness_threshold(
+        items = _readiness_summary.readiness_threshold(
             ctx.trace,
             exposure_values=np.asarray(x_obs, dtype=float),
             ci_prob=ctx.reporting.ci_prob,
@@ -1007,7 +1010,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
         scaler = ctx.prepared.covariate_scalers.get(sym)
         x_obs = scaler.inverse(z_loaded) if scaler is not None else z_loaded
         try:
-            summary = _report.readiness_threshold(
+            summary = _readiness_summary.readiness_threshold(
                 ctx.trace, exposure_values=x_obs, ci_prob=ctx.reporting.ci_prob
             )
         except ValueError as exc:
@@ -1017,7 +1020,7 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     else:
         N = MEASURES[sym].n_trials
         try:
-            summary = _report.readiness_threshold(
+            summary = _readiness_summary.readiness_threshold(
                 ctx.trace, n_trials=N, ci_prob=ctx.reporting.ci_prob
             )
         except ValueError as exc:
@@ -1156,7 +1159,7 @@ def moderation_items_rows(
     from language_reading_predictors.statistical_models.preprocessing import (
         logit_safe,
     )
-    from language_reading_predictors.statistical_models.reporting import coef_row
+    from language_reading_predictors.statistical_models.posteriors import coef_row
 
     exposure_counts = np.asarray(exposure_counts, dtype=float)
     moderator_values = np.asarray(moderator_values, dtype=float)

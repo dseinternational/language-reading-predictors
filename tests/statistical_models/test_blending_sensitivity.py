@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import reporting as _reporting
+
+
 import json
 import pytest
 import re
@@ -1194,7 +1197,7 @@ def test_every_natural_scale_reporting_helper_accepts_the_score_mean_link():
     from language_reading_predictors.statistical_models import (
         predicted_scores as _predicted,
     )
-    from language_reading_predictors.statistical_models import reporting as _reporting
+
 
     required = {
         _reporting: (

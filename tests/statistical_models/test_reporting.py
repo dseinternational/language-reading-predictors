@@ -14,37 +14,18 @@ import xarray as xr
 from scipy.special import expit
 
 from language_reading_predictors.statistical_models.preprocessing import logit_safe
-from language_reading_predictors.statistical_models.reporting import (
-    AssociationTerm,
-    ConcurrentTerm,
-    association_marginals,
-    concurrent_marginals,
-    did_cell_ppc,
-    disattenuation_crosscheck,
-    did_summary,
-    drop_retired_90_band,
-    eti_bands,
-    evidence_label,
-    favoured_direction,
-    joint_treatment_marginals,
-    level_prior_pushforward,
-    level_t2_marginal_effect,
-    longitudinal_conditional_slopes,
-    longitudinal_factor_correlations,
-    offfloor_mover_table,
-    proportion_at_zero_ppc,
-    rope_markdown,
-    rope_sensitivity,
-    rope_sensitivity_markdown,
-    rope_summary,
-    tau_contrast_matrix,
-    tau_difference_summary,
-    tau_moderation_summary,
-    tau_summary_joint,
-    tau_summary_itt,
-    tau_summary_offfloor,
-    treatment_marginal_effect,
-)
+from dse_research_utils.statistics.evidence import evidence_label, favoured_direction
+from dse_research_utils.statistics.intervals import eti_bands
+from language_reading_predictors.statistical_models.predictive_checks import level_prior_pushforward, proportion_at_zero_ppc
+from language_reading_predictors.statistical_models.summaries.concurrent import ConcurrentTerm, concurrent_marginals
+from language_reading_predictors.statistical_models.summaries.did import did_cell_ppc, did_summary
+from language_reading_predictors.statistical_models.summaries.factors import AssociationTerm, association_marginals
+from language_reading_predictors.statistical_models.summaries.gain_factors import treatment_marginal_effect
+from language_reading_predictors.statistical_models.summaries.itt import offfloor_mover_table, tau_moderation_summary, tau_summary_itt, tau_summary_offfloor
+from language_reading_predictors.statistical_models.summaries.joint import joint_treatment_marginals, tau_contrast_matrix, tau_difference_summary, tau_summary_joint
+from language_reading_predictors.statistical_models.summaries.level_factors import level_t2_marginal_effect
+from language_reading_predictors.statistical_models.summaries.long_corr_factor import disattenuation_crosscheck, longitudinal_conditional_slopes, longitudinal_factor_correlations
+from language_reading_predictors.statistical_models.summaries.rope import drop_retired_90_band, rope_markdown, rope_sensitivity, rope_sensitivity_markdown, rope_summary
 
 
 def _trace(eta, tau, tau_i=None):
@@ -1869,9 +1850,7 @@ def test_reporting_ci_prob_is_the_89pct_house_standard():
     # must build their bands at the coverage the reports label (89%). They import one
     # shared constant; asserting it here means a producer cannot silently drift back
     # to 0.95 while the report prose says 89% (notes/…-credible-interval-standard.md).
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
 
     assert REPORTING_CI_PROB == 0.89
 
@@ -2528,9 +2507,7 @@ def test_level_window_comparator_cards_pairs_the_two_windows(tmp_path):
     read side by side from stored cards, most-restricted last."""
     import json
 
-    from language_reading_predictors.statistical_models.reporting import (
-        level_window_comparator_cards,
-    )
+    from language_reading_predictors.statistical_models.summaries.level_factors import level_window_comparator_cards
 
     def _fit(model_id: str, waves, median: float) -> None:
         directory = tmp_path / f"{model_id}-reporting"
@@ -2585,4 +2562,3 @@ def test_level_window_comparator_cards_pairs_the_two_windows(tmp_path):
             tmp_path / "lrp-rli-lf-201-reporting", comparator_config
         )
     ] == ["lrp-rli-lf-001", "lrp-rli-lf-201"]
-

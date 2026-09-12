@@ -296,9 +296,7 @@ def test_production_beta_binomial_random_intercept_recovers_truth() -> None:
     checks above, which cannot see the random-intercept or dispersion parts."""
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_did_model,
-    )
+    from language_reading_predictors.statistical_models.factories.did import build_did_model
 
     truth = {
         "alpha": -0.4,
@@ -371,9 +369,7 @@ def test_production_recovery_under_material_baseline_imbalance() -> None:
     """
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_did_model,
-    )
+    from language_reading_predictors.statistical_models.factories.did import build_did_model
 
     truth = {
         "alpha": -0.4,
@@ -438,9 +434,7 @@ def test_wide_baseline_allocation_priors_do_not_move_the_t2_level() -> None:
     """
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_did_model,
-    )
+    from language_reading_predictors.statistical_models.factories.did import build_did_model
 
     truth = {
         "alpha": -0.4,

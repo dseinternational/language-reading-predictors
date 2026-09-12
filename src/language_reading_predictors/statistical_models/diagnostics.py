@@ -159,9 +159,7 @@ def _reuse_existing_trace(context: StatisticalFitContext) -> bool:
             "reuse-trace mode requires the persisted primary trace at "
             f"{trace_path}; refusing to run fresh NUTS"
         )
-    from language_reading_predictors.statistical_models.reporting import (
-        require_reuse_compatibility,
-    )
+    from language_reading_predictors.statistical_models.run_metadata import require_reuse_compatibility
 
     require_reuse_compatibility(context, source)
     context.trace = az.from_netcdf(trace_path)

@@ -53,9 +53,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     logit_safe,
     standardise,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import generate_key_findings
 
 
 # ---------------------------------------------------------------------------
@@ -426,9 +424,7 @@ def test_mundlak_vectors_are_built_on_fitted_rows_and_sum_back(tmp_path):
     within_dev == z`` exactly, so the reparameterisation adds a question rather than
     changing the model's fit.
     """
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -547,9 +543,7 @@ def test_phase_varying_slope_is_partially_pooled_and_linear_only(tmp_path):
     and a scaled standard-normal offset, so it cannot silently become three
     independent slopes.
     """
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -589,9 +583,7 @@ def test_phase_varying_slope_is_rejected_with_phase_specific_curves(tmp_path):
     linear design. The factory used to reach neither rule and quietly built the
     pooled linear slope instead.
     """
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -705,9 +697,7 @@ def test_registered_kappa_prior_excludes_the_near_binomial_limit(n_trials):
 
 
 def test_mechanism_factory_threads_the_dispersion_prior_family(tmp_path):
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )

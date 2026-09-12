@@ -77,6 +77,9 @@ the flag is drawn on the figure itself and stated in the caption.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -332,7 +335,7 @@ def mechanism_items_curve(
     x_exposure: np.ndarray,
     n_trials_outcome: int,
     exposure_n_trials: int | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     ref_quantiles: tuple[float, float] = (0.25, 0.75),
     round_exposure: bool = True,
     outcome_off_floor: bool = False,
@@ -658,7 +661,7 @@ def write_mechanism_items_artifacts(
     exposure_label: str,
     exposure_is_covariate: bool,
     exposure_n_trials: int | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     ref_quantiles: tuple[float, float] = (0.25, 0.75),
     outcome_off_floor: bool = False,
     save_figure: bool = True,

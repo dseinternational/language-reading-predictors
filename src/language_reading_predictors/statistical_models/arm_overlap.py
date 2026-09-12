@@ -36,6 +36,9 @@ intuitive companion.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
@@ -400,7 +403,7 @@ def write_arm_overlap_artifacts(
     child_effect_name: str | None = None,
     child_sd_name: str | None = None,
     child_idx=None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     population: str = "new typical child; covariates from the fitted reference rows",
     contrast_status: str = "randomised contrast",
     event_label: str = "off the floor at follow-up",

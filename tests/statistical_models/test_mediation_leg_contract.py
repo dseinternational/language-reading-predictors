@@ -15,6 +15,9 @@ actually use.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import mediation as _mediation_factory
+
+
 import importlib
 from dataclasses import replace
 from pathlib import Path
@@ -22,7 +25,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from language_reading_predictors.statistical_models import factories as F
+
 from language_reading_predictors.statistical_models.mediation_settings import (
     resolve_mediation_multi_run_plan,
     resolve_mediation_run_plan,
@@ -69,13 +72,13 @@ def _build(spec):
     )
     plan = plan.with_effective_confounders(active)
     if spec.kind == "mediation_multi":
-        built, _ = F.build_two_mediator_model(prepared, **plan.factory_kwargs())
+        built, _ = _mediation_factory.build_two_mediator_model(prepared, **plan.factory_kwargs())
     elif plan.entrypoint == "period_stacked":
-        built, _ = F.build_period_stacked_mediation_model(
+        built, _ = _mediation_factory.build_period_stacked_mediation_model(
             prepared, **plan.period_factory_kwargs()
         )
     else:
-        built, _ = F.build_mediation_model(prepared, **plan.factory_kwargs())
+        built, _ = _mediation_factory.build_mediation_model(prepared, **plan.factory_kwargs())
     return plan, prepared, built
 
 

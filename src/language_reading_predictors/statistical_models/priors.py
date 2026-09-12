@@ -4,23 +4,27 @@
 """
 Named prior constructors shared across the statistical models.
 
-Every factory calls the same function so priors cannot drift between models.
-Priors are defined as ``preliz`` distributions; call ``.to_pymc(name)`` inside
-a PyMC model block to register them, or ``plot_and_save`` to output an SVG/PNG
-for the Quarto report.
+Factories use ``.to_pymc(name)`` to record each fitted distribution, role and
+rationale. Model reports draw density panels from those records, including any
+parameter overrides. ``save_shared_prior_panel`` draws the default catalogue only.
 """
 
 from __future__ import annotations
 
 import functools
+import hashlib
+import json
 import math
+from copy import deepcopy
 
 import os
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import preliz as pz
 from preliz.distributions.distributions import Continuous
@@ -39,17 +43,7 @@ from language_reading_predictors.statistical_models.plotting import (
 class PriorDescriptor:
     """What one fitted random variable's prior *is*, recorded when it is created.
 
-    Before this existed, the published role and rationale of a parameter were
-    **inferred** — from the variable's name, its name prefix or suffix, and in
-    several branches from its *rendered distribution string* (``distribution ==
-    "Normal(0, 0.3)"`` routed a coefficient to the association role). Renaming a
-    variable, or changing a prior's scale for a sensitivity fit, could therefore
-    move what the report said the parameter *means* without any change to its
-    statistical role. Measured across 36 representative models covering every
-    family, 104 of 147 distinct free-variable names reached their published role
-    that way.
-
-    A descriptor is created at the point the variable is: either by the named
+    A descriptor is created with the variable: either by the named
     constructor that built it (``provenance="constructor"``), by a call site that
     declared a different scientific role for a reused constructor
     (``"call-site"``), or by an explicit :func:`declare` beside an inline
@@ -70,6 +64,8 @@ class PriorDescriptor:
     panel: str
     #: Where the meaning came from: ``constructor`` / ``call-site`` / ``inline``.
     provenance: str
+    #: The distribution used to build the variable, retained for density plots.
+    density: Continuous | None = field(default=None, repr=False, compare=False)
 
     def as_row(self) -> dict[str, str]:
         """The ``priors_table.csv`` row for this parameter."""
@@ -157,16 +153,21 @@ class PriorSpec:
         model code that knew the answer.
         """
         variable = self.distribution.to_pymc(name, **kwargs)
+        distribution = _dist_from_rv(variable) or _dist_from_spec(self)
+        description = self.rationale if rationale is None else rationale
+        if rationale is None:
+            description = re.sub(r"~\s*[A-Za-z]+\([^)]*\)", f"~ {distribution}", description)
         _record(
             PriorDescriptor(
                 parameter=name,
                 constructor=self.constructor,
-                distribution=_dist_from_rv(variable) or _dist_from_spec(self),
+                distribution=distribution,
                 role=role if role is not None else self.role,
-                rationale=rationale if rationale is not None else self.rationale,
-                panel=self.panel,
+                rationale=description,
+                panel=_density_panel_key(self.panel, self.distribution),
                 provenance="constructor" if role is None and rationale is None
                 else "call-site",
+                density=deepcopy(self.distribution),
             )
         )
         return variable
@@ -176,6 +177,68 @@ class PriorSpec:
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"PriorSpec({self.constructor!r}, {self.distribution!r})"
+
+
+def _density_identity(distribution: Continuous) -> str:
+    """Stable identity of a density, including all its parameter values."""
+    return json.dumps(
+        [
+            type(distribution).__name__,
+            {name: np.asarray(value).tolist() for name, value in distribution.params_dict.items()},
+        ],
+        sort_keys=True,
+        allow_nan=False,
+    )
+
+
+def _density_panel_key(key: str, distribution: Continuous) -> str:
+    """Keep different densities from the same constructor in different files."""
+    if not key:
+        return ""
+    identity = _density_identity(distribution)
+    constructor = ALL_PRIORS.get(key)
+    if constructor is not None and identity == _density_identity(constructor().distribution):
+        return key
+    digest = hashlib.sha256(identity.encode("utf-8")).hexdigest()[:16]
+    return f"{key}__{digest}"
+
+
+def prior_density_panel_files(output_dir: str | Path) -> list[Path]:
+    """Find named-prior density files, excluding predictive and overlay figures."""
+    keys = "|".join(re.escape(key) for key in ALL_PRIORS)
+    filename = re.compile(rf"prior_(?:{keys})(?:__[0-9a-f]{{16}})?\.(?:png|svg)")
+    return [
+        path for path in Path(output_dir).glob("prior_*.*")
+        if path.is_file() and filename.fullmatch(path.name)
+    ]
+
+
+def model_prior_panels(model) -> dict[str, Continuous]:
+    """The actual independent prior densities recorded by a model's factory."""
+    panels = {}
+    for descriptor in descriptors_for(model).values():
+        if descriptor.panel and descriptor.density is not None:
+            panels[descriptor.panel] = descriptor.density
+    return panels
+
+
+def model_prior_panel_title(model, key: str) -> str:
+    """Name the fitted parameters, whose roles may differ from a shared default."""
+    from textwrap import fill
+
+    parameters = [
+        descriptor.parameter for descriptor in descriptors_for(model).values()
+        if descriptor.panel == key
+    ]
+    return fill("Prior for " + ", ".join(parameters), width=48)
+
+
+def save_model_prior_panels(model, output_dir: str) -> list[str]:
+    """Draw each distinct recorded density, without rebuilding default priors."""
+    return [
+        plot_and_save(deepcopy(density), output_dir, f"prior_{key}", title=model_prior_panel_title(model, key))
+        for key, density in model_prior_panels(model).items()
+    ]
 
 
 def _role_of(constructor) -> str:
@@ -245,6 +308,29 @@ def declare(variable, *, role: str, rationale: str, constructor: str = "inline",
         )
     )
     return variable
+
+
+def adjustment_metadata(
+    covariate: str, *, role: str = "association", rationale: str | None = None
+) -> dict[str, str]:
+    """Meaning of a covariate declared in a factory's adjustment block.
+
+    The data schema names its missing-data indicators ``<covariate>_missing``.
+    Their coefficients describe the fill-value subgroup, not a substantive trait.
+    """
+    if covariate.endswith("_missing"):
+        return {
+            "role": "nuisance",
+            "rationale": (
+                f"Missing-data indicator ({covariate} = 1 when the value is "
+                "unknown or imputed). A subgroup mean-offset confounded with the "
+                "fill value, not a substantive standardised-trait association."
+            ),
+        }
+    return {
+        "role": role,
+        "rationale": rationale or f"Standardised covariate slope for {covariate}.",
+    }
 
 
 def _dist_from_spec(spec: PriorSpec) -> str:
@@ -809,44 +895,6 @@ _EXTRA_PRIORS: dict[str, "callable[[], Continuous]"] = {
 ALL_PRIORS: dict[str, "callable[[], Continuous]"] = {**SHARED_PRIORS, **_EXTRA_PRIORS}
 
 
-# Role of each named prior in the DAG-faithful workflow (issue #125 Area 1): only
-# the *causal* prior backs an effect identified by randomisation; *precision*
-# priors sharpen it without licensing a causal claim; *association* priors back
-# adjusted (confounded) couplings; *nuisance* priors are the intercept /
-# dispersion / random-intercept scale; *gp* priors parameterise the optional
-# Gaussian-process terms.
-_ROLE_BY_CTOR: dict[str, str] = {
-    "alpha": "nuisance",
-    "alpha_distal": "nuisance",
-    "tau": "causal",
-    "tau_distal": "causal",
-    "gamma_own": "precision",
-    "gamma_own_offfloor": "precision",
-    "gamma_cross": "association",
-    "gamma_age": "precision",
-    "kappa": "nuisance",
-    "inv_sqrt_kappa": "nuisance",
-    "predictor_slope": "association",
-    "beta_mech": "association",
-    "sigma_dose": "nuisance",
-    "sigma_mech_phase": "nuisance",
-    "sigma_delta": "nuisance",
-    "b_path": "association",
-    "sigma_mediator": "nuisance",
-    "eta_main": "gp",
-    "eta_tau": "gp",
-    "ell": "gp",
-    "ell_mech": "gp",
-    "ell_mech_tight": "gp",
-    "eta_partial_pool": "gp",
-    "hs_tau": "nuisance",
-    "hs_lambda": "nuisance",
-    "hs_c2": "nuisance",
-}
-
-
-
-
 def _first_docline(ctor) -> str:
     """First line of a constructor's docstring (the prior's rationale)."""
     return (ctor.__doc__ or "").strip().split("\n")[0].strip()
@@ -963,56 +1011,21 @@ def empirical_bayes_rationale(base: str, distribution: str | None) -> str:
 
 
 
-#: Deterministics that merely re-express a sampled parameter on another scale,
-#: mapped to the free RV they are derived from. Such a variable has no prior of
-#: its own, so it must not pull in the shared-prior panel named after it — the
-#: panel would show a density the model does not use. (``kappa`` is
-#: ``1 / inv_sqrt_kappa**2`` in the RLM historical families since the 2026-08-21
-#: review, finding 8.) Deterministics that reach a panel by the *distribution*
-#: fallback are unaffected: their panel key differs from their own name, so they
-#: are not matched here — the ``dose_response`` and ``joint_mechanism`` derived
-#: ``beta_*`` slopes keep their ``predictor_slope`` panel.
-_REPARAMETERISED_DETERMINISTICS: dict[str, str] = {"kappa": "inv_sqrt_kappa"}
-
-
 def used_prior_keys(
     model,
     *,
     ctor_overrides: dict[str, str] | None = None,
 ) -> list[str]:
-    """Constructor keys with a panel to render for ``model`` (for panel pruning).
+    """Distinct density-panel identifiers for the model's free variables.
 
-    Derived from :func:`described_prior_row` — the same resolution the published
-    table uses, so a variable's row and its panel cannot name different densities
-    (#637). A panel reached only via the RV-distribution fallback — e.g. the ``gamma_cross`` panel behind an inline
-    Normal(0, 0.3) coupling like ``b_R``, or an HSGP ``eta_main`` / ``ell``
-    amplitude/lengthscale — is not dropped (issue #141). A deterministic listed
-    in :data:`_REPARAMETERISED_DETERMINISTICS` whose source RV the model
-    actually samples is skipped: it re-expresses that RV rather than carrying a
-    prior.
+    Deterministic transformations have no separate prior density. Recorded
+    distributions take precedence over legacy constructor-name overrides.
     """
-    free_names = {rv.name.split("[")[0] for rv in model.free_RVs}
-    keys: list[str] = []
-    deterministics = list(getattr(model, "deterministics", []))
-    determ_names = {rv.name for rv in deterministics}
-    for rv in list(model.free_RVs) + deterministics:
-        base = rv.name.split("[")[0]
-        source = _REPARAMETERISED_DETERMINISTICS.get(base)
-        if source and rv.name in determ_names and source in free_names:
-            continue
-        try:
-            panel = described_prior_row(
-                model, rv, ctor_overrides=ctor_overrides
-            )["panel"]
-        except ValueError:
-            # A deterministic has no prior of its own, so it names no panel. Only
-            # free variables are required to be described; this loop also walks the
-            # deterministics because a few of them *are* the reported quantity and
-            # historically pulled in their source prior's panel.
-            continue
-        if panel and panel in ALL_PRIORS and panel not in keys:
-            keys.append(panel)
-    return keys
+    keys = [
+        described_prior_row(model, rv, ctor_overrides=ctor_overrides)["panel"]
+        for rv in model.free_RVs
+    ]
+    return list(dict.fromkeys(key for key in keys if key))
 
 
 def priors_table(
@@ -1022,26 +1035,11 @@ def priors_table(
     role_overrides: dict[str, str] | None = None,
     rationale_overrides: dict[str, str] | None = None,
 ) -> pd.DataFrame:
-    """Per-model prior table with a ``role`` column (issue #125 Area 1).
+    """Describe each free variable from its declaration at construction.
 
-    One row per registered free RV (vector coefficients collapse to one row),
-    driven by the *actual* model so it never lists priors the model did not use
-    and captures the inline ``alpha_phase`` / ``alpha_time`` / ``sigma_child``
-    priors a SHARED_PRIORS-only table would miss. Columns: ``parameter``,
-    ``distribution``, ``role``, ``rationale``.
-
-    A variable whose prior recorded a :class:`PriorDescriptor` when it was created
-    is described **from that descriptor** (#637 stage 2). Only a variable with no
-    descriptor falls through to :func:`prior_info_for_rv`'s name-and-scale
-    inference — today that is the inline ``pm.*`` half of the model graph, and the
-    variables the shared HSGP builder creates inside ``dse_research_utils``, which
-    this package cannot annotate at their creation site.
-
-    The explicit overrides still win over a recorded descriptor, because a family
-    that reuses a constructor for a different scientific quantity declares that in
-    ``prior_artifacts._prior_table_overrides``; a call site can now say the same
-    thing at creation through ``to_pymc(role=..., rationale=...)``, which is
-    recorded as ``provenance="call-site"``.
+    Vector priors share one table row. Legacy explicit overrides remain available
+    to external callers; production factories declare roles and rationales directly.
+    Unknown priors raise rather than receiving a meaning from their variable name.
     """
     rows = [
         described_prior_row(
@@ -1066,7 +1064,7 @@ def described_prior_row(
     role_overrides: dict[str, str] | None = None,
     rationale_overrides: dict[str, str] | None = None,
 ) -> dict[str, str]:
-    """The published row for one variable — descriptor first, then inference.
+    """The published row for a recorded or explicitly declared external prior.
 
     The single answer to "what does this prior mean here", used by both
     :func:`priors_table` and :func:`used_prior_keys`. They resolved it separately
@@ -1080,18 +1078,13 @@ def described_prior_row(
     ctor_overrides = ctor_overrides or {}
     base = rv.name.split("[")[0]
     descriptor = recorded.get(rv.name)
-    if descriptor is not None and base not in ctor_overrides:
+    if descriptor is not None:
         row = descriptor.as_row()
         if base in role_overrides:
             row["role"] = role_overrides[base]
-        # An outcome-anchored prior is described by its anchor, ahead of every
-        # other route (#390 P1): the constructor's docstring describes the
-        # zero-centred prior this one is not, and the empirical-Bayes sentence
-        # is the disclosure that it was built from the observed outcomes.
         override_rationale = (
             rationale_overrides.get(rv.name)
             or rationale_overrides.get(base)
-            or empirical_bayes_rationale(base, row["distribution"])
             or None
         )
         if override_rationale is not None:
@@ -1187,11 +1180,13 @@ def _prior_title(name: str) -> str:
     rather than repeating the filename.
     """
     key = name[len("prior_"):] if name.startswith("prior_") else name
-    role = _ROLE_BY_CTOR.get(key)
-    return f"{key} · {role} prior" if role else f"{key} prior"
+    constructor_key = key.split("__", 1)[0]
+    constructor = ALL_PRIORS.get(constructor_key)
+    role = _role_of(constructor) if constructor is not None else None
+    return f"{constructor_key} · {role} prior" if role else f"{constructor_key} prior"
 
 
-def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
+def plot_and_save(dist: Continuous, output_dir: str, name: str, *, title: str | None = None) -> str:
     """Plot a prior PDF and save as ``{name}.png`` (+ an SVG sibling per #208).
 
     Reports reference the PNG (raster keeps model-output pages quick to browse);
@@ -1205,21 +1200,18 @@ def plot_and_save(dist: Continuous, output_dir: str, name: str) -> str:
         # Some preliz distributions (e.g. InverseGamma) need an explicit axis.
         ax = plt.gca()
         dist.plot_pdf(pointinterval=False, ax=ax)
-    plt.title(_prior_title(name))
+    plt.title(title or _prior_title(name))
     return save_styled_figure(output_dir, name, fig=fig)
 
 
 def save_shared_prior_panel(
     output_dir: str, used: list[str] | None = None
 ) -> list[str]:
-    """Plot the priors the model uses and return the generated files.
+    """Plot the default constructor catalogue, for reference outside a fitted report.
 
-    ``used`` is a list of constructor keys (from :func:`used_prior_keys`); when
-    given, only those panels are written (pruning the 4–6 dead panels per model
-    that the old all-of-:data:`SHARED_PRIORS` behaviour produced, and adding
-    panels for the previously-unpanelled ``beta_mech`` / ``b_path`` /
-    ``sigma_mediator`` / ``eta_partial_pool``). When ``None``, every shared prior
-    is plotted (back-compatible default).
+    ``used`` selects constructor keys from :data:`ALL_PRIORS`. When omitted,
+    every shared default is plotted. Use :func:`save_model_prior_panels` for a
+    fitted model, including any parameter overrides.
     """
     keys = list(SHARED_PRIORS) if used is None else used
     paths: list[str] = []

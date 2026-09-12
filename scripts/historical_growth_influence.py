@@ -17,6 +17,9 @@ Usage::
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import convergence as _convergence
+
+
 import argparse
 import json
 import os
@@ -33,11 +36,9 @@ import pymc as pm
 from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors import paths
 from language_reading_predictors.statistical_models import diagnostics as _diag
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.datasets import resolve_dataset
-from language_reading_predictors.statistical_models.factories import (
-    build_historical_growth_model,
-)
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 from language_reading_predictors.statistical_models.historical_growth import (
     exclude_historical_growth_observations,
     historical_growth_influence_summary,
@@ -124,7 +125,7 @@ def _validate_primary(
             f"completed fit config is {metadata.get('config_name')!r}, "
             f"not {config_name!r}"
         )
-    if not _report.convergence_gate_clean_passed(diagnostics):
+    if not _convergence.convergence_gate_clean_passed(diagnostics):
         raise ValueError("completed primary fit did not pass its convergence gate")
     if metadata.get("publication_input_contract", {}).get("publication_ready") is not True:
         raise ValueError("completed primary fit did not pass its publication input contract")

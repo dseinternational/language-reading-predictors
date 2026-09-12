@@ -3,21 +3,15 @@
 
 """Latent growth-curve model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pymc as pm
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models.fitted_payloads import (
@@ -197,7 +191,6 @@ def build_growth_model(
                 dims=population_dims,
             ),
             role="nuisance",
-            panel="alpha",
             rationale=(
                 "Per-measure intercept on the logit scale, its mean anchored on the "
                 "grand mean observed logit across all waves (not a baseline wave). "
@@ -218,27 +211,8 @@ def build_growth_model(
         )
         # Baseline non-verbal ability -> trajectory shape (the Q5 estimands):
         # delta on the baseline level, gamma on the growth rate (headline).
-        delta = _priors.declare(
-            pm.Normal("delta", mu=0.0, sigma=assoc_prior_sigma, dims="outcome"),
-            role="association",
-            panel="predictor_slope",
-            rationale=(
-                "Baseline non-verbal ability on the baseline *level* "
-                "(Normal(0, 0.3)); an adjusted, latent-GA-confounded association, "
-                "never causal. Shares a name with the ITT family's randomised "
-                "``delta`` and is a different quantity."
-            ),
-        )
-        gamma = _priors.declare(
-            pm.Normal("gamma", mu=0.0, sigma=assoc_prior_sigma, dims="outcome"),
-            role="association",
-            panel="predictor_slope",
-            rationale=(
-                "Baseline non-verbal ability on the growth *rate* (Normal(0, 0.3)) "
-                "— this family's headline shape estimand; an adjusted, "
-                "latent-GA-confounded association, never causal."
-            ),
-        )
+        delta = _priors.predictor_slope_prior(sigma=assoc_prior_sigma).to_pymc('delta', dims='outcome', role='association', rationale='Baseline non-verbal ability associated with the level at the pooled-mean observed age. An adjusted association that does not control latent general ability.')
+        gamma = _priors.predictor_slope_prior(sigma=assoc_prior_sigma).to_pymc('gamma', dims='outcome', role='association', rationale="Baseline non-verbal ability on the growth *rate* — this family's headline shape estimand; an adjusted, latent-GA-confounded association, never causal.")
         # Child-level random intercept + slope (independent per measure).
         sigma_intercept = _priors.declare(
             pm.HalfNormal(
@@ -246,8 +220,7 @@ def build_growth_model(
             ),
             role="nuisance",
             rationale=(
-                "Child random-intercept SD per measure (HalfNormal(0.5)); the "
-                "between-child spread of starting level that ``z_intercept`` scales."
+                'Child random-intercept SD per measure; the between-child spread of starting level that ``z_intercept`` scales.'
             ),
         )
         sigma_slope = (
@@ -257,8 +230,7 @@ def build_growth_model(
                 ),
                 role="nuisance",
                 rationale=(
-                    "Child random-slope SD per measure (HalfNormal(0.5)); the "
-                    "between-child spread of growth rate that ``z_slope`` scales."
+                    'Child random-slope SD per measure; the between-child spread of growth rate that ``z_slope`` scales.'
                 ),
             )
             if use_random_slope
@@ -268,9 +240,7 @@ def build_growth_model(
             pm.Normal("z_intercept", 0.0, 1.0, dims=("child", "outcome")),
             role="nuisance",
             rationale=(
-                "Non-centred standard-normal per-child, per-measure intercept "
-                "offsets (Normal(0, 1)); scaled by the random-intercept SD to form "
-                "the child-by-measure growth intercepts."
+                'Non-centred standard-normal per-child, per-measure intercept offsets; scaled by the random-intercept SD to form the child-by-measure growth intercepts.'
             ),
         )
         z_slope = (
@@ -278,20 +248,13 @@ def build_growth_model(
                 pm.Normal("z_slope", 0.0, 1.0, dims=("child", "outcome")),
                 role="nuisance",
                 rationale=(
-                    "Non-centred standard-normal per-child, per-measure slope "
-                    "offsets (Normal(0, 1)); scaled by the random-slope SD to form "
-                    "the child-by-measure growth slopes."
+                    'Non-centred standard-normal per-child, per-measure slope offsets; scaled by the random-slope SD to form the child-by-measure growth slopes.'
                 ),
             )
             if use_random_slope
             else None
         )
-        kappa = _priors.declare(
-            pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims=population_dims),
-            role="nuisance",
-            panel="kappa",
-            rationale="Beta-binomial concentration kappa ~ HalfNormal(50).",
-        )
+        kappa = _priors.kappa_prior(sigma=kappa_prior_sigma).to_pymc('kappa', dims=population_dims, role='nuisance', rationale='Beta-binomial concentration.')
 
         # child x outcome intercepts and slopes (non-centred).
         if group_data is not None:
@@ -332,26 +295,8 @@ def build_growth_model(
             age0_z, _ = standardise(a0)
             age0_np = np.where(np.isfinite(age0_z), age0_z, 0.0)
             age0 = pm.Data("age0_std", age0_np, dims="child")
-            gamma_age = _priors.declare(
-                pm.Normal("gamma_age", 0.0, assoc_prior_sigma, dims="outcome"),
-                role="association",
-                panel="predictor_slope",
-                rationale=(
-                    "Baseline (t1) age main effect on the growth rate "
-                    "(gamma_age * age0); an adjusted, GA-confounded association, "
-                    "not a cross-baseline coupling."
-                ),
-            )
-            gamma_int = _priors.declare(
-                pm.Normal("gamma_int", 0.0, assoc_prior_sigma, dims="outcome"),
-                role="association",
-                panel="predictor_slope",
-                rationale=(
-                    "Baseline age x ability interaction on the growth rate (the "
-                    "#228 item-10 headline); an adjusted, GA-confounded "
-                    "association, not a cross-baseline coupling."
-                ),
-            )
+            gamma_age = _priors.predictor_slope_prior(sigma=assoc_prior_sigma).to_pymc('gamma_age', dims='outcome', role='association', rationale='Baseline (t1) age main effect on the growth rate (gamma_age * age0); an adjusted, GA-confounded association, not a cross-baseline coupling.')
+            gamma_int = _priors.predictor_slope_prior(sigma=assoc_prior_sigma).to_pymc('gamma_int', dims='outcome', role='association', rationale='Baseline age by ability interaction in the growth rate. Allows the ability association to vary with baseline age; an adjusted association.')
             slope_mean = (
                 slope_mean
                 + gamma_age[None, :] * age0[:, None]
@@ -364,20 +309,10 @@ def build_growth_model(
                 pm.Normal("G_tempo", 0.0, 1.0, dims="child"),
                 role="nuisance",
                 rationale=(
-                    "Shared child-level growth-tempo factor scores (Normal(0, 1)); "
-                    "a rank-1 latent 'faster growth on every measure' tempo whose "
-                    "reported quantity is the per-measure loading, not the scores "
-                    "themselves."
+                    "Shared child-level growth-tempo factor scores; a rank-1 latent 'faster growth on every measure' tempo whose reported quantity is the per-measure loading, not the scores themselves."
                 ),
             )
-            loading = _priors.declare(
-                pm.HalfNormal("loading", sigma=loading_prior_sigma, dims="outcome"),
-                role="association",
-                rationale=(
-                    "Positive indicator loading (HalfNormal(0.5)); maps each "
-                    "standardised test to its unit-variance domain factor."
-                ),
-            )
+            loading = _priors.declare(pm.HalfNormal('loading', sigma=loading_prior_sigma, dims='outcome'), role='association', rationale="Positive loading of the shared child-level growth-tempo factor G onto measure k's growth rate; a rank-1 stand-in for cross-measure slope covariation, not a CFA test->domain measurement loading.")
             slope_mean = slope_mean + loading[None, :] * G[:, None]
         if sigma_slope_child is not None and z_slope is not None:
             slope_mean = slope_mean + sigma_slope_child * z_slope

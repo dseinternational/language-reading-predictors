@@ -5,6 +5,10 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import dependence as _dependence_summary
+
+
 import importlib
 import inspect
 from types import SimpleNamespace
@@ -12,7 +16,7 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import joint as J
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 
 _JOINT_MODULES = (
@@ -223,8 +227,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     )
     plan = J.resolve_joint_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated joint run plan" in text
@@ -488,7 +492,7 @@ def test_dependence_summary_flags_a_correlation_that_never_left_its_prior():
     1.002, 1.008 and 1.001 say otherwise, and the table has to make that legible
     rather than leaving it to be reconstructed from a wide interval.
     """
-    frame = R.dependence_identification_summary(
+    frame = _dependence_summary.dependence_identification_summary(
         _dependence_trace(post_sd=1 / 3), ci_prob=0.89
     )
     correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
@@ -501,7 +505,7 @@ def test_dependence_summary_flags_a_correlation_that_never_left_its_prior():
 
 
 def test_dependence_summary_reports_an_informed_correlation_as_informed():
-    frame = R.dependence_identification_summary(
+    frame = _dependence_summary.dependence_identification_summary(
         _dependence_trace(post_sd=0.05), ci_prob=0.89
     )
     correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
@@ -519,7 +523,7 @@ def test_dependence_summary_is_none_without_the_block():
         coords={"chain": np.arange(2), "draw": np.arange(10)},
     )
     del az
-    assert R.dependence_identification_summary(
+    assert _dependence_summary.dependence_identification_summary(
         xr.DataTree.from_dict({"posterior": posterior}), ci_prob=0.89
     ) is None
 

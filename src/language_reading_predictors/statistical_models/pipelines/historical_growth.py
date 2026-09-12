@@ -12,18 +12,16 @@ intervention-effect model: ``group`` carries no treatment semantics.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import historical as _historical_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from language_reading_predictors.models._reporting import (
     print_table,
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    datasets as _datasets,
-    diagnostics as _diag,
-    factories as _factories,
-    historical as _historical,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import datasets as _datasets, diagnostics as _diag, historical as _historical
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -71,7 +69,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     plan = resolve_historical_growth_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     study_id = plan.study_id
@@ -87,7 +85,7 @@ def fit_historical_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFi
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_historical_growth_model(
+    built = _historical_factory.build_historical_growth_model(
         panel,
         **plan.factory_kwargs(),
     )

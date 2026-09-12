@@ -18,6 +18,8 @@ withholding a release.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import predictive_checks as _owner_predictive_checks
+
 import ast
 import json
 import pathlib
@@ -154,7 +156,7 @@ def test_marginal_rows_propagate_a_defect_rather_than_recording_it(
     def explode(*_args, **_kwargs):
         raise KeyError("obs_id")
 
-    monkeypatch.setattr(PA._report, "marginal_prior_pushforward", explode)
+    monkeypatch.setattr(_owner_predictive_checks, "marginal_prior_pushforward", explode)
     with pytest.raises(KeyError, match="obs_id"):
         PA.marginal_pushforward_rows(ctx, [("beta", "a coefficient")], n_trials=10)
 
@@ -179,7 +181,7 @@ def test_at_mean_rows_propagate_a_defect_rather_than_recording_it(
     def explode(*_args, **_kwargs):
         raise ValueError("pushforward schema drift")
 
-    monkeypatch.setattr(PA._report, "pushforward_values", explode)
+    monkeypatch.setattr(_owner_predictive_checks, "pushforward_values", explode)
     with pytest.raises(ValueError, match="schema drift"):
         PA.at_mean_pushforward_rows(
             ctx,

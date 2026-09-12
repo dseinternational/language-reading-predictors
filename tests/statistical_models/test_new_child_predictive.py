@@ -16,6 +16,11 @@ withheld rather than published.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import historical as _historical_factory
+from language_reading_predictors.statistical_models.factories import joint as _joint_factory
+from language_reading_predictors.statistical_models.factories import joint_mechanism as _joint_mechanism_factory
+
+
 import math
 import types
 
@@ -503,10 +508,7 @@ def test_every_declaration_survives_verification_against_its_built_model():
     would have caught the defect #626 is about, so it runs over every registered fit
     rather than over a representative one.
     """
-    from language_reading_predictors.statistical_models import (
-        datasets as _datasets,
-        factories as _factories,
-    )
+    from language_reading_predictors.statistical_models import datasets as _datasets
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
         load_longitudinal_panel,
@@ -523,12 +525,12 @@ def test_every_declaration_survives_verification_against_its_built_model():
                     [measures[m] for m in plan.measures],
                     **plan.prepare_kwargs(),
                 )
-                built = _factories.build_rlm_joint_growth_model(
+                built = _historical_factory.build_rlm_joint_growth_model(
                     prepared, **plan.factory_kwargs()
                 )
             elif kind == "joint":
                 prepared = load_and_prepare(**plan.prepare_kwargs())
-                built = _factories.build_joint_model(prepared, **plan.factory_kwargs())
+                built = _joint_factory.build_joint_model(prepared, **plan.factory_kwargs())
             else:
                 # The joint-mechanism levels design needs a single-wave subset its
                 # pipeline assembles; verifying the transition design is enough to
@@ -536,7 +538,7 @@ def test_every_declaration_survives_verification_against_its_built_model():
                 if plan.design == "levels":
                     continue
                 prepared = load_and_prepare(**plan.prepare_kwargs())
-                built = _factories.build_joint_mechanism_model(
+                built = _joint_mechanism_factory.build_joint_mechanism_model(
                     prepared, **plan.factory_kwargs()
                 )
             declared = plan.new_child_plan()
@@ -819,7 +821,7 @@ def test_a_fold_replays_the_full_fit_s_exposure_scale():
     """
     import importlib
 
-    from language_reading_predictors.statistical_models import factories as _factories
+
     from language_reading_predictors.statistical_models.new_child_kfold import (
         mask_prepared_children,
     )
@@ -832,17 +834,17 @@ def test_a_fold_replays_the_full_fit_s_exposure_scale():
     ).SPEC
     plan = descriptor_for(spec.kind).resolver()(spec)
     prepared = load_and_prepare(**plan.prepare_kwargs())
-    full = _factories.build_joint_mechanism_model(prepared, **plan.factory_kwargs())
+    full = _joint_mechanism_factory.build_joint_mechanism_model(prepared, **plan.factory_kwargs())
     scale = full.payload.exposure_scale
     assert scale is not None and scale[1] > 0
 
     held_out = list(range(0, prepared.n_children, 5))
     masked = mask_prepared_children(prepared, held_out, plan.outcome_symbols)
 
-    frozen = _factories.build_joint_mechanism_model(
+    frozen = _joint_mechanism_factory.build_joint_mechanism_model(
         masked, exposure_scale=scale, **plan.factory_kwargs()
     )
-    rederived = _factories.build_joint_mechanism_model(masked, **plan.factory_kwargs())
+    rederived = _joint_mechanism_factory.build_joint_mechanism_model(masked, **plan.factory_kwargs())
 
     z_frozen = np.asarray(frozen.model["z_mech_logit"].get_value())
     z_rederived = np.asarray(rederived.model["z_mech_logit"].get_value())
@@ -859,7 +861,7 @@ def test_the_factory_refuses_a_degenerate_exposure_scale():
     """A zero or non-finite scale would divide the exposure into nonsense."""
     import importlib
 
-    from language_reading_predictors.statistical_models import factories as _factories
+
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -871,6 +873,6 @@ def test_the_factory_refuses_a_degenerate_exposure_scale():
     prepared = load_and_prepare(**plan.prepare_kwargs())
     for bad in ((0.0, 0.0), (0.0, float("nan")), (float("inf"), 1.0)):
         with pytest.raises(ValueError, match="exposure_scale"):
-            _factories.build_joint_mechanism_model(
+            _joint_mechanism_factory.build_joint_mechanism_model(
                 prepared, exposure_scale=bad, **plan.factory_kwargs()
             )

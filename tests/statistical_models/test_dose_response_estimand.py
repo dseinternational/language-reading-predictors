@@ -12,6 +12,9 @@ precisely because they were structural.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import dose_response as _dose_response_factory
+
+
 import importlib
 from pathlib import Path
 
@@ -20,7 +23,7 @@ import pytest
 import xarray as xr
 
 from language_reading_predictors.statistical_models import dose_response as D
-from language_reading_predictors.statistical_models import factories as F
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.pipelines import (
     dose_response as P,
@@ -42,7 +45,7 @@ def _plan(model_id: str):
 
 def _built(model_id: str):
     plan = _plan(model_id)
-    return plan, F.build_dose_response_model(
+    return plan, _dose_response_factory.build_dose_response_model(
         load_and_prepare(**plan.prepare_kwargs()), **plan.factory_kwargs()
     )
 
@@ -80,8 +83,8 @@ def test_transition_start_ability_is_a_labelled_comparator_that_really_differs()
     kwargs = dict(plan.factory_kwargs())
     kwargs["ability_baseline_wave"] = "transition_start"
     prepared = load_and_prepare(**plan.prepare_kwargs())
-    t1 = F.build_dose_response_model(prepared, **plan.factory_kwargs())
-    start = F.build_dose_response_model(prepared, **kwargs)
+    t1 = _dose_response_factory.build_dose_response_model(prepared, **plan.factory_kwargs())
+    start = _dose_response_factory.build_dose_response_model(prepared, **kwargs)
     differing = ~np.isclose(
         np.asarray(t1.model["L_pre_logit"].get_value()),
         np.asarray(start.model["L_pre_logit"].get_value()),
@@ -242,7 +245,7 @@ def test_contrast_aligns_to_the_factory_rows_not_the_loader_rows():
     """
     plan = _plan("177")
     loader = load_and_prepare(**plan.prepare_kwargs())
-    built = F.build_dose_response_model(loader, **plan.factory_kwargs())
+    built = _dose_response_factory.build_dose_response_model(loader, **plan.factory_kwargs())
     assert built.prepared.n_obs < loader.n_obs, (
         "this guard needs a model whose factory drops rows; if dose-177 stops "
         "doing so, point it at one that does"
@@ -258,7 +261,7 @@ def test_the_old_global_sd_step_would_have_left_support():
     """Guard the *reason* for the repair, so the defect cannot silently return."""
     plan = _plan("077")
     prepared = load_and_prepare(**plan.prepare_kwargs())
-    built = F.build_dose_response_model(prepared, **plan.factory_kwargs())
+    built = _dose_response_factory.build_dose_response_model(prepared, **plan.factory_kwargs())
     loader = prepared.covariate_scalers["attend"]
     raw = np.asarray(built.payload.raw_attend)
     phase = np.asarray(built.prepared.phase, dtype=int)

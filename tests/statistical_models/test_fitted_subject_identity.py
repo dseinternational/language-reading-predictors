@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 from types import SimpleNamespace
 
@@ -14,12 +15,7 @@ import pymc as pm
 import pytest
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.reporting import (
-    REUSE_CONTRACT_KEY,
-    fitted_subject_identity,
-    require_reuse_compatibility,
-    write_run_metadata,
-)
+from language_reading_predictors.statistical_models.run_metadata import REUSE_CONTRACT_KEY, fitted_subject_identity, require_reuse_compatibility, write_run_metadata, write_model_recipe
 
 
 def _expected_digest(subject_ids: list[str]) -> str:
@@ -35,7 +31,9 @@ def _expected_digest(subject_ids: list[str]) -> str:
 def _context(tmp_path, model_id: str, subject_ids: list[str]):
     output_dir = tmp_path / model_id
     return SimpleNamespace(
-        spec=ModelSpec(model_id=model_id, kind="mediation", title="identity audit"),
+        spec=importlib.import_module(
+            "language_reading_predictors.statistical_models." + model_id.replace("-", "_")
+        ).SPEC,
         prepared=SimpleNamespace(
             subject_ids=np.asarray(subject_ids, dtype=object),
             n_obs=len(subject_ids),
@@ -75,6 +73,8 @@ def _reuse_context(tmp_path):
             model_id="lrp-rli-hg-999",
             kind="historical_growth",
             title="reuse contract",
+            study_id="rlm",
+            outcome_symbol="basread",
         ),
         prepared=prepared,
         model=model,
@@ -101,6 +101,7 @@ def _compatible_publication(tmp_path, context):
     """
     source = tmp_path / "published"
     source.mkdir(exist_ok=True)
+    write_model_recipe(context)
     (source / "trace.nc").write_bytes(b"persisted trace")
     write_run_metadata(SimpleNamespace(**{**vars(context), "output_dir": str(source)}))
     return source
@@ -204,14 +205,9 @@ def test_reuse_contract_rejects_prior_config_data_or_tier_drift(
 def test_reuse_contract_rejects_recipe_or_trace_mutation(tmp_path):
     context = _reuse_context(tmp_path)
     current_recipe = tmp_path / "current" / "model_recipe.md"
-    current_recipe.write_text("registered recipe\n")
-    # Both recipes must exist *before* the publication is written: the contract
-    # records the recipe filename only when the file is beside the fit, and the
-    # real writer computes it as it writes.
     prior_recipe = tmp_path / "published" / "model_recipe.md"
-    prior_recipe.parent.mkdir(parents=True, exist_ok=True)
-    prior_recipe.write_text("registered recipe\n")
     source = _compatible_publication(tmp_path, context)
+    original_recipe = current_recipe.read_text(encoding="utf-8")
 
     require_reuse_compatibility(context, source)
 
@@ -219,7 +215,7 @@ def test_reuse_contract_rejects_recipe_or_trace_mutation(tmp_path):
     with pytest.raises(ValueError, match="model_recipe_sha256"):
         require_reuse_compatibility(context, source)
 
-    prior_recipe.write_text("registered recipe\n")
+    prior_recipe.write_text(original_recipe, encoding="utf-8")
     (source / "trace.nc").write_bytes(b"mutated trace")
     with pytest.raises(ValueError, match="trace_sha256"):
         require_reuse_compatibility(context, source)

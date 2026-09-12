@@ -3,22 +3,16 @@
 
 """Longitudinal correlated-factor model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models.fitted_payloads import (
@@ -260,9 +254,7 @@ def build_longitudinal_corr_factor_model(
                                   ),
                           role="nuisance",
                           rationale=(
-                              "Exact-zero-sum domain-by-wave mean deviations (ZeroSumNormal(1, "
-                              "<constant>)); represents wave shifts after pooled indicator "
-                              "standardisation."
+                              'Exact-zero-sum domain-by-wave mean deviations ; represents wave shifts after pooled indicator standardisation.'
                           ),
                       )
 
@@ -283,15 +275,7 @@ def build_longitudinal_corr_factor_model(
                                    ),
                        role="association",
                        rationale=(
-                           "Indicator communality (Beta(2, 2)); the share of a standardised "
-                           "test's variance explained by its domain factor, with the loading / "
-                           "residual pair derived from c under the family's unit-variance "
-                           "budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally "
-                           "standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) "
-                           "in the longitudinal CFA (V the spread of the fitted wave means, so "
-                           "the POOLED indicator variance is exactly 1). Either way the "
-                           "loading-residual ridge is removed and Heywood configurations have "
-                           "zero prior mass."
+                           "Indicator communality; the share of a standardised test's variance explained by its domain factor, with the loading / residual pair derived from c under the family's unit-variance budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) in the longitudinal CFA (V the spread of the fitted wave means, so the POOLED indicator variance is exactly 1). Either way the loading-residual ridge is removed and Heywood configurations have zero prior mass."
                        ),
                    )
             _W = pt.as_tensor_variable(wave_weights)  # (J, T)
@@ -351,8 +335,7 @@ def build_longitudinal_corr_factor_model(
                  pm.Beta("trait_share", alpha=trait_share_a, beta=trait_share_b, dims="domain"),
                  role="nuisance",
                  rationale=(
-                     "Domain-specific stable-trait variance share (Beta(1.5, 1.5)); "
-                     "governs same-domain persistence across waves."
+                     'Domain-specific stable-trait variance share; governs same-domain persistence across waves.'
                  ),
              )
         L_trait = _priors.declare(

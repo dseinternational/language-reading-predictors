@@ -3,22 +3,17 @@
 
 """Correlated-factor measurement model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -274,16 +269,7 @@ def build_correlated_factor_model(
         # The environment's ``LKJCorr`` returns the CHOLESKY FACTOR L, not R, so
         # R = L @ L.T. A single-domain model has no free correlation at all.
         if D > 1:
-            factor_chol = _priors.declare(
-                              pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta),
-                              role="association",
-                              rationale=(
-                                  "LKJ prior on the Cholesky factor of the cross-domain factor "
-                                  "correlation (LKJCorr(eta)); R = chol @ chol.T is the reported "
-                                  "between-domain correlation this measurement model exists to "
-                                  "estimate."
-                              ),
-                          )
+            factor_chol = _priors.declare(pm.LKJCorr('factor_corr_chol', n=D, eta=lkj_eta), role='association', rationale='LKJ prior on the domain-factor correlation matrix. Its off-diagonals are the reported latent domain associations.')
             corr = pm.Deterministic(
                 "factor_corr", factor_chol @ factor_chol.T, dims=("domain", "domain_b")
             )
@@ -328,15 +314,7 @@ def build_correlated_factor_model(
                                    ),
                        role="association",
                        rationale=(
-                           "Indicator communality (Beta(2, 2)); the share of a standardised "
-                           "test's variance explained by its domain factor, with the loading / "
-                           "residual pair derived from c under the family's unit-variance "
-                           "budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally "
-                           "standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) "
-                           "in the longitudinal CFA (V the spread of the fitted wave means, so "
-                           "the POOLED indicator variance is exactly 1). Either way the "
-                           "loading-residual ridge is removed and Heywood configurations have "
-                           "zero prior mass."
+                           "Indicator communality; the share of a standardised test's variance explained by its domain factor, with the loading / residual pair derived from c under the family's unit-variance budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) in the longitudinal CFA (V the spread of the fitted wave means, so the POOLED indicator variance is exactly 1). Either way the loading-residual ridge is removed and Heywood configurations have zero prior mass."
                        ),
                    )
             lam = pm.Deterministic("lambda_load", pt.sqrt(comm), dims="indicator")
@@ -448,9 +426,7 @@ def build_correlated_factor_model(
                        pm.Normal("factor_z", 0.0, 1.0, dims=("obs_id", "domain")),
                        role="nuisance",
                        rationale=(
-                           "Non-centred standard-normal per-observation, per-domain factor "
-                           "scores (Normal(0, 1)); the latent domain scores the loadings map "
-                           "onto each standardised indicator."
+                           'Non-centred standard-normal per-observation, per-domain factor scores; the latent domain scores the loadings map onto each standardised indicator.'
                        ),
                    )
         factors = pm.Deterministic(
@@ -470,29 +446,11 @@ def build_correlated_factor_model(
             predictor_slope_sigma if focal_slope_sigma is None else focal_slope_sigma
         )
         if structural_factors is None:
-            beta_factor = _priors.declare(
-                              pm.Normal(
-                                              "beta_factor", 0.0, _focal_sigma, dims="domain"
-                                          ),
-                              role="association",
-                              panel="predictor_slope",
-                              rationale=(
-                                  "Standardised predictor slope ~ Normal(0, 0.3) by default."
-                              ),
-                          )
+            beta_factor = _priors.predictor_slope_prior(sigma=_focal_sigma).to_pymc('beta_factor', dims='domain', role='association', rationale='Standardised predictor slope.')
             struct = pm.math.dot(factors, beta_factor)
         else:
             _sidx = [domain_names.index(d) for d in structural_factors]
-            beta_factor = _priors.declare(
-                              pm.Normal(
-                                              "beta_factor", 0.0, _focal_sigma, dims="struct_domain"
-                                          ),
-                              role="association",
-                              panel="predictor_slope",
-                              rationale=(
-                                  "Standardised predictor slope ~ Normal(0, 0.3) by default."
-                              ),
-                          )
+            beta_factor = _priors.predictor_slope_prior(sigma=_focal_sigma).to_pymc('beta_factor', dims='struct_domain', role='association', rationale='Standardised predictor slope.')
             struct = pm.math.dot(factors[:, _sidx], beta_factor)
         eta = alpha + gamma_own * own_pre_d + struct
 
@@ -501,9 +459,7 @@ def build_correlated_factor_model(
             # effect here) on the association-scale predictor_slope prior — mirrors the
             # mech-058 adjustment set for the errors-in-variables mechanism (#228 item 14).
             G_d = pm.Data("G", np.asarray(prepared.G, dtype=float), dims="obs_id")
-            beta_G = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                "beta_G"
-            )
+            beta_G = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc('beta_G', role='association', rationale='Randomised arm entered as a backdoor adjustment in an association model; not the available-case modified ITT estimate.')
             eta = eta + beta_G * G_d
 
         if use_age:
@@ -520,9 +476,7 @@ def build_correlated_factor_model(
             x_d = pm.Data(
                 f"x_{c}", np.asarray(prepared.covariates[c], dtype=float), dims="obs_id"
             )
-            beta_c = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                f"beta_{c}"
-            )
+            beta_c = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f'beta_{c}', **_priors.adjustment_metadata(c))
             eta = eta + beta_c * x_d
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
@@ -649,16 +603,7 @@ def build_rlm_corr_factor_model(
         # The environment's ``LKJCorr`` returns the CHOLESKY FACTOR L, not R, so
         # R = L @ L.T. A single-domain model has no free correlation at all.
         if D > 1:
-            factor_chol = _priors.declare(
-                              pm.LKJCorr("factor_corr_chol", n=D, eta=lkj_eta),
-                              role="association",
-                              rationale=(
-                                  "LKJ prior on the Cholesky factor of the cross-domain factor "
-                                  "correlation (LKJCorr(eta)); R = chol @ chol.T is the reported "
-                                  "between-domain correlation this measurement model exists to "
-                                  "estimate."
-                              ),
-                          )
+            factor_chol = _priors.declare(pm.LKJCorr('factor_corr_chol', n=D, eta=lkj_eta), role='association', rationale='LKJ prior on the domain-factor correlation matrix. Its off-diagonals are the reported latent domain associations.')
             corr = pm.Deterministic(
                 "factor_corr", factor_chol @ factor_chol.T, dims=("domain", "domain_b")
             )
@@ -684,15 +629,7 @@ def build_rlm_corr_factor_model(
                                 ),
                         role="association",
                         rationale=(
-                            "Indicator communality (Beta(2, 2)); the share of a standardised "
-                            "test's variance explained by its domain factor, with the loading / "
-                            "residual pair derived from c under the family's unit-variance "
-                            "budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally "
-                            "standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) "
-                            "in the longitudinal CFA (V the spread of the fitted wave means, so "
-                            "the POOLED indicator variance is exactly 1). Either way the "
-                            "loading-residual ridge is removed and Heywood configurations have "
-                            "zero prior mass."
+                            "Indicator communality; the share of a standardised test's variance explained by its domain factor, with the loading / residual pair derived from c under the family's unit-variance budget: lambda**2 + sigma**2 = 1 exactly for cross-sectionally standardised indicators, and lambda**2 + sigma**2 = 1 / (1 + c V) in the longitudinal CFA (V the spread of the fitted wave means, so the POOLED indicator variance is exactly 1). Either way the loading-residual ridge is removed and Heywood configurations have zero prior mass."
                         ),
                     )
         lam_free = pm.Deterministic(

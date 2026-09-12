@@ -265,7 +265,7 @@ def test_itt_contrast_backfill_preserves_the_registered_score_mean_link(
 
     monkeypatch.setattr(module, "write_predicted_scores_artifacts", predicted)
     monkeypatch.setattr(module, "write_arm_overlap_artifacts", overlap)
-    monkeypatch.setattr(module._report, "_itt_ame_draws", ame)
+    monkeypatch.setattr(module._itt_summary, "_itt_ame_draws", ame)
     monkeypatch.setattr(module, "write_rope_figures", lambda *_args, **_kwargs: None)
 
     assert module._regenerate_one(fit_dir).startswith("ok")

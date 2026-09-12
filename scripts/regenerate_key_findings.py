@@ -25,9 +25,7 @@ from types import SimpleNamespace
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.reporting import (
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import generate_key_findings
 from language_reading_predictors.statistical_models.release import (
     evaluate_publication,
     write_release_decision,

@@ -18,9 +18,7 @@ from language_reading_predictors.statistical_models.blending_sensitivity import 
     BLENDING_SENSITIVITY_FILENAME,
     build_blending_link_sensitivity,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import generate_key_findings
 
 
 def _parser() -> argparse.ArgumentParser:

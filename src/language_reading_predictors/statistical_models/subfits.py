@@ -614,9 +614,7 @@ def run_subfit(
             )
         import arviz as az
 
-        from language_reading_predictors.statistical_models.reporting import (
-            require_reuse_compatibility,
-        )
+        from language_reading_predictors.statistical_models.run_metadata import require_reuse_compatibility
 
         source = getattr(ctx, "final_output_dir", None) if reuse == "1" else reuse
         if source is None:

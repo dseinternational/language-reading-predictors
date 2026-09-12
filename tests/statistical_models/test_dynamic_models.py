@@ -18,9 +18,7 @@ import pymc as pm
 import pytest
 
 from language_reading_predictors.data_variables import Variables as V
-from language_reading_predictors.statistical_models.factories import (
-    build_lcsm_model,
-)
+from language_reading_predictors.statistical_models.factories.lcsm import build_lcsm_model
 from language_reading_predictors.statistical_models.preprocessing import load_wave_panel
 
 

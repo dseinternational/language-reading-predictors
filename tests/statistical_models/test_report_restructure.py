@@ -281,6 +281,9 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(tmp_path / ".local")
+        env["APPDATA"] = str(tmp_path / ".config")
     env["PYTHONPATH"] = os.pathsep.join(
         filter(
             None,
@@ -404,6 +407,9 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(tmp_path / ".local")
+        env["APPDATA"] = str(tmp_path / ".config")
     env["PYTHONPATH"] = os.pathsep.join(
         filter(
             None,
@@ -450,6 +456,9 @@ def _render_report_fixture(tmp_path):
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(tmp_path / ".local")
+        env["APPDATA"] = str(tmp_path / ".config")
     env["PYTHONPATH"] = os.pathsep.join(
         filter(None, (str(REPO / "src"), str(REPO), env.get("PYTHONPATH")))
     )

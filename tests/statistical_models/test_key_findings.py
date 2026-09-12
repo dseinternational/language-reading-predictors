@@ -19,15 +19,25 @@ import pytest
 
 from language_reading_predictors.statistical_models import release as _release
 from language_reading_predictors.statistical_models.definitions import KINDS
-from language_reading_predictors.statistical_models.reporting import (
-    KEY_FINDINGS_FILENAME,
-    KEY_FINDINGS_MAX_SENTENCES,
-    _KF_BUILDERS,
-    convergence_gate_badge_markdown,
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.convergence import convergence_gate_badge_markdown
+from language_reading_predictors.statistical_models.key_findings import KEY_FINDINGS_FILENAME, KEY_FINDINGS_MAX_SENTENCES, _KF_BUILDERS, generate_key_findings
 
 REPO = Path(__file__).resolve().parents[2]
+
+
+def test_survival_without_a_treatment_term_reports_a_covariate_association(tmp_path):
+    from language_reading_predictors.statistical_models.findings.survival import _kf_build_survival
+
+    pd.DataFrame([
+        {"term": "gamma_A", "median": 0.2, "ci_low": -0.1, "ci_high": 0.5, "P(>0)": 0.85}
+    ]).to_csv(tmp_path / "survival_summary.csv", index=False)
+    sentences = _kf_build_survival(
+        tmp_path, {"resolved_run_plan": {"treatment_window": "randomised"}}
+    )
+    text = " ".join(str(sentence) for sentence in sentences)
+    assert "adjusted association" in text
+    assert "contains no assignment contrast" in text
+    assert "in the randomised first interval" not in text
 
 
 def _write_json(d: Path, name: str, payload: dict) -> None:
@@ -2447,9 +2457,7 @@ def test_joint_mechanism_release_withholds_when_a_published_wave_failed(tmp_path
 
 def test_joint_mechanism_builder_still_excludes_a_flagged_wave(tmp_path):
     """The builder keeps its own filter as a second line, below the release gate."""
-    from language_reading_predictors.statistical_models.reporting import (
-        _kf_build_joint_mechanism,
-    )
+    from language_reading_predictors.statistical_models.findings.joint_mechanism import _kf_build_joint_mechanism
 
     d, _ = _remaining_family_case(tmp_path, "joint_mechanism")
     _write_rows(d, "joint_mechanism_slopes.csv", _jm_slope_rows_fixture(False))
@@ -4022,4 +4030,3 @@ def test_results_factors_partial_gates_the_blending_link_pair():
     assert "evaluate_level_blending_link_pair" in text
     assert "_scientific_results_released = False" in text
     assert "one-in-three guessing floor" in text
-

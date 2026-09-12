@@ -13,7 +13,6 @@ measurement, mediator-leg, ...) fails here until it is documented in ``priors.py
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -22,34 +21,24 @@ import pytest
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import priors
 from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
-from language_reading_predictors.statistical_models.factories import (
-    build_adjusted_model,
-    build_aligned_model,
-    build_correlated_factor_model,
-    build_did_model,
-    build_dose_response_model,
-    build_gain_factors_model,
-    build_growth_model,
-    build_historical_growth_model,
-    build_itt_model,
-    build_joint_mechanism_model,
-    build_joint_model,
-    build_lcsm_model,
-    build_level_factors_model,
-    build_longitudinal_corr_factor_model,
-    build_mechanism_model,
-    build_mediation_model,
-    build_rlm_adjusted_model,
-    build_rlm_concurrent_model,
-    build_rlm_horseshoe_model,
-    build_rlm_joint_growth_model,
-    build_rlm_transition_adjusted_model,
-    build_period_stacked_mediation_model,
-    build_two_mediator_model,
-)
-from language_reading_predictors.statistical_models.prior_artifacts import (
-    _prior_table_overrides,
-)
+from language_reading_predictors.statistical_models.factories.adjusted import build_adjusted_model, build_rlm_adjusted_model, build_rlm_transition_adjusted_model
+from language_reading_predictors.statistical_models.factories.aligned import build_aligned_model
+from language_reading_predictors.statistical_models.factories.concurrent import build_rlm_concurrent_model
+from language_reading_predictors.statistical_models.factories.corr_factor import build_correlated_factor_model
+from language_reading_predictors.statistical_models.factories.did import build_did_model
+from language_reading_predictors.statistical_models.factories.dose_response import build_dose_response_model
+from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
+from language_reading_predictors.statistical_models.factories.growth import build_growth_model
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model, build_rlm_joint_growth_model
+from language_reading_predictors.statistical_models.factories.horseshoe import build_rlm_horseshoe_model
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
+from language_reading_predictors.statistical_models.factories.joint import build_joint_model
+from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
+from language_reading_predictors.statistical_models.factories.lcsm import build_lcsm_model
+from language_reading_predictors.statistical_models.factories.level_factors import build_level_factors_model
+from language_reading_predictors.statistical_models.factories.long_corr_factor import build_longitudinal_corr_factor_model
+from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
+from language_reading_predictors.statistical_models.factories.mediation import build_mediation_model, build_period_stacked_mediation_model, build_two_mediator_model
 from language_reading_predictors.statistical_models.measures import (
     ITT_OUTCOMES,
     MEASURES,
@@ -416,8 +405,8 @@ def test_every_family_prior_is_documented(built_models):
                 problems.append(f"{fam}:{row['parameter']} distribution={row['distribution']!r}")
             if row["role"] == "other":
                 problems.append(f"{fam}:{row['parameter']} role='other'")
-            if row["panel"] and row["panel"] not in priors.ALL_PRIORS:
-                problems.append(f"{fam}:{row['parameter']} panel={row['panel']!r} not in ALL_PRIORS")
+            if row["panel"] and row["panel"] not in priors.model_prior_panels(model):
+                problems.append(f"{fam}:{row['parameter']} panel={row['panel']!r} has no recorded density")
     assert not problems, "Undocumented priors:\n" + "\n".join(problems)
 
 
@@ -510,7 +499,7 @@ def test_used_panels_exist_for_every_family(built_models):
     """``used_prior_keys`` returns only real panel keys (feeds panel pruning)."""
     for fam, model in built_models.items():
         keys = priors.used_prior_keys(model)
-        assert all(k in priors.ALL_PRIORS for k in keys), fam
+        assert all(k in priors.model_prior_panels(model) for k in keys), fam
         assert len(keys) == len(set(keys)), f"{fam}: duplicate panel keys"
 
 
@@ -585,75 +574,18 @@ def test_dist_from_rv_normalisation():
 # ---------------------------------------------------------------------------
 
 
-def _labelled(model, *, kind, extra=None, outcome_symbol="W"):
-    """priors_table with the per-kind ``_prior_table_overrides`` applied, keyed by
-    parameter name (mirrors what the pipeline writes to ``priors_table.csv``)."""
-    if kind == "itt":
-        from language_reading_predictors.statistical_models.context import ModelSpec
-        from language_reading_predictors.statistical_models.itt import (
-            resolve_itt_run_plan,
-        )
-
-        # ``adjustment`` mirrors the legacy ``extra["adjust_for"]``: resolution
-        # requires the two to agree (2026-08-22 ITT audit, finding 9).
-        spec = ModelSpec(
-            model_id="lrp-test-itt-prior",
-            kind="itt",
-            title="t",
-            outcome_symbol=outcome_symbol,
-            adjustment=list((extra or {}).get("adjust_for", ()) or ()),
-            extra=extra or {},
-        )
-        ctx = SimpleNamespace(
-            spec=spec,
-            resolved_plan=resolve_itt_run_plan(spec),
-            model=model,
-        )
-    elif kind == "mechanism":
-        # The mechanism branch reads its lengthscale constructor off the resolved
-        # run plan rather than the RV-name suffix (#586 finding 3), so the fixture
-        # must hand it a real spec + plan the way the pipeline does.
-        from language_reading_predictors.statistical_models.context import ModelSpec
-        from language_reading_predictors.statistical_models.mechanism import (
-            resolve_mechanism_run_plan,
-        )
-
-        _extra = dict(extra or {})
-        baseline = _extra.get("adjust_baseline_symbol", "W")
-        spec = ModelSpec(
-            model_id="lrp-test-mech-prior",
-            kind="mechanism",
-            title="t",
-            outcome_symbol=outcome_symbol,
-            mechanism_symbol=_extra.pop("_mechanism_symbol", "L"),
-            adjustment=["G", "A", f"{baseline}_pre"],
-            extra=_extra,
-        )
-        ctx = SimpleNamespace(
-            spec=spec,
-            resolved_plan=resolve_mechanism_run_plan(spec),
-            model=model,
-        )
-    else:
-        spec = SimpleNamespace(kind=kind, extra=extra or {}, outcome_symbol=outcome_symbol)
-        ctx = SimpleNamespace(spec=spec, model=model)
-    ctor, role, rationale = _prior_table_overrides(ctx)
-    table = priors.priors_table(
-        model,
-        ctor_overrides=ctor,
-        role_overrides=role,
-        rationale_overrides=rationale,
-    )
-    return {r["parameter"]: r for _, r in table.iterrows()}
+def _labelled(model):
+    """The rows production writes, indexed by parameter for assertions."""
+    return priors.priors_table(model).set_index("parameter").to_dict("index")
 
 
 def test_corr_factor_beta_G_is_association_not_causal(built_models):
     """mm-002's arm covariate beta_G shipped as role=causal + 'Treatment effect
     tau' — it is a mech-058 backdoor covariate, an adjusted association."""
-    by = _labelled(built_models["corr_factor_group"], kind="corr_factor")
+    by = _labelled(built_models['corr_factor_group'])
     assert by["beta_G"]["role"] == "association"
     assert by["beta_G"]["panel"] == "predictor_slope"
-    assert "mech-058" in by["beta_G"]["rationale"]
+    assert "backdoor adjustment" in by["beta_G"]["rationale"]
     assert "Treatment effect tau" not in by["beta_G"]["rationale"]
     # factor_corr_chol is an association: its off-diagonals are the reported
     # factor-correlation matrix (the ``factor_corr_pairs`` deterministic), consistent
@@ -669,30 +601,28 @@ def test_joint_mechanism_group_terms_and_dependence_blocks(built_models):
     when the fitted prior differed, and the LKJ blocks dropped to role='other' —
     none catchable while the family was absent from this fixture (2026-08-21
     joint-mechanism review, finding 5)."""
-    trans = _labelled(
-        built_models["joint_mechanism_transition"], kind="joint_mechanism"
-    )
+    trans = _labelled(built_models['joint_mechanism_transition'])
     assert trans["beta_G"]["role"] == "association"
     assert "Treatment effect tau" not in trans["beta_G"]["rationale"]
-    assert "mech-096" in trans["beta_G"]["rationale"]
+    assert "adjustment beside the mechanism slopes" in trans["beta_G"]["rationale"]
     for name in ("u_child_chol", "u_child_z"):
         assert trans[name]["role"] == "nuisance"
         assert trans[name]["rationale"].strip()
 
-    levels = _labelled(built_models["joint_mechanism_levels"], kind="joint_mechanism")
+    levels = _labelled(built_models['joint_mechanism_levels'])
     row = levels["beta_group_nuisance"]
     assert row["role"] == "nuisance"
     # The distribution is read off the built RV, never the inline record's
     # hard-coded default (which silently misreported a differing fitted prior).
     assert row["distribution"] == "Normal(0, 1)"
-    assert "ca-010" in row["rationale"]
+    assert "arm composition at the wave" in row["rationale"]
     for name in ("u_resid_chol", "u_resid_z"):
         assert levels[name]["role"] == "nuisance"
         assert levels[name]["rationale"].strip()
 
 
 def test_mechanism_beta_G_and_ell_rationales(built_models):
-    by = _labelled(built_models["mechanism"], kind="mechanism")
+    by = _labelled(built_models['mechanism'])
     assert by["beta_G"]["role"] == "association"
     assert "backdoor" in by["beta_G"]["rationale"]
     assert "Treatment effect tau" not in by["beta_G"]["rationale"]
@@ -734,8 +664,7 @@ def test_mechanism_lengthscale_panel_matches_the_fitted_rv(
     reports displayed a density their model never fitted, and the 16 tight fits
     contradicted their own row.
     """
-    by = _labelled(built_models[fixture], kind="mechanism", extra=extra,
-                   outcome_symbol=outcome)
+    by = _labelled(built_models[fixture])
     rows = [r for n, r in by.items() if n.endswith("__ell")]
     assert rows, f"{fixture}: mechanism HSGP lengthscale row missing"
     for row in rows:
@@ -743,8 +672,9 @@ def test_mechanism_lengthscale_panel_matches_the_fitted_rv(
         assert expected in row["rationale"]
         # ``panel`` is the constructor key ``save_shared_prior_panel`` plots, so
         # reconciling it with the RV closes the last leg of the loop.
-        panel_ctor = priors.ALL_PRIORS[row["panel"]]
-        assert priors._dist_from_doc(panel_ctor) == expected
+        density = priors.model_prior_panels(built_models[fixture])[row["panel"]]
+        assert type(density).__name__ == "InverseGamma"
+        assert f"InverseGamma({float(density.alpha):g}, {float(density.beta):g})" == expected
 
 
 def test_linear_mechanism_registers_no_lengthscale(built_models):
@@ -753,18 +683,13 @@ def test_linear_mechanism_registers_no_lengthscale(built_models):
     21 of the 41 registered mechanism specifications are linear; the shared report
     nonetheless described every one of them as an HSGP curve (#586 finding 3).
     """
-    by = _labelled(
-        built_models["mechanism_linear"],
-        kind="mechanism",
-        extra={"linear_mechanism": True, "outcomes": ("W", "L", "B")},
-        outcome_symbol="B",
-    )
+    by = _labelled(built_models['mechanism_linear'])
     assert not [n for n in by if n.endswith("__ell") or n.endswith("__eta")]
     assert "beta_mech" in by
 
 
 def test_aligned_beta_cohort_is_not_a_treatment_effect(built_models):
-    by = _labelled(built_models["aligned"], kind="aligned")
+    by = _labelled(built_models['aligned'])
     assert by["beta_cohort"]["role"] == "association"
     assert "per-protocol" in by["beta_cohort"]["rationale"].lower()
     assert "Treatment effect tau" not in by["beta_cohort"]["rationale"]
@@ -772,7 +697,7 @@ def test_aligned_beta_cohort_is_not_a_treatment_effect(built_models):
 
 def test_dose_arm_presence_and_mu_dose_rationales(built_models):
     """#587: arm is post-crossover only and presence is its own labelled term."""
-    by = _labelled(built_models["dose_response"], kind="dose_response")
+    by = _labelled(built_models['dose_response'])
     assert "beta_G" not in by, "the family-wide arm term was replaced by beta_arm_late"
 
     assert by["beta_arm_late"]["role"] == "association"
@@ -791,9 +716,9 @@ def test_dose_arm_presence_and_mu_dose_rationales(built_models):
 
 
 def test_growth_interaction_and_tempo_loading(built_models):
-    by = _labelled(built_models["growth"], kind="growth")
+    by = _labelled(built_models['growth'])
     assert by["gamma_int"]["role"] == "association"
-    assert "age x ability interaction" in by["gamma_int"]["rationale"]
+    assert "age by ability interaction" in by["gamma_int"]["rationale"]
     assert "age main effect" in by["gamma_age"]["rationale"]
     # ``loading`` must not inherit the CFA test->domain measurement-loading text.
     assert "growth-tempo factor" in by["loading"]["rationale"]
@@ -802,68 +727,28 @@ def test_growth_interaction_and_tempo_loading(built_models):
 
 
 
-def test_itt_adjust_covariate_and_ses_are_precision(built_models):
-    by = _labelled(
-        built_models["itt_adjusted"],
-        kind="itt",
-        extra={"adjust_for": ("blocks",)},
-        outcome_symbol="R",
-    )
-    assert by["gamma_blocks"]["role"] == "precision"
-    assert "cannot confound" in by["gamma_blocks"]["rationale"]
-    # SES covariates are precision too (#384 review, Frank): pre-randomisation and
-    # balanced across arms in expectation, so they cannot confound tau and only
-    # sharpen it — the identical causal status to blocks/area, documented in the
-    # LRPITT13/113 module docstrings so the role is quoted, not inferred.
-    from language_reading_predictors.statistical_models.context import ModelSpec
-    from language_reading_predictors.statistical_models.itt import resolve_itt_run_plan
-
-    spec = ModelSpec(
-        model_id="lrp-test-itt-ses-prior",
-        kind="itt",
-        title="t",
-        # Mirrors ``adjust_for``, which resolution requires (2026-08-22 ITT
-        # audit, finding 9).
-        adjustment=["mumedupost16"],
-        extra={"adjust_for": ("mumedupost16",)},
-        outcome_symbol="R",
-    )
-    _, role, rationale = _prior_table_overrides(
-        SimpleNamespace(
-            spec=spec,
-            resolved_plan=resolve_itt_run_plan(spec),
-            model=SimpleNamespace(free_RVs=[]),
-        )
-    )
-    assert role["gamma_mumedupost16"] == "precision"
-    assert "cannot confound" in rationale["gamma_mumedupost16"]
+def test_itt_adjust_covariate_and_ses_are_precision(tmp_path):
+    prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt",
+                                covariates=("blocks", "mumedupost16"))
+    model = build_itt_model(prepared, outcome_symbol="R", cross_symbols=(),
+                            adjust_for=("blocks", "mumedupost16")).model
+    rows = _labelled(model)
+    for name in ("gamma_blocks", "gamma_mumedupost16"):
+        assert rows[name]["role"] == "precision"
+        assert "Pre-randomisation" in rows[name]["rationale"]
 
 
 def test_missing_indicator_coefficients_are_nuisance():
-    """beta/gamma missing indicators are subgroup mean-offsets under the
-    missing-indicator method, confounded with the fill value and uninterpretable as
-    an effect, so they are nuisance (not predictor-slope associations) in every
-    family that carries them (currently adjusted LRP65 and correlated-factor mm-002;
-    #384 review, Frank)."""
-    cases = (
-        ("adjusted", "beta_hs_missing"),
-        ("corr_factor", "beta_hs_missing"),
-        ("concurrent", "gamma_hs_missing"),
-    )
-    for kind, name in cases:
-        spec = SimpleNamespace(kind=kind, extra={}, outcome_symbol="W")
-        _, role, rationale = _prior_table_overrides(
-            SimpleNamespace(
-                spec=spec,
-                model=SimpleNamespace(free_RVs=[SimpleNamespace(name=name)]),
-            )
-        )
-        assert role[name] == "nuisance"
-        assert "missing-indicator" in rationale[name].lower()
+    import pymc as pm
+    with pm.Model() as model:
+        priors.predictor_slope_prior().to_pymc("arbitrary_name", **priors.adjustment_metadata("hs_missing"))
+    row = _labelled(model)["arbitrary_name"]
+    assert row["role"] == "nuisance"
+    assert "fill value" in row["rationale"]
 
 
 def test_mediation_paths_and_confounders(built_models):
-    by = _labelled(built_models["mediation"], kind="mediation")
+    by = _labelled(built_models['mediation'])
     assert by["a_G"]["role"] == "association" and "a-path" in by["a_G"]["rationale"]
     assert "direct-path" in by["b_G"]["rationale"]
     assert "Treatment effect tau" not in by["a_G"]["rationale"]
@@ -877,24 +762,19 @@ def test_mediation_paths_and_confounders(built_models):
 
 
 def test_two_mediator_second_a_path_documented(built_models):
-    by = _labelled(built_models["mediation_multi_conf"], kind="mediation_multi")
+    by = _labelled(built_models['mediation_multi_conf'])
     # aB_G was role 'other' with an empty rationale before the #384 fix.
     assert by["aB_G"]["role"] == "association"
-    assert "a-path" in by["aB_G"]["rationale"]
+    assert "Group-to-mediator" in by["aB_G"]["rationale"]
     # E is a confounder in this (L, B) two-mediator model, so b_E reroutes.
     assert by["b_E"]["panel"] == "gamma_cross"
 
 
-def test_block_exposure_and_survival_terms_are_not_causal():
-    """The new block_exposure/survival branches demote the reused causal
-    constructor to an association (the modules declare no randomised effect)."""
-    for kind, name in (("block_exposure", "delta"), ("survival", "tau")):
-        spec = SimpleNamespace(kind=kind, extra={}, outcome_symbol="W")
-        _, role, rationale = _prior_table_overrides(
-            SimpleNamespace(spec=spec, model=SimpleNamespace(free_RVs=[]))
-        )
-        assert role[name] == "association"
-        assert rationale[name].strip()
+def test_block_exposure_prior_is_an_association(tmp_path):
+    from language_reading_predictors.statistical_models.factories.block_exposure import build_block_exposure_model
+    prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="levels")
+    model = build_block_exposure_model(prepared, outcome_symbol="W").model
+    assert _labelled(model)["delta"]["role"] == "association"
 
 
 
@@ -947,3 +827,43 @@ def test_the_external_table_is_small_and_reasoned():
     for role, rationale in priors.EXTERNAL_PRIORS.values():
         assert role in {"causal", "precision", "association", "nuisance", "gp"}
         assert "dse_research_utils" in rationale
+
+
+def test_level_factor_prior_roles_are_declared_in_the_built_model(tmp_path):
+    prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="levels")
+    rows = _labelled(build_level_factors_model(prepared, outcome_symbol="W", group_ability=False).model)
+    assert rows["arm_gap_t1"]["role"] == "nuisance"
+    assert rows["d_grp_time"]["role"] == "regime"
+    assert "t3/t4" in rows["d_grp_time"]["rationale"]
+    assert "schedule" in rows["d_grp_time"]["rationale"]
+    assert "b_grp_time" not in rows
+    comparator = build_level_factors_model(prepared, outcome_symbol="W", arm_gap_reference="free", group_ability=False)
+    assert _labelled(comparator.model)["b_grp_time"]["role"] == "association"
+
+
+def test_gain_factor_moderation_prior_role_matches_its_design(tmp_path):
+    prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="all")
+    primary = build_gain_factors_model(prepared, outcome_symbol="W")
+    variant = build_gain_factors_model(prepared, outcome_symbol="W", interactions=(("trt", "own"),))
+    assert _labelled(primary.model)["beta_trt"]["role"] == "causal"
+    row = _labelled(variant.model)["beta_trt"]
+    assert row["role"] == "association"
+    assert "interaction-free primary" in row["rationale"]
+
+
+def test_pooled_level_priors_describe_adjusters_and_exposure_units(tmp_path):
+    from language_reading_predictors.statistical_models.pooled_levels import build_pooled_levels_model
+    prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="levels", outcomes=("W", "L", "TR"))
+    prepared.covariates.update(hs=np.linspace(-1,1,prepared.n_obs), hs_missing=np.zeros(prepared.n_obs), blocks=np.linspace(-2,2,prepared.n_obs))
+    for raw in (False, True):
+        model = build_pooled_levels_model(prepared, outcome_symbol="W", mechanism_symbol="blocks" if raw else "L", mechanism_is_covariate=raw, skill_symbols=("TR",)).model
+        rows = _labelled(model)
+        assert "causal" not in {row["role"] for row in rows.values()}
+        assert rows["beta_G"]["role"] == "association"
+        assert rows["alpha_wave"]["role"] == "nuisance"
+        assert rows["gamma_hs_missing"]["role"] == "nuisance"
+        assert rows["gamma_hs"]["role"] == "association"
+        assert rows["gamma_TR"]["role"] == "association"
+        assert rows["gamma_TR"]["panel"] == "gamma_cross"
+        assert "Same-wave" in rows["gamma_TR"]["rationale"]
+        assert ("raw score" if raw else "logit") in rows["beta_between"]["rationale"]

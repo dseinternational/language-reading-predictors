@@ -81,9 +81,7 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    BuiltModel,
-)
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import EmptyPayload
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -632,7 +630,7 @@ def build_survival_model(
 
         # Baseline (prognostic) covariate slopes — associations, weakly regularised.
         for name in panel.covariates:
-            beta = _priors.predictor_slope_prior().to_pymc(f"beta_{name}")
+            beta = _priors.predictor_slope_prior().to_pymc(f'beta_{name}', **_priors.adjustment_metadata(name))
             eta = eta + beta * cov_d[name]
 
         # Treatment hazard term (the available-case modified-ITT randomised-window
@@ -641,7 +639,7 @@ def build_survival_model(
         # interval (where treated == G); the pooled comparator keeps the legacy
         # all-interval shift.
         if use_treatment:
-            tau = _priors.tau_prior().to_pymc("tau")
+            tau = _priors.tau_prior().to_pymc('tau', role='association', rationale='Available-case modified-ITT assignment contrast in the randomised first interval among children at floor at baseline; qualified by availability and the hazard model. No causal headline is released.' if treatment_window == 'randomised' else 'Treatment hazard association pooled across all intervals, including the post-crossover periods. No causal headline is released.')
             trt_term = treated_d
             if treatment_window == "randomised":
                 trt_term = treated_d * pt.eq(interval_d, 0)

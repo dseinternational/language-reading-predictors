@@ -12,6 +12,9 @@ declaration so stale prose fails in CI rather than in review.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import gain_factors as _gain_factors_factory
+
+
 import json
 from pathlib import Path
 
@@ -140,7 +143,7 @@ def test_gf_012_and_013_declare_their_descriptive_skills():
 
 @pytest.fixture(scope="module")
 def _built_gf_005():
-    from language_reading_predictors.statistical_models import factories
+
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -148,7 +151,7 @@ def _built_gf_005():
     plan = _plan_for("lrp-rli-gf-005")
     prepared = load_and_prepare(**plan.prepare_kwargs())
     adjust = tuple(c for c in plan.adjust_for if c in prepared.covariates)
-    return factories.build_gain_factors_model(
+    return _gain_factors_factory.build_gain_factors_model(
         prepared, **plan.factory_kwargs(effective_adjustment=adjust)
     )
 
@@ -175,7 +178,7 @@ def test_period_arm_support_is_recorded_per_cell(_built_gf_005):
 
 
 def test_causal_fit_requires_both_arms_in_period_1():
-    from language_reading_predictors.statistical_models import factories
+
     from language_reading_predictors.statistical_models.preprocessing import (
         _subset_prepared,
         load_and_prepare,
@@ -187,13 +190,13 @@ def test_causal_fit_requires_both_arms_in_period_1():
         prepared, ~((np.asarray(prepared.G) == 0) & (np.asarray(prepared.phase) == 0))
     )
     with pytest.raises(ValueError, match="both randomised arms"):
-        factories.build_gain_factors_model(
+        _gain_factors_factory.build_gain_factors_model(
             one_arm, **plan.factory_kwargs(effective_adjustment=())
         )
 
 
 def test_gain_factory_accepts_the_dispersion_and_own_prior_axes():
-    from language_reading_predictors.statistical_models import factories
+
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -201,7 +204,7 @@ def test_gain_factory_accepts_the_dispersion_and_own_prior_axes():
     plan = _plan_for("lrp-rli-gf-004")
     prepared = load_and_prepare(**plan.prepare_kwargs())
     adjust = tuple(c for c in plan.adjust_for if c in prepared.covariates)
-    built = factories.build_gain_factors_model(
+    built = _gain_factors_factory.build_gain_factors_model(
         prepared,
         **{
             **plan.factory_kwargs(effective_adjustment=adjust),
@@ -309,9 +312,7 @@ def test_evaluate_itt_release_routes_gain_off_floor_fits(tmp_path):
 def test_treatment_marginal_effect_reports_mc_diagnostics():
     import xarray as xr
 
-    from language_reading_predictors.statistical_models.reporting import (
-        treatment_marginal_effect,
-    )
+    from language_reading_predictors.statistical_models.summaries.gain_factors import treatment_marginal_effect
 
     rng = np.random.default_rng(5)
     n_obs, n_draws = 12, 200
@@ -442,7 +443,7 @@ def test_results_factors_partial_guards_and_labels():
 @pytest.fixture(scope="module")
 def _built_gf_004_with_hearing():
     """A fitted GF-004 build whose adjustment set includes hearing (`hs`)."""
-    from language_reading_predictors.statistical_models import factories
+
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -451,7 +452,7 @@ def _built_gf_004_with_hearing():
     prepared = load_and_prepare(**plan.prepare_kwargs())
     adjust = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     assert "hs" in adjust
-    built = factories.build_gain_factors_model(
+    built = _gain_factors_factory.build_gain_factors_model(
         prepared, **plan.factory_kwargs(effective_adjustment=adjust)
     )
     return plan, built, adjust

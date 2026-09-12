@@ -15,14 +15,12 @@ from __future__ import annotations
 import inspect
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar
+from typing import Any, Generic, Iterable, TypeVar
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -101,6 +99,7 @@ def _add_child_random_intercept(
     child_idx: pt.TensorVariable,
     *,
     sigma_prior_sigma: float = 0.5,
+    rationale: str | None = None,
 ) -> pt.TensorVariable:
     """Add a non-centred subject random intercept to ``eta`` (call inside a model).
 
@@ -114,14 +113,13 @@ def _add_child_random_intercept(
     sigma_child = _priors.declare(
         pm.HalfNormal("sigma_child", sigma=sigma_prior_sigma),
         role="nuisance",
-        rationale="Child random-intercept SD sigma_child ~ HalfNormal(0.5).",
+        rationale=rationale or f"Child random-intercept SD sigma_child ~ HalfNormal({sigma_prior_sigma:g}).",
     )
     u_child_raw = _priors.declare(
         pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child"),
         role="nuisance",
         rationale=(
-            "Non-centred standard-normal per-child offsets (Normal(0, 1)); scaled "
-            "by sigma_child to form the child random intercept u_child."
+            'Non-centred standard-normal per-child offsets; scaled by sigma_child to form the child random intercept u_child.'
         ),
     )
     u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
@@ -452,17 +450,14 @@ def _rlm_group_nuisance(frame, eta):
             pm.Normal(f"beta_group_nuisance_{slug}", mu=0.0, sigma=1.0),
             role="nuisance",
             rationale=(
-                "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) "
-                "held outside the horseshoe / adjustment set to absorb cohort "
-                "composition (reference = largest group); never a ranked predictor "
-                "slope or a group-effect estimate."
+                'Non-interpretable group-composition nuisance dummy held outside the horseshoe / adjustment set to absorb cohort composition (reference = largest group); never a ranked predictor slope or a group-effect estimate.'
             ),
         )
         eta = eta + beta_g * d
     return eta
 
 
-def _rlm_dispersion_kappa(dispersion_prior_sigma: float):
+def _rlm_dispersion_kappa(dispersion_prior_sigma: float, *, rationale: str | None = None):
     """``kappa`` on the dispersion scale, as in the RLM historical factories.
 
     ``inv_sqrt_kappa ~ HalfNormal(dispersion_prior_sigma)`` with the Deterministic
@@ -473,7 +468,7 @@ def _rlm_dispersion_kappa(dispersion_prior_sigma: float):
     """
     inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(
         sigma=dispersion_prior_sigma
-    ).to_pymc("inv_sqrt_kappa")
+    ).to_pymc("inv_sqrt_kappa", rationale=rationale)
     return pm.Deterministic("kappa", 1.0 / (inv_sqrt_kappa**2 + 1e-6))
 
 

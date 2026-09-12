@@ -65,7 +65,7 @@ import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.factories import build_itt_model
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.sensitivity import (
     FLOOR_SENSITIVITY_AGE_ADJUSTMENTS,
@@ -428,11 +428,9 @@ def _fit_floor_one(
 ) -> dict:
     """Fit and persist one cell of the floored-outcome release grid."""
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        rope_summary,
-        tau_summary_offfloor,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.itt import tau_summary_offfloor
+    from language_reading_predictors.statistical_models.summaries.rope import rope_summary
 
     _assert_primary_sampling_contract(
         sampling,
@@ -682,10 +680,8 @@ def _fit_one(
     sensitivity_axis: str = "tau_sigma",
 ) -> dict:
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        tau_summary_itt,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.itt import tau_summary_itt
 
     _assert_primary_sampling_contract(
         sampling,

@@ -66,6 +66,10 @@ were unaffected. E's registered models now declare the dispersion-scale prior.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+
+
 import argparse
 import json
 from pathlib import Path
@@ -77,8 +81,8 @@ from rich.console import Console
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import reporting as _report
-from language_reading_predictors.statistical_models.factories import build_itt_model
+
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
 from language_reading_predictors.statistical_models.itt import (
     prepare_itt_data,
     resolve_itt_run_plan,
@@ -162,7 +166,7 @@ def _fit_cell(prepared, symbol, family, sigma, sampling, seed):
 def _row(symbol, family, sigma, built, trace, ci_prob):
     n_trials = MEASURES[symbol].n_trials
     G = np.asarray(built.prepared.G, dtype=float)
-    _tau, ame = _report._itt_ame_draws(trace, G=G)
+    _tau, ame = _itt_summary._itt_ame_draws(trace, G=G)
     kappa = np.asarray(trace.posterior["kappa"].values, dtype=float).ravel()
     inflation = _variance_inflation(kappa, n_trials)
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
@@ -171,7 +175,7 @@ def _row(symbol, family, sigma, built, trace, ci_prob):
     # The suite's own coverage statistic, so a cell is comparable with the
     # ``ppc_summary.csv`` the primary fits publish rather than a hand-rolled
     # variant that could differ in its interval convention.
-    cov = _report.ppc_interval_coverage(trace, node="y_post")
+    cov = _predictive.ppc_interval_coverage(trace, node="y_post")
     by_level = {
         int(round(float(r.level) * 100)): (int(r.n_inside), int(r.n_total))
         for r in cov.itertuples()

@@ -34,6 +34,9 @@ decision.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import mechanism as _mechanism_factory
+
+
 import argparse
 import sys
 from pathlib import Path
@@ -50,7 +53,7 @@ import dse_research_utils.environment.setup as setup  # noqa: E402
 import dse_research_utils.statistics.models.sampling as _sampling  # noqa: E402
 
 from language_reading_predictors import paths  # noqa: E402
-from language_reading_predictors.statistical_models import factories  # noqa: E402
+  # noqa: E402
 from language_reading_predictors.statistical_models.preprocessing import (  # noqa: E402
     load_and_prepare,
     logit_safe,
@@ -97,7 +100,7 @@ def check_model(model_id: str, config: str, spec) -> list[dict[str, Any]]:
     plan = resolve_mechanism_run_plan(spec)
     print(f"{model_id} ({plan.outcome_symbol} moderated by {plan.moderator_symbol})")
     loaded = load_and_prepare(**plan.prepare_kwargs())
-    built = factories.build_mechanism_model(loaded, **plan.factory_kwargs())
+    built = _mechanism_factory.build_mechanism_model(loaded, **plan.factory_kwargs())
     model = built.model
     # The factory drops rows with a missing confounder post-score, so the basis
     # must be built from the rows it actually kept, not from the loaded frame.

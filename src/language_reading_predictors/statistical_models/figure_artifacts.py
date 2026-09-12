@@ -13,6 +13,9 @@ fit. Split out of ``pipeline.py`` for #394.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+
+
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -24,10 +27,7 @@ from dse_research_utils.plot.styles import (
     FIGSIZE_LG,
 )
 
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     record_artifact,
@@ -171,7 +171,7 @@ def save_rope_plot(
         )
 
         if items is None:
-            _, ame_prob = _report._itt_ame_draws(
+            _, ame_prob = _itt_summary._itt_ame_draws(
                 ctx.trace, G=G, term=term, varying_term=varying_term,
                 moderators=moderators, row_mask=row_mask,
                 score_mean_link=score_mean_link,

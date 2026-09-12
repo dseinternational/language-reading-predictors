@@ -29,6 +29,9 @@ note. Honours the output-root override (``DSE_LRP_OUTPUT_DIR`` or
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+
+
 import argparse
 import json
 import shutil
@@ -39,7 +42,7 @@ import numpy as np
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.arm_overlap import (
     write_arm_overlap_artifacts,
 )
@@ -165,7 +168,7 @@ def _regenerate_one(fit_dir: Path) -> str:
 
     # ROPE effect + benefit-curve as individual files. Recompute the items-scale
     # effect draws exactly as figure_artifacts.save_rope_plot does at fit time.
-    _, ame_prob = _report._itt_ame_draws(
+    _, ame_prob = _itt_summary._itt_ame_draws(
         trace, G=G, term="tau", varying_term="" if floored else "tau_i",
         score_mean_link=score_mean_link,
     )

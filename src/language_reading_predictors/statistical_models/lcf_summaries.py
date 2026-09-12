@@ -18,7 +18,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.context import StatisticalFitContext
 from language_reading_predictors.statistical_models.fitted_payloads import (
     FittedPayload,

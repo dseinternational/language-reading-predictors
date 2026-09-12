@@ -287,7 +287,7 @@ def test_two_mediator_cells_match_full_cross_world_enumeration(chain, off_floor)
 
 @pytest.mark.parametrize("likelihood", ["beta_binomial", "bernoulli_offfloor"])
 def test_gain_factory_loo_removes_all_of_each_childs_transitions(tmp_path, likelihood):
-    from language_reading_predictors.statistical_models.factories import build_gain_factors_model
+    from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
     from language_reading_predictors.statistical_models.preprocessing import load_and_prepare
     from .test_factories import _write_synthetic
 
@@ -329,7 +329,8 @@ def test_kfold_saves_reuses_and_binds_each_training_partition(tmp_path, monkeypa
     ctx.model, ctx.prepared = built.model, built.prepared
     ctx.reporting = SimpleNamespace(config_name="reporting", ci_prob=0.89)
     ctx.resolved_plan = None
-    ctx.spec = ModelSpec(model_id="lrp-rli-hg-999", kind="historical_growth", title="K-fold reuse")
+    ctx.spec = ModelSpec(model_id="lrp-rli-hg-999", kind="historical_growth", title="K-fold reuse",
+                         study_id="rlm", outcome_symbol="basread")
     rng = np.random.default_rng(44)
     trace = xr.DataTree.from_dict(
         {
@@ -368,6 +369,7 @@ def test_kfold_saves_reuses_and_binds_each_training_partition(tmp_path, monkeypa
     for name in ("model", "prepared", "reporting", "resolved_plan", "spec", "trace"):
         setattr(new, name, getattr(ctx, name))
     new.final_output_dir = str(source)
+    run_metadata.write_model_recipe(new)
     monkeypatch.setenv("DSE_LRP_REUSE_TRACE", "1")
     monkeypatch.setattr(pm, "sample", lambda **kw: pytest.fail("reuse must not sample"))
     reused = kfold.run_child_kfold(new, plan, split, rebuild)

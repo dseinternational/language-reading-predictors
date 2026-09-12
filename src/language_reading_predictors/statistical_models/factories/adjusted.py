@@ -3,22 +3,17 @@
 
 """Adjusted between-child span model construction, RLI and Byrne cohorts.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -176,9 +171,7 @@ def build_rlm_adjusted_model(
 
         for k in keys:
             x_d = pm.Data(f"x_{k}", frame.predictors[k], dims="obs_id")
-            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                f"beta_{k}"
-            )
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f'beta_{k}', **_priors.adjustment_metadata(k))
             eta = eta + beta * x_d
 
         eta = _rlm_group_nuisance(frame, eta)
@@ -247,10 +240,7 @@ def build_rlm_transition_adjusted_model(
                                        ),
                                role="nuisance",
                                rationale=(
-                                   "Per-transition intercept alpha_transition ~ Normal(0, 1.5), the "
-                                   "proximal-tier intercept scale, one free element per annual "
-                                   "transition; absorbs the mean trajectory between waves and is never "
-                                   "a reported association."
+                                   'Per-transition intercept alpha_transition, the proximal-tier intercept scale, one free element per annual transition; absorbs the mean trajectory between waves and is never a reported association.'
                                ),
                            )
         gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
@@ -264,28 +254,14 @@ def build_rlm_transition_adjusted_model(
                 np.column_stack([frame.predictors[key] for key in keys]),
                 dims=("obs_id", "predictor"),
             )
-            beta_transition = _priors.declare(
-                                  pm.Normal(
-                                                  "beta_transition",
-                                                  mu=0.0,
-                                                  sigma=predictor_slope_sigma,
-                                                  dims=("transition", "predictor"),
-                                              ),
-                                  role="association",
-                                  panel="predictor_slope",
-                                  rationale=(
-                                      "Standardised predictor slope ~ Normal(0, 0.3) by default."
-                                  ),
-                              )
+            beta_transition = _priors.predictor_slope_prior(sigma=predictor_slope_sigma).to_pymc('beta_transition', dims=('transition', 'predictor'), role='association', rationale='Standardised predictor slope.')
             eta_fixed = eta_fixed + pt.sum(
                 X * beta_transition[phase_d], axis=1
             )
         else:
             for key in keys:
                 x_d = pm.Data(f"x_{key}", frame.predictors[key], dims="obs_id")
-                beta = _priors.predictor_slope_prior(
-                    predictor_slope_sigma
-                ).to_pymc(f"beta_{key}")
+                beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f'beta_{key}', **_priors.adjustment_metadata(key))
                 eta_fixed = eta_fixed + beta * x_d
 
         eta_fixed = _rlm_group_nuisance(frame, eta_fixed)

@@ -62,9 +62,7 @@ import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.factories import (
-    build_level_factors_model,
-)
+from language_reading_predictors.statistical_models.factories.level_factors import build_level_factors_model
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.measures import is_distal
 from language_reading_predictors.statistical_models.sensitivity import (
@@ -167,10 +165,8 @@ def _fit_cell(
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        level_t2_marginal_effect,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.level_factors import level_t2_marginal_effect
 
     plan = _resolve_plan(outcome)
     prepared = load_and_prepare(**plan.prepare_kwargs())

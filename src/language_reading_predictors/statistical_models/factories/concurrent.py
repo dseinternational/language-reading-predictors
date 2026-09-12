@@ -3,21 +3,16 @@
 
 """Concurrent (same-wave) association model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -172,10 +167,7 @@ def build_concurrent_model(
                              pm.Normal("beta_group_nuisance", mu=0.0, sigma=1.0),
                              role="nuisance",
                              rationale=(
-                                 "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) "
-                                 "held outside the horseshoe / adjustment set to absorb cohort "
-                                 "composition (reference = largest group); never a ranked predictor "
-                                 "slope or a group-effect estimate."
+                                 'Non-interpretable group-composition nuisance dummy held outside the horseshoe / adjustment set to absorb cohort composition (reference = largest group); never a ranked predictor slope or a group-effect estimate.'
                              ),
                          )
             eta = eta + beta_group * g_d
@@ -190,9 +182,7 @@ def build_concurrent_model(
         for c in covariates:
             cov_vec = np.nan_to_num(np.asarray(prepared.covariates[c], dtype=float))
             cov_d = pm.Data(f"z_{c}", cov_vec, dims="obs_id")
-            gamma = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                f"gamma_{c}"
-            )
+            gamma = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c))
             eta = eta + gamma * cov_d
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
@@ -255,9 +245,7 @@ def build_rlm_concurrent_model(
             predictor = pm.Data(
                 f"z_{key}", np.nan_to_num(z), dims="obs_id"
             )
-            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                f"beta_{key}"
-            )
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(f'beta_{key}', **_priors.adjustment_metadata(key))
             eta = eta + beta * predictor
 
         if include_age:

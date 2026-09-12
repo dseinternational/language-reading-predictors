@@ -3,22 +3,17 @@
 
 """Dose-response model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -287,17 +282,7 @@ def build_dose_response_model(
         # three unconstrained phase indicators is a rank-3 design in four columns, so
         # the nuisance split was prior-identified only. Period 1 is the reference and
         # the later periods carry free deviations from it.
-        alpha_phase_free = _priors.declare(
-                               pm.Normal(
-                                           "alpha_phase_free", mu=0.0, sigma=0.5, dims="phase_later"
-                                       ),
-                               role="nuisance",
-                               rationale=(
-                                   "Reference-coded period intercept deviations from period 1 "
-                                   "(alpha_phase[1] = 0 exactly), so the intercept design has full "
-                                   "rank."
-                               ),
-                           )
+        alpha_phase_free = _priors.declare(pm.Normal('alpha_phase_free', mu=0.0, sigma=0.5, dims='phase_later'), role='nuisance', rationale='Reference-coded period intercept deviations from period 1 (alpha_phase[1] = 0), so the intercept design has full rank (#587 finding 11).')
         alpha_phase = pm.Deterministic(
             "alpha_phase",
             pt.concatenate([pt.zeros(1), alpha_phase_free]),
@@ -310,16 +295,14 @@ def build_dose_response_model(
         # Extensive margin: on the intervention this period versus not. In period 1
         # this is exactly the randomised arm contrast (every immediate-arm child
         # attended, every waitlist child attended zero sessions).
-        theta_treated = _priors.tau_prior(
-            sigma=_tau_sigma_for(outcome_symbol)
-        ).to_pymc("theta_treated")
+        theta_treated = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol)).to_pymc('theta_treated', rationale='On-intervention presence — the extensive margin. Read in period 1 this is the randomised contrast (every immediate-arm child attended, every waitlist child attended none); it is the only randomisation-identified term in this family.')
         eta = eta + theta_treated * treated_d
 
         if adjust_group:
             # Arm enters only from period 2, where both arms are on the intervention
             # and it reads as intervention order / treatment history. In period 1 it
             # would be exactly collinear with ``treated``.
-            beta_arm_late = _priors.gamma_cross_prior().to_pymc("beta_arm_late")
+            beta_arm_late = _priors.gamma_cross_prior().to_pymc('beta_arm_late', role='association', rationale="Assigned-arm (G) backdoor adjustment in the post-crossover periods only, where both arms are on the intervention and arm reads as intervention order; an adjusted association, not the randomised treatment effect. Period 1's arm difference is carried by theta_treated, with which it would be exactly collinear there (#587).")
             eta = eta + beta_arm_late * G_d * late_d
         if adjust_age:
             gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
@@ -334,15 +317,15 @@ def build_dose_response_model(
         # on-intervention rows, so every slope is per 1 SD of *treated* sessions and
         # every untreated row contributes exactly zero here.
         if decompose_between_within:
-            beta_dose_between = _priors.beta_mech_prior().to_pymc("beta_dose_between")
+            beta_dose_between = _priors.beta_mech_prior().to_pymc('beta_dose_between', role='association', rationale="Between-child intensive-margin session association: a child whose study-average attendance is 1 SD higher than another's. Split from the within-child slope Mundlak-style so neither is a blend of the two (#587).")
             eta = eta + beta_dose_between * dose_between_d
             dose_slope_target = dose_within_d
         else:
             dose_slope_target = dose_d
 
         if period_varying_dose:
-            mu_dose = _priors.beta_mech_prior().to_pymc("mu_dose")
-            sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
+            mu_dose = _priors.beta_mech_prior().to_pymc('mu_dose', role='association', rationale="Average (pooled) per-period dose-response slope; outcome-logit change per 1 SD of treated-row sessions — the model's focal adjusted-association estimand, on the intensive margin only.")
+            sigma_dose = _priors.sigma_dose_phase_prior().to_pymc('sigma_dose', role='nuisance')
             beta_dose_phase_raw = _priors.declare(
                                       pm.Normal(
                                                       "beta_dose_phase_raw", mu=0.0, sigma=1.0, dims="phase"
@@ -358,7 +341,7 @@ def build_dose_response_model(
             )
             eta = eta + beta_dose_phase[phase_d] * dose_slope_target
         else:
-            beta_dose = _priors.beta_mech_prior().to_pymc("beta_dose")
+            beta_dose = _priors.beta_mech_prior().to_pymc('beta_dose', role='association', rationale="Single pooled dose-response slope (no period variation); the comparator's focal adjusted-association estimand, not a mechanism slope.")
             eta = eta + beta_dose * dose_slope_target
 
         # Dose-stage control (prior cumulative dose), so a dose-stage effect is

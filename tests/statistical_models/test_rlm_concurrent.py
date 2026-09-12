@@ -14,9 +14,7 @@ from language_reading_predictors.statistical_models.concurrent import (
     resolve_concurrent_run_plan,
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_rlm_concurrent_model,
-)
+from language_reading_predictors.statistical_models.factories.concurrent import build_rlm_concurrent_model
 from language_reading_predictors.statistical_models.lrp_rlm_ca_001 import (
     SPEC as RLM_CA_001,
 )

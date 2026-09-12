@@ -3,22 +3,17 @@
 
 """DAG-focused gain-factor (ANCOVA) model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -360,7 +355,7 @@ def build_gain_factors_model(
                           pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase"),
                           role="nuisance",
                           rationale=(
-                              "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
+                              'Per-phase intercept offset alpha_phase.'
                           ),
                       )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
@@ -391,13 +386,7 @@ def build_gain_factors_model(
             eta = eta + gamma_own_ff * own_ff_d
 
         if include_trt:
-            beta_trt = _priors.tau_prior(
-                sigma=(
-                    _tau_sigma_for(outcome_symbol)
-                    if trt_prior_sigma is None
-                    else float(trt_prior_sigma)
-                )
-            ).to_pymc("beta_trt")
+            beta_trt = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol) if trt_prior_sigma is None else float(trt_prior_sigma)).to_pymc('beta_trt', role='association' if any(('trt' in pair for pair in active_interactions)) else 'causal', rationale='On-intervention contrast in a moderation variant. Combined with treatment interactions, it is a model-dependent association partly informed by post-crossover data. Read the causal headline from the interaction-free primary.' if any(('trt' in pair for pair in active_interactions)) else None)
             eta = eta + beta_trt * trt_d
         if ability_d is not None:
             gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
@@ -410,7 +399,7 @@ def build_gain_factors_model(
         # (erbto). Linear gamma terms, mirroring build_mechanism_model's adjust_for
         # path (#245/#258, #247).
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f'gamma_{c}', **_priors.adjustment_metadata(c))
             eta = eta + gamma_c * adjust_d[c]
         for pair in active_interactions:
             gi = _priors.gamma_cross_prior().to_pymc(f"gamma_int_{pair[0]}_{pair[1]}")

@@ -18,23 +18,20 @@ import pytest
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import mechanism, priors
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_adjusted_model,
-    build_aligned_model,
-    build_block_exposure_model,
-    build_concurrent_model,
-    build_correlated_factor_model,
-    build_did_model,
-    build_dose_response_model,
-    build_gain_factors_model,
-    build_itt_model,
-    build_joint_model,
-    build_level_factors_model,
-    build_longitudinal_corr_factor_model,
-    build_mechanism_model,
-    build_mediation_model,
-    build_two_mediator_model,
-)
+from language_reading_predictors.statistical_models.factories.adjusted import build_adjusted_model
+from language_reading_predictors.statistical_models.factories.aligned import build_aligned_model
+from language_reading_predictors.statistical_models.factories.block_exposure import build_block_exposure_model
+from language_reading_predictors.statistical_models.factories.concurrent import build_concurrent_model
+from language_reading_predictors.statistical_models.factories.corr_factor import build_correlated_factor_model
+from language_reading_predictors.statistical_models.factories.did import build_did_model
+from language_reading_predictors.statistical_models.factories.dose_response import build_dose_response_model
+from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
+from language_reading_predictors.statistical_models.factories.joint import build_joint_model
+from language_reading_predictors.statistical_models.factories.level_factors import build_level_factors_model
+from language_reading_predictors.statistical_models.factories.long_corr_factor import build_longitudinal_corr_factor_model
+from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
+from language_reading_predictors.statistical_models.factories.mediation import build_mediation_model, build_two_mediator_model
 from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
     resolve_itt_run_plan,
@@ -306,9 +303,7 @@ def test_tau_difference_summary_contrast():
     import xarray as xr
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.reporting import (
-        tau_difference_summary,
-    )
+    from language_reading_predictors.statistical_models.summaries.joint import tau_difference_summary
 
     rng = np.random.default_rng(0)
     n_draws = 800
@@ -975,9 +970,7 @@ def test_joint_mechanism_levels_builds_identified_contrasts(tmp_path):
     intercept with a fixed loading of 1 on both logits), the conditional slope built
     from it, and a flattened two-outcome likelihood that prior-samples.
     """
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     sub = _joint_mechanism_levels_subset(tmp_path)
     built = build_joint_mechanism_model(
@@ -1023,9 +1016,7 @@ def test_joint_mechanism_levels_conditional_slope_matches_covariance(tmp_path):
     ``beta_W - rho (sigma_W / sigma_N) beta_N``, and ``share_retained`` its ratio to
     ``beta_W``. Checked against the model's own prior draws so a future refactor
     cannot silently change what the published quantity means."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     sub = _joint_mechanism_levels_subset(tmp_path)
     built = build_joint_mechanism_model(sub, design="levels")
@@ -1055,9 +1046,7 @@ def test_joint_mechanism_transition_uses_bivariate_child_intercept(tmp_path):
     It reports the correlation and Delta but deliberately no share retained: a
     between-child covariance does not answer "holding this child's decoding fixed at
     this wave"."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
@@ -1090,9 +1079,7 @@ def test_joint_mechanism_rejects_mismatched_phase_mode(tmp_path):
     """Each design names the frame it needs, so a levels model can never be built on
     stacked transitions (which would silently make the 'per-wave' estimand a
     multi-row-per-child one)."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
@@ -1109,9 +1096,7 @@ def test_joint_mechanism_rejects_a_duplicate_or_incomplete_contrast(tmp_path):
     and the conditional slope partialled the focal outcome against itself. The typed
     run plans already rejected it, but this is a public factory boundary and must
     enforce the same invariant (2026-08-23 follow-up review, robustness gap 6)."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     sub = _joint_mechanism_levels_subset(tmp_path)
     for contrast in (("N", "N"), ("W", "W"), ("N",), ("N", "W", "N")):
@@ -1133,9 +1118,7 @@ def test_joint_mechanism_levels_recovers_a_simulated_slope_difference(tmp_path):
     through to ``delta_ls_decoding`` rather than a sign-flipped or index-swapped one.
     Deliberately generous: this is a wiring check on ~20 children, not a calibration
     study (2026-08-23 follow-up review, test gap)."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
         logit_safe,
         standardise,

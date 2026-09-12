@@ -23,6 +23,13 @@ belongs to secondary fits created inside one live primary-fit context.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import convergence as _convergence
+from language_reading_predictors.statistical_models.factories import itt as _itt_factory
+from language_reading_predictors.statistical_models.factories import joint as _joint_factory
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+from language_reading_predictors.statistical_models.summaries import joint as _joint_summary
+
+
 import hashlib
 import json
 import os
@@ -47,8 +54,8 @@ from dse_research_utils.metadata.provenance import (
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors.statistical_models import diagnostics as _diag
-from language_reading_predictors.statistical_models import factories as _factories
-from language_reading_predictors.statistical_models import reporting as _report
+
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.fitted_payloads import IttPayload
 from language_reading_predictors.statistical_models.itt import (
@@ -239,7 +246,7 @@ def load_influence_reference(
     model_dir = root / f"{spec.model_id}-{config}"
     metadata = _read_json(model_dir / "config.json")
     diagnostics = _read_json(model_dir / "diagnostics_summary.json")
-    if not _report.convergence_gate_clean_passed(diagnostics):
+    if not _convergence.convergence_gate_clean_passed(diagnostics):
         raise ValueError(
             f"the completed {spec.model_id}-{config} fit did not pass its convergence gate"
         )
@@ -400,13 +407,13 @@ def build_influence_model(
         if np.unique(reduced.G).size != 2:
             raise ValueError("excluding the flagged child leaves fewer than two trial arms")
         if plan.floor_rule:
-            built = _factories.build_itt_model(
+            built = _itt_factory.build_itt_model(
                 reduced,
                 likelihood="bernoulli_offfloor",
                 **plan.factory_kwargs(effective_adjustment=adjust_for),
             )
         else:
-            built = _factories.build_itt_model(
+            built = _itt_factory.build_itt_model(
                 reduced,
                 **plan.factory_kwargs(effective_adjustment=adjust_for),
             )
@@ -418,7 +425,7 @@ def build_influence_model(
         reduced = _subset_prepared(prepared, keep)
         if np.unique(reduced.G).size != 2:
             raise ValueError("excluding the flagged child leaves fewer than two trial arms")
-        built = _factories.build_joint_model(
+        built = _joint_factory.build_joint_model(
             reduced,
             **plan.factory_kwargs(),
         )
@@ -603,10 +610,10 @@ def _joint_contrast_influence(
     to leave-out-sample movement. The columns are constant across the per-outcome
     rows, which is what they describe -- one declared contrast per fit.
     """
-    full = _report.tau_difference_summary(
+    full = _joint_summary.tau_difference_summary(
         primary_trace, outcomes, pair, ci_prob=ci_prob, G=primary_G
     )
-    retained = _report.tau_difference_summary(
+    retained = _joint_summary.tau_difference_summary(
         primary_trace,
         outcomes,
         pair,
@@ -614,7 +621,7 @@ def _joint_contrast_influence(
         G=primary_G,
         row_mask=retained_mask,
     )
-    refit = _report.tau_difference_summary(
+    refit = _joint_summary.tau_difference_summary(
         refit_trace, outcomes, pair, ci_prob=ci_prob, G=refit_G
     )
     for label, frame in (("retained", retained), ("refit", refit)):
@@ -684,14 +691,14 @@ def summarise_influence_refit(
     contrast_pair: tuple[str, str] | None = None
     if spec.kind == "joint":
         outcomes = list(trace.posterior["outcome"].values.astype(str))
-        refit = _report.tau_summary_joint(
+        refit = _joint_summary.tau_summary_joint(
             trace, outcomes, ci_prob=ci_prob, G=built.prepared.G
         )
         contrast_pair = resolve_joint_run_plan(spec).difference
     else:
         payload = built.require_payload(IttPayload, family="itt influence")
         moderators = payload.tau_interaction_moderators
-        summary = _report.tau_summary_itt(
+        summary = _itt_summary.tau_summary_itt(
             trace,
             ci_prob=ci_prob,
             G=built.prepared.G,
@@ -721,7 +728,7 @@ def summarise_influence_refit(
             label="primary",
         )
         if spec.kind == "joint":
-            primary_retained = _report.tau_summary_joint(
+            primary_retained = _joint_summary.tau_summary_joint(
                 primary_trace,
                 outcomes,
                 ci_prob=ci_prob,
@@ -753,7 +760,7 @@ def summarise_influence_refit(
             )
             primary_retained = pd.DataFrame(
                 [
-                    _report.tau_summary_itt(
+                    _itt_summary.tau_summary_itt(
                         primary_trace,
                         ci_prob=ci_prob,
                         G=primary_G,
@@ -1176,13 +1183,13 @@ def evaluate_influence_bundle(
         )
         primary_outcomes = list(primary_summary["outcome"].astype(str))
         if model_kind == "joint":
-            recomputed_primary_full = _report.tau_summary_joint(
+            recomputed_primary_full = _joint_summary.tau_summary_joint(
                 primary_trace,
                 primary_outcomes,
                 ci_prob=ci_prob,
                 G=primary_G,
             )
-            recomputed_primary_retained = _report.tau_summary_joint(
+            recomputed_primary_retained = _joint_summary.tau_summary_joint(
                 primary_trace,
                 primary_outcomes,
                 ci_prob=ci_prob,
@@ -1198,7 +1205,7 @@ def evaluate_influence_bundle(
             )
             recomputed_primary_full = pd.DataFrame(
                 [
-                    _report.tau_summary_itt(
+                    _itt_summary.tau_summary_itt(
                         primary_trace,
                         ci_prob=ci_prob,
                         G=primary_G,
@@ -1209,7 +1216,7 @@ def evaluate_influence_bundle(
             )
             recomputed_primary_retained = pd.DataFrame(
                 [
-                    _report.tau_summary_itt(
+                    _itt_summary.tau_summary_itt(
                         primary_trace,
                         ci_prob=ci_prob,
                         G=primary_G,
@@ -1377,7 +1384,7 @@ def evaluate_influence_bundle(
             raise ValueError("saved divergence count does not match the sensitivity trace")
 
         if model_kind == "joint":
-            recomputed_summary = _report.tau_summary_joint(
+            recomputed_summary = _joint_summary.tau_summary_joint(
                 sensitivity_trace, primary_outcomes, ci_prob=ci_prob, G=G
             )
         else:
@@ -1389,7 +1396,7 @@ def evaluate_influence_bundle(
             )
             recomputed_summary = pd.DataFrame(
                 [
-                    _report.tau_summary_itt(
+                    _itt_summary.tau_summary_itt(
                         sensitivity_trace,
                         ci_prob=ci_prob,
                         G=G,

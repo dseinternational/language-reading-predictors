@@ -123,6 +123,9 @@ def _render(fit: Path) -> str:
     env["HOME"] = str(fit)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(fit / ".cache")
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(fit / ".local")
+        env["APPDATA"] = str(fit / ".config")
     env["PYTHONPATH"] = os.pathsep.join(
         filter(None, (str(REPO / "src"), str(REPO), env.get("PYTHONPATH")))
     )

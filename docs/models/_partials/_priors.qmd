@@ -1,25 +1,28 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Priors
 
-The priors below are documented in `priors.py` (the single source of truth, so they cannot drift between models). The **role** column distinguishes *causal* terms where a design identifies them, *regime* terms — identified by the design too, but as a contrast between assigned treatment *schedules* rather than between treated and untreated — *precision* terms, descriptive or adjusted *association* terms, *nuisance* terms (such as intercepts, dispersion and random-intercept scales), and any *GP* amplitudes or lengthscales. A role describes how a parameter may be interpreted in this model; it does not turn an association into an effect.
+The table records each prior from the fitted model. Its role and rationale come from the model's declaration. The **role** column distinguishes *causal* terms where the design identifies them, *regime* terms that compare assigned treatment schedules, *precision* terms, descriptive or adjusted *association* terms, *nuisance* terms such as intercepts and dispersion, and *GP* terms that control Gaussian-process curves. A role describes how a parameter may be interpreted in this model; it does not turn an association into an effect.
 
 ```{python}
 # | echo: false
-priors_table if priors_table is not None else "No priors table available."
+priors_table.drop(columns=["panel"], errors="ignore") if priors_table is not None else "No priors table available."
 ```
 
-_How to read the panels below:_ each is the prior probability density for one parameter — the range of values treated as plausible **before** seeing the data. Wider curves are more permissive. Effect and association priors are generally centred on zero, so the data must support either direction; model-specific rationales and the role column state the intended interpretation.
+_How to read the panels below:_ each shows a prior density with the parameter values used in this model. Parameters listed on one panel share that density. Wider curves allow a wider range of values. Priors with several locations or with parameters that depend on other uncertain quantities are described in the table; the prior predictive check shows their combined implications for scores. The rationale identifies any prior that uses an observed-data anchor.
 
 ```{python}
 # | echo: false
 # | output: asis
-# Panels for the priors this model actually registered (the dead panels are
-# pruned at fit time; #125 Area 1).
 _seen = set()
 if priors_table is not None and "panel" in priors_table.columns:
     for _pan in priors_table["panel"].dropna():
         if _pan and _pan not in _seen and _has(f"prior_{_pan}.png"):
             _seen.add(_pan)
-            print(f"![{_pan}](prior_{_pan}.png){{width=32%}}")
+            _parameters = ", ".join(priors_table.loc[priors_table["panel"] == _pan, "parameter"])
+            print(f"![Prior for {_parameters}](prior_{_pan}.png){{width=32%}}")
 ```
 
 ### Prior pushforward to the estimand scale

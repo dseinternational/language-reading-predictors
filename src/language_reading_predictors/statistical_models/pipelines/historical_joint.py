@@ -17,6 +17,10 @@ record. Descriptive throughout; the cohort is observational.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import historical as _historical_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import numpy as np
 import pandas as pd
 
@@ -25,13 +29,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    datasets as _datasets,
-    diagnostics as _diag,
-    factories as _factories,
-    historical as _historical,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import datasets as _datasets, diagnostics as _diag, historical as _historical
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -92,7 +90,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     plan = resolve_historical_joint_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     study_id = plan.study_id
     measure_syms = plan.measures
@@ -108,7 +106,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_rlm_joint_growth_model(
+    built = _historical_factory.build_rlm_joint_growth_model(
         panel,
         **plan.factory_kwargs(),
     )
@@ -157,7 +155,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             plan.kfold_plan(),
             # This family's builder reads the panel as given, so a fold can simply
             # drop the held-out children's rows.
-            lambda training, _held_out: _factories.build_rlm_joint_growth_model(
+            lambda training, _held_out: _historical_factory.build_rlm_joint_growth_model(
                 subset_panel_children(panel, training),
                 **plan.factory_kwargs(),
             ),

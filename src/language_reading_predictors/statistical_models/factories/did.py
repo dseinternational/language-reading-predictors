@@ -3,22 +3,17 @@
 
 """Waitlist-crossover difference-in-differences model construction.
 
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
 """
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import Any, Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
 
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -268,12 +263,10 @@ def build_did_model(
             alpha = _priors.alpha_prior(
                 sigma=_alpha_sigma_for(outcome_symbol)
             ).to_pymc("alpha")
-            beta_period = _priors.tau_prior().to_pymc("beta_period")
-            beta_group = _priors.gamma_cross_prior().to_pymc("beta_group")
-            theta_treated = _priors.tau_prior(
-                sigma=_tau_sigma_for(own)
-            ).to_pymc("theta_treated")
-            gamma_t1 = _priors.gamma_own_prior().to_pymc("gamma_t1")
+            beta_period = _priors.tau_prior().to_pymc('beta_period', role='association', rationale='Wave/period offset; an age, maturation and treatment-history association, not a randomised treatment effect.')
+            beta_group = _priors.gamma_cross_prior().to_pymc('beta_group', role='association', rationale='Randomised-arm and prior-treatment-history adjustment in the transition dose model; not itself the t2 randomised arm contrast.')
+            theta_treated = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc('theta_treated', role='association', rationale='Crossover arm-by-period cell contrast at the mean treated dose. It combines treatment timing and history in a saturated four-cell design; it does not isolate current treatment presence.')
+            gamma_t1 = _priors.gamma_own_prior().to_pymc('gamma_t1', role='precision', rationale='Shared pre-randomisation t1 outcome precision term broadcast to both period rows; never the treatment-affected t2 period-start score.')
             eta = (
                 alpha
                 + beta_period * period_d
@@ -303,7 +296,7 @@ def build_did_model(
                 dose_phase_idx = pm.Data(
                     "dose_phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
                 )
-                mu_dose = _dose_slope_prior.to_pymc("mu_dose")
+                mu_dose = _dose_slope_prior.to_pymc('mu_dose', role='association', rationale='Hierarchical centre of the per-period session slopes. The reported quantity is the treated-row natural-scale dose marginal, not this coefficient.')
                 sigma_dose = _priors.sigma_dose_phase_prior().to_pymc(
                     "sigma_dose"
                 )
@@ -325,7 +318,7 @@ def build_did_model(
                 )
                 eta_full = eta_base + beta_dose_phase[dose_phase_idx] * dose_d
             else:
-                beta_dose = _dose_slope_prior.to_pymc("beta_dose")
+                beta_dose = _dose_slope_prior.to_pymc('beta_dose', role='association', rationale='Observational session association per treated-row SD of sessions, with untreated rows coded at zero intensity.')
                 eta_full = eta_base + beta_dose * dose_d
 
             eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
@@ -448,9 +441,7 @@ def build_did_model(
         )
 
         if use_intercept_anchor:
-            alpha_offset = _priors.alpha_prior(
-                sigma=_alpha_sigma_for(outcome_symbol)
-            ).to_pymc("alpha_offset")
+            alpha_offset = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc('alpha_offset', rationale='Zero-centred offset around the pooled observed t1 logit anchor; the deterministic alpha is the anchored t1 level. ' + _priors.EMPIRICAL_BAYES_SENTENCE)
             alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
         else:
             # The independent-prior sensitivity (#390 P1 condition 1): the same
@@ -459,27 +450,13 @@ def build_did_model(
             alpha = _priors.alpha_prior(
                 sigma=_alpha_sigma_for(outcome_symbol)
             ).to_pymc("alpha")
-        beta_period = _priors.tau_prior().to_pymc(
-            "beta_period", dims="post_wave"
-        )
+        beta_period = _priors.tau_prior().to_pymc('beta_period', dims='post_wave', role='association', rationale='Wave/period offset; an age, maturation and treatment-history association, not a randomised treatment effect.')
         wave_offset = pt.concatenate(
             [pt.zeros((1,), dtype=beta_period.dtype), beta_period]
         )
-        arm_gap_t1 = (
-            _priors.gamma_cross_prior()
-            if arm_gap_t1_prior_sigma is None
-            else _priors.gamma_cross_prior(sigma=float(arm_gap_t1_prior_sigma))
-        ).to_pymc("arm_gap_t1")
-        tau_t2 = _priors.tau_prior(
-            sigma=(
-                _tau_sigma_for(own)
-                if tau_t2_prior_sigma is None
-                else float(tau_t2_prior_sigma)
-            )
-        ).to_pymc("tau_t2")
-        arm_gap_t3 = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc(
-            "arm_gap_t3"
-        )
+        arm_gap_t1 = (_priors.gamma_cross_prior() if arm_gap_t1_prior_sigma is None else _priors.gamma_cross_prior(sigma=float(arm_gap_t1_prior_sigma))).to_pymc('arm_gap_t1', role='association', rationale='Pre-randomisation immediate-minus-waitlist balance quantity; regularised as an association, not interpreted as an effect.')
+        tau_t2 = _priors.tau_prior(sigma=_tau_sigma_for(own) if tau_t2_prior_sigma is None else float(tau_t2_prior_sigma)).to_pymc('tau_t2', rationale='Immediate-minus-waitlist t2 contrast identified by the original randomisation: the effect of assignment to immediate treatment versus no treatment yet, and the only treated-versus-untreated coefficient in the binary crossover model.')
+        arm_gap_t3 = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc('arm_gap_t3', role='regime', rationale='Randomised t3 contrast between assigned treatment *schedules* — early-start (about 40 weeks) versus delayed-start (about 20 weeks). Both arms are treated by t3, so it is not a treated-versus-untreated effect; randomisation still identifies it, but duration, carryover, maturation, ceiling effects and different taught blocks are inseparable within it.')
         arm_gap_wave = pm.Deterministic(
             "arm_gap_wave",
             pt.stack([arm_gap_t1, tau_t2, arm_gap_t3]),
@@ -520,7 +497,7 @@ def build_did_model(
             waitlist_t3_d = pm.Data(
                 "waitlist_t3", waitlist_t3, dims="obs_id"
             )
-            sigma_delta = _priors.sigma_delta_prior().to_pymc("sigma_delta")
+            sigma_delta = _priors.sigma_delta_prior().to_pymc('sigma_delta', rationale='Exploratory between-waitlist-child SD of unexplained t3 catch-up; may mix response, maturation, history, period shocks and measurement variation.')
             v_delta = pm.Deterministic(
                 "v_delta",
                 sigma_delta
@@ -530,8 +507,7 @@ def build_did_model(
                                       ),
                       role="nuisance",
                       rationale=(
-                          "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
-                          "scaled by sigma_delta to form the waitlist t3 random deviation."
+                          'Non-centred standard-normal per-child offsets; scaled by sigma_delta to form the waitlist t3 random deviation.'
                       ),
                   ),
                 dims="waitlist_child",

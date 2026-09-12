@@ -24,10 +24,8 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 
-from language_reading_predictors.statistical_models.factories import (
-    BuiltModel,
-    build_historical_growth_model,
-)
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 from language_reading_predictors.statistical_models.fitted_payloads import EmptyPayload
 from language_reading_predictors.statistical_models.preprocessing import LongitudinalPanel
 from language_reading_predictors.statistical_models.rlm_sensitivity_contract import (

@@ -105,9 +105,7 @@ def test_offfloor_indicator_parameterisation_recovers_truth() -> None:
     and a trt x own interaction absorbed this signal instead."""
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_gain_factors_model,
-    )
+    from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
 
     truth = {
         "alpha": -1.6,

@@ -22,9 +22,7 @@ import pytest
 
 from language_reading_predictors.statistical_models.artifacts import ArtifactLog
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.reporting import (
-    write_run_metadata,
-)
+from language_reading_predictors.statistical_models.run_metadata import write_run_metadata, write_model_recipe
 from language_reading_predictors.statistical_models.subfits import (
     PROVENANCE_COLUMNS,
     PROVENANCE_TABLE,
@@ -103,10 +101,13 @@ def _write_reuse_contract(
         model_id="lrp-rli-hg-999",
         kind="historical_growth",
         title="sub-fit reuse contract",
+        study_id="rlm",
+        outcome_symbol="basread",
     )
     # Written by the real metadata writer, so the reuse contract stored beside a
     # sub-fit is the one a real publication would carry (#637 stage 1).
     (source / "trace.nc").write_bytes(b"primary trace")
+    write_model_recipe(ctx)
     write_run_metadata(SimpleNamespace(**{**vars(ctx), "output_dir": str(source)}))
 
     subfit_trace = source / trace_filename

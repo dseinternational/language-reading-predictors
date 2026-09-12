@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import glob
 import importlib
 import inspect
@@ -14,12 +17,10 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import historical_growth as HG
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_historical_growth_model,
-    default_of,
-)
+from language_reading_predictors.statistical_models.factories.base import default_of
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 
 _META_FIELDS = (
     "design",
@@ -208,8 +209,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     )
     plan = HG.resolve_historical_growth_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated historical-growth run plan" in text
@@ -218,7 +219,7 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     assert "PSIS-LOO" in text
 
 
-def test_reporting_does_not_reconstruct_a_bare_generic_reuse_spec():
+def test_reporting_rejects_an_incomplete_archived_declaration():
     spec = ModelSpec(
         model_id="lrp-rli-hg-999",
         kind="historical_growth",
@@ -226,7 +227,8 @@ def test_reporting_does_not_reconstruct_a_bare_generic_reuse_spec():
     )
     ctx = SimpleNamespace(spec=spec, resolved_plan=None)
 
-    assert R._resolved_run_plan(ctx) is None
+    with pytest.raises(KeyError, match="Unknown study_id"):
+        _metadata._resolved_run_plan(ctx)
 
 
 def test_reporting_strictly_resolves_a_substantive_historical_growth_spec():
@@ -240,7 +242,7 @@ def test_reporting_strictly_resolves_a_substantive_historical_growth_spec():
     ctx = SimpleNamespace(spec=spec, resolved_plan=None)
 
     with pytest.raises(KeyError, match="Unknown study_id 'rli'"):
-        R._resolved_run_plan(ctx)
+        _metadata._resolved_run_plan(ctx)
 
 
 def test_pipeline_has_no_direct_historical_growth_setting_reads():

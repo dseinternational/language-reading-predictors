@@ -13,6 +13,9 @@ on either neighbour.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import (
@@ -20,11 +23,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    pooled_levels as _pooled,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, pooled_levels as _pooled
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -57,7 +56,7 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     plan = _pooled.resolve_pooled_levels_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.prepare_kwargs())

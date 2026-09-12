@@ -23,7 +23,8 @@ vector is **centred on the timepoint-1 arm gap**: ``arm_gap_t1`` is the
 covariate-adjusted pre-randomisation balance quantity and ``d_grp_time[t]`` the
 change in the arm gap from t1 to each later wave, with the per-wave levels view
 ``b_grp_time = (arm_gap_t1, arm_gap_t1 + d_grp_time)`` retained as a Deterministic.
-The single randomised quantity is then the **t2 change** ``d_grp_time[t2]`` -- a
+The randomised treated-versus-untreated quantity is the **t2 change**
+``d_grp_time[t2]``, a
 difference-in-differences of adjusted levels, read as an items- or
 risk-difference average marginal effect at the t2 rows. ``arm_gap_reference="free"``
 keeps the former parameterisation (a free per-timepoint vector whose t2 element

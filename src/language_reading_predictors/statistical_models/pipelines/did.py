@@ -16,6 +16,13 @@ dose designs publish the same named marginal on the same treated-row population.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import base as _base_factory
+from language_reading_predictors.statistical_models.factories import did as _did_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import did as _did_summary
+
+
 import hashlib
 from typing import Any
 
@@ -27,12 +34,7 @@ from language_reading_predictors.models._reporting import (
     print_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    priors as _priors,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, priors as _priors
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     save_table,
@@ -111,7 +113,7 @@ def _did_heterogeneity_summary(trace: Any, *, ci_prob: float) -> dict[str, float
 
 
 def _waitlist_crossover_index(
-    built: _factories.BuiltModel[FittedPayload],
+    built: _base_factory.BuiltModel[FittedPayload],
 ) -> np.ndarray:
     """Row -> ``waitlist_child`` position, reproducing the factory's ``safe_idx``.
 
@@ -134,7 +136,7 @@ def _waitlist_crossover_index(
 def _did_analysis_contract(
     ctx: StatisticalFitContext,
     plan: DiDRunPlan,
-    built: _factories.BuiltModel[FittedPayload],
+    built: _base_factory.BuiltModel[FittedPayload],
     *,
     dose: bool,
     loaded_prepared: PreparedData,
@@ -330,7 +332,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     plan = resolve_did_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     sym = spec.outcome_symbol
     dose = plan.dose
@@ -344,7 +346,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_did_model(prepared, **plan.factory_kwargs())
+    built = _did_factory.build_did_model(prepared, **plan.factory_kwargs())
     attach_built(ctx, built)
     print_header(ctx)
     did_contract = _did_analysis_contract(
@@ -359,7 +361,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     def _write_did_cell_ppc(c: StatisticalFitContext) -> None:
         node = "y_offfloor" if off_floor else "y_post"
-        cell_ppc = _report.did_cell_ppc(
+        cell_ppc = _did_summary.did_cell_ppc(
             c.trace,
             phase=c.prepared.phase,
             G=c.prepared.G,
@@ -383,7 +385,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 save_table(
                     c,
                     "did_within_child_ppc",
-                    _report.did_within_child_ppc(
+                    _did_summary.did_within_child_ppc(
                         c.trace,
                         phase=c.prepared.phase,
                         subject_ids=c.prepared.subject_ids,
@@ -424,7 +426,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         ):
             from language_reading_predictors.statistical_models.measures import MEASURES
 
-            prior_pushforward = _report.prior_pushforward(
+            prior_pushforward = _predictive.prior_pushforward(
                 ctx.prior_samples,
                 G=ctx.prepared.G,
                 n_trials=1 if off_floor else MEASURES[sym].n_trials,
@@ -453,7 +455,7 @@ def fit_did(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         if dose
         else "Arm-by-wave crossover contrasts"
     )
-    did_s = _report.did_summary(
+    did_s = _did_summary.did_summary(
         ctx.trace,
         ci_prob=ctx.reporting.ci_prob,
         n_trials=1 if off_floor else MEASURES[sym].n_trials,

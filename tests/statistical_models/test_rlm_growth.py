@@ -15,7 +15,7 @@ import pytest
 import xarray as xr
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import build_growth_model
+from language_reading_predictors.statistical_models.factories.growth import build_growth_model
 from language_reading_predictors.statistical_models.growth import (
     GrowthModelSettings,
     exclude_growth_observation_cells,
