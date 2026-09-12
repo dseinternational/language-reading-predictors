@@ -11,6 +11,14 @@ build tests.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import predictive_checks as _owner_predictive_checks
+from language_reading_predictors.statistical_models import run_metadata as _owner_run_metadata
+from language_reading_predictors.statistical_models.factories import itt as _owner_factories_itt
+from language_reading_predictors.statistical_models.factories import joint as _owner_factories_joint
+from language_reading_predictors.statistical_models.summaries import itt as _owner_summaries_itt
+from language_reading_predictors.statistical_models.summaries import joint as _owner_summaries_joint
+from language_reading_predictors.statistical_models.summaries import rope as _owner_summaries_rope
+
 import hashlib
 import json
 from pathlib import Path
@@ -27,7 +35,7 @@ from language_reading_predictors.statistical_models import (
     runtime,
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import (
     IttPayload,
     JointPayload,
@@ -155,9 +163,7 @@ def fast_pipeline(monkeypatch, tmp_path):
 
     def sample_and_loo(ctx, *, compute_loo=True):
         outcomes = (
-            ctx.resolved_plan.outcomes
-            if ctx.resolved_plan is not None
-            else tuple(ctx.spec.extra.get("outcomes", ()))
+            ctx.resolved_plan.outcomes if ctx.resolved_plan is not None else tuple(ctx.spec.extra.get("outcomes", ()))
         )
         ctx.trace = _FakeTrace(outcomes)
         ctx.loo = SimpleNamespace(elpd=-12.5)
@@ -242,9 +248,7 @@ def fast_pipeline(monkeypatch, tmp_path):
                 ctx,
                 draws=plan.prior_predictive_draws,
                 var_names=(
-                    list(plan.prior_predictive_var_names)
-                    if plan.prior_predictive_var_names is not None
-                    else None
+                    list(plan.prior_predictive_var_names) if plan.prior_predictive_var_names is not None else None
                 ),
             )
             if plan.plot_prior_predictive is not None:
@@ -252,20 +256,14 @@ def fast_pipeline(monkeypatch, tmp_path):
             sample_and_loo(ctx, compute_loo=plan.compute_loo)
             if plan.post_sampling_audit is not None:
                 plan.post_sampling_audit(ctx)
-            itt_pipeline._diag.summary_diagnostics(
-                ctx, var_names=list(plan.diagnostic_vars)
-            )
+            itt_pipeline._diag.summary_diagnostics(ctx, var_names=list(plan.diagnostic_vars))
             if plan.custom_posterior_predictive is not None:
                 plan.custom_posterior_predictive(ctx)
             else:
-                itt_pipeline._diag.sample_posterior_predictive(
-                    ctx, var_names=list(plan.ppc_var_names)
-                )
+                itt_pipeline._diag.sample_posterior_predictive(ctx, var_names=list(plan.ppc_var_names))
             if plan.post_ppc_audit is not None:
                 plan.post_ppc_audit(ctx)
-            gate = itt_pipeline._diag.write_diagnostics_summary(
-                ctx, var_names=list(plan.diagnostic_vars)
-            )
+            gate = itt_pipeline._diag.write_diagnostics_summary(ctx, var_names=list(plan.diagnostic_vars))
             if plan.post_gate_audit is not None:
                 plan.post_gate_audit(ctx, gate)
             if plan.run_extended:
@@ -312,7 +310,7 @@ def fast_pipeline(monkeypatch, tmp_path):
     )
 
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_itt,
         "tau_summary_itt",
         lambda *args, **kwargs: {
             "tau_prob_median": 0.08,
@@ -324,7 +322,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_itt,
         "tau_summary_offfloor",
         lambda *args, **kwargs: {
             "tau_prob_median": 0.10,
@@ -336,7 +334,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_rope,
         "rope_summary",
         lambda *args, **kwargs: {
             "delta": kwargs["delta"],
@@ -344,7 +342,7 @@ def fast_pipeline(monkeypatch, tmp_path):
         },
     )
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_rope,
         "rope_sensitivity",
         lambda *args, **kwargs: pd.DataFrame(
             {
@@ -353,9 +351,9 @@ def fast_pipeline(monkeypatch, tmp_path):
             }
         ),
     )
-    monkeypatch.setattr(itt_pipeline._report, "tau_moderation_summary", lambda *args, **kwargs: {})
+    monkeypatch.setattr(_owner_summaries_itt, "tau_moderation_summary", lambda *args, **kwargs: {})
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_predictive_checks,
         "proportion_at_zero_ppc",
         lambda *args, **kwargs: {
             "obs_prop_at_zero": 0.75,
@@ -584,14 +582,10 @@ def test_write_itt_ppc_calibration_real_writer_maps_joint_cells(tmp_path):
     assert (tmp_path / "posterior_predictive_shape_calibration.csv").is_file()
     assert calibration.groupby("outcome")["n"].sum().to_dict() == {"L": 3, "W": 4}
     assert not calibration.filter(like="outside_interval").to_numpy().any()
-    shape = pd.read_csv(
-        tmp_path / "posterior_predictive_shape_calibration.csv", keep_default_na=False
-    )
+    shape = pd.read_csv(tmp_path / "posterior_predictive_shape_calibration.csv", keep_default_na=False)
     assert shape.set_index("outcome")["n"].to_dict() == {"L": 3, "W": 4}
     assert not shape["ppc_shape_flag"].any()
-    pd.testing.assert_frame_equal(
-        ctx.tables["posterior_predictive_shape_calibration"], shape
-    )
+    pd.testing.assert_frame_equal(ctx.tables["posterior_predictive_shape_calibration"], shape)
 
 
 def test_tau_summary_itt_names_probability_scale_direction_and_keeps_alias():
@@ -612,7 +606,7 @@ def test_tau_summary_itt_names_probability_scale_direction_and_keeps_alias():
         }
     )
 
-    result = itt_pipeline._report.tau_summary_itt(
+    result = _owner_summaries_itt.tau_summary_itt(
         SimpleNamespace(posterior=posterior),
         ci_prob=0.95,
         G=group,
@@ -650,7 +644,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
             IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
         )
 
-    monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
+    monkeypatch.setattr(_owner_factories_itt, "build_itt_model", build)
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-901",
@@ -721,9 +715,7 @@ def test_fit_itt_ordinary_writes_headline_and_effective_spec_artifacts(fast_pipe
     assert cfg["model_recipe_file"] == "model_recipe.md"
     lock_path = out / cfg["environment_lock_file"]
     assert cfg["environment_lock_file"] == "environment-lock.json"
-    assert cfg["environment_lock_sha256"] == hashlib.sha256(
-        lock_path.read_bytes()
-    ).hexdigest()
+    assert cfg["environment_lock_sha256"] == hashlib.sha256(lock_path.read_bytes()).hexdigest()
     recipe = (out / "model_recipe.md").read_text()
     assert "A causal reading in the observed analysis set requires" in recipe
     assert "further missing-outcome assumptions and sensitivity" in recipe
@@ -811,7 +803,7 @@ def test_fit_itt_floor_rule_persists_missing_eligibility_and_secondary_audit(fas
             IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
         )
 
-    monkeypatch.setattr(itt_pipeline._factories, "build_itt_model", build)
+    monkeypatch.setattr(_owner_factories_itt, "build_itt_model", build)
 
     spec = ModelSpec(
         model_id="lrp-rli-itt-902",
@@ -921,9 +913,9 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             ),
         )
 
-    monkeypatch.setattr(itt_pipeline._factories, "build_joint_model", build)
+    monkeypatch.setattr(_owner_factories_joint, "build_joint_model", build)
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_joint,
         "tau_summary_joint",
         lambda *args, **kwargs: pd.DataFrame(
             {
@@ -949,7 +941,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
         )
 
     monkeypatch.setattr(
-        itt_pipeline._report,
+        _owner_summaries_joint,
         "joint_treatment_marginals",
         marginals,
     )
@@ -962,7 +954,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             columns=["TE", "UE"],
         )
 
-    monkeypatch.setattr(itt_pipeline._report, "tau_contrast_matrix", contrast)
+    monkeypatch.setattr(_owner_summaries_joint, "tau_contrast_matrix", contrast)
 
     def difference(*args, **kwargs):
         difference_calls.append(kwargs)
@@ -975,7 +967,7 @@ def test_fit_joint_persists_probability_and_logit_contrasts_with_report_metadata
             **metadata,
         }
 
-    monkeypatch.setattr(itt_pipeline._report, "tau_difference_summary", difference)
+    monkeypatch.setattr(_owner_summaries_joint, "tau_difference_summary", difference)
 
     ctx = joint_pipeline.fit_joint(SPEC, config="dev")
     out = Path(ctx.output_dir)
@@ -1042,7 +1034,7 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
     )
     monkeypatch.setattr(itt_pipeline, "load_and_prepare", lambda **kwargs: prepared)
     monkeypatch.setattr(
-        itt_pipeline._factories,
+        _owner_factories_itt,
         "build_itt_model",
         lambda data, **kwargs: BuiltModel(
             _FakeModel(),
@@ -1053,11 +1045,11 @@ def test_fit_itt_primary_lifecycle_runs_in_the_invariant_order(fast_pipeline, mo
 
     for module, name, label in (
         (itt_pipeline, "load_and_prepare", "prepare"),
-        (itt_pipeline._factories, "build_itt_model", "build"),
+        (_owner_factories_itt, "build_itt_model", "build"),
         (runtime, "emit_priors", "emit_priors"),
         (itt_pipeline, "shared_stages", "primary_lifecycle"),
         (itt_pipeline, "emit_itt_extras", "sensitivity"),
-        (itt_pipeline._report, "write_run_metadata", "metadata"),
+        (_owner_run_metadata, "write_run_metadata", "metadata"),
         (itt_pipeline, "finalize_report", "finalize"),
     ):
         record(module, name, label)

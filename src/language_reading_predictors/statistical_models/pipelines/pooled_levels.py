@@ -13,6 +13,9 @@ on either neighbour.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import (
@@ -20,11 +23,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    pooled_levels as _pooled,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, pooled_levels as _pooled
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -57,7 +56,7 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     plan = _pooled.resolve_pooled_levels_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     prepared = load_and_prepare(**plan.prepare_kwargs())
@@ -75,9 +74,7 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # number is part of the analysis population and is recorded beside the fit.
     n_dropped_require_observed: int | None = None
     if plan.require_observed:
-        unfiltered = load_and_prepare(
-            **{**plan.prepare_kwargs(), "require_observed": ()}
-        )
+        unfiltered = load_and_prepare(**{**plan.prepare_kwargs(), "require_observed": ()})
         n_dropped_require_observed = int(unfiltered.n_obs - prepared.n_obs)
         rprint(
             f"  [yellow]{n_dropped_require_observed} child-wave row(s) whose "
@@ -93,9 +90,7 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     section_header("Build model")
     built = _pooled.build_pooled_levels_model(prepared, **plan.factory_kwargs())
     payload = built.payload
-    rprint(
-        f"  Fitted rows: {payload.n_fitted_rows} from {payload.n_children} children."
-    )
+    rprint(f"  Fitted rows: {payload.n_fitted_rows} from {payload.n_children} children.")
     if payload.n_dropped_incomplete:
         rprint(
             f"  [yellow]{payload.n_dropped_incomplete} child-wave row(s) were missing "
@@ -149,9 +144,7 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # adjuster with its source column and measurement wave, plus anything the loader
     # dropped as constant — so config.json never implies a term the posterior lacks
     # (the same audit record the mechanism and factor families write).
-    fitted_adjust_for = tuple(
-        c for c in plan.adjust_for if c in prepared.covariates
-    )
+    fitted_adjust_for = tuple(c for c in plan.adjust_for if c in prepared.covariates)
     meta_extra: dict = {
         "loo_elpd": float(ctx.loo.elpd) if ctx.loo is not None else None,
         "n_child_wave_rows": int(built.payload.n_fitted_rows),
@@ -159,9 +152,7 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         "use_wave_intercepts": plan.use_wave_intercepts,
         "exposure_kind": built.payload.exposure_kind,
         "skill_symbols": list(plan.skill_symbols),
-        "effective_adjustment": _levels_effective_adjustment(
-            spec, prepared, plan, fitted_adjust_for
-        ),
+        "effective_adjustment": _levels_effective_adjustment(spec, prepared, plan, fitted_adjust_for),
     }
     if plan.require_observed:
         meta_extra["require_observed"] = list(plan.require_observed)
@@ -190,9 +181,7 @@ def _levels_effective_adjustment(spec, prepared, plan, fitted_adjust_for):
         prepared,
         # Same-wave skill adjusters (#553) are bounded-count measures taken at the
         # row's wave — the ``measure`` kind, relabelled ``same_wave`` below.
-        measure_confounders=(("G",) if plan.include_group else ())
-        + ("A",)
-        + tuple(plan.skill_symbols),
+        measure_confounders=(("G",) if plan.include_group else ()) + ("A",) + tuple(plan.skill_symbols),
         adjust_for=fitted_adjust_for,
         requested_adjust_for=plan.adjust_for,
         ability_covariate=plan.ability_covariate,

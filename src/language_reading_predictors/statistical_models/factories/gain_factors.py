@@ -1,24 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""DAG-focused gain-factor (ANCOVA) model construction.
-
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
-"""
+"""DAG-focused gain-factor (ANCOVA) model construction."""
 
 from __future__ import annotations
 
 
 from dataclasses import replace
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
-
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -45,6 +37,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _scalar_prior,
     _tau_sigma_for,
 )
+
 
 def build_gain_factors_model(
     prepared: PreparedData,
@@ -132,20 +125,11 @@ def build_gain_factors_model(
     if prepared.phase_mode != "all":
         raise ValueError("build_gain_factors_model requires phase_mode='all'")
     if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
-        raise ValueError(
-            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
-            f"got {likelihood!r}"
-        )
+        raise ValueError(f"likelihood must be 'beta_binomial' or 'bernoulli_offfloor', got {likelihood!r}")
     if score_mean_link not in SCORE_MEAN_LINKS:
-        raise ValueError(
-            f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-            f"got {score_mean_link!r}"
-        )
+        raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {score_mean_link!r}")
     if score_mean_link == "three_choice_guessing_floor" and outcome_symbol != "B":
-        raise ValueError(
-            "three_choice_guessing_floor is only valid for phoneme blending (B), "
-            f"got {outcome_symbol!r}"
-        )
+        raise ValueError(f"three_choice_guessing_floor is only valid for phoneme blending (B), got {outcome_symbol!r}")
     if likelihood != "beta_binomial" and score_mean_link != "logit":
         raise ValueError(
             "score_mean_link applies to the graded Beta-Binomial mean; the "
@@ -166,9 +150,7 @@ def build_gain_factors_model(
             f"'halfnormal_inverse_sqrt', got {kappa_prior_family!r}"
         )
     if not gamma_own_prior_sigma > 0:
-        raise ValueError(
-            f"gamma_own_prior_sigma must be positive, got {gamma_own_prior_sigma!r}"
-        )
+        raise ValueError(f"gamma_own_prior_sigma must be positive, got {gamma_own_prior_sigma!r}")
     own = outcome_symbol
     if own not in prepared.post_counts or own not in prepared.pre_logit:
         raise KeyError(f"Outcome {own!r} needs pre+post scores in prepared data")
@@ -216,16 +198,12 @@ def build_gain_factors_model(
     # audit's concrete case: erbto_missing in gf-005/105/205). Dropped names are
     # recorded on the payload so the effective adjustment set in config.json
     # describes the model the posterior actually contains.
-    _, _effective_adjust, _post_mask_dropped = filter_informative_covariates(
-        prepared, adjust_for
-    )
+    _, _effective_adjust, _post_mask_dropped = filter_informative_covariates(prepared, adjust_for)
     absent = sorted(set(_post_mask_dropped) - set(prepared.covariates))
     if absent:
         # A name that is not even loaded is a caller error, not a masked-away
         # constant; keep that loud rather than folding it into the record.
-        raise KeyError(
-            f"Adjuster covariate(s) {', '.join(absent)} not loaded in prepared data"
-        )
+        raise KeyError(f"Adjuster covariate(s) {', '.join(absent)} not loaded in prepared data")
     adjust_for = _effective_adjust
     if _post_mask_dropped:
         # Reflect the drop on the returned frame too, so ``dropped_constant`` in
@@ -234,24 +212,10 @@ def build_gain_factors_model(
         # bookkeeping path. Non-adjuster covariates (ability) are untouched.
         prepared = replace(
             prepared,
-            covariates={
-                k: v
-                for k, v in prepared.covariates.items()
-                if k not in _post_mask_dropped
-            },
-            covariate_scalers={
-                k: v
-                for k, v in prepared.covariate_scalers.items()
-                if k not in _post_mask_dropped
-            },
-            covariate_time={
-                k: v
-                for k, v in prepared.covariate_time.items()
-                if k not in _post_mask_dropped
-            },
-            dropped_covariates=tuple(
-                dict.fromkeys((*prepared.dropped_covariates, *_post_mask_dropped))
-            ),
+            covariates={k: v for k, v in prepared.covariates.items() if k not in _post_mask_dropped},
+            covariate_scalers={k: v for k, v in prepared.covariate_scalers.items() if k not in _post_mask_dropped},
+            covariate_time={k: v for k, v in prepared.covariate_time.items() if k not in _post_mask_dropped},
+            dropped_covariates=tuple(dict.fromkeys((*prepared.dropped_covariates, *_post_mask_dropped))),
         )
 
     post = prepared.post_counts[own].astype(np.int64)
@@ -285,9 +249,7 @@ def build_gain_factors_model(
                 continue
             _n_children = int(np.unique(prepared.child_idx[_cell]).size)
             _support.append((_phase_value, _arm, _n_rows, _n_children))
-    active_interactions = [
-        pair for pair in interactions if include_trt or "trt" not in pair
-    ]
+    active_interactions = [pair for pair in interactions if include_trt or "trt" not in pair]
 
     # Standardise the interaction-term components on the *kept* rows (used for the
     # interaction products and AME moderators). Main effects are entered on their
@@ -340,29 +302,19 @@ def build_gain_factors_model(
             if ability_covariate is not None
             else None
         )
-        skill_d = {
-            s: pm.Data(f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id")
-            for s in skill_symbols
-        }
-        adjust_d = {
-            c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
-            for c in adjust_for
-        }
+        skill_d = {s: pm.Data(f"{s}_pre_logit", prepared.pre_logit[s], dims="obs_id") for s in skill_symbols}
+        adjust_d = {c: pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id") for c in adjust_for}
         int_d = {
             pair: pm.Data(f"int_{pair[0]}_{pair[1]}", _interaction_product(term_vecs, *pair), dims="obs_id")
             for pair in active_interactions
         }
 
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
         alpha_phase = _priors.declare(
-                          pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase"),
-                          role="nuisance",
-                          rationale=(
-                              "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
-                          ),
-                      )
+            pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase"),
+            role="nuisance",
+            rationale=("Per-phase intercept offset alpha_phase."),
+        )
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
 
         eta = alpha + alpha_phase[phase_d] + gamma_A * A_std_d
@@ -381,9 +333,7 @@ def build_gain_factors_model(
         # this same indicator on the off-floor path, so any interaction on ``own``
         # shares its functional form and hierarchy holds by construction.
         if own_pre_d is not None:
-            gamma_own = _priors.gamma_own_prior(
-                sigma=gamma_own_prior_sigma
-            ).to_pymc("gamma_own")
+            gamma_own = _priors.gamma_own_prior(sigma=gamma_own_prior_sigma).to_pymc("gamma_own")
             eta = eta + gamma_own * own_pre_d
         else:
             own_ff_d = pm.Data("own_pre_offfloor", term_vecs["own"], dims="obs_id")
@@ -392,12 +342,14 @@ def build_gain_factors_model(
 
         if include_trt:
             beta_trt = _priors.tau_prior(
-                sigma=(
-                    _tau_sigma_for(outcome_symbol)
-                    if trt_prior_sigma is None
-                    else float(trt_prior_sigma)
-                )
-            ).to_pymc("beta_trt")
+                sigma=_tau_sigma_for(outcome_symbol) if trt_prior_sigma is None else float(trt_prior_sigma)
+            ).to_pymc(
+                "beta_trt",
+                role="association" if any(("trt" in pair for pair in active_interactions)) else "causal",
+                rationale="On-intervention contrast in a moderation variant. Combined with treatment interactions, it is a model-dependent association partly informed by post-crossover data. Read the causal headline from the interaction-free primary."
+                if any(("trt" in pair for pair in active_interactions))
+                else None,
+            )
             eta = eta + beta_trt * trt_d
         if ability_d is not None:
             gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
@@ -410,16 +362,14 @@ def build_gain_factors_model(
         # (erbto). Linear gamma terms, mirroring build_mechanism_model's adjust_for
         # path (#245/#258, #247).
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}", **_priors.adjustment_metadata(c))
             eta = eta + gamma_c * adjust_d[c]
         for pair in active_interactions:
             gi = _priors.gamma_cross_prior().to_pymc(f"gamma_int_{pair[0]}_{pair[1]}")
             eta = eta + gi * int_d[pair]
 
         if use_subject_random_intercept:
-            eta = _add_child_random_intercept(
-                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
-            )
+            eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma)
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
@@ -428,23 +378,27 @@ def build_gain_factors_model(
                 # is reachable (#575 finding 10a; same constructor as
                 # build_itt_model and the RLM historical families).
                 kappa = _rlm_dispersion_kappa(
-                    float(_priors.inv_sqrt_kappa_prior().sigma)
-                    if kappa_sigma is None
-                    else kappa_sigma
+                    float(_priors.inv_sqrt_kappa_prior().sigma) if kappa_sigma is None else kappa_sigma
                 )
             elif kappa_sigma is not None:
                 kappa = _priors.kappa_prior(sigma=kappa_sigma).to_pymc("kappa")
             else:
                 kappa = _scalar_prior("kappa", _priors.kappa_prior)
             beta_binomial_from_score_mean_link(
-                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                "y_post",
+                eta,
+                n_trials=prepared.n_trials[own],
+                kappa=kappa,
                 score_mean_link=score_mean_link,
-                observed=post, dims="obs_id",
+                observed=post,
+                dims="obs_id",
             )
         else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
             pm.Bernoulli(
-                "y_offfloor", logit_p=eta,
-                observed=(post > 0).astype(np.int64), dims="obs_id",
+                "y_offfloor",
+                logit_p=eta,
+                observed=(post > 0).astype(np.int64),
+                dims="obs_id",
             )
 
     # Expose the treatment×covariate interaction moderators so the pipeline's
@@ -461,9 +415,7 @@ def build_gain_factors_model(
             if "trt" not in pair:
                 continue
             other = pair[0] if pair[1] == "trt" else pair[1]
-            trt_moderators.append(
-                (f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float))
-            )
+            trt_moderators.append((f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float)))
 
     return BuiltModel(
         model=model,

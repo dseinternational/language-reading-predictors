@@ -47,7 +47,7 @@ from dse_research_utils.statistics.diagnostics import (
 )
 
 from language_reading_predictors.statistical_models import mechanism as _mechanism
-from language_reading_predictors.statistical_models.factories import _subset
+from language_reading_predictors.statistical_models.preprocessing import _subset
 from language_reading_predictors.statistical_models.fitted_payloads import (
     MechanismDesign,
     MechanismPayload,
@@ -79,9 +79,7 @@ def _as_dataset(group: Any) -> Any:
     return inner if hasattr(inner, "data_vars") else group
 
 
-def _observed_variable_name(
-    model: pm.Model, idata_orig: Any, model_id: str
-) -> str:
+def _observed_variable_name(model: pm.Model, idata_orig: Any, model_id: str) -> str:
     """Name of the model's single observed node, verified against the stored trace.
 
     Hard-coding ``"y_post"`` is correct only for the Beta-Binomial mechanism models
@@ -207,9 +205,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
         # the refit's basis weights are defined against a slightly different design
         # than the full model that scores the held-out point, and the spliced density
         # is not exact LOO (#438 review).
-        built = _mechanism.build_mechanism_for_plan(
-            self.plan, modified_observed_data, frozen_design=self.design
-        )
+        built = _mechanism.build_mechanism_for_plan(self.plan, modified_observed_data, frozen_design=self.design)
 
         # The factory runs its own missing-data keep-mask. On an already-fitted frame
         # it must be a no-op, so anything other than "exactly one row fewer" means the
@@ -288,9 +284,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
     def get_inference_data(self, fit: Any) -> Any:
         return fit
 
-    def log_likelihood__i(
-        self, excluded_observed_data: int, idata__i: Any
-    ) -> Any:
+    def log_likelihood__i(self, excluded_observed_data: int, idata__i: Any) -> Any:
         """Held-out log density of row ``excluded_observed_data`` under the refit.
 
         Evaluated on the **full** model — the one carrying every fitted row — so the
@@ -299,9 +293,7 @@ class MechanismSamplingWrapper(SamplingWrapper):
         :func:`mechanism.holdout_is_safe`).
         """
         with self.full_model:
-            log_lik = compute_log_likelihood(
-                idata__i, extend_inferencedata=False, progressbar=False
-            )
+            log_lik = compute_log_likelihood(idata__i, extend_inferencedata=False, progressbar=False)
         return log_lik[self.obs_var].isel(obs_id=int(excluded_observed_data))
 
 

@@ -191,16 +191,10 @@ def _core_artifact_failures(output_dir: Path) -> list[str]:
     ``diagnostics_summary.json`` / ``config.json`` was declared publishable
     (2026-08-22 ITT audit, finding 2).
     """
-    return [
-        name
-        for name in _CORE_ARTIFACTS_BASE
-        if not os.path.exists(output_dir / name)
-    ]
+    return [name for name in _CORE_ARTIFACTS_BASE if not os.path.exists(output_dir / name)]
 
 
-def _recorded_required_artifacts(
-    output_dir: Path, artifacts: Any
-) -> tuple[str, ...]:
+def _recorded_required_artifacts(output_dir: Path, artifacts: Any) -> tuple[str, ...]:
     """Required artefacts the fit recorded but that are not on disk.
 
     ``artifacts`` is the run's :class:`artifacts.ArtifactLog` during a fit, and
@@ -241,15 +235,11 @@ def _recorded_required_artifacts(
         # was re-decided at render time. The floor is a property of the directory,
         # not of who is asking.
         missing = _core_artifact_failures(output_dir)
-        declared = [
-            (rec.filename, rec.status, bool(rec.required)) for rec in records.values()
-        ]
+        declared = [(rec.filename, rec.status, bool(rec.required)) for rec in records.values()]
         missing.extend(
             filename
             for filename, status, required in declared
-            if required
-            and status in ("written", "missing")
-            and not os.path.exists(output_dir / filename)
+            if required and status in ("written", "missing") and not os.path.exists(output_dir / filename)
         )
         return tuple(sorted(set(missing)))
 
@@ -263,16 +253,11 @@ def _recorded_required_artifacts(
         }.get(error or "", "records no artefacts")
         missing.append(f"artifact_manifest.json ({reason})")
         return tuple(sorted(set(missing)))
-    declared = [
-        (str(e.get("filename")), str(e.get("status")), bool(e.get("required")))
-        for e in entries
-    ]
+    declared = [(str(e.get("filename")), str(e.get("status")), bool(e.get("required"))) for e in entries]
     missing.extend(
         filename
         for filename, status, required in declared
-        if required
-        and status in ("written", "missing")
-        and not os.path.exists(output_dir / filename)
+        if required and status in ("written", "missing") and not os.path.exists(output_dir / filename)
     )
     return tuple(sorted(set(missing)))
 
@@ -283,9 +268,7 @@ _PUBLICATION_CONFIGS = frozenset({"rep-lite", "reporting"})
 _DIAGNOSTIC_CONFIGS = frozenset({"dev", "test"})
 
 
-def _sampling_preset_qualification(
-    output_dir: Path, config: Mapping[str, Any]
-) -> tuple[str | None, bool, str]:
+def _sampling_preset_qualification(output_dir: Path, config: Mapping[str, Any]) -> tuple[str | None, bool, str]:
     """Resolve whether a clean fit is publication-grade or development-only.
 
     ``ReleaseEvaluation.publishable`` predates this distinction and means that a local
@@ -309,20 +292,14 @@ def _sampling_preset_qualification(
     if config_name in _PUBLICATION_CONFIGS and not mismatch:
         return config_name, False, ""
     if mismatch:
-        reason = (
-            f"the saved sampling preset {config_name!r} disagrees with the fit "
-            f"directory preset {inferred!r}"
-        )
+        reason = f"the saved sampling preset {config_name!r} disagrees with the fit directory preset {inferred!r}"
     elif config_name in _DIAGNOSTIC_CONFIGS:
         reason = (
             f"the saved sampling preset {config_name!r} is diagnostic-only; only "
             "'rep-lite' and 'reporting' fits are eligible for scientific publication"
         )
     else:
-        reason = (
-            "the sampling preset is absent or unrecognised, so publication-grade "
-            "sampling cannot be verified"
-        )
+        reason = "the sampling preset is absent or unrecognised, so publication-grade sampling cannot be verified"
     return config_name or None, True, reason
 
 
@@ -346,9 +323,7 @@ def _publication_input_failures(config: Mapping[str, Any]) -> tuple[str, ...]:
             "regenerate or refit it under the current fail-closed metadata policy",
         )
     if contract.get("study_id") != study_id:
-        return (
-            f"{study_id}: the publication input contract names a different study",
-        )
+        return (f"{study_id}: the publication input contract names a different study",)
 
     raw_blockers = contract.get("blockers")
     if not isinstance(raw_blockers, list) or any(
@@ -361,9 +336,7 @@ def _publication_input_failures(config: Mapping[str, Any]) -> tuple[str, ...]:
         return ()
     if ready is False and blockers:
         return blockers
-    return (
-        f"{study_id}: the publication input contract is internally inconsistent",
-    )
+    return (f"{study_id}: the publication input contract is internally inconsistent",)
 
 
 def _prior_evidence_qualifications(output_dir: Path) -> list[str]:
@@ -459,8 +432,8 @@ def evaluate_publication(
             config = loaded if loaded is not None else {}
 
     if isinstance(config, Mapping):
-        sampling_preset, development_only, publication_qualification = (
-            _sampling_preset_qualification(output_dir, config)
+        sampling_preset, development_only, publication_qualification = _sampling_preset_qualification(
+            output_dir, config
         )
     else:
         sampling_preset, development_only, publication_qualification = (
@@ -479,10 +452,7 @@ def evaluate_publication(
         return ReleaseEvaluation(
             status="not_available",
             stage="inputs",
-            reason=(
-                "diagnostics_summary.json is missing, so the convergence gate "
-                "cannot be checked"
-            ),
+            reason=("diagnostics_summary.json is missing, so the convergence gate cannot be checked"),
             config=config,
             **qualification,
         )
@@ -490,10 +460,7 @@ def evaluate_publication(
         return ReleaseEvaluation(
             status="not_available",
             stage="inputs",
-            reason=(
-                "diagnostics_summary.json could not be parsed, so the convergence "
-                "gate cannot be checked"
-            ),
+            reason=("diagnostics_summary.json could not be parsed, so the convergence gate cannot be checked"),
             config=config,
             **qualification,
         )
@@ -513,11 +480,7 @@ def evaluate_publication(
         return ReleaseEvaluation(
             status="not_available",
             stage="inputs",
-            reason=(
-                "config.json could not be parsed"
-                if config is None
-                else "config.json is missing"
-            ),
+            reason=("config.json could not be parsed" if config is None else "config.json is missing"),
             config=config,
             **qualification,
         )
@@ -536,33 +499,25 @@ def evaluate_publication(
         return ReleaseEvaluation(
             status="inputs_unresolved",
             stage="inputs",
-            reason=(
-                "publication inputs are unresolved: " + "; ".join(input_failures)
-            ),
+            reason=("publication inputs are unresolved: " + "; ".join(input_failures)),
             input_failures=input_failures,
             config=config,
             **qualification,
         )
 
-    t3_gate_failures, t3_artifact_failures = _mediation_t3_release_failures(
-        output_dir, config
-    )
+    t3_gate_failures, t3_artifact_failures = _mediation_t3_release_failures(output_dir, config)
     (
         growth_gate_failures,
         growth_artifact_failures,
         growth_robustness_failures,
-    ) = (
-        _growth_influence_release_failures(output_dir, config)
+    ) = _growth_influence_release_failures(output_dir, config)
+    itt_missingness_gate_failures, itt_missingness_artifact_failures = _itt_missingness_release_failures(
+        output_dir, config
     )
-    itt_missingness_gate_failures, itt_missingness_artifact_failures = (
-        _itt_missingness_release_failures(output_dir, config)
+    concurrent_gate_failures, concurrent_artifact_failures = _concurrent_published_fit_release_failures(
+        output_dir, config
     )
-    concurrent_gate_failures, concurrent_artifact_failures = (
-        _concurrent_published_fit_release_failures(output_dir, config)
-    )
-    adjusted_ses_gate_failures, adjusted_ses_artifact_failures = (
-        _adjusted_ses_release_failures(output_dir, config)
-    )
+    adjusted_ses_gate_failures, adjusted_ses_artifact_failures = _adjusted_ses_release_failures(output_dir, config)
     (
         gain_p1_gate_failures,
         gain_p1_artifact_failures,
@@ -577,9 +532,7 @@ def evaluate_publication(
     # gate never runs for them and any note computed below would be discarded with
     # it. Their prior-sensitivity qualification therefore attaches here, where a
     # non-gated family's qualifications live (#588 finding 5).
-    hj_prior_qualifications = _historical_joint_prior_companion_qualifications(
-        output_dir, config
-    )
+    hj_prior_qualifications = _historical_joint_prior_companion_qualifications(output_dir, config)
     # Unavailable estimand-scale prior evidence qualifies rather than withholds
     # (#637 stage 1); :func:`_prior_evidence_qualifications` states why.
     prior_evidence_qualifications = _prior_evidence_qualifications(output_dir)
@@ -611,10 +564,7 @@ def evaluate_publication(
         return ReleaseEvaluation(
             status="gate_failed",
             stage="computation",
-            reason=(
-                "a required trace-backed secondary sensitivity did not pass its "
-                "sampling-quality gate"
-            ),
+            reason=("a required trace-backed secondary sensitivity did not pass its sampling-quality gate"),
             failing_checks=gate_failures,
             config=config,
             **qualification,
@@ -638,10 +588,7 @@ def evaluate_publication(
         return ReleaseEvaluation(
             status="artifacts_incomplete",
             stage="artifacts",
-            reason=(
-                "required fit artefacts are missing or invalid: "
-                f"{', '.join(missing)}"
-            ),
+            reason=(f"required fit artefacts are missing or invalid: {', '.join(missing)}"),
             missing_artifacts=missing,
             config=config,
             **qualification,
@@ -679,9 +626,7 @@ def evaluate_publication(
     # has always demanded. When the pair does bind, the measured consequence for the
     # declared contrast is recorded and only qualifies the release if it changes the
     # conclusion.
-    companion_note, dependence_contrast = _joint_dependence_companion_note(
-        output_dir, config
-    )
+    companion_note, dependence_contrast = _joint_dependence_companion_note(output_dir, config)
     # The companion note is for a *parent* whose companion is missing; this one is
     # for the companion itself, whose block may have learned nothing (2026-08-22
     # ITT audit, finding 3). A fit can in principle attract both.
@@ -691,15 +636,9 @@ def evaluate_publication(
     # the note says so — verified against the sibling bundle — whenever the pairing
     # that governs the B model of record is not release-ready beside it.
     blending_scope_note = _joint_blending_scope_note(output_dir, config)
-    attached = " ".join(
-        n
-        for n in (companion_note, identification_note, blending_scope_note)
-        if n
-    )
+    attached = " ".join(n for n in (companion_note, identification_note, blending_scope_note) if n)
     if attached and robustness is not None:
-        robustness = replace(
-            robustness, note=(robustness.note + " " + attached).strip()
-        )
+        robustness = replace(robustness, note=(robustness.note + " " + attached).strip())
     return ReleaseEvaluation(
         status="ok",
         stage="robustness",
@@ -710,9 +649,7 @@ def evaluate_publication(
     )
 
 
-def _robustness_decision(
-    output_dir: Path, config: Mapping[str, Any]
-) -> ReleaseDecision | None:
+def _robustness_decision(output_dir: Path, config: Mapping[str, Any]) -> ReleaseDecision | None:
     """The treatment-effect robustness verdict, or ``None`` if out of scope.
 
     A gate that cannot be evaluated **withholds**, matching how an unverifiable

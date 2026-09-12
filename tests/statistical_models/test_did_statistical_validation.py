@@ -77,10 +77,7 @@ def _simulate_counts(
         t3_subject_shift = np.asarray(t3_subject_shift, dtype=float)
         expected = (2, n_children_per_arm)
         if t3_subject_shift.shape != expected:
-            raise ValueError(
-                f"t3_subject_shift must have shape {expected}, got "
-                f"{t3_subject_shift.shape}"
-            )
+            raise ValueError(f"t3_subject_shift must have shape {expected}, got {t3_subject_shift.shape}")
 
     alpha = -1.15
     wave_effect = np.asarray([0.0, 0.35, 0.65])
@@ -94,9 +91,7 @@ def _simulate_counts(
     return rng.binomial(n_trials, _expit(eta)).astype(np.int64)
 
 
-def _fit_saturated_arm_wave(
-    counts: np.ndarray, *, n_trials: int = 30
-) -> dict[str, np.ndarray | float]:
+def _fit_saturated_arm_wave(counts: np.ndarray, *, n_trials: int = 30) -> dict[str, np.ndarray | float]:
     """Closed-form saturated-binomial MLE and derived arm-wave contrasts.
 
     The half-count correction is negligible at this sample size but prevents an
@@ -153,19 +148,13 @@ def test_history_effects_move_catchup_without_moving_randomised_t2() -> None:
 
     for index, (name, dgp) in enumerate(scenarios.items()):
         scenario = shared.copy()
-        t3 = _simulate_counts(
-            np.asarray([0.0, 0.50, dgp.arm_gap_t3]), seed=2200 + index
-        )
+        t3 = _simulate_counts(np.asarray([0.0, 0.50, dgp.arm_gap_t3]), seed=2200 + index)
         scenario[:, 2, :] = t3[:, 2, :]
         fitted[name] = _fit_saturated_arm_wave(scenario)
 
         assert fitted[name]["tau_t2"] == fitted["no_carryover_equal_blocks"]["tau_t2"]
-        assert fitted[name]["arm_gap_t3"] == pytest.approx(
-            dgp.arm_gap_t3, abs=0.025
-        )
-        assert fitted[name]["delta_crossover"] == pytest.approx(
-            dgp.delta_crossover, abs=0.035
-        )
+        assert fitted[name]["arm_gap_t3"] == pytest.approx(dgp.arm_gap_t3, abs=0.025)
+        assert fitted[name]["delta_crossover"] == pytest.approx(dgp.delta_crossover, abs=0.035)
 
     catchup = {name: float(fit["delta_crossover"]) for name, fit in fitted.items()}
     assert max(catchup.values()) - min(catchup.values()) > 0.40
@@ -192,14 +181,10 @@ def test_heterogeneous_maturation_is_absorbed_by_post_crossover_gap() -> None:
 
     slow = np.full(3 * n_children // 4, -magnitude)
     fast = np.full(n_children // 4, magnitude)
-    imbalanced_shift = np.stack(
-        [np.concatenate([slow, fast]), np.concatenate([-fast, -slow])]
-    )
+    imbalanced_shift = np.stack([np.concatenate([slow, fast]), np.concatenate([-fast, -slow])])
 
     fitted = {}
-    for index, (name, shift) in enumerate(
-        (("balanced", balanced_shift), ("imbalanced", imbalanced_shift))
-    ):
+    for index, (name, shift) in enumerate((("balanced", balanced_shift), ("imbalanced", imbalanced_shift))):
         scenario = shared.copy()
         t3 = _simulate_counts(
             np.asarray([0.0, 0.50, 0.0]),
@@ -213,11 +198,7 @@ def test_heterogeneous_maturation_is_absorbed_by_post_crossover_gap() -> None:
     assert fitted["balanced"]["tau_t2"] == fitted["imbalanced"]["tau_t2"]
     assert abs(fitted["balanced"]["arm_gap_t3"]) < 0.03
     assert fitted["imbalanced"]["arm_gap_t3"] > 0.35
-    assert (
-        fitted["balanced"]["delta_crossover"]
-        - fitted["imbalanced"]["delta_crossover"]
-        > 0.35
-    )
+    assert fitted["balanced"]["delta_crossover"] - fitted["imbalanced"]["delta_crossover"] > 0.35
 
 
 # --- production-likelihood parameter recovery (#390) ---------------------------
@@ -253,12 +234,7 @@ def _prepared_arm_wave_panel(
     G = child_g[child_idx]
     wave_offset = np.asarray(truth["wave_offset"], dtype=float)
     arm_gap = np.asarray(truth["arm_gap"], dtype=float)
-    eta = (
-        truth["alpha"]
-        + wave_offset[phase]
-        + u_child[child_idx]
-        + arm_gap[phase] * G
-    )
+    eta = truth["alpha"] + wave_offset[phase] + u_child[child_idx] + arm_gap[phase] * G
     p = _expit(eta)
     kappa = float(truth["kappa"])
     theta = rng.beta(p * kappa, (1.0 - p) * kappa)
@@ -296,9 +272,7 @@ def test_production_beta_binomial_random_intercept_recovers_truth() -> None:
     checks above, which cannot see the random-intercept or dispersion parts."""
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_did_model,
-    )
+    from language_reading_predictors.statistical_models.factories.did import build_did_model
 
     truth = {
         "alpha": -0.4,
@@ -371,9 +345,7 @@ def test_production_recovery_under_material_baseline_imbalance() -> None:
     """
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_did_model,
-    )
+    from language_reading_predictors.statistical_models.factories.did import build_did_model
 
     truth = {
         "alpha": -0.4,
@@ -438,9 +410,7 @@ def test_wide_baseline_allocation_priors_do_not_move_the_t2_level() -> None:
     """
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_did_model,
-    )
+    from language_reading_predictors.statistical_models.factories.did import build_did_model
 
     truth = {
         "alpha": -0.4,
@@ -449,9 +419,7 @@ def test_wide_baseline_allocation_priors_do_not_move_the_t2_level() -> None:
         "sigma_child": 0.45,
         "kappa": 60.0,
     }
-    prepared, _ = _prepared_arm_wave_panel(
-        n_children_per_arm=60, truth=truth, n_trials=30, seed=20260824
-    )
+    prepared, _ = _prepared_arm_wave_panel(n_children_per_arm=60, truth=truth, n_trials=30, seed=20260824)
     covered = {}
     for label, kwargs in (
         ("default", {}),

@@ -28,10 +28,7 @@ from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-030",
     kind="itt",
-    title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "APT expressive grammar (EG)"
-    ),
+    title=("Available-case modified ITT estimate of the assigned-arm contrast in APT expressive grammar (EG)"),
     outcome_symbol="EG",
     model_settings=IttModelSettings(),
 )

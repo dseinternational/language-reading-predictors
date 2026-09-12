@@ -15,14 +15,11 @@ from __future__ import annotations
 import inspect
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Generic, Iterable, TypeVar
+from typing import Any, Generic, Iterable, TypeVar
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -66,11 +63,7 @@ def _tau_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
     """
     if override is not None:
         return override
-    return (
-        _priors.TAU_SIGMA_DISTAL
-        if is_distal(outcome_symbol)
-        else _priors.TAU_SIGMA_PROXIMAL
-    )
+    return _priors.TAU_SIGMA_DISTAL if is_distal(outcome_symbol) else _priors.TAU_SIGMA_PROXIMAL
 
 
 def _alpha_sigma_for(outcome_symbol: str, override: float | None = None) -> float:
@@ -89,11 +82,7 @@ def _alpha_sigma_for(outcome_symbol: str, override: float | None = None) -> floa
     """
     if override is not None:
         return override
-    return (
-        _priors.ALPHA_SIGMA_DISTAL
-        if is_distal(outcome_symbol)
-        else _priors.ALPHA_SIGMA_PROXIMAL
-    )
+    return _priors.ALPHA_SIGMA_DISTAL if is_distal(outcome_symbol) else _priors.ALPHA_SIGMA_PROXIMAL
 
 
 def _add_child_random_intercept(
@@ -101,6 +90,7 @@ def _add_child_random_intercept(
     child_idx: pt.TensorVariable,
     *,
     sigma_prior_sigma: float = 0.5,
+    rationale: str | None = None,
 ) -> pt.TensorVariable:
     """Add a non-centred subject random intercept to ``eta`` (call inside a model).
 
@@ -114,14 +104,13 @@ def _add_child_random_intercept(
     sigma_child = _priors.declare(
         pm.HalfNormal("sigma_child", sigma=sigma_prior_sigma),
         role="nuisance",
-        rationale="Child random-intercept SD sigma_child ~ HalfNormal(0.5).",
+        rationale=rationale or f"Child random-intercept SD sigma_child ~ HalfNormal({sigma_prior_sigma:g}).",
     )
     u_child_raw = _priors.declare(
         pm.Normal("u_child_raw", mu=0.0, sigma=1.0, dims="child"),
         role="nuisance",
         rationale=(
-            "Non-centred standard-normal per-child offsets (Normal(0, 1)); scaled "
-            "by sigma_child to form the child random intercept u_child."
+            "Non-centred standard-normal per-child offsets; scaled by sigma_child to form the child random intercept u_child."
         ),
     )
     u_child = pm.Deterministic("u_child", sigma_child * u_child_raw, dims="child")
@@ -144,31 +133,20 @@ def _broadcast_phase_zero(
     """
     arr = np.asarray(values, dtype=float)
     if arr.shape != (prepared.n_obs,):
-        raise ValueError(
-            f"{label} has shape {arr.shape}; expected ({prepared.n_obs},)."
-        )
+        raise ValueError(f"{label} has shape {arr.shape}; expected ({prepared.n_obs},).")
     phase_zero = prepared.phase == 0
     if not np.any(phase_zero):
         raise ValueError(f"Cannot construct {label}: prepared data have no phase-zero rows.")
 
     by_subject: dict[Any, float] = {}
-    for subject, value in zip(
-        prepared.subject_ids[phase_zero], arr[phase_zero], strict=True
-    ):
-        if subject in by_subject and not np.isclose(
-            by_subject[subject], value, equal_nan=True
-        ):
-            raise ValueError(
-                f"Cannot construct {label}: subject {subject!r} has conflicting "
-                "phase-zero values."
-            )
+    for subject, value in zip(prepared.subject_ids[phase_zero], arr[phase_zero], strict=True):
+        if subject in by_subject and not np.isclose(by_subject[subject], value, equal_nan=True):
+            raise ValueError(f"Cannot construct {label}: subject {subject!r} has conflicting phase-zero values.")
         by_subject[subject] = float(value)
 
     missing = [s for s in np.unique(prepared.subject_ids) if s not in by_subject]
     if missing:
-        raise ValueError(
-            f"Cannot construct {label}: {len(missing)} subject(s) lack a phase-zero row."
-        )
+        raise ValueError(f"Cannot construct {label}: {len(missing)} subject(s) lack a phase-zero row.")
     return np.asarray([by_subject[s] for s in prepared.subject_ids], dtype=float)
 
 
@@ -189,25 +167,16 @@ def _broadcast_phase_zero_optional(
     """
     arr = np.asarray(values, dtype=float)
     if arr.shape != (prepared.n_obs,):
-        raise ValueError(
-            f"{label} has shape {arr.shape}; expected ({prepared.n_obs},)."
-        )
+        raise ValueError(f"{label} has shape {arr.shape}; expected ({prepared.n_obs},).")
     phase_zero = prepared.phase == 0
     by_subject: dict[Any, float] = {}
-    for subject, value in zip(
-        prepared.subject_ids[phase_zero], arr[phase_zero], strict=True
-    ):
+    for subject, value in zip(prepared.subject_ids[phase_zero], arr[phase_zero], strict=True):
         if np.isnan(value):
             continue
         if subject in by_subject and not np.isclose(by_subject[subject], value):
-            raise ValueError(
-                f"Cannot construct {label}: subject {subject!r} has conflicting "
-                "phase-zero values."
-            )
+            raise ValueError(f"Cannot construct {label}: subject {subject!r} has conflicting phase-zero values.")
         by_subject[subject] = float(value)
-    return np.asarray(
-        [by_subject.get(s, np.nan) for s in prepared.subject_ids], dtype=float
-    )
+    return np.asarray([by_subject.get(s, np.nan) for s in prepared.subject_ids], dtype=float)
 
 
 def _standardise_child_baseline(
@@ -220,9 +189,7 @@ def _standardise_child_baseline(
     broadcast = _broadcast_phase_zero(prepared, values, label=label)
     phase_zero = prepared.phase == 0
     baseline_z, scaler = standardise(broadcast[phase_zero])
-    by_subject = dict(
-        zip(prepared.subject_ids[phase_zero], baseline_z, strict=True)
-    )
+    by_subject = dict(zip(prepared.subject_ids[phase_zero], baseline_z, strict=True))
     return (
         np.asarray([by_subject[s] for s in prepared.subject_ids], dtype=float),
         scaler,
@@ -284,8 +251,7 @@ class BuiltModel(Generic[PayloadT, PreparedT]):
         """Return the payload or reject a mismatched factory/family combination."""
         if not isinstance(self.payload, payload_type):
             raise TypeError(
-                f"{family} requires {payload_type.__name__}, but the built model "
-                f"carries {type(self.payload).__name__}"
+                f"{family} requires {payload_type.__name__}, but the built model carries {type(self.payload).__name__}"
             )
         return self.payload
 
@@ -329,11 +295,7 @@ def _bivariate_lkj_residual(
     # ``LKJCholeskyCov`` returns the factor, the correlation and the scales — none
     # of which is the packed variable the model samples — so the declaration names
     # it instead of holding it.
-    block_label = (
-        "per-observation (within-wave) residual"
-        if row_dim == "obs_id"
-        else f"per-{row_dim} intercept"
-    )
+    block_label = "per-observation (within-wave) residual" if row_dim == "obs_id" else f"per-{row_dim} intercept"
     _priors.declare(
         f"{name}_chol",
         role="nuisance",
@@ -402,8 +364,10 @@ def _resolve_adjusted_predictor(
 
     coef = f"beta_{key}"
     if key == "lang":
-        return coef, _t1_language_composite(prepared, language_symbols), (
-            "Language composite (" + "+".join(language_symbols) + ", T1)"
+        return (
+            coef,
+            _t1_language_composite(prepared, language_symbols),
+            ("Language composite (" + "+".join(language_symbols) + ", T1)"),
         )
     if key == "age":
         return coef, _fitted_scale(prepared.A_months), "Age (T1)"
@@ -452,17 +416,14 @@ def _rlm_group_nuisance(frame, eta):
             pm.Normal(f"beta_group_nuisance_{slug}", mu=0.0, sigma=1.0),
             role="nuisance",
             rationale=(
-                "Non-interpretable group-composition nuisance dummy (Normal(0, 1)) "
-                "held outside the horseshoe / adjustment set to absorb cohort "
-                "composition (reference = largest group); never a ranked predictor "
-                "slope or a group-effect estimate."
+                "Non-interpretable group-composition nuisance dummy held outside the horseshoe / adjustment set to absorb cohort composition (reference = largest group); never a ranked predictor slope or a group-effect estimate."
             ),
         )
         eta = eta + beta_g * d
     return eta
 
 
-def _rlm_dispersion_kappa(dispersion_prior_sigma: float):
+def _rlm_dispersion_kappa(dispersion_prior_sigma: float, *, rationale: str | None = None):
     """``kappa`` on the dispersion scale, as in the RLM historical factories.
 
     ``inv_sqrt_kappa ~ HalfNormal(dispersion_prior_sigma)`` with the Deterministic
@@ -471,9 +432,9 @@ def _rlm_dispersion_kappa(dispersion_prior_sigma: float):
     kappa by under 0.01%). Call inside a model context. Shared by the Byrne
     adjusted span and stacked-transition factories so the two cannot drift.
     """
-    inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(
-        sigma=dispersion_prior_sigma
-    ).to_pymc("inv_sqrt_kappa")
+    inv_sqrt_kappa = _priors.inv_sqrt_kappa_prior(sigma=dispersion_prior_sigma).to_pymc(
+        "inv_sqrt_kappa", rationale=rationale
+    )
     return pm.Deterministic("kappa", 1.0 / (inv_sqrt_kappa**2 + 1e-6))
 
 
@@ -491,9 +452,7 @@ def default_of(fn, param: str) -> float:
     return inspect.signature(fn).parameters[param].default
 
 
-def _t1_language_composite(
-    prepared: PreparedData, symbols: Iterable[str]
-) -> np.ndarray:
+def _t1_language_composite(prepared: PreparedData, symbols: Iterable[str]) -> np.ndarray:
     """Equal-weight standardised-logit language composite at T1.
 
     Each symbol's Haldane-logit baseline is standardised; the equal-weight mean

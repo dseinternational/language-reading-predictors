@@ -77,8 +77,16 @@ SPEC = ModelSpec(
         # T = per-period on-intervention exposure; A = age; own baselines are
         # structural. Confounders mirror med-059: E/R at the period start,
         # hearing + speech production as raw covariates (gain-factor timing).
-        "T", "A", "E", "R", "L_pre", "W_pre",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+        "T",
+        "A",
+        "E",
+        "R",
+        "L_pre",
+        "W_pre",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     model_settings=MediationModelSettings(period_stacked=True),
 )

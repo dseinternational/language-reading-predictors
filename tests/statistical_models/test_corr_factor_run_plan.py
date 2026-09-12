@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import inspect
 from dataclasses import asdict
 from types import SimpleNamespace
@@ -12,7 +15,7 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import corr_factor as C
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 
 
@@ -73,15 +76,11 @@ def test_settings_reject_unknown_legacy_key():
 
 
 def test_typed_settings_allow_only_global_extra_keys():
-    plan = C.resolve_corr_factor_run_plan(
-        _spec(settings=C.CorrFactorModelSettings(), target_accept=0.999)
-    )
+    plan = C.resolve_corr_factor_run_plan(_spec(settings=C.CorrFactorModelSettings(), target_accept=0.999))
     assert plan.settings_source == "typed"
 
     with pytest.raises(ValueError, match="cannot be split.*use_age"):
-        C.resolve_corr_factor_run_plan(
-            _spec(settings=C.CorrFactorModelSettings(), use_age=False)
-        )
+        C.resolve_corr_factor_run_plan(_spec(settings=C.CorrFactorModelSettings(), use_age=False))
 
 
 def test_resolve_rejects_wrong_kind_study_and_port_outcomes():
@@ -144,15 +143,9 @@ def test_default_legacy_rli_plan_preserves_execution_contract():
         ("free", "comm_alpha", "only apply to loading_prior='communality'"),
     ],
 )
-def test_resolve_rejects_inactive_loading_knobs(
-    typed, loading_prior, knob, message
-):
+def test_resolve_rejects_inactive_loading_knobs(typed, loading_prior, knob, message):
     values = {"loading_prior": loading_prior, knob: 0.5}
-    spec = (
-        _spec(settings=C.CorrFactorModelSettings(**values))
-        if typed
-        else _spec(**values)
-    )
+    spec = _spec(settings=C.CorrFactorModelSettings(**values)) if typed else _spec(**values)
     with pytest.raises(ValueError, match=message):
         C.resolve_corr_factor_run_plan(spec)
 
@@ -177,9 +170,7 @@ def test_rli_plan_rejects_invalid_domains_factors_and_rlm_settings():
         )
 
     with pytest.raises(ValueError, match="RLM-only settings.*wave"):
-        C.resolve_corr_factor_run_plan(
-            _spec(settings=C.CorrFactorModelSettings(wave=3))
-        )
+        C.resolve_corr_factor_run_plan(_spec(settings=C.CorrFactorModelSettings(wave=3)))
 
 
 def test_rlm_plan_preserves_measurement_only_contract():
@@ -294,8 +285,8 @@ def test_reporting_dispatch_and_recipe_use_attached_plan(tmp_path):
     plan = C.resolve_corr_factor_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
 
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated correlated-factor run plan" in text
@@ -368,9 +359,7 @@ def test_declared_empty_structural_covariates_stay_empty():
     unadjusted structural leg and must not silently become blocks-adjusted."""
     defaulted = C.resolve_corr_factor_run_plan(_spec())
     assert "blocks" in defaulted.structural_covariates
-    plan = C.resolve_corr_factor_run_plan(
-        _spec(settings=C.CorrFactorModelSettings(structural_covariates=()))
-    )
+    plan = C.resolve_corr_factor_run_plan(_spec(settings=C.CorrFactorModelSettings(structural_covariates=())))
     assert plan.structural_covariates == ()
 
 

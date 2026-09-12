@@ -11,6 +11,8 @@ successively finer Gauss-Hermite quadrature and fail if the cells do not stabili
 
 from collections.abc import Callable
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
 import numpy as np
 from scipy.special import roots_hermitenorm
 from scipy.stats import betabinom
@@ -55,7 +57,7 @@ def normal_cells(
     mu_ctrl: np.ndarray,
     sigma: np.ndarray,
     *,
-    ci_prob: float = 0.89,
+    ci_prob: float = REPORTING_CI_PROB,
 ) -> np.ndarray:
     """Adapt quadrature until every draw's averaged counterfactual cell agrees.
 

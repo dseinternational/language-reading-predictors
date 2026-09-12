@@ -84,9 +84,7 @@ def _domains(value: Any) -> DomainItems:
             raise ValueError(f"domain {name!r} must contain at least one indicator")
         for symbol in symbols:
             if not isinstance(symbol, str) or not symbol:
-                raise TypeError(
-                    f"domain {name!r} indicators must be non-empty strings"
-                )
+                raise TypeError(f"domain {name!r} indicators must be non-empty strings")
         if len(symbols) != len(set(symbols)):
             raise ValueError(f"domain {name!r} contains duplicate indicators")
         out.append((name, symbols))
@@ -120,10 +118,7 @@ class LongCorrFactorModelSettings:
         require_declared_booleans(self)
         object.__setattr__(self, "domains", _domains(self.domains))
         if self.loading_prior not in {"communality", "free"}:
-            raise ValueError(
-                "loading_prior must be 'communality' or 'free', got "
-                f"{self.loading_prior!r}"
-            )
+            raise ValueError(f"loading_prior must be 'communality' or 'free', got {self.loading_prior!r}")
         for name in ("comm_alpha", "comm_beta", "loading_sigma", "residual_sigma"):
             object.__setattr__(
                 self,
@@ -265,9 +260,7 @@ class LongCorrFactorRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language recipe generated from the validated plan."""
-        domains = "; ".join(
-            f"{name}: {', '.join(symbols)}" for name, symbols in self.domains
-        )
+        domains = "; ".join(f"{name}: {', '.join(symbols)}" for name, symbols in self.domains)
         return (
             "Note: Generated from the validated longitudinal-factor run plan; "
             "template drafted by a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -323,39 +316,19 @@ def declared_long_corr_factor_settings(
 def resolve_long_corr_factor_run_plan(spec: ModelSpec) -> LongCorrFactorRunPlan:
     """Resolve and validate the family contract before context or data I/O."""
     if spec.kind != "long_corr_factor":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'long_corr_factor', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'long_corr_factor', got {spec.kind!r}")
     if spec.study_id != "rli":
-        raise ValueError(
-            f"{spec.model_id}: long_corr_factor requires study_id='rli', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: long_corr_factor requires study_id='rli', got {spec.study_id!r}")
     if spec.outcome_symbol is not None:
-        raise ValueError(
-            f"{spec.model_id}: long_corr_factor is a measurement model and requires "
-            "outcome_symbol=None"
-        )
+        raise ValueError(f"{spec.model_id}: long_corr_factor is a measurement model and requires outcome_symbol=None")
 
     settings, source = declared_long_corr_factor_settings(spec)
-    free_knobs = sorted(
-        name
-        for name in ("loading_sigma", "residual_sigma")
-        if getattr(settings, name) is not None
-    )
-    comm_knobs = sorted(
-        name
-        for name in ("comm_alpha", "comm_beta")
-        if getattr(settings, name) is not None
-    )
+    free_knobs = sorted(name for name in ("loading_sigma", "residual_sigma") if getattr(settings, name) is not None)
+    comm_knobs = sorted(name for name in ("comm_alpha", "comm_beta") if getattr(settings, name) is not None)
     if settings.loading_prior == "communality" and free_knobs:
-        raise ValueError(
-            f"{spec.model_id}: {free_knobs} only apply to loading_prior='free'"
-        )
+        raise ValueError(f"{spec.model_id}: {free_knobs} only apply to loading_prior='free'")
     if settings.loading_prior == "free" and comm_knobs:
-        raise ValueError(
-            f"{spec.model_id}: {comm_knobs} only apply to loading_prior='communality'"
-        )
+        raise ValueError(f"{spec.model_id}: {comm_knobs} only apply to loading_prior='communality'")
     indicators = tuple(symbol for _, symbols in settings.domains for symbol in symbols)
 
     return LongCorrFactorRunPlan(
@@ -367,12 +340,8 @@ def resolve_long_corr_factor_run_plan(spec: ModelSpec) -> LongCorrFactorRunPlan:
         loading_prior=settings.loading_prior,
         comm_alpha=2.0 if settings.comm_alpha is None else settings.comm_alpha,
         comm_beta=2.0 if settings.comm_beta is None else settings.comm_beta,
-        loading_sigma=(
-            1.0 if settings.loading_sigma is None else settings.loading_sigma
-        ),
-        residual_sigma=(
-            1.0 if settings.residual_sigma is None else settings.residual_sigma
-        ),
+        loading_sigma=(1.0 if settings.loading_sigma is None else settings.loading_sigma),
+        residual_sigma=(1.0 if settings.residual_sigma is None else settings.residual_sigma),
         lkj_eta=settings.lkj_eta,
         factor_mean_sigma=settings.factor_mean_sigma,
         trait_share_a=settings.trait_share_a,
@@ -393,8 +362,7 @@ def resolve_long_corr_factor_run_plan(spec: ModelSpec) -> LongCorrFactorRunPlan:
             "measurement error."
         ),
         causal_status=(
-            "Descriptive measurement associations only; no latent correlation or "
-            "conditional slope is a causal effect."
+            "Descriptive measurement associations only; no latent correlation or conditional slope is a causal effect."
         ),
         analysis_population=(
             "All 54 RLI children across four waves; observed cells contribute under "

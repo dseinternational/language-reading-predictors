@@ -42,10 +42,7 @@ from language_reading_predictors.statistical_models.pipelines.block_exposure imp
 SPEC = ModelSpec(
     model_id="lrp-rli-bx-103",
     kind="block_exposure",
-    title=(
-        "Wide-delta prior sensitivity for block-2 not-taught expressive "
-        "vocabulary (UE2)"
-    ),
+    title=("Wide-delta prior sensitivity for block-2 not-taught expressive vocabulary (UE2)"),
     outcome_symbol="UE2",
     model_settings=BlockExposureModelSettings(
         # Identical to LRPBX03 in every respect except delta_prior_sigma.

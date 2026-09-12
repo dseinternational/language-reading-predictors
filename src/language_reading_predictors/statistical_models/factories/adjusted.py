@@ -1,24 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Adjusted between-child span model construction, RLI and Byrne cohorts.
-
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
-"""
+"""Adjusted between-child span model construction, RLI and Byrne cohorts."""
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -40,7 +32,6 @@ from language_reading_predictors.statistical_models.factories.base import (
     _rlm_dispersion_kappa,
     _rlm_group_nuisance,
 )
-
 
 
 def build_adjusted_model(
@@ -92,33 +83,23 @@ def build_adjusted_model(
     N = prepared.n_trials[outcome_symbol]
     own_pre_logit = prepared.pre_logit[outcome_symbol]
     language_symbols = tuple(language_composite_symbols)
-    resolved = [
-        _resolve_adjusted_predictor(prepared, k, language_symbols) for k in predictors
-    ]
+    resolved = [_resolve_adjusted_predictor(prepared, k, language_symbols) for k in predictors]
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     with pm.Model(coords=coords) as model:
         own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
-        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
-            "gamma_own"
-        )
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
+        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc("gamma_own")
         eta = alpha + gamma_own * own_pre_d
 
         for coef_name, vec, _label in resolved:
             x_d = pm.Data(f"x_{coef_name}", vec, dims="obs_id")
-            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                coef_name
-            )
+            beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(coef_name)
             eta = eta + beta * x_d
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _priors.kappa_prior().to_pymc("kappa")
-        beta_binomial_from_logit(
-            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
-        )
+        beta_binomial_from_logit("y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id")
 
     return BuiltModel(model=model, prepared=prepared, payload=EmptyPayload())
 
@@ -169,24 +150,20 @@ def build_rlm_adjusted_model(
     with pm.Model(coords=coords) as model:
         own_pre_d = pm.Data("own_pre_logit", frame.pre_logit[outcome], dims="obs_id")
         alpha = _priors.alpha_prior(sigma=1.5).to_pymc("alpha")
-        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
-            "gamma_own"
-        )
+        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc("gamma_own")
         eta = alpha + gamma_own * own_pre_d
 
         for k in keys:
             x_d = pm.Data(f"x_{k}", frame.predictors[k], dims="obs_id")
             beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
-                f"beta_{k}"
+                f"beta_{k}", **_priors.adjustment_metadata(k)
             )
             eta = eta + beta * x_d
 
         eta = _rlm_group_nuisance(frame, eta)
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         kappa = _rlm_dispersion_kappa(dispersion_prior_sigma)
-        beta_binomial_from_logit(
-            "y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id"
-        )
+        beta_binomial_from_logit("y_post", eta, n_trials=N, kappa=kappa, observed=post, dims="obs_id")
 
     return BuiltModel(model=model, prepared=frame, payload=EmptyPayload())
 
@@ -221,9 +198,7 @@ def build_rlm_transition_adjusted_model(
     keys = list(predictors) if predictors is not None else list(frame.predictors)
     missing = [key for key in keys if key not in frame.predictors]
     if missing:
-        raise KeyError(
-            f"Predictors {missing} not in frame (have {list(frame.predictors)})."
-        )
+        raise KeyError(f"Predictors {missing} not in frame (have {list(frame.predictors)}).")
 
     outcome = frame.outcome
     post = frame.post_counts[outcome].astype(np.int64)
@@ -238,24 +213,15 @@ def build_rlm_transition_adjusted_model(
         phase_d = pm.Data("phase_idx", frame.phase, dims="obs_id")
         child_d = pm.Data("child_idx", frame.child_idx, dims="obs_id")
         pm.Data("loo_child_idx", frame.child_idx, dims="obs_id")
-        own_pre_d = pm.Data(
-            "own_pre_logit", frame.pre_logit[outcome], dims="obs_id"
-        )
+        own_pre_d = pm.Data("own_pre_logit", frame.pre_logit[outcome], dims="obs_id")
         alpha_transition = _priors.declare(
-                               pm.Normal(
-                                           "alpha_transition", mu=0.0, sigma=1.5, dims="transition"
-                                       ),
-                               role="nuisance",
-                               rationale=(
-                                   "Per-transition intercept alpha_transition ~ Normal(0, 1.5), the "
-                                   "proximal-tier intercept scale, one free element per annual "
-                                   "transition; absorbs the mean trajectory between waves and is never "
-                                   "a reported association."
-                               ),
-                           )
-        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc(
-            "gamma_own"
+            pm.Normal("alpha_transition", mu=0.0, sigma=1.5, dims="transition"),
+            role="nuisance",
+            rationale=(
+                "Per-transition intercept alpha_transition, the proximal-tier intercept scale, one free element per annual transition; absorbs the mean trajectory between waves and is never a reported association."
+            ),
         )
+        gamma_own = _priors.gamma_own_prior(sigma=gamma_own_sigma).to_pymc("gamma_own")
         eta_fixed = alpha_transition[phase_d] + gamma_own * own_pre_d
 
         if varying_slopes:
@@ -264,28 +230,19 @@ def build_rlm_transition_adjusted_model(
                 np.column_stack([frame.predictors[key] for key in keys]),
                 dims=("obs_id", "predictor"),
             )
-            beta_transition = _priors.declare(
-                                  pm.Normal(
-                                                  "beta_transition",
-                                                  mu=0.0,
-                                                  sigma=predictor_slope_sigma,
-                                                  dims=("transition", "predictor"),
-                                              ),
-                                  role="association",
-                                  panel="predictor_slope",
-                                  rationale=(
-                                      "Standardised predictor slope ~ Normal(0, 0.3) by default."
-                                  ),
-                              )
-            eta_fixed = eta_fixed + pt.sum(
-                X * beta_transition[phase_d], axis=1
+            beta_transition = _priors.predictor_slope_prior(sigma=predictor_slope_sigma).to_pymc(
+                "beta_transition",
+                dims=("transition", "predictor"),
+                role="association",
+                rationale="Standardised predictor slope.",
             )
+            eta_fixed = eta_fixed + pt.sum(X * beta_transition[phase_d], axis=1)
         else:
             for key in keys:
                 x_d = pm.Data(f"x_{key}", frame.predictors[key], dims="obs_id")
-                beta = _priors.predictor_slope_prior(
-                    predictor_slope_sigma
-                ).to_pymc(f"beta_{key}")
+                beta = _priors.predictor_slope_prior(predictor_slope_sigma).to_pymc(
+                    f"beta_{key}", **_priors.adjustment_metadata(key)
+                )
                 eta_fixed = eta_fixed + beta * x_d
 
         eta_fixed = _rlm_group_nuisance(frame, eta_fixed)

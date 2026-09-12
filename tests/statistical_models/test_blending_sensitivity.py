@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import reporting as _reporting
+
+
 import json
 import pytest
 import re
@@ -23,10 +26,7 @@ from language_reading_predictors.statistical_models.sensitivity import sha256_fi
 
 def _fake_artifact_hash_manifest(character: str) -> str:
     return json.dumps(
-        {
-            name: character * 64
-            for name in bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
-        },
+        {name: character * 64 for name in bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS},
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -36,10 +36,7 @@ def _write_scientific_artifacts(directory: Path, *, label: str) -> str:
     for name in bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS:
         (directory / name).write_bytes(f"{label}:{name}".encode())
     return json.dumps(
-        {
-            name: sha256_file(directory / name)
-            for name in bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
-        },
+        {name: sha256_file(directory / name) for name in bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS},
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -97,9 +94,7 @@ def _manifest_rows() -> pd.DataFrame:
                 "trace_sha256": "2" * 64,
                 "trace_file": f"{bs.BLENDING_PRIMARY_MODEL_ID}-{'2' * 16}.nc",
                 "row_map_sha256": "5" * 64,
-                "row_map_file": (
-                    f"{bs.BLENDING_PRIMARY_MODEL_ID}-rows-{'5' * 16}.csv"
-                ),
+                "row_map_file": (f"{bs.BLENDING_PRIMARY_MODEL_ID}-rows-{'5' * 16}.csv"),
                 "scientific_artifacts_sha256": _fake_artifact_hash_manifest("7"),
             },
             {
@@ -110,9 +105,7 @@ def _manifest_rows() -> pd.DataFrame:
                 "trace_sha256": "4" * 64,
                 "trace_file": f"{bs.BLENDING_COMPANION_MODEL_ID}-{'4' * 16}.nc",
                 "row_map_sha256": "6" * 64,
-                "row_map_file": (
-                    f"{bs.BLENDING_COMPANION_MODEL_ID}-rows-{'6' * 16}.csv"
-                ),
+                "row_map_file": (f"{bs.BLENDING_COMPANION_MODEL_ID}-rows-{'6' * 16}.csv"),
                 "scientific_artifacts_sha256": _fake_artifact_hash_manifest("8"),
                 "loo_elpd": -9.0,
             },
@@ -121,13 +114,10 @@ def _manifest_rows() -> pd.DataFrame:
 
 
 def test_bound_scientific_artifacts_match_the_itt_results_partial():
-    partial = (
-        Path(__file__).resolve().parents[2]
-        / "docs/models/_partials/_results_itt.qmd"
-    ).read_text(encoding="utf-8")
-    consumed = set(
-        re.findall(r'_(?:csv|img|has)\("([^\"]+\.(?:csv|png))"', partial)
+    partial = (Path(__file__).resolve().parents[2] / "docs/models/_partials/_results_itt.qmd").read_text(
+        encoding="utf-8"
     )
+    consumed = set(re.findall(r'_(?:csv|img|has)\("([^\"]+\.(?:csv|png))"', partial))
 
     missingness_artifacts = set(MISSINGNESS_RENDERED_SCIENTIFIC_ARTIFACTS)
     assert missingness_artifacts <= consumed
@@ -186,9 +176,7 @@ def test_evaluator_requires_exact_paired_links(tmp_path):
 def test_evaluator_rejects_shared_trace_bytes_and_incoherent_loo_difference(tmp_path):
     rows = _manifest_rows()
     rows.loc[1, "trace_sha256"] = rows.loc[0, "trace_sha256"]
-    rows.loc[1, "trace_file"] = (
-        f"{bs.BLENDING_COMPANION_MODEL_ID}-{'2' * 16}.nc"
-    )
+    rows.loc[1, "trace_file"] = f"{bs.BLENDING_COMPANION_MODEL_ID}-{'2' * 16}.nc"
     status = bs.evaluate_blending_link_sensitivity(
         rows,
         trace_root=tmp_path,
@@ -213,42 +201,22 @@ def test_evaluator_rejects_shared_trace_bytes_and_incoherent_loo_difference(tmp_
 def test_evaluator_binds_summary_to_current_primary_bytes(tmp_path):
     rows = _manifest_rows()
     directories = {}
-    for index, model_id in enumerate(
-        (bs.BLENDING_PRIMARY_MODEL_ID, bs.BLENDING_COMPANION_MODEL_ID), start=1
-    ):
+    for index, model_id in enumerate((bs.BLENDING_PRIMARY_MODEL_ID, bs.BLENDING_COMPANION_MODEL_ID), start=1):
         directory = tmp_path / model_id
         directory.mkdir()
         (directory / "config.json").write_text(f"config-{index}")
         (directory / "trace.nc").write_text(f"trace-{index}")
         (directory / "pareto_k.csv").write_text(f"row-map-{index}")
-        artifact_manifest = _write_scientific_artifacts(
-            directory, label=f"fit-{index}"
-        )
+        artifact_manifest = _write_scientific_artifacts(directory, label=f"fit-{index}")
         directories[model_id] = directory
-        rows.loc[
-            rows["model_id"] == model_id, "scientific_artifacts_sha256"
-        ] = artifact_manifest
-        rows.loc[rows["model_id"] == model_id, "config_sha256"] = sha256_file(
-            directory / "config.json"
-        )
-        rows.loc[rows["model_id"] == model_id, "trace_sha256"] = sha256_file(
-            directory / "trace.nc"
-        )
-        rows.loc[rows["model_id"] == model_id, "row_map_sha256"] = sha256_file(
-            directory / "pareto_k.csv"
-        )
-        trace_sha = rows.loc[
-            rows["model_id"] == model_id, "trace_sha256"
-        ].iat[0]
-        row_map_sha = rows.loc[
-            rows["model_id"] == model_id, "row_map_sha256"
-        ].iat[0]
-        rows.loc[rows["model_id"] == model_id, "trace_file"] = (
-            f"{model_id}-{trace_sha[:16]}.nc"
-        )
-        rows.loc[rows["model_id"] == model_id, "row_map_file"] = (
-            f"{model_id}-rows-{row_map_sha[:16]}.csv"
-        )
+        rows.loc[rows["model_id"] == model_id, "scientific_artifacts_sha256"] = artifact_manifest
+        rows.loc[rows["model_id"] == model_id, "config_sha256"] = sha256_file(directory / "config.json")
+        rows.loc[rows["model_id"] == model_id, "trace_sha256"] = sha256_file(directory / "trace.nc")
+        rows.loc[rows["model_id"] == model_id, "row_map_sha256"] = sha256_file(directory / "pareto_k.csv")
+        trace_sha = rows.loc[rows["model_id"] == model_id, "trace_sha256"].iat[0]
+        row_map_sha = rows.loc[rows["model_id"] == model_id, "row_map_sha256"].iat[0]
+        rows.loc[rows["model_id"] == model_id, "trace_file"] = f"{model_id}-{trace_sha[:16]}.nc"
+        rows.loc[rows["model_id"] == model_id, "row_map_file"] = f"{model_id}-rows-{row_map_sha[:16]}.csv"
 
     status = bs.evaluate_blending_link_sensitivity(
         rows,
@@ -260,9 +228,7 @@ def test_evaluator_binds_summary_to_current_primary_bytes(tmp_path):
     assert status["ready"] is True
     assert status["scientific_artifacts_current"] is True
 
-    companion_artifact = (
-        directories[bs.BLENDING_COMPANION_MODEL_ID] / "predicted_scores.png"
-    )
+    companion_artifact = directories[bs.BLENDING_COMPANION_MODEL_ID] / "predicted_scores.png"
     original_artifact = companion_artifact.read_bytes()
     companion_artifact.write_text("changed companion scientific figure")
     status = bs.evaluate_blending_link_sensitivity(
@@ -293,27 +259,19 @@ def test_local_evaluator_hashes_both_current_fit_directories(tmp_path):
     rows = _manifest_rows()
     models = tmp_path / "models"
     directories = {}
-    for index, model_id in enumerate(
-        (bs.BLENDING_PRIMARY_MODEL_ID, bs.BLENDING_COMPANION_MODEL_ID), start=1
-    ):
+    for index, model_id in enumerate((bs.BLENDING_PRIMARY_MODEL_ID, bs.BLENDING_COMPANION_MODEL_ID), start=1):
         directory = models / f"{model_id}-reporting"
         directory.mkdir(parents=True)
         config = {
             "model_id": model_id,
             "outcome_symbol": "B",
-            "resolved_run_plan": {
-                "score_mean_link": dict(bs.BLENDING_LINK_MODELS)[model_id]
-            },
-            "model_settings": {
-                "score_mean_link": dict(bs.BLENDING_LINK_MODELS)[model_id]
-            },
+            "resolved_run_plan": {"score_mean_link": dict(bs.BLENDING_LINK_MODELS)[model_id]},
+            "model_settings": {"score_mean_link": dict(bs.BLENDING_LINK_MODELS)[model_id]},
         }
         (directory / "config.json").write_text(json.dumps(config))
         (directory / "trace.nc").write_text(f"trace-{index}")
         (directory / "pareto_k.csv").write_text(f"row-map-{index}")
-        artifact_manifest = _write_scientific_artifacts(
-            directory, label=f"local-fit-{index}"
-        )
+        artifact_manifest = _write_scientific_artifacts(directory, label=f"local-fit-{index}")
         directories[model_id] = directory
         mask = rows["model_id"] == model_id
         rows.loc[mask, "scientific_artifacts_sha256"] = artifact_manifest
@@ -326,9 +284,7 @@ def test_local_evaluator_hashes_both_current_fit_directories(tmp_path):
         trace_sha = str(rows.loc[mask, "trace_sha256"].iat[0])
         row_map_sha = str(rows.loc[mask, "row_map_sha256"].iat[0])
         rows.loc[mask, "trace_file"] = f"{model_id}-{trace_sha[:16]}.nc"
-        rows.loc[mask, "row_map_file"] = (
-            f"{model_id}-rows-{row_map_sha[:16]}.csv"
-        )
+        rows.loc[mask, "row_map_file"] = f"{model_id}-rows-{row_map_sha[:16]}.csv"
     # The local check byte-binds the installed copy to the central archive
     # manifest (finding 1, notes/202608201205-itt-code-review-findings.md); the
     # fixture layout mirrors production: <root>/models/<fit> beside
@@ -342,31 +298,21 @@ def test_local_evaluator_hashes_both_current_fit_directories(tmp_path):
             directory / bs.BLENDING_SENSITIVITY_FILENAME,
         )
 
-    status = bs.evaluate_local_blending_link_sensitivity(
-        directories[bs.BLENDING_PRIMARY_MODEL_ID]
-    )
+    status = bs.evaluate_local_blending_link_sensitivity(directories[bs.BLENDING_PRIMARY_MODEL_ID])
     assert status["ready"] is True
     assert len(status["summary_sha256"]) == 64
 
     report_table = directories[bs.BLENDING_COMPANION_MODEL_ID] / "rope_summary.csv"
     report_table.write_text("replaced companion result table")
-    status = bs.evaluate_local_blending_link_sensitivity(
-        directories[bs.BLENDING_PRIMARY_MODEL_ID]
-    )
+    status = bs.evaluate_local_blending_link_sensitivity(directories[bs.BLENDING_PRIMARY_MODEL_ID])
     assert status["ready"] is False
     assert "scientific report artefact has changed" in status["reason"]
     assert "rope_summary.csv" in status["reason"]
 
     # Restore the manifest-bound bytes before exercising the independent trace check.
-    report_table.write_bytes(
-        b"local-fit-2:rope_summary.csv"
-    )
-    (directories[bs.BLENDING_COMPANION_MODEL_ID] / "trace.nc").write_text(
-        "replaced companion trace"
-    )
-    status = bs.evaluate_local_blending_link_sensitivity(
-        directories[bs.BLENDING_PRIMARY_MODEL_ID]
-    )
+    report_table.write_bytes(b"local-fit-2:rope_summary.csv")
+    (directories[bs.BLENDING_COMPANION_MODEL_ID] / "trace.nc").write_text("replaced companion trace")
+    status = bs.evaluate_local_blending_link_sensitivity(directories[bs.BLENDING_PRIMARY_MODEL_ID])
     assert status["ready"] is False
     assert "trace has changed" in status["reason"]
 
@@ -379,9 +325,7 @@ def test_local_evaluator_requires_the_central_archive_manifest(tmp_path):
     models = tmp_path / "models"
     directory = models / f"{bs.BLENDING_PRIMARY_MODEL_ID}-reporting"
     directory.mkdir(parents=True)
-    (directory / "config.json").write_text(
-        json.dumps({"model_id": bs.BLENDING_PRIMARY_MODEL_ID})
-    )
+    (directory / "config.json").write_text(json.dumps({"model_id": bs.BLENDING_PRIMARY_MODEL_ID}))
     rows.to_csv(directory / bs.BLENDING_SENSITIVITY_FILENAME, index=False)
 
     status = bs.evaluate_local_blending_link_sensitivity(directory)
@@ -399,9 +343,7 @@ def test_local_evaluator_rejects_an_installed_summary_the_archive_never_validate
     models = tmp_path / "models"
     directory = models / f"{bs.BLENDING_PRIMARY_MODEL_ID}-reporting"
     directory.mkdir(parents=True)
-    (directory / "config.json").write_text(
-        json.dumps({"model_id": bs.BLENDING_PRIMARY_MODEL_ID})
-    )
+    (directory / "config.json").write_text(json.dumps({"model_id": bs.BLENDING_PRIMARY_MODEL_ID}))
     archive = tmp_path / "blending_link_sensitivity"
     archive.mkdir()
     rows.to_csv(archive / bs.BLENDING_SENSITIVITY_FILENAME, index=False)
@@ -431,9 +373,7 @@ def _fit_record(
         "model_id": model_id,
         "score_mean_link": link,
         "required_link_companion_model_id": (
-            bs.BLENDING_COMPANION_MODEL_ID
-            if model_id == bs.BLENDING_PRIMARY_MODEL_ID
-            else bs.BLENDING_PRIMARY_MODEL_ID
+            bs.BLENDING_COMPANION_MODEL_ID if model_id == bs.BLENDING_PRIMARY_MODEL_ID else bs.BLENDING_PRIMARY_MODEL_ID
         ),
         "link_sensitivity_required_for_release": True,
         "outcome_symbol": "B",
@@ -492,9 +432,7 @@ def _fit_record(
     )
 
 
-def test_builder_writes_content_addressed_archive_and_report_copies(
-    tmp_path, monkeypatch
-):
+def test_builder_writes_content_addressed_archive_and_report_copies(tmp_path, monkeypatch):
     models = tmp_path / "models"
     archive = tmp_path / "archive"
     primary = _fit_record(
@@ -528,9 +466,7 @@ def test_builder_writes_content_addressed_archive_and_report_copies(
         "three_choice_guessing_floor",
     }
     for row in result.itertuples():
-        assert set(json.loads(row.scientific_artifacts_sha256)) == set(
-            bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS
-        )
+        assert set(json.loads(row.scientific_artifacts_sha256)) == set(bs.BLENDING_RENDERED_SCIENTIFIC_ARTIFACTS)
         path = archive / row.trace_file
         assert path.is_file()
         assert sha256_file(path) == row.trace_sha256
@@ -538,12 +474,8 @@ def test_builder_writes_content_addressed_archive_and_report_copies(
         assert row_map.is_file()
         assert sha256_file(row_map) == row.row_map_sha256
     assert (archive / bs.BLENDING_SENSITIVITY_FILENAME).is_file()
-    assert (
-        primary.model_dir / bs.BLENDING_SENSITIVITY_FILENAME
-    ).is_file()
-    assert (
-        companion.model_dir / bs.BLENDING_SENSITIVITY_FILENAME
-    ).is_file()
+    assert (primary.model_dir / bs.BLENDING_SENSITIVITY_FILENAME).is_file()
+    assert (companion.model_dir / bs.BLENDING_SENSITIVITY_FILENAME).is_file()
 
 
 # --- the level family's registered pair (#584 decision 2) ---------------------
@@ -578,9 +510,7 @@ def _level_fit_dir(
                     "score_mean_link": link,
                     "link_sensitivity_required_for_release": True,
                     "required_link_companion_model_id": (
-                        "lrp-rli-lf-106"
-                        if model_id == "lrp-rli-lf-006"
-                        else "lrp-rli-lf-006"
+                        "lrp-rli-lf-106" if model_id == "lrp-rli-lf-006" else "lrp-rli-lf-006"
                     ),
                 },
             }
@@ -605,18 +535,16 @@ def _level_fit_dir(
         ),
         encoding="utf-8",
     )
-    pd.DataFrame(
-        [{"items_median": items_median, "items_lo": -0.2, "items_hi": 1.4, "pd": 0.9}]
-    ).to_csv(directory / "rope_summary.csv", index=False)
+    pd.DataFrame([{"items_median": items_median, "items_lo": -0.2, "items_hi": 1.4, "pd": 0.9}]).to_csv(
+        directory / "rope_summary.csv", index=False
+    )
     return directory
 
 
 def test_level_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path):
     models = tmp_path / "models"
     primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
-    _level_fit_dir(
-        models, "lrp-rli-lf-106", link="three_choice_guessing_floor", items_median=0.43
-    )
+    _level_fit_dir(models, "lrp-rli-lf-106", link="three_choice_guessing_floor", items_median=0.43)
     status = bs.evaluate_level_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert status["required"] and status["ready"], status
     cards = status["cards"]
@@ -624,7 +552,8 @@ def test_level_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_pat
     assert cards["lrp-rli-lf-106"]["items_median"] == 0.43
     # Either side of the pair sees the same verdict.
     companion_status = bs.evaluate_level_blending_link_pair(
-        models / "lrp-rli-lf-106-reporting", plan_checker=_plan_is_current)
+        models / "lrp-rli-lf-106-reporting", plan_checker=_plan_is_current
+    )
     assert companion_status["ready"]
 
 
@@ -707,7 +636,6 @@ def test_level_pair_ignores_a_non_blending_level_fit(tmp_path):
 def test_release_gate_withholds_an_unpaired_level_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
 
-
     models = tmp_path / "models"
     primary = _level_fit_dir(models, "lrp-rli-lf-006", link="logit")
     config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
@@ -715,7 +643,6 @@ def test_release_gate_withholds_an_unpaired_level_blending_fit(tmp_path):
     assert failures and "lrp-rli-lf-006 + lrp-rli-lf-106" in failures[0]
     _level_fit_dir(models, "lrp-rli-lf-106", link="three_choice_guessing_floor")
     assert release._blending_pair_release_failures(primary, config) == ()
-
 
 
 # --- the gain family's pair (#596) --------------------------------------------
@@ -753,9 +680,7 @@ def _gain_fit_dir(
                     "score_mean_link": link,
                     "link_sensitivity_required_for_release": required,
                     "required_link_companion_model_id": (
-                        "lrp-rli-gf-306"
-                        if model_id == "lrp-rli-gf-006"
-                        else "lrp-rli-gf-006"
+                        "lrp-rli-gf-306" if model_id == "lrp-rli-gf-006" else "lrp-rli-gf-006"
                     ),
                 },
             }
@@ -780,9 +705,9 @@ def _gain_fit_dir(
         ),
         encoding="utf-8",
     )
-    pd.DataFrame(
-        [{"items_median": items_median, "items_lo": 0.086, "items_hi": 1.58, "pd": 0.96}]
-    ).to_csv(directory / "rope_summary.csv", index=False)
+    pd.DataFrame([{"items_median": items_median, "items_lo": 0.086, "items_hi": 1.58, "pd": 0.96}]).to_csv(
+        directory / "rope_summary.csv", index=False
+    )
     return directory
 
 
@@ -801,9 +726,7 @@ def test_gain_pair_is_ready_when_both_links_are_fitted_on_the_same_rows(tmp_path
     assert cards["lrp-rli-gf-006"]["score_mean_link"] == "logit"
     assert cards["lrp-rli-gf-306"]["items_median"] == 0.44
     # Either side of the pair sees the same verdict.
-    assert bs.evaluate_gain_blending_link_pair(
-        models / "lrp-rli-gf-306-reporting"
-    )["ready"]
+    assert bs.evaluate_gain_blending_link_pair(models / "lrp-rli-gf-306-reporting")["ready"]
 
 
 def test_gain_pair_is_not_ready_without_its_twin(tmp_path):
@@ -865,9 +788,7 @@ def test_gain_pair_rejects_two_fits_under_the_same_link(tmp_path):
 
 def test_gain_pair_ignores_a_non_blending_gain_fit(tmp_path):
     models = tmp_path / "models"
-    directory = _gain_fit_dir(
-        models, "lrp-rli-gf-001", link="logit", outcome_symbol="W", required=False
-    )
+    directory = _gain_fit_dir(models, "lrp-rli-gf-001", link="logit", outcome_symbol="W", required=False)
     status = bs.evaluate_gain_blending_link_pair(directory)
     assert not status["required"] and status["ready"]
 
@@ -886,7 +807,6 @@ def test_gain_pair_exempts_the_b_variants(tmp_path):
 def test_release_gate_withholds_an_unpaired_gain_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
 
-
     models = tmp_path / "models"
     primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
     config = json.loads((primary / "config.json").read_text(encoding="utf-8"))
@@ -898,7 +818,6 @@ def test_release_gate_withholds_an_unpaired_gain_blending_fit(tmp_path):
 
 def test_release_gate_lets_the_exempt_gain_b_variants_through(tmp_path):
     from language_reading_predictors.statistical_models import release
-
 
     models = tmp_path / "models"
     for model_id in ("lrp-rli-gf-106", "lrp-rli-gf-206"):
@@ -941,9 +860,7 @@ def _aligned_fit_dir(
                     "score_mean_link": link,
                     "link_sensitivity_required_for_release": required,
                     "required_link_companion_model_id": (
-                        "lrp-rli-al-306"
-                        if model_id == "lrp-rli-al-006"
-                        else "lrp-rli-al-006"
+                        "lrp-rli-al-306" if model_id == "lrp-rli-al-006" else "lrp-rli-al-006"
                     ),
                 },
             }
@@ -1006,9 +923,7 @@ def test_aligned_pair_is_not_ready_without_its_twin(tmp_path):
 def test_aligned_pair_rejects_different_fitted_rows(tmp_path):
     models = tmp_path / "models"
     primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
-    _aligned_fit_dir(
-        models, "lrp-rli-al-306", link="three_choice_guessing_floor", digest="0th3r"
-    )
+    _aligned_fit_dir(models, "lrp-rli-al-306", link="three_choice_guessing_floor", digest="0th3r")
     status = bs.evaluate_aligned_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "fitted rows" in status["reason"]
@@ -1016,16 +931,13 @@ def test_aligned_pair_rejects_different_fitted_rows(tmp_path):
 
 def test_aligned_pair_ignores_a_non_blending_aligned_fit(tmp_path):
     models = tmp_path / "models"
-    directory = _aligned_fit_dir(
-        models, "lrp-rli-al-001", link="logit", outcome_symbol="W", required=False
-    )
+    directory = _aligned_fit_dir(models, "lrp-rli-al-001", link="logit", outcome_symbol="W", required=False)
     status = bs.evaluate_aligned_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_aligned_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
-
 
     models = tmp_path / "models"
     primary = _aligned_fit_dir(models, "lrp-rli-al-006", link="logit")
@@ -1070,9 +982,7 @@ def _concurrent_fit_dir(
                     "score_mean_link": link,
                     "link_sensitivity_required_for_release": required,
                     "required_link_companion_model_id": (
-                        "lrp-rli-ca-307"
-                        if model_id == "lrp-rli-ca-007"
-                        else "lrp-rli-ca-007"
+                        "lrp-rli-ca-307" if model_id == "lrp-rli-ca-007" else "lrp-rli-ca-007"
                     ),
                 },
             }
@@ -1098,10 +1008,7 @@ def _concurrent_fit_dir(
         encoding="utf-8",
     )
     pd.DataFrame(
-        [
-            {"timepoint": 1, "term": f"X{i}", "scale": "+1 SD", "items_median": 0.1 * i}
-            for i in range(n_marginal_rows)
-        ]
+        [{"timepoint": 1, "term": f"X{i}", "scale": "+1 SD", "items_median": 0.1 * i} for i in range(n_marginal_rows)]
     ).to_csv(directory / "concurrent_marginals.csv", index=False)
     return directory
 
@@ -1137,12 +1044,8 @@ def test_concurrent_pair_rejects_a_different_marginals_shape(tmp_path):
 def test_concurrent_pair_rejects_an_empty_marginals_table(tmp_path):
     models = tmp_path / "models"
     primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
-    companion = _concurrent_fit_dir(
-        models, "lrp-rli-ca-307", link="three_choice_guessing_floor"
-    )
-    pd.DataFrame(columns=["timepoint", "term"]).to_csv(
-        companion / "concurrent_marginals.csv", index=False
-    )
+    companion = _concurrent_fit_dir(models, "lrp-rli-ca-307", link="three_choice_guessing_floor")
+    pd.DataFrame(columns=["timepoint", "term"]).to_csv(companion / "concurrent_marginals.csv", index=False)
     status = bs.evaluate_concurrent_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "empty" in status["reason"]
@@ -1152,16 +1055,13 @@ def test_concurrent_pair_ignores_a_fit_where_b_is_only_a_predictor(tmp_path):
     """The link governs blending as the OUTCOME. The six siblings that carry B as a
     standardised logit predictor model no B score mean, so they are out of scope."""
     models = tmp_path / "models"
-    directory = _concurrent_fit_dir(
-        models, "lrp-rli-ca-001", link="logit", outcome_symbol="W", required=False
-    )
+    directory = _concurrent_fit_dir(models, "lrp-rli-ca-001", link="logit", outcome_symbol="W", required=False)
     status = bs.evaluate_concurrent_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_concurrent_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
-
 
     models = tmp_path / "models"
     primary = _concurrent_fit_dir(models, "lrp-rli-ca-007", link="logit")
@@ -1194,7 +1094,6 @@ def test_every_natural_scale_reporting_helper_accepts_the_score_mean_link():
     from language_reading_predictors.statistical_models import (
         predicted_scores as _predicted,
     )
-    from language_reading_predictors.statistical_models import reporting as _reporting
 
     required = {
         _reporting: (
@@ -1216,8 +1115,7 @@ def test_every_natural_scale_reporting_helper_accepts_the_score_mean_link():
         f"{module.__name__.rsplit('.', 1)[-1]}.{name}"
         for module, names in required.items()
         for name in names
-        if "score_mean_link"
-        not in inspect.signature(getattr(module, name)).parameters
+        if "score_mean_link" not in inspect.signature(getattr(module, name)).parameters
     ]
     assert not missing, (
         "these natural-scale helpers take no score_mean_link, so they would "
@@ -1259,9 +1157,7 @@ def _dose_fit_dir(
                     "score_mean_link": link,
                     "link_sensitivity_required_for_release": required,
                     "required_link_companion_model_id": (
-                        "lrp-rli-dose-384"
-                        if model_id == "lrp-rli-dose-084"
-                        else "lrp-rli-dose-084"
+                        "lrp-rli-dose-384" if model_id == "lrp-rli-dose-084" else "lrp-rli-dose-084"
                     ),
                 },
             }
@@ -1324,9 +1220,7 @@ def test_dose_pair_is_not_ready_without_its_twin(tmp_path):
 def test_dose_pair_rejects_different_fitted_rows(tmp_path):
     models = tmp_path / "models"
     primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
-    _dose_fit_dir(
-        models, "lrp-rli-dose-384", link="three_choice_guessing_floor", digest="0th3r"
-    )
+    _dose_fit_dir(models, "lrp-rli-dose-384", link="three_choice_guessing_floor", digest="0th3r")
     status = bs.evaluate_dose_blending_link_pair(primary, plan_checker=_plan_is_current)
     assert not status["ready"]
     assert "fitted rows" in status["reason"]
@@ -1334,16 +1228,13 @@ def test_dose_pair_rejects_different_fitted_rows(tmp_path):
 
 def test_dose_pair_ignores_a_non_blending_dose_fit(tmp_path):
     models = tmp_path / "models"
-    directory = _dose_fit_dir(
-        models, "lrp-rli-dose-077", link="logit", outcome_symbol="W", required=False
-    )
+    directory = _dose_fit_dir(models, "lrp-rli-dose-077", link="logit", outcome_symbol="W", required=False)
     status = bs.evaluate_dose_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_dose_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
-
 
     models = tmp_path / "models"
     primary = _dose_fit_dir(models, "lrp-rli-dose-084", link="logit")
@@ -1389,9 +1280,7 @@ def _mediation_fit_dir(
                     "score_mean_link": link,
                     "link_sensitivity_required_for_release": required,
                     "required_link_companion_model_id": (
-                        "lrp-rli-med-387"
-                        if model_id == "lrp-rli-med-087"
-                        else "lrp-rli-med-087"
+                        "lrp-rli-med-387" if model_id == "lrp-rli-med-087" else "lrp-rli-med-087"
                     ),
                 },
             }
@@ -1469,9 +1358,7 @@ def test_mediation_pair_rejects_a_decomposition_of_a_different_shape(tmp_path):
 def test_mediation_pair_rejects_a_card_with_no_total_row(tmp_path):
     models = tmp_path / "models"
     primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
-    companion = _mediation_fit_dir(
-        models, "lrp-rli-med-387", link="three_choice_guessing_floor"
-    )
+    companion = _mediation_fit_dir(models, "lrp-rli-med-387", link="three_choice_guessing_floor")
     table = pd.read_csv(companion / "mediation_summary.csv")
     table["quantity"] = table["quantity"].replace({"total": "IDE"})
     table.to_csv(companion / "mediation_summary.csv", index=False)
@@ -1492,16 +1379,13 @@ def test_mediation_pair_exempts_the_interventional_relabelling(tmp_path):
     """med-187 declares companion_of and reproduces med-087's numbers under an
     interventional relabelling, so the pairing governs the parent, not the alias."""
     models = tmp_path / "models"
-    directory = _mediation_fit_dir(
-        models, "lrp-rli-med-187", link="logit", required=False
-    )
+    directory = _mediation_fit_dir(models, "lrp-rli-med-187", link="logit", required=False)
     status = bs.evaluate_mediation_blending_link_pair(directory, plan_checker=_plan_is_current)
     assert not status["required"] and status["ready"]
 
 
 def test_release_gate_withholds_an_unpaired_mediation_blending_fit(tmp_path):
     from language_reading_predictors.statistical_models import release
-
 
     models = tmp_path / "models"
     primary = _mediation_fit_dir(models, "lrp-rli-med-087", link="logit")
@@ -1556,17 +1440,12 @@ def test_every_family_registering_a_blending_model_has_a_gate():
 
     from language_reading_predictors.statistical_models import release
 
-    root = os.path.dirname(
-        importlib.import_module(
-            "language_reading_predictors.statistical_models.mediation"
-        ).__file__
-    )
+    root = os.path.dirname(importlib.import_module("language_reading_predictors.statistical_models.mediation").__file__)
     gated = set(release._BLENDING_PAIR_GATES) | {"itt"}
     ungated = set()
     for path in sorted(glob.glob(os.path.join(root, "lrp_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and getattr(spec, "outcome_symbol", None) == "B":
@@ -1597,9 +1476,7 @@ def monkeypatch_plan_currency_fixture(monkeypatch, request):
         return
     from language_reading_predictors.statistical_models import blending_sensitivity
 
-    monkeypatch.setattr(
-        blending_sensitivity, "_stale_plan_fields", lambda *_a, **_k: []
-    )
+    monkeypatch.setattr(blending_sensitivity, "_stale_plan_fields", lambda *_a, **_k: [])
 
 
 def _plan_is_current(model_id: str, kind: str, stored):
@@ -1619,9 +1496,7 @@ def _plan_pair(tmp_path, *, primary_plan=None, companion_plan=None):
     """A ready gain pair whose two halves' stored run plans can be perturbed."""
     models = tmp_path / "models"
     primary = _gain_fit_dir(models, "lrp-rli-gf-006", link="logit")
-    companion = _gain_fit_dir(
-        models, "lrp-rli-gf-306", link="three_choice_guessing_floor"
-    )
+    companion = _gain_fit_dir(models, "lrp-rli-gf-306", link="three_choice_guessing_floor")
     for directory, extra in ((primary, primary_plan), (companion, companion_plan)):
         if not extra:
             continue
@@ -1665,11 +1540,8 @@ def test_the_plan_comparison_survives_the_json_round_trip():
     from language_reading_predictors.statistical_models import blending_sensitivity
 
     resolved = {"adjust_for": ("hs", "hs_missing"), "nested": ({"a": (1, 2)},)}
-    stored = json.loads(json.dumps({"adjust_for": ["hs", "hs_missing"],
-                                    "nested": [{"a": [1, 2]}]}))
-    assert blending_sensitivity._comparable_plan(resolved) == (
-        blending_sensitivity._comparable_plan(stored)
-    )
+    stored = json.loads(json.dumps({"adjust_for": ["hs", "hs_missing"], "nested": [{"a": [1, 2]}]}))
+    assert blending_sensitivity._comparable_plan(resolved) == (blending_sensitivity._comparable_plan(stored))
 
 
 def test_the_link_and_prose_fields_are_excluded_from_the_comparison():
@@ -1692,9 +1564,7 @@ def test_the_link_and_prose_fields_are_excluded_from_the_comparison():
         "settings_source": "typed",
         "adjust_for": ("hs",),
     }
-    assert blending_sensitivity._comparable_plan(logit) == (
-        blending_sensitivity._comparable_plan(floor)
-    )
+    assert blending_sensitivity._comparable_plan(logit) == (blending_sensitivity._comparable_plan(floor))
 
 
 def test_every_gated_family_has_a_run_plan_resolver():
@@ -1705,8 +1575,7 @@ def test_every_gated_family_has_a_run_plan_resolver():
 
     missing = sorted(set(release._BLENDING_PAIR_GATES) - set(blending_sensitivity._PLAN_RESOLVERS))
     assert not missing, (
-        f"these gated families have no run-plan resolver, so their pairs would fail "
-        f"the staleness check: {missing}"
+        f"these gated families have no run-plan resolver, so their pairs would fail the staleness check: {missing}"
     )
 
 
@@ -1817,17 +1686,12 @@ def test_the_real_currency_checker_catches_a_stale_stored_plan():
 
     from language_reading_predictors.statistical_models import blending_sensitivity
 
-    directory = Path(
-        "output/statistical_models/models/"
-        "lrp-rli-lf-006-reporting.pre-594-estimand-20260825"
-    )
+    directory = Path("output/statistical_models/models/lrp-rli-lf-006-reporting.pre-594-estimand-20260825")
     if not (directory / "config.json").is_file():
         pytest.skip("the pre-#594 lf-006 backup is not present in this checkout")
     config = _json.loads((directory / "config.json").read_text(encoding="utf-8"))
     stored = blending_sensitivity._comparable_plan(config["resolved_run_plan"])
-    stale = blending_sensitivity._stale_plan_fields(
-        "lrp-rli-lf-006", "level_factors", stored
-    )
+    stale = blending_sensitivity._stale_plan_fields("lrp-rli-lf-006", "level_factors", stored)
     assert "standardisation_balance_term" in stale, stale
     assert "sigma_child_prior_sigma" in stale, stale
 

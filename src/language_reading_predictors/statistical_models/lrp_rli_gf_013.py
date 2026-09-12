@@ -55,9 +55,7 @@ SPEC = ModelSpec(
         descriptive_skills=("R", "E"),
         ability_covariate=V.BLOCKS,
         # TE's non-measure confounders (matches gf-010): hearing, speech, phon. memory.
-        adjust_for=(
-            "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"
-        ),
+        adjust_for=("hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing"),
         interactions=(("age", "ability"),),
         treated_only=False,
     ),

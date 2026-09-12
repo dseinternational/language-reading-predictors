@@ -25,9 +25,7 @@ from language_reading_predictors.statistical_models import (
 )
 from language_reading_predictors.statistical_models.context import ModelSpec
 from language_reading_predictors.statistical_models.datasets import RLM_MEASURES
-from language_reading_predictors.statistical_models.factories import (
-    build_historical_growth_model,
-)
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 from language_reading_predictors.statistical_models.historical_growth import (
     HistoricalGrowthModelSettings,
     check_declared_waves,
@@ -42,7 +40,7 @@ from language_reading_predictors.statistical_models.itt import IttModelSettings
 from language_reading_predictors.statistical_models.preprocessing import (
     load_longitudinal_panel,
 )
-from language_reading_predictors.statistical_models.reporting import write_run_metadata
+from language_reading_predictors.statistical_models.run_metadata import write_run_metadata
 
 from .test_datasets import _dataset, _write_synthetic
 
@@ -165,9 +163,7 @@ def test_exclude_historical_growth_rows_rebuilds_panel(tmp_path):
     assert one_row_out.n_obs == panel.n_obs - 1
     assert one_row_out.n_subjects == panel.n_subjects
     subject_position = one_row_out.subject_ids.index(first_subject)
-    wave_position = panel.waves.index(
-        int(panel.long.iloc[int(first_rows[0])][wave_col])
-    )
+    wave_position = panel.waves.index(int(panel.long.iloc[int(first_rows[0])][wave_col]))
     assert np.isnan(one_row_out.counts["basread"][subject_position, wave_position])
     assert not one_row_out.obs_mask["basread"][subject_position, wave_position]
 
@@ -181,16 +177,12 @@ def test_exclude_historical_growth_rows_rebuilds_panel(tmp_path):
 def test_historical_growth_influence_summary_compares_separate_fits(tmp_path):
     panel = _panel(tmp_path)
     excluded_index = np.array([0])
-    sensitivity_panel = exclude_historical_growth_observations(
-        panel, excluded_index
-    )
+    sensitivity_panel = exclude_historical_growth_observations(panel, excluded_index)
 
     primary_built = build_historical_growth_model(panel, measure="basread")
     with primary_built.model:
         primary_prior = pm.sample_prior_predictive(draws=20, random_seed=11)
-    sensitivity_built = build_historical_growth_model(
-        sensitivity_panel, measure="basread"
-    )
+    sensitivity_built = build_historical_growth_model(sensitivity_panel, measure="basread")
     with sensitivity_built.model:
         sensitivity_prior = pm.sample_prior_predictive(draws=20, random_seed=12)
     primary_trace = SimpleNamespace(posterior=primary_prior.prior)
@@ -271,25 +263,19 @@ def test_historical_growth_influence_bundle_is_hash_bound(tmp_path):
         "sensitivity_summary_sha256": sha256_file(summary_path),
         "convergence": {"converged": True},
     }
-    (tmp_path / "historical_growth_influence_provenance.json").write_text(
-        json.dumps(provenance), encoding="utf-8"
-    )
+    (tmp_path / "historical_growth_influence_provenance.json").write_text(json.dumps(provenance), encoding="utf-8")
     report_config = {
         "model_id": "lrp-rlm-hg-009",
         "kind": "historical_growth",
         "n_obs": 2,
     }
 
-    valid = evaluate_historical_growth_influence_bundle(
-        summary, tmp_path, report_config, "reporting"
-    )
+    valid = evaluate_historical_growth_influence_bundle(summary, tmp_path, report_config, "reporting")
     assert valid["ready"] is True
     assert valid["max_median_shift"] == pytest.approx(0.34)
 
     (tmp_path / trace_name).write_text("tampered\n", encoding="utf-8")
-    invalid = evaluate_historical_growth_influence_bundle(
-        summary, tmp_path, report_config, "reporting"
-    )
+    invalid = evaluate_historical_growth_influence_bundle(summary, tmp_path, report_config, "reporting")
     assert invalid["ready"] is False
     assert "hash-mismatched" in invalid["reason"]
 
@@ -313,9 +299,7 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
         spec=spec,
         prepared=SimpleNamespace(n_obs=27, n_children=9, n_phases=2, dropped_rows=0),
         reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.94),
-        sampling=SimpleNamespace(
-            draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
-        ),
+        sampling=SimpleNamespace(draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47),
         output_dir=str(tmp_path),
     )
     write_run_metadata(ctx, extra={"measure": "basread"})
@@ -333,9 +317,7 @@ def test_dataset_metadata_reaches_config_json(tmp_path):
     assert contract["publication_ready"] is True
     assert set(contract["measures"]) == {"basread"}
     assert contract["blockers"] == []
-    assert contract["dataset"]["source_provenance_manifest"].endswith(
-        "source_provenance.json"
-    )
+    assert contract["dataset"]["source_provenance_manifest"].endswith("source_provenance.json")
 
 
 def test_non_itt_typed_settings_reach_config_json(tmp_path):
@@ -347,17 +329,13 @@ def test_non_itt_typed_settings_reach_config_json(tmp_path):
         title="typed metadata test",
         outcome_symbol="basread",
         study_id="rlm",
-        model_settings=HistoricalGrowthModelSettings(
-            measure="basread", waves=(1, 2, 3)
-        ),
+        model_settings=HistoricalGrowthModelSettings(measure="basread", waves=(1, 2, 3)),
     )
     ctx = SimpleNamespace(
         spec=spec,
         prepared=SimpleNamespace(n_obs=27, n_children=9, n_phases=2, dropped_rows=0),
         reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.89),
-        sampling=SimpleNamespace(
-            draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
-        ),
+        sampling=SimpleNamespace(draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47),
         output_dir=str(tmp_path),
     )
 
@@ -400,17 +378,13 @@ def test_rlm_input_contract_includes_predictors_not_only_the_outcome(tmp_path):
         spec=spec,
         prepared=prepared,
         reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.89),
-        sampling=SimpleNamespace(
-            draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
-        ),
+        sampling=SimpleNamespace(draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47),
         output_dir=str(tmp_path),
     )
 
     write_run_metadata(ctx)
 
-    contract = json.loads((tmp_path / "config.json").read_text())[
-        "publication_input_contract"
-    ]
+    contract = json.loads((tmp_path / "config.json").read_text())["publication_input_contract"]
     assert set(contract["measures"]) == {"basread", "bpvs", "basnum"}
     assert "age" not in contract["measures"]
     assert any("basnum" in blocker for blocker in contract["blockers"])
@@ -490,9 +464,7 @@ def test_itt_spec_defaults_and_effective_settings_reach_config_json(tmp_path):
             data_sha256="abc123",
         ),
         reporting=SimpleNamespace(output_dir=str(tmp_path), ci_prob=0.95),
-        sampling=SimpleNamespace(
-            draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47
-        ),
+        sampling=SimpleNamespace(draws=1, tune=1, chains=1, target_accept=0.9, random_seed=47),
         output_dir=str(tmp_path),
     )
     write_run_metadata(ctx)
@@ -678,7 +650,5 @@ def test_declared_waves_are_checked_against_the_catalogue():
 def test_extension_waves_must_follow_the_core_window():
     """Finding 10: an "extension" wave before the core contradicts every label."""
     with pytest.raises(ValueError, match="precede the last complete-case core wave"):
-        HistoricalGrowthModelSettings(
-            measure="basmat", waves=(3, 4), extension_waves=(1,)
-        )
+        HistoricalGrowthModelSettings(measure="basmat", waves=(3, 4), extension_waves=(1,))
     HistoricalGrowthModelSettings(measure="basmat", waves=(3, 4), extension_waves=(5,))

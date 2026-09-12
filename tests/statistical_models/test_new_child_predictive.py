@@ -16,6 +16,11 @@ withheld rather than published.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import historical as _historical_factory
+from language_reading_predictors.statistical_models.factories import joint as _joint_factory
+from language_reading_predictors.statistical_models.factories import joint_mechanism as _joint_mechanism_factory
+
+
 import math
 import types
 
@@ -87,9 +92,7 @@ def test_every_joint_family_model_declares_a_prediction_target(kind):
 def test_an_unimplemented_target_is_refused_rather_than_relabelled():
     """Declaring the other target must fail, not quietly reuse the new-child engine."""
     with pytest.raises(ValueError, match="not implemented"):
-        NewChildPlan(
-            prediction_target="new_occasion_known_child", child_dims=("obs_id",)
-        )
+        NewChildPlan(prediction_target="new_occasion_known_child", child_dims=("obs_id",))
 
 
 def test_an_unknown_target_is_refused():
@@ -257,13 +260,9 @@ def test_the_summary_row_publishes_both_verdicts():
 
 def _trace_with(constant: dict | None, observed: dict) -> xr.DataTree:
     tree = xr.DataTree()
-    tree["observed_data"] = xr.DataTree(
-        xr.Dataset({k: ("row", np.asarray(v)) for k, v in observed.items()})
-    )
+    tree["observed_data"] = xr.DataTree(xr.Dataset({k: ("row", np.asarray(v)) for k, v in observed.items()}))
     if constant is not None:
-        tree["constant_data"] = xr.DataTree(
-            xr.Dataset({k: ("cell", np.asarray(v)) for k, v in constant.items()})
-        )
+        tree["constant_data"] = xr.DataTree(xr.Dataset({k: ("cell", np.asarray(v)) for k, v in constant.items()}))
     return tree
 
 
@@ -279,9 +278,7 @@ def test_the_child_map_reuses_the_persisted_joint_cell_map():
 
 
 def test_a_missing_child_map_is_expected_absence_not_a_crash():
-    ctx = types.SimpleNamespace(
-        trace=_trace_with(None, {"y_post": [1, 2]}), prepared=None
-    )
+    ctx = types.SimpleNamespace(trace=_trace_with(None, {"y_post": [1, 2]}), prepared=None)
     with pytest.raises(NewChildEvidenceUnavailable):
         child_row_maps(ctx, ("y_post",))
 
@@ -426,9 +423,7 @@ def test_subsetting_a_panel_keeps_child_order_and_narrows_every_array():
             self.dataset = dataset
             self.subject_ids = ["a", "b", "c", "d"]
             self.n_subjects = 4
-            self.long = pd.DataFrame(
-                {"sid": ["a", "a", "b", "c", "d"], "w": [1, 2, 1, 1, 1]}
-            )
+            self.long = pd.DataFrame({"sid": ["a", "a", "b", "c", "d"], "w": [1, 2, 1, 1, 1]})
             self.counts = {"m": np.arange(8).reshape(4, 2)}
             self.obs_mask = {"m": np.ones((4, 2), dtype=bool)}
 
@@ -503,10 +498,7 @@ def test_every_declaration_survives_verification_against_its_built_model():
     would have caught the defect #626 is about, so it runs over every registered fit
     rather than over a representative one.
     """
-    from language_reading_predictors.statistical_models import (
-        datasets as _datasets,
-        factories as _factories,
-    )
+    from language_reading_predictors.statistical_models import datasets as _datasets
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
         load_longitudinal_panel,
@@ -523,12 +515,10 @@ def test_every_declaration_survives_verification_against_its_built_model():
                     [measures[m] for m in plan.measures],
                     **plan.prepare_kwargs(),
                 )
-                built = _factories.build_rlm_joint_growth_model(
-                    prepared, **plan.factory_kwargs()
-                )
+                built = _historical_factory.build_rlm_joint_growth_model(prepared, **plan.factory_kwargs())
             elif kind == "joint":
                 prepared = load_and_prepare(**plan.prepare_kwargs())
-                built = _factories.build_joint_model(prepared, **plan.factory_kwargs())
+                built = _joint_factory.build_joint_model(prepared, **plan.factory_kwargs())
             else:
                 # The joint-mechanism levels design needs a single-wave subset its
                 # pipeline assembles; verifying the transition design is enough to
@@ -536,9 +526,7 @@ def test_every_declaration_survives_verification_against_its_built_model():
                 if plan.design == "levels":
                     continue
                 prepared = load_and_prepare(**plan.prepare_kwargs())
-                built = _factories.build_joint_mechanism_model(
-                    prepared, **plan.factory_kwargs()
-                )
+                built = _joint_mechanism_factory.build_joint_mechanism_model(prepared, **plan.factory_kwargs())
             declared = plan.new_child_plan()
             assert verify_child_latents(built.model, declared) == declared.latent_vars
             checked += 1
@@ -632,24 +620,16 @@ def test_the_half_split_error_is_not_a_number_when_a_half_is_empty():
 def _toy_trace(n_chain: int, n_draw: int, with_latent: bool) -> xr.DataTree:
     """A trace shaped like the toy model's, with enough draws to be worth thinning."""
     rng = np.random.default_rng(7)
-    variables = {
-        "alpha": (("chain", "draw", "outcome"), rng.normal(size=(n_chain, n_draw, 1)))
-    }
+    variables = {"alpha": (("chain", "draw", "outcome"), rng.normal(size=(n_chain, n_draw, 1)))}
     if with_latent:
         variables["u_z"] = (
             ("chain", "draw", "obs_id", "outcome"),
             rng.normal(size=(n_chain, n_draw, 4, 1)),
         )
     tree = xr.DataTree()
-    tree["posterior"] = xr.DataTree(
-        xr.Dataset(variables, coords={"outcome": ["A"], "obs_id": np.arange(4)})
-    )
-    tree["observed_data"] = xr.DataTree(
-        xr.Dataset({"y_post": ("obs_id", np.array([3, 4, 5, 6]))})
-    )
-    tree["constant_data"] = xr.DataTree(
-        xr.Dataset({"loo_child_idx": ("obs_id", np.arange(4))})
-    )
+    tree["posterior"] = xr.DataTree(xr.Dataset(variables, coords={"outcome": ["A"], "obs_id": np.arange(4)}))
+    tree["observed_data"] = xr.DataTree(xr.Dataset({"y_post": ("obs_id", np.array([3, 4, 5, 6]))}))
+    tree["constant_data"] = xr.DataTree(xr.Dataset({"loo_child_idx": ("obs_id", np.arange(4))}))
     return tree
 
 
@@ -819,7 +799,6 @@ def test_a_fold_replays_the_full_fit_s_exposure_scale():
     """
     import importlib
 
-    from language_reading_predictors.statistical_models import factories as _factories
     from language_reading_predictors.statistical_models.new_child_kfold import (
         mask_prepared_children,
     )
@@ -827,22 +806,18 @@ def test_a_fold_replays_the_full_fit_s_exposure_scale():
         load_and_prepare,
     )
 
-    spec = importlib.import_module(
-        "language_reading_predictors.statistical_models.lrp_rli_jm_002"
-    ).SPEC
+    spec = importlib.import_module("language_reading_predictors.statistical_models.lrp_rli_jm_002").SPEC
     plan = descriptor_for(spec.kind).resolver()(spec)
     prepared = load_and_prepare(**plan.prepare_kwargs())
-    full = _factories.build_joint_mechanism_model(prepared, **plan.factory_kwargs())
+    full = _joint_mechanism_factory.build_joint_mechanism_model(prepared, **plan.factory_kwargs())
     scale = full.payload.exposure_scale
     assert scale is not None and scale[1] > 0
 
     held_out = list(range(0, prepared.n_children, 5))
     masked = mask_prepared_children(prepared, held_out, plan.outcome_symbols)
 
-    frozen = _factories.build_joint_mechanism_model(
-        masked, exposure_scale=scale, **plan.factory_kwargs()
-    )
-    rederived = _factories.build_joint_mechanism_model(masked, **plan.factory_kwargs())
+    frozen = _joint_mechanism_factory.build_joint_mechanism_model(masked, exposure_scale=scale, **plan.factory_kwargs())
+    rederived = _joint_mechanism_factory.build_joint_mechanism_model(masked, **plan.factory_kwargs())
 
     z_frozen = np.asarray(frozen.model["z_mech_logit"].get_value())
     z_rederived = np.asarray(rederived.model["z_mech_logit"].get_value())
@@ -859,18 +834,13 @@ def test_the_factory_refuses_a_degenerate_exposure_scale():
     """A zero or non-finite scale would divide the exposure into nonsense."""
     import importlib
 
-    from language_reading_predictors.statistical_models import factories as _factories
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
 
-    spec = importlib.import_module(
-        "language_reading_predictors.statistical_models.lrp_rli_jm_002"
-    ).SPEC
+    spec = importlib.import_module("language_reading_predictors.statistical_models.lrp_rli_jm_002").SPEC
     plan = descriptor_for(spec.kind).resolver()(spec)
     prepared = load_and_prepare(**plan.prepare_kwargs())
     for bad in ((0.0, 0.0), (0.0, float("nan")), (float("inf"), 1.0)):
         with pytest.raises(ValueError, match="exposure_scale"):
-            _factories.build_joint_mechanism_model(
-                prepared, exposure_scale=bad, **plan.factory_kwargs()
-            )
+            _joint_mechanism_factory.build_joint_mechanism_model(prepared, exposure_scale=bad, **plan.factory_kwargs())

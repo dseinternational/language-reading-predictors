@@ -33,10 +33,7 @@ from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-029",
     kind="itt",
-    title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "APT expressive information (EI)"
-    ),
+    title=("Available-case modified ITT estimate of the assigned-arm contrast in APT expressive information (EI)"),
     outcome_symbol="EI",
     model_settings=IttModelSettings(),
 )

@@ -154,19 +154,12 @@ def registered_settings_failures(spec: ModelSpec) -> list[str]:
 
     settings = spec.model_settings
     if settings is None:
-        failures.append(
-            f"{spec.model_id}: declares no model_settings; kind={spec.kind!r} "
-            f"requires {expected.__name__}"
-        )
+        failures.append(f"{spec.model_id}: declares no model_settings; kind={spec.kind!r} requires {expected.__name__}")
     elif isinstance(settings, type) or not dataclasses.is_dataclass(settings):
-        failures.append(
-            f"{spec.model_id}: model_settings must be a settings *instance*, got "
-            f"{settings!r}"
-        )
+        failures.append(f"{spec.model_id}: model_settings must be a settings *instance*, got {settings!r}")
     elif not isinstance(settings, expected):
         failures.append(
-            f"{spec.model_id}: kind={spec.kind!r} requires {expected.__name__}, "
-            f"got {type(settings).__name__}"
+            f"{spec.model_id}: kind={spec.kind!r} requires {expected.__name__}, got {type(settings).__name__}"
         )
 
     if spec.extra:

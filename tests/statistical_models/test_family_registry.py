@@ -17,6 +17,10 @@ the moment it is described rather than when someone remembers to extend a list.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import key_findings as _findings
+from language_reading_predictors.statistical_models import key_findings as key_findings
+
+
 import dataclasses
 
 import pytest
@@ -66,9 +70,7 @@ def test_the_settings_catalogue_is_derived_not_restated():
         SETTINGS_CLASSES,
     )
 
-    assert SETTINGS_CLASSES == {
-        kind: descriptor.settings_class() for kind, descriptor in FAMILIES.items()
-    }
+    assert SETTINGS_CLASSES == {kind: descriptor.settings_class() for kind, descriptor in FAMILIES.items()}
 
 
 def test_the_blending_currency_check_covers_every_family_not_seven():
@@ -94,7 +96,6 @@ def test_the_blending_currency_check_covers_every_family_not_seven():
 
 def test_the_key_findings_builders_match_the_descriptors():
     """Every family that names a builder has one, and every builder is named."""
-    from language_reading_predictors.statistical_models import key_findings
 
     described = {
         kind: descriptor.key_findings_builder
@@ -103,8 +104,8 @@ def test_the_key_findings_builders_match_the_descriptors():
     }
     for kind, builder in described.items():
         assert hasattr(key_findings, builder), f"{kind}: {builder}"
-        assert key_findings._KF_BUILDERS[kind] is getattr(key_findings, builder)
-    assert set(key_findings._KF_BUILDERS) == set(described)
+        assert _findings._KF_BUILDERS[kind] is getattr(key_findings, builder)
+    assert set(_findings._KF_BUILDERS) == set(described)
 
 
 def test_the_boundary_tests_derive_their_entry_points_from_the_descriptors():

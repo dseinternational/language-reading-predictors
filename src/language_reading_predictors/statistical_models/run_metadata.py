@@ -8,7 +8,6 @@ the executable model design and the environment, and both writes and checks the
 versioned trace-reuse contract (#637 stages 1 and 3).
 """
 
-
 from __future__ import annotations
 
 import hashlib
@@ -26,92 +25,22 @@ from dse_research_utils.metadata.provenance import (
 )
 
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models.family_registry import resolve_run_plan
+from language_reading_predictors.statistical_models.run_plans import ResolvedRunPlan
 from language_reading_predictors.statistical_models.context import (
+    ModelSpec,
     StatisticalFitContext,
-)
-from language_reading_predictors.statistical_models.aligned import (
-    AlignedRunPlan,
-    resolve_aligned_run_plan,
-)
-from language_reading_predictors.statistical_models.adjusted import (
-    AdjustedRunPlan,
-    resolve_adjusted_run_plan,
-)
-from language_reading_predictors.statistical_models.block_exposure import (
-    BlockExposureRunPlan,
-    resolve_block_exposure_run_plan,
-)
-from language_reading_predictors.statistical_models.concurrent import (
-    ConcurrentRunPlan,
-    resolve_concurrent_run_plan,
-)
-from language_reading_predictors.statistical_models.corr_factor import (
-    CorrFactorRunPlan,
-    resolve_corr_factor_run_plan,
-)
-from language_reading_predictors.statistical_models.did import (
-    DiDRunPlan,
-    resolve_did_run_plan,
-)
-from language_reading_predictors.statistical_models.dose_response import (
-    DoseResponseRunPlan,
-    resolve_dose_response_run_plan,
-)
-from language_reading_predictors.statistical_models.gain_factors import (
-    GainFactorsRunPlan,
-    resolve_gain_factors_run_plan,
-)
-from language_reading_predictors.statistical_models.growth import (
-    GrowthRunPlan,
-    resolve_growth_run_plan,
-)
-from language_reading_predictors.statistical_models.historical_growth import (
-    HistoricalGrowthRunPlan,
-    resolve_historical_growth_run_plan,
-)
-from language_reading_predictors.statistical_models.historical_joint import (
-    HistoricalJointRunPlan,
-    resolve_historical_joint_run_plan,
-)
-from language_reading_predictors.statistical_models.horseshoe import (
-    HorseshoeRunPlan,
-    resolve_horseshoe_run_plan,
 )
 from language_reading_predictors.statistical_models.itt import (
     IttRunPlan,
     declared_settings_dict,
-    resolve_itt_run_plan,
 )
 from language_reading_predictors.statistical_models.joint import (
     JointRunPlan,
-    resolve_joint_run_plan,
-)
-from language_reading_predictors.statistical_models.joint_mechanism import (
-    JointMechanismRunPlan,
-    resolve_joint_mechanism_run_plan,
-)
-from language_reading_predictors.statistical_models.level_factors import (
-    LevelFactorsRunPlan,
-    resolve_level_factors_run_plan,
-)
-from language_reading_predictors.statistical_models.lcsm import (
-    LcsmRunPlan,
-    resolve_lcsm_run_plan,
-)
-from language_reading_predictors.statistical_models.long_corr_factor import (
-    LongCorrFactorRunPlan,
-    resolve_long_corr_factor_run_plan,
 )
 from language_reading_predictors.statistical_models.mechanism import (
     MechanismRunPlan,
-    resolve_mechanism_run_plan,
     validate_mechanism_run_plan,
-)
-from language_reading_predictors.statistical_models.mediation_settings import (
-    MediationMultiRunPlan,
-    MediationRunPlan,
-    resolve_mediation_multi_run_plan,
-    resolve_mediation_run_plan,
 )
 from language_reading_predictors.statistical_models.provenance import (
     environment_lock_sha256 as _environment_lock_sha256,
@@ -120,10 +49,7 @@ from language_reading_predictors.statistical_models.provenance import (
     run_provenance,
     write_environment_lock,
 )
-from language_reading_predictors.statistical_models.survival import (
-    SurvivalRunPlan,
-    resolve_survival_run_plan,
-)
+
 
 def _json_safe(value):
     """Return a reconstructable JSON representation of model settings.
@@ -186,9 +112,7 @@ def fitted_subject_identity(prepared: Any) -> dict[str, Any] | None:
         return None
     values = np.asarray(subject_ids)
     if values.ndim != 1:
-        raise ValueError(
-            "prepared.subject_ids must be one-dimensional to fingerprint fitted rows"
-        )
+        raise ValueError("prepared.subject_ids must be one-dimensional to fingerprint fitted rows")
 
     hasher = hashlib.sha256()
     hasher.update(_FITTED_SUBJECT_IDENTITY_DOMAIN.encode("utf-8"))
@@ -262,9 +186,7 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
                     "use_cross_baselines": use_cross_baselines,
                     "cross_symbols": outcomes if use_cross_baselines else [],
                 },
-                "age_effect": (
-                    "gp" if use_age_gp else "linear" if use_age_linear else "none"
-                ),
+                "age_effect": ("gp" if use_age_gp else "linear" if use_age_linear else "none"),
                 "use_age_gp": use_age_gp,
                 "partial_pool_age_gp": plan.partial_pool_age_gp,
                 "use_age_linear": use_age_linear,
@@ -276,9 +198,7 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
     covariates = getattr(prepared, "covariates", {}) if prepared is not None else {}
     effective_adjustment = list(covariates)
     if spec.kind == "itt":
-        effective_adjustment = [
-            name for name in plan.adjust_for if name in covariates
-        ]
+        effective_adjustment = [name for name in plan.adjust_for if name in covariates]
     elif spec.kind == "dose_response":
         # The loaded covariate of a dose fit is its **exposure**, not an adjuster, so
         # the generic "everything in prepared.covariates" fallback recorded the
@@ -290,24 +210,14 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
             settings.get("dose_covariate"),
             settings.get("dose_stage_covariate"),
         }
-        effective_adjustment = [
-            name for name in covariates if name not in exposure
-        ]
+        effective_adjustment = [name for name in covariates if name not in exposure]
     settings.update(
         {
             "prepared_outcomes": list(post_counts),
             "effective_adjustment": effective_adjustment,
             "prepared_covariates": list(covariates),
-            "covariate_time": _json_safe(
-                getattr(prepared, "covariate_time", {})
-                if prepared is not None
-                else {}
-            ),
-            "dropped_covariates": list(
-                getattr(prepared, "dropped_covariates", ())
-                if prepared is not None
-                else ()
-            ),
+            "covariate_time": _json_safe(getattr(prepared, "covariate_time", {}) if prepared is not None else {}),
+            "dropped_covariates": list(getattr(prepared, "dropped_covariates", ()) if prepared is not None else ()),
             "phase_mode": getattr(prepared, "phase_mode", None),
         }
     )
@@ -344,278 +254,37 @@ def _itt_analysis_set_metadata(context: StatisticalFitContext) -> dict:
     return {"analysis_set_by_outcome_and_arm": _json_safe(records)}
 
 
+def reconstruct_run_plan(spec: ModelSpec) -> ResolvedRunPlan:
+    """Rebuild a plan for archived callers that have no attached plan.
+
+    The family's resolver accepts its documented legacy settings and applies the
+    same validation as a new fit. An incomplete declaration is an error.
+    """
+    return resolve_run_plan(spec)
+
+
+def _resolved_run_plan(context: StatisticalFitContext) -> ResolvedRunPlan:
+    """Use the fit's attached plan, with explicit reconstruction for old callers."""
+    plan = getattr(context, "resolved_plan", None)
+    if plan is None:
+        return reconstruct_run_plan(context.spec)
+    if isinstance(plan, MechanismRunPlan):
+        return validate_mechanism_run_plan(context.spec, plan)
+    return plan
+
+
 def _itt_run_plan(context: StatisticalFitContext) -> IttRunPlan:
-    """Return the plan resolved before loading, or reconstruct it for old callers."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, IttRunPlan):
-        return resolved_plan
-    return resolve_itt_run_plan(context.spec)
-
-
-def _gain_factors_run_plan(context: StatisticalFitContext) -> GainFactorsRunPlan:
-    """Return the gain-factor plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, GainFactorsRunPlan):
-        return resolved_plan
-    return resolve_gain_factors_run_plan(context.spec)
+    plan = _resolved_run_plan(context)
+    if not isinstance(plan, IttRunPlan):
+        raise TypeError("ITT metadata requires an ITT run plan")
+    return plan
 
 
 def _joint_run_plan(context: StatisticalFitContext) -> JointRunPlan:
-    """Return the joint plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, JointRunPlan):
-        return resolved_plan
-    return resolve_joint_run_plan(context.spec)
-
-
-def _joint_mechanism_run_plan(
-    context: StatisticalFitContext,
-) -> JointMechanismRunPlan:
-    """Return the joint-mechanism plan resolved before loading."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, JointMechanismRunPlan):
-        return resolved_plan
-    return resolve_joint_mechanism_run_plan(context.spec)
-
-
-def _level_factors_run_plan(context: StatisticalFitContext) -> LevelFactorsRunPlan:
-    """Return the level-factor plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, LevelFactorsRunPlan):
-        return resolved_plan
-    return resolve_level_factors_run_plan(context.spec)
-
-
-def _did_run_plan(context: StatisticalFitContext) -> DiDRunPlan:
-    """Return the DiD plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, DiDRunPlan):
-        return resolved_plan
-    return resolve_did_run_plan(context.spec)
-
-
-def _pooled_levels_run_plan(context: StatisticalFitContext):
-    """Return the pooled-levels plan resolved before loading, or reconstruct it."""
-    from language_reading_predictors.statistical_models.pooled_levels import (
-        PooledLevelsRunPlan,
-        resolve_pooled_levels_run_plan,
-    )
-
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, PooledLevelsRunPlan):
-        return resolved_plan
-    return resolve_pooled_levels_run_plan(context.spec)
-
-
-def _concurrent_run_plan(context: StatisticalFitContext) -> ConcurrentRunPlan:
-    """Return the concurrent plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, ConcurrentRunPlan):
-        return resolved_plan
-    return resolve_concurrent_run_plan(context.spec)
-
-
-def _aligned_run_plan(context: StatisticalFitContext) -> AlignedRunPlan:
-    """Return the aligned plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, AlignedRunPlan):
-        return resolved_plan
-    return resolve_aligned_run_plan(context.spec)
-
-
-def _adjusted_run_plan(context: StatisticalFitContext) -> AdjustedRunPlan:
-    """Return the adjusted-association plan resolved before loading."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, AdjustedRunPlan):
-        return resolved_plan
-    return resolve_adjusted_run_plan(context.spec)
-
-
-def _lcsm_run_plan(context: StatisticalFitContext) -> LcsmRunPlan:
-    """Return the LCSM plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, LcsmRunPlan):
-        return resolved_plan
-    return resolve_lcsm_run_plan(context.spec)
-
-
-def _growth_run_plan(context: StatisticalFitContext) -> GrowthRunPlan:
-    """Return the growth plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, GrowthRunPlan):
-        return resolved_plan
-    return resolve_growth_run_plan(context.spec)
-
-
-def _historical_growth_run_plan(
-    context: StatisticalFitContext,
-) -> HistoricalGrowthRunPlan | None:
-    """Return the historical-growth plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, HistoricalGrowthRunPlan):
-        return resolved_plan
-    spec = context.spec
-    if (
-        spec.study_id == "rli"
-        and spec.family is None
-        and spec.outcome_symbol is None
-        and spec.model_settings is None
-        and not spec.extra
-    ):
-        # Some shared reporting and trace-reuse callers use a minimal ModelSpec
-        # solely to identify a generic fit.  That placeholder predates the typed
-        # historical-growth family and contains no declaration from which a valid
-        # RLM recipe can be reconstructed.  Real family fits attach their resolved
-        # plan; substantive legacy declarations still take the strict path below.
-        return None
-    return resolve_historical_growth_run_plan(spec)
-
-
-def _historical_joint_run_plan(
-    context: StatisticalFitContext,
-) -> HistoricalJointRunPlan:
-    """Return the historical-joint plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, HistoricalJointRunPlan):
-        return resolved_plan
-    return resolve_historical_joint_run_plan(context.spec)
-
-
-def _mechanism_run_plan(context: StatisticalFitContext) -> MechanismRunPlan:
-    """Return the mechanism plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, MechanismRunPlan):
-        return validate_mechanism_run_plan(context.spec, resolved_plan)
-    return resolve_mechanism_run_plan(context.spec)
-
-
-def _survival_run_plan(context: StatisticalFitContext) -> SurvivalRunPlan:
-    """Return the survival plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, SurvivalRunPlan):
-        return resolved_plan
-    return resolve_survival_run_plan(context.spec)
-
-
-def _block_exposure_run_plan(
-    context: StatisticalFitContext,
-) -> BlockExposureRunPlan:
-    """Return the block-exposure plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, BlockExposureRunPlan):
-        return resolved_plan
-    return resolve_block_exposure_run_plan(context.spec)
-
-
-def _dose_response_run_plan(
-    context: StatisticalFitContext,
-) -> DoseResponseRunPlan:
-    """Return the dose-response plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, DoseResponseRunPlan):
-        return resolved_plan
-    return resolve_dose_response_run_plan(context.spec)
-
-
-def _horseshoe_run_plan(context: StatisticalFitContext) -> HorseshoeRunPlan:
-    """Return the horseshoe plan resolved before loading, or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, HorseshoeRunPlan):
-        return resolved_plan
-    return resolve_horseshoe_run_plan(context.spec)
-
-
-def _long_corr_factor_run_plan(
-    context: StatisticalFitContext,
-) -> LongCorrFactorRunPlan:
-    """Return the longitudinal-factor plan resolved before loading."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, LongCorrFactorRunPlan):
-        return resolved_plan
-    return resolve_long_corr_factor_run_plan(context.spec)
-
-
-def _corr_factor_run_plan(context: StatisticalFitContext) -> CorrFactorRunPlan:
-    """Return the correlated-factor plan resolved before loading."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, CorrFactorRunPlan):
-        return resolved_plan
-    return resolve_corr_factor_run_plan(context.spec)
-
-
-def _mediation_run_plan(
-    context: StatisticalFitContext,
-) -> MediationRunPlan | MediationMultiRunPlan | None:
-    """Return the mediation plan resolved before loading or reconstruct it."""
-    resolved_plan = getattr(context, "resolved_plan", None)
-    if isinstance(resolved_plan, (MediationRunPlan, MediationMultiRunPlan)):
-        return resolved_plan
-    spec = context.spec
-    if (
-        spec.outcome_symbol is None
-        and spec.mechanism_symbol is None
-        and spec.model_settings is None
-        and not spec.extra
-    ):
-        # Metadata-only audit fixtures predate typed declarations and intentionally
-        # carry no model recipe. Real fits attach a plan before context creation.
-        return None
-    if context.spec.kind == "mediation_multi":
-        return resolve_mediation_multi_run_plan(context.spec)
-    return resolve_mediation_run_plan(context.spec)
-
-
-def _resolved_run_plan(context: StatisticalFitContext):
-    """The typed run plan for whichever families have been converted, else None.
-
-    Families are added here one at a time by the #394 pillar-4 series; the
-    branches below are the authoritative list, so this docstring deliberately
-    does not enumerate them."""
-    if context.spec.kind == "itt":
-        return _itt_run_plan(context)
-    if context.spec.kind == "joint":
-        return _joint_run_plan(context)
-    if context.spec.kind == "joint_mechanism":
-        return _joint_mechanism_run_plan(context)
-    if context.spec.kind == "gain_factors":
-        return _gain_factors_run_plan(context)
-    if context.spec.kind == "level_factors":
-        return _level_factors_run_plan(context)
-    if context.spec.kind == "did":
-        return _did_run_plan(context)
-    if context.spec.kind == "pooled_levels":
-        return _pooled_levels_run_plan(context)
-    if context.spec.kind == "concurrent":
-        return _concurrent_run_plan(context)
-    if context.spec.kind == "aligned":
-        return _aligned_run_plan(context)
-    if context.spec.kind == "adjusted":
-        return _adjusted_run_plan(context)
-    if context.spec.kind == "lcsm":
-        return _lcsm_run_plan(context)
-    if context.spec.kind == "growth":
-        return _growth_run_plan(context)
-    if context.spec.kind == "historical_growth":
-        return _historical_growth_run_plan(context)
-    if context.spec.kind == "historical_joint":
-        return _historical_joint_run_plan(context)
-    if context.spec.kind == "mechanism":
-        return _mechanism_run_plan(context)
-    if context.spec.kind == "survival":
-        return _survival_run_plan(context)
-    if context.spec.kind == "block_exposure":
-        return _block_exposure_run_plan(context)
-    if context.spec.kind == "dose_response":
-        return _dose_response_run_plan(context)
-    if context.spec.kind == "horseshoe":
-        return _horseshoe_run_plan(context)
-    if context.spec.kind == "long_corr_factor":
-        return _long_corr_factor_run_plan(context)
-    if context.spec.kind == "corr_factor":
-        return _corr_factor_run_plan(context)
-    if context.spec.kind in {"mediation", "mediation_multi"}:
-        return _mediation_run_plan(context)
-    return None
+    plan = _resolved_run_plan(context)
+    if not isinstance(plan, JointRunPlan):
+        raise TypeError("Joint metadata requires a joint run plan")
+    return plan
 
 
 #: Version of the serialised reuse contract. Bumped when the *set* of bound
@@ -716,9 +385,7 @@ def _reuse_compatibility_contract(
         "adjustment": _json_safe(spec.adjustment),
         "spec_extra": _json_safe(spec.extra),
         "model_settings": (
-            _json_safe(declared_settings_dict(spec))
-            if spec.kind == "itt" or spec.model_settings is not None
-            else None
+            _json_safe(declared_settings_dict(spec)) if spec.kind == "itt" or spec.model_settings is not None else None
         ),
         "resolved_run_plan": _json_safe(resolved_plan),
         "effective_model_settings": _json_safe(_effective_model_settings(context)),
@@ -734,14 +401,10 @@ def _reuse_compatibility_contract(
         "n_obs": context.prepared.n_obs if context.prepared else None,
         "n_children": context.prepared.n_children if context.prepared else None,
         "n_phases": context.prepared.n_phases if context.prepared else None,
-        "n_waves": (
-            getattr(context.prepared, "n_waves", None) if context.prepared else None
-        ),
+        "n_waves": (getattr(context.prepared, "n_waves", None) if context.prepared else None),
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
         "dropped_by_reason": (
-            dict(getattr(context.prepared, "dropped_by_reason", {}) or {})
-            if context.prepared
-            else None
+            dict(getattr(context.prepared, "dropped_by_reason", {}) or {}) if context.prepared else None
         ),
         "fitted_subject_identity": fitted_subject_identity(context.prepared),
         "fitted_data_identity": _fitted_data_identity(context),
@@ -754,9 +417,7 @@ def _reuse_compatibility_contract(
     }
 
 
-def require_reuse_compatibility(
-    context: StatisticalFitContext, source_dir: str | Path
-) -> None:
+def require_reuse_compatibility(context: StatisticalFitContext, source_dir: str | Path) -> None:
     """Fail unless a prior publication matches the current scientific contract."""
 
     source = Path(source_dir)
@@ -765,22 +426,16 @@ def require_reuse_compatibility(
         with open(config_path, encoding="utf-8") as handle:
             previous = json.load(handle)
     except FileNotFoundError as exc:
-        raise FileNotFoundError(
-            f"reuse-trace mode requires prior run metadata at {config_path}"
-        ) from exc
+        raise FileNotFoundError(f"reuse-trace mode requires prior run metadata at {config_path}") from exc
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError(
-            f"reuse-trace prior run metadata is unreadable: {config_path}"
-        ) from exc
+        raise ValueError(f"reuse-trace prior run metadata is unreadable: {config_path}") from exc
     if not isinstance(previous, Mapping):
         raise ValueError("reuse-trace prior config.json is not a JSON object")
 
     current = _reuse_compatibility_contract(context)
     current_data = current.get("fitted_data_identity") or {}
     if not isinstance(current_data, Mapping) or not current_data.get("digest"):
-        raise ValueError(
-            "reuse-trace cannot verify the current fitted rows and observations"
-        )
+        raise ValueError("reuse-trace cannot verify the current fitted rows and observations")
     # Same fail-closed reading for the graph, matching the sub-fit runner's own
     # check. ``model_design_identity`` records a *reason* rather than raising when
     # a graph cannot be fingerprinted, and that reason is deterministic — so
@@ -791,9 +446,7 @@ def require_reuse_compatibility(
     if not isinstance(current_identity, Mapping) or not (
         current_identity.get("structure_sha256") and current_identity.get("design_sha256")
     ):
-        raise ValueError(
-            "reuse-trace cannot verify the current model's computational graph"
-        )
+        raise ValueError("reuse-trace cannot verify the current model's computational graph")
 
     stored = previous.get(REUSE_CONTRACT_KEY)
     if not isinstance(stored, Mapping):
@@ -841,10 +494,7 @@ def require_reuse_compatibility(
         mismatched.append("trace_sha256")
     if mismatched:
         fields = ", ".join(dict.fromkeys(mismatched))
-        raise ValueError(
-            "reuse-trace compatibility check failed for the prior publication: "
-            + fields
-        )
+        raise ValueError("reuse-trace compatibility check failed for the prior publication: " + fields)
 
 
 def write_model_recipe(context: StatisticalFitContext, *, plan=None) -> str | None:
@@ -930,9 +580,7 @@ def _publication_input_contract(context: StatisticalFitContext) -> dict | None:
         if isinstance(values, Mapping):
             add(tuple(values))
 
-    selected = tuple(
-        dict.fromkeys(symbol for symbol in candidates if symbol in catalogue)
-    )
+    selected = tuple(dict.fromkeys(symbol for symbol in candidates if symbol in catalogue))
     return publication_input_contract(spec.study_id, selected)
 
 
@@ -979,9 +627,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         # below, which contains post-fit summaries supplied by the pipeline.
         "spec_extra": _json_safe(spec.extra),
         "model_settings": (
-            _json_safe(declared_settings_dict(spec))
-            if spec.kind == "itt" or spec.model_settings is not None
-            else None
+            _json_safe(declared_settings_dict(spec)) if spec.kind == "itt" or spec.model_settings is not None else None
         ),
         "resolved_run_plan": _json_safe(resolved_plan),
         "model_recipe_file": os.path.basename(recipe_path) if recipe_path else None,
@@ -993,9 +639,7 @@ def write_run_metadata(context: StatisticalFitContext, extra: dict | None = None
         "n_waves": getattr(context.prepared, "n_waves", None) if context.prepared else None,
         "dropped_rows": context.prepared.dropped_rows if context.prepared else None,
         "dropped_by_reason": (
-            dict(getattr(context.prepared, "dropped_by_reason", {}) or {})
-            if context.prepared
-            else None
+            dict(getattr(context.prepared, "dropped_by_reason", {}) or {}) if context.prepared else None
         ),
         # Privacy-preserving fitted-row identity. Unlike ``data_sha256`` and row
         # counts, this lets companion fits prove that their primary analysis rows

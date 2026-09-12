@@ -81,9 +81,7 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    BuiltModel,
-)
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import EmptyPayload
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.preprocessing import (
@@ -97,9 +95,7 @@ from language_reading_predictors.statistical_models.settings_validation import (
 # The family-owned settings formerly read directly from ``ModelSpec.extra`` in
 # ``pipelines/survival.py``.  ``target_accept`` remains a centrally resolved sampler
 # option rather than a scientific model setting.
-_LEGACY_KEYS = frozenset(
-    {"hazard_link", "use_treatment", "treatment_window", "target_accept"}
-)
+_LEGACY_KEYS = frozenset({"hazard_link", "use_treatment", "treatment_window", "target_accept"})
 _SURVIVAL_OUTCOMES = frozenset({"P", "N"})
 _HAZARD_LINKS = frozenset({"cloglog", "logit"})
 _TREATMENT_WINDOWS = frozenset({"randomised", "pooled"})
@@ -132,9 +128,7 @@ class SurvivalModelSettings:
             raise ValueError("treatment_window must be 'randomised' or 'pooled'")
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> SurvivalModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> SurvivalModelSettings:
         """Strictly translate the former ``spec.extra`` declaration."""
         unknown = sorted(set(extra) - _LEGACY_KEYS)
         if unknown:
@@ -254,14 +248,10 @@ def declared_survival_settings(
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: survival settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: survival settings cannot be split between model_settings and extra")
         if not isinstance(settings, SurvivalModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='survival' requires "
-                f"SurvivalModelSettings, got {type(settings).__name__}"
+                f"{spec.model_id}: kind='survival' requires SurvivalModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
@@ -276,14 +266,9 @@ def declared_survival_settings(
 def resolve_survival_run_plan(spec: ModelSpec) -> SurvivalRunPlan:
     """Resolve and validate the survival contract before context or data I/O."""
     if spec.kind != "survival":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'survival', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'survival', got {spec.kind!r}")
     if spec.study_id != "rli":
-        raise ValueError(
-            f"{spec.model_id}: survival currently requires study_id='rli', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: survival currently requires study_id='rli', got {spec.study_id!r}")
     if spec.outcome_symbol not in _SURVIVAL_OUTCOMES:
         raise ValueError(
             f"{spec.model_id}: survival outcome_symbol must be one of "
@@ -465,12 +450,7 @@ def prepare_survival(symbol: str, df: pd.DataFrame | None = None) -> SurvivalPan
     # invalid or within-child-unstable group code would silently miscode ``G``.
     dup = df.duplicated(subset=[V.SUBJECT_ID, V.TIME], keep=False)
     if bool(dup.any()):
-        pairs = sorted(
-            {
-                (str(s), int(t))
-                for s, t in df.loc[dup, [V.SUBJECT_ID, V.TIME]].itertuples(index=False)
-            }
-        )
+        pairs = sorted({(str(s), int(t)) for s, t in df.loc[dup, [V.SUBJECT_ID, V.TIME]].itertuples(index=False)})
         raise ValueError(f"Duplicate (subject, time) rows in survival source: {pairs}")
     raw_group = pd.to_numeric(df[V.GROUP], errors="coerce").to_numpy(dtype=float)
     valid_group = np.isfinite(raw_group) & np.isin(raw_group, (1.0, 2.0))
@@ -571,9 +551,7 @@ def prepare_survival(symbol: str, df: pd.DataFrame | None = None) -> SurvivalPan
         n_at_risk_children=n_at_risk,
         n_events=int(event_arr.sum()),
         dropped_rows=dropped,
-        dropped_by_reason=(
-            {"no_observed_wave2_outcome": dropped} if dropped else {}
-        ),
+        dropped_by_reason=({"no_observed_wave2_outcome": dropped} if dropped else {}),
         imputed_covariate_rows=imputed,
     )
 
@@ -621,10 +599,7 @@ def build_survival_model(
         # child unit (#587 finding 4). With no child frailty the child-summed
         # LOO is an exact marginal leave-one-child-out.
         pm.Data("loo_child_idx", panel.child_idx.astype(np.int64), dims="obs_id")
-        cov_d = {
-            name: pm.Data(f"{name}_std", panel.covariates[name], dims="obs_id")
-            for name in panel.covariates
-        }
+        cov_d = {name: pm.Data(f"{name}_std", panel.covariates[name], dims="obs_id") for name in panel.covariates}
 
         # Per-interval baseline hazard (the discrete-time nuisance trajectory).
         alpha = _priors.alpha_prior().to_pymc("alpha", dims="interval")
@@ -632,7 +607,7 @@ def build_survival_model(
 
         # Baseline (prognostic) covariate slopes — associations, weakly regularised.
         for name in panel.covariates:
-            beta = _priors.predictor_slope_prior().to_pymc(f"beta_{name}")
+            beta = _priors.predictor_slope_prior().to_pymc(f"beta_{name}", **_priors.adjustment_metadata(name))
             eta = eta + beta * cov_d[name]
 
         # Treatment hazard term (the available-case modified-ITT randomised-window
@@ -641,7 +616,13 @@ def build_survival_model(
         # interval (where treated == G); the pooled comparator keeps the legacy
         # all-interval shift.
         if use_treatment:
-            tau = _priors.tau_prior().to_pymc("tau")
+            tau = _priors.tau_prior().to_pymc(
+                "tau",
+                role="association",
+                rationale="Available-case modified-ITT assignment contrast in the randomised first interval among children at floor at baseline; qualified by availability and the hazard model. No causal headline is released."
+                if treatment_window == "randomised"
+                else "Treatment hazard association pooled across all intervals, including the post-crossover periods. No causal headline is released.",
+            )
             trt_term = treated_d
             if treatment_window == "randomised":
                 trt_term = treated_d * pt.eq(interval_d, 0)
@@ -651,9 +632,7 @@ def build_survival_model(
 
         if hazard_link == "cloglog":
             # h = 1 - exp(-exp(eta)); -expm1(-exp(eta)) is the stable form.
-            h = pm.Deterministic(
-                "hazard", pt.clip(-pt.expm1(-pt.exp(eta)), 1e-9, 1 - 1e-9), dims="obs_id"
-            )
+            h = pm.Deterministic("hazard", pt.clip(-pt.expm1(-pt.exp(eta)), 1e-9, 1 - 1e-9), dims="obs_id")
             pm.Bernoulli("y_event", p=h, observed=panel.event, dims="obs_id")
         else:
             pm.Deterministic("hazard", pm.math.sigmoid(eta), dims="obs_id")

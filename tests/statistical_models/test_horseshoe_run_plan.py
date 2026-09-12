@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import glob
 import importlib
 import inspect
@@ -15,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import horseshoe as H
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 
 _META_FIELDS = (
@@ -54,8 +57,7 @@ def _registered_specs() -> list[ModelSpec]:
     specs: list[ModelSpec] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_*_hs_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and spec.kind == "horseshoe":
@@ -306,8 +308,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     plan = H.resolve_horseshoe_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
 
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated horseshoe run plan" in text
@@ -364,58 +366,38 @@ def test_gain_phase_mode_incoherence_fails_at_resolution():
     after the output-directory reset and a full CSV load."""
     with pytest.raises(ValueError, match="incoherent"):
         H.resolve_horseshoe_run_plan(
-            _spec(
-                settings=H.HorseshoeModelSettings(
-                    gain=True, phase_mode="levels", predictors=("L",)
-                )
-            )
+            _spec(settings=H.HorseshoeModelSettings(gain=True, phase_mode="levels", predictors=("L",)))
         )
     with pytest.raises(ValueError, match="incoherent"):
         H.resolve_horseshoe_run_plan(
-            _spec(
-                settings=H.HorseshoeModelSettings(
-                    gain=False, phase_mode="span", predictors=("L",)
-                )
-            )
+            _spec(settings=H.HorseshoeModelSettings(gain=False, phase_mode="span", predictors=("L",)))
         )
 
 
 def test_levels_plan_rejects_the_span_only_post_time():
     with pytest.raises(ValueError, match="span-frame setting"):
         H.resolve_horseshoe_run_plan(
-            _spec(
-                settings=H.HorseshoeModelSettings(
-                    gain=False, post_time=4, predictors=("L",)
-                )
-            )
+            _spec(settings=H.HorseshoeModelSettings(gain=False, post_time=4, predictors=("L",)))
         )
 
 
 def test_unknown_rli_predictor_fails_at_resolution():
     with pytest.raises(ValueError, match="unknown RLI measure"):
-        H.resolve_horseshoe_run_plan(
-            _spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("ZZ",)))
-        )
+        H.resolve_horseshoe_run_plan(_spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("ZZ",))))
 
 
 def test_outcome_cannot_rank_itself():
     with pytest.raises(ValueError, match="own ranked"):
-        H.resolve_horseshoe_run_plan(
-            _spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("W", "L")))
-        )
+        H.resolve_horseshoe_run_plan(_spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("W", "L"))))
 
 
 def test_missing_data_contract_follows_the_framing():
     """Finding 4: the recorded contract said complete-case for the level fits that
     mean-impute predictors, and the report said the reverse for the gain fits."""
-    gain_plan = H.resolve_horseshoe_run_plan(
-        _spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("L",)))
-    )
+    gain_plan = H.resolve_horseshoe_run_plan(_spec(settings=H.HorseshoeModelSettings(gain=True, predictors=("L",))))
     assert "Complete-case" in gain_plan.missing_data_assumption
     assert "complete" in gain_plan.analysis_population
-    level_plan = H.resolve_horseshoe_run_plan(
-        _spec(settings=H.HorseshoeModelSettings(gain=False, predictors=("L",)))
-    )
+    level_plan = H.resolve_horseshoe_run_plan(_spec(settings=H.HorseshoeModelSettings(gain=False, predictors=("L",))))
     assert "mean-imputed" in level_plan.missing_data_assumption
     assert "Complete-case" not in level_plan.missing_data_assumption
 

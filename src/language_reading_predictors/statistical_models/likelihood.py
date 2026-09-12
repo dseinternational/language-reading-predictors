@@ -28,6 +28,7 @@ SCORE_MEAN_LINKS: tuple[ScoreMeanLink, ...] = (
     "three_choice_guessing_floor",
 )
 
+
 def apply_score_mean_link(
     unit_probability: Any,
     score_mean_link: ScoreMeanLink,
@@ -43,10 +44,7 @@ def apply_score_mean_link(
         return unit_probability
     if score_mean_link == "three_choice_guessing_floor":
         return (1.0 / 3.0) + (2.0 / 3.0) * unit_probability
-    raise ValueError(
-        f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-        f"got {score_mean_link!r}"
-    )
+    raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {score_mean_link!r}")
 
 
 def invert_score_mean_link(
@@ -79,10 +77,7 @@ def invert_score_mean_link(
                 f"{np.asarray(score_mean, dtype=float)}"
             )
         return unit if np.ndim(score_mean) else float(unit)
-    raise ValueError(
-        f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-        f"got {score_mean_link!r}"
-    )
+    raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {score_mean_link!r}")
 
 
 def beta_binomial_from_score_mean_link(

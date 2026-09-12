@@ -13,6 +13,13 @@ variant.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import aligned as _aligned_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import factors as _factors_summary
+from language_reading_predictors.statistical_models.summaries import gain_factors as _gain_factors_summary
+
+
 import pandas as pd
 
 from language_reading_predictors.models._reporting import (
@@ -21,11 +28,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.aligned import resolve_aligned_run_plan
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -69,7 +72,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     plan = resolve_aligned_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     off_floor = plan.off_floor
     obs_node = plan.obs_node
@@ -80,14 +83,12 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_aligned_model(prepared, **plan.factory_kwargs())
+    built = _aligned_factory.build_aligned_model(prepared, **plan.factory_kwargs())
     attach_built(ctx, built)
     # The score-mean link the factory BUILT, not the one the module declared, so the
     # cohort marginal and its prior pushforward cannot drift from the likelihood
     # (#619).
-    link = built.require_payload(
-        AlignedPayload, family="aligned"
-    ).score_mean_link
+    link = built.require_payload(AlignedPayload, family="aligned").score_mean_link
 
     render_model_graph(ctx)
 
@@ -100,9 +101,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         PrimaryFitPlan(
             diagnostic_vars=tuple(_al_vars),
             ppc_var_names=(obs_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol, node=obs_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol, node=obs_node),
         ),
     )
     _diag.save_prior_posterior_plot(ctx, var_names=_al_vars)
@@ -110,9 +109,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     section_header("Factor summary")
     # Per-protocol design: NOTHING is a clean randomised effect, so no term is
     # flagged causal -- every coefficient (cohort included) is an association.
-    fs = _report.factor_summary(
-        ctx.trace, _al_coef_names, ci_prob=ctx.reporting.ci_prob, causal_terms=()
-    )
+    fs = _factors_summary.factor_summary(ctx.trace, _al_coef_names, ci_prob=ctx.reporting.ci_prob, causal_terms=())
     save_table(ctx, "factor_summary", fs)
     # Per-protocol: every term is an association, so the forest shows them all.
     save_association_forest(ctx, _al_coef_names, ())
@@ -133,9 +130,13 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     if plan.use_cohort:
         cohort = built.prepared.G.astype(float)
         n_marg = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
-        cme = _report.treatment_marginal_effect(
-            ctx.trace, trt=cohort, n_trials=n_marg, term="beta_cohort",
-            ci_prob=ctx.reporting.ci_prob, score_mean_link=link,
+        cme = _gain_factors_summary.treatment_marginal_effect(
+            ctx.trace,
+            trt=cohort,
+            n_trials=n_marg,
+            term="beta_cohort",
+            ci_prob=ctx.reporting.ci_prob,
+            score_mean_link=link,
         )
         save_table(ctx, "cohort_marginal", pd.DataFrame([cme]))
         meta_extra["cohort_marginal"] = cme
@@ -158,7 +159,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         except PriorEvidenceUnavailable as exc:
             rows = [
-                _report.unavailable_pushforward(
+                _predictive.unavailable_pushforward(
                     estimand="beta_cohort",
                     estimand_label="the per-protocol cohort contrast",
                     role="association",
@@ -169,19 +170,20 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             # No broad handler (#637 stage 1): past the availability check, a
             # failure here is a defect in the transform, not missing evidence, and
             # must fail the fit rather than be recorded as "check unavailable".
-            pf = _report.prior_pushforward(
-                ctx.prior_samples, G=cohort, n_trials=n_marg,
-                term="beta_cohort", varying_term="", ci_prob=ctx.reporting.ci_prob,
+            pf = _predictive.prior_pushforward(
+                ctx.prior_samples,
+                G=cohort,
+                n_trials=n_marg,
+                term="beta_cohort",
+                varying_term="",
+                ci_prob=ctx.reporting.ci_prob,
                 score_mean_link=link,
             )
             rows = [
-                _report.labelled_pushforward(
+                _predictive.labelled_pushforward(
                     pf,
                     estimand="beta_cohort",
-                    estimand_label=(
-                        "the per-protocol cohort contrast (an association, not a "
-                        "randomised effect)"
-                    ),
+                    estimand_label=("the per-protocol cohort contrast (an association, not a randomised effect)"),
                     role="association",
                 )
             ]
@@ -190,7 +192,7 @@ def fit_aligned(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         write_prior_pushforward(
             ctx,
             [
-                _report.unavailable_pushforward(
+                _predictive.unavailable_pushforward(
                     estimand="beta_cohort",
                     estimand_label="the per-protocol cohort contrast",
                     role="association",

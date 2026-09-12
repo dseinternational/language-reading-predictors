@@ -91,9 +91,7 @@ class OutputTransaction:
         self.staging_dir = self.staging_dir.resolve()
         if self.final_dir.parent != self.staging_dir.parent:
             raise ValueError("staging and final output directories must be siblings")
-        self._finalizer = weakref.finalize(
-            self, _remove_private_path, self.staging_dir
-        )
+        self._finalizer = weakref.finalize(self, _remove_private_path, self.staging_dir)
 
     @classmethod
     def create(cls, final_dir: str | Path) -> OutputTransaction:
@@ -128,9 +126,7 @@ class OutputTransaction:
         if self._published:
             return self.final_dir
         if not self.staging_dir.is_dir():
-            raise FileNotFoundError(
-                f"staging output directory does not exist: {self.staging_dir}"
-            )
+            raise FileNotFoundError(f"staging output directory does not exist: {self.staging_dir}")
 
         # The two renames, the backup-first ordering and the restore-on-failure
         # attempt are the shared helper's (#662). This class keeps what the
@@ -141,8 +137,7 @@ class OutputTransaction:
         promotion = promote_directory(
             self.staging_dir,
             self.final_dir,
-            backup=self.final_dir.parent
-            / f".{self.final_dir.name}.backup-{uuid.uuid4().hex}",
+            backup=self.final_dir.parent / f".{self.final_dir.name}.backup-{uuid.uuid4().hex}",
             # This process is the single writer of these paths: the staging
             # directory is a private mkdtemp and the final path is one model's
             # own output directory. A null context is what the helper documents

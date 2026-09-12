@@ -17,8 +17,9 @@ confounder parents — hearing (HS), speech production (SP) and/or phonological 
 (RW), where the DAG has such an edge — enter via ``adjust_for``. Measured skill parents
 are deliberately NOT conditioned on: in a levels model their contemporaneous level is a
 post-treatment mediator of the group×time effect, so adjusting for them would bias the
-very trajectory the model estimates. The clean randomised contrast remains the t2 group
-effect (``d_grp_time[t2]``, see below); every other coefficient is an adjusted association, and the
+very trajectory the model estimates. The t2 arm contrast compares treatment with no treatment yet. Later arm
+contrasts compare randomised treatment schedules. Other coefficients are adjusted
+associations. The
 child random intercept is a partial shrunken stand-in for between-child heterogeneity
 that does not control latent general ability.
 
@@ -27,8 +28,9 @@ on the timepoint-1 arm gap — ``arm_gap_t1`` (the covariate-adjusted
 pre-randomisation gap, a balance quantity, never an effect) plus the change in
 that gap at each later wave, ``d_grp_time[t]`` — so the clean randomised contrast
 is the **t2 change ``d_grp_time[t2]``**, a difference-in-differences of adjusted
-levels; ``d_grp_time[t3]`` / ``[t4]`` are post-crossover associations and the
-per-wave gaps ``b_grp_time[t]`` are kept as a derived levels view. The former free
+levels. The later changes compare randomised early-start and delayed-start
+treatment schedules, as explained in :mod:`level_factors`. The per-wave gaps
+``b_grp_time[t]`` remain a derived levels view. The former free
 per-timepoint vector (whose t2 element ``b_grp_time[1]`` carried the adjusted
 chance t1 imbalance) is retained only as the ``arm_gap_reference="free"``
 comparator.

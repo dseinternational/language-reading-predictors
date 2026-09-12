@@ -30,10 +30,7 @@ class StatisticalRunOptions:
         if self.target_accept is not None:
             value = float(self.target_accept)
             if not 0.0 < value < 1.0:
-                raise ValueError(
-                    "target_accept must be in the open interval (0, 1); "
-                    f"got {self.target_accept!r}"
-                )
+                raise ValueError(f"target_accept must be in the open interval (0, 1); got {self.target_accept!r}")
             object.__setattr__(self, "target_accept", value)
         if self.rli_randomised_archive is not None:
             archive = str(self.rli_randomised_archive).strip()

@@ -157,15 +157,9 @@ class DoseResponseModelSettings:
         )
         wave = _string(self.ability_baseline_wave, name="ability_baseline_wave")
         if wave not in ABILITY_BASELINE_WAVES:
-            raise ValueError(
-                "ability_baseline_wave must be one of "
-                f"{ABILITY_BASELINE_WAVES!r}, got {wave!r}"
-            )
+            raise ValueError(f"ability_baseline_wave must be one of {ABILITY_BASELINE_WAVES!r}, got {wave!r}")
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-                f"got {self.score_mean_link!r}"
-            )
+            raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {self.score_mean_link!r}")
         object.__setattr__(self, "ability_baseline_wave", wave)
 
     @classmethod
@@ -332,26 +326,20 @@ class DoseResponseRunPlan:
             )
         if self.period_varying_dose:
             meanings["mu_dose"] = (
-                f"Overall (partially pooled) dose slope across the three periods; "
-                f"{slope_role}. " + intensity
+                f"Overall (partially pooled) dose slope across the three periods; {slope_role}. " + intensity
             )
             meanings["sigma_dose"] = (
                 "Between-period SD of the period-specific dose slopes. Its prior "
                 "partially pools only three slopes, so read it beside the pooled "
                 "comparator rather than as evidence about period variation on its own."
             )
-            meanings["beta_dose_phase"] = (
-                f"Period-specific dose slopes; each is {slope_role}. " + intensity
-            )
+            meanings["beta_dose_phase"] = f"Period-specific dose slopes; each is {slope_role}. " + intensity
         else:
-            meanings["beta_dose"] = (
-                f"Pooled dose slope; {slope_role}. " + intensity
-            )
+            meanings["beta_dose"] = f"Pooled dose slope; {slope_role}. " + intensity
         for symbol in self.ability_adjust_symbols:
             wave = "verified pre-randomisation t1" if self.ability_baseline_wave == "t1" else "transition-start"
             meanings[f"gamma_{symbol}_pre"] = (
-                f"Adjusted association with the {wave} logit of {symbol} — a baseline "
-                "ability proxy, never an effect."
+                f"Adjusted association with the {wave} logit of {symbol} — a baseline ability proxy, never an effect."
             )
         if self.dose_stage_covariate is not None:
             meanings["gamma_dose_stage"] = (
@@ -384,11 +372,7 @@ class DoseResponseRunPlan:
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language recipe generated from the validated plan."""
         outcomes = ", ".join(self.outcomes)
-        ability = (
-            ", ".join(self.ability_adjust_symbols)
-            if self.ability_adjust_symbols
-            else "none"
-        )
+        ability = ", ".join(self.ability_adjust_symbols) if self.ability_adjust_symbols else "none"
         return (
             "Note: Generated from the validated dose-response run plan; template "
             "drafted by a LLM-based AI tool (Codex/GPT-5).\n\n"
@@ -410,10 +394,7 @@ class DoseResponseRunPlan:
             f"{self.adjust_group}. Age adjustment: {self.adjust_age}. Child random "
             f"intercept: {self.use_subject_random_intercept}.\n\n"
             "Every fitted coefficient and its meaning:\n\n"
-            + "".join(
-                f"- `{name}` — {meaning}\n"
-                for name, meaning in self.coefficient_meanings().items()
-            )
+            + "".join(f"- `{name}` — {meaning}\n" for name, meaning in self.coefficient_meanings().items())
             + "\n## Uncertainty and checks\n\n"
             f"The observation node is `{self.observation_node}` and PSIS-LOO uses "
             f"the `{self.loo_unit}` unit. {self.loo_note}\n\n"
@@ -460,26 +441,18 @@ def declared_dose_response_settings(
 def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
     """Resolve and validate the family contract before context or data I/O."""
     if spec.kind != "dose_response":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'dose_response', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'dose_response', got {spec.kind!r}")
     if spec.study_id != "rli":
-        raise ValueError(
-            f"{spec.model_id}: dose_response requires study_id='rli', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: dose_response requires study_id='rli', got {spec.study_id!r}")
     if not spec.outcome_symbol:
-        raise ValueError(
-            f"{spec.model_id}: outcome_symbol is required for dose_response"
-        )
+        raise ValueError(f"{spec.model_id}: outcome_symbol is required for dose_response")
 
     settings, source = declared_dose_response_settings(spec)
     outcome = spec.outcome_symbol
     outcomes = settings.outcomes or (outcome,)
     if settings.score_mean_link == "three_choice_guessing_floor" and outcome != "B":
         raise ValueError(
-            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
-            f"phoneme blending (B), got {outcome!r}"
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for phoneme blending (B), got {outcome!r}"
         )
 
     # The mandatory phoneme-blending link pairing (#619, under the #608 policy).
@@ -516,15 +489,12 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
     )
     if unknown:
         raise ValueError(
-            f"{spec.model_id}: unknown measure symbol(s) {unknown!r}; valid symbols "
-            f"are {sorted(MEASURES)!r}"
+            f"{spec.model_id}: unknown measure symbol(s) {unknown!r}; valid symbols are {sorted(MEASURES)!r}"
         )
     # An ability adjuster that repeats the own baseline would put two coefficients on
     # one identical column — an exact collinearity the proper priors would hide rather
     # than surface (#587 finding 12).
-    duplicated = sorted(
-        set(settings.ability_adjust_symbols) & {settings.adjust_baseline_symbol}
-    )
+    duplicated = sorted(set(settings.ability_adjust_symbols) & {settings.adjust_baseline_symbol})
     if duplicated:
         raise ValueError(
             f"{spec.model_id}: ability_adjust_symbols {duplicated!r} duplicate "
@@ -543,9 +513,7 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
             f"ability symbol; missing {missing!r} from {outcomes!r}"
         )
     if settings.dose_stage_covariate == settings.dose_covariate:
-        raise ValueError(
-            f"{spec.model_id}: dose_stage_covariate must differ from dose_covariate"
-        )
+        raise ValueError(f"{spec.model_id}: dose_stage_covariate must differ from dose_covariate")
     if settings.ability_baseline_wave == "transition_start" and not settings.ability_adjust_symbols:
         raise ValueError(
             f"{spec.model_id}: ability_baseline_wave='transition_start' is a labelled "
@@ -553,9 +521,7 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
             "ability_adjust_symbols"
         )
     loader_covariates = tuple(
-        value
-        for value in (settings.dose_covariate, settings.dose_stage_covariate)
-        if value is not None
+        value for value in (settings.dose_covariate, settings.dose_stage_covariate) if value is not None
     )
     focal = "mu_dose" if settings.period_varying_dose else "beta_dose"
 

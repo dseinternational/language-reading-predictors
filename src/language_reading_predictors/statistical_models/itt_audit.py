@@ -92,9 +92,7 @@ def analysis_set_table(
                 "randomised_n": randomised_n,
                 "lost_to_follow_up_n": RLI_LOST_TO_FOLLOW_UP_BY_G[g],
                 "analysed_archive_n": available_n,
-                "discontinued_but_followed_n": (
-                    RLI_DISCONTINUED_BUT_FOLLOWED_BY_G[g]
-                ),
+                "discontinued_but_followed_n": (RLI_DISCONTINUED_BUT_FOLLOWED_BY_G[g]),
                 "fitted_n": fitted_n,
                 "absent_from_archive_n": randomised_n - available_n,
                 "not_in_fitted_analysis_n": randomised_n - fitted_n,
@@ -141,10 +139,7 @@ def randomised_postscore_bounds(
         randomised_n = RLI_RANDOMISED_BY_G[g]
         missing_n = randomised_n - observed_n
         if missing_n < 0:
-            raise ValueError(
-                f"Observed {ARM_LABELS[g]} count {observed_n} exceeds randomised "
-                f"count {randomised_n}."
-            )
+            raise ValueError(f"Observed {ARM_LABELS[g]} count {observed_n} exceeds randomised count {randomised_n}.")
         observed_sum = float(np.sum(observed))
         arm[g] = {
             "observed_n": observed_n,

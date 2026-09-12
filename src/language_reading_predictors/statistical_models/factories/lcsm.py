@@ -1,24 +1,14 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Latent change-score model construction.
-
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
-"""
+"""Latent change-score model construction."""
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models.fitted_payloads import (
@@ -31,6 +21,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
 )
 from language_reading_predictors.statistical_models import priors as _priors
+
 
 def build_lcsm_model(
     panel: WavePanel,
@@ -131,9 +122,7 @@ def build_lcsm_model(
     """
     OUT = tuple(panel.outcomes)
     if reading_symbol not in OUT:
-        raise KeyError(
-            f"reading_symbol {reading_symbol!r} not in panel.outcomes {OUT}"
-        )
+        raise KeyError(f"reading_symbol {reading_symbol!r} not in panel.outcomes {OUT}")
     K = len(OUT)
     N = panel.n_children
     T = panel.n_waves
@@ -147,34 +136,22 @@ def build_lcsm_model(
     for tgt, srcs in couplings.items():
         unknown = [s for s in (tgt, *srcs) if s not in OUT]
         if unknown:
-            raise KeyError(
-                f"coupling symbols {unknown} not in panel.outcomes {OUT}"
-            )
+            raise KeyError(f"coupling symbols {unknown} not in panel.outcomes {OUT}")
         if tgt in srcs:
-            raise ValueError(
-                f"target {tgt!r} cannot couple to itself (that is b_self)"
-            )
+            raise ValueError(f"target {tgt!r} cannot couple to itself (that is b_self)")
 
-    lagged_change_couplings = {
-        tgt: tuple(srcs) for tgt, srcs in (lagged_change_couplings or {}).items()
-    }
+    lagged_change_couplings = {tgt: tuple(srcs) for tgt, srcs in (lagged_change_couplings or {}).items()}
     for tgt, srcs in lagged_change_couplings.items():
         unknown = [s for s in (tgt, *srcs) if s not in OUT]
         if unknown:
-            raise KeyError(
-                f"lagged-change coupling symbols {unknown} not in panel.outcomes {OUT}"
-            )
+            raise KeyError(f"lagged-change coupling symbols {unknown} not in panel.outcomes {OUT}")
         if tgt in srcs:
             raise ValueError(
-                f"target {tgt!r} cannot lag-couple to its own change "
-                "(an AR on changes is not a #229 estimand)"
+                f"target {tgt!r} cannot lag-couple to its own change (an AR on changes is not a #229 estimand)"
             )
     if lagged_change_couplings:
         if T < 3:
-            raise ValueError(
-                "lagged change-on-change couplings need at least three waves "
-                "(a prior transition)"
-            )
+            raise ValueError("lagged change-on-change couplings need at least three waves (a prior transition)")
         if not arm_window_intercepts:
             raise ValueError(
                 "lagged_change_couplings requires arm_window_intercepts=True: the "
@@ -184,20 +161,14 @@ def build_lcsm_model(
             )
 
     if arm_window_intercepts and panel.group is None:
-        raise ValueError(
-            "arm_window_intercepts=True needs a panel with a group column"
-        )
+        raise ValueError("arm_window_intercepts=True needs a panel with a group column")
     covariate_block = tuple(covariate_block)
     covariate_targets = tuple(covariate_targets)
     if bool(covariate_block) != bool(covariate_targets):
-        raise ValueError(
-            "covariate_block and covariate_targets must be given together"
-        )
+        raise ValueError("covariate_block and covariate_targets must be given together")
     unknown_tgt = [s for s in covariate_targets if s not in OUT]
     if unknown_tgt:
-        raise KeyError(
-            f"covariate_targets {unknown_tgt} not in panel.outcomes {OUT}"
-        )
+        raise KeyError(f"covariate_targets {unknown_tgt} not in panel.outcomes {OUT}")
     cov_arrays: dict[str, np.ndarray] = {}
     cov_is_wave: dict[str, bool] = {}
     for name in covariate_block:
@@ -231,9 +202,7 @@ def build_lcsm_model(
             f"{', '.join(missing_w1)}. Drop the outcome or choose a panel with "
             "wave-1 observations."
         )
-    w1_anchor = np.array(
-        [np.nanmean(panel.logit[s][:, 0]) for s in OUT], dtype=float
-    )
+    w1_anchor = np.array([np.nanmean(panel.logit[s][:, 0]) for s in OUT], dtype=float)
 
     coords = {
         "child": np.arange(N),
@@ -257,39 +226,34 @@ def build_lcsm_model(
 
         # Structural parameters (time-invariant, pooled over transitions).
         mu1 = _priors.declare(
-                  pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome"),
-                  role="nuisance",
-                  rationale=(
-                      "Initial latent level, its mean anchored on the observed wave-1 "
-                      "mean logit per outcome. Empirical Bayes: the prior mean is "
-                      "computed from the same observed outcomes that enter the "
-                      "likelihood, so this prior is not independent of the data and the "
-                      "reported prior-predictive distribution is partly data-informed."
-                  ),
-              )
+            pm.Normal("mu1", mu=w1_anchor, sigma=1.0, dims="outcome"),
+            role="nuisance",
+            rationale=(
+                "Initial latent level, its mean anchored on the observed wave-1 "
+                "mean logit per outcome. Empirical Bayes: the prior mean is "
+                "computed from the same observed outcomes that enter the "
+                "likelihood, so this prior is not independent of the data and the "
+                "reported prior-predictive distribution is partly data-informed."
+            ),
+        )
         sigma1 = _priors.declare(
-                     pm.HalfNormal("sigma1", sigma=sigma_init_prior_sigma, dims="outcome"),
-                     role="nuisance",
-                     rationale=(
-                         "SD of the initial latent level (HalfNormal(1)); the between-child "
-                         "spread at wave 1 that ``z1`` scales."
-                     ),
-                 )
+            pm.HalfNormal("sigma1", sigma=sigma_init_prior_sigma, dims="outcome"),
+            role="nuisance",
+            rationale=("SD of the initial latent level; the between-child spread at wave 1 that ``z1`` scales."),
+        )
         if arm_window_intercepts:
             a_change = _priors.declare(
-                           pm.Normal(
-                                           "a_change",
-                                           mu=0.0,
-                                           sigma=intercept_prior_sigma,
-                                           dims=("arm", "trans", "outcome"),
-                                       ),
-                           role="nuisance",
-                           rationale=(
-                               "Per-measure change-score intercept (Normal(0, 1.5)); the mean "
-                               "annual change each measure makes before any coupling term, "
-                               "absorbed rather than reported."
-                           ),
-                       )
+                pm.Normal(
+                    "a_change",
+                    mu=0.0,
+                    sigma=intercept_prior_sigma,
+                    dims=("arm", "trans", "outcome"),
+                ),
+                role="nuisance",
+                rationale=(
+                    "Per-measure change-score intercept; the mean annual change each measure makes before any coupling term, absorbed rather than reported."
+                ),
+            )
             # Window-1 randomised contrast on the latent change scale
             # (immediate - waitlist), the built-in ITT-suite consistency check.
             pm.Deterministic(
@@ -299,16 +263,12 @@ def build_lcsm_model(
             )
         else:
             a_change = _priors.declare(
-                           pm.Normal(
-                                           "a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"
-                                       ),
-                           role="nuisance",
-                           rationale=(
-                               "Per-measure change-score intercept (Normal(0, 1.5)); the mean "
-                               "annual change each measure makes before any coupling term, "
-                               "absorbed rather than reported."
-                           ),
-                       )
+                pm.Normal("a_change", mu=0.0, sigma=intercept_prior_sigma, dims="outcome"),
+                role="nuisance",
+                rationale=(
+                    "Per-measure change-score intercept; the mean annual change each measure makes before any coupling term, absorbed rather than reported."
+                ),
+            )
         # Self-feedback of the proportional change-score recursion: the level AR(1)
         # coefficient is phi = 1 + b_self, so the old ``mu=0`` centred phi on a unit
         # root (random walk) with ~50% prior mass on explosive phi > 1. A
@@ -319,30 +279,19 @@ def build_lcsm_model(
         # finding A3, 2026-07-13). Still weakly-informative — the data can pull b_self
         # back toward 0 given signal.
         b_self = _priors.declare(
-                     pm.Normal(
-                                 "b_self", mu=self_prior_mu, sigma=self_prior_sigma, dims="outcome"
-                             ),
-                     role="precision",
-                     rationale=(
-                         "Within-measure self-feedback of the change-score recursion (level "
-                         "AR(1): phi = 1 + b_self; Normal(-0.3, 0.2)); centred at -0.3 (phi "
-                         "~ 0.7) so trajectories mean-revert rather than random-walk — a "
-                         "precision own-dynamics term (the LCSM analogue of the own-baseline "
-                         "gamma_own), not one of the reported cross-skill couplings. This "
-                         "descriptive LCSM has no randomised effect, so 'precision' here "
-                         "means an own-dynamics term that supports, but is not, a reported "
-                         "coupling."
-                     ),
-                 )
+            pm.Normal("b_self", mu=self_prior_mu, sigma=self_prior_sigma, dims="outcome"),
+            role="precision",
+            rationale=(
+                "Within-measure self-feedback in the change-score recursion, with level coefficient phi = 1 + b_self. Values between -1 and 0 give positive, mean-reverting level dynamics. An own-dynamics precision term that supports the reported cross-skill couplings; no treatment effect is identified."
+            ),
+        )
         d_age = _priors.declare(
-                    pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome"),
-                    role="precision",
-                    rationale=(
-                        "Linear age coupling on the change score (Normal(0, 0.3)); a "
-                        "precision covariate that sharpens the reported couplings without "
-                        "licensing a causal reading of its own."
-                    ),
-                )
+            pm.Normal("d_age", mu=0.0, sigma=covariate_prior_sigma, dims="outcome"),
+            role="precision",
+            rationale=(
+                "Linear age coupling on the change score; a precision covariate that sharpens the reported couplings without licensing a causal reading of its own."
+            ),
+        )
         # Headline cross-couplings (prior source level -> target change). With a
         # single target the parameters keep LRP67's ``g_{src}`` names; with
         # multiple targets the target joins the name (``g_{src}_{tgt}``).
@@ -351,16 +300,10 @@ def build_lcsm_model(
         for tgt, srcs in couplings.items():
             for src in srcs:
                 pname = f"g_{src}" if single_target else f"g_{src}_{tgt}"
-                g_par[(src, tgt)] = _priors.declare(
-                    pm.Normal(pname, mu=0.0, sigma=coupling_prior_sigma),
+                g_par[(src, tgt)] = _priors.gamma_cross_prior(sigma=coupling_prior_sigma).to_pymc(
+                    pname,
                     role="association",
-                    panel="gamma_cross",
-                    rationale=(
-                        "Cross-measure coupling of the change-score recursion: the "
-                        "effect of one measure's level on another's subsequent "
-                        "change (Normal(0, 0.3)). An adjusted association, and the "
-                        "quantity this family reports."
-                    ),
+                    rationale="Cross-measure coupling of the change-score recursion: the effect of one measure's level on another's subsequent change. An adjusted association, and the quantity this family reports.",
                 )
         # Lagged change-on-change couplings (prior source *change* -> target
         # change; #229 spec 2). Same naming rule and regularising scale as the
@@ -370,17 +313,10 @@ def build_lcsm_model(
         for tgt, srcs in lagged_change_couplings.items():
             for src in srcs:
                 pname = f"h_{src}" if single_lag_target else f"h_{src}_{tgt}"
-                h_par[(src, tgt)] = _priors.declare(
-                    pm.Normal(pname, mu=0.0, sigma=coupling_prior_sigma),
+                h_par[(src, tgt)] = _priors.gamma_cross_prior(sigma=coupling_prior_sigma).to_pymc(
+                    pname,
                     role="association",
-                    panel="gamma_cross",
-                    rationale=(
-                        "Lagged change-on-change coupling of the change-score "
-                        "recursion: the effect of one measure's prior change on "
-                        "another's subsequent change (Normal(0, 0.3), the same "
-                        "regularising scale as the level couplings). An adjusted "
-                        "association, reported beside them (#229 spec 2)."
-                    ),
+                    rationale="Lagged change-on-change coupling: the association of one measure's prior change with another's subsequent change. Reported beside the level couplings as an adjusted association.",
                 )
         # Adjuster-covariate slopes, shared across the covariate_targets
         # equations (the parameter-sparing default at n~54).
@@ -389,61 +325,44 @@ def build_lcsm_model(
                 pm.Normal(f"b_{name}", mu=0.0, sigma=covariate_prior_sigma),
                 role="precision",
                 rationale=(
-                    "Adjuster-covariate slope on the change score (Normal(0, 0.3)), "
-                    "shared across the covariate_targets equations. One of the "
-                    "measured confounders the family conditions on to complete its "
-                    "backdoor set (hearing, prior-wave phonological memory and "
-                    "speech production, each with its missing indicator); it "
-                    "sharpens the reported couplings without licensing a causal "
-                    "reading of its own."
+                    "Adjuster-covariate slope on the change score, shared across the covariate_targets equations. One of the measured confounders the family conditions on to complete its backdoor set (hearing, prior-wave phonological memory and speech production, each with its missing indicator); it sharpens the reported couplings without licensing a causal reading of its own."
                 ),
             )
             for name in covariate_block
         }
-        kappa = _priors.declare(
-                    pm.HalfNormal("kappa", sigma=kappa_prior_sigma, dims="outcome"),
-                    role="nuisance",
-                    panel="kappa",
-                    rationale=(
-                        "Beta-binomial concentration kappa ~ HalfNormal(50)."
-                    ),
-                )
+        kappa = _priors.kappa_prior(sigma=kappa_prior_sigma).to_pymc(
+            "kappa", dims="outcome", role="nuisance", rationale="Beta-binomial concentration."
+        )
 
         sigma_proc: dict[str, pt.TensorVariable] = {}
         zproc: dict[str, pt.TensorVariable] = {}
         if use_process_noise:
             if shared_process_noise:
                 sp = _priors.declare(
-                         pm.HalfNormal("sigma_proc", sigma=sigma_proc_prior_sigma),
-                         role="nuisance",
-                         rationale=(
-                             "Process-noise SD of the latent change score (HalfNormal(0.5)); the "
-                             "wave-to-wave innovation the ``zproc`` offsets scale."
-                         ),
-                     )
+                    pm.HalfNormal("sigma_proc", sigma=sigma_proc_prior_sigma),
+                    role="nuisance",
+                    rationale=(
+                        "Process-noise SD of the latent change score; the wave-to-wave innovation the ``zproc`` offsets scale."
+                    ),
+                )
                 sigma_proc = {s: sp for s in OUT}
             else:
                 spv = _priors.declare(
-                          pm.HalfNormal(
-                                              "sigma_proc", sigma=sigma_proc_prior_sigma, dims="outcome"
-                                          ),
-                          role="nuisance",
-                          rationale=(
-                              "Process-noise SD of the latent change score (HalfNormal(0.5)); the "
-                              "wave-to-wave innovation the ``zproc`` offsets scale."
-                          ),
-                      )
+                    pm.HalfNormal("sigma_proc", sigma=sigma_proc_prior_sigma, dims="outcome"),
+                    role="nuisance",
+                    rationale=(
+                        "Process-noise SD of the latent change score; the wave-to-wave innovation the ``zproc`` offsets scale."
+                    ),
+                )
                 sigma_proc = {s: spv[jidx[s]] for s in OUT}
             zproc = {
                 s: _priors.declare(
-                       pm.Normal(f"zproc_{s}", 0.0, 1.0, dims=("child", "trans")),
-                       role="nuisance",
-                       rationale=(
-                           "Non-centred standard-normal per-child, per-transition offsets "
-                           "(Normal(0, 1)); scaled by sigma_proc to form the latent process "
-                           "noise."
-                       ),
-                   )
+                    pm.Normal(f"zproc_{s}", 0.0, 1.0, dims=("child", "trans")),
+                    role="nuisance",
+                    rationale=(
+                        "Non-centred standard-normal per-child, per-transition offsets; scaled by sigma_proc to form the latent process noise."
+                    ),
+                )
                 for s in OUT
             }
 
@@ -457,18 +376,13 @@ def build_lcsm_model(
         x: dict[str, list[pt.TensorVariable]] = {}
         for s in OUT:
             z1 = _priors.declare(
-                     pm.Normal(f"z1_{s}", 0.0, 1.0, dims="child"),
-                     role="nuisance",
-                     rationale=(
-                         "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
-                         "scaled by sigma1 to form each child's initial latent level."
-                     ),
-                 )
-            x[s] = [
-                pm.Deterministic(
-                    f"x1_{s}", mu1[jidx[s]] + sigma1[jidx[s]] * z1, dims="child"
-                )
-            ]
+                pm.Normal(f"z1_{s}", 0.0, 1.0, dims="child"),
+                role="nuisance",
+                rationale=(
+                    "Non-centred standard-normal per-child offsets; scaled by sigma1 to form each child's initial latent level."
+                ),
+            )
+            x[s] = [pm.Deterministic(f"x1_{s}", mu1[jidx[s]] + sigma1[jidx[s]] * z1, dims="child")]
 
         # Latent change-score recursion over transitions (t = 1 .. T-1).
         # ``delta_hist[s][k]`` is measure ``s``'s realised latent change on

@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import glob
 import importlib
 import inspect
@@ -14,12 +17,10 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import historical_growth as HG
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_historical_growth_model,
-    default_of,
-)
+from language_reading_predictors.statistical_models.factories.base import default_of
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 
 _META_FIELDS = (
     "design",
@@ -65,15 +66,12 @@ def _spec(
 
 def _registered_specs() -> list[ModelSpec]:
     root = os.path.dirname(
-        importlib.import_module(
-            "language_reading_predictors.statistical_models.historical_growth"
-        ).__file__
+        importlib.import_module("language_reading_predictors.statistical_models.historical_growth").__file__
     )
     specs = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_rlm_hg_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and spec.kind == "historical_growth":
@@ -147,14 +145,15 @@ def test_default_legacy_plan_preserves_loader_factory_diagnostics_and_loo_contra
     assert plan.factory_kwargs() == {
         "measure": "basread",
         "eta_prior_sigma": default_of(build_historical_growth_model, "eta_prior_sigma"),
-        "sigma_subject_prior_sigma": default_of(
-            build_historical_growth_model, "sigma_subject_prior_sigma"
-        ),
+        "sigma_subject_prior_sigma": default_of(build_historical_growth_model, "sigma_subject_prior_sigma"),
         "dispersion_prior_sigma": default_of(build_historical_growth_model, "dispersion_prior_sigma"),
     }
-    assert plan.diagnostic_vars(
-        {"eta_cell", "sigma_subject", "kappa", "growth_first_last_items"}
-    ) == ["eta_cell", "sigma_subject", "kappa", "growth_first_last_items"]
+    assert plan.diagnostic_vars({"eta_cell", "sigma_subject", "kappa", "growth_first_last_items"}) == [
+        "eta_cell",
+        "sigma_subject",
+        "kappa",
+        "growth_first_last_items",
+    ]
     assert plan.compute_loo is True
     assert plan.loo_unit == "observation_row"
     assert plan.observation_node == "score"
@@ -175,9 +174,7 @@ def test_wrong_typed_settings_class_is_rejected():
     )
 
     with pytest.raises(TypeError, match="requires HistoricalGrowthModelSettings"):
-        HG.resolve_historical_growth_run_plan(
-            _spec(settings=HistoricalJointModelSettings())
-        )
+        HG.resolve_historical_growth_run_plan(_spec(settings=HistoricalJointModelSettings()))
 
 
 def test_invalid_setting_fails_before_context_reset_or_data_loading(monkeypatch):
@@ -203,13 +200,11 @@ def test_invalid_setting_fails_before_context_reset_or_data_loading(monkeypatch)
 
 
 def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
-    spec = _spec(
-        settings=HG.HistoricalGrowthModelSettings(extension_waves=(4, 5))
-    )
+    spec = _spec(settings=HG.HistoricalGrowthModelSettings(extension_waves=(4, 5)))
     plan = HG.resolve_historical_growth_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated historical-growth run plan" in text
@@ -218,7 +213,7 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     assert "PSIS-LOO" in text
 
 
-def test_reporting_does_not_reconstruct_a_bare_generic_reuse_spec():
+def test_reporting_rejects_an_incomplete_archived_declaration():
     spec = ModelSpec(
         model_id="lrp-rli-hg-999",
         kind="historical_growth",
@@ -226,7 +221,8 @@ def test_reporting_does_not_reconstruct_a_bare_generic_reuse_spec():
     )
     ctx = SimpleNamespace(spec=spec, resolved_plan=None)
 
-    assert R._resolved_run_plan(ctx) is None
+    with pytest.raises(KeyError, match="Unknown study_id"):
+        _metadata._resolved_run_plan(ctx)
 
 
 def test_reporting_strictly_resolves_a_substantive_historical_growth_spec():
@@ -240,7 +236,7 @@ def test_reporting_strictly_resolves_a_substantive_historical_growth_spec():
     ctx = SimpleNamespace(spec=spec, resolved_plan=None)
 
     with pytest.raises(KeyError, match="Unknown study_id 'rli'"):
-        R._resolved_run_plan(ctx)
+        _metadata._resolved_run_plan(ctx)
 
 
 def test_pipeline_has_no_direct_historical_growth_setting_reads():
@@ -259,9 +255,7 @@ def test_every_registered_model_is_typed_and_preserves_its_legacy_contract():
     assert {spec.outcome_symbol for spec in specs} == set(_REGISTERED_WINDOWS)
 
     for registered in specs:
-        assert isinstance(
-            registered.model_settings, HG.HistoricalGrowthModelSettings
-        )
+        assert isinstance(registered.model_settings, HG.HistoricalGrowthModelSettings)
         assert registered.extra == {}
         measure = registered.outcome_symbol
         assert measure is not None

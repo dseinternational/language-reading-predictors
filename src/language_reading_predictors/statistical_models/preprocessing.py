@@ -226,11 +226,7 @@ def derive_hearing_composite(df: pd.DataFrame) -> pd.Series | None:
     when neither is present the result is ``None``.
     """
     have_components = V.HEARING in df.columns and V.EARINF in df.columns
-    stored = (
-        pd.to_numeric(df[V.HEARING_C], errors="coerce")
-        if V.HEARING_C in df.columns
-        else None
-    )
+    stored = pd.to_numeric(df[V.HEARING_C], errors="coerce") if V.HEARING_C in df.columns else None
     if not have_components:
         return stored
     hearing = pd.to_numeric(df[V.HEARING], errors="coerce")
@@ -242,8 +238,7 @@ def derive_hearing_composite(df: pd.DataFrame) -> pd.Series | None:
         both_known = derived.notna() & stored.notna()
         if bool((derived[both_known] != stored[both_known]).any()):
             raise ValueError(
-                "hearing_c disagrees with hearing/earinf where both are known; "
-                "the hearing columns are inconsistent."
+                "hearing_c disagrees with hearing/earinf where both are known; the hearing columns are inconsistent."
             )
         derived = derived.where(derived.notna(), stored)
     return derived
@@ -583,9 +578,7 @@ def load_and_prepare(
     PreparedData
     """
     if phase_mode not in {"itt", "all", "levels", "span"}:
-        raise ValueError(
-            f"phase_mode must be 'itt', 'all', 'levels', or 'span', got {phase_mode!r}"
-        )
+        raise ValueError(f"phase_mode must be 'itt', 'all', 'levels', or 'span', got {phase_mode!r}")
 
     # A column can be a per-row covariate/restrict_complete OR a time-invariant t1
     # baseline_covariate, not both: the baseline merge below joins on subject and
@@ -611,11 +604,7 @@ def load_and_prepare(
     # fail-loud checks the floor and historical loaders already apply.
     _dup = df.duplicated(subset=[V.SUBJECT_ID, V.TIME], keep=False)
     if _dup.any():
-        _keys = (
-            df.loc[_dup, [V.SUBJECT_ID, V.TIME]]
-            .drop_duplicates()
-            .sort_values([V.SUBJECT_ID, V.TIME])
-        )
+        _keys = df.loc[_dup, [V.SUBJECT_ID, V.TIME]].drop_duplicates().sort_values([V.SUBJECT_ID, V.TIME])
         _pairs = ", ".join(f"{k}@t{t}" for k, t in _keys.itertuples(index=False))
         raise ValueError(
             f"Source data has duplicate (subject_id, time) rows: {_pairs}. These "
@@ -670,8 +659,7 @@ def load_and_prepare(
         elif phase_mode == "span":
             if int(post_time) <= 1:
                 raise ValueError(
-                    "phase_mode='span' pairs t1 with a later wave, so post_time "
-                    f"must be > 1; got {post_time!r}"
+                    f"phase_mode='span' pairs t1 with a later wave, so post_time must be > 1; got {post_time!r}"
                 )
             phase_pairs = [(1, int(post_time))]
         else:
@@ -709,10 +697,7 @@ def load_and_prepare(
             # pre covariate are the same column. Take both from the timepoint row.
             frame = df.loc[
                 df[V.TIME] == t,
-                [V.SUBJECT_ID, V.GROUP, V.AGE]
-                + out_cols
-                + extra_cols
-                + list(post_covariates),
+                [V.SUBJECT_ID, V.GROUP, V.AGE] + out_cols + extra_cols + list(post_covariates),
             ].copy()
             frame = frame.rename(columns={c: f"{c}_post" for c in out_cols})
             frame["phase"] = tp_idx
@@ -724,9 +709,7 @@ def load_and_prepare(
     # and broadcast from t1 across every row, so they apply to all transitions /
     # timepoints rather than only the pre-t1 row.
     if baseline_covariates:
-        bc = df.loc[
-            df[V.TIME] == 1, [V.SUBJECT_ID, *baseline_covariates]
-        ].drop_duplicates(V.SUBJECT_ID)
+        bc = df.loc[df[V.TIME] == 1, [V.SUBJECT_ID, *baseline_covariates]].drop_duplicates(V.SUBJECT_ID)
         merged = merged.merge(bc, on=V.SUBJECT_ID, how="left")
 
     if has_pre:
@@ -736,10 +719,7 @@ def load_and_prepare(
             pre_required_syms = tuple(pre_required)
             unknown = [s for s in pre_required_syms if s not in outcomes]
             if unknown:
-                raise ValueError(
-                    f"pre_required symbols must be a subset of outcomes; "
-                    f"{unknown} not in {outcomes!r}"
-                )
+                raise ValueError(f"pre_required symbols must be a subset of outcomes; {unknown} not in {outcomes!r}")
         required_pre = [f"{MEASURES[s].column}_pre" for s in pre_required_syms]
     else:
         if pre_required:
@@ -750,22 +730,14 @@ def load_and_prepare(
     n_before = len(merged)
 
     if drop_missing_pre:
-        required = (
-            [V.GROUP, V.AGE]
-            + required_pre
-            + extra_cols
-            + list(post_covariates)
-            + list(baseline_covariates)
-        )
+        required = [V.GROUP, V.AGE] + required_pre + extra_cols + list(post_covariates) + list(baseline_covariates)
         mask_complete = merged[required].notna().all(axis=1)
         # Most callers require at least one observed outcome on each constructed
         # row. A longitudinal factory can opt out when it needs a missing-outcome
         # phase-zero row solely to recover a pre-randomisation baseline, then applies
         # its own explicit likelihood-row mask.
         mask_any_post = (
-            merged[required_post].notna().any(axis=1)
-            if require_any_post
-            else np.ones(len(merged), dtype=bool)
+            merged[required_post].notna().any(axis=1) if require_any_post else np.ones(len(merged), dtype=bool)
         )
         merged = merged[mask_complete & mask_any_post].reset_index(drop=True)
     else:
@@ -843,9 +815,7 @@ def load_and_prepare(
         # Beta-Binomial ceiling guard (#80): a pre/post count above n_trials
         # would silently produce a NaN/-inf log-likelihood (and an invalid
         # logit for the pre covariate). Fail loudly, naming the measure.
-        checks: list[tuple[str, np.ndarray]] = [
-            ("post", np.asarray(post_counts[s], dtype=float))
-        ]
+        checks: list[tuple[str, np.ndarray]] = [("post", np.asarray(post_counts[s], dtype=float))]
         if has_pre:
             checks.append(("pre", merged[f"{m.column}_pre"].to_numpy(dtype=float)))
         for which, arr in checks:
@@ -990,13 +960,10 @@ def load_and_prepare_lagged_outcome(
     outcomes = tuple(outcomes)
     if outcome_time <= 2:
         raise ValueError(
-            "outcome_time must be a post-RCT wave (>2); use load_and_prepare for "
-            "the randomised t2 outcome"
+            "outcome_time must be a post-RCT wave (>2); use load_and_prepare for the randomised t2 outcome"
         )
     if outcome_symbol not in outcomes:
-        raise ValueError(
-            f"outcome_symbol {outcome_symbol!r} must be included in outcomes={outcomes!r}"
-        )
+        raise ValueError(f"outcome_symbol {outcome_symbol!r} must be included in outcomes={outcomes!r}")
     base = load_and_prepare(
         path=path,
         phase_mode="itt",
@@ -1122,18 +1089,12 @@ def filter_informative_covariates(
         effective.append(name)
 
     keep = set(effective)
-    all_dropped = tuple(
-        dict.fromkeys((*prepared.dropped_covariates, *dropped))
-    )
+    all_dropped = tuple(dict.fromkeys((*prepared.dropped_covariates, *dropped)))
     filtered = replace(
         prepared,
         covariates={k: v for k, v in prepared.covariates.items() if k in keep},
-        covariate_scalers={
-            k: v for k, v in prepared.covariate_scalers.items() if k in keep
-        },
-        covariate_time={
-            k: v for k, v in prepared.covariate_time.items() if k in keep
-        },
+        covariate_scalers={k: v for k, v in prepared.covariate_scalers.items() if k in keep},
+        covariate_time={k: v for k, v in prepared.covariate_time.items() if k in keep},
         dropped_covariates=all_dropped,
     )
     return filtered, tuple(effective), tuple(dropped)
@@ -1213,12 +1174,7 @@ def load_and_prepare_aligned(
     # (2026-08-21 aligned review, finding 5).
     dup = df.duplicated(subset=[V.SUBJECT_ID, V.TIME], keep=False)
     if bool(dup.any()):
-        pairs = sorted(
-            {
-                (str(s), int(t))
-                for s, t in df.loc[dup, [V.SUBJECT_ID, V.TIME]].itertuples(index=False)
-            }
-        )
+        pairs = sorted({(str(s), int(t)) for s, t in df.loc[dup, [V.SUBJECT_ID, V.TIME]].itertuples(index=False)})
         raise ValueError(f"Duplicate (subject, time) rows in aligned source: {pairs}")
 
     # #631 finding 5: the per-child ``int(...)`` cast below truncates towards
@@ -1270,10 +1226,7 @@ def load_and_prepare_aligned(
 
     # Ability (block design) is t1-only -> merge from t1 for every child.
     if ability_covariate is not None:
-        ability_t1 = (
-            df.loc[df[V.TIME] == 1, [V.SUBJECT_ID, ability_covariate]]
-            .drop_duplicates(V.SUBJECT_ID)
-        )
+        ability_t1 = df.loc[df[V.TIME] == 1, [V.SUBJECT_ID, ability_covariate]].drop_duplicates(V.SUBJECT_ID)
         merged = merged.merge(ability_t1, on=V.SUBJECT_ID, how="left")
 
     required = [V.GROUP, V.AGE]
@@ -1544,9 +1497,7 @@ def load_wave_panel(
     def _pivot(column: str) -> np.ndarray:
         # Duplicate-key fail-loud pivot (#631 finding 5): pivot_table's
         # aggfunc="first" silently collapsed a duplicated child-wave row.
-        wide = _pivot_unique(df, V.SUBJECT_ID, V.TIME, column).reindex(
-            index=subject_ids, columns=waves
-        )
+        wide = _pivot_unique(df, V.SUBJECT_ID, V.TIME, column).reindex(index=subject_ids, columns=waves)
         return wide.to_numpy(dtype=float)
 
     counts: dict[str, np.ndarray] = {}
@@ -1560,9 +1511,7 @@ def load_wave_panel(
         # Bounded-count integrity on the observed cells (#631 finding 5): a
         # fractional, negative or above-ceiling count previously flowed into a
         # silent NaN logit / invalid likelihood instead of raising.
-        _validate_bounded_counts(
-            c, m.n_trials, f"Wave-panel measure {s!r} ({m.column})"
-        )
+        _validate_bounded_counts(c, m.n_trials, f"Wave-panel measure {s!r} ({m.column})")
         present = ~np.isnan(c)
         lg = np.full_like(c, np.nan)
         lg[present] = logit_safe(c[present], m.n_trials)
@@ -1574,17 +1523,15 @@ def load_wave_panel(
 
     # Age: interpolate within child across waves (monotonic ~6-month steps) so
     # the rare missing cell is filled in both directions, then standardise.
-    age_months = pd.DataFrame(_pivot(V.AGE), columns=waves).interpolate(
-        axis=1, limit_direction="both"
-    ).to_numpy(dtype=float)
+    age_months = (
+        pd.DataFrame(_pivot(V.AGE), columns=waves).interpolate(axis=1, limit_direction="both").to_numpy(dtype=float)
+    )
     # A child with no observed age at any wave survives interpolation as an
     # all-NaN row and would only fail much later with a cryptic sampler logp
     # error; fail loud here like the RLM loader (2026-08-21 review, finding 9).
     if not np.isfinite(age_months).all():
         missing_age = np.asarray(subject_ids)[~np.isfinite(age_months).all(axis=1)]
-        raise ValueError(
-            f"RLI age is unavailable at every requested wave for {missing_age.tolist()}"
-        )
+        raise ValueError(f"RLI age is unavailable at every requested wave for {missing_age.tolist()}")
     age_std, age_scaler = standardise(age_months)
 
     # Dose: intervention sessions per wave; missing -> 0 recorded sessions.
@@ -1651,9 +1598,7 @@ def load_wave_panel(
         raw = _pivot(col)
         miss = np.isnan(raw)
         if miss.all():
-            raise ValueError(
-                f"Per-wave covariate {col!r} has no observed values in the panel."
-            )
+            raise ValueError(f"Per-wave covariate {col!r} has no observed values in the panel.")
         filled = np.where(miss, np.nanmean(raw), raw)
         z, scaler = standardise(filled)
         wave_cov[col] = z
@@ -1667,10 +1612,7 @@ def load_wave_panel(
     if include_hearing:
         hdf = add_hearing_status(df)
         if "hs" not in hdf.columns:
-            raise ValueError(
-                "include_hearing=True but the data has no hearing columns "
-                "(hearing/earinf or hearing_c)."
-            )
+            raise ValueError("include_hearing=True but the data has no hearing columns (hearing/earinf or hearing_c).")
         for col in ("hs", "hs_missing"):
             wide = (
                 _pivot_unique(hdf, V.SUBJECT_ID, V.TIME, col)
@@ -1738,15 +1680,11 @@ def load_rlm_growth_panel(
     df = read_source_csv(csv_path)
 
     if len(waves) < 2 or tuple(sorted(set(waves))) != waves:
-        raise ValueError(
-            "waves must be unique, strictly increasing, and contain at least two waves"
-        )
+        raise ValueError("waves must be unique, strictly increasing, and contain at least two waves")
     if baseline_wave not in waves:
         raise ValueError("baseline_wave must be included in waves")
     if min_outcome_waves < 1 or min_outcome_waves > len(waves):
-        raise ValueError(
-            "min_outcome_waves must be between 1 and the number of waves"
-        )
+        raise ValueError("min_outcome_waves must be between 1 and the number of waves")
     requested = (*outcomes, baseline_covariate)
     unknown = sorted(set(requested) - set(measures))
     if unknown:
@@ -1772,9 +1710,7 @@ def load_rlm_growth_panel(
     if duplicate.any():
         pairs = sorted(
             (str(child), int(wave))
-            for child, wave in df.loc[duplicate, [subj, wave_col]]
-            .drop_duplicates()
-            .itertuples(index=False)
+            for child, wave in df.loc[duplicate, [subj, wave_col]].drop_duplicates().itertuples(index=False)
         )
         raise ValueError(f"Duplicate RLM (subject, wave) rows: {pairs}")
     unstable = df.groupby(subj)[group_col].nunique(dropna=False)
@@ -1792,16 +1728,12 @@ def load_rlm_growth_panel(
     selected = df[df[wave_col].isin(waves)].copy()
 
     def _pivot(column: str) -> pd.DataFrame:
-        return selected.pivot(index=subj, columns=wave_col, values=column).reindex(
-            index=source_ids, columns=waves
-        )
+        return selected.pivot(index=subj, columns=wave_col, values=column).reindex(index=source_ids, columns=waves)
 
     baseline_column = measures[baseline_covariate].column
     baseline_raw_all = _pivot(baseline_column)[baseline_wave]
     baseline_ok = baseline_raw_all.notna()
-    outcome_wide = {
-        symbol: _pivot(measures[symbol].column) for symbol in outcomes
-    }
+    outcome_wide = {symbol: _pivot(measures[symbol].column) for symbol in outcomes}
     enough_outcomes = pd.Series(True, index=source_ids)
     for wide in outcome_wide.values():
         enough_outcomes &= wide.notna().sum(axis=1) >= min_outcome_waves
@@ -1821,9 +1753,7 @@ def load_rlm_growth_panel(
         values = outcome_wide[symbol].loc[subject_ids].to_numpy(dtype=float)
         # #631 finding 5: the previous guard checked the 0..n_trials range only,
         # so a fractional count passed and was silently truncated downstream.
-        _validate_bounded_counts(
-            values, measure.n_trials, f"Observed RLM growth measure {symbol!r}"
-        )
+        _validate_bounded_counts(values, measure.n_trials, f"Observed RLM growth measure {symbol!r}")
         present = np.isfinite(values)
         transformed = np.full_like(values, np.nan)
         transformed[present] = logit_safe(values[present], measure.n_trials)
@@ -1844,21 +1774,15 @@ def load_rlm_growth_panel(
         f"Observed RLM growth baseline {baseline_covariate!r}",
     )
     baseline_input = (
-        logit_safe(baseline_raw, baseline_measure.n_trials)
-        if baseline_scale == "logit_safe"
-        else baseline_raw
+        logit_safe(baseline_raw, baseline_measure.n_trials) if baseline_scale == "logit_safe" else baseline_raw
     )
     baseline_std, baseline_scaler = standardise(baseline_input)
 
     age_frame = _pivot("age").loc[subject_ids]
-    age_months = age_frame.interpolate(axis=1, limit_direction="both").to_numpy(
-        dtype=float
-    )
+    age_months = age_frame.interpolate(axis=1, limit_direction="both").to_numpy(dtype=float)
     if not np.isfinite(age_months).all():
         missing = subject_ids[~np.isfinite(age_months).all(axis=1)]
-        raise ValueError(
-            f"RLM age is unavailable across requested waves for {missing.tolist()}"
-        )
+        raise ValueError(f"RLM age is unavailable across requested waves for {missing.tolist()}")
     age_std, age_scaler = standardise(age_months)
 
     group_wide = _pivot(group_col).loc[subject_ids]
@@ -2014,20 +1938,14 @@ def _require_finite_integers(values, source, label: str) -> None:
     numeric = pd.to_numeric(values, errors="coerce")
     if numeric.isna().any():
         bad = sorted({repr(v) for v in values[numeric.isna()]})[:5]
-        raise ValueError(
-            f"{source}: {label} has non-numeric or non-finite value(s): "
-            f"{', '.join(bad)}."
-        )
+        raise ValueError(f"{source}: {label} has non-numeric or non-finite value(s): {', '.join(bad)}.")
     finite = np.isfinite(numeric.to_numpy(dtype=float))
     if not finite.all():
         raise ValueError(f"{source}: {label} has non-finite value(s).")
     fractional = numeric != numeric.round()
     if fractional.any():
         bad = sorted({float(v) for v in numeric[fractional]})[:5]
-        raise ValueError(
-            f"{source}: {label} has non-integer value(s): "
-            f"{', '.join(f'{v:g}' for v in bad)}."
-        )
+        raise ValueError(f"{source}: {label} has non-integer value(s): {', '.join(f'{v:g}' for v in bad)}.")
 
 
 def _validate_bounded_counts(arr, n_trials: int, label: str) -> None:
@@ -2048,15 +1966,9 @@ def _validate_bounded_counts(arr, n_trials: int, label: str) -> None:
         return
     if np.any(finite != np.rint(finite)):
         invalid = np.unique(finite[finite != np.rint(finite)])
-        raise ValueError(
-            f"{label} must contain integer counts; found fractional value(s) "
-            f"{invalid.tolist()}"
-        )
+        raise ValueError(f"{label} must contain integer counts; found fractional value(s) {invalid.tolist()}")
     if finite.min() < 0:
-        raise ValueError(
-            f"{label} has value {finite.min():g} below the valid lower bound 0; "
-            "check the source data."
-        )
+        raise ValueError(f"{label} has value {finite.min():g} below the valid lower bound 0; check the source data.")
     if finite.max() > n_trials:
         raise ValueError(
             f"{label} has value {finite.max():g} above its n_trials ceiling "
@@ -2076,9 +1988,7 @@ def _validate_group_codes(raw, allowed: Iterable[int], label: str) -> np.ndarray
     """
     values = np.asarray(raw, dtype=float)
     allowed_codes = sorted(int(code) for code in allowed)
-    ok = np.isfinite(values) & np.isin(
-        values, tuple(float(code) for code in allowed_codes)
-    )
+    ok = np.isfinite(values) & np.isin(values, tuple(float(code) for code in allowed_codes))
     if not ok.all():
         invalid = np.unique(values[~ok])
         raise ValueError(
@@ -2089,9 +1999,7 @@ def _validate_group_codes(raw, allowed: Iterable[int], label: str) -> np.ndarray
     return values.astype(np.int64)
 
 
-def _pivot_unique(
-    frame: pd.DataFrame, index: str, columns: str, values: str
-) -> pd.DataFrame:
+def _pivot_unique(frame: pd.DataFrame, index: str, columns: str, values: str) -> pd.DataFrame:
     """Fail-loud duplicate-key guard, then pivot (#631 finding 5).
 
     ``pivot_table(aggfunc="first")`` silently collapses a duplicated
@@ -2102,11 +2010,7 @@ def _pivot_unique(
     """
     dup = frame.duplicated(subset=[index, columns], keep=False)
     if dup.any():
-        keys = (
-            frame.loc[dup, [index, columns]]
-            .drop_duplicates()
-            .sort_values([index, columns])
-        )
+        keys = frame.loc[dup, [index, columns]].drop_duplicates().sort_values([index, columns])
         pairs = ", ".join(f"{k}@t{t}" for k, t in keys.itertuples(index=False))
         raise ValueError(
             f"Source data has duplicate ({index}, {columns}) rows: {pairs}. "
@@ -2194,9 +2098,7 @@ def load_longitudinal_panel(
         for m in measures:
             # #631 finding 5: duplicate-guarded pivot — pivot_table's
             # aggfunc="first" silently collapsed a duplicated child-wave row.
-            wide = _pivot_unique(in_waves, subj, wave_c, m.column).reindex(
-                columns=list(waves)
-            )
+            wide = _pivot_unique(in_waves, subj, wave_c, m.column).reindex(columns=list(waves))
             complete = wide.dropna(subset=list(waves)).index
             keep = complete if keep is None else keep.intersection(complete)
         panel_df = in_waves[in_waves[subj].isin(keep)].copy()
@@ -2206,23 +2108,15 @@ def load_longitudinal_panel(
     if extension_waves:
         # Kept subjects contribute an extension-wave row wherever every requested
         # measure is observed there (available-case at the extension waves only).
-        ext = df[
-            df[wave_c].isin(extension_waves)
-            & df[subj].isin(panel_df[subj].unique())
-        ].copy()
+        ext = df[df[wave_c].isin(extension_waves) & df[subj].isin(panel_df[subj].unique())].copy()
         ext = ext.dropna(subset=[m.column for m in measures])
         # Duplicate guard (the extension tail has no complete-case row-count
         # check to catch this): a duplicated (subject, wave) row would silently
         # enter the likelihood twice and reweight that cell.
         dup = ext.duplicated(subset=[subj, wave_c])
         if dup.any():
-            pairs = sorted(
-                (str(s), int(w))
-                for s, w in ext.loc[dup, [subj, wave_c]].itertuples(index=False)
-            )
-            raise ValueError(
-                f"Duplicate extension-wave rows for (subject, wave): {pairs}"
-            )
+            pairs = sorted((str(s), int(w)) for s, w in ext.loc[dup, [subj, wave_c]].itertuples(index=False))
+            raise ValueError(f"Duplicate extension-wave rows for (subject, wave): {pairs}")
         panel_df = pd.concat([panel_df, ext], ignore_index=True)
 
     # Expose each measure under its study-local symbol (symbol == column for the
@@ -2232,12 +2126,7 @@ def load_longitudinal_panel(
             panel_df[m.symbol] = panel_df[m.column]
 
     keep_cols = [subj, wave_c, grp, label_col, *measure_syms]
-    panel_df = (
-        panel_df[keep_cols]
-        .dropna(subset=[wave_c, grp])
-        .sort_values([grp, subj, wave_c])
-        .reset_index(drop=True)
-    )
+    panel_df = panel_df[keep_cols].dropna(subset=[wave_c, grp]).sort_values([grp, subj, wave_c]).reset_index(drop=True)
 
     # Count guard (always) + group-stability + complete-case row-count checks.
     #
@@ -2254,8 +2143,7 @@ def load_longitudinal_panel(
         low, high = float(observed.min()), float(observed.max())
         if low < 0 or high > m.n_trials:
             raise ValueError(
-                f"Observed {m.symbol!r} falls outside its count support "
-                f"[0, {m.n_trials}] (min {low:g}, max {high:g})."
+                f"Observed {m.symbol!r} falls outside its count support [0, {m.n_trials}] (min {low:g}, max {high:g})."
             )
     # Each child belongs to exactly one cohort. ``readgrp`` is a fixed group factor,
     # and the factory indexes a child's subject intercept and overdispersion by it,
@@ -2264,19 +2152,13 @@ def load_longitudinal_panel(
     moving = panel_df.groupby(subj)[grp].nunique()
     moving = moving[moving != 1]
     if not moving.empty:
-        raise ValueError(
-            f"{csv_path}: subject(s) change group across waves: "
-            f"{sorted(moving.index.tolist())}"
-        )
+        raise ValueError(f"{csv_path}: subject(s) change group across waves: {sorted(moving.index.tolist())}")
     if complete_case and measure_syms:
         core_rows = panel_df[panel_df[wave_c].isin(waves)]
         per_subject = core_rows.groupby(subj)[measure_syms[0]].size()
         bad = per_subject[per_subject != len(waves)]
         if not bad.empty:
-            raise ValueError(
-                f"Complete-case panel has subjects without all {len(waves)} "
-                f"core waves: {bad.to_dict()}"
-            )
+            raise ValueError(f"Complete-case panel has subjects without all {len(waves)} core waves: {bad.to_dict()}")
 
     subject_ids = panel_df[subj].drop_duplicates().tolist()
     group_codes = sorted(int(c) for c in panel_df[grp].unique())
@@ -2289,9 +2171,7 @@ def load_longitudinal_panel(
         # #631 finding 5: duplicate-guarded pivot — the complete_case=False path
         # previously had no duplicate check at all, so pivot_table's
         # aggfunc="first" silently collapsed a duplicated child-wave row.
-        wide = _pivot_unique(panel_df, subj, wave_c, m.symbol).reindex(
-            index=subject_ids, columns=list(waves)
-        )
+        wide = _pivot_unique(panel_df, subj, wave_c, m.symbol).reindex(index=subject_ids, columns=list(waves))
         arr = wide.to_numpy(dtype=float)
         counts[m.symbol] = arr
         obs_mask[m.symbol] = ~np.isnan(arr)
@@ -2452,9 +2332,7 @@ class RlmWaveBattery:
     n_phases: int = 1
 
 
-def _rlm_wave_wide(
-    df: pd.DataFrame, dataset: DatasetSpec, wave: int, columns: list[str]
-) -> pd.DataFrame:
+def _rlm_wave_wide(df: pd.DataFrame, dataset: DatasetSpec, wave: int, columns: list[str]) -> pd.DataFrame:
     """One row per subject with ``columns`` read at ``wave`` (plus the group).
 
     Rejects duplicated subjects at the wave: with a duplicate index the later
@@ -2465,9 +2343,7 @@ def _rlm_wave_wide(
     dup = rows.duplicated(subset=[subj])
     if dup.any():
         dupes = sorted(str(s) for s in rows.loc[dup, subj].unique())
-        raise ValueError(
-            f"Duplicate rows for subjects {dupes} at wave {int(wave)}."
-        )
+        raise ValueError(f"Duplicate rows for subjects {dupes} at wave {int(wave)}.")
     out = rows.set_index(subj)[[grp, *columns]].copy()
     # #631 finding 5: validate the raw codes before the int cast — ``astype(int)``
     # truncated a fractional code into a valid-looking cohort.
@@ -2532,9 +2408,7 @@ def load_rlm_concurrent_frames(
     if duplicate.any():
         pairs = sorted(
             (str(child), int(wave))
-            for child, wave in selected.loc[
-                duplicate, [subj, wave_col]
-            ].drop_duplicates().itertuples(index=False)
+            for child, wave in selected.loc[duplicate, [subj, wave_col]].drop_duplicates().itertuples(index=False)
         )
         raise ValueError(f"Duplicate RLM (subject, wave) rows: {pairs}")
     unstable = selected.groupby(subj)[group_col].nunique(dropna=False)
@@ -2542,8 +2416,7 @@ def load_rlm_concurrent_frames(
         children = sorted(str(child) for child in unstable[unstable > 1].index)
         raise ValueError(f"RLM reading-group code changes within child: {children}")
     unknown_groups = sorted(
-        set(pd.to_numeric(selected[group_col], errors="coerce").dropna().astype(int))
-        - set(dataset.group_labels)
+        set(pd.to_numeric(selected[group_col], errors="coerce").dropna().astype(int)) - set(dataset.group_labels)
     )
     if unknown_groups:
         raise ValueError(f"Unknown RLM reading-group code(s): {unknown_groups}")
@@ -2560,9 +2433,7 @@ def load_rlm_concurrent_frames(
         columns = [*measure_columns, *(("age",) if include_age else ())]
         wide = _rlm_wave_wide(df, dataset, wave, columns)
         if any(measures[sym].column != sym for sym in requested):
-            wide = wide.rename(
-                columns={measures[sym].column: sym for sym in requested}
-            )
+            wide = wide.rename(columns={measures[sym].column: sym for sym in requested})
         source_wave_n = len(wide)
         wide = wide.dropna(subset=[outcome])
         if wide.empty:
@@ -2576,9 +2447,7 @@ def load_rlm_concurrent_frames(
             observed = values[np.isfinite(values)]
             ceiling = measures[sym].n_trials
             if observed.size and (float(observed.min()) < 0 or float(observed.max()) > ceiling):
-                raise ValueError(
-                    f"Observed {sym!r} at wave {wave} falls outside 0..{ceiling}."
-                )
+                raise ValueError(f"Observed {sym!r} at wave {wave} falls outside 0..{ceiling}.")
             # Bounded-count integrity, matching the RLI loaders: a fractional
             # value would otherwise be silently truncated by the factory's
             # int64 cast (2026-08-21 concurrent review, finding 5).
@@ -2653,10 +2522,7 @@ def load_rlm_span_frame(
         selected_groups = tuple(sorted(dataset.group_labels))
     else:
         selected_groups = tuple(group_codes)
-        if any(
-            isinstance(code, bool) or not isinstance(code, (int, np.integer))
-            for code in selected_groups
-        ):
+        if any(isinstance(code, bool) or not isinstance(code, (int, np.integer)) for code in selected_groups):
             raise TypeError("group_codes must contain integers")
         selected_groups = tuple(int(code) for code in selected_groups)
         if len(selected_groups) != len(set(selected_groups)):
@@ -2665,9 +2531,7 @@ def load_rlm_span_frame(
         raise ValueError("group_codes cannot be empty")
     unknown_groups = sorted(set(selected_groups) - set(dataset.group_labels))
     if unknown_groups:
-        raise ValueError(
-            "Unknown RLM group code(s): " + ", ".join(map(str, unknown_groups))
-        )
+        raise ValueError("Unknown RLM group code(s): " + ", ".join(map(str, unknown_groups)))
     n_source = int(df[dataset.subject_col].nunique())
     df = df[df[dataset.group_col].isin(selected_groups)].copy()
     n_eligible = int(df[dataset.subject_col].nunique())
@@ -2681,9 +2545,7 @@ def load_rlm_span_frame(
     age_col = "age"
     pre_cols = [outcome, *predictor_measures] + ([age_col] if include_age else [])
     pre = _rlm_wave_wide(df, dataset, pre_wave, pre_cols)
-    post = _rlm_wave_wide(df, dataset, post_wave, [outcome]).rename(
-        columns={outcome: "_post"}
-    )
+    post = _rlm_wave_wide(df, dataset, post_wave, [outcome]).rename(columns={outcome: "_post"})
     wide = pre.join(post[["_post"]], how="inner")
     wide = wide.dropna()
     if wide.empty:
@@ -2705,8 +2567,7 @@ def load_rlm_span_frame(
         if values.size and np.any(values != np.rint(values)):
             invalid = np.unique(values[values != np.rint(values)])
             raise ValueError(
-                f"Measure {sym!r} must contain integer counts; found fractional "
-                f"value(s) {invalid.tolist()}"
+                f"Measure {sym!r} must contain integer counts; found fractional value(s) {invalid.tolist()}"
             )
 
     predictors: dict[str, np.ndarray] = {}
@@ -2769,16 +2630,10 @@ def load_rlm_transition_frame(
     waves = tuple(transition_waves)
     if len(waves) < 3:
         raise ValueError("transition_waves must define at least two transitions")
-    if any(
-        isinstance(wave, bool) or not isinstance(wave, (int, np.integer))
-        for wave in waves
-    ):
+    if any(isinstance(wave, bool) or not isinstance(wave, (int, np.integer)) for wave in waves):
         raise TypeError("transition_waves must contain integers")
     waves = tuple(int(wave) for wave in waves)
-    if any(
-        post != pre + 1
-        for pre, post in zip(waves[:-1], waves[1:], strict=True)
-    ):
+    if any(post != pre + 1 for pre, post in zip(waves[:-1], waves[1:], strict=True)):
         raise ValueError("transition_waves must be strictly increasing annual waves")
 
     spans = [
@@ -2793,31 +2648,18 @@ def load_rlm_transition_frame(
         )
         for pre, post in zip(waves[:-1], waves[1:], strict=True)
     ]
-    labels = tuple(
-        f"w{pre}->w{post}"
-        for pre, post in zip(waves[:-1], waves[1:], strict=True)
-    )
+    labels = tuple(f"w{pre}->w{post}" for pre, post in zip(waves[:-1], waves[1:], strict=True))
     subject_ids = np.concatenate([span.subject_ids for span in spans])
     unique_subjects = tuple(dict.fromkeys(subject_ids.tolist()))
     child_lookup = {subject: idx for idx, subject in enumerate(unique_subjects)}
     child_idx = np.asarray([child_lookup[subject] for subject in subject_ids], dtype=int)
-    phase = np.concatenate(
-        [np.full(span.n_obs, idx, dtype=int) for idx, span in enumerate(spans)]
-    )
+    phase = np.concatenate([np.full(span.n_obs, idx, dtype=int) for idx, span in enumerate(spans)])
     predictor_keys = tuple(spans[0].predictors)
-    predictor_scalers = {
-        key: tuple(span.predictor_scalers[key] for span in spans)
-        for key in predictor_keys
-    }
-    transition_n_obs = {
-        label: span.n_obs for label, span in zip(labels, spans, strict=True)
-    }
+    predictor_scalers = {key: tuple(span.predictor_scalers[key] for span in spans) for key in predictor_keys}
+    transition_n_obs = {label: span.n_obs for label, span in zip(labels, spans, strict=True)}
     transition_group_counts = {
         label: {
-            int(code): int(count)
-            for code, count in zip(
-                *np.unique(span.group_code, return_counts=True), strict=True
-            )
+            int(code): int(count) for code, count in zip(*np.unique(span.group_code, return_counts=True), strict=True)
         }
         for label, span in zip(labels, spans, strict=True)
     }
@@ -2837,17 +2679,10 @@ def load_rlm_transition_frame(
         phase=phase,
         group_code=np.concatenate([span.group_code for span in spans]),
         group_labels=spans[0].group_labels,
-        pre_logit={
-            outcome: np.concatenate([span.pre_logit[outcome] for span in spans])
-        },
-        post_counts={
-            outcome: np.concatenate([span.post_counts[outcome] for span in spans])
-        },
+        pre_logit={outcome: np.concatenate([span.pre_logit[outcome] for span in spans])},
+        post_counts={outcome: np.concatenate([span.post_counts[outcome] for span in spans])},
         n_trials=spans[0].n_trials,
-        predictors={
-            key: np.concatenate([span.predictors[key] for span in spans])
-            for key in predictor_keys
-        },
+        predictors={key: np.concatenate([span.predictors[key] for span in spans]) for key in predictor_keys},
         predictor_scalers=predictor_scalers,
         predictor_labels=spans[0].predictor_labels,
         transition_n_obs=transition_n_obs,
@@ -2906,9 +2741,7 @@ def load_rlm_wave_battery(
         observed = wide[sym].to_numpy()
         # #631 finding 5: the previous guard checked the upper ceiling only, so
         # a negative or fractional score reached the Haldane logit unnoticed.
-        _validate_bounded_counts(
-            observed, m.n_trials, f"Observed RLM battery measure {sym!r}"
-        )
+        _validate_bounded_counts(observed, m.n_trials, f"Observed RLM battery measure {sym!r}")
         z, _ = standardise(logit_safe(observed, m.n_trials))
         indicators[sym] = z
         labels[sym] = m.label
@@ -2928,14 +2761,13 @@ def load_rlm_wave_battery(
         dropped_rows=n_before - len(wide),
     )
 
+
 # Moved out of ``factories`` by #637 stage 3. It builds a row-restricted
 # ``PreparedData``, so it belongs beside that dataclass: ``level_factors``
 # reached into ``factories`` for it through a function-local import while
 # ``factories`` imported ``level_factors`` at module level, which is one of the
 # two dependency cycles the maintainability review named.
-def _subset(
-    prepared: PreparedData, keep: np.ndarray, *, reason: str = "factory_stage"
-) -> PreparedData:
+def _subset(prepared: PreparedData, keep: np.ndarray, *, reason: str = "factory_stage") -> PreparedData:
     """Return a copy of ``prepared`` restricted to rows where ``keep`` is True.
 
     Built with :func:`dataclasses.replace` so every row-indexed field is

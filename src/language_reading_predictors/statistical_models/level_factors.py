@@ -23,7 +23,8 @@ vector is **centred on the timepoint-1 arm gap**: ``arm_gap_t1`` is the
 covariate-adjusted pre-randomisation balance quantity and ``d_grp_time[t]`` the
 change in the arm gap from t1 to each later wave, with the per-wave levels view
 ``b_grp_time = (arm_gap_t1, arm_gap_t1 + d_grp_time)`` retained as a Deterministic.
-The single randomised quantity is then the **t2 change** ``d_grp_time[t2]`` -- a
+The randomised treated-versus-untreated quantity is the **t2 change**
+``d_grp_time[t2]``, a
 difference-in-differences of adjusted levels, read as an items- or
 risk-difference average marginal effect at the t2 rows. ``arm_gap_reference="free"``
 keeps the former parameterisation (a free per-timepoint vector whose t2 element
@@ -183,21 +184,16 @@ class LevelFactorsModelSettings:
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
-        object.__setattr__(
-            self, "adjust_for", _tuple_of_strings(self.adjust_for, name="adjust_for")
-        )
+        object.__setattr__(self, "adjust_for", _tuple_of_strings(self.adjust_for, name="adjust_for"))
         if self.ability_covariate is not None and (
             not isinstance(self.ability_covariate, str) or not self.ability_covariate
         ):
             raise TypeError("ability_covariate must be a non-empty string or None")
         if self.likelihood not in _LIKELIHOODS:
-            raise ValueError(
-                f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
-            )
+            raise ValueError(f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}")
         if self.arm_gap_reference not in ARM_GAP_REFERENCES:
             raise ValueError(
-                "arm_gap_reference must be one of "
-                f"{sorted(ARM_GAP_REFERENCES)}, got {self.arm_gap_reference!r}"
+                f"arm_gap_reference must be one of {sorted(ARM_GAP_REFERENCES)}, got {self.arm_gap_reference!r}"
             )
         object.__setattr__(self, "waves", _tuple_of_strings(self.waves, name="waves"))
         if self.waves != WAVE_LABELS[: len(self.waves)] or len(self.waves) < 2:
@@ -208,8 +204,7 @@ class LevelFactorsModelSettings:
             )
         if self.kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
             raise ValueError(
-                "kappa_prior_family must be one of "
-                f"{sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
+                f"kappa_prior_family must be one of {sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
             )
         for name in ("kappa_prior_sigma", "sigma_child_prior_sigma"):
             value = getattr(self, name)
@@ -220,14 +215,8 @@ class LevelFactorsModelSettings:
             if float(value) <= 0.0:
                 raise ValueError(f"{name} must be positive, got {value!r}")
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-                f"got {self.score_mean_link!r}"
-            )
-        if (
-            self.score_mean_link != "logit"
-            and self.likelihood != "beta_binomial"
-        ):
+            raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {self.score_mean_link!r}")
+        if self.score_mean_link != "logit" and self.likelihood != "beta_binomial":
             raise ValueError(
                 "score_mean_link applies to the graded Beta-Binomial mean; the "
                 f"{self.likelihood!r} branch has no score mean to map"
@@ -241,14 +230,11 @@ class LevelFactorsModelSettings:
         duplicates = sorted({c for c in self.adjust_for if self.adjust_for.count(c) > 1})
         if duplicates:
             raise ValueError(
-                f"adjust_for repeats {', '.join(duplicates)}; each adjuster enters "
-                "the linear predictor once"
+                f"adjust_for repeats {', '.join(duplicates)}; each adjuster enters the linear predictor once"
             )
         indicator_bases = {v: k for k, v in MISSINGNESS_INDICATOR_PAIRS.items()}
         unpaired = sorted(
-            c
-            for c in self.adjust_for
-            if c in indicator_bases and indicator_bases[c] not in self.adjust_for
+            c for c in self.adjust_for if c in indicator_bases and indicator_bases[c] not in self.adjust_for
         )
         if unpaired:
             raise ValueError(
@@ -258,9 +244,7 @@ class LevelFactorsModelSettings:
             )
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> LevelFactorsModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> LevelFactorsModelSettings:
         """Strictly translate the former ``spec.extra`` dictionary boundary.
 
         Rejects unknown keys so a misspelling fails before data loading rather than
@@ -285,9 +269,7 @@ class LevelFactorsModelSettings:
             arm_gap_reference=extra.get("arm_gap_reference", "t1"),
             score_mean_link=extra.get("score_mean_link", "logit"),
             waves=extra.get("waves", WAVE_LABELS),
-            kappa_prior_family=extra.get(
-                "kappa_prior_family", "halfnormal_inverse_sqrt"
-            ),
+            kappa_prior_family=extra.get("kappa_prior_family", "halfnormal_inverse_sqrt"),
             kappa_prior_sigma=extra.get("kappa_prior_sigma"),
             sigma_child_prior_sigma=extra.get("sigma_child_prior_sigma", 1.0),
         )
@@ -379,16 +361,12 @@ class LevelFactorsRunPlan:
             "post_covariates": self.post_covariates,
         }
 
-    def factory_kwargs(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> dict[str, Any]:
+    def factory_kwargs(self, *, effective_adjustment: tuple[str, ...] | None = None) -> dict[str, Any]:
         """Arguments for ``build_level_factors_model`` for this plan."""
         return {
             "outcome_symbol": self.outcome_symbol,
             "ability_covariate": self.ability_covariate,
-            "adjust_for": self.adjust_for
-            if effective_adjustment is None
-            else effective_adjustment,
+            "adjust_for": self.adjust_for if effective_adjustment is None else effective_adjustment,
             "group_by_time": self.group_by_time,
             "ability_by_time": self.ability_by_time,
             "group_ability": self.group_ability,
@@ -412,9 +390,7 @@ class LevelFactorsRunPlan:
     # reconstructed by ``_lf_coef_names``, ``_lf_diag_vars``, the factory and the
     # reporting code; they now all derive from the resolved plan).
 
-    def coefficient_names(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> list[str]:
+    def coefficient_names(self, *, effective_adjustment: tuple[str, ...] | None = None) -> list[str]:
         """The reported structural coefficients, in report order.
 
         ``effective_adjustment`` mirrors :meth:`factory_kwargs`: the loader drops a
@@ -431,17 +407,13 @@ class LevelFactorsRunPlan:
             names = ["b_grp_time"]
         names.append("gamma_A")
         if self.ability_covariate:
-            names.append(
-                "gamma_ability_time" if self.ability_by_time else "gamma_ability"
-            )
+            names.append("gamma_ability_time" if self.ability_by_time else "gamma_ability")
             if self.group_ability:
                 names.append("gamma_grp_ability")
         names += [f"gamma_{c}" for c in adj]
         return names
 
-    def diag_vars(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> list[str]:
+    def diag_vars(self, *, effective_adjustment: tuple[str, ...] | None = None) -> list[str]:
         """Variables named in the summary/gate diagnostics for this plan's model.
 
         ``alpha`` is a Deterministic (the t1-anchored level) and ``alpha_offset``
@@ -509,11 +481,7 @@ class LevelFactorsRunPlan:
                 "none: a pooled group coefficient is not a randomised contrast, so "
                 "no natural-scale treatment effect is published for this plan"
             )
-        scale = (
-            "off-floor risk difference"
-            if self.off_floor
-            else "items-scale average marginal effect"
-        )
+        scale = "off-floor risk difference" if self.off_floor else "items-scale average marginal effect"
         return (
             f"Arm-free standardised {scale} of {self.focal_term}: the average, over "
             "the fitted timepoint-2 rows each evaluated at its own arm-free profile "
@@ -537,11 +505,7 @@ class LevelFactorsRunPlan:
         documents."""
         if self.off_floor:
             return None
-        return (
-            "inv_sqrt_kappa"
-            if self.kappa_prior_family == "halfnormal_inverse_sqrt"
-            else "kappa"
-        )
+        return "inv_sqrt_kappa" if self.kappa_prior_family == "halfnormal_inverse_sqrt" else "kappa"
 
     @property
     def nuisance_terms(self) -> tuple[str, ...]:
@@ -611,13 +575,7 @@ class LevelFactorsRunPlan:
         roles = {t: "balance" for t in self.balance_terms}
         roles.update({t: "levels_view" for t in self.levels_view_terms})
         if self.t1_referenced:
-            roles.update(
-                {
-                    f"d_grp_time[{label}]": "regime"
-                    for label in self.post_phase_labels
-                    if label != "t2"
-                }
-            )
+            roles.update({f"d_grp_time[{label}]": "regime" for label in self.post_phase_labels if label != "t2"})
         if self.group_by_time and not self.t1_referenced:
             roles["b_grp_time[0]"] = "balance"
         return roles
@@ -684,9 +642,7 @@ class LevelFactorsRunPlan:
                     f"{sorted(arms)}), so {role} is unidentified."
                 )
         if self.ability_covariate is not None:
-            ability = np.asarray(
-                prepared.covariates[self.ability_covariate], dtype=float
-            )
+            ability = np.asarray(prepared.covariates[self.ability_covariate], dtype=float)
             bad = int(np.sum(fitted & ~np.isfinite(ability)))
             if bad:
                 raise ValueError(
@@ -720,17 +676,13 @@ class LevelFactorsRunPlan:
 
     def _prior_choices_markdown(self) -> str:
         """The two nuisance priors this family sets for itself (#584 decision 4)."""
-        child = (
-            f"Child heterogeneity: `sigma_child ~ HalfNormal("
-            f"{self.sigma_child_prior_sigma:g})`"
-            + (
-                " -- wider than the shared 0.5 because a levels model has no "
-                "own-baseline term, so this intercept carries the whole "
-                "between-child spread in level rather than the residual a gain "
-                "model leaves."
-                if self.sigma_child_prior_sigma > 0.5
-                else "."
-            )
+        child = f"Child heterogeneity: `sigma_child ~ HalfNormal({self.sigma_child_prior_sigma:g})`" + (
+            " -- wider than the shared 0.5 because a levels model has no "
+            "own-baseline term, so this intercept carries the whole "
+            "between-child spread in level rather than the residual a gain "
+            "model leaves."
+            if self.sigma_child_prior_sigma > 0.5
+            else "."
         )
         if self.kappa_prior_family is None:
             dispersion = (
@@ -740,8 +692,8 @@ class LevelFactorsRunPlan:
         elif self.kappa_prior_family == "halfnormal_inverse_sqrt":
             dispersion = (
                 "Dispersion: the prior sits on `1/sqrt(kappa)`, where "
-                "\"no extra-Binomial dispersion beyond the child random "
-                "intercept\" is zero and therefore reachable; `kappa` is reported "
+                '"no extra-Binomial dispersion beyond the child random '
+                'intercept" is zero and therefore reachable; `kappa` is reported '
                 "as a derived quantity. The scale is calibration-preserving -- it "
                 "reproduces the previous prior's median variance inflation at every "
                 "level denominator to within 3%."
@@ -811,10 +763,7 @@ def declared_level_factors_settings(
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: level-factor settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: level-factor settings cannot be split between model_settings and extra")
         if not isinstance(settings, LevelFactorsModelSettings):
             raise TypeError(
                 f"{spec.model_id}: kind='level_factors' requires "
@@ -830,13 +779,9 @@ def declared_level_factors_settings(
 def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
     """Resolve and validate a level-factor specification before any data are loaded."""
     if spec.kind != "level_factors":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'level_factors', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'level_factors', got {spec.kind!r}")
     if not spec.outcome_symbol:
-        raise ValueError(
-            f"{spec.model_id}: outcome_symbol is required for a level-factor model"
-        )
+        raise ValueError(f"{spec.model_id}: outcome_symbol is required for a level-factor model")
 
     settings, source = declared_level_factors_settings(spec)
     own = spec.outcome_symbol
@@ -845,9 +790,7 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
         # reset the output directory and the loader has read the panel. Lifting it
         # here is the point of the plan: an incoherent contract fails before either
         # (cf. the did family's period_varying_dose => dose check).
-        raise ValueError(
-            f"{spec.model_id}: group_ability requires an ability_covariate"
-        )
+        raise ValueError(f"{spec.model_id}: group_ability requires an ability_covariate")
     if settings.ability_by_time and settings.ability_covariate is None:
         # ``ability_by_time`` silently did nothing without a covariate to vary, so a
         # declaration could claim a per-wave ability vector the fit never built and
@@ -910,9 +853,7 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
     # contemporaneous at the post row (#247 timing; review finding A1).
     pre_adj, post_adj = split_covariates_by_wave(settings.adjust_for)
     baseline_adj, post_adj = split_confounders_by_timing(post_adj)
-    baseline_covariates = (
-        (settings.ability_covariate,) if settings.ability_covariate else ()
-    ) + baseline_adj
+    baseline_covariates = ((settings.ability_covariate,) if settings.ability_covariate else ()) + baseline_adj
 
     t1_referenced = settings.group_by_time and settings.arm_gap_reference == "t1"
     if t1_referenced:
@@ -936,8 +877,7 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
     else:
         group_clause = "a single pooled group coefficient across all waves"
         contrast_clause = (
-            "the pooled group coefficient beta_grp mixes post-crossover waves and "
-            "is not a randomised contrast"
+            "the pooled group coefficient beta_grp mixes post-crossover waves and is not a randomised contrast"
         )
     # A pooled group term has no randomised element at all (``focal_term is None``),
     # so the estimand and causal-status prose must not name a t2 contrast the fit
@@ -946,8 +886,7 @@ def resolve_level_factors_run_plan(spec: ModelSpec) -> LevelFactorsRunPlan:
     # (#584 lower-severity 6). Branch on the resolved focal term, the same switch the
     # summaries and the release gate use.
     scale_clause = (
-        "on the probability of being off the floor (a risk difference read at the "
-        "t2 rows)"
+        "on the probability of being off the floor (a risk difference read at the t2 rows)"
         if off_floor
         else "as an items-scale average marginal effect read at the t2 rows"
     )

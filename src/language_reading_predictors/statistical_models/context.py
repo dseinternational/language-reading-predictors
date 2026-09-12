@@ -5,6 +5,11 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
+from language_reading_predictors.statistical_models.run_plans import ResolvedRunPlan
+
 import os
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -121,10 +126,7 @@ class ModelSpec:
         if self.causal_status is None:
             self.causal_status = "randomised_assignment_conditional_on_observed_analysis_set"
         if self.dataset_ref is None:
-            self.dataset_ref = (
-                "rli:rli_data_long.csv; 54 analysed after 3 losses to follow-up "
-                "from 57 randomised"
-            )
+            self.dataset_ref = "rli:rli_data_long.csv; 54 analysed after 3 losses to follow-up from 57 randomised"
 
     @property
     def banner(self) -> str:
@@ -142,9 +144,7 @@ class ModelSpec:
         try:
             if _mids.looks_canonical(self.model_id):
                 return _mids.parse_canonical(self.model_id)
-            return _mids.parse_legacy(
-                self.model_id, kind=self.kind, study=self.study_id
-            )
+            return _mids.parse_legacy(self.model_id, kind=self.kind, study=self.study_id)
         except _mids.ModelIdError:
             return None
 
@@ -204,7 +204,7 @@ class StatisticalFitContext:
     """Per-fit artefact record consumed by the manifest at finalisation (#394)."""
     subfits: SubfitLog = field(default_factory=SubfitLog)
     """Per-fit record of every secondary / sensitivity sub-fit (#394 design point 5)."""
-    resolved_plan: Any | None = None
+    resolved_plan: ResolvedRunPlan | None = None
     """Validated family run plan resolved before data loading."""
     output_transaction: OutputTransaction | None = None
     """Hidden staging directory promoted only after every fit stage succeeds."""
@@ -240,9 +240,7 @@ class StatisticalFitContext:
         """
         if self.output_transaction is not None:
             self.output_transaction.abandon()
-        self.output_transaction = OutputTransaction.create(
-            Path(self.final_output_dir)
-        )
+        self.output_transaction = OutputTransaction.create(Path(self.final_output_dir))
 
     def publish_output_dir(self) -> str:
         """Promote this run with an atomic same-filesystem staging rename."""
@@ -284,9 +282,7 @@ def spec_target_accept(spec: ModelSpec) -> float | None:
     source = "spec.target_accept" if typed is not None else "spec.extra['target_accept']"
     target_accept = float(target_accept)
     if not 0.0 < target_accept < 1.0:
-        raise ValueError(
-            f"{source} must be in the open interval (0, 1); got {target_accept!r}"
-        )
+        raise ValueError(f"{source} must be in the open interval (0, 1); got {target_accept!r}")
     return target_accept
 
 
@@ -328,27 +324,10 @@ def make_context(
     spec: ModelSpec,
     config: str = "dev",
     *,
-    ci_prob: float = 0.89,
+    ci_prob: float = REPORTING_CI_PROB,
     random_seed: int = 47,
 ) -> StatisticalFitContext:
-    # Reported credible-interval standard (2026-07-17,
-    # ``notes/…-credible-interval-standard.md``): the posterior **median** plus an
-    # **inner 50 %** and **outer 89 %** equal-tailed interval, alongside the full
-    # posterior. ``ci_prob=0.89`` is the deliberately non-round outer coverage —
-    # 95 % is an arbitrary convention imported from frequentist NHST, and at this
-    # suite's ESS its 2.5/97.5 % limits are the noisiest quantiles to estimate per
-    # effective draw, whereas 89 % (5.5/94.5 %) is markedly more MCMC-stable (Kruschke
-    # 2021 BARG, doi:10.1038/s41562-021-01177-7: "For reasonably stable estimates of
-    # limits of highest-density intervals (HDIs), I recommend that ESS ≥ 10,000. For
-    # stable estimates of limits of equal-tailed intervals, ESS can be lower."). This
-    # is a per-effective-draw efficiency point, not low attained ESS — the headline
-    # terms reach a Tail-ESS in the low tens of thousands (see the ESS reporting
-    # standard, notes/202607181200-ess-reporting-standard.md). The HPDI is kept as a
-    # separate per-scale sensitivity companion (dse_research_utils intervals.hdi_1d,
-    # #170); ``interval_kind="eti"`` records the equal-tailed convention on the
-    # shared ReportingConfiguration so the tables, plots, and diagnostics summary agree.
-    # Apply the shared matplotlib house style for every fit path (CLI, notebook,
-    # tests, replot) — the CLI also does this via setup.init_script(); idempotent.
+    # Posterior summaries use the project's 89% equal-tailed interval convention.
     _env.init_plotting()
 
     reporting = _reporting.ReportingConfiguration(

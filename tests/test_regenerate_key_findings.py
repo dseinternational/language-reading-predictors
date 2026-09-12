@@ -73,9 +73,7 @@ def test_targets_exclude_in_flight_output_transactions(regen, tmp_path, monkeypa
     assert names == ["lrp-rli-itt-010-reporting"]
 
 
-def test_a_model_id_target_excludes_its_own_staging_directory(
-    regen, tmp_path, monkeypatch
-):
+def test_a_model_id_target_excludes_its_own_staging_directory(regen, tmp_path, monkeypatch):
     """The single-model form matches on the ``<id>-`` prefix, so it must not be
     satisfied by a staging directory carrying that id — the run whose artefacts it
     holds has not been published, and may still be writing them."""
@@ -107,9 +105,7 @@ def test_backup_directories_are_excluded_too(regen, tmp_path, monkeypatch):
     assert names == ["lrp-rli-itt-010-reporting"]
 
 
-def test_regeneration_refreshes_release_decision_and_findings(
-    regen, tmp_path, monkeypatch
-):
+def test_regeneration_refreshes_release_decision_and_findings(regen, tmp_path, monkeypatch):
     """A legacy non-RLI fit must not retain a stale publishable decision."""
     from language_reading_predictors import paths as _paths
 
@@ -143,9 +139,7 @@ def test_regeneration_refreshes_release_decision_and_findings(
             }
         )
     )
-    (fit / "release_decision.json").write_text(
-        json.dumps({"status": "ok", "publishable": True})
-    )
+    (fit / "release_decision.json").write_text(json.dumps({"status": "ok", "publishable": True}))
     monkeypatch.setattr(_paths, "stat_models_dir", lambda: root)
     monkeypatch.setattr(sys, "argv", ["regenerate_key_findings.py", fit.name])
 
@@ -159,9 +153,7 @@ def test_regeneration_refreshes_release_decision_and_findings(
 
 
 @pytest.mark.parametrize(("module_name", "published"), _WALKERS)
-def test_every_output_root_walker_skips_hidden_transactions(
-    module_name, published, tmp_path
-):
+def test_every_output_root_walker_skips_hidden_transactions(module_name, published, tmp_path):
     """The same output root is walked by several scripts, and the exclusion has to
     hold in each — one that keeps the raw ``iterdir`` reintroduces the hazard on its
     own. ``_subdirs`` is asserted directly because a script whose own id filter
@@ -175,9 +167,7 @@ def test_every_output_root_walker_skips_hidden_transactions(
 
 
 @pytest.mark.parametrize(("module_name", "published"), _BACKFILLS)
-def test_backfill_targets_resolve_to_published_dirs_only(
-    module_name, published, tmp_path, monkeypatch
-):
+def test_backfill_targets_resolve_to_published_dirs_only(module_name, published, tmp_path, monkeypatch):
     from language_reading_predictors import paths as _paths
 
     module = _load(module_name)
@@ -204,12 +194,8 @@ def test_upload_targets_exclude_in_flight_output_transactions(tmp_path, monkeypa
     monkeypatch.setattr(_paths, "stat_models_dir", lambda: stat_root)
     monkeypatch.setattr(_paths, "gb_models_dir", lambda: gb_root)
 
-    assert [label for label, _ in upload.resolve_targets("all")] == [
-        "lrp-rli-itt-010-reporting"
-    ]
-    assert [label for label, _ in upload.resolve_targets("lrp-rli-itt-010")] == [
-        "lrp-rli-itt-010-reporting"
-    ]
+    assert [label for label, _ in upload.resolve_targets("all")] == ["lrp-rli-itt-010-reporting"]
+    assert [label for label, _ in upload.resolve_targets("lrp-rli-itt-010")] == ["lrp-rli-itt-010-reporting"]
 
 
 @pytest.mark.parametrize(("module_name", "published"), _WALKERS)
@@ -220,9 +206,7 @@ def test_missing_output_root_resolves_to_no_targets(module_name, published, tmp_
     assert module._subdirs(tmp_path / "absent") == []
 
 
-def test_itt_contrast_backfill_preserves_the_registered_score_mean_link(
-    tmp_path, monkeypatch
-):
+def test_itt_contrast_backfill_preserves_the_registered_score_mean_link(tmp_path, monkeypatch):
     """The 108 backfill must not overwrite guessing-floor artefacts as logit."""
 
     module = _load("regenerate_itt_contrast_figures")
@@ -245,9 +229,7 @@ def test_itt_contrast_backfill_preserves_the_registered_score_mean_link(
         )
     )
     (fit_dir / "trace.nc").write_text("placeholder")
-    trace = SimpleNamespace(
-        constant_data={"G": SimpleNamespace(values=np.array([0.0, 1.0]))}
-    )
+    trace = SimpleNamespace(constant_data={"G": SimpleNamespace(values=np.array([0.0, 1.0]))})
     monkeypatch.setattr(module.az, "from_netcdf", lambda _path: trace)
     monkeypatch.setattr(module, "_PARTIALS_SRC", tmp_path / "no-partials")
     calls: dict[str, str] = {}
@@ -265,7 +247,7 @@ def test_itt_contrast_backfill_preserves_the_registered_score_mean_link(
 
     monkeypatch.setattr(module, "write_predicted_scores_artifacts", predicted)
     monkeypatch.setattr(module, "write_arm_overlap_artifacts", overlap)
-    monkeypatch.setattr(module._report, "_itt_ame_draws", ame)
+    monkeypatch.setattr(module._itt_summary, "_itt_ame_draws", ame)
     monkeypatch.setattr(module, "write_rope_figures", lambda *_args, **_kwargs: None)
 
     assert module._regenerate_one(fit_dir).startswith("ok")

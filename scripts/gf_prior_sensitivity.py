@@ -58,9 +58,7 @@ from scipy.special import expit
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.factories import (
-    build_gain_factors_model,
-)
+from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
 from language_reading_predictors.statistical_models.measures import (
     DISTAL_OUTCOMES,
     MEASURES,
@@ -103,9 +101,7 @@ GAMMA_OWN_AXIS_SIGMAS = (0.25, 0.5)
 GF_SENSITIVITY_DEFAULT_MODEL_IDS = ("lrp-rli-gf-005", "lrp-rli-gf-011")
 
 
-def assert_gf_sampling_contract(
-    sampling, reference: PrimaryStandardReference, *, config: str
-) -> None:
+def assert_gf_sampling_contract(sampling, reference: PrimaryStandardReference, *, config: str) -> None:
     """The gain-factor variant of the shared contract: match the preset on
     draws/tune/chains and *adopt* the primary's recorded ``target_accept``
     (mirroring the did runner — a registered spec may override the preset)."""
@@ -126,10 +122,7 @@ def _resolve_plan(model_id: str):
         resolve_gain_factors_run_plan,
     )
 
-    module = importlib.import_module(
-        "language_reading_predictors.statistical_models."
-        + model_id.replace("-", "_")
-    )
+    module = importlib.import_module("language_reading_predictors.statistical_models." + model_id.replace("-", "_"))
     return resolve_gain_factors_run_plan(module.SPEC)
 
 
@@ -140,9 +133,7 @@ def _grid_for(plan) -> tuple[float, ...]:
     return STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
 
 
-def _items_translation(
-    trace, built, plan, *, n_trials: int, ci_prob: float
-) -> tuple[float, float, float]:
+def _items_translation(trace, built, plan, *, n_trials: int, ci_prob: float) -> tuple[float, float, float]:
     """(items_mean, items_lo, items_hi): the period-1 AME of the trt toggle.
 
     The family's own headline translation (``treatment_marginal_effect`` with
@@ -153,16 +144,9 @@ def _items_translation(
     """
     lo_q = (1.0 - ci_prob) / 2.0
     posterior = trace.posterior
-    eta = (
-        posterior["eta"]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )
+    eta = posterior["eta"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
     beta = posterior["beta_trt"].stack(sample=("chain", "draw")).values.ravel()
-    trt = np.asarray(
-        ((built.prepared.G == 1) | (built.prepared.phase >= 1)), dtype=float
-    )
+    trt = np.asarray(((built.prepared.G == 1) | (built.prepared.phase >= 1)), dtype=float)
     p1 = np.asarray(built.prepared.phase) == 0
     eta_off = eta[p1] - np.outer(trt[p1], beta)
     delta = expit(eta_off + beta[None, :]) - expit(eta_off)
@@ -197,9 +181,7 @@ def _fit_cell(
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
 
     plan = _resolve_plan(model_id)
     outcome = plan.outcome_symbol
@@ -252,9 +234,7 @@ def _fit_cell(
             progressbar=False,
         )
 
-    focal_draws = (
-        trace.posterior["beta_trt"].stack(sample=("chain", "draw")).values.ravel()
-    )
+    focal_draws = trace.posterior["beta_trt"].stack(sample=("chain", "draw")).values.ravel()
     lo_q = (1.0 - REPORTING_CI_PROB) / 2.0
     n_trials = 1 if plan.off_floor else int(MEASURES[outcome].n_trials)
     items_mean, items_lo, items_hi = _items_translation(
@@ -266,13 +246,9 @@ def _fit_cell(
         else np.array([np.nan])
     )
     free_names = [rv.name for rv in built.model.free_RVs]
-    convergence = _diag.subfit_convergence(
-        trace, label=f"{model_id} tau", var_names=free_names
-    )
+    convergence = _diag.subfit_convergence(trace, label=f"{model_id} tau", var_names=free_names)
 
-    trt = np.asarray(
-        ((built.prepared.G == 1) | (built.prepared.phase >= 1)), dtype=float
-    )
+    trt = np.asarray(((built.prepared.G == 1) | (built.prepared.phase >= 1)), dtype=float)
     phase = np.asarray(built.prepared.phase)
     p1 = phase == 0
     n = int(built.prepared.n_obs)
@@ -301,22 +277,14 @@ def _fit_cell(
         "sensitivity_axis": axis,
         "tau_sigma": sigma if axis == "tau" else np.nan,
         "gamma_own_sigma": (
-            sigma
-            if axis == "gamma_own"
-            else (
-                GAMMA_OWN_SIGMA_OFFFLOOR if plan.off_floor else GAMMA_OWN_SIGMA_GRADED
-            )
+            sigma if axis == "gamma_own" else (GAMMA_OWN_SIGMA_OFFFLOOR if plan.off_floor else GAMMA_OWN_SIGMA_GRADED)
         ),
-        "kappa_prior_family": kwargs.get(
-            "kappa_prior_family", "halfnormal_concentration"
-        ),
+        "kappa_prior_family": kwargs.get("kappa_prior_family", "halfnormal_concentration"),
         "kappa_sigma": (
             np.nan
             if plan.off_floor
             else (
-                kwargs.get("kappa_sigma")
-                if axis == "kappa" and kwargs.get("kappa_sigma") is not None
-                else KAPPA_SIGMA
+                kwargs.get("kappa_sigma") if axis == "kappa" and kwargs.get("kappa_sigma") is not None else KAPPA_SIGMA
             )
         ),
         "use_precision_terms": True,
@@ -329,9 +297,7 @@ def _fit_cell(
         "tau_logit_mean": float(np.mean(focal_draws)),
         "tau_logit_lo": float(np.quantile(focal_draws, lo_q)),
         "tau_logit_hi": float(np.quantile(focal_draws, 1.0 - lo_q)),
-        "ci_width_logit": float(
-            np.quantile(focal_draws, 1.0 - lo_q) - np.quantile(focal_draws, lo_q)
-        ),
+        "ci_width_logit": float(np.quantile(focal_draws, 1.0 - lo_q) - np.quantile(focal_draws, lo_q)),
         "tau_sd_logit": float(np.std(focal_draws)),
         "kappa_median": float(np.nanmedian(kappa_draws)),
         "items_mean": items_mean,
@@ -391,11 +357,7 @@ def _fit_cell(
     )
     sigma_token = f"{sigma:g}".replace(".", "p")
     token = model_id.removeprefix("lrp-rli-")
-    semantic = (
-        Path("traces")
-        / f"gf-{config}"
-        / f"trace_{token}_{axis}-{sigma_token}.nc"
-    )
+    semantic = Path("traces") / f"gf-{config}" / f"trace_{token}_{axis}-{sigma_token}.nc"
     trace_file, trace_sha256 = persist_sensitivity_trace(
         trace,
         sensitivity_dir=sensitivity_dir,
@@ -410,7 +372,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config", default="dev", help="sampling preset (dev/test/reporting)")
     ap.add_argument(
-        "--models", nargs="+", default=list(GF_SENSITIVITY_DEFAULT_MODEL_IDS),
+        "--models",
+        nargs="+",
+        default=list(GF_SENSITIVITY_DEFAULT_MODEL_IDS),
         help=(
             "gain-factor primary ids to sweep (default: the two historically "
             "prior-dominant off-floor fits gf-005/gf-011; any non-companion "
@@ -418,7 +382,8 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--attach", action="store_true",
+        "--attach",
+        action="store_true",
         help=(
             "install each model's trace-backed bundle beside its primary "
             "(manifest + digest-verified cell traces; only when every cell "
@@ -426,18 +391,23 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--reattach", action="store_true",
+        "--reattach",
+        action="store_true",
         help=(
             "skip fitting: re-install bundles from the sweep directory's "
             "existing combined CSV (re-verifying every binding and trace hash)"
         ),
     )
     ap.add_argument(
-        "--output-dir", type=str, default=None,
+        "--output-dir",
+        type=str,
+        default=None,
         help="override the output root (above DSE_LRP_OUTPUT_DIR); layout unchanged",
     )
     ap.add_argument(
-        "--seed", type=int, default=20260701,
+        "--seed",
+        type=int,
+        default=20260701,
         help=(
             "cell sampling seed (recorded per row); a reseed is the legitimate "
             "first response to a stochastic divergence-only cell failure — the "
@@ -445,7 +415,9 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--axis", choices=("tau", "kappa", "gamma_own"), default="tau",
+        "--axis",
+        choices=("tau", "kappa", "gamma_own"),
+        default="tau",
         help=(
             "what the sweep varies (#575 finding 10): 'tau' is the standard "
             "beta_trt prior grid and release-evidence artefact; 'kappa' fits "
@@ -457,7 +429,9 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--cell-target-accept", type=float, default=None,
+        "--cell-target-accept",
+        type=float,
+        default=None,
         help=(
             "escalate the cells' target_accept ABOVE the primary's recorded "
             "value (each cell runs at max(primary, this); recorded per row in "
@@ -469,8 +443,7 @@ def main() -> None:
     unknown = sorted(set(args.models) - set(GF_SENSITIVITY_MODEL_IDS))
     if unknown:
         ap.error(
-            f"unsupported gain-factor sensitivity models: {unknown}; choose from "
-            f"{sorted(GF_SENSITIVITY_MODEL_IDS)}"
+            f"unsupported gain-factor sensitivity models: {unknown}; choose from {sorted(GF_SENSITIVITY_MODEL_IDS)}"
         )
 
     _paths.set_output_root(args.output_dir)
@@ -502,13 +475,9 @@ def main() -> None:
         combined = pd.read_csv(combined_path)
         for model_id in args.models:
             primary_dir = models_root / f"{model_id}-{args.config}"
-            reference = load_primary_gf_reference(
-                primary_dir, model_id, config_name=args.config
-            )
+            reference = load_primary_gf_reference(primary_dir, model_id, config_name=args.config)
             assert_gf_sampling_contract(sampling, reference, config=args.config)
-            model_rows = combined.loc[
-                combined["primary_model_id"].astype(str) == model_id
-            ]
+            model_rows = combined.loc[combined["primary_model_id"].astype(str) == model_id]
             destination = attach_outcome_bundle(
                 model_rows,
                 outcome=reference.outcome,
@@ -523,9 +492,7 @@ def main() -> None:
     attach_ready: dict[str, bool] = {}
     for model_id in args.models:
         primary_dir = models_root / f"{model_id}-{args.config}"
-        reference = load_primary_gf_reference(
-            primary_dir, model_id, config_name=args.config
-        )
+        reference = load_primary_gf_reference(primary_dir, model_id, config_name=args.config)
         # Preset must match the primary on draws/tune/chains; the primary's own
         # recorded target_accept is adopted per cell.
         assert_gf_sampling_contract(sampling, reference, config=args.config)
@@ -538,10 +505,7 @@ def main() -> None:
         else:
             grid = tuple(float(v) for v in GAMMA_OWN_AXIS_SIGMAS)
         for sigma in grid:
-            print(
-                f"--- {model_id} ({plan.outcome_symbol}, beta_trt): "
-                f"axis={args.axis} value={sigma} ---"
-            )
+            print(f"--- {model_id} ({plan.outcome_symbol}, beta_trt): axis={args.axis} value={sigma} ---")
             row = _fit_cell(
                 model_id,
                 float(sigma),
@@ -563,10 +527,7 @@ def main() -> None:
         attach_ready[model_id] = all_ok
         if args.attach:
             if not all_ok:
-                print(
-                    f"    NOT attaching {model_id}: one or more cells failed "
-                    "the convergence gate"
-                )
+                print(f"    NOT attaching {model_id}: one or more cells failed the convergence gate")
                 continue
             destination = attach_outcome_bundle(
                 pd.DataFrame(model_rows),
@@ -584,9 +545,7 @@ def main() -> None:
     if combined_path.exists():
         previous = pd.read_csv(combined_path)
         swept = set(combined["primary_model_id"].astype(str))
-        previous = previous.loc[
-            ~previous["primary_model_id"].astype(str).isin(swept)
-        ]
+        previous = previous.loc[~previous["primary_model_id"].astype(str).isin(swept)]
         combined = pd.concat([previous, combined], ignore_index=True)
     combined.to_csv(combined_path, index=False)
     print(f"\nWrote {combined_path} ({len(combined)} rows)")

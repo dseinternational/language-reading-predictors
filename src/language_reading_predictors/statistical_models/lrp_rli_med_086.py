@@ -86,10 +86,7 @@ from language_reading_predictors.statistical_models.pipelines.mediation import f
 SPEC = ModelSpec(
     model_id="lrp-rli-med-086",
     kind="mediation",
-    title=(
-        "Mediation: does the intervention raise nonword reading (N, off-floor) "
-        "via letter-sound knowledge (L)?"
-    ),
+    title=("Mediation: does the intervention raise nonword reading (N, off-floor) via letter-sound knowledge (L)?"),
     outcome_symbol="N",
     mechanism_symbol="L",  # the mediator
     adjustment=[
@@ -99,8 +96,17 @@ SPEC = ModelSpec(
         # t1 by the factory) reinforces the PA-mediated backdoors. No outcome
         # own-baseline (off-floor drops b_W; the baseline-word-reading confounder
         # has the collision-free outcome-leg coefficient b_conf_W).
-        "G", "A", "L_t1", "B", "W",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing", "erbto", "erbto_missing",
+        "G",
+        "A",
+        "L_t1",
+        "B",
+        "W",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
+        "erbto",
+        "erbto_missing",
     ],
     model_settings=MediationModelSettings(
         # Off-floor (Bernoulli) outcome: NIE/NDE on the off-floor risk-difference scale.

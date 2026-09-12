@@ -48,10 +48,7 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import f
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-104",
     kind="mechanism",
-    title=(
-        "Mechanism model: letter-sound (L) -> word reading (W), "
-        "moderated by phonological memory (RW)"
-    ),
+    title=("Mechanism model: letter-sound (L) -> word reading (W), moderated by phonological memory (RW)"),
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],

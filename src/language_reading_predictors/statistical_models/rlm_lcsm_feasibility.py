@@ -23,6 +23,9 @@ predictive associations, never causal effects.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -112,10 +115,7 @@ class RlmFeasibilityDesign:
             "waves": self.waves.tolist(),
             "outcomes": list(OUTCOMES),
             "n_trials": dict(zip(OUTCOMES, self.n_trials.tolist(), strict=True)),
-            "observed_cells": {
-                symbol: int(self.mask[:, :, index].sum())
-                for index, symbol in enumerate(OUTCOMES)
-            },
+            "observed_cells": {symbol: int(self.mask[:, :, index].sum()) for index, symbol in enumerate(OUTCOMES)},
             "complete_all_measure_children": int(self.mask.all(axis=(1, 2)).sum()),
             "initial_correlation": self.correlation_initial.tolist(),
             "data_path": str(self.data_path),
@@ -214,26 +214,16 @@ def load_rlm_feasibility_design(
     n_trials = np.asarray([RLM_MEASURES[symbol].n_trials for symbol in OUTCOMES])
     if not all(RLM_MEASURES[symbol].n_trials_confirmed for symbol in OUTCOMES):
         raise ValueError("all feasibility outcomes require confirmed denominators")
-    count_arrays = [
-        _pivot(frame, subject_ids=subject_ids, waves=waves, column=symbol)
-        for symbol in OUTCOMES
-    ]
+    count_arrays = [_pivot(frame, subject_ids=subject_ids, waves=waves, column=symbol) for symbol in OUTCOMES]
     counts = np.stack(count_arrays, axis=2)
     mask = np.isfinite(counts)
     logits = np.stack(
-        [
-            _corrected_logit(counts[:, :, index], int(n_trials[index]))
-            for index in range(len(OUTCOMES))
-        ],
+        [_corrected_logit(counts[:, :, index], int(n_trials[index])) for index in range(len(OUTCOMES))],
         axis=2,
     )
 
     age = _pivot(frame, subject_ids=subject_ids, waves=waves, column="age")
-    age = (
-        pd.DataFrame(age, columns=waves)
-        .interpolate(axis=1, limit_direction="both")
-        .to_numpy(dtype=float)
-    )
+    age = pd.DataFrame(age, columns=waves).interpolate(axis=1, limit_direction="both").to_numpy(dtype=float)
     if not np.isfinite(age).all():
         raise ValueError("age must be recoverable for every child-wave cell")
     age_std = (age - age.mean()) / age.std(ddof=0)
@@ -245,9 +235,7 @@ def load_rlm_feasibility_design(
                 cells = logits[group_index == group, wave, outcome]
                 cells = cells[np.isfinite(cells)]
                 if not cells.size:
-                    raise ValueError(
-                        "every group-wave-outcome cell needs an observed anchor"
-                    )
+                    raise ValueError("every group-wave-outcome cell needs an observed anchor")
                 anchors[group, wave, outcome] = cells.mean()
 
     initial_residuals: list[list[float]] = [[] for _ in OUTCOMES]
@@ -263,15 +251,10 @@ def load_rlm_feasibility_design(
                 right = logits[child, wave + 1, outcome]
                 if np.isfinite(left) and np.isfinite(right):
                     observed_change = right - left
-                    anchor_change = (
-                        anchors[group, wave + 1, outcome]
-                        - anchors[group, wave, outcome]
-                    )
+                    anchor_change = anchors[group, wave + 1, outcome] - anchors[group, wave, outcome]
                     process_residuals[outcome].append(observed_change - anchor_change)
 
-    sigma_initial = np.asarray(
-        [np.clip(np.std(values, ddof=1), 0.30, 1.20) for values in initial_residuals]
-    )
+    sigma_initial = np.asarray([np.clip(np.std(values, ddof=1), 0.30, 1.20) for values in initial_residuals])
     wave_one = logits[:, 0, :].copy()
     wave_one = wave_one - anchors[group_index, 0, :]
     complete_wave_one = wave_one[np.isfinite(wave_one).all(axis=1)]
@@ -284,9 +267,7 @@ def load_rlm_feasibility_design(
     correlation_initial = (eigenvectors * np.clip(eigenvalues, 1e-6, None)) @ eigenvectors.T
     scale = np.sqrt(np.diag(correlation_initial))
     correlation_initial = correlation_initial / np.outer(scale, scale)
-    sigma_process = np.asarray(
-        [np.clip(np.std(values, ddof=1), 0.25, 0.80) for values in process_residuals]
-    )
+    sigma_process = np.asarray([np.clip(np.std(values, ddof=1), 0.25, 0.80) for values in process_residuals])
 
     return RlmFeasibilityDesign(
         scope=scope,
@@ -330,9 +311,7 @@ def simulation_truth(
     for group in range(design.n_groups):
         mean_age[group] = design.age_std[design.group_index == group].mean(axis=0)
 
-    change_intercept = np.empty(
-        (design.n_groups, design.n_waves - 1, len(OUTCOMES))
-    )
+    change_intercept = np.empty((design.n_groups, design.n_waves - 1, len(OUTCOMES)))
     for group in range(design.n_groups):
         for transition in range(design.n_waves - 1):
             previous = design.anchors[group, transition]
@@ -367,15 +346,10 @@ def simulate_rlm_lcsm_counts(
 
     n_outcomes = len(OUTCOMES)
     latent = np.empty((design.n_children, design.n_waves, n_outcomes))
-    covariance_initial = (
-        truth.sigma_initial[:, None]
-        * truth.correlation_initial
-        * truth.sigma_initial[None, :]
-    )
+    covariance_initial = truth.sigma_initial[:, None] * truth.correlation_initial * truth.sigma_initial[None, :]
     cholesky_initial = np.linalg.cholesky(covariance_initial)
     latent[:, 0, :] = (
-        truth.mu_initial[design.group_index]
-        + rng.normal(size=(design.n_children, n_outcomes)) @ cholesky_initial.T
+        truth.mu_initial[design.group_index] + rng.normal(size=(design.n_children, n_outcomes)) @ cholesky_initial.T
     )
     for transition in range(design.n_waves - 1):
         previous = latent[:, transition, :]
@@ -385,9 +359,7 @@ def simulate_rlm_lcsm_counts(
             + previous @ truth.coupling_matrix.T
             + design.age_std[:, transition, None] * truth.age_slope
         )
-        innovation = (
-            rng.normal(size=(design.n_children, n_outcomes)) * truth.sigma_process
-        )
+        innovation = rng.normal(size=(design.n_children, n_outcomes)) * truth.sigma_process
         latent[:, transition + 1, :] = previous + mean_change + innovation
 
     probability = np.clip(expit(latent), 1e-6, 1.0 - 1e-6)
@@ -396,9 +368,7 @@ def simulate_rlm_lcsm_counts(
         alpha = probability[:, :, outcome] * truth.kappa[outcome]
         beta = (1.0 - probability[:, :, outcome]) * truth.kappa[outcome]
         beta_probability = rng.beta(alpha, beta)
-        counts[:, :, outcome] = rng.binomial(
-            int(design.n_trials[outcome]), beta_probability
-        )
+        counts[:, :, outcome] = rng.binomial(int(design.n_trials[outcome]), beta_probability)
     return counts, latent
 
 
@@ -409,9 +379,7 @@ def build_rlm_lcsm_recovery_model(
     """Build the exact four-process model fitted to each simulated dataset."""
 
     if counts.shape != design.counts.shape:
-        raise ValueError(
-            f"counts shape {counts.shape} does not match design {design.counts.shape}"
-        )
+        raise ValueError(f"counts shape {counts.shape} does not match design {design.counts.shape}")
     n_outcomes = len(OUTCOMES)
     idx_i, idx_t, idx_k = np.nonzero(design.mask)
     observed = counts[idx_i, idx_t, idx_k].astype(np.int64)
@@ -450,14 +418,9 @@ def build_rlm_lcsm_recovery_model(
             1.0,
             dims=("group", "trans", "outcome"),
         )
-        self_feedback = pm.Normal(
-            "self_feedback", -0.30, 0.20, dims="outcome"
-        )
+        self_feedback = pm.Normal("self_feedback", -0.30, 0.20, dims="outcome")
         age_slope = pm.Normal("age_slope", 0.0, 0.30, dims="outcome")
-        coupling = {
-            (source, target): pm.Normal(edge_name(source, target), 0.0, 0.30)
-            for source, target in MODEL_EDGES
-        }
+        coupling = {(source, target): pm.Normal(edge_name(source, target), 0.0, 0.30) for source, target in MODEL_EDGES}
         sigma_process = pm.HalfNormal("sigma_process", 0.50, dims="outcome")
         z_process = pm.Normal(
             "z_process",
@@ -465,24 +428,15 @@ def build_rlm_lcsm_recovery_model(
             1.0,
             dims=("child", "trans", "outcome"),
         )
-        kappa = _priors.declare(
-                    pm.HalfNormal("kappa", 50.0, dims="outcome"),
-                    role="nuisance",
-                    panel="kappa",
-                    rationale=(
-                        "Beta-binomial concentration kappa ~ HalfNormal(50)."
-                    ),
-                )
+        kappa = _priors.kappa_prior(sigma=50.0).to_pymc(
+            "kappa", dims="outcome", role="nuisance", rationale="Beta-binomial concentration."
+        )
 
-        states: list[pt.TensorVariable] = [
-            mu_initial[group] + z_initial @ initial_cholesky.T
-        ]
+        states: list[pt.TensorVariable] = [mu_initial[group] + z_initial @ initial_cholesky.T]
         for transition in range(design.n_waves - 1):
             previous = states[-1]
             mean_change = (
-                change_intercept[group, transition, :]
-                + previous * self_feedback
-                + age[:, transition, None] * age_slope
+                change_intercept[group, transition, :] + previous * self_feedback + age[:, transition, None] * age_slope
             )
             for source, target in MODEL_EDGES:
                 mean_change = pt.set_subtensor(
@@ -490,11 +444,7 @@ def build_rlm_lcsm_recovery_model(
                     mean_change[:, outcome_index[target]]
                     + coupling[(source, target)] * previous[:, outcome_index[source]],
                 )
-            states.append(
-                previous
-                + mean_change
-                + z_process[:, transition, :] * sigma_process
-            )
+            states.append(previous + mean_change + z_process[:, transition, :] * sigma_process)
         latent = pm.Deterministic(
             "latent_state",
             pt.stack(states, axis=1),
@@ -521,7 +471,7 @@ def recovery_rows(
     scope: CandidateScope,
     simulation: int,
     truth: RlmSimulationTruth,
-    ci_prob: float = 0.89,
+    ci_prob: float = REPORTING_CI_PROB,
     support_threshold: float = 0.90,
 ) -> list[dict[str, Any]]:
     """Extract one auditable recovery row per pre-specified reverse edge."""
@@ -578,9 +528,7 @@ def aggregate_recovery(
     missing = required - set(rows.columns)
     if missing:
         raise ValueError(f"recovery rows missing columns: {sorted(missing)}")
-    grouped = rows.groupby(
-        ["scope", "reverse_strength", "parameter"], sort=True, observed=True
-    )
+    grouped = rows.groupby(["scope", "reverse_strength", "parameter"], sort=True, observed=True)
     summary = grouped.agg(
         n_fitted=("simulation", "nunique"),
         true_value=("true_value", "first"),
@@ -617,15 +565,10 @@ def evaluate_candidate(
     failures: list[str] = []
     checks: list[dict[str, Any]] = []
     for parameter in sorted(expected):
-        null = candidate.loc[
-            (candidate["parameter"] == parameter)
-            & np.isclose(candidate["reverse_strength"], 0.0)
-        ]
+        null = candidate.loc[(candidate["parameter"] == parameter) & np.isclose(candidate["reverse_strength"], 0.0)]
         alternative = candidate.loc[
             (candidate["parameter"] == parameter)
-            & np.isclose(
-                candidate["reverse_strength"], criteria.alternative_strength
-            )
+            & np.isclose(candidate["reverse_strength"], criteria.alternative_strength)
         ]
         if len(null) != 1 or len(alternative) != 1:
             failures.append(f"{parameter}: missing null or alternative scenario")
@@ -634,12 +577,8 @@ def evaluate_candidate(
         arow = alternative.iloc[0]
         values = {
             "parameter": parameter,
-            "fit_success_rate": float(
-                min(nrow["fit_success_rate"], arow["fit_success_rate"])
-            ),
-            "zero_divergence_rate": float(
-                min(nrow["zero_divergence_rate"], arow["zero_divergence_rate"])
-            ),
+            "fit_success_rate": float(min(nrow["fit_success_rate"], arow["fit_success_rate"])),
+            "zero_divergence_rate": float(min(nrow["zero_divergence_rate"], arow["zero_divergence_rate"])),
             "abs_bias": abs(float(arow["bias"])),
             "coverage_89": float(arow["coverage_89"]),
             "support_rate": float(arow["support_rate"]),
@@ -648,19 +587,13 @@ def evaluate_candidate(
         checks.append(values)
         conditions = {
             "fit success": values["fit_success_rate"] >= criteria.min_fit_success_rate,
-            "zero divergences": values["zero_divergence_rate"]
-            >= criteria.min_zero_divergence_rate,
+            "zero divergences": values["zero_divergence_rate"] >= criteria.min_zero_divergence_rate,
             "bias": values["abs_bias"] <= criteria.max_abs_bias,
-            "coverage": criteria.min_coverage_89
-            <= values["coverage_89"]
-            <= criteria.max_coverage_89,
+            "coverage": criteria.min_coverage_89 <= values["coverage_89"] <= criteria.max_coverage_89,
             "positive support": values["support_rate"] >= criteria.min_support_rate,
-            "null calibration": values["null_support_rate"]
-            <= criteria.max_null_support_rate,
+            "null calibration": values["null_support_rate"] <= criteria.max_null_support_rate,
         }
-        failures.extend(
-            f"{parameter}: {name} failed" for name, passed in conditions.items() if not passed
-        )
+        failures.extend(f"{parameter}: {name} failed" for name, passed in conditions.items() if not passed)
     missing_parameters = expected - set(candidate["parameter"])
     failures.extend(f"{parameter}: absent from summary" for parameter in missing_parameters)
     return {

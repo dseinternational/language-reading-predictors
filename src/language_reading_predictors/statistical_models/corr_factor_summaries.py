@@ -80,9 +80,7 @@ def factor_correlation_matrix(post: Any) -> pd.DataFrame:
     """Posterior-mean domain-factor correlation matrix (domains x domains)."""
     corr_draws = post["factor_corr"]
     dnames = [str(d) for d in post["domain"].values]
-    return pd.DataFrame(
-        corr_draws.mean(dim=("chain", "draw")).values, index=dnames, columns=dnames
-    )
+    return pd.DataFrame(corr_draws.mean(dim=("chain", "draw")).values, index=dnames, columns=dnames)
 
 
 def factor_correlation_pairs(post: Any, *, lo_q: float) -> pd.DataFrame:
@@ -96,9 +94,7 @@ def factor_correlation_pairs(post: Any, *, lo_q: float) -> pd.DataFrame:
         for j, dj in enumerate(dnames):
             if j <= i:
                 continue
-            pair = np.asarray(
-                corr_stacked.isel(domain=i, domain_b=j).values
-            ).reshape(-1)
+            pair = np.asarray(corr_stacked.isel(domain=i, domain_b=j).values).reshape(-1)
             rows.append(
                 {
                     "domain_i": di,

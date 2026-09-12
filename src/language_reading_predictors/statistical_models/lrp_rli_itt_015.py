@@ -33,10 +33,7 @@ from language_reading_predictors.statistical_models.pipelines.joint import fit_j
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-015",
     kind="joint",
-    title=(
-        "Available-case modified ITT estimate: expressive taught-versus-not-taught "
-        "vocabulary contrast, block 1"
-    ),
+    title=("Available-case modified ITT estimate: expressive taught-versus-not-taught vocabulary contrast, block 1"),
     # Two-outcome joint Beta-Binomial over the randomised window.
     # ``difference=("TE","UE")`` asks the pipeline to summarise the headline
     # probability-scale AME[TE] - AME[UE], with tau[TE] - tau[UE] retained as a

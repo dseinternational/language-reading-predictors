@@ -59,10 +59,7 @@ from language_reading_predictors.statistical_models.pipelines.long_corr_factor i
 SPEC = ModelSpec(
     model_id="lrp-rli-lcf-001",
     kind="long_corr_factor",
-    title=(
-        "Longitudinal correlated-domain-factor model "
-        "(per-wave latent skill correlations)"
-    ),
+    title=("Longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
     outcome_symbol=None,
     model_settings=LongCorrFactorModelSettings(
         domains=(
@@ -71,9 +68,9 @@ SPEC = ModelSpec(
             ("grammar", ("F", "T")),
         ),
     ),
-        # Small-n latent geometry: even fully marginalised a few boundary divergences
-        # can survive at the tier-default target_accept, so lift it (as mm-001 does at
-        # 0.999) to clear the strict zero-divergence gate.
+    # Small-n latent geometry: even fully marginalised a few boundary divergences
+    # can survive at the tier-default target_accept, so lift it (as mm-001 does at
+    # 0.999) to clear the strict zero-divergence gate.
     target_accept=0.999,
 )
 

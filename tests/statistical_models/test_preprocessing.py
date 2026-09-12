@@ -94,9 +94,7 @@ def test_derive_hearing_composite_rejects_inconsistent_columns():
         derive_hearing_composite,
     )
 
-    df = pd.DataFrame(
-        {V.HEARING: [1.0, 0.0], V.EARINF: [0.0, 0.0], V.HEARING_C: [1.0, 1.0]}
-    )
+    df = pd.DataFrame({V.HEARING: [1.0, 0.0], V.EARINF: [0.0, 0.0], V.HEARING_C: [1.0, 1.0]})
     with pytest.raises(ValueError, match="disagrees"):
         derive_hearing_composite(df)
 
@@ -131,9 +129,7 @@ def test_rli_hearing_status_split_after_three_valued_or():
 def test_load_and_prepare_hearing_status_keeps_all_rows():
     """#244: adjusting for HS via the missing-indicator covariates drops no rows."""
     base = load_and_prepare(phase_mode="itt", outcomes=("W",))
-    with_hs = load_and_prepare(
-        phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES
-    )
+    with_hs = load_and_prepare(phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES)
     assert with_hs.n_obs == base.n_obs  # hearing missingness costs no children
     assert set(HEARING_STATUS_COVARIATES) <= set(with_hs.covariates)
 
@@ -144,9 +140,7 @@ def test_add_missing_indicator_covariates():
         add_missing_indicator_covariates,
     )
 
-    df = pd.DataFrame(
-        {"deapp_c": [2.0, 4.0, np.nan, 6.0], "erbto": [np.nan, 1.0, 3.0, 5.0]}
-    )
+    df = pd.DataFrame({"deapp_c": [2.0, 4.0, np.nan, 6.0], "erbto": [np.nan, 1.0, 3.0, 5.0]})
     out = add_missing_indicator_covariates(df)
     assert list(out["deapp_c_missing"]) == [0.0, 0.0, 1.0, 0.0]
     assert list(out["erbto_missing"]) == [1.0, 0.0, 0.0, 0.0]
@@ -161,9 +155,7 @@ def test_load_and_prepare_missing_indicator_covariates_keep_rows():
     """#245/#246: requesting SP/RW as covariates exposes them without dropping rows
     (they are filled by add_missing_indicator_covariates)."""
     base = load_and_prepare(phase_mode="all", outcomes=("W",))
-    with_cov = load_and_prepare(
-        phase_mode="all", outcomes=("W",), covariates=("deapp_c", "erbto")
-    )
+    with_cov = load_and_prepare(phase_mode="all", outcomes=("W",), covariates=("deapp_c", "erbto"))
     assert with_cov.n_obs == base.n_obs  # SP/RW missingness costs no rows
     assert {"deapp_c", "erbto"} <= set(with_cov.covariates)
 
@@ -259,8 +251,7 @@ def test_group_recode_intervention_is_positive(tmp_path):
         df.to_csv(p, index=False)
         prep = load_and_prepare(path=p, phase_mode="itt")
         assert set(np.unique(prep.G)) == {expected_g}, (
-            f"group=={group_code} must recode to G=={expected_g} "
-            "(positive = intervention benefit)"
+            f"group=={group_code} must recode to G=={expected_g} (positive = intervention benefit)"
         )
 
 
@@ -294,9 +285,7 @@ def test_load_and_prepare_rejects_within_subject_group_change(tmp_path):
     time-invariant assignment and must fail loud."""
     df = _make_synthetic_long(n_children=8, seed=2)
     orig = int(df.loc[df[V.SUBJECT_ID] == "S000", V.GROUP].iloc[0])
-    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 2), V.GROUP] = (
-        2 if orig == 1 else 1
-    )
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == 2), V.GROUP] = 2 if orig == 1 else 1
     p = tmp_path / "rli_grpchange.csv"
     df.to_csv(p, index=False)
     with pytest.raises(ValueError, match="group is not constant"):
@@ -321,9 +310,7 @@ def test_load_and_prepare_span_one_row_per_child(tmp_path):
     df.loc[df[V.TIME] == 1, V.BLOCKS] = np.arange(18, dtype=float)
     p = tmp_path / "rli.csv"
     df.to_csv(p, index=False)
-    prep = load_and_prepare(
-        path=p, phase_mode="span", post_time=4, covariates=(V.BLOCKS,)
-    )
+    prep = load_and_prepare(path=p, phase_mode="span", post_time=4, covariates=(V.BLOCKS,))
     # One row per child; the t1-only block design survives (span pre = t1).
     assert prep.phase_mode == "span"
     assert prep.n_phases == 1
@@ -487,9 +474,7 @@ def test_load_and_prepare_rejects_count_above_ceiling(tmp_path):
         (2, 2.25, r"ewrswr_post.*integer counts"),
     ],
 )
-def test_load_and_prepare_rejects_negative_or_fractional_counts(
-    tmp_path, time, value, match
-):
+def test_load_and_prepare_rejects_negative_or_fractional_counts(tmp_path, time, value, match):
     """Invalid counts must fail before a factory can silently cast them to int."""
     df = _make_synthetic_long(n_children=10, seed=13)
     df[V.EWRSWR] = df[V.EWRSWR].astype(float)
@@ -538,9 +523,7 @@ def test_baseline_covariate_broadcast_from_t1(tmp_path):
         df.loc[df[V.TIME] != 1, V.AGEBOOKS] = np.nan  # genuine t1-only baseline
         p = tmp_path / f"rli_{mode}.csv"
         df.to_csv(p, index=False)
-        prep = load_and_prepare(
-            path=p, phase_mode=mode, baseline_covariates=(V.AGEBOOKS,)
-        )
+        prep = load_and_prepare(path=p, phase_mode=mode, baseline_covariates=(V.AGEBOOKS,))
         assert prep.n_obs == 12 * n_phases  # broadcast -> no rows dropped
         z = prep.covariates[V.AGEBOOKS]
         assert np.all(np.isfinite(z))  # filled on every row
@@ -596,7 +579,9 @@ def test_load_and_prepare_aligned_onset_windows(tmp_path):
         grp = 1 if i % 2 == 0 else 2  # alternate immediate / wait-list
         for t in (1, 2, 3, 4):
             row = {
-                V.SUBJECT_ID: f"S{i:03d}", V.TIME: t, V.GROUP: grp,
+                V.SUBJECT_ID: f"S{i:03d}",
+                V.TIME: t,
+                V.GROUP: grp,
                 V.AGE: 80 + 6 * (t - 1),
             }
             for s in ITT_OUTCOMES:
@@ -630,9 +615,7 @@ def test_load_and_prepare_aligned_ability_merged_from_t1(tmp_path):
 def test_load_and_prepare_aligned_requires_dose_when_requested(tmp_path):
     """Dose variants drop rows with missing aligned-window cumulative sessions."""
     df = _make_synthetic_long(n_children=12, seed=23)
-    dose_by_child = {
-        sid: 80.0 + i for i, sid in enumerate(sorted(df[V.SUBJECT_ID].unique()))
-    }
+    dose_by_child = {sid: 80.0 + i for i, sid in enumerate(sorted(df[V.SUBJECT_ID].unique()))}
     df[V.ATTEND_CUMUL] = df[V.SUBJECT_ID].map(dose_by_child)
     sid = df[V.SUBJECT_ID].iloc[0]
     grp = int(df.loc[df[V.SUBJECT_ID] == sid, V.GROUP].iloc[0])
@@ -756,9 +739,7 @@ def test_post_subset_filter_drops_wave_constant_indicator(tmp_path):
     prep.covariate_time["test_missing"] = "baseline"
 
     wave = _subset_prepared(prep, prep.phase == 0)
-    filtered, effective, dropped = filter_informative_covariates(
-        wave, ("test_missing",)
-    )
+    filtered, effective, dropped = filter_informative_covariates(wave, ("test_missing",))
 
     assert effective == ()
     assert dropped == ("test_missing",)
@@ -776,9 +757,7 @@ def test_post_subset_filter_drops_partly_nonfinite_covariate(tmp_path):
     values[-1] = np.inf
     wave.covariates["partly_nonfinite"] = values
 
-    filtered, effective, dropped = filter_informative_covariates(
-        wave, ("partly_nonfinite",)
-    )
+    filtered, effective, dropped = filter_informative_covariates(wave, ("partly_nonfinite",))
 
     assert effective == ()
     assert dropped == ("partly_nonfinite",)
@@ -787,9 +766,7 @@ def test_post_subset_filter_drops_partly_nonfinite_covariate(tmp_path):
 
 def test_split_covariates_by_wave_puts_sessions_pre_and_states_post():
     """Sessions span the following interval (pre row); states are contemporaneous."""
-    pre, post = split_covariates_by_wave(
-        ("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing")
-    )
+    pre, post = split_covariates_by_wave(("hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing"))
     assert pre == ("attend",)
     assert post == ("hs", "hs_missing", "deapp_c", "deapp_c_missing")
     assert "attend" in INTERVAL_COVARIATES
@@ -809,12 +786,8 @@ def test_post_covariates_are_read_from_the_post_row(tmp_path):
     p = tmp_path / "rli.csv"
     df.to_csv(p, index=False)
 
-    as_post = load_and_prepare(
-        path=p, phase_mode="all", outcomes=("W",), post_covariates=("deapp_c",)
-    )
-    as_pre = load_and_prepare(
-        path=p, phase_mode="all", outcomes=("W",), covariates=("deapp_c",)
-    )
+    as_post = load_and_prepare(path=p, phase_mode="all", outcomes=("W",), post_covariates=("deapp_c",))
+    as_pre = load_and_prepare(path=p, phase_mode="all", outcomes=("W",), covariates=("deapp_c",))
 
     assert as_post.covariate_time["deapp_c"] == "post"
     assert as_pre.covariate_time["deapp_c"] == "pre"
@@ -845,8 +818,7 @@ def test_covariate_cannot_be_requested_at_both_waves(tmp_path):
 
 
 def _apt_frame(values):
-    return pd.DataFrame({V.SUBJECT_ID: [f"S{i}" for i in range(len(values))],
-                         V.APTINFO: values})
+    return pd.DataFrame({V.SUBJECT_ID: [f"S{i}" for i in range(len(values))], V.APTINFO: values})
 
 
 def test_apt_information_doubling_is_exact_on_half_marks():
@@ -856,9 +828,7 @@ def test_apt_information_doubling_is_exact_on_half_marks():
     assert out[V.APTINFO_X2].tolist() == [0.0, 7.0, 24.0, 75.0]
     assert (out[V.APTINFO_X2].dropna() % 1 == 0).all()
     # the proportion is preserved, which is what keeps the logit mean structure intact
-    assert (out[V.APTINFO_X2] / 80).round(6).tolist() == (
-        out[V.APTINFO] / 40
-    ).round(6).tolist()
+    assert (out[V.APTINFO_X2] / 80).round(6).tolist() == (out[V.APTINFO] / 40).round(6).tolist()
 
 
 def test_apt_information_rounding_gives_a_whole_mark_comparator():
@@ -902,7 +872,7 @@ def test_subset_helpers_slice_every_per_row_field_together(tmp_path):
     """
     import dataclasses
 
-    from language_reading_predictors.statistical_models.factories import _subset
+    from language_reading_predictors.statistical_models.preprocessing import _subset
     from language_reading_predictors.statistical_models.preprocessing import (
         _subset_prepared,
     )
@@ -910,9 +880,7 @@ def test_subset_helpers_slice_every_per_row_field_together(tmp_path):
     df = _make_synthetic_long(n_children=20, seed=7)
     p = tmp_path / "rli.csv"
     df.to_csv(p, index=False)
-    prep = load_and_prepare(
-        path=p, phase_mode="itt", covariates=(V.MUMEDUPOST16,)
-    )
+    prep = load_and_prepare(path=p, phase_mode="itt", covariates=(V.MUMEDUPOST16,))
     assert prep.pre_counts, "fixture must exercise the pre_counts field"
     mask = np.zeros(prep.n_obs, dtype=bool)
     mask[::2] = True
@@ -923,11 +891,7 @@ def test_subset_helpers_slice_every_per_row_field_together(tmp_path):
         if isinstance(value, np.ndarray) and value.shape[:1] == (prep.n_obs,):
             per_row[f.name] = {None: value}
         elif isinstance(value, dict):
-            arrays = {
-                key: v
-                for key, v in value.items()
-                if isinstance(v, np.ndarray) and v.shape[:1] == (prep.n_obs,)
-            }
+            arrays = {key: v for key, v in value.items() if isinstance(v, np.ndarray) and v.shape[:1] == (prep.n_obs,)}
             if arrays:
                 per_row[f.name] = arrays
     assert {
@@ -950,9 +914,7 @@ def test_subset_helpers_slice_every_per_row_field_together(tmp_path):
                 if key is not None:
                     child = child[key]
                 assert child.shape[:1] == (subset.n_obs,), (
-                    f"{label}: {field_name}"
-                    f"{'' if key is None else f'[{key}]'} was not sliced with "
-                    "the row mask"
+                    f"{label}: {field_name}{'' if key is None else f'[{key}]'} was not sliced with the row mask"
                 )
                 if field_name == "child_idx":
                     continue  # re-derived densely on the kept subjects

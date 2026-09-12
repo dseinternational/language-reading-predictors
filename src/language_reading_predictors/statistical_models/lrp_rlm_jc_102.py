@@ -62,8 +62,7 @@ SPEC = ModelSpec(
     model_id="lrp-rlm-jc-102",
     kind="historical_joint",
     title=(
-        "Byrne within-child joint coupling: HalfNormal(1.0) within-scale prior "
-        "sensitivity companion of lrp-rlm-jc-002"
+        "Byrne within-child joint coupling: HalfNormal(1.0) within-scale prior sensitivity companion of lrp-rlm-jc-002"
     ),
     outcome_symbol=None,
     study_id="rlm",

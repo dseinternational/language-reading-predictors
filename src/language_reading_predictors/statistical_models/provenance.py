@@ -79,7 +79,7 @@ def _git_output(arguments: list[str], *, cwd: Path) -> str | None:
             text=True,
             timeout=5,
         )
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired:
         return None
     return result.stdout.strip()
 
@@ -159,9 +159,7 @@ def _sanitise_direct_url(raw_text: str | None) -> dict[str, Any] | None:
     netloc = hostname
     if parsed.port is not None:
         netloc = f"{netloc}:{parsed.port}"
-    clean: dict[str, Any] = {
-        "url": urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))
-    }
+    clean: dict[str, Any] = {"url": urlunsplit((parsed.scheme, netloc, parsed.path, "", ""))}
     for key in ("vcs_info", "dir_info", "archive_info"):
         value = raw.get(key)
         if isinstance(value, dict):
@@ -181,10 +179,8 @@ def _python_distribution_lock_records() -> list[dict[str, Any]]:
             "version": distribution.version,
         }
         try:
-            direct_url = _sanitise_direct_url(
-                distribution.read_text("direct_url.json")
-            )
-        except (OSError, UnicodeError, ValueError):
+            direct_url = _sanitise_direct_url(distribution.read_text("direct_url.json"))
+        except OSError, UnicodeError, ValueError:
             direct_url = None
         if direct_url is not None:
             record["direct_url"] = direct_url
@@ -278,8 +274,7 @@ def write_failure_record(
     failure_dir = Path(output_root) / "run_metadata" / "failures"
     failure_dir.mkdir(parents=True, exist_ok=True)
     path = failure_dir / (
-        f"{_safe_model_id(model_id)}-{timestamp.strftime('%Y%m%dT%H%M%SZ')}"
-        f"-{uuid.uuid4().hex[:12]}.json"
+        f"{_safe_model_id(model_id)}-{timestamp.strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:12]}.json"
     )
     record = {
         "recorded_at_utc": timestamp.isoformat(),

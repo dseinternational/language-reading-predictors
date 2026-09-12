@@ -79,18 +79,23 @@ from language_reading_predictors.statistical_models.pipelines.mediation import f
 SPEC = ModelSpec(
     model_id="lrp-rli-med-059",
     kind="mediation",
-    title=(
-        "Mediation: does the intervention raise word reading (W) via "
-        "letter-sound knowledge (L)?"
-    ),
+    title=("Mediation: does the intervention raise word reading (W) via letter-sound knowledge (L)?"),
     outcome_symbol="W",
     mechanism_symbol="L",  # the mediator
     adjustment=[
         # E/R retained — settled by the time-indexed d-separation (#264;
         # notes/202607142340-lrp264-mediation-adjustment-dsep.md); the revised-DAG
         # common causes HS/SP added by the missing-indicator method (#246).
-        "G", "A", "E", "R", "L_t1", "W_pre",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "E",
+        "R",
+        "L_t1",
+        "W_pre",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     model_settings=MediationModelSettings(),
 )

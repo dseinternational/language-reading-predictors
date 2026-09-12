@@ -26,9 +26,7 @@ import numpy as np
 import pandas as pd
 
 
-def loadings_communalities_table(
-    post: Any, domains: dict[str, tuple[str, ...]], *, lo_q: float
-) -> pd.DataFrame:
+def loadings_communalities_table(post: Any, domains: dict[str, tuple[str, ...]], *, lo_q: float) -> pd.DataFrame:
     """Per-indicator loading, indicator-factor correlation (= sqrt communality) and communality
     posterior summaries (median, mean, ``lo_q``/``1 - lo_q`` and 50% quantiles)."""
     dom_of = {s: d for d, syms in domains.items() for s in syms}
@@ -68,9 +66,7 @@ def factor_correlation_matrix(post: Any) -> pd.DataFrame:
     """Posterior-mean domain-factor correlation matrix (domains x domains)."""
     corr_draws = post["factor_corr"]
     dnames = [str(d) for d in post["domain"].values]
-    return pd.DataFrame(
-        corr_draws.mean(dim=("chain", "draw")).values, index=dnames, columns=dnames
-    )
+    return pd.DataFrame(corr_draws.mean(dim=("chain", "draw")).values, index=dnames, columns=dnames)
 
 
 def factor_correlation_pairs(post: Any, *, lo_q: float) -> pd.DataFrame:
@@ -84,9 +80,7 @@ def factor_correlation_pairs(post: Any, *, lo_q: float) -> pd.DataFrame:
         for j, dj in enumerate(dnames):
             if j <= i:
                 continue
-            pair = np.asarray(
-                corr_stacked.isel(domain=i, domain_b=j).values
-            ).reshape(-1)
+            pair = np.asarray(corr_stacked.isel(domain=i, domain_b=j).values).reshape(-1)
             rows.append(
                 {
                     "domain_i": di,

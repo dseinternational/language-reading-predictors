@@ -27,10 +27,7 @@ SITE_ADJUSTERS = (V.AREA,)
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-027",
     kind="itt",
-    title=(
-        "Site-adjusted available-case modified ITT estimate of the assigned-arm "
-        "contrast in word reading (W)"
-    ),
+    title=("Site-adjusted available-case modified ITT estimate of the assigned-arm contrast in word reading (W)"),
     outcome_symbol="W",
     adjustment=list(SITE_ADJUSTERS),
     model_settings=IttModelSettings(adjust_for=SITE_ADJUSTERS),

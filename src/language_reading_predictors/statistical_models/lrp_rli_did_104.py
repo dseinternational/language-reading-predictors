@@ -45,10 +45,7 @@ from language_reading_predictors.statistical_models.pipelines.did import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-104",
     kind="did",
-    title=(
-        "Baseline-allocation prior sensitivity for the word-reading arm-by-wave "
-        "contrasts (EWRSWR) (W)"
-    ),
+    title=("Baseline-allocation prior sensitivity for the word-reading arm-by-wave contrasts (EWRSWR) (W)"),
     outcome_symbol="W",
     family="did",
     design="waitlist-crossover arm-by-wave levels, wide baseline-allocation priors",

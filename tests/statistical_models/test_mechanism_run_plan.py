@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import glob
 import importlib
 import inspect
@@ -15,7 +18,7 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import mechanism as M
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
 
 _META_FIELDS = (
@@ -46,8 +49,7 @@ def _mechanism_specs() -> list[ModelSpec]:
     specs: list[ModelSpec] = []
     for path in sorted(glob.glob(os.path.join(root, "lrp_rli_mech_*.py"))):
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + os.path.basename(path)[:-3]
+            "language_reading_predictors.statistical_models." + os.path.basename(path)[:-3]
         )
         spec = getattr(module, "SPEC", None)
         if spec is not None and spec.kind == "mechanism":
@@ -67,9 +69,7 @@ def _registered_spec(model_id: str) -> ModelSpec:
 
 def test_settings_reject_unknown_legacy_key():
     with pytest.raises(ValueError, match="unknown mechanism setting.*use_age_gpp"):
-        M.MechanismModelSettings.from_legacy_extra(
-            {"use_age_gpp": True}, model_id="lrp-rli-mech-999"
-        )
+        M.MechanismModelSettings.from_legacy_extra({"use_age_gpp": True}, model_id="lrp-rli-mech-999")
 
 
 def test_settings_accept_global_target_accept_without_owning_it():
@@ -127,15 +127,11 @@ def test_resolve_rejects_wrong_kind_and_missing_required_symbols():
     with pytest.raises(ValueError, match="expected kind 'mechanism'"):
         M.resolve_mechanism_run_plan(wrong)
 
-    no_outcome = ModelSpec(
-        model_id="x", kind="mechanism", title="x", mechanism_symbol="L"
-    )
+    no_outcome = ModelSpec(model_id="x", kind="mechanism", title="x", mechanism_symbol="L")
     with pytest.raises(ValueError, match="outcome_symbol is required"):
         M.resolve_mechanism_run_plan(no_outcome)
 
-    no_exposure = ModelSpec(
-        model_id="x", kind="mechanism", title="x", outcome_symbol="W"
-    )
+    no_exposure = ModelSpec(model_id="x", kind="mechanism", title="x", outcome_symbol="W")
     with pytest.raises(ValueError, match="mechanism_symbol is required"):
         M.resolve_mechanism_run_plan(no_exposure)
 
@@ -281,9 +277,7 @@ def test_covariate_moderator_complete_case_loads_parent_and_indicator():
 def test_missing_covariate_policy_rejects_unqualified_filled_values(extra, match):
     mechanism_symbol = "erbto" if extra.get("mechanism_is_covariate") else "L"
     with pytest.raises(ValueError, match=match):
-        M.resolve_mechanism_run_plan(
-            replace(_spec(**extra), mechanism_symbol=mechanism_symbol)
-        )
+        M.resolve_mechanism_run_plan(replace(_spec(**extra), mechanism_symbol=mechanism_symbol))
 
 
 def test_complete_case_adjuster_auto_loads_filter_indicator_without_fitting_it():
@@ -302,9 +296,7 @@ def test_complete_case_adjuster_auto_loads_filter_indicator_without_fitting_it()
     ("settings", "match"),
     [
         (
-            M.MechanismModelSettings(
-                mechanism_is_covariate=True, adjust_for=("L",)
-            ),
+            M.MechanismModelSettings(mechanism_is_covariate=True, adjust_for=("L",)),
             "must not also appear in adjust_for",
         ),
         (
@@ -456,14 +448,10 @@ def test_settings_reject_every_invalid_mechanism_design(settings_kwargs, match):
     [(case[2], case[3]) for case in INVALID_MECHANISM_DESIGNS],
     ids=[case[0] for case in INVALID_MECHANISM_DESIGNS],
 )
-def test_the_direct_factory_rejects_every_invalid_mechanism_design(
-    factory_kwargs, match, mechanism_prepared
-):
+def test_the_direct_factory_rejects_every_invalid_mechanism_design(factory_kwargs, match, mechanism_prepared):
     """Identical rejection, whichever entry point declares the design."""
     from language_reading_predictors.statistical_models import priors
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
 
     kwargs = dict(factory_kwargs)
     if kwargs.get("mech_lengthscale_prior") == "tight":
@@ -524,15 +512,11 @@ def test_adjustment_must_match_always_fitted_group_and_baseline(adjustment, matc
 
 def test_outcome_subset_must_cover_every_bounded_model_term():
     with pytest.raises(ValueError, match=r"omit required mechanism measure\(s\): TR"):
-        M.resolve_mechanism_run_plan(
-            _spec(outcomes=("W", "L"), adjustment=["G", "A", "TR", "W_pre"])
-        )
+        M.resolve_mechanism_run_plan(_spec(outcomes=("W", "L"), adjustment=["G", "A", "TR", "W_pre"]))
 
 
 def test_typed_settings_are_accepted_and_cannot_be_split_with_extra():
-    settings = M.MechanismModelSettings(
-        outcomes=("W", "L"), linear_mechanism=True
-    )
+    settings = M.MechanismModelSettings(outcomes=("W", "L"), linear_mechanism=True)
     plan = M.resolve_mechanism_run_plan(_spec(settings=settings))
     assert plan.settings_source == "typed"
     assert plan.linear_mechanism is True
@@ -551,9 +535,7 @@ def test_typed_and_legacy_declarations_resolve_to_the_same_design():
         "items_ref_quantiles": (0.2, 0.8),
     }
     legacy = M.resolve_mechanism_run_plan(_spec(**values))
-    typed = M.resolve_mechanism_run_plan(
-        _spec(settings=M.MechanismModelSettings(**values))
-    )
+    typed = M.resolve_mechanism_run_plan(_spec(settings=M.MechanismModelSettings(**values)))
     assert replace(legacy, settings_source="typed") == typed
 
 
@@ -618,9 +600,7 @@ def test_typed_and_legacy_declarations_resolve_to_the_same_design():
         ),
     ],
 )
-def test_registered_branch_contracts_reach_loader_factory_and_diagnostics(
-    model_id, expected
-):
+def test_registered_branch_contracts_reach_loader_factory_and_diagnostics(model_id, expected):
     """Lock representative registered branches at the pure plan boundary."""
     plan = M.resolve_mechanism_run_plan(_registered_spec(model_id))
     prepare = plan.prepare_kwargs()
@@ -697,8 +677,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     spec = _spec(outcomes=("W", "L"), linear_mechanism=True)
     plan = M.resolve_mechanism_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated mechanism run plan" in text
@@ -749,7 +729,7 @@ def test_reporting_rejects_stale_attached_plan():
         resolved_plan=M.resolve_mechanism_run_plan(stale_spec),
     )
     with pytest.raises(ValueError, match="does not match the current model specification"):
-        R._resolved_run_plan(ctx)
+        _metadata._resolved_run_plan(ctx)
 
 
 def test_pipeline_has_no_direct_mechanism_setting_reads():
@@ -775,9 +755,7 @@ def test_every_registered_mechanism_model_resolves_with_audit_metadata():
         assert isinstance(plan, M.MechanismRunPlan)
         recorded = plan.as_dict()
         for field in _META_FIELDS:
-            assert isinstance(recorded[field], str) and recorded[field], (
-                f"{spec.model_id}: {field} not recorded"
-            )
+            assert isinstance(recorded[field], str) and recorded[field], f"{spec.model_id}: {field} not recorded"
         assert plan.likelihood == "beta_binomial"
         assert plan.observation_node == "y_post"
 
@@ -830,17 +808,13 @@ def test_pre_required_covers_only_the_scores_the_model_consumes():
     are all contemporaneous post measurements. ``pre_required`` used to be every
     loaded outcome (#586 finding 4).
     """
-    plan = M.resolve_mechanism_run_plan(
-        _spec(outcomes=("W", "L", "N"), moderator_symbol="N")
-    )
+    plan = M.resolve_mechanism_run_plan(_spec(outcomes=("W", "L", "N"), moderator_symbol="N"))
     assert plan.pre_required == ("W",)
     assert plan.prepare_kwargs()["pre_required"] == ("W",)
 
 
 def test_pre_required_adds_the_exposure_only_when_it_is_read_at_pre():
-    lagged = M.resolve_mechanism_run_plan(
-        _spec(outcomes=("W", "L"), mechanism_at_pre=True)
-    )
+    lagged = M.resolve_mechanism_run_plan(_spec(outcomes=("W", "L"), mechanism_at_pre=True))
     assert lagged.pre_required == ("W", "L")
 
 
@@ -848,9 +822,7 @@ def test_pre_required_baseline_must_be_loaded():
     """The autoregressive baseline is the one pre-score the model reads, so a
     declared outcome set that omits it is rejected before any I/O."""
     with pytest.raises(ValueError, match=r"omit required mechanism measure\(s\): W"):
-        M.resolve_mechanism_run_plan(
-            _spec(outcomes=("L",), adjust_baseline_symbol="W", adjustment=["G", "A", "W_pre"])
-        )
+        M.resolve_mechanism_run_plan(_spec(outcomes=("L",), adjust_baseline_symbol="W", adjustment=["G", "A", "W_pre"]))
 
 
 def test_unused_pre_score_no_longer_drops_an_eligible_row():
@@ -860,9 +832,7 @@ def test_unused_pre_score_no_longer_drops_an_eligible_row():
     observed, but a missing ``N_pre`` — a score the model never reads — removed them,
     taking both fits from 155 rows to 151.
     """
-    moderated = M.resolve_mechanism_plan(
-        _spec(outcomes=("W", "L", "N"), moderator_symbol="N")
-    )
+    moderated = M.resolve_mechanism_plan(_spec(outcomes=("W", "L", "N"), moderator_symbol="N"))
     unmoderated = M.resolve_mechanism_plan(_spec(outcomes=("W", "L")))
     # Requiring the moderator's *post* score is legitimate (the factory fits it);
     # requiring its *pre* score is not, so the two frames now differ only by the
@@ -882,8 +852,7 @@ def test_registered_mechanism_row_counts_are_pinned():
     }
     for model_id, (n_obs, n_children) in expected.items():
         module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + model_id.replace("lrp-rli-mech-", "lrp_rli_mech_")
+            "language_reading_predictors.statistical_models." + model_id.replace("lrp-rli-mech-", "lrp_rli_mech_")
         )
         built = M.build_mechanism_for_plan(M.resolve_mechanism_plan(module.SPEC))
         assert len(built.model.coords["obs_id"]) == n_obs, model_id
@@ -898,12 +867,8 @@ def test_mech_158_differs_from_mech_058_only_by_its_missing_data_policy():
     """
     from dataclasses import asdict
 
-    base = importlib.import_module(
-        "language_reading_predictors.statistical_models.lrp_rli_mech_058"
-    ).SPEC
-    comparator = importlib.import_module(
-        "language_reading_predictors.statistical_models.lrp_rli_mech_158"
-    ).SPEC
+    base = importlib.import_module("language_reading_predictors.statistical_models.lrp_rli_mech_058").SPEC
+    comparator = importlib.import_module("language_reading_predictors.statistical_models.lrp_rli_mech_158").SPEC
     a = asdict(M.resolve_mechanism_run_plan(base))
     b = asdict(M.resolve_mechanism_run_plan(comparator))
     differing = {k for k in a if a[k] != b[k]}
@@ -913,9 +878,7 @@ def test_mech_158_differs_from_mech_058_only_by_its_missing_data_policy():
 
 def test_mech_158_prose_does_not_claim_an_unfitted_confounder():
     """Its docstring described a phonological-memory (erbto) restriction it never ran."""
-    module = importlib.import_module(
-        "language_reading_predictors.statistical_models.lrp_rli_mech_158"
-    )
+    module = importlib.import_module("language_reading_predictors.statistical_models.lrp_rli_mech_158")
     plan = M.resolve_mechanism_run_plan(module.SPEC)
     assert "erbto" not in plan.adjust_for
     assert "erbto" not in plan.require_observed
@@ -927,9 +890,7 @@ def test_mech_158_prose_does_not_claim_an_unfitted_confounder():
 
 def test_mech_191_fits_only_on_intervention_periods():
     """Its documented population and its fitted rows must agree (#586 finding 2)."""
-    module = importlib.import_module(
-        "language_reading_predictors.statistical_models.lrp_rli_mech_191"
-    )
+    module = importlib.import_module("language_reading_predictors.statistical_models.lrp_rli_mech_191")
     plan = M.resolve_mechanism_plan(module.SPEC)
     prepared = plan.prepared
     scaler = prepared.covariate_scalers["attend"]
@@ -950,23 +911,25 @@ def test_positive_exposure_restriction_is_covariate_only():
 @pytest.mark.parametrize(
     ("label", "extra", "match"),
     [
-        ("outcome is its own exposure", {"outcome_symbol": "W", "mechanism_symbol": "W",
-                                         "outcomes": ("W",)}, "regress a measure on itself"),
-        ("moderator is the exposure", {"outcomes": ("W", "L"), "moderator_symbol": "L"},
-         "exposure squared"),
-        ("moderator is the outcome", {"outcomes": ("W", "L"), "moderator_symbol": "W"},
-         "moderate its own predictor"),
-        ("phase-specific curves", {"outcomes": ("W", "L"), "phase_specific_mechanism": True},
-         "not supported"),
-        ("age GP plus age moderation", {"outcomes": ("W", "L"), "use_age_gp": True,
-                                        "moderator_symbol": "A",
-                                        "moderator_is_covariate": True},
-         "cannot be combined with age moderation"),
-        ("unknown ability covariate", {"outcomes": ("W", "L"),
-                                       "ability_covariate": "nonsense_col"},
-         "unsupported ability_covariate"),
-        ("non-default bounded exposure", {"mechanism_symbol": "TR"},
-         "omit required mechanism measure"),
+        (
+            "outcome is its own exposure",
+            {"outcome_symbol": "W", "mechanism_symbol": "W", "outcomes": ("W",)},
+            "regress a measure on itself",
+        ),
+        ("moderator is the exposure", {"outcomes": ("W", "L"), "moderator_symbol": "L"}, "exposure squared"),
+        ("moderator is the outcome", {"outcomes": ("W", "L"), "moderator_symbol": "W"}, "moderate its own predictor"),
+        ("phase-specific curves", {"outcomes": ("W", "L"), "phase_specific_mechanism": True}, "not supported"),
+        (
+            "age GP plus age moderation",
+            {"outcomes": ("W", "L"), "use_age_gp": True, "moderator_symbol": "A", "moderator_is_covariate": True},
+            "cannot be combined with age moderation",
+        ),
+        (
+            "unknown ability covariate",
+            {"outcomes": ("W", "L"), "ability_covariate": "nonsense_col"},
+            "unsupported ability_covariate",
+        ),
+        ("non-default bounded exposure", {"mechanism_symbol": "TR"}, "omit required mechanism measure"),
     ],
 )
 def test_unsupported_designs_fail_before_any_io(label, extra, match):
@@ -1011,19 +974,11 @@ def test_ability_covariate_type_is_validated_before_io():
 
 def test_every_registered_mechanism_spec_still_resolves():
     """The new rejections must not catch a model that is legitimately registered."""
-    paths = sorted(
-        glob.glob(
-            os.path.join(
-                os.path.dirname(inspect.getfile(M)), "lrp_rli_mech_*.py"
-            )
-        )
-    )
+    paths = sorted(glob.glob(os.path.join(os.path.dirname(inspect.getfile(M)), "lrp_rli_mech_*.py")))
     assert len(paths) >= 41
     for path in paths:
         name = os.path.basename(path)[:-3]
-        spec = importlib.import_module(
-            f"language_reading_predictors.statistical_models.{name}"
-        ).SPEC
+        spec = importlib.import_module(f"language_reading_predictors.statistical_models.{name}").SPEC
         M.resolve_mechanism_run_plan(spec)
 
 
@@ -1074,6 +1029,7 @@ def test_main_effect_only_companion_records_no_interaction():
     kinds = [t["kind"] for t in record["fitted"]]
     assert kinds.count("moderator_main_effect") == 1
     assert "moderator_interaction" not in kinds
+
 
 #: The exposure terms each valid mechanism design must build, and the ones it must
 #: not. The silent-fallback defect this stage repairs was invisible precisely
@@ -1136,9 +1092,7 @@ VALID_MECHANISM_DESIGNS: tuple[tuple[str, dict, tuple[str, ...], tuple[str, ...]
 def test_every_valid_mechanism_design_builds_the_terms_it_declares(
     factory_kwargs, expected, forbidden, mechanism_prepared
 ):
-    from language_reading_predictors.statistical_models.factories import (
-        build_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
 
     built = build_mechanism_model(
         mechanism_prepared,

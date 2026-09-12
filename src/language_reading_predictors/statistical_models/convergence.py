@@ -61,7 +61,7 @@ def _raw_convergence_gate_checks(diag_summary: Mapping) -> dict[str, bool] | Non
         completed = diag_summary.get("scan_completed") is True
         max_rhat = float(np.nan if completed and diag_summary["max_rhat"] is None else diag_summary["max_rhat"])
         min_ess = float(np.nan if completed and diag_summary["min_ess"] is None else diag_summary["min_ess"])
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
     bfmi_raw = diag_summary["bfmi_per_chain"]
@@ -69,7 +69,7 @@ def _raw_convergence_gate_checks(diag_summary: Mapping) -> dict[str, bool] | Non
         return None
     try:
         bfmi = np.asarray(list(bfmi_raw), dtype=float)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if bfmi.size == 0:
         return None
@@ -101,9 +101,7 @@ def convergence_gate_failures(diag_summary: Mapping | None) -> list[str]:
         return ["diagnostic scan failed or returned no parameters"]
 
     checks = diag_summary.get("checks")
-    if not isinstance(checks, Mapping) or any(
-        name not in checks for name in _KF_REQUIRED_CHECKS
-    ):
+    if not isinstance(checks, Mapping) or any(name not in checks for name in _KF_REQUIRED_CHECKS):
         return ["convergence summary incomplete"]
 
     if diag_summary.get("scan_completed") is True and "diagnostics_assessable" not in checks:
@@ -114,15 +112,9 @@ def convergence_gate_failures(diag_summary: Mapping | None) -> list[str]:
         return ["convergence summary incomplete"]
 
     failing_names = [
-        name
-        for name in _KF_REQUIRED_CHECKS
-        if checks.get(name) is not True or raw_checks[name] is not True
+        name for name in _KF_REQUIRED_CHECKS if checks.get(name) is not True or raw_checks[name] is not True
     ]
-    failing_names.extend(
-        str(name)
-        for name, ok in checks.items()
-        if name not in _KF_REQUIRED_CHECKS and ok is not True
-    )
+    failing_names.extend(str(name) for name, ok in checks.items() if name not in _KF_REQUIRED_CHECKS and ok is not True)
     if diag_summary.get("unassessable_parameters") and "diagnostics_assessable" not in failing_names:
         failing_names.append("diagnostics_assessable")
     if failing_names:

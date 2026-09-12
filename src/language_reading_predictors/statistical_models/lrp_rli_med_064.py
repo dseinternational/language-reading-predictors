@@ -90,8 +90,18 @@ SPEC = ModelSpec(
         # notes/202607142340-lrp264-mediation-adjustment-dsep.md); E is a *mediator*
         # here (not a confounder), so only R re-enters. The revised-DAG common causes
         # HS/RW/SP are added by the missing-indicator method (#246).
-        "G", "A", "R", "W_pre", "L_t1", "E_t1",
-        "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "R",
+        "W_pre",
+        "L_t1",
+        "E_t1",
+        "hs",
+        "hs_missing",
+        "erbto",
+        "erbto_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     model_settings=MediationMultiModelSettings(
         mediators=("L", "E"),
@@ -99,9 +109,7 @@ SPEC = ModelSpec(
         order=("L", "E"),
         # Post-fit calibration only: attend is loaded but deliberately NOT added to
         # the natural-effects model because it is treatment-affected (#335).
-        named_confounder_calibration=NamedConfounderCalibration(
-            symbol="attend", label="IS"
-        ),
+        named_confounder_calibration=NamedConfounderCalibration(symbol="attend", label="IS"),
     ),
 )
 

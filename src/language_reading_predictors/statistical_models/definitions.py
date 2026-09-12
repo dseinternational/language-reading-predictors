@@ -150,91 +150,430 @@ _ITT = [
     _d("lrpitt06", "itt", "ITT suite", Status.MODEL_OF_RECORD, "E", "available-case modified ITT estimate"),
     _d("lrpitt07", "itt", "ITT suite", Status.MODEL_OF_RECORD, "L", "available-case modified ITT estimate"),
     _d("lrpitt08", "itt", "ITT suite", Status.MODEL_OF_RECORD, "B", "available-case modified ITT estimate"),
-    _d("lrpitt08b", "itt", "ITT link sensitivity", Status.ROBUSTNESS, "B", "available-case modified ITT link sensitivity: three-choice guessing-floor score-mean link", base="lrpitt08"),
+    _d(
+        "lrpitt08b",
+        "itt",
+        "ITT link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "available-case modified ITT link sensitivity: three-choice guessing-floor score-mean link",
+        base="lrpitt08",
+    ),
     _d("lrpitt09", "itt", "ITT suite", Status.MODEL_OF_RECORD, "P", "available-case modified ITT floor-rule estimate"),
-    _d("lrpitt10", "itt", "ITT suite", Status.MODEL_OF_RECORD, "W", "available-case modified ITT estimate (primary outcome)"),
+    _d(
+        "lrpitt10",
+        "itt",
+        "ITT suite",
+        Status.MODEL_OF_RECORD,
+        "W",
+        "available-case modified ITT estimate (primary outcome)",
+    ),
     _d("lrpitt11", "itt", "ITT suite", Status.MODEL_OF_RECORD, "N", "available-case modified ITT floor-rule estimate"),
 ]
 
 # --- Joint + generalisation contrasts ---------------------------------------------
 _JOINT = [
-    _d("lrpitt12", "joint", "Joint", Status.JOINT, None, "joint available-case modified ITT estimates: cross-outcome consistency + contrasts"),
-    _d("lrpitt15", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (expressive)"),
-    _d("lrpitt15b", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (receptive)"),
-    _d("lrpitt16", "joint", "Modality contrast", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught expressive vs taught receptive"),
+    _d(
+        "lrpitt12",
+        "joint",
+        "Joint",
+        Status.JOINT,
+        None,
+        "joint available-case modified ITT estimates: cross-outcome consistency + contrasts",
+    ),
+    _d(
+        "lrpitt15",
+        "joint",
+        "Generalisation",
+        Status.ROBUSTNESS,
+        None,
+        "available-case modified ITT estimate: taught vs not-taught (expressive)",
+    ),
+    _d(
+        "lrpitt15b",
+        "joint",
+        "Generalisation",
+        Status.ROBUSTNESS,
+        None,
+        "available-case modified ITT estimate: taught vs not-taught (receptive)",
+    ),
+    _d(
+        "lrpitt16",
+        "joint",
+        "Modality contrast",
+        Status.ROBUSTNESS,
+        None,
+        "available-case modified ITT estimate: taught expressive vs taught receptive",
+    ),
     # #551: dependence-aware sensitivity companions of the three two-outcome
     # contrasts — the same fit with the per-child LKJ residual-correlation block
     # on, so the contrast interval carries the within-child covariance the
     # factorised parents omit. A uniform +200 block (215 / 315 / 216): the +100
     # slot of 015 is already its receptive ``b`` companion (115), and one role
     # should live in one block.
-    _d("lrpitt215", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (expressive), LKJ residual-correlation dependence sensitivity", base="lrpitt15"),
-    _d("lrpitt315", "joint", "Generalisation", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught vs not-taught (receptive), LKJ residual-correlation dependence sensitivity", base="lrpitt15b"),
-    _d("lrpitt216", "joint", "Modality contrast", Status.ROBUSTNESS, None, "available-case modified ITT estimate: taught expressive vs taught receptive, LKJ residual-correlation dependence sensitivity", base="lrpitt16"),
+    _d(
+        "lrpitt215",
+        "joint",
+        "Generalisation",
+        Status.ROBUSTNESS,
+        None,
+        "available-case modified ITT estimate: taught vs not-taught (expressive), LKJ residual-correlation dependence sensitivity",
+        base="lrpitt15",
+    ),
+    _d(
+        "lrpitt315",
+        "joint",
+        "Generalisation",
+        Status.ROBUSTNESS,
+        None,
+        "available-case modified ITT estimate: taught vs not-taught (receptive), LKJ residual-correlation dependence sensitivity",
+        base="lrpitt15b",
+    ),
+    _d(
+        "lrpitt216",
+        "joint",
+        "Modality contrast",
+        Status.ROBUSTNESS,
+        None,
+        "available-case modified ITT estimate: taught expressive vs taught receptive, LKJ residual-correlation dependence sensitivity",
+        base="lrpitt16",
+    ),
 ]
 
 # --- SES adjustment + matched complete-case comparators ---------------------------
 _SES = [
-    _d("lrpitt13", "itt", "SES + comparators", Status.ROBUSTNESS, "W", "SES-adjusted available-case modified ITT estimate", base="lrpitt10"),
-    _d("lrpitt13b", "itt", "SES + comparators", Status.ROBUSTNESS, "L", "SES-adjusted available-case modified ITT estimate", base="lrpitt07"),
-    _d("lrpitt14", "itt", "SES + comparators", Status.ROBUSTNESS, "W", "available-case modified ITT estimate on the matched complete-case subset", base="lrpitt13"),
-    _d("lrpitt14b", "itt", "SES + comparators", Status.ROBUSTNESS, "L", "available-case modified ITT estimate on the matched complete-case subset", base="lrpitt13b"),
+    _d(
+        "lrpitt13",
+        "itt",
+        "SES + comparators",
+        Status.ROBUSTNESS,
+        "W",
+        "SES-adjusted available-case modified ITT estimate",
+        base="lrpitt10",
+    ),
+    _d(
+        "lrpitt13b",
+        "itt",
+        "SES + comparators",
+        Status.ROBUSTNESS,
+        "L",
+        "SES-adjusted available-case modified ITT estimate",
+        base="lrpitt07",
+    ),
+    _d(
+        "lrpitt14",
+        "itt",
+        "SES + comparators",
+        Status.ROBUSTNESS,
+        "W",
+        "available-case modified ITT estimate on the matched complete-case subset",
+        base="lrpitt13",
+    ),
+    _d(
+        "lrpitt14b",
+        "itt",
+        "SES + comparators",
+        Status.ROBUSTNESS,
+        "L",
+        "available-case modified ITT estimate on the matched complete-case subset",
+        base="lrpitt13b",
+    ),
 ]
 
 # --- General-ability (block-design) robustness ------------------------------------
 _ABIL = [
-    _d("lrpitt17", "itt", "General-ability adjustment", Status.ROBUSTNESS, "TR", "ability-adjusted available-case modified ITT estimate", base="lrpitt01"),
-    _d("lrpitt18", "itt", "General-ability adjustment", Status.ROBUSTNESS, "TE", "ability-adjusted available-case modified ITT estimate", base="lrpitt02"),
-    _d("lrpitt19", "itt", "General-ability adjustment", Status.ROBUSTNESS, "UR", "ability-adjusted available-case modified ITT estimate", base="lrpitt03"),
-    _d("lrpitt20", "itt", "General-ability adjustment", Status.ROBUSTNESS, "UE", "ability-adjusted available-case modified ITT estimate", base="lrpitt04"),
-    _d("lrpitt21", "itt", "General-ability adjustment", Status.ROBUSTNESS, "R", "ability-adjusted available-case modified ITT estimate", base="lrpitt05"),
-    _d("lrpitt22", "itt", "General-ability adjustment", Status.ROBUSTNESS, "E", "ability-adjusted available-case modified ITT estimate", base="lrpitt06"),
-    _d("lrpitt23", "itt", "General-ability adjustment", Status.ROBUSTNESS, "L", "ability-adjusted available-case modified ITT estimate", base="lrpitt07"),
-    _d("lrpitt24", "itt", "General-ability adjustment", Status.ROBUSTNESS, "W", "ability-adjusted available-case modified ITT estimate", base="lrpitt10"),
+    _d(
+        "lrpitt17",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "TR",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt01",
+    ),
+    _d(
+        "lrpitt18",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "TE",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt02",
+    ),
+    _d(
+        "lrpitt19",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "UR",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt03",
+    ),
+    _d(
+        "lrpitt20",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "UE",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt04",
+    ),
+    _d(
+        "lrpitt21",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "R",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt05",
+    ),
+    _d(
+        "lrpitt22",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "E",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt06",
+    ),
+    _d(
+        "lrpitt23",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "L",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt07",
+    ),
+    _d(
+        "lrpitt24",
+        "itt",
+        "General-ability adjustment",
+        Status.ROBUSTNESS,
+        "W",
+        "ability-adjusted available-case modified ITT estimate",
+        base="lrpitt10",
+    ),
 ]
 
 # --- Waitlist-crossover arm-by-wave models ----------------------------------------
 _DID = [
-    _d("lrpdid01", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "W", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt10"),
-    _d("lrpdid02", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "L", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt07"),
-    _d("lrpdid03", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "B", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt08"),
-    _d("lrpdid04", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "TE", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt02"),
-    _d("lrpdid05", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "R", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt05"),
-    _d("lrpdid06", "did", "Crossover dose association", Status.ASSOCIATION, "W", "pooled treated-centred session association", base="lrpdid01"),
-    _d("lrpdid07", "did", "Crossover dose association", Status.ASSOCIATION, "L", "period-resolved treated-centred session association", base="lrpdid02"),
-    _d("lrpdid07base", "did", "Crossover dose association", Status.COMPANION, "L", "pooled treated-centred session comparator", base="lrpdid07"),
+    _d(
+        "lrpdid01",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "W",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt10",
+    ),
+    _d(
+        "lrpdid02",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "L",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt07",
+    ),
+    _d(
+        "lrpdid03",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "B",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt08",
+    ),
+    _d(
+        "lrpdid04",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "TE",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt02",
+    ),
+    _d(
+        "lrpdid05",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "R",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt05",
+    ),
+    _d(
+        "lrpdid06",
+        "did",
+        "Crossover dose association",
+        Status.ASSOCIATION,
+        "W",
+        "pooled treated-centred session association",
+        base="lrpdid01",
+    ),
+    _d(
+        "lrpdid07",
+        "did",
+        "Crossover dose association",
+        Status.ASSOCIATION,
+        "L",
+        "period-resolved treated-centred session association",
+        base="lrpdid02",
+    ),
+    _d(
+        "lrpdid07base",
+        "did",
+        "Crossover dose association",
+        Status.COMPANION,
+        "L",
+        "pooled treated-centred session comparator",
+        base="lrpdid07",
+    ),
     # Waitlist-crossover extensions (#226). The floored P/N models fit off-floor
     # prevalence at t1/t2/t3; their clean t2 arm gaps complement, but do not duplicate,
     # the ITT siblings' baseline-floor-risk transition estimands.
-    _d("lrpdid08", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "TR", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt01"),
-    _d("lrpdid09", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "E", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt06"),
-    _d("lrpdid10", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "F", "randomised t2 contrast plus post-crossover arm gaps", base="lrpitt25"),
-    _d("lrpdid11", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "P", "off-floor prevalence by arm and wave", base="lrpitt09"),
-    _d("lrpdid12", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "N", "off-floor prevalence by arm and wave", base="lrpitt11"),
+    _d(
+        "lrpdid08",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "TR",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt01",
+    ),
+    _d(
+        "lrpdid09",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "E",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt06",
+    ),
+    _d(
+        "lrpdid10",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "F",
+        "randomised t2 contrast plus post-crossover arm gaps",
+        base="lrpitt25",
+    ),
+    _d(
+        "lrpdid11",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "P",
+        "off-floor prevalence by arm and wave",
+        base="lrpitt09",
+    ),
+    _d(
+        "lrpdid12",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "N",
+        "off-floor prevalence by arm and wave",
+        base="lrpitt11",
+    ),
     # Exploratory unexplained variation in the waitlist arm's t3 catch-up. This is
     # not a random treatment-effect slope and cannot classify causal responders.
-    _d("lrpdid13", "did", "Arm-by-wave crossover", Status.ASSOCIATION, "W", "exploratory waitlist t3 catch-up heterogeneity", base="lrpdid01"),
-    _d("lrpdid14", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "EI", "randomised t2 contrast plus post-crossover arm gaps, APT information (80)", base="lrpitt29"),
-    _d("lrpdid15", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "EG", "randomised t2 contrast plus post-crossover arm gaps, APT grammar (37)", base="lrpitt30"),
+    _d(
+        "lrpdid13",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ASSOCIATION,
+        "W",
+        "exploratory waitlist t3 catch-up heterogeneity",
+        base="lrpdid01",
+    ),
+    _d(
+        "lrpdid14",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "EI",
+        "randomised t2 contrast plus post-crossover arm gaps, APT information (80)",
+        base="lrpitt29",
+    ),
+    _d(
+        "lrpdid15",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "EG",
+        "randomised t2 contrast plus post-crossover arm gaps, APT grammar (37)",
+        base="lrpitt30",
+    ),
     # #390 P1 condition 1: the empirical-Bayes pooled-t1 intercept anchor replaced
     # with a genuinely independent zero-centred Normal(0, 1.5); tau_t2 should match
     # LRPDID01 to Monte-Carlo error if the anchor does no work beyond location.
-    _d("lrpdid101", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "W", "independent-prior intercept sensitivity for LRPDID01", base="lrpdid01"),
+    _d(
+        "lrpdid101",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "W",
+        "independent-prior intercept sensitivity for LRPDID01",
+        base="lrpdid01",
+    ),
     # #382 rec 3: the single causal term's prior widened N(0, 0.5) -> N(0, 1); the
     # right-tail letter-sound tau_t2 is the attenuation test case.
-    _d("lrpdid102", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "L", "wide-tau_t2 prior sensitivity for LRPDID02", base="lrpdid02"),
+    _d(
+        "lrpdid102",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "L",
+        "wide-tau_t2 prior sensitivity for LRPDID02",
+        base="lrpdid02",
+    ),
     # #576 finding 2: the mandatory phoneme-blending response-link twin. Neither
     # LRPDID03 nor this fit releases without the other.
-    _d("lrpdid103", "did", "DiD link sensitivity", Status.ROBUSTNESS, "B", "three-choice guessing-floor score-mean link sensitivity for LRPDID03", base="lrpdid03"),
+    _d(
+        "lrpdid103",
+        "did",
+        "DiD link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "three-choice guessing-floor score-mean link sensitivity for LRPDID03",
+        base="lrpdid03",
+    ),
     # #576 finding 4: the estimand-matched sensitivity for the soft, prior-weighted
     # baseline adjustment behind the t2 arm-gap *level* (arm_gap_t1 0.3 -> 1.0,
     # sigma_child 0.5 -> 1.0); tau_t2 itself keeps its tier prior.
-    _d("lrpdid104", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "W", "baseline-allocation prior sensitivity for LRPDID01", base="lrpdid01"),
+    _d(
+        "lrpdid104",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "W",
+        "baseline-allocation prior sensitivity for LRPDID01",
+        base="lrpdid01",
+    ),
     # #576 material qualification 2: the dispersion prior at a low (18-item) and a
     # high (170-item) denominator, on the dispersion scale that can reach the
     # near-Binomial limit the family default cannot.
-    _d("lrpdid105", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "F", "inverse-sqrt dispersion-prior sensitivity for LRPDID10 (low denominator)", base="lrpdid10"),
-    _d("lrpdid106", "did", "Arm-by-wave crossover", Status.ROBUSTNESS, "R", "inverse-sqrt dispersion-prior sensitivity for LRPDID05 (high denominator)", base="lrpdid05"),
+    _d(
+        "lrpdid105",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "F",
+        "inverse-sqrt dispersion-prior sensitivity for LRPDID10 (low denominator)",
+        base="lrpdid10",
+    ),
+    _d(
+        "lrpdid106",
+        "did",
+        "Arm-by-wave crossover",
+        Status.ROBUSTNESS,
+        "R",
+        "inverse-sqrt dispersion-prior sensitivity for LRPDID05 (high denominator)",
+        base="lrpdid05",
+    ),
 ]
 
 # --- Mechanism / moderation / mediation (adjusted associations) -------------------
@@ -242,9 +581,24 @@ _MECH = [
     _d("lrp56", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "receptive vocabulary -> word reading"),
     _d("lrp57", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "expressive vocabulary -> word reading"),
     _d("lrp58", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "letter sounds -> word reading"),
-    _d("lrp158", "mechanism", "Mechanism", Status.COMPANION, "W", "complete-case comparator (no imputed confounders)", base="lrp58"),
+    _d(
+        "lrp158",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "W",
+        "complete-case comparator (no imputed confounders)",
+        base="lrp58",
+    ),
     _d("lrp71", "mechanism", "Moderation", Status.ASSOCIATION, "W", "expressive-vocabulary moderation"),
-    _d("lrp72", "mechanism", "Moderation", Status.ASSOCIATION, "N", "phonics route (letter-sound x blending -> decoding)"),
+    _d(
+        "lrp72",
+        "mechanism",
+        "Moderation",
+        Status.ASSOCIATION,
+        "N",
+        "phonics route (letter-sound x blending -> decoding)",
+    ),
     _d("lrp72base", "mechanism", "Moderation", Status.COMPANION, "N", "no-interaction baseline", base="lrp72"),
     _d("lrp73", "mechanism", "Moderation", Status.ASSOCIATION, "W", "age-moderated letter-sound -> word reading"),
     # #421 Tier 2 (LS->WR review note, #424): does the letter-sound -> word-reading
@@ -255,72 +609,320 @@ _MECH = [
     # existing lrp63/lrp163 pair (same rows, outcome, adjusters and L x N interaction), so
     # joint_readiness_lxn_w_loo_compare already answers it. The genuinely distinct
     # off-floor-NW variant is a follow-up.
-    _d("lrp104", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds -> word reading, moderated by phonological memory RW (#421 Tier 2)"),
+    _d(
+        "lrp104",
+        "mechanism",
+        "Moderation",
+        Status.ASSOCIATION,
+        "W",
+        "letter sounds -> word reading, moderated by phonological memory RW (#421 Tier 2)",
+    ),
     _d("lrp104base", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline", base="lrp104"),
     # Taught-vocabulary dose-response (#311, descriptive-association workstream #314).
     _d("lrp88", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading"),
     _d("lrp89", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading"),
-    _d("lrp90", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phonological memory (word/nonword repetition) -> word reading"),
+    _d(
+        "lrp90",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "phonological memory (word/nonword repetition) -> word reading",
+    ),
     # GP knee-test variants (do the vocabulary / blending / dose curves have a knee,
     # as letter sounds do?). Re-attempt the HSGP curve the linear models could not fit.
-    _d("lrp156", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "receptive vocabulary -> word reading (GP knee-test)", base="lrp56"),
-    _d("lrp157", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "expressive vocabulary -> word reading (GP knee-test)", base="lrp57"),
-    _d("lrp188", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught receptive vocabulary -> word reading (GP knee-test)", base="lrp88"),
-    _d("lrp189", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "taught expressive vocabulary -> word reading (GP knee-test)", base="lrp89"),
+    _d(
+        "lrp156",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "receptive vocabulary -> word reading (GP knee-test)",
+        base="lrp56",
+    ),
+    _d(
+        "lrp157",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "expressive vocabulary -> word reading (GP knee-test)",
+        base="lrp57",
+    ),
+    _d(
+        "lrp188",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "taught receptive vocabulary -> word reading (GP knee-test)",
+        base="lrp88",
+    ),
+    _d(
+        "lrp189",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "taught expressive vocabulary -> word reading (GP knee-test)",
+        base="lrp89",
+    ),
     # Legacy ids 190/191 (not 91/92): the bare mechanism legacy alias is family-less,
     # so 91/92 would collide with the live lcsm-091 (lrp91) and med-092 (lrp92) aliases
     # and the fit CLI would silently resolve the shorthand to the wrong family (PR #359
     # review). live_legacy_alias_collisions() + its test now guard against a recurrence.
     _d("lrp190", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phoneme blending -> word reading (GP knee-test)"),
-    _d("lrp191", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "intervention sessions -> word reading (GP dose knee-test)"),
+    _d(
+        "lrp191",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "intervention sessions -> word reading (GP dose knee-test)",
+    ),
     # Joint-readiness: letter sounds x vocabulary interaction (do both need to be high?).
     # Companions to LRP71 (L x E); one per vocabulary measure.
     _d("lrp93", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x receptive-vocabulary interaction"),
-    _d("lrp94", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-receptive-vocabulary interaction"),
-    _d("lrp95", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x taught-expressive-vocabulary interaction"),
+    _d(
+        "lrp94",
+        "mechanism",
+        "Moderation",
+        Status.ASSOCIATION,
+        "W",
+        "letter sounds x taught-receptive-vocabulary interaction",
+    ),
+    _d(
+        "lrp95",
+        "mechanism",
+        "Moderation",
+        Status.ASSOCIATION,
+        "W",
+        "letter sounds x taught-expressive-vocabulary interaction",
+    ),
     # Joint-readiness: letter sounds x CODE-ROUTE interaction on word reading (#404).
     # Does the L->W conversion depend on blending (B) / nonword decoding (N) being in
     # place? B/N are downstream of L, so gamma_int is effect-modification by a descendant,
     # not a symmetric 'both needed' test. Each has a no-interaction baseline (nested LOO).
-    _d("lrp61", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x phoneme-blending interaction (#404)"),
-    _d("lrp161", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline (L + blending main effects -> W)", base="lrp61"),
-    _d("lrp63", "mechanism", "Moderation", Status.ASSOCIATION, "W", "letter sounds x nonword-decoding interaction (#404)"),
-    _d("lrp163", "mechanism", "Moderation", Status.COMPANION, "W", "no-interaction baseline (L + nonword decoding main effects -> W)", base="lrp63"),
+    _d(
+        "lrp61",
+        "mechanism",
+        "Moderation",
+        Status.ASSOCIATION,
+        "W",
+        "letter sounds x phoneme-blending interaction (#404)",
+    ),
+    _d(
+        "lrp161",
+        "mechanism",
+        "Moderation",
+        Status.COMPANION,
+        "W",
+        "no-interaction baseline (L + blending main effects -> W)",
+        base="lrp61",
+    ),
+    _d(
+        "lrp63",
+        "mechanism",
+        "Moderation",
+        Status.ASSOCIATION,
+        "W",
+        "letter sounds x nonword-decoding interaction (#404)",
+    ),
+    _d(
+        "lrp163",
+        "mechanism",
+        "Moderation",
+        Status.COMPANION,
+        "W",
+        "no-interaction baseline (L + nonword decoding main effects -> W)",
+        base="lrp63",
+    ),
     # Tier-1 decoding-specificity mini-suite (notes/202607172330-tier1-decoding-specificity-spec.md):
     # matched *linear* letter-sound slopes for the L->N vs L->W convergent-discriminant
     # contrast (1A) and the negative-control-outcome panel (1B). All linear_mechanism so
     # the cross-outcome forest/contrast is like-for-like.
-    _d("lrp96", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "decoding channel: letter sounds -> nonword decoding (1A contrast vs lrp101)"),
-    _d("lrp101", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "linear letter sounds -> word reading (Tier-1 contrast/panel anchor; linear counterpart of the HSGP lrp58)"),
+    _d(
+        "lrp96",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "N",
+        "decoding channel: letter sounds -> nonword decoding (1A contrast vs lrp101)",
+    ),
+    _d(
+        "lrp101",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "linear letter sounds -> word reading (Tier-1 contrast/panel anchor; linear counterpart of the HSGP lrp58)",
+    ),
     # #421 Tier 1: phonological-memory / speech -> nonword decoding (alphabetic-route
     # discriminators from the LS->WR review note, #424). Covariate exposures, linear
     # (floored N outcome). Ids 102/103 per that note; the earlier #405 TR/TE->L models
     # that had reserved 102-105 were dropped (#423), freeing them.
-    _d("lrp102", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "phonological memory (RW) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
-    _d("lrp103", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "speech production (SP) -> nonword decoding (#421 Tier 1; linear, covariate exposure)"),
-    _d("lrp97", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "negative-control outcome: letter sounds -> receptive vocabulary"),
-    _d("lrp98", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "negative-control outcome: letter sounds -> expressive vocabulary"),
-    _d("lrp99", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "negative-control outcome: letter sounds -> receptive grammar"),
-    _d("lrp100", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "negative-control outcome: letter sounds -> basic concepts"),
+    _d(
+        "lrp102",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "N",
+        "phonological memory (RW) -> nonword decoding (#421 Tier 1; linear, covariate exposure)",
+    ),
+    _d(
+        "lrp103",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "N",
+        "speech production (SP) -> nonword decoding (#421 Tier 1; linear, covariate exposure)",
+    ),
+    _d(
+        "lrp97",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "R",
+        "negative-control outcome: letter sounds -> receptive vocabulary",
+    ),
+    _d(
+        "lrp98",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "E",
+        "negative-control outcome: letter sounds -> expressive vocabulary",
+    ),
+    _d(
+        "lrp99",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "T",
+        "negative-control outcome: letter sounds -> receptive grammar",
+    ),
+    _d(
+        "lrp100",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "F",
+        "negative-control outcome: letter sounds -> basic concepts",
+    ),
     # Ability-adjusted Tier-1 panel (#: the negative controls came out clearly
     # positive, so the panel is re-fitted with the measured general-ability proxy
     # ``blocks`` partialled out; 1NN mirrors its 0NN parent exactly otherwise).
-    _d("lrp196", "mechanism", "Mechanism", Status.ASSOCIATION, "N", "ability-adjusted decoding channel: letter sounds -> nonword decoding (lrp96 + blocks)"),
-    _d("lrp197", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "ability-adjusted negative control: letter sounds -> receptive vocabulary (lrp97 + blocks)", "lrp97"),
-    _d("lrp198", "mechanism", "Mechanism", Status.ASSOCIATION, "E", "ability-adjusted negative control: letter sounds -> expressive vocabulary (lrp98 + blocks)", "lrp98"),
-    _d("lrp199", "mechanism", "Mechanism", Status.ASSOCIATION, "T", "ability-adjusted negative control: letter sounds -> receptive grammar (lrp99 + blocks)", "lrp99"),
-    _d("lrp200", "mechanism", "Mechanism", Status.ASSOCIATION, "F", "ability-adjusted negative control: letter sounds -> basic concepts (lrp100 + blocks)", "lrp100"),
-    _d("lrp201", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted Tier-1 anchor: letter sounds -> word reading (lrp101 + blocks)", "lrp101"),
-    _d("lrp258", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "ability-adjusted counterpart of the lrp58 letter-sound -> word-reading HSGP curve (lrp58 + blocks)", "lrp58"),
+    _d(
+        "lrp196",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "N",
+        "ability-adjusted decoding channel: letter sounds -> nonword decoding (lrp96 + blocks)",
+    ),
+    _d(
+        "lrp197",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "R",
+        "ability-adjusted negative control: letter sounds -> receptive vocabulary (lrp97 + blocks)",
+        "lrp97",
+    ),
+    _d(
+        "lrp198",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "E",
+        "ability-adjusted negative control: letter sounds -> expressive vocabulary (lrp98 + blocks)",
+        "lrp98",
+    ),
+    _d(
+        "lrp199",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "T",
+        "ability-adjusted negative control: letter sounds -> receptive grammar (lrp99 + blocks)",
+        "lrp99",
+    ),
+    _d(
+        "lrp200",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "F",
+        "ability-adjusted negative control: letter sounds -> basic concepts (lrp100 + blocks)",
+        "lrp100",
+    ),
+    _d(
+        "lrp201",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "ability-adjusted Tier-1 anchor: letter sounds -> word reading (lrp101 + blocks)",
+        "lrp101",
+    ),
+    _d(
+        "lrp258",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "ability-adjusted counterpart of the lrp58 letter-sound -> word-reading HSGP curve (lrp58 + blocks)",
+        "lrp58",
+    ),
     # --- #586 Batch C estimand and prior sensitivities (#603, #604, #605) -------
     # Each is matched term-for-term to its pooled comparator and differs in exactly
     # one declared setting, so a difference is attributable to that setting alone.
     # None is causal; every coefficient in the family is an adjusted association.
-    _d("lrp301", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "between/within (Mundlak) split of the lrp101 letter-sound -> word-reading slope (#603)", "lrp101"),
-    _d("lrp302", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "phase-stability sensitivity: partially-pooled per-period letter-sound -> word-reading slopes (#604)", "lrp101"),
-    _d("lrp303", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "phase-stability sensitivity: partially-pooled per-period letter-sound -> receptive-vocabulary slopes (#604)", "lrp97"),
-    _d("lrp304", "mechanism", "Mechanism", Status.ASSOCIATION, "W", "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp101 fit (n = 79) (#605)", "lrp101"),
-    _d("lrp305", "mechanism", "Mechanism", Status.ASSOCIATION, "R", "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp97 fit (n = 170) (#605)", "lrp97"),
+    _d(
+        "lrp301",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "between/within (Mundlak) split of the lrp101 letter-sound -> word-reading slope (#603)",
+        "lrp101",
+    ),
+    _d(
+        "lrp302",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "phase-stability sensitivity: partially-pooled per-period letter-sound -> word-reading slopes (#604)",
+        "lrp101",
+    ),
+    _d(
+        "lrp303",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "R",
+        "phase-stability sensitivity: partially-pooled per-period letter-sound -> receptive-vocabulary slopes (#604)",
+        "lrp97",
+    ),
+    _d(
+        "lrp304",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "W",
+        "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp101 fit (n = 79) (#605)",
+        "lrp101",
+    ),
+    _d(
+        "lrp305",
+        "mechanism",
+        "Mechanism",
+        Status.ASSOCIATION,
+        "R",
+        "dispersion prior sensitivity: 1/sqrt(kappa) ~ HalfNormal(0.25) on the lrp97 fit (n = 170) (#605)",
+        "lrp97",
+    ),
     # --- Composite-ability reliability check on the ability-adjusted panel ------
     # The 1NN panel and lrp258 adjust for ``blocks`` alone, and the obvious rebuttal
     # is that this is one noisy subtest. Block Design and Object Assembly correlate
@@ -331,49 +933,250 @@ _MECH = [
     # the two subtests share is a narrow visuospatial factor, NOT the latent ``GA``
     # of the DAG: these are still adjusted associations, and a screening regression
     # expects agreement with the parent rather than movement.
-    _d("lrp306", "mechanism", "Mechanism", Status.COMPANION, "N", "composite-ability decoding channel: letter sounds -> nonword decoding (lrp196 with objass_c)", "lrp196"),
-    _d("lrp307", "mechanism", "Mechanism", Status.COMPANION, "R", "composite-ability negative control: letter sounds -> receptive vocabulary (lrp197 with objass_c)", "lrp197"),
-    _d("lrp308", "mechanism", "Mechanism", Status.COMPANION, "E", "composite-ability negative control: letter sounds -> expressive vocabulary (lrp198 with objass_c)", "lrp198"),
-    _d("lrp309", "mechanism", "Mechanism", Status.COMPANION, "T", "composite-ability negative control: letter sounds -> receptive grammar (lrp199 with objass_c)", "lrp199"),
-    _d("lrp310", "mechanism", "Mechanism", Status.COMPANION, "F", "composite-ability negative control: letter sounds -> basic concepts (lrp200 with objass_c)", "lrp200"),
-    _d("lrp311", "mechanism", "Mechanism", Status.COMPANION, "W", "composite-ability Tier-1 anchor: letter sounds -> word reading (lrp201 with objass_c)", "lrp201"),
-    _d("lrp312", "mechanism", "Mechanism", Status.COMPANION, "W", "composite-ability counterpart of the lrp258 letter-sound -> word-reading HSGP curve (lrp258 with objass_c)", "lrp258"),
-    _d("lrppl01", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: letter sounds -> word reading (per-wave intercepts, child RE)"),
-    _d("lrppl02", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "N", "wave-pooled between-child level association: letter sounds -> nonword decoding"),
-    _d("lrppl101", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "no-wave-intercept comparator for lrppl01 (slope also carries secular co-movement)", "lrppl01"),
+    _d(
+        "lrp306",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "N",
+        "composite-ability decoding channel: letter sounds -> nonword decoding (lrp196 with objass_c)",
+        "lrp196",
+    ),
+    _d(
+        "lrp307",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "R",
+        "composite-ability negative control: letter sounds -> receptive vocabulary (lrp197 with objass_c)",
+        "lrp197",
+    ),
+    _d(
+        "lrp308",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "E",
+        "composite-ability negative control: letter sounds -> expressive vocabulary (lrp198 with objass_c)",
+        "lrp198",
+    ),
+    _d(
+        "lrp309",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "T",
+        "composite-ability negative control: letter sounds -> receptive grammar (lrp199 with objass_c)",
+        "lrp199",
+    ),
+    _d(
+        "lrp310",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "F",
+        "composite-ability negative control: letter sounds -> basic concepts (lrp200 with objass_c)",
+        "lrp200",
+    ),
+    _d(
+        "lrp311",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "W",
+        "composite-ability Tier-1 anchor: letter sounds -> word reading (lrp201 with objass_c)",
+        "lrp201",
+    ),
+    _d(
+        "lrp312",
+        "mechanism",
+        "Mechanism",
+        Status.COMPANION,
+        "W",
+        "composite-ability counterpart of the lrp258 letter-sound -> word-reading HSGP curve (lrp258 with objass_c)",
+        "lrp258",
+    ),
+    _d(
+        "lrppl01",
+        "pooled_levels",
+        "Pooled levels",
+        Status.ASSOCIATION,
+        "W",
+        "wave-pooled between-child level association: letter sounds -> word reading (per-wave intercepts, child RE)",
+    ),
+    _d(
+        "lrppl02",
+        "pooled_levels",
+        "Pooled levels",
+        Status.ASSOCIATION,
+        "N",
+        "wave-pooled between-child level association: letter sounds -> nonword decoding",
+    ),
+    _d(
+        "lrppl101",
+        "pooled_levels",
+        "Pooled levels",
+        Status.ASSOCIATION,
+        "W",
+        "no-wave-intercept comparator for lrppl01 (slope also carries secular co-movement)",
+        "lrppl01",
+    ),
     # #553: the between/within split extended to the other predictors of word
     # reading. E and R are bounded-count exposures with same-wave skill adjusters
     # (the mechanism family's adjustment sets minus the own baseline); erbto and
     # deapp_c are raw-score covariate exposures, complete-case on the exposure.
-    _d("lrppl03", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: expressive vocabulary -> word reading (same-wave TR/TE/R skill adjusters)"),
-    _d("lrppl04", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: receptive vocabulary -> word reading (same-wave TR skill adjuster)"),
-    _d("lrppl05", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: phonological memory (erbto, raw-score covariate exposure) -> word reading"),
-    _d("lrppl06", "pooled_levels", "Pooled levels", Status.ASSOCIATION, "W", "wave-pooled between-child level association: speech production (deapp_c, raw-score covariate exposure) -> word reading"),
+    _d(
+        "lrppl03",
+        "pooled_levels",
+        "Pooled levels",
+        Status.ASSOCIATION,
+        "W",
+        "wave-pooled between-child level association: expressive vocabulary -> word reading (same-wave TR/TE/R skill adjusters)",
+    ),
+    _d(
+        "lrppl04",
+        "pooled_levels",
+        "Pooled levels",
+        Status.ASSOCIATION,
+        "W",
+        "wave-pooled between-child level association: receptive vocabulary -> word reading (same-wave TR skill adjuster)",
+    ),
+    _d(
+        "lrppl05",
+        "pooled_levels",
+        "Pooled levels",
+        Status.ASSOCIATION,
+        "W",
+        "wave-pooled between-child level association: phonological memory (erbto, raw-score covariate exposure) -> word reading",
+    ),
+    _d(
+        "lrppl06",
+        "pooled_levels",
+        "Pooled levels",
+        Status.ASSOCIATION,
+        "W",
+        "wave-pooled between-child level association: speech production (deapp_c, raw-score covariate exposure) -> word reading",
+    ),
     _d("lrp59", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via letter sounds"),
     _d("lrp68", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-expressive vocabulary"),
-    _d("lrp80", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via taught-receptive vocabulary (TE companion)"),
+    _d(
+        "lrp80",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "g-formula via taught-receptive vocabulary (TE companion)",
+    ),
     _d("lrp74", "mediation", "Mediation", Status.ASSOCIATION, "W", "g-formula via nonword decoding (floor-limited)"),
     _d("lrp62", "mediation", "Mediation", Status.ASSOCIATION, "W", "reading-route composite mediation"),
-    _d("lrp64", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs expressive vocabulary)"),
-    _d("lrp66", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "two-mediator decomposition (letter sounds vs phoneme blending)"),
-    _d("lrp75", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> blending -> reading)"),
+    _d(
+        "lrp64",
+        "mediation_multi",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "two-mediator decomposition (letter sounds vs expressive vocabulary)",
+    ),
+    _d(
+        "lrp66",
+        "mediation_multi",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "two-mediator decomposition (letter sounds vs phoneme blending)",
+    ),
+    _d(
+        "lrp75",
+        "mediation_multi",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "sequential code route (letter sounds -> blending -> reading)",
+    ),
     # #421 Tier 3: the note proposed med-081, but the bare alias lrp81 is already the
     # live lcsm-081; registered as med-060 (lowest free bare alias in the med range).
-    _d("lrp60", "mediation_multi", "Mediation", Status.ASSOCIATION, "W", "sequential code route (letter sounds -> nonword decoding -> reading; off-floor second mediator, #421 Tier 3; note's proposed 081 collided with lcsm-081)"),
-    _d("lrp76", "mediation", "Mediation", Status.ASSOCIATION, "W", "longitudinal-ordering (letter sounds t2 -> reading t4)"),
-    _d("lrp176", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse longitudinal-ordering (word reading t2 -> letter sounds t4); WR->LS direction contrast to lrp76", base="lrp76"),
-    _d("lrp276", "mediation", "Mediation", Status.ASSOCIATION, "L", "reverse WR->LS with t3 outcome (less-ceilinged sensitivity to lrp176)", base="lrp176"),
-    _d("lrp78", "mediation", "Mediation", Status.ASSOCIATION, "W", "interventional-effects decomposition via letter sounds"),
-    _d("lrp79", "mediation", "Mediation", Status.ASSOCIATION, "W", "negative-control mediator (grammar; calibrates GA confounding)"),
+    _d(
+        "lrp60",
+        "mediation_multi",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "sequential code route (letter sounds -> nonword decoding -> reading; off-floor second mediator, #421 Tier 3; note's proposed 081 collided with lcsm-081)",
+    ),
+    _d(
+        "lrp76",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "longitudinal-ordering (letter sounds t2 -> reading t4)",
+    ),
+    _d(
+        "lrp176",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "L",
+        "reverse longitudinal-ordering (word reading t2 -> letter sounds t4); WR->LS direction contrast to lrp76",
+        base="lrp76",
+    ),
+    _d(
+        "lrp276",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "L",
+        "reverse WR->LS with t3 outcome (less-ceilinged sensitivity to lrp176)",
+        base="lrp176",
+    ),
+    _d(
+        "lrp78",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "interventional-effects decomposition via letter sounds",
+    ),
+    _d(
+        "lrp79",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "negative-control mediator (grammar; calibrates GA confounding)",
+    ),
     # Code route beyond word reading (#228 item 12): the purest decoding outcome
     # (nonword N, off-floor) and the downstream chain link (blending B), both via L.
-    _d("lrp86", "mediation", "Mediation", Status.ASSOCIATION, "N", "g-formula via letter sounds (nonword, off-floor risk difference)"),
+    _d(
+        "lrp86",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "N",
+        "g-formula via letter sounds (nonword, off-floor risk difference)",
+    ),
     _d("lrp87", "mediation", "Mediation", Status.ASSOCIATION, "B", "g-formula via letter sounds (phoneme blending)"),
     # Interventional-estimand companions (#323), using the suite's parent+100
     # convention. Same fitted models/adjustment sets as MED-086/087; IDE/IIE
     # replace the cross-world NDE/NIE interpretation.
-    _d("lrp186", "mediation", "Mediation", Status.COMPANION, "N", "interventional-effects analogue via letter sounds (nonword, off-floor risk difference)", base="lrp86"),
-    _d("lrp187", "mediation", "Mediation", Status.COMPANION, "B", "interventional-effects analogue via letter sounds (phoneme blending)", base="lrp87"),
+    _d(
+        "lrp186",
+        "mediation",
+        "Mediation",
+        Status.COMPANION,
+        "N",
+        "interventional-effects analogue via letter sounds (nonword, off-floor risk difference)",
+        base="lrp86",
+    ),
+    _d(
+        "lrp187",
+        "mediation",
+        "Mediation",
+        Status.COMPANION,
+        "B",
+        "interventional-effects analogue via letter sounds (phoneme blending)",
+        base="lrp87",
+    ),
     # Phoneme blending is response-link sensitive: each item has three alternatives,
     # so the ordinary inverse-logit outcome mean permits below-chance expected
     # scores, and the lrp87 posterior carries the LARGEST below-chance share of any
@@ -381,69 +1184,259 @@ _MECH = [
     # releases together or not at all. Scope is the model of record: lrp187 is a
     # declared interventional relabelling companion whose numbers reproduce lrp87's,
     # so it is exempt and its prose names the paired headline.
-    _d("lrp87f", "mediation", "Mediation link sensitivity", Status.ROBUSTNESS, "B",
-       "g-formula via letter sounds under the three-choice guessing-floor outcome link",
-       base="lrp87"),
+    _d(
+        "lrp87f",
+        "mediation",
+        "Mediation link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "g-formula via letter sounds under the three-choice guessing-floor outcome link",
+        base="lrp87",
+    ),
     # Period-stacked companion (#229 recommendation 2): the LRP59 design on the
     # gain-factor scaffold, exposure = per-period on-intervention (ignorability).
-    _d("lrp92", "mediation", "Mediation", Status.ASSOCIATION, "W", "period-stacked g-formula via letter sounds (gain-factor scaffold, per-period on-intervention exposure)", base="lrp59"),
+    _d(
+        "lrp92",
+        "mediation",
+        "Mediation",
+        Status.ASSOCIATION,
+        "W",
+        "period-stacked g-formula via letter sounds (gain-factor scaffold, per-period on-intervention exposure)",
+        base="lrp59",
+    ),
 ]
 
 # --- DAG-focused associations, dose-response, latent structure and cross-checks ----
 _STRUCT = [
-    _d("lrp65", "adjusted", "Adjusted association", Status.ASSOCIATION, "W", "between-child independent baseline predictors of word-reading gain"),
-    _d("lrp67", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "coupled letter-sounds and vocabulary predicting reading change"),
+    _d(
+        "lrp65",
+        "adjusted",
+        "Adjusted association",
+        Status.ASSOCIATION,
+        "W",
+        "between-child independent baseline predictors of word-reading gain",
+    ),
+    _d(
+        "lrp67",
+        "lcsm",
+        "Latent change score",
+        Status.ASSOCIATION,
+        "W",
+        "coupled letter-sounds and vocabulary predicting reading change",
+    ),
     # Lagged reverse-coupling suite on the time-lagged DAG (#250; design
     # notes/202607141030-time-lagged-model-designs.md).
-    _d("lrp81", "lcsm", "Latent change score", Status.ASSOCIATION, "TE", "lagged reverse coupling: prior word reading predicting taught-vocabulary change (W->TE, W->TR)"),
-    _d("lrp181", "lcsm", "Latent change score", Status.COMPANION, "TE", "no-reverse-coupling LOO comparator", base="lrp81"),
-    _d("lrp82", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "reciprocal dominance: blending <-> word reading lagged cross-couplings (exploratory)"),
+    _d(
+        "lrp81",
+        "lcsm",
+        "Latent change score",
+        Status.ASSOCIATION,
+        "TE",
+        "lagged reverse coupling: prior word reading predicting taught-vocabulary change (W->TE, W->TR)",
+    ),
+    _d(
+        "lrp181",
+        "lcsm",
+        "Latent change score",
+        Status.COMPANION,
+        "TE",
+        "no-reverse-coupling LOO comparator",
+        base="lrp81",
+    ),
+    _d(
+        "lrp82",
+        "lcsm",
+        "Latent change score",
+        Status.ASSOCIATION,
+        "W",
+        "reciprocal dominance: blending <-> word reading lagged cross-couplings (exploratory)",
+    ),
     # Change-on-change extension (#229 spec 2, notes/202607131530-lrp229-lcsm-change-change-spec.md).
-    _d("lrp91", "lcsm", "Latent change score", Status.ASSOCIATION, "W", "lagged change-on-change: prior letter-sound / vocabulary change predicting reading change (exploratory)", base="lrp67"),
-    _d("lrp69", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves: baseline non-verbal ability predicting trajectory shape (independent-core)"),
-    _d("lrp70", "growth", "Growth curve", Status.ASSOCIATION, None, "joint multivariate growth curves with a shared growth-tempo factor", base="lrp69"),
-    _d("lrp85", "growth", "Growth curve", Status.ASSOCIATION, None, "age x ability interaction on growth rate (older-and-more-able progress more)", base="lrp69"),
-    _d("lrp77", "dose_response", "Dose-response", Status.ASSOCIATION, "W", "period-resolved intervention dose -> word reading"),
-    _d("lrp77a", "dose_response", "Dose-response", Status.ROBUSTNESS, "W", "ability-adjusted sensitivity", base="lrp77"),
-    _d("lrp77base", "dose_response", "Dose-response", Status.COMPANION, "W", "pooled-dose-slope comparator", base="lrp77"),
+    _d(
+        "lrp91",
+        "lcsm",
+        "Latent change score",
+        Status.ASSOCIATION,
+        "W",
+        "lagged change-on-change: prior letter-sound / vocabulary change predicting reading change (exploratory)",
+        base="lrp67",
+    ),
+    _d(
+        "lrp69",
+        "growth",
+        "Growth curve",
+        Status.ASSOCIATION,
+        None,
+        "joint multivariate growth curves: baseline non-verbal ability predicting trajectory shape (independent-core)",
+    ),
+    _d(
+        "lrp70",
+        "growth",
+        "Growth curve",
+        Status.ASSOCIATION,
+        None,
+        "joint multivariate growth curves with a shared growth-tempo factor",
+        base="lrp69",
+    ),
+    _d(
+        "lrp85",
+        "growth",
+        "Growth curve",
+        Status.ASSOCIATION,
+        None,
+        "age x ability interaction on growth rate (older-and-more-able progress more)",
+        base="lrp69",
+    ),
+    _d(
+        "lrp77",
+        "dose_response",
+        "Dose-response",
+        Status.ASSOCIATION,
+        "W",
+        "period-resolved intervention dose -> word reading",
+    ),
+    _d(
+        "lrp77a", "dose_response", "Dose-response", Status.ROBUSTNESS, "W", "ability-adjusted sensitivity", base="lrp77"
+    ),
+    _d(
+        "lrp77base",
+        "dose_response",
+        "Dose-response",
+        Status.COMPANION,
+        "W",
+        "pooled-dose-slope comparator",
+        base="lrp77",
+    ),
     # Dose-response coverage for the two largest available-case modified ITT estimates, L and B (#228 item 2);
     # the W family covers only word reading. Same observational IS->outcome estimand.
-    _d("lrp83", "dose_response", "Dose-response", Status.ASSOCIATION, "L", "period-resolved intervention dose -> letter sounds"),
-    _d("lrp84", "dose_response", "Dose-response", Status.ASSOCIATION, "B", "period-resolved intervention dose -> phoneme blending"),
+    _d(
+        "lrp83",
+        "dose_response",
+        "Dose-response",
+        Status.ASSOCIATION,
+        "L",
+        "period-resolved intervention dose -> letter sounds",
+    ),
+    _d(
+        "lrp84",
+        "dose_response",
+        "Dose-response",
+        Status.ASSOCIATION,
+        "B",
+        "period-resolved intervention dose -> phoneme blending",
+    ),
     # Phoneme blending is response-link sensitive: each item has three alternatives,
     # so the ordinary inverse-logit mean permits below-chance expected scores, and
     # the lrp84 posterior uses that room (7.0 % of the mass, #619). This family is
     # the case #608 used to reject exempting observational families: its focal
     # estimand is the natural-scale treated-row dose marginal, published in items,
     # so it inherits the link exactly as a randomised contrast does.
-    _d("lrp84f", "dose_response", "Dose-response link sensitivity", Status.ROBUSTNESS, "B",
-       "period-resolved dose under the three-choice guessing-floor score-mean link",
-       base="lrp84"),
-    _d("lrpmm01", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "correlated-domain-factor measurement model (vocabulary / code / grammar)"),
-    _d("lrpmm101", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "prior-geometry sensitivity for LRPMM01 (legacy free loading / residual pair, #383)", base="lrpmm01"),
-    _d("lrpmm02", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "errors-in-variables code->word-reading mechanism slope (latent code factor, mech-058 adjustment)", base="lrpmm01"),
+    _d(
+        "lrp84f",
+        "dose_response",
+        "Dose-response link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "period-resolved dose under the three-choice guessing-floor score-mean link",
+        base="lrp84",
+    ),
+    _d(
+        "lrpmm01",
+        "corr_factor",
+        "Measurement model",
+        Status.ASSOCIATION,
+        "W",
+        "correlated-domain-factor measurement model (vocabulary / code / grammar)",
+    ),
+    _d(
+        "lrpmm101",
+        "corr_factor",
+        "Measurement model",
+        Status.ASSOCIATION,
+        "W",
+        "prior-geometry sensitivity for LRPMM01 (legacy free loading / residual pair, #383)",
+        base="lrpmm01",
+    ),
+    _d(
+        "lrpmm02",
+        "corr_factor",
+        "Measurement model",
+        Status.ASSOCIATION,
+        "W",
+        "errors-in-variables code->word-reading mechanism slope (latent code factor, mech-058 adjustment)",
+        base="lrpmm01",
+    ),
     # #382 rec 1: the focal EiV slope's prior widened to the primary-mechanism
     # N(0, 1); beta_G deliberately keeps the association scale.
-    _d("lrpmm102", "corr_factor", "Measurement model", Status.ASSOCIATION, "W", "focal-slope prior sensitivity for LRPMM02 (beta_code at N(0, 1))", base="lrpmm02"),
-    _d("lrphs01", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading gain)"),
-    _d("lrphs02", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "W", "regularised-horseshoe ranking cross-check (word-reading level)"),
+    _d(
+        "lrpmm102",
+        "corr_factor",
+        "Measurement model",
+        Status.ASSOCIATION,
+        "W",
+        "focal-slope prior sensitivity for LRPMM02 (beta_code at N(0, 1))",
+        base="lrpmm02",
+    ),
+    _d(
+        "lrphs01",
+        "horseshoe",
+        "Horseshoe ranking",
+        Status.ASSOCIATION,
+        "W",
+        "regularised-horseshoe ranking cross-check (word-reading gain)",
+    ),
+    _d(
+        "lrphs02",
+        "horseshoe",
+        "Horseshoe ranking",
+        Status.ASSOCIATION,
+        "W",
+        "regularised-horseshoe ranking cross-check (word-reading level)",
+    ),
     # Ranking cross-check for the flagship letter-sound outcome L (#228 item 3);
     # hs-001/002 cover word reading only. Cross-checked vs GB gbg-009 / gbl-009.
-    _d("lrphs03", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "L", "regularised-horseshoe ranking cross-check (letter-sound gain)"),
-    _d("lrphs04", "horseshoe", "Horseshoe ranking", Status.ASSOCIATION, "L", "regularised-horseshoe ranking cross-check (letter-sound level)"),
+    _d(
+        "lrphs03",
+        "horseshoe",
+        "Horseshoe ranking",
+        Status.ASSOCIATION,
+        "L",
+        "regularised-horseshoe ranking cross-check (letter-sound gain)",
+    ),
+    _d(
+        "lrphs04",
+        "horseshoe",
+        "Horseshoe ranking",
+        Status.ASSOCIATION,
+        "L",
+        "regularised-horseshoe ranking cross-check (letter-sound level)",
+    ),
 ]
 
 # --- Factor families (gain / level) and onset-aligned per-protocol ----------------
 _FACTOR_OUTCOMES = ["W", "R", "E", "L", "P", "B", "F", "T"]  # numbering 01..08
 
 _GAIN = [
-    _d(f"lrpgf{i:02d}", "gain_factors", "Gain factors", Status.ASSOCIATION, o,
-       "ANCOVA gain; only the on-intervention term is causal")
+    _d(
+        f"lrpgf{i:02d}",
+        "gain_factors",
+        "Gain factors",
+        Status.ASSOCIATION,
+        o,
+        "ANCOVA gain; only the on-intervention term is causal",
+    )
     for i, o in enumerate(_FACTOR_OUTCOMES, 1)
 ]
 _GAINB = [
-    _d(f"lrpgf{i:02d}b", "gain_factors", "Gain factors", Status.COMPANION, o,
-       "treated-only companion", base=f"lrpgf{i:02d}")
+    _d(
+        f"lrpgf{i:02d}b",
+        "gain_factors",
+        "Gain factors",
+        Status.COMPANION,
+        o,
+        "treated-only companion",
+        base=f"lrpgf{i:02d}",
+    )
     for i, o in enumerate(_FACTOR_OUTCOMES, 1)
 ]
 # Associational treatment-moderation variants (#391 finding 3 decision, 2026-07-22):
@@ -452,23 +1445,49 @@ _GAINB = [
 # (gf-012/013 are alternate adjustment sets for TR/TE whose moderation is covered
 # by the gf-009/010 variants). Extended below for the TR/TE/N primaries.
 _GAINM = [
-    _d(f"lrpgf{i:02d}m", "gain_factors", "Gain factors", Status.COMPANION, o,
-       "associational treatment-moderation variant", base=f"lrpgf{i:02d}")
+    _d(
+        f"lrpgf{i:02d}m",
+        "gain_factors",
+        "Gain factors",
+        Status.COMPANION,
+        o,
+        "associational treatment-moderation variant",
+        base=f"lrpgf{i:02d}",
+    )
     for i, o in enumerate(_FACTOR_OUTCOMES, 1)
 ]
 _LEVEL = [
-    _d(f"lrplf{i:02d}", "level_factors", "Level factors", Status.ASSOCIATION, o,
-       "levels view; only the t2 group contrast is randomised")
+    _d(
+        f"lrplf{i:02d}",
+        "level_factors",
+        "Level factors",
+        Status.ASSOCIATION,
+        o,
+        "levels view; only the t2 group contrast is randomised",
+    )
     for i, o in enumerate(_FACTOR_OUTCOMES, 1)
 ]
 _ALIGNED = [
-    _d(f"lrpal{i:02d}", "aligned", "Aligned per-protocol", Status.ASSOCIATION, o,
-       "onset-aligned; no term is causal (age-at-onset confound)")
+    _d(
+        f"lrpal{i:02d}",
+        "aligned",
+        "Aligned per-protocol",
+        Status.ASSOCIATION,
+        o,
+        "onset-aligned; no term is causal (age-at-onset confound)",
+    )
     for i, o in enumerate(_FACTOR_OUTCOMES, 1)
 ]
 _ALIGNED.append(
-    _d("lrpal01d", "aligned", "Aligned per-protocol", Status.ASSOCIATION, "W",
-       "cumulative-session dose sensitivity (collider)", base="lrpal01")
+    _d(
+        "lrpal01d",
+        "aligned",
+        "Aligned per-protocol",
+        Status.ASSOCIATION,
+        "W",
+        "cumulative-session dose sensitivity (collider)",
+        base="lrpal01",
+    )
 )
 # Phoneme blending is response-link sensitive: each item has three alternatives, so
 # the ordinary inverse-logit mean permits below-chance expected scores, and the
@@ -476,9 +1495,15 @@ _ALIGNED.append(
 # releases together or not at all, mirroring lrpitt08/08b, lrplf06/06b and
 # lrpgf06/06f. Scope is the model of record: the dose sensitivity variant is out.
 _ALIGNED.append(
-    _d("lrpal06f", "aligned", "Aligned per-protocol link sensitivity", Status.ROBUSTNESS, "B",
-       "onset-aligned gain under the three-choice guessing-floor score-mean link",
-       base="lrpal06")
+    _d(
+        "lrpal06f",
+        "aligned",
+        "Aligned per-protocol link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "onset-aligned gain under the three-choice guessing-floor score-mean link",
+        base="lrpal06",
+    )
 )
 
 # Taught-vocabulary factor models (#224, carried forward on the revised DAG in #247).
@@ -486,21 +1511,52 @@ _ALIGNED.append(
 # models are generated for TR/TE - the treated-only (``…b``) and onset-aligned families
 # are out of scope.
 _GAIN += [
-    _d("lrpgf09", "gain_factors", "Gain factors", Status.ASSOCIATION, "TR",
-       "ANCOVA gain; only the on-intervention term is causal"),
-    _d("lrpgf10", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
-       "ANCOVA gain; only the on-intervention term is causal"),
+    _d(
+        "lrpgf09",
+        "gain_factors",
+        "Gain factors",
+        Status.ASSOCIATION,
+        "TR",
+        "ANCOVA gain; only the on-intervention term is causal",
+    ),
+    _d(
+        "lrpgf10",
+        "gain_factors",
+        "Gain factors",
+        Status.ASSOCIATION,
+        "TE",
+        "ANCOVA gain; only the on-intervention term is causal",
+    ),
 ]
 _LEVEL += [
-    _d("lrplf09", "level_factors", "Level factors", Status.ASSOCIATION, "TR",
-       "levels view; only the t2 group contrast is randomised"),
-    _d("lrplf10", "level_factors", "Level factors", Status.ASSOCIATION, "TE",
-       "levels view; only the t2 group contrast is randomised"),
+    _d(
+        "lrplf09",
+        "level_factors",
+        "Level factors",
+        Status.ASSOCIATION,
+        "TR",
+        "levels view; only the t2 group contrast is randomised",
+    ),
+    _d(
+        "lrplf10",
+        "level_factors",
+        "Level factors",
+        Status.ASSOCIATION,
+        "TE",
+        "levels view; only the t2 group contrast is randomised",
+    ),
     # Phoneme blending is response-link sensitive: each item has three alternatives,
     # so the ordinary inverse-logit mean permits below-chance expected scores. The
     # pair releases together or not at all (#584 decision 2), mirroring lrpitt08/08b.
-    _d("lrplf06b", "level_factors", "Level factors link sensitivity", Status.ROBUSTNESS, "B",
-       "levels view under the three-choice guessing-floor score-mean link", base="lrplf06"),
+    _d(
+        "lrplf06b",
+        "level_factors",
+        "Level factors link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "levels view under the three-choice guessing-floor score-mean link",
+        base="lrplf06",
+    ),
 ]
 # Randomised-window comparators (#584 decision 3): the same model restricted to the
 # t1/t2 window, so the reported t2 change borrows nothing from the post-crossover
@@ -508,31 +1564,75 @@ _LEVEL += [
 # ability. The four-wave fit remains the model of record; these are reported beside
 # it to show how much the longitudinal working model moved the answer.
 _LEVEL += [
-    _d(f"lrplf{i:02d}a", "level_factors", "Level factors window comparator",
-       Status.ROBUSTNESS, o,
-       "t1/t2 randomised-window comparator; no post-crossover data",
-       base=f"lrplf{i:02d}")
+    _d(
+        f"lrplf{i:02d}a",
+        "level_factors",
+        "Level factors window comparator",
+        Status.ROBUSTNESS,
+        o,
+        "t1/t2 randomised-window comparator; no post-crossover data",
+        base=f"lrplf{i:02d}",
+    )
     for i, o in enumerate(_FACTOR_OUTCOMES, 1)
 ]
 _LEVEL += [
-    _d("lrplf09a", "level_factors", "Level factors window comparator", Status.ROBUSTNESS, "TR",
-       "t1/t2 randomised-window comparator; no post-crossover data", base="lrplf09"),
-    _d("lrplf10a", "level_factors", "Level factors window comparator", Status.ROBUSTNESS, "TE",
-       "t1/t2 randomised-window comparator; no post-crossover data", base="lrplf10"),
-    _d("lrplf11a", "level_factors", "Level factors window comparator", Status.ROBUSTNESS, "N",
-       "t1/t2 randomised-window comparator; no post-crossover data", base="lrplf11"),
+    _d(
+        "lrplf09a",
+        "level_factors",
+        "Level factors window comparator",
+        Status.ROBUSTNESS,
+        "TR",
+        "t1/t2 randomised-window comparator; no post-crossover data",
+        base="lrplf09",
+    ),
+    _d(
+        "lrplf10a",
+        "level_factors",
+        "Level factors window comparator",
+        Status.ROBUSTNESS,
+        "TE",
+        "t1/t2 randomised-window comparator; no post-crossover data",
+        base="lrplf10",
+    ),
+    _d(
+        "lrplf11a",
+        "level_factors",
+        "Level factors window comparator",
+        Status.ROBUSTNESS,
+        "N",
+        "t1/t2 randomised-window comparator; no post-crossover data",
+        base="lrplf11",
+    ),
 ]
 
 # Nonword-reading factor models (#225, carried forward on the revised DAG in #247).
 # Off-floor Bernoulli likelihood like gf-005/lf-005 (phonetic spelling); added
 # explicitly, same rationale as the taught-vocabulary entries above.
 _GAIN += [
-    _d("lrpgf11", "gain_factors", "Gain factors", Status.ASSOCIATION, "N",
-       "ANCOVA gain; only the on-intervention term is causal"),
-    _d("lrpgf12", "gain_factors", "Gain factors", Status.ASSOCIATION, "TR",
-       "TR gains with broad vocabulary associates R,E (#421 Tier 1); only the on-intervention term is causal"),
-    _d("lrpgf13", "gain_factors", "Gain factors", Status.ASSOCIATION, "TE",
-       "TE gains with broad vocabulary associates TR,R,E (#421 Tier 1); only the on-intervention term is causal"),
+    _d(
+        "lrpgf11",
+        "gain_factors",
+        "Gain factors",
+        Status.ASSOCIATION,
+        "N",
+        "ANCOVA gain; only the on-intervention term is causal",
+    ),
+    _d(
+        "lrpgf12",
+        "gain_factors",
+        "Gain factors",
+        Status.ASSOCIATION,
+        "TR",
+        "TR gains with broad vocabulary associates R,E (#421 Tier 1); only the on-intervention term is causal",
+    ),
+    _d(
+        "lrpgf13",
+        "gain_factors",
+        "Gain factors",
+        Status.ASSOCIATION,
+        "TE",
+        "TE gains with broad vocabulary associates TR,R,E (#421 Tier 1); only the on-intervention term is causal",
+    ),
 ]
 _GAIN += [
     # Phoneme blending is response-link sensitive: each item has three alternatives,
@@ -541,20 +1641,54 @@ _GAIN += [
     # The pair releases together or not at all, mirroring lrpitt08/08b and
     # lrplf06/06b. Scope is the model of record: the treated-only (lrpgf06b) and
     # moderation (lrpgf06m) variants carry a recorded, dated exemption.
-    _d("lrpgf06f", "gain_factors", "Gain factors link sensitivity", Status.ROBUSTNESS, "B",
-       "ANCOVA gain under the three-choice guessing-floor score-mean link", base="lrpgf06"),
+    _d(
+        "lrpgf06f",
+        "gain_factors",
+        "Gain factors link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "ANCOVA gain under the three-choice guessing-floor score-mean link",
+        base="lrpgf06",
+    ),
 ]
 _GAINM += [
-    _d("lrpgf09m", "gain_factors", "Gain factors", Status.COMPANION, "TR",
-       "associational treatment-moderation variant", base="lrpgf09"),
-    _d("lrpgf10m", "gain_factors", "Gain factors", Status.COMPANION, "TE",
-       "associational treatment-moderation variant", base="lrpgf10"),
-    _d("lrpgf11m", "gain_factors", "Gain factors", Status.COMPANION, "N",
-       "associational treatment-moderation variant", base="lrpgf11"),
+    _d(
+        "lrpgf09m",
+        "gain_factors",
+        "Gain factors",
+        Status.COMPANION,
+        "TR",
+        "associational treatment-moderation variant",
+        base="lrpgf09",
+    ),
+    _d(
+        "lrpgf10m",
+        "gain_factors",
+        "Gain factors",
+        Status.COMPANION,
+        "TE",
+        "associational treatment-moderation variant",
+        base="lrpgf10",
+    ),
+    _d(
+        "lrpgf11m",
+        "gain_factors",
+        "Gain factors",
+        Status.COMPANION,
+        "N",
+        "associational treatment-moderation variant",
+        base="lrpgf11",
+    ),
 ]
 _LEVEL += [
-    _d("lrplf11", "level_factors", "Level factors", Status.ASSOCIATION, "N",
-       "levels view; only the t2 group contrast is randomised"),
+    _d(
+        "lrplf11",
+        "level_factors",
+        "Level factors",
+        Status.ASSOCIATION,
+        "N",
+        "levels view; only the t2 group contrast is randomised",
+    ),
 ]
 
 # Suite-gap Tier-1 additions (#228): standalone available-case modified ITT estimates for the two outcomes that had
@@ -563,16 +1697,54 @@ _LEVEL += [
 _ITT_TIER1 = [
     _d("lrpitt25", "itt", "ITT suite", Status.MODEL_OF_RECORD, "F", "available-case modified ITT estimate"),
     _d("lrpitt26", "itt", "ITT suite", Status.MODEL_OF_RECORD, "T", "available-case modified ITT estimate"),
-    _d("lrpitt27", "itt", "Site robustness", Status.ROBUSTNESS, "W", "site-adjusted available-case modified ITT estimate", base="lrpitt10"),
-    _d("lrpitt28", "itt", "Site robustness", Status.ROBUSTNESS, "L", "site-adjusted available-case modified ITT estimate", base="lrpitt07"),
+    _d(
+        "lrpitt27",
+        "itt",
+        "Site robustness",
+        Status.ROBUSTNESS,
+        "W",
+        "site-adjusted available-case modified ITT estimate",
+        base="lrpitt10",
+    ),
+    _d(
+        "lrpitt28",
+        "itt",
+        "Site robustness",
+        Status.ROBUSTNESS,
+        "L",
+        "site-adjusted available-case modified ITT estimate",
+        base="lrpitt07",
+    ),
     # Action Picture Test expressive outcomes (Renfrew 1997). DAG-designated direct
     # outcomes of assignment (IG -> EI, EG) whose manual ceilings were confirmed on
     # 2026-08-18 (Grammar 37, Information 40), clearing the deferral recorded in
     # notes/202606251321-lrpitt-suite-design.md. Information is modelled on the
     # doubled half-mark scale (out of 80); lrpitt129 is its out-of-40 comparator.
-    _d("lrpitt29", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EI", "available-case modified ITT estimate, APT information (half-mark scale, 80)"),
-    _d("lrpitt30", "itt", "ITT suite", Status.MODEL_OF_RECORD, "EG", "available-case modified ITT estimate, APT grammar (37)"),
-    _d("lrpitt129", "itt", "ITT suite", Status.ROBUSTNESS, "EI40", "available-case modified ITT estimate, denominator sensitivity: APT information rounded to whole marks (40)", base="lrpitt29"),
+    _d(
+        "lrpitt29",
+        "itt",
+        "ITT suite",
+        Status.MODEL_OF_RECORD,
+        "EI",
+        "available-case modified ITT estimate, APT information (half-mark scale, 80)",
+    ),
+    _d(
+        "lrpitt30",
+        "itt",
+        "ITT suite",
+        Status.MODEL_OF_RECORD,
+        "EG",
+        "available-case modified ITT estimate, APT grammar (37)",
+    ),
+    _d(
+        "lrpitt129",
+        "itt",
+        "ITT suite",
+        Status.ROBUSTNESS,
+        "EI40",
+        "available-case modified ITT estimate, denominator sensitivity: APT information rounded to whole marks (40)",
+        base="lrpitt29",
+    ),
 ]
 
 # Time-to-off-floor survival family (#230 §5): the four-wave generalisation of the
@@ -581,8 +1753,24 @@ _ITT_TIER1 = [
 # treatment hazard shift is an association anchored on the immediate arm's randomised
 # window, not a randomised effect of record.
 _SURV = [
-    _d("lrpsurv09", "survival", "Floor-sitter survival", Status.ASSOCIATION, "P", "time-to-off-floor discrete-time hazard", base="lrpitt09"),
-    _d("lrpsurv11", "survival", "Floor-sitter survival", Status.ASSOCIATION, "N", "time-to-off-floor discrete-time hazard", base="lrpitt11"),
+    _d(
+        "lrpsurv09",
+        "survival",
+        "Floor-sitter survival",
+        Status.ASSOCIATION,
+        "P",
+        "time-to-off-floor discrete-time hazard",
+        base="lrpitt09",
+    ),
+    _d(
+        "lrpsurv11",
+        "survival",
+        "Floor-sitter survival",
+        Status.ASSOCIATION,
+        "N",
+        "time-to-off-floor discrete-time hazard",
+        base="lrpitt11",
+    ),
 ]
 
 # Block-2 taught-vocabulary block-active exposure family (#228 item 5): block 2 has no
@@ -591,39 +1779,158 @@ _SURV = [
 # wait-list reaches block 2 in phase 3). TE2 is the informative (expressive) outcome;
 # TR2 is near-ceiling; UE2/UR2 are the not-taught specificity comparators.
 _BX = [
-    _d("lrpbx01", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "TE2", "staggered block-2 exposure; association (parallel trends)"),
-    _d("lrpbx02", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "TR2", "staggered block-2 exposure; association (parallel trends)"),
-    _d("lrpbx03", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UE2", "not-taught comparator (specificity)"),
-    _d("lrpbx04", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UR2", "not-taught comparator (specificity)"),
+    _d(
+        "lrpbx01",
+        "block_exposure",
+        "Block-2 exposure",
+        Status.ASSOCIATION,
+        "TE2",
+        "staggered block-2 exposure; association (parallel trends)",
+    ),
+    _d(
+        "lrpbx02",
+        "block_exposure",
+        "Block-2 exposure",
+        Status.ASSOCIATION,
+        "TR2",
+        "staggered block-2 exposure; association (parallel trends)",
+    ),
+    _d(
+        "lrpbx03",
+        "block_exposure",
+        "Block-2 exposure",
+        Status.ASSOCIATION,
+        "UE2",
+        "not-taught comparator (specificity)",
+    ),
+    _d(
+        "lrpbx04",
+        "block_exposure",
+        "Block-2 exposure",
+        Status.ASSOCIATION,
+        "UR2",
+        "not-taught comparator (specificity)",
+    ),
     # #382 rec 4: the distal-tier delta prior widened N(0, 0.3) -> N(0, 0.5) on the
     # one distal focal term without sweep evidence.
-    _d("lrpbx103", "block_exposure", "Block-2 exposure", Status.ASSOCIATION, "UE2", "wide-delta prior sensitivity for LRPBX03", base="lrpbx03"),
+    _d(
+        "lrpbx103",
+        "block_exposure",
+        "Block-2 exposure",
+        Status.ASSOCIATION,
+        "UE2",
+        "wide-delta prior sensitivity for LRPBX03",
+        base="lrpbx03",
+    ),
 ]
 
 # --- Concurrent conditional associations (#312, descriptive-association workstream #314)
 # Per-wave mutually-adjusted associations between contemporaneous skill levels. Every
 # term is an association (post-treatment conditioning is intentional; no causal claim).
 _CA = [
-    _d("lrpca01", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "per-wave conditional associations of concurrent skills with word reading"),
-    _d("lrpca02", "concurrent", "Concurrent associations", Status.ASSOCIATION, "L", "per-wave conditional associations of concurrent skills with letter sounds"),
-    _d("lrpca03", "concurrent", "Concurrent associations", Status.ASSOCIATION, "TR", "per-wave conditional associations of concurrent skills with taught receptive vocabulary"),
-    _d("lrpca04", "concurrent", "Concurrent associations", Status.ASSOCIATION, "TE", "per-wave conditional associations of concurrent skills with taught expressive vocabulary"),
-    _d("lrpca05", "concurrent", "Concurrent associations", Status.ASSOCIATION, "R", "per-wave conditional associations of concurrent skills with standardised receptive vocabulary (ROWPVT)"),
-    _d("lrpca06", "concurrent", "Concurrent associations", Status.ASSOCIATION, "E", "per-wave conditional associations of concurrent skills with standardised expressive vocabulary (EOWPVT)"),
-    _d("lrpca07", "concurrent", "Concurrent associations", Status.ASSOCIATION, "B", "per-wave conditional associations of concurrent skills with phoneme blending"),
-    _d("lrpca08", "concurrent", "Concurrent associations", Status.ASSOCIATION, "F", "per-wave conditional associations of concurrent skills with basic concepts (CELF)"),
-    _d("lrpca09", "concurrent", "Concurrent associations", Status.ASSOCIATION, "T", "per-wave conditional associations of concurrent skills with receptive grammar (TROG-2)"),
-    _d("lrpca10", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "minimal-adjustment concurrent letter sounds -> word reading (#421 Tier 1)"),
-    _d("lrpca11", "concurrent", "Concurrent associations", Status.ASSOCIATION, "W", "letter sounds -> word reading holding nonword decoding fixed (#421 Tier 1)"),
+    _d(
+        "lrpca01",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "W",
+        "per-wave conditional associations of concurrent skills with word reading",
+    ),
+    _d(
+        "lrpca02",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "L",
+        "per-wave conditional associations of concurrent skills with letter sounds",
+    ),
+    _d(
+        "lrpca03",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "TR",
+        "per-wave conditional associations of concurrent skills with taught receptive vocabulary",
+    ),
+    _d(
+        "lrpca04",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "TE",
+        "per-wave conditional associations of concurrent skills with taught expressive vocabulary",
+    ),
+    _d(
+        "lrpca05",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "R",
+        "per-wave conditional associations of concurrent skills with standardised receptive vocabulary (ROWPVT)",
+    ),
+    _d(
+        "lrpca06",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "E",
+        "per-wave conditional associations of concurrent skills with standardised expressive vocabulary (EOWPVT)",
+    ),
+    _d(
+        "lrpca07",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "B",
+        "per-wave conditional associations of concurrent skills with phoneme blending",
+    ),
+    _d(
+        "lrpca08",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "F",
+        "per-wave conditional associations of concurrent skills with basic concepts (CELF)",
+    ),
+    _d(
+        "lrpca09",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "T",
+        "per-wave conditional associations of concurrent skills with receptive grammar (TROG-2)",
+    ),
+    _d(
+        "lrpca10",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "W",
+        "minimal-adjustment concurrent letter sounds -> word reading (#421 Tier 1)",
+    ),
+    _d(
+        "lrpca11",
+        "concurrent",
+        "Concurrent associations",
+        Status.ASSOCIATION,
+        "W",
+        "letter sounds -> word reading holding nonword decoding fixed (#421 Tier 1)",
+    ),
     # Phoneme blending is response-link sensitive: each item has three alternatives,
     # so the ordinary inverse-logit mean permits below-chance expected scores, and
     # the ca-007 posterior uses that room (9.7 % of the mass, #619). The pair
     # releases together or not at all. Every coefficient stays an association --
     # the #608 policy binds association and contrast alike, because the natural
     # scale it is reported on is what the link determines.
-    _d("lrpca07f", "concurrent", "Concurrent associations link sensitivity", Status.ROBUSTNESS, "B",
-       "per-wave conditional associations under the three-choice guessing-floor score-mean link",
-       base="lrpca07"),
+    _d(
+        "lrpca07f",
+        "concurrent",
+        "Concurrent associations link sensitivity",
+        Status.ROBUSTNESS,
+        "B",
+        "per-wave conditional associations under the three-choice guessing-floor score-mean link",
+        base="lrpca07",
+    ),
 ]
 
 # --- Longitudinal correlated-domain-factor model (#313, descriptive-association #314)
@@ -632,7 +1939,14 @@ _CA = [
 # concurrent regression family (_CA), with symmetric correlations and directional
 # conditional slopes. Every quantity is a descriptive association.
 _LCF = [
-    _d("lrplcf01", "long_corr_factor", "Measurement model", Status.ASSOCIATION, None, "longitudinal correlated-domain-factor model (per-wave latent skill correlations)"),
+    _d(
+        "lrplcf01",
+        "long_corr_factor",
+        "Measurement model",
+        Status.ASSOCIATION,
+        None,
+        "longitudinal correlated-domain-factor model (per-wave latent skill correlations)",
+    ),
 ]
 
 # --- Joint bivariate mechanism (#421 Tier 3 (1), LS->WR review note #424) ---------
@@ -644,15 +1958,49 @@ _LCF = [
 # jm-002 is the phase-stacked ANCOVA companion (matched to mech-096 / mech-101) that
 # re-reports the Tier-1 Delta on its original parameterisation. Descriptive.
 _JM = [
-    _d("lrpjm01", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "per-wave bivariate levels {word reading, nonword decoding}; identified share-retained + decoding-specificity contrast (#421 Tier 3)"),
-    _d("lrpjm02", "joint_mechanism", "Joint mechanism", Status.ASSOCIATION, None, "phase-stacked bivariate ANCOVA companion; identified Tier-1 decoding-specificity contrast (#421 Tier 3)", "lrpjm01"),
+    _d(
+        "lrpjm01",
+        "joint_mechanism",
+        "Joint mechanism",
+        Status.ASSOCIATION,
+        None,
+        "per-wave bivariate levels {word reading, nonword decoding}; identified share-retained + decoding-specificity contrast (#421 Tier 3)",
+    ),
+    _d(
+        "lrpjm02",
+        "joint_mechanism",
+        "Joint mechanism",
+        Status.ASSOCIATION,
+        None,
+        "phase-stacked bivariate ANCOVA companion; identified Tier-1 decoding-specificity contrast (#421 Tier 3)",
+        "lrpjm01",
+    ),
 ]
 
 
 #: The register: every fitted model, keyed by id. Must match the fit script's MODELS.
 MODEL_REGISTRY: dict[str, ModelDefinition] = {
     d.model_id: d
-    for d in (*_ITT, *_JOINT, *_SES, *_ABIL, *_DID, *_MECH, *_STRUCT, *_GAIN, *_GAINB, *_GAINM, *_LEVEL, *_ALIGNED, *_ITT_TIER1, *_SURV, *_BX, *_CA, *_LCF, *_JM)
+    for d in (
+        *_ITT,
+        *_JOINT,
+        *_SES,
+        *_ABIL,
+        *_DID,
+        *_MECH,
+        *_STRUCT,
+        *_GAIN,
+        *_GAINB,
+        *_GAINM,
+        *_LEVEL,
+        *_ALIGNED,
+        *_ITT_TIER1,
+        *_SURV,
+        *_BX,
+        *_CA,
+        *_LCF,
+        *_JM,
+    )
 }
 
 
@@ -666,12 +2014,12 @@ MODEL_REGISTRY: dict[str, ModelDefinition] = {
 # ``[pre-#168 …]`` qualifier so they no longer read as, or match, a live legacy
 # alias; ``provenance_alias_collisions()`` guards against any future bare-id reuse.
 SUPERSEDED: dict[str, str] = {
-    "LRP52": "lrpitt10",   # word reading
-    "LRP53": "lrpitt05",   # receptive vocabulary
-    "LRP54": "lrpitt06",   # expressive vocabulary
+    "LRP52": "lrpitt10",  # word reading
+    "LRP53": "lrpitt05",  # receptive vocabulary
+    "LRP54": "lrpitt06",  # expressive vocabulary
     "LRP74 [pre-#168 taught-expressive ITT]": "lrpitt02",  # ≠ live lrp-rli-med-074
-    "LRP75 [pre-#168 taught-receptive ITT]": "lrpitt01",   # ≠ live lrp-rli-med-075
-    "LRP55": "lrpitt12",   # joint
+    "LRP75 [pre-#168 taught-receptive ITT]": "lrpitt01",  # ≠ live lrp-rli-med-075
+    "LRP55": "lrpitt12",  # joint
     "LRP60 [pre-#168 SES word reading]": "lrpitt13",  # ≠ live lrp-rli-med-060 (#421 Tier 3)
     "LRP60a [pre-#168 SES matched comparator]": "lrpitt14",
     "LRP76 [pre-#168 generalisation contrast]": "lrpitt15",  # ≠ live lrp-rli-med-076
@@ -696,11 +2044,7 @@ def provenance_alias_collisions() -> list[str]:
 
     bare = re.compile(r"^lrp\d+[a-z]?$")
     live_aliases = {model_ids.to_legacy(mid).lower() for mid in MODEL_REGISTRY}
-    return [
-        key
-        for key in (*SUPERSEDED, *RESERVED)
-        if bare.match(key.lower()) and key.lower() in live_aliases
-    ]
+    return [key for key in (*SUPERSEDED, *RESERVED) if bare.match(key.lower()) and key.lower() in live_aliases]
 
 
 def live_legacy_alias_collisions() -> dict[str, list[str]]:

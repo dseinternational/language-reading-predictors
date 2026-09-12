@@ -38,14 +38,19 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="TE",
     adjustment=["G", "A", "TR", "W_pre"],
-        # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
+    # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         outcomes=("W", "TE", "TR"),
         adjust_baseline_symbol="W",
         adjust_for=(
-            "hs", "hs_missing", "attend", "deapp_c", "deapp_c_missing",
-            "erbto", "erbto_missing",
+            "hs",
+            "hs_missing",
+            "attend",
+            "deapp_c",
+            "deapp_c_missing",
+            "erbto",
+            "erbto_missing",
         ),
         use_age_gp=False,
         phase_specific_mechanism=False,

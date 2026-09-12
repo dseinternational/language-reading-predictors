@@ -53,15 +53,11 @@ def _prepared_offfloor_panel(
     # Pre counts: ~55% of rows at the floor, the rest with small positive counts,
     # independent of arm (period-1 baselines predate randomised exposure).
     at_floor_pre = rng.random(child_idx.size) < 0.55
-    pre_counts = np.where(
-        at_floor_pre, 0.0, rng.integers(1, n_trials // 2, size=child_idx.size)
-    ).astype(float)
+    pre_counts = np.where(at_floor_pre, 0.0, rng.integers(1, n_trials // 2, size=child_idx.size)).astype(float)
     indicator = (pre_counts > 0).astype(float)
     # Empirical logit of the pre proportion — only its finiteness matters here
     # (the off-floor path uses the indicator, not the graded logit).
-    pre_logit = np.log(
-        (pre_counts + 0.5) / (n_trials - pre_counts + 0.5)
-    )
+    pre_logit = np.log((pre_counts + 0.5) / (n_trials - pre_counts + 0.5))
 
     wave_offset = np.asarray(truth["wave_offset"], dtype=float)
     eta = (
@@ -105,9 +101,7 @@ def test_offfloor_indicator_parameterisation_recovers_truth() -> None:
     and a trt x own interaction absorbed this signal instead."""
     import pymc as pm
 
-    from language_reading_predictors.statistical_models.factories import (
-        build_gain_factors_model,
-    )
+    from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
 
     truth = {
         "alpha": -1.6,
@@ -119,9 +113,7 @@ def test_offfloor_indicator_parameterisation_recovers_truth() -> None:
     prepared, realised_sigma_child = _prepared_offfloor_panel(
         n_children_per_arm=40, truth=truth, n_trials=26, seed=20260807
     )
-    built = build_gain_factors_model(
-        prepared, outcome_symbol="P", likelihood="bernoulli_offfloor"
-    )
+    built = build_gain_factors_model(prepared, outcome_symbol="P", likelihood="bernoulli_offfloor")
     names = {v.name for v in built.model.free_RVs}
     assert "gamma_own_offfloor" in names and "gamma_own" not in names
     with built.model:

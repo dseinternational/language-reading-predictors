@@ -181,10 +181,7 @@ class CorrFactorModelSettings:
                 _optional_positive_int(getattr(self, name), name=name),
             )
         if self.loading_prior not in {None, "communality", "free"}:
-            raise ValueError(
-                "loading_prior must be 'communality', 'free' or None, got "
-                f"{self.loading_prior!r}"
-            )
+            raise ValueError(f"loading_prior must be 'communality', 'free' or None, got {self.loading_prior!r}")
         for name in (
             "comm_alpha",
             "comm_beta",
@@ -234,9 +231,7 @@ class CorrFactorModelSettings:
         # (2026-08-21 review, finding 8).
         legacy_domains = extra.get("domains")
         return cls(
-            domains=_domains(
-                _RLI_DEFAULT_DOMAINS if legacy_domains is None else legacy_domains
-            ),
+            domains=_domains(_RLI_DEFAULT_DOMAINS if legacy_domains is None else legacy_domains),
             structural_covariates=extra.get("structural_covariates"),
             structural_factors=extra.get("structural_factors"),
             use_group=extra.get("use_group"),
@@ -252,9 +247,7 @@ class CorrFactorModelSettings:
             focal_slope_sigma=extra.get("focal_slope_sigma"),
             lkj_eta=extra.get("lkj_eta", 2.0),
             wave=extra.get("wave"),
-            single_indicator_reliability=extra.get(
-                "single_indicator_reliability"
-            ),
+            single_indicator_reliability=extra.get("single_indicator_reliability"),
         )
 
 
@@ -405,15 +398,9 @@ class CorrFactorRunPlan:
 
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language recipe generated from the validated plan."""
-        domains = "; ".join(
-            f"{name}: {', '.join(symbols)}" for name, symbols in self.domains
-        )
+        domains = "; ".join(f"{name}: {', '.join(symbols)}" for name, symbols in self.domains)
         if self.port == "rli":
-            structural = (
-                "All domains"
-                if self.structural_factors is None
-                else ", ".join(self.structural_factors)
-            )
+            structural = "All domains" if self.structural_factors is None else ", ".join(self.structural_factors)
             terms = (
                 f"Outcome: `{self.outcome_symbol}`. Structural factors: {structural}. "
                 "Active structural covariates: "
@@ -461,8 +448,7 @@ def declared_corr_factor_settings(
             )
         if not isinstance(settings, CorrFactorModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='corr_factor' requires "
-                f"CorrFactorModelSettings, got {type(settings).__name__}"
+                f"{spec.model_id}: kind='corr_factor' requires CorrFactorModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
@@ -477,20 +463,14 @@ def declared_corr_factor_settings(
 def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
     """Resolve and validate either study port before context or data I/O."""
     if spec.kind != "corr_factor":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'corr_factor', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'corr_factor', got {spec.kind!r}")
     if spec.study_id not in {"rli", "rlm"}:
-        raise ValueError(
-            f"{spec.model_id}: corr_factor study_id must be 'rli' or 'rlm', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: corr_factor study_id must be 'rli' or 'rlm', got {spec.study_id!r}")
     settings, source = declared_corr_factor_settings(spec)
     legacy_study = spec.extra.get("study_id")
     if legacy_study is not None and legacy_study != spec.study_id:
         raise ValueError(
-            f"{spec.model_id}: legacy study_id {legacy_study!r} conflicts with "
-            f"ModelSpec.study_id {spec.study_id!r}"
+            f"{spec.model_id}: legacy study_id {legacy_study!r} conflicts with ModelSpec.study_id {spec.study_id!r}"
         )
     indicators = tuple(symbol for _, symbols in settings.domains for symbol in symbols)
     observation_nodes: tuple[str, ...]
@@ -504,23 +484,17 @@ def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
         }
         supplied = [name for name, value in rlm_fields.items() if value is not None]
         if supplied:
-            raise ValueError(
-                f"{spec.model_id}: RLM-only settings are invalid for the RLI port: "
-                f"{', '.join(supplied)}"
-            )
+            raise ValueError(f"{spec.model_id}: RLM-only settings are invalid for the RLI port: {', '.join(supplied)}")
         short = [name for name, symbols in settings.domains if len(symbols) < 2]
         if short:
             raise ValueError(
-                f"{spec.model_id}: RLI correlated-factor domains require at least "
-                f"two indicators: {', '.join(short)}"
+                f"{spec.model_id}: RLI correlated-factor domains require at least two indicators: {', '.join(short)}"
             )
         # `is None`, not falsy-or: a declared-empty covariate set is the natural
         # spelling of an unadjusted structural leg and must stay empty rather
         # than silently becoming blocks-adjusted (2026-08-21 review, finding 8).
         structural_covariates = (
-            settings.structural_covariates
-            if settings.structural_covariates is not None
-            else ("blocks",)
+            settings.structural_covariates if settings.structural_covariates is not None else ("blocks",)
         )
         structural_factors = settings.structural_factors
         if structural_factors == ():
@@ -528,30 +502,16 @@ def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
         domain_names = {name for name, _ in settings.domains}
         bad_factors = sorted(set(structural_factors or ()) - domain_names)
         if bad_factors:
-            raise ValueError(
-                f"{spec.model_id}: structural_factors are not fitted domains: "
-                f"{', '.join(bad_factors)}"
-            )
+            raise ValueError(f"{spec.model_id}: structural_factors are not fitted domains: {', '.join(bad_factors)}")
         loading_prior = settings.loading_prior or "communality"
         free_knobs = sorted(
-            name
-            for name in ("loading_mu", "loading_sigma", "residual_sigma")
-            if getattr(settings, name) is not None
+            name for name in ("loading_mu", "loading_sigma", "residual_sigma") if getattr(settings, name) is not None
         )
-        comm_knobs = sorted(
-            name
-            for name in ("comm_alpha", "comm_beta")
-            if getattr(settings, name) is not None
-        )
+        comm_knobs = sorted(name for name in ("comm_alpha", "comm_beta") if getattr(settings, name) is not None)
         if loading_prior == "communality" and free_knobs:
-            raise ValueError(
-                f"{spec.model_id}: {free_knobs} only apply to loading_prior='free'"
-            )
+            raise ValueError(f"{spec.model_id}: {free_knobs} only apply to loading_prior='free'")
         if loading_prior == "free" and comm_knobs:
-            raise ValueError(
-                f"{spec.model_id}: {comm_knobs} only apply to "
-                "loading_prior='communality'"
-            )
+            raise ValueError(f"{spec.model_id}: {comm_knobs} only apply to loading_prior='communality'")
         port: Literal["rli", "rlm"] = "rli"
         outcome = spec.outcome_symbol
         use_group = False if settings.use_group is None else settings.use_group
@@ -566,20 +526,14 @@ def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
             "RLI between-child correlated-domain measurement model at baseline "
             "with a Beta-Binomial post-score structural leg."
         )
-        estimand = (
-            "Latent domain correlations, indicator communalities and adjusted "
-            "factor-to-outcome associations."
-        )
+        estimand = "Latent domain correlations, indicator communalities and adjusted factor-to-outcome associations."
         population = (
             f"Available RLI children with observed {outcome} post-score and all "
             "required baseline indicators and active structural covariates."
         )
     else:
         if spec.outcome_symbol is not None:
-            raise ValueError(
-                f"{spec.model_id}: RLM corr_factor is measurement-only and "
-                "requires outcome_symbol=None"
-            )
+            raise ValueError(f"{spec.model_id}: RLM corr_factor is measurement-only and requires outcome_symbol=None")
         rli_fields = {
             "structural_covariates": settings.structural_covariates,
             "structural_factors": settings.structural_factors,
@@ -595,10 +549,7 @@ def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
         }
         supplied = [name for name, value in rli_fields.items() if value is not None]
         if supplied:
-            raise ValueError(
-                f"{spec.model_id}: RLI-only settings are invalid for the RLM port: "
-                f"{', '.join(supplied)}"
-            )
+            raise ValueError(f"{spec.model_id}: RLI-only settings are invalid for the RLM port: {', '.join(supplied)}")
         port = "rlm"
         outcome = None
         structural_covariates = ()
@@ -608,24 +559,14 @@ def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
         post_time = None
         loading_prior = None
         wave = 3 if settings.wave is None else settings.wave
-        reliability = (
-            0.8
-            if settings.single_indicator_reliability is None
-            else settings.single_indicator_reliability
-        )
+        reliability = 0.8 if settings.single_indicator_reliability is None else settings.single_indicator_reliability
         observation_nodes = ("Z_obs",)
-        design = (
-            "Historical Byrne-cohort one-wave correlated-domain measurement model "
-            "with no structural outcome leg."
-        )
+        design = "Historical Byrne-cohort one-wave correlated-domain measurement model with no structural outcome leg."
         estimand = (
             "Latent domain correlations and indicator communalities under the "
             "declared single-indicator reliability assumption."
         )
-        population = (
-            f"Complete-case RLM children at wave {wave} across every declared "
-            "measurement indicator."
-        )
+        population = f"Complete-case RLM children at wave {wave} across every declared measurement indicator."
 
     return CorrFactorRunPlan(
         model_id=spec.model_id,
@@ -645,17 +586,9 @@ def resolve_corr_factor_run_plan(spec: ModelSpec) -> CorrFactorRunPlan:
         comm_alpha=2.0 if settings.comm_alpha is None else settings.comm_alpha,
         comm_beta=2.0 if settings.comm_beta is None else settings.comm_beta,
         loading_mu=0.0 if settings.loading_mu is None else settings.loading_mu,
-        loading_sigma=(
-            1.0 if settings.loading_sigma is None else settings.loading_sigma
-        ),
-        residual_sigma=(
-            1.0 if settings.residual_sigma is None else settings.residual_sigma
-        ),
-        predictor_slope_sigma=(
-            0.3
-            if settings.predictor_slope_sigma is None
-            else settings.predictor_slope_sigma
-        ),
+        loading_sigma=(1.0 if settings.loading_sigma is None else settings.loading_sigma),
+        residual_sigma=(1.0 if settings.residual_sigma is None else settings.residual_sigma),
+        predictor_slope_sigma=(0.3 if settings.predictor_slope_sigma is None else settings.predictor_slope_sigma),
         focal_slope_sigma=settings.focal_slope_sigma,
         lkj_eta=settings.lkj_eta,
         wave=wave,

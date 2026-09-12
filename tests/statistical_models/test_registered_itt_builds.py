@@ -17,10 +17,8 @@ from pathlib import Path
 import pytest
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_itt_model,
-    build_joint_model,
-)
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
+from language_reading_predictors.statistical_models.factories.joint import build_joint_model
 from language_reading_predictors.statistical_models.itt import (
     IttModelSettings,
     resolve_itt_run_plan,
@@ -53,15 +51,11 @@ def _prepare_itt(spec: ModelSpec):
 def _build_itt(spec: ModelSpec):
     plan = resolve_itt_run_plan(spec)
     prepared = _prepare_itt(spec)
-    adjust_for = tuple(
-        name for name in plan.adjust_for if name in prepared.covariates
-    )
+    adjust_for = tuple(name for name in plan.adjust_for if name in prepared.covariates)
     common = plan.factory_kwargs(effective_adjustment=adjust_for)
     if plan.floor_rule:
         at_risk = restrict_to_baseline_floored(prepared, spec.outcome_symbol)
-        primary = build_itt_model(
-            at_risk, likelihood="bernoulli_offfloor", **common
-        )
+        primary = build_itt_model(at_risk, likelihood="bernoulli_offfloor", **common)
         secondary = build_itt_model(prepared, likelihood="beta_binomial", **common)
         return primary, secondary
     return (build_itt_model(prepared, **common),)
@@ -74,8 +68,8 @@ def _build_joint(spec: ModelSpec):
 
 
 _REGISTERED_SPECS = _registered_specs()
-_STATISTICAL_MODELS_DIR = Path(__file__).resolve().parents[2] / "src" / (
-    "language_reading_predictors/statistical_models"
+_STATISTICAL_MODELS_DIR = (
+    Path(__file__).resolve().parents[2] / "src" / ("language_reading_predictors/statistical_models")
 )
 
 
@@ -84,9 +78,7 @@ _STATISTICAL_MODELS_DIR = Path(__file__).resolve().parents[2] / "src" / (
     _REGISTERED_SPECS,
     ids=[model_id for model_id, _ in _REGISTERED_SPECS],
 )
-def test_registered_itt_family_titles_name_the_available_case_modified_estimand(
-    model_id: str, spec: ModelSpec
-):
+def test_registered_itt_family_titles_name_the_available_case_modified_estimand(model_id: str, spec: ModelSpec):
     assert "available-case modified itt" in spec.title.lower(), model_id
 
 
@@ -97,9 +89,7 @@ def test_registered_itt_module_descriptions_name_the_available_case_modified_est
         assert "available-case modified itt" in description.lower(), source_path.name
 
 
-@pytest.mark.parametrize(
-    "model_id,spec", _REGISTERED_SPECS, ids=[model_id for model_id, _ in _REGISTERED_SPECS]
-)
+@pytest.mark.parametrize("model_id,spec", _REGISTERED_SPECS, ids=[model_id for model_id, _ in _REGISTERED_SPECS])
 def test_registered_itt_family_model_builds(model_id: str, spec: ModelSpec):
     if spec.kind == "itt":
         assert isinstance(spec.model_settings, IttModelSettings), model_id

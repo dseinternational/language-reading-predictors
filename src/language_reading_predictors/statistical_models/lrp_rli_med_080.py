@@ -46,15 +46,20 @@ from language_reading_predictors.statistical_models.pipelines.mediation import f
 SPEC = ModelSpec(
     model_id="lrp-rli-med-080",
     kind="mediation",
-    title=(
-        "Mediation: does the intervention raise word reading (W) via "
-        "taught-receptive vocabulary (TR)?"
-    ),
+    title=("Mediation: does the intervention raise word reading (W) via taught-receptive vocabulary (TR)?"),
     outcome_symbol="W",
     mechanism_symbol="TR",  # the mediator
     adjustment=[
-        "G", "A", "L", "E", "W_pre", "TR_t1",
-        "hs", "hs_missing", "erbto", "erbto_missing",
+        "G",
+        "A",
+        "L",
+        "E",
+        "W_pre",
+        "TR_t1",
+        "hs",
+        "hs_missing",
+        "erbto",
+        "erbto_missing",
     ],
     # TR is outside ITT_OUTCOMES, so name the symbols the model loads (outcome +
     # mediator + confounders); restricts the complete-case mask to them.

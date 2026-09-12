@@ -66,6 +66,10 @@ were unaffected. E's registered models now declare the dispersion-scale prior.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+
+
 import argparse
 import json
 from pathlib import Path
@@ -77,8 +81,8 @@ from rich.console import Console
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import reporting as _report
-from language_reading_predictors.statistical_models.factories import build_itt_model
+
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
 from language_reading_predictors.statistical_models.itt import (
     prepare_itt_data,
     resolve_itt_run_plan,
@@ -118,8 +122,7 @@ def _registered_spec(symbol: str):
 
     model_id = DISPERSION_SENSITIVITY_MODEL_IDS[symbol]
     module = importlib.import_module(
-        "language_reading_predictors.statistical_models."
-        + model_id.replace("-", "_").replace("lrp_rli", "lrp_rli")
+        "language_reading_predictors.statistical_models." + model_id.replace("-", "_").replace("lrp_rli", "lrp_rli")
     )
     return module.SPEC
 
@@ -162,7 +165,7 @@ def _fit_cell(prepared, symbol, family, sigma, sampling, seed):
 def _row(symbol, family, sigma, built, trace, ci_prob):
     n_trials = MEASURES[symbol].n_trials
     G = np.asarray(built.prepared.G, dtype=float)
-    _tau, ame = _report._itt_ame_draws(trace, G=G)
+    _tau, ame = _itt_summary._itt_ame_draws(trace, G=G)
     kappa = np.asarray(trace.posterior["kappa"].values, dtype=float).ravel()
     inflation = _variance_inflation(kappa, n_trials)
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
@@ -171,11 +174,8 @@ def _row(symbol, family, sigma, built, trace, ci_prob):
     # The suite's own coverage statistic, so a cell is comparable with the
     # ``ppc_summary.csv`` the primary fits publish rather than a hand-rolled
     # variant that could differ in its interval convention.
-    cov = _report.ppc_interval_coverage(trace, node="y_post")
-    by_level = {
-        int(round(float(r.level) * 100)): (int(r.n_inside), int(r.n_total))
-        for r in cov.itertuples()
-    }
+    cov = _predictive.ppc_interval_coverage(trace, node="y_post")
+    by_level = {int(round(float(r.level) * 100)): (int(r.n_inside), int(r.n_total)) for r in cov.itertuples()}
     inside50, total50 = by_level.get(50, (0, 0))
     inside90, total90 = by_level.get(90, (0, 0))
 
@@ -230,13 +230,10 @@ def main() -> None:
     unknown = [o for o in args.outcomes if o not in DISPERSION_SENSITIVITY_MODEL_IDS]
     if unknown:
         raise SystemExit(
-            f"unknown outcome(s): {', '.join(unknown)}; "
-            f"registered: {', '.join(DISPERSION_SENSITIVITY_MODEL_IDS)}"
+            f"unknown outcome(s): {', '.join(unknown)}; registered: {', '.join(DISPERSION_SENSITIVITY_MODEL_IDS)}"
         )
 
-    sampling = _sampling.get_sampling_configuration(
-        args.config, random_seed=args.seed
-    )
+    sampling = _sampling.get_sampling_configuration(args.config, random_seed=args.seed)
     out_dir = Path(_paths.stat_models_dir()).parent / OUTPUT_SUBDIR
     out_dir.mkdir(parents=True, exist_ok=True)
     _console.print(f"Output root: {_paths.describe_output_root()}")
@@ -250,9 +247,7 @@ def main() -> None:
         for index, (family, sigma) in enumerate(DISPERSION_SENSITIVITY_CELLS):
             label = f"{symbol}: {family} sigma={sigma}"
             _console.print(f"  fitting {label} ...")
-            built, trace = _fit_cell(
-                prepared, symbol, family, sigma, sampling, args.seed + index
-            )
+            built, trace = _fit_cell(prepared, symbol, family, sigma, sampling, args.seed + index)
             row = _row(symbol, family, sigma, built, trace, args.ci_prob)
             rows.append(row)
             _console.print(

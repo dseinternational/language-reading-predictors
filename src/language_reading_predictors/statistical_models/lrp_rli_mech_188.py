@@ -38,7 +38,7 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="TR",
     adjustment=["G", "A", "W_pre"],
-        # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
+    # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         outcomes=("W", "TR"),

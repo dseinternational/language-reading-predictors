@@ -22,9 +22,7 @@ def registry_counts() -> dict[str, int]:
         "model_kinds": len(KINDS),
         "rli_models": len(MODEL_REGISTRY),
         "runnable_models": len(runnable),
-        "historical_rlm_models": sum(
-            model_id.startswith("lrp-rlm-") for model_id in runnable
-        ),
+        "historical_rlm_models": sum(model_id.startswith("lrp-rlm-") for model_id in runnable),
     }
 
 
@@ -53,9 +51,7 @@ def assert_registry_count_snapshot(path: str | Path) -> None:
     try:
         snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     except FileNotFoundError as exc:
-        raise AssertionError(
-            f"statistical registry snapshot is missing: {snapshot_path}"
-        ) from exc
+        raise AssertionError(f"statistical registry snapshot is missing: {snapshot_path}") from exc
     expected = registry_counts()
     observed = {key: snapshot.get(key) for key in expected}
     if observed != expected:

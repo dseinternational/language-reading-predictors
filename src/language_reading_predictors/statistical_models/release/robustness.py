@@ -101,18 +101,11 @@ def gate_applies(config: Mapping[str, Any]) -> bool:
     if config.get("kind") not in GATED_KINDS:
         return False
     plan = config.get("resolved_run_plan") or {}
-    if (
-        config.get("kind") == "level_factors"
-        and "focal_term" in plan
-        and plan.get("focal_term") is None
-    ):
+    if config.get("kind") == "level_factors" and "focal_term" in plan and plan.get("focal_term") is None:
         return False
     return not (
         config.get("kind") == "gain_factors"
-        and (
-            bool(plan.get("treated_only", False))
-            or bool(plan.get("moderation_variant", False))
-        )
+        and (bool(plan.get("treated_only", False)) or bool(plan.get("moderation_variant", False)))
     )
 
 
@@ -299,9 +292,7 @@ def classify_tau_sensitivity(
         return "unavailable", None, None, None
     prior = _finite(row["prior"])
     likelihood = _finite(row["likelihood"])
-    diagnosis = (
-        str(row["diagnosis"]).strip() if "diagnosis" in row.index else None
-    ) or None
+    diagnosis = (str(row["diagnosis"]).strip() if "diagnosis" in row.index else None) or None
     if prior is None or likelihood is None:
         return "unavailable", prior, likelihood, diagnosis
     if prior >= PSENSE_THRESHOLD and likelihood >= PSENSE_THRESHOLD:
@@ -387,9 +378,7 @@ def _standard_sweep_evidence(
         return False, "no treatment-prior sweep is attached to this fit"
     frame = _read_csv(output_dir, STANDARD_SENSITIVITY_FILENAME)
     if frame is None or frame.empty:
-        return False, (
-            f"the attached {STANDARD_SENSITIVITY_FILENAME} is empty or unreadable"
-        )
+        return False, (f"the attached {STANDARD_SENSITIVITY_FILENAME} is empty or unreadable")
     missing = sorted(set(_STANDARD_REQUIRED_COLUMNS) - set(frame.columns))
     if missing:
         return False, (
@@ -399,10 +388,7 @@ def _standard_sweep_evidence(
 
     rows = frame.loc[frame["outcome"].astype(str) == str(outcome)]
     if rows.empty:
-        return False, (
-            f"the attached {STANDARD_SENSITIVITY_FILENAME} has no rows for outcome "
-            f"{outcome!r}"
-        )
+        return False, (f"the attached {STANDARD_SENSITIVITY_FILENAME} has no rows for outcome {outcome!r}")
 
     tau_sigmas = pd.to_numeric(rows["tau_sigma"], errors="coerce").dropna().unique()
     if len(tau_sigmas) < 2:
@@ -411,9 +397,7 @@ def _standard_sweep_evidence(
             "scales, so it cannot show the effect is stable across the grid"
         )
 
-    converged = rows["converged"].map(
-        lambda value: str(value).strip().casefold() in {"true", "1", "yes"}
-    )
+    converged = rows["converged"].map(lambda value: str(value).strip().casefold() in {"true", "1", "yes"})
     if not bool(converged.all()):
         return False, (
             "one or more cells of the attached treatment-prior sweep did not "
@@ -426,10 +410,7 @@ def _standard_sweep_evidence(
     ):
         artefact_path = output_dir / artefact
         if not artefact_path.is_file():
-            return False, (
-                f"this fit has no {artefact}, so the attached treatment-prior sweep "
-                "cannot be bound to it"
-            )
+            return False, (f"this fit has no {artefact}, so the attached treatment-prior sweep cannot be bound to it")
         recorded = {str(value).strip().lower() for value in rows[column]}
         if recorded != {sha256_file(artefact_path)}:
             return False, (
@@ -457,8 +438,7 @@ def _standard_sweep_evidence(
             )
         if sha256_file(candidate) != str(row["trace_sha256"]).strip().lower():
             return False, (
-                "an installed cell trace does not match the attached "
-                "treatment-prior sweep's recorded digest"
+                "an installed cell trace does not match the attached treatment-prior sweep's recorded digest"
             )
 
     if config is None:
@@ -471,11 +451,7 @@ def _standard_sweep_evidence(
     # plan recording a digest, so a stored fit written before the field existed
     # re-decides exactly as it did.
     plan = config.get("resolved_run_plan") or {}
-    recorded_plan_digest = (
-        str(plan.get("run_plan_digest") or "").strip().lower()
-        if isinstance(plan, Mapping)
-        else ""
-    )
+    recorded_plan_digest = str(plan.get("run_plan_digest") or "").strip().lower() if isinstance(plan, Mapping) else ""
     if recorded_plan_digest:
         if "primary_run_plan_sha256" not in rows.columns:
             return False, (
@@ -483,9 +459,7 @@ def _standard_sweep_evidence(
                 "binding, so it cannot be shown to describe the model this fit "
                 "actually fitted"
             )
-        recorded = {
-            str(value).strip().lower() for value in rows["primary_run_plan_sha256"]
-        }
+        recorded = {str(value).strip().lower() for value in rows["primary_run_plan_sha256"]}
         if recorded != {recorded_plan_digest}:
             return False, (
                 "the attached treatment-prior sweep was computed against a "
@@ -498,9 +472,7 @@ def _standard_sweep_evidence(
             f"the attached {STANDARD_SENSITIVITY_FILENAME} has no {sign_column!r} "
             f"column, so the sign of {estimand_label} cannot be checked"
         )
-    signs = np.sign(
-        pd.to_numeric(rows[sign_column], errors="coerce").to_numpy(dtype=float)
-    )
+    signs = np.sign(pd.to_numeric(rows[sign_column], errors="coerce").to_numpy(dtype=float))
     if not np.isfinite(signs).all() or len(set(signs.tolist())) != 1:
         return False, (
             f"{estimand_label} changes sign across the attached treatment-prior "
@@ -572,10 +544,7 @@ def _floor_decision(
                 "floor-rule outcome requires is absent, incomplete, or not "
                 "provenance-aligned with this fit"
             ),
-            evidence=(
-                f"a complete, trace-validated {FLOOR_SENSITIVITY_FILENAME} grid in "
-                "this fit's output directory"
-            ),
+            evidence=(f"a complete, trace-validated {FLOOR_SENSITIVITY_FILENAME} grid in this fit's output directory"),
             **common,
         )
     # From here the grid is either not required (clean diagnosis) or complete and
@@ -639,9 +608,7 @@ def _gain_offfloor_decision(
     """
     sweep_required = tau_class != "clear"
     ready, sweep_reason = (
-        _standard_sweep_evidence(
-            output_dir, str(config.get("outcome_symbol") or ""), config=config
-        )
+        _standard_sweep_evidence(output_dir, str(config.get("outcome_symbol") or ""), config=config)
         if sweep_required
         else (False, "")
     )
@@ -660,10 +627,7 @@ def _gain_offfloor_decision(
     if not ready and tier in _WITHHOLD_TIERS:
         return ReleaseDecision(
             status="withhold",
-            reason=(
-                f"power-scaling on `{causal_term}` is not clean for this "
-                f"off-floor fit and {sweep_reason}"
-            ),
+            reason=(f"power-scaling on `{causal_term}` is not clean for this off-floor fit and {sweep_reason}"),
             evidence=(
                 f"a trace-bound {STANDARD_SENSITIVITY_FILENAME} covering this "
                 "outcome's off-floor risk difference across the treatment-prior "
@@ -715,9 +679,7 @@ def evaluate_release(
     output_dir = Path(output_dir)
     if config is None:
         config = _load_config(output_dir) or {}
-    return evaluate_itt_release(
-        output_dir, config, causal_term=causal_term_for(config)
-    )
+    return evaluate_itt_release(output_dir, config, causal_term=causal_term_for(config))
 
 
 def evaluate_itt_release(
@@ -741,9 +703,7 @@ def evaluate_itt_release(
     tier = _model_tier(config)
 
     psense = _read_csv(output_dir, "psense_summary.csv", index_col=0)
-    tau_class, prior, likelihood, diagnosis = classify_tau_sensitivity(
-        psense, term=causal_term
-    )
+    tau_class, prior, likelihood, diagnosis = classify_tau_sensitivity(psense, term=causal_term)
 
     # ITT-only: the six-cell grid and its provenance machinery are bound to the
     # registered ITT floor rule. ``gain_factors``' off-floor models carry the

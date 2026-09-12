@@ -67,6 +67,9 @@ Targets mirror ``regenerate_psense.py``:
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import readiness as _readiness_summary
+
+
 import argparse
 import importlib
 import json
@@ -82,7 +85,7 @@ from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.hsgp_migration import hsgp_refit_pending
 from language_reading_predictors.statistical_models.fitted_payloads import MechanismDesign
 from language_reading_predictors.statistical_models import mechanism as _mechanism
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -130,11 +133,7 @@ def resolve_targets(target: str) -> list[Path]:
     candidates = (
         _subdirs(root)
         if target == "all"
-        else [
-            d
-            for d in _subdirs(root)
-            if d.name == target or d.name.startswith(f"{target}-")
-        ]
+        else [d for d in _subdirs(root) if d.name == target or d.name.startswith(f"{target}-")]
     )
     return [d for d in candidates if "-mech-" in d.name]
 
@@ -146,7 +145,7 @@ def _spec_for(model_id: str):
     ).replace("-", "_")
     try:
         return importlib.import_module(module).SPEC
-    except (ImportError, AttributeError):
+    except ImportError, AttributeError:
         return None
 
 
@@ -195,14 +194,12 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
     if stored_obs is not None and int(stored_obs) != fitted_obs:
         return (
             "needs refit",
-            f"analysis frame moved: stored {stored_obs} fitted rows, rebuild gives "
-            f"{fitted_obs}",
+            f"analysis frame moved: stored {stored_obs} fitted rows, rebuild gives {fitted_obs}",
         )
     if stored_children is not None and int(stored_children) != fitted_children:
         return (
             "needs refit",
-            f"analysis frame moved: stored {stored_children} children, rebuild gives "
-            f"{fitted_children}",
+            f"analysis frame moved: stored {stored_children} children, rebuild gives {fitted_children}",
         )
 
     written: list[str] = []
@@ -236,9 +233,7 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
     ci_prob = float(stored.get("ci_prob", 0.89))
 
     # -- the declared natural-scale estimand (#602) --------------------------
-    items_worked = _regenerate_declared_estimand(
-        fit_dir, trace, run_plan, prepared, ci_prob=ci_prob
-    )
+    items_worked = _regenerate_declared_estimand(fit_dir, trace, run_plan, prepared, ci_prob=ci_prob)
     if items_worked:
         written.append("mechanism_summary.csv, mechanism_curve_items.csv")
     written.append("mechanism_curve.csv")
@@ -252,35 +247,18 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
     if not run_plan.linear_mechanism and "f_mech" in trace.posterior:
         if run_plan.mechanism_is_covariate:
             scaler = prepared.covariate_scalers.get(run_plan.mechanism_symbol)
-            z = np.asarray(
-                prepared.covariates[run_plan.mechanism_symbol], dtype=float
-            )
+            z = np.asarray(prepared.covariates[run_plan.mechanism_symbol], dtype=float)
             values = scaler.inverse(z) if scaler is not None else z
-            summary = _report.readiness_threshold(
-                trace, exposure_values=values, ci_prob=ci_prob
-            )
+            summary = _readiness_summary.readiness_threshold(trace, exposure_values=values, ci_prob=ci_prob)
             x_obs = values
         else:
             n_trials = MEASURES[run_plan.mechanism_symbol].n_trials
-            summary = _report.readiness_threshold(
-                trace, n_trials=n_trials, ci_prob=ci_prob
-            )
-            ell = np.asarray(
-                trace.constant_data["mech_post_logit"].values
-            ).reshape(-1)
-            x_obs = np.clip(
-                (n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials)
-            )
-        summary.update(
-            _items_scale_knee(trace, run_plan, prepared, x_obs=x_obs, ci_prob=ci_prob)
-        )
-        pd.DataFrame([summary]).to_csv(
-            fit_dir / "readiness_threshold.csv", index=False
-        )
-        written.append(
-            "readiness_threshold.csv"
-            + ("" if summary["knee_well_defined"] else " (not a qualified knee)")
-        )
+            summary = _readiness_summary.readiness_threshold(trace, n_trials=n_trials, ci_prob=ci_prob)
+            ell = np.asarray(trace.constant_data["mech_post_logit"].values).reshape(-1)
+            x_obs = np.clip((n_trials + 1.0) / (1.0 + np.exp(-ell)) - 0.5, 0.0, float(n_trials))
+        summary.update(_items_scale_knee(trace, run_plan, prepared, x_obs=x_obs, ci_prob=ci_prob))
+        pd.DataFrame([summary]).to_csv(fit_dir / "readiness_threshold.csv", index=False)
+        written.append("readiness_threshold.csv" + ("" if summary["knee_well_defined"] else " (not a qualified knee)"))
 
     # -- exposure support (finding 2) ---------------------------------------
     support = _exposure_support(run_plan, prepared)
@@ -292,18 +270,14 @@ def _regenerate(fit_dir: Path, *, dry_run: bool) -> tuple[str, str]:
     record = effective_adjustment(
         spec,
         prepared,
-        measure_confounders=tuple(
-            s for s in plan.confounders if s in ("G", "A") or s in MEASURES
-        ),
+        measure_confounders=tuple(s for s in plan.confounders if s in ("G", "A") or s in MEASURES),
         adjust_for=plan.adjust_for,
         requested_adjust_for=run_plan.adjust_for
         + ((run_plan.ability_covariate,) if run_plan.ability_covariate else ()),
         baseline_symbol=run_plan.adjust_baseline_symbol,
         moderator_symbol=run_plan.moderator_symbol,
         moderator_is_covariate=run_plan.moderator_is_covariate,
-        moderator_interaction=(
-            run_plan.moderator_symbol is not None and run_plan.include_interaction
-        ),
+        moderator_interaction=(run_plan.moderator_symbol is not None and run_plan.include_interaction),
         exposure_terms=_exposure_term_records(run_plan, prepared),
     )
     stored.setdefault("extra", {})["effective_adjustment"] = record
@@ -364,9 +338,7 @@ def _items_axis(run_plan, prepared) -> tuple[np.ndarray, str, int | None]:
     )
 
 
-def _regenerate_declared_estimand(
-    fit_dir: Path, trace, run_plan, prepared, *, ci_prob: float
-) -> dict:
+def _regenerate_declared_estimand(fit_dir: Path, trace, run_plan, prepared, *, ci_prob: float) -> dict:
     """Rewrite ``mechanism_summary.csv`` and the items curve on the #602 estimand."""
     from language_reading_predictors.statistical_models.mechanism_items import (
         mechanism_summary_table,
@@ -392,11 +364,7 @@ def _regenerate_declared_estimand(
     symbol = run_plan.mechanism_symbol
     mechanism_summary_table(
         worked,
-        exposure_unit=(
-            f"{symbol} raw-score units"
-            if run_plan.mechanism_is_covariate
-            else f"{symbol} items"
-        ),
+        exposure_unit=(f"{symbol} raw-score units" if run_plan.mechanism_is_covariate else f"{symbol} items"),
     ).to_csv(fit_dir / "mechanism_summary.csv", index=False)
     return worked
 
@@ -423,9 +391,7 @@ def _regenerate_logit_curve(fit_dir: Path, trace, run_plan, prepared) -> None:
             dtype=float,
         )
         x_col = "mech_logit"
-    terms = resolve_mechanism_terms(
-        trace, x_exposure=x_vals, exposure_n_trials=None, group="posterior"
-    )
+    terms = resolve_mechanism_terms(trace, x_exposure=x_vals, exposure_n_trials=None, group="posterior")
     xs = np.unique(x_vals)
     f_ord = np.stack(
         [
@@ -461,18 +427,16 @@ def _items_scale_knee(trace, run_plan, prepared, *, x_obs, ci_prob: float) -> di
             trace,
             x_exposure=x_exposure,
             n_trials_outcome=MEASURES[outcome].n_trials,
-            exposure_n_trials=(
-                None if run_plan.mechanism_is_covariate else exposure_n_trials
-            ),
+            exposure_n_trials=(None if run_plan.mechanism_is_covariate else exposure_n_trials),
         )
-        items = _report.readiness_threshold(
+        items = _readiness_summary.readiness_threshold(
             trace,
             exposure_values=np.asarray(x_obs, dtype=float),
             ci_prob=ci_prob,
             curve=items_rows,
             scale="expected_items",
         )
-    except (KeyError, ValueError):
+    except KeyError, ValueError:
         return {}
     keep = (
         "knee_count_median",
@@ -572,9 +536,7 @@ def _exposure_support(run_plan, prepared) -> pd.DataFrame | None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "target", help="'all', a model id, or a fit dir name (<id>-<config>)"
-    )
+    parser.add_argument("target", help="'all', a model id, or a fit dir name (<id>-<config>)")
     parser.add_argument(
         "--dry-run",
         action="store_true",

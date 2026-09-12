@@ -43,10 +43,7 @@ from language_reading_predictors.statistical_models.pipelines.corr_factor import
 SPEC = ModelSpec(
     model_id="lrp-rli-mm-001",
     kind="corr_factor",
-    title=(
-        "Correlated-domain-factor measurement model "
-        "(vocabulary / code / grammar) - reading-gain structural leg"
-    ),
+    title=("Correlated-domain-factor measurement model (vocabulary / code / grammar) - reading-gain structural leg"),
     outcome_symbol="W",
     model_settings=CorrFactorModelSettings(
         domains=(
@@ -57,24 +54,24 @@ SPEC = ModelSpec(
         structural_covariates=("blocks",),
         use_age=True,
     ),
-        # Small-n latent-factor geometry. Two independent things were needed:
-        #
-        # 1. The factory MARGINALISES the factor scores out of the measurement
-        #    likelihood, which kills the funnel (BFMI 0.21 -> ~0.87). This is
-        #    measure-preserving: it changes the geometry, not the posterior.
-        # 2. target_accept is lifted above the reporting preset's 0.95 to clear the
-        #    residual boundary divergences the strict gate requires to be zero.
-        #
-        # The loading / residual priors are the factory-default COMMUNALITY scale
-        # (#383): communality ~ Beta(2, 2) with lambda = sqrt(c), sigma =
-        # sqrt(1 - c), enforcing the lambda**2 + sigma**2 = 1 budget standardised
-        # indicators imply. This replaces the original HalfNormal(1) free pair,
-        # whose implied communality prior is Beta(1/2, 1/2) — mass piled on both
-        # singular corners plus ~32% of loading mass above 1 — while keeping its
-        # defended prior median communality of 0.5. The legacy free pair lives on
-        # in LRPMM101 as the geometry-sensitivity companion; on the earlier
-        # (rejected, settled) 0.6/0.5 recalibration ablation see
-        # notes/202607101638-mm-001-convergence-reparameterisation.md.
+    # Small-n latent-factor geometry. Two independent things were needed:
+    #
+    # 1. The factory MARGINALISES the factor scores out of the measurement
+    #    likelihood, which kills the funnel (BFMI 0.21 -> ~0.87). This is
+    #    measure-preserving: it changes the geometry, not the posterior.
+    # 2. target_accept is lifted above the reporting preset's 0.95 to clear the
+    #    residual boundary divergences the strict gate requires to be zero.
+    #
+    # The loading / residual priors are the factory-default COMMUNALITY scale
+    # (#383): communality ~ Beta(2, 2) with lambda = sqrt(c), sigma =
+    # sqrt(1 - c), enforcing the lambda**2 + sigma**2 = 1 budget standardised
+    # indicators imply. This replaces the original HalfNormal(1) free pair,
+    # whose implied communality prior is Beta(1/2, 1/2) — mass piled on both
+    # singular corners plus ~32% of loading mass above 1 — while keeping its
+    # defended prior median communality of 0.5. The legacy free pair lives on
+    # in LRPMM101 as the geometry-sensitivity companion; on the earlier
+    # (rejected, settled) 0.6/0.5 recalibration ablation see
+    # notes/202607101638-mm-001-convergence-reparameterisation.md.
     target_accept=0.999,
 )
 

@@ -43,10 +43,7 @@ from language_reading_predictors.statistical_models.pipelines.did import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-103",
     kind="did",
-    title=(
-        "Guessing-floor response-link sensitivity for the phoneme-blending "
-        "arm-by-wave contrasts (B)"
-    ),
+    title=("Guessing-floor response-link sensitivity for the phoneme-blending arm-by-wave contrasts (B)"),
     outcome_symbol="B",
     family="did",
     design="waitlist-crossover arm-by-wave levels, three-choice guessing-floor link",

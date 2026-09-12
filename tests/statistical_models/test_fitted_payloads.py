@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import (
     EmptyPayload,
     IttPayload,

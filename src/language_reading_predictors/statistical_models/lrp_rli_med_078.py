@@ -56,8 +56,16 @@ SPEC = ModelSpec(
     # Mirror LRP59 exactly (post-#259) so the IDE/IIE-vs-NDE/NIE comparison is
     # like-for-like: same adjustment set, only the estimand class differs (#268).
     adjustment=[
-        "G", "A", "E", "R", "L_t1", "W_pre",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "E",
+        "R",
+        "L_t1",
+        "W_pre",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     model_settings=MediationModelSettings(estimand="interventional"),
 )

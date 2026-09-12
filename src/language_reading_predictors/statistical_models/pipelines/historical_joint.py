@@ -17,6 +17,10 @@ record. Descriptive throughout; the cohort is observational.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import historical as _historical_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import numpy as np
 import pandas as pd
 
@@ -28,9 +32,7 @@ from language_reading_predictors.models._reporting import (
 from language_reading_predictors.statistical_models import (
     datasets as _datasets,
     diagnostics as _diag,
-    factories as _factories,
     historical as _historical,
-    reporting as _report,
 )
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
@@ -92,7 +94,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     plan = resolve_historical_joint_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     study_id = plan.study_id
     measure_syms = plan.measures
@@ -108,7 +110,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_rlm_joint_growth_model(
+    built = _historical_factory.build_rlm_joint_growth_model(
         panel,
         **plan.factory_kwargs(),
     )
@@ -120,6 +122,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     # no interpretable predictive distribution (same reasoning as the joint family's
     # symbol-suffixed checks).
     diag_vars = plan.diagnostic_vars()
+
     # Power-scaling prior sensitivity on the reported parameters (#381). This family
     # is ``compute_loo=False`` — not because several likelihood nodes make a
     # pointwise unit undefined (they share an observation coordinate and could be
@@ -157,7 +160,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             plan.kfold_plan(),
             # This family's builder reads the panel as given, so a fold can simply
             # drop the held-out children's rows.
-            lambda training, _held_out: _factories.build_rlm_joint_growth_model(
+            lambda training, _held_out: _historical_factory.build_rlm_joint_growth_model(
                 subset_panel_children(panel, training),
                 **plan.factory_kwargs(),
             ),
@@ -170,9 +173,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             ppc_var_names=plan.observation_nodes,
             after_trace_audit=_validate_new_child,
             plot_prior_predictive=_plot_prior_predictive,
-            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(
-                c, strict=False
-            ),
+            prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(c, strict=False),
             compute_loo=plan.compute_loo,
             # LOO-PIT is a pointwise PSIS-LOO quantity, and this family does not
             # compute PSIS-LOO: its declared target is a new child, whose
@@ -198,22 +199,16 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     section_header("Cross-measure correlation")
     corr_draws = post["measure_corr"]
     mnames = [str(m) for m in post["measure"].values]
-    corr_df = pd.DataFrame(
-        corr_draws.mean(dim=("chain", "draw")).values, index=mnames, columns=mnames
-    )
+    corr_df = pd.DataFrame(corr_draws.mean(dim=("chain", "draw")).values, index=mnames, columns=mnames)
     save_table(ctx, "measure_correlation", corr_df, index=True)
     corr_stacked = corr_draws.stack(sample=("chain", "draw"))
-    labels = {
-        m: str(measures[m].label) if m in measures else m for m in mnames
-    }
+    labels = {m: str(measures[m].label) if m in measures else m for m in mnames}
     corr_rows = []
     for i, mi in enumerate(mnames):
         for j, mj in enumerate(mnames):
             if j <= i:
                 continue
-            pair = np.asarray(
-                corr_stacked.isel(measure=i, measure_b=j).values
-            ).reshape(-1)
+            pair = np.asarray(corr_stacked.isel(measure=i, measure_b=j).values).reshape(-1)
             corr_rows.append(
                 {
                     "measure_i": mi,
@@ -267,11 +262,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         # finding 6). Measured from the fit's own draws, not derived from a
         # formula, so a different panel shape cannot make it wrong.
         realised = post.get("within_offset")
-        realised_sd = (
-            realised.std(dim="obs").stack(sample=("chain", "draw"))
-            if realised is not None
-            else None
-        )
+        realised_sd = realised.std(dim="obs").stack(sample=("chain", "draw")) if realised is not None else None
         scale_rows = []
         scale_resolvable: dict[str, bool] = {}
         for i, measure in enumerate(mnames):
@@ -293,9 +284,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 "resolvable": resolved,
             }
             if realised_sd is not None:
-                observed = np.asarray(
-                    realised_sd.isel(measure=i).values
-                ).reshape(-1)
+                observed = np.asarray(realised_sd.isel(measure=i).values).reshape(-1)
                 # The rule is applied to ``sigma_within``, but its justification is
                 # about the departures the linear predictor actually carries, which
                 # the double sum-to-zero sweep makes smaller. Publish the same
@@ -303,16 +292,10 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                 # rather than left for a reader to infer (2026-08-24
                 # historical-joint review). The classification itself is unchanged:
                 # it stays on the latent scale the correlation belongs to.
-                row["realised_prob_above_minimum"] = float(
-                    np.mean(observed > _MIN_RESOLVABLE_WITHIN_SD)
-                )
+                row["realised_prob_above_minimum"] = float(np.mean(observed > _MIN_RESOLVABLE_WITHIN_SD))
                 row["realised_departure_sd_median"] = float(np.median(observed))
-                row["realised_departure_sd_lo"] = float(
-                    np.quantile(observed, lo_q)
-                )
-                row["realised_departure_sd_hi"] = float(
-                    np.quantile(observed, 1 - lo_q)
-                )
+                row["realised_departure_sd_lo"] = float(np.quantile(observed, lo_q))
+                row["realised_departure_sd_hi"] = float(np.quantile(observed, 1 - lo_q))
             scale_rows.append(row)
         scale_summary_df = pd.DataFrame(scale_rows)
         save_table(ctx, "within_scale_summary", scale_summary_df)
@@ -322,12 +305,8 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             for j, mj in enumerate(mnames):
                 if j <= i:
                     continue
-                between_pair = np.asarray(
-                    corr_stacked.isel(measure=i, measure_b=j).values
-                ).reshape(-1)
-                within_pair = np.asarray(
-                    within_stacked.isel(measure=i, measure_b=j).values
-                ).reshape(-1)
+                between_pair = np.asarray(corr_stacked.isel(measure=i, measure_b=j).values).reshape(-1)
+                within_pair = np.asarray(within_stacked.isel(measure=i, measure_b=j).values).reshape(-1)
                 difference = within_pair - between_pair
                 within_rows.append(
                     {
@@ -344,9 +323,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                         "prob_pos": float(np.mean(within_pair > 0)),
                         "scale_i_resolvable": scale_resolvable[mi],
                         "scale_j_resolvable": scale_resolvable[mj],
-                        "pair_resolvable": (
-                            scale_resolvable[mi] and scale_resolvable[mj]
-                        ),
+                        "pair_resolvable": (scale_resolvable[mi] and scale_resolvable[mj]),
                     }
                 )
                 comparison_rows.append(
@@ -357,51 +334,27 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
                         "label_j": labels[mj],
                         "between_median": float(np.median(between_pair)),
                         "between_lo": float(np.quantile(between_pair, lo_q)),
-                        "between_hi": float(
-                            np.quantile(between_pair, 1 - lo_q)
-                        ),
-                        "between_lo50": float(
-                            np.quantile(between_pair, 0.25)
-                        ),
-                        "between_hi50": float(
-                            np.quantile(between_pair, 0.75)
-                        ),
+                        "between_hi": float(np.quantile(between_pair, 1 - lo_q)),
+                        "between_lo50": float(np.quantile(between_pair, 0.25)),
+                        "between_hi50": float(np.quantile(between_pair, 0.75)),
                         "within_median": float(np.median(within_pair)),
                         "within_lo": float(np.quantile(within_pair, lo_q)),
                         "within_hi": float(np.quantile(within_pair, 1 - lo_q)),
                         "within_lo50": float(np.quantile(within_pair, 0.25)),
                         "within_hi50": float(np.quantile(within_pair, 0.75)),
-                        "within_minus_between_median": float(
-                            np.median(difference)
-                        ),
-                        "within_minus_between_lo": float(
-                            np.quantile(difference, lo_q)
-                        ),
-                        "within_minus_between_hi": float(
-                            np.quantile(difference, 1 - lo_q)
-                        ),
-                        "within_minus_between_lo50": float(
-                            np.quantile(difference, 0.25)
-                        ),
-                        "within_minus_between_hi50": float(
-                            np.quantile(difference, 0.75)
-                        ),
-                        "prob_within_gt_between": float(
-                            np.mean(difference > 0)
-                        ),
-                        "pair_resolvable": (
-                            scale_resolvable[mi] and scale_resolvable[mj]
-                        ),
+                        "within_minus_between_median": float(np.median(difference)),
+                        "within_minus_between_lo": float(np.quantile(difference, lo_q)),
+                        "within_minus_between_hi": float(np.quantile(difference, 1 - lo_q)),
+                        "within_minus_between_lo50": float(np.quantile(difference, 0.25)),
+                        "within_minus_between_hi50": float(np.quantile(difference, 0.75)),
+                        "prob_within_gt_between": float(np.mean(difference > 0)),
+                        "pair_resolvable": (scale_resolvable[mi] and scale_resolvable[mj]),
                     }
                 )
         within_summary_df = pd.DataFrame(within_rows)
         comparison_df = pd.DataFrame(comparison_rows)
-        save_table(
-            ctx, "within_measure_correlation_summary", within_summary_df
-        )
-        save_table(
-            ctx, "between_within_correlation_comparison", comparison_df
-        )
+        save_table(ctx, "within_measure_correlation_summary", within_summary_df)
+        save_table(ctx, "between_within_correlation_comparison", comparison_df)
         print_table(
             ranked_dataframe_table(
                 scale_summary_df,
@@ -421,10 +374,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
         print_table(
             ranked_dataframe_table(
                 within_summary_df,
-                title=(
-                    "Within-child cross-measure correlations - "
-                    f"{int(hdi * 100)}% CI"
-                ),
+                title=(f"Within-child cross-measure correlations - {int(hdi * 100)}% CI"),
                 columns=[
                     "label_i",
                     "label_j",
@@ -447,9 +397,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     for m in measure_syms:
         label = measures[m].label
         baseline = _historical.observed_baseline(panel, m, label)
-        save_table(
-            ctx, f"observed_complete_case_baseline_{m}", baseline, register=False
-        )
+        save_table(ctx, f"observed_complete_case_baseline_{m}", baseline, register=False)
         cells = _historical.cell_summary(
             ctx.trace,
             panel,
@@ -460,9 +408,7 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             fitted_var=f"fitted_mean_items_obs_{m}",
         )
         save_table(ctx, f"posterior_cell_summary_{m}", cells, register=False)
-        growth = _historical.growth_summary(
-            ctx.trace, panel, m, fitted_var=f"fitted_mean_items_obs_{m}"
-        )
+        growth = _historical.growth_summary(ctx.trace, panel, m, fitted_var=f"fitted_mean_items_obs_{m}")
         save_table(ctx, f"posterior_growth_summary_{m}", growth)
         _pf_rows.extend(
             growth_contrast_pushforward_rows(
