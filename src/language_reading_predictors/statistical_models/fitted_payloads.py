@@ -268,6 +268,12 @@ class GainFactorsPayload(FittedPayload):
     """
 
     trt_interaction_moderators: tuple[TreatmentModerator, ...]
+    term_vectors: Mapping[str, np.ndarray]
+    """Interaction inputs in fitted-row order, including binary baseline indicators."""
+    main_scales: Mapping[str, float]
+    """Main-effect input change per standardised unit, or per binary switch."""
+    active_interactions: tuple[tuple[str, str], ...]
+    own_baseline_is_binary: bool
     score_mean_link: str = "logit"
     #: The adjusters the built model actually carries, after the factory's final
     #: analysis mask (#575 finding 1). The loader filters constants on its own

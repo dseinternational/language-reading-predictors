@@ -142,7 +142,7 @@ def _effective_model_settings(context: StatisticalFitContext) -> dict:
 
     spec = context.spec
     prepared = context.prepared
-    resolved = _resolved_run_plan(context)
+    resolved = _effective_run_plan(context)
     settings = resolved.as_dict() if resolved is not None else {}
 
     if spec.kind == "itt":
@@ -278,6 +278,13 @@ def _itt_run_plan(context: StatisticalFitContext) -> IttRunPlan:
     if not isinstance(plan, IttRunPlan):
         raise TypeError("ITT metadata requires an ITT run plan")
     return plan
+
+
+def _effective_run_plan(context: StatisticalFitContext) -> ResolvedRunPlan:
+    """Use fitted-data restrictions while retaining validation of the declaration."""
+    declared = _resolved_run_plan(context)
+    effective = getattr(context, "effective_plan", None)
+    return declared if effective is None else effective
 
 
 def _joint_run_plan(context: StatisticalFitContext) -> JointRunPlan:
@@ -497,15 +504,15 @@ def require_reuse_compatibility(context: StatisticalFitContext, source_dir: str 
         raise ValueError("reuse-trace compatibility check failed for the prior publication: " + fields)
 
 
-def write_model_recipe(context: StatisticalFitContext, *, plan=None) -> str | None:
-    """Write the human-readable recipe generated from a typed run plan, if any.
+def write_model_recipe(context: StatisticalFitContext, *, plan: ResolvedRunPlan | None = None) -> str | None:
+    """Write the fitted recipe and retain any supplied effective plan.
 
-    ``plan`` overrides the context's stored plan for the prose only: after data
-    loading a family may drop a constant covariate and re-describe the ACTIVE
-    model here, while ``config.json`` keeps the resolver's own plan so the #623
-    currency check compares resolution with resolution (2026-08-26 batch).
+    A data-filtered ``plan`` also governs subsequent metadata and recipe writes.
+    It does not replace ``resolved_plan``, which checks the model declaration.
     """
-    plan = plan if plan is not None else _resolved_run_plan(context)
+    if plan is not None:
+        context.effective_plan = plan
+    plan = _effective_run_plan(context)
     if plan is None:
         return None
     os.makedirs(context.output_dir, exist_ok=True)

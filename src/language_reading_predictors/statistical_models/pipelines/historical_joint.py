@@ -78,14 +78,10 @@ _MIN_RESOLVABLE_PROB = 0.95
 
 
 def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
-    """Byrne joint correlated growth fits (#338 Phase B; #409 C2(ii)).
+    """Fit joint growth models and report correlations between stable child levels.
 
-    Fits :func:`factories.build_rlm_joint_growth_model` over a small measure set
-    and reports the between-child cross-measure correlation matrix of the
-    stable child levels (the headline), plus per-measure fitted cells and
-    common-window growth via the shared historical summaries. LOO is not computed
-    because this family has no defined and implemented prediction target; see
-    ``plan.loo_reason``, which the report renders verbatim.
+    Report per-measure fitted cells and growth over the shared observation window.
+    Validate prediction for new children with grouped child-level K-fold refits.
     """
     require_spec(spec, "historical_joint")
 
@@ -123,20 +119,6 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
     # symbol-suffixed checks).
     diag_vars = plan.diagnostic_vars()
 
-    # Power-scaling prior sensitivity on the reported parameters (#381). This family
-    # is ``compute_loo=False`` — not because several likelihood nodes make a
-    # pointwise unit undefined (they share an observation coordinate and could be
-    # summed per row) but because no prediction target has been defined and
-    # implemented; see ``plan.loo_reason`` (2026-08-23 joint audit, finding 8). The
-    # groups psense needs are therefore not attached by the sampling stage and have
-    # to be requested here. ``strict=False`` because psense is a secondary diagnostic and must not
-    # crash a fit. An earlier comment here recorded both groups as refused by the
-    # ``measure_corr_chol_cholesky`` naming seam in ``get_untransformed_name``
-    # (notes/202607261700-psense-coverage-backfill.md); that is stale —
-    # ``psense_summary.csv`` is written and populated for both registered fits,
-    # including the ``measure_corr_pairs`` / ``within_corr_pairs`` headline rows
-    # (2026-08-21 historical-families review, finding 9). ``strict=False`` stays as
-    # the guard it always was, not as a declaration that psense is unavailable.
     def _plot_prior_predictive(c: StatisticalFitContext) -> None:
         for symbol, node in zip(measure_syms, plan.observation_nodes, strict=True):
             _diag.save_prior_predictive_plot(
@@ -173,6 +155,8 @@ def fit_rlm_joint_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFit
             ppc_var_names=plan.observation_nodes,
             after_trace_audit=_validate_new_child,
             plot_prior_predictive=_plot_prior_predictive,
+            # Ordinary LOO is disabled, so attach the density groups needed for
+            # power scaling explicitly. Absence of this secondary check is recorded.
             prepare_psense=lambda c: _diag.compute_log_likelihood_and_prior(c, strict=False),
             compute_loo=plan.compute_loo,
             # LOO-PIT is a pointwise PSIS-LOO quantity, and this family does not

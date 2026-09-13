@@ -265,7 +265,11 @@ def build_did_model(
                 eta = eta + gamma_A * age_t1_d
             if use_child_re:
                 child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
-                eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=0.5)
+                eta = _add_child_random_intercept(
+                    eta,
+                    child_idx_d,
+                    sigma_prior_sigma=(0.5 if sigma_child_prior_sigma is None else float(sigma_child_prior_sigma)),
+                )
 
             eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
             _dose_slope_prior = (

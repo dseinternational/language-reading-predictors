@@ -23,6 +23,7 @@ from language_reading_predictors.statistical_models.preprocessing import (
     HEARING_STATUS_COVARIATES,
     INTERVAL_COVARIATES,
     _subset_prepared,
+    _validate_bounded_counts,
     add_hearing_status,
     add_missing_indicator_covariates,
     filter_informative_covariates,
@@ -430,6 +431,8 @@ def test_lagged_outcome_missing_later_wave_is_nan(tmp_path):
     [
         (-1.0, r"t3.*lower bound 0"),
         (4.5, r"t3.*integer counts"),
+        (np.inf, r"t3.*infinite"),
+        (-np.inf, r"t3.*infinite"),
     ],
 )
 def test_lagged_outcome_rejects_invalid_replacement_count(tmp_path, value, match):
@@ -472,6 +475,8 @@ def test_load_and_prepare_rejects_count_above_ceiling(tmp_path):
         (2, -1.0, r"ewrswr_post.*lower bound 0"),
         (1, 1.5, r"ewrswr_pre.*integer counts"),
         (2, 2.25, r"ewrswr_post.*integer counts"),
+        (1, np.inf, r"ewrswr_pre.*infinite"),
+        (2, -np.inf, r"ewrswr_post.*infinite"),
     ],
 )
 def test_load_and_prepare_rejects_negative_or_fractional_counts(tmp_path, time, value, match):
@@ -485,9 +490,50 @@ def test_load_and_prepare_rejects_negative_or_fractional_counts(tmp_path, time, 
         load_and_prepare(path=p, phase_mode="itt")
 
 
-# ---------------------------------------------------------------------------
-# levels phase mode + baseline_covariates broadcast (LRPLF / LRPGF, issue #127)
-# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("value", [np.inf, -np.inf])
+def test_shared_bounded_count_validator_rejects_infinity(value):
+    with pytest.raises(ValueError, match="measure.*infinite"):
+        _validate_bounded_counts([0, np.nan, value], 10, "measure")
+
+
+def test_bounded_count_validator_keeps_missing_and_boundary_values():
+    _validate_bounded_counts([np.nan, 0, 10], 10, "measure")
+
+
+@pytest.mark.parametrize("time", [1, 2])
+def test_finite_ceiling_quarantine_preserves_its_missing_cell_policy(tmp_path, time):
+    df = _make_synthetic_long(n_children=10, seed=14)
+    df.loc[(df[V.SUBJECT_ID] == "S000") & (df[V.TIME] == time), V.EWRSWR] = MEASURES["W"].n_trials + 1
+    path = tmp_path / "finite_ceiling.csv"
+    df.to_csv(path, index=False)
+    with pytest.warns(UserWarning, match="setting to NaN"):
+        prepared = load_and_prepare(path=path, outcomes=("W",), drop_ceiling_violations=("W",))
+    assert prepared.n_obs == 10
+    values = prepared.pre_counts["W"] if time == 1 else prepared.post_counts["W"]
+    assert np.isnan(values[prepared.subject_ids == "S000"]).all()
+    assert np.isfinite(values[prepared.subject_ids != "S000"]).all()
+
+
+@pytest.mark.parametrize("value", [np.inf, -np.inf])
+def test_aligned_counts_reject_infinity(tmp_path, value):
+    df = _make_synthetic_long(n_children=10, seed=14)
+    df[V.EWRSWR] = df[V.EWRSWR].astype(float)
+    df.loc[df[V.TIME] == 3, V.EWRSWR] = value
+    path = tmp_path / "invalid_aligned.csv"
+    df.to_csv(path, index=False)
+    with pytest.raises(ValueError, match="ewrswr_post.*infinite"):
+        load_and_prepare_aligned(path=path, outcomes=("W",))
+
+
+@pytest.mark.parametrize("value", [np.inf, -np.inf])
+def test_ceiling_quarantine_still_rejects_infinity(tmp_path, value):
+    df = _make_synthetic_long(n_children=10, seed=14)
+    df[V.EWRSWR] = df[V.EWRSWR].astype(float)
+    df.loc[df[V.TIME] == 2, V.EWRSWR] = value
+    path = tmp_path / "invalid_quarantine.csv"
+    df.to_csv(path, index=False)
+    with pytest.raises(ValueError, match="ewrswr_post.*infinite"):
+        load_and_prepare(path=path, outcomes=("W",), drop_ceiling_violations=("W",))
 
 
 def test_load_and_prepare_levels(tmp_path):

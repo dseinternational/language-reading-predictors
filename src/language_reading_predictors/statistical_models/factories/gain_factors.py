@@ -263,8 +263,10 @@ def build_gain_factors_model(
     # sibling — the small age-distribution shift from dropping period-1 rows is
     # accepted in exchange for that cross-variant comparability (issue #273).
     term_vecs: dict[str, np.ndarray] = {"trt": trt, "age": prepared.A_std}
+    main_scales: dict[str, float] = {"age": 1.0, "own": 1.0}
     if ability_covariate is not None:
         term_vecs["ability"], _ = standardise(prepared.covariates[ability_covariate])
+        main_scales["ability"] = 1.0
     # "own" on the off-floor path is the binary off-floor-at-pre indicator (raw
     # 0/1), NOT the standardised pre logit: the pre logit of a heavily-floored
     # measure is a near-degenerate spike, so the indicator is the honest
@@ -273,9 +275,11 @@ def build_gain_factors_model(
     if likelihood == "bernoulli_offfloor":
         term_vecs["own"] = (prepared.pre_counts[own] > 0).astype(float)
     else:
-        term_vecs["own"], _ = standardise(prepared.pre_logit[own])
+        term_vecs["own"], own_scaler = standardise(prepared.pre_logit[own])
+        main_scales["own"] = own_scaler.sd
     for s in skill_symbols:
-        term_vecs[s], _ = standardise(prepared.pre_logit[s])
+        term_vecs[s], scaler = standardise(prepared.pre_logit[s])
+        main_scales[s] = scaler.sd
 
     coords = {
         "obs_id": np.arange(prepared.n_obs),
@@ -422,6 +426,10 @@ def build_gain_factors_model(
         prepared=prepared,
         payload=GainFactorsPayload(
             trt_interaction_moderators=tuple(trt_moderators),
+            term_vectors={key: np.asarray(values, dtype=float).copy() for key, values in term_vecs.items()},
+            main_scales=main_scales,
+            active_interactions=tuple(active_interactions),
+            own_baseline_is_binary=likelihood == "bernoulli_offfloor",
             score_mean_link=score_mean_link,
             effective_adjust_for=tuple(adjust_for),
             post_mask_dropped_adjusters=tuple(_post_mask_dropped),

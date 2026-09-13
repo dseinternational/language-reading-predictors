@@ -2228,6 +2228,32 @@ def test_did_factory_toggles_and_dose(tmp_path):
         )
 
 
+@pytest.mark.parametrize("dose,period_varying", [(False, False), (True, False), (True, True)])
+@pytest.mark.parametrize("requested,expected", [(None, 0.5), (0.25, 0.25), (1.0, 1.0)])
+def test_did_child_prior_scale_reaches_every_build(tmp_path, dose, period_varying, requested, expected):
+    from language_reading_predictors.statistical_models.did import DiDModelSettings, resolve_did_run_plan
+
+    spec = ModelSpec(
+        model_id="lrp-rli-did-999",
+        kind="did",
+        title="Child-prior scale check",
+        outcome_symbol="W",
+        model_settings=DiDModelSettings(
+            outcomes=("W",),
+            dose=dose,
+            period_varying_dose=period_varying,
+            sigma_child_prior_sigma=requested,
+        ),
+    )
+    plan = resolve_did_run_plan(spec)
+    prepared = load_and_prepare(path=_write_synthetic(tmp_path), **plan.prepare_kwargs())
+    built = build_did_model(prepared, **plan.factory_kwargs())
+    actual = float(built.model["sigma_child"].owner.inputs[-1].eval())
+    assert actual == pytest.approx(expected)
+    row = priors.priors_table(built.model).set_index("parameter").loc["sigma_child"]
+    assert row["distribution"] == f"HalfNormal({expected:g})"
+
+
 def test_did_factory_partitions_row_exclusions_by_reason(tmp_path):
     """#390 P3: design restriction and missing data are recorded as disjoint,
     reconciling components of dropped_rows, not one overloaded count."""

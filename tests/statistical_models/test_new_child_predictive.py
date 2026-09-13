@@ -35,6 +35,7 @@ from language_reading_predictors.statistical_models.family_registry import (
 )
 from language_reading_predictors.statistical_models.new_child_kfold import (
     KFoldPlan,
+    _child_groups,
     _fold_assignment,
     _transplant,
 )
@@ -307,16 +308,84 @@ def test_folds_are_balanced_within_group():
 
 
 def test_fold_assignment_is_deterministic():
-    plan = KFoldPlan(n_folds=4)
+    plan = KFoldPlan(n_folds=4, stratify=False)
     first = _fold_assignment(40, None, plan)
     second = _fold_assignment(40, None, plan)
     np.testing.assert_array_equal(first, second)
 
 
 def test_every_child_lands_in_exactly_one_fold():
-    folds = _fold_assignment(37, None, KFoldPlan(n_folds=5))
+    folds = _fold_assignment(37, None, KFoldPlan(n_folds=5, stratify=False))
     assert folds.shape == (37,)
     assert set(folds.tolist()) == {0, 1, 2, 3, 4}
+
+
+@pytest.mark.parametrize("shuffle", [False, True])
+def test_child_groups_recover_unequal_stacked_rows(shuffle):
+    expected = np.array([0] * 25 + [1] * 28)
+    child_idx = np.repeat(np.arange(expected.size), 1 + np.arange(expected.size) % 4)
+    if shuffle:
+        np.random.default_rng(719).shuffle(child_idx)
+    ctx = types.SimpleNamespace(prepared=types.SimpleNamespace(G=expected[child_idx], child_idx=child_idx))
+    groups = _child_groups(ctx, expected.size)
+    np.testing.assert_array_equal(groups, expected)
+    folds = _fold_assignment(expected.size, groups, KFoldPlan(n_folds=5))
+    for group in (0, 1):
+        counts = np.bincount(folds[expected == group], minlength=5)
+        assert counts.max() - counts.min() <= 1
+
+
+def test_child_group_mapping_controls_even_one_row_per_child():
+    ctx = types.SimpleNamespace(prepared=types.SimpleNamespace(G=np.array([1, 0]), child_idx=np.array([1, 0])))
+    np.testing.assert_array_equal(_child_groups(ctx, 2), [0, 1])
+
+
+@pytest.mark.parametrize(
+    "groups,child_idx",
+    [([0, 1, 1], [0, 0, 1]), ([0, np.nan, 1], [0, 0, 1]), ([0, 1], [0, 2]), ([0, 0], [0, 0])],
+)
+def test_invalid_child_group_mapping_is_rejected(groups, child_idx):
+    ctx = types.SimpleNamespace(prepared=types.SimpleNamespace(G=np.asarray(groups), child_idx=np.asarray(child_idx)))
+    with pytest.raises(ValueError, match="child|group"):
+        _child_groups(ctx, 2)
+
+
+def test_long_panel_group_inventory_is_not_a_child_mapping():
+    panel = types.SimpleNamespace(
+        group_codes=[1, 2],
+        subject_ids=["b", "a"],
+        dataset=types.SimpleNamespace(subject_col="sid", group_col="group"),
+        long=pd.DataFrame({"sid": ["a", "b", "a", "b"], "group": [1, 2, 1, 2]}),
+    )
+    ctx = types.SimpleNamespace(prepared=panel)
+    np.testing.assert_array_equal(_child_groups(ctx, 2), [2, 1])
+    panel.long.loc[3, "group"] = 1
+    with pytest.raises(ValueError, match="group"):
+        _child_groups(ctx, 2)
+
+
+@pytest.mark.parametrize(
+    "groups",
+    [
+        None,
+        np.array([0]),
+        np.array([0, np.nan]),
+        np.array([0, np.inf]),
+        np.array([0, np.inf], dtype=object),
+        np.array([0, -np.inf], dtype=object),
+    ],
+)
+def test_stratification_requires_one_valid_group_per_child(groups):
+    with pytest.raises(ValueError, match="[Gg]roup"):
+        _fold_assignment(2, groups, KFoldPlan(n_folds=2))
+
+
+@pytest.mark.parametrize("labels", [(0, 1), ("inf", "control")])
+def test_object_group_labels_preserve_balanced_stratification(labels):
+    groups = np.repeat(np.asarray(labels, dtype=object), 6)
+    folds = _fold_assignment(12, groups, KFoldPlan(n_folds=3))
+    for label in labels:
+        np.testing.assert_array_equal(np.bincount(folds[groups == label], minlength=3), [2, 2, 2])
 
 
 def test_the_transplant_carries_free_variables_and_leaves_deterministics_alone():

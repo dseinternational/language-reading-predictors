@@ -363,7 +363,7 @@ def test_kfold_saves_reuses_and_binds_each_training_partition(tmp_path, monkeypa
         return _built(counts=np.asarray([3, 5, 2, 7])[training], n_children=len(training), subject_ids=training)
 
     plan = NewChildPlan(child_dims=("obs_id",), latent_vars=())
-    split = kfold.KFoldPlan(n_folds=2, random_seed=47)
+    split = kfold.KFoldPlan(n_folds=2, random_seed=47, stratify=False)
     first = kfold.run_child_kfold(ctx, plan, split, rebuild)
     assert first.complete
     provenance = pd.read_csv(source / "subfit_provenance.csv")
@@ -381,7 +381,7 @@ def test_kfold_saves_reuses_and_binds_each_training_partition(tmp_path, monkeypa
     assert reused.complete and reused.elpd == first.elpd
     # A held-out *scoring* knob leaves the partition — and so every fold's fitted
     # model — untouched, so it must not force a resample of the whole K-fold.
-    finer = kfold.KFoldPlan(n_folds=2, random_seed=47, n_latent_draws=128)
+    finer = kfold.KFoldPlan(n_folds=2, random_seed=47, n_latent_draws=128, stratify=False)
     assert kfold.run_child_kfold(new, plan, finer, rebuild).complete
     with pytest.raises(ValueError, match="model_identity|data_digest"):
-        kfold.run_child_kfold(new, plan, kfold.KFoldPlan(n_folds=2, random_seed=91), rebuild)
+        kfold.run_child_kfold(new, plan, kfold.KFoldPlan(n_folds=2, random_seed=91, stratify=False), rebuild)

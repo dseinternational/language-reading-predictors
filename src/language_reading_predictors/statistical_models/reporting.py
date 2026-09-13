@@ -134,6 +134,7 @@ from language_reading_predictors.statistical_models.run_metadata import (  # noq
     _REUSE_CONFIG_FIELDS,
     _REUSE_CONTRACT_SCHEMA_VERSION,
     _effective_model_settings,
+    _effective_run_plan,
     _fitted_data_identity,
     _itt_analysis_set_metadata,
     _itt_run_plan,

@@ -430,7 +430,8 @@ class CorrFactorRunPlan:
             "unit. Release requires the zero-divergence convergence gate, "
             "posterior-predictive checks, indicator-scale prior checks and "
             "power-scaling sensitivity diagnostics. The saved `config.json` "
-            "contains the same resolved run plan.\n"
+            "records the declared plan under `resolved_run_plan` and the fitted "
+            "settings under `effective_model_settings`.\n"
         )
 
 

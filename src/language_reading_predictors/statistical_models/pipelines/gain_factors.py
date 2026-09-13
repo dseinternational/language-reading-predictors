@@ -62,7 +62,6 @@ from language_reading_predictors.statistical_models.gain_factors import (
 from language_reading_predictors.statistical_models.preprocessing import (
     PreparedData,
     load_and_prepare,
-    standardise,
 )
 from language_reading_predictors.statistical_models.publication import (
     print_header,
@@ -80,26 +79,13 @@ from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 def _gf_association_terms(
     plan: GainFactorsRunPlan,
-    built: _base_factory.BuiltModel,
-    *,
-    adjust_for: tuple[str, ...],
-    off_floor: bool,
+    built: _base_factory.BuiltModel[GainFactorsPayload],
 ) -> list[_factors_summary.AssociationTerm]:
-    """Per-covariate ``AssociationTerm`` list for the gain items-scale marginals (#310).
+    """Describe association changes using the factory's fitted vectors and scales.
 
-    Reconstructs — from the *fitted* subset ``built.prepared`` — the exact standardised
-    term vectors ``build_gain_factors_model`` used, so each covariate's ``+1 SD``
-    perturbation is pushed through :func:`reporting.association_marginals` on the same
-    scale the model was built on. The own baseline and skill baselines enter the linear
-    predictor on the **raw logit** scale (their ``main_scale`` is that logit's SD) while
-    their interactions use the standardised vector; age and cognitive ability are
-    standardised throughout (``main_scale = 1``). Raw-covariate adjusters enter
-    standardised with no interactions; their ``_missing`` companions are nuisance 0/1
-    indicators (a ``+1 SD`` shift on them is not an interpretable association) and are
-    skipped. On the off-floor (Bernoulli) path the own baseline is the binary
-    off-floor-at-pre indicator (``gamma_own_offfloor``), matching the factory: its
-    perturbation is the at-floor -> off-floor switch, not a ``+1 SD`` shift (#391
-    finding 2 decision).
+    Graded baseline main effects use raw logits; their interactions use standardised
+    inputs. Age and ability main effects are already standardised. Binary predictors
+    use a 0-to-1 contrast. Missingness indicators are nuisance terms and are omitted.
     """
     from scipy.special import expit as _expit
     from scipy.special import logit as _logit
@@ -109,45 +95,17 @@ def _gf_association_terms(
     own = plan.outcome_symbol
     skill_symbols = plan.skill_symbols
     ability_covariate = plan.ability_covariate
-    treated_only = plan.treated_only
-
-    # Standardised term vectors + main-effect scales, matching the factory on kept rows.
-    term_vecs: dict[str, np.ndarray] = {"age": np.asarray(bp.A_std, dtype=float)}
-    scales: dict[str, float] = {"age": 1.0}
-    if ability_covariate is not None:
-        z_ab, _ = standardise(bp.covariates[ability_covariate])
-        term_vecs["ability"] = z_ab
-        scales["ability"] = 1.0
-    if off_floor:
-        # Mirror the factory: "own" on the off-floor path is the binary
-        # off-floor-at-pre indicator (raw 0/1), used for both the main effect and
-        # any interaction naming it (#391 finding 2 decision). A "+1" perturbation
-        # is the at-floor -> off-floor switch, not a +1 SD shift.
-        term_vecs["own"] = (np.asarray(bp.pre_counts[own], dtype=float) > 0).astype(float)
-        scales["own"] = 1.0
-    else:
-        z_own, s_own = standardise(bp.pre_logit[own])
-        term_vecs["own"] = z_own
-        scales["own"] = s_own.sd
-    for s in skill_symbols:
-        z_s, sc = standardise(bp.pre_logit[s])
-        term_vecs[s] = z_s
-        scales[s] = sc.sd
-    # The treatment indicator: a covariate marginal holds it fixed, but a ``trt ×
-    # covariate`` interaction still moves with the covariate, so it must be available as
-    # a partner. Omitted under treated_only (then constant, and the factory drops it).
-    if not treated_only:
-        term_vecs["trt"] = ((bp.G == 1) | (bp.phase >= 1)).astype(float)
-    active_interactions = plan.active_interactions
+    payload = built.require_payload(GainFactorsPayload, family="gain_factors")
+    term_vecs = payload.term_vectors
+    scales = payload.main_scales
+    off_floor = payload.own_baseline_is_binary
 
     def _ints_for(key: str) -> tuple[tuple[str, np.ndarray], ...]:
         out: list[tuple[str, np.ndarray]] = []
-        for pair in active_interactions:
+        for pair in payload.active_interactions:
             if key not in pair:
                 continue
             other = pair[0] if pair[1] == key else pair[1]
-            if other not in term_vecs:  # partner unavailable (e.g. trt under treated_only)
-                continue
             out.append((f"gamma_int_{pair[0]}_{pair[1]}", np.asarray(term_vecs[other], dtype=float)))
         return tuple(out)
 
@@ -216,7 +174,7 @@ def _gf_association_terms(
                 k_items=_k_for(n_s),
             )
         )
-    for c in adjust_for:
+    for c in payload.effective_adjust_for:
         if c.endswith("_missing"):
             continue
         # The design column is the loader-standardised vector, so binariness must
@@ -724,7 +682,7 @@ def fit_gain_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCont
     # Averaging population = ALL stacked rows (row_mask=None): these are descriptive
     # associations, not the randomised period-1 contrast, so every fitted observation
     # counts. That choice is recorded in config.json (meta_extra) as well as the note.
-    assoc_terms = _gf_association_terms(plan, built, adjust_for=adjust_for, off_floor=off_floor)
+    assoc_terms = _gf_association_terms(plan, built)
     if assoc_terms:
         n_assoc = 1 if off_floor else built.prepared.n_trials[spec.outcome_symbol]
         am = _factors_summary.association_marginals(

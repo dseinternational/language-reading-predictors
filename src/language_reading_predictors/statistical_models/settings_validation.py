@@ -1,22 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""One strict validator for the typed family-settings dataclasses (#637 stage 1).
+"""Validate declared Boolean dataclass fields without changing their types.
 
-Every ``*ModelSettings`` class carried its own hand-maintained list of Boolean
-fields to type-check, and two of them had drifted from the fields they actually
-declare: ``MechanismModelSettings.exposure_positive_only`` was omitted from its
-list, and ``PooledLevelsModelSettings`` checked only ``mechanism_is_covariate``.
-A declaration such as ``include_group="false"`` was therefore accepted, stayed a
-string, and — being truthy — switched **on** the design it appears to switch off.
-
-The repair is to stop maintaining those lists. :func:`boolean_fields` reads the
-class's own annotations, so a field is validated because it is declared a
-Boolean, not because someone remembered to name it twice.
-
-Nothing is coerced. ``0``, ``1``, ``"true"`` and ``"false"`` are rejected rather
-than interpreted: a settings value that has to be guessed at is a declaration
-defect, and these flags select which terms a model contains.
+Strings and integers are rejected. None is allowed only for optional Boolean fields.
 """
 
 from __future__ import annotations

@@ -362,8 +362,8 @@ class JointMechanismRunPlan:
             f"{self._loo_sentence()} Interpret the posterior only after every "
             "published fit passes the zero-divergence convergence gate, predictive "
             "checks and power-scaling sensitivity diagnostics. The saved "
-            "`config.json` contains the same resolved run plan in machine-readable "
-            "form.\n"
+            "`config.json` records the declared plan under `resolved_run_plan` and "
+            "the fitted settings under `effective_model_settings`.\n"
         )
 
     def _loo_sentence(self) -> str:
