@@ -206,6 +206,8 @@ class StatisticalFitContext:
     """Per-fit record of every secondary / sensitivity sub-fit (#394 design point 5)."""
     resolved_plan: ResolvedRunPlan | None = None
     """Validated family run plan resolved before data loading."""
+    effective_plan: ResolvedRunPlan | None = None
+    """Plan after fitted-data restrictions; the declared plan remains unchanged."""
     output_transaction: OutputTransaction | None = None
     """Hidden staging directory promoted only after every fit stage succeeds."""
     lifecycle_stages: list[str] = field(default_factory=list)

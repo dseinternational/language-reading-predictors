@@ -457,8 +457,8 @@ class AdjustedRunPlan:
             "## Uncertainty and checks\n\nRelease requires the convergence gate, "
             "child-level PSIS-LOO and posterior-predictive checks. "
             f"{sensitivity_checks} records its own convergence and "
-            "row provenance. The saved `config.json` contains the same resolved run "
-            "plan.\n"
+            "row provenance. The saved `config.json` records the declared plan under "
+            "`resolved_run_plan` and the fitted settings under `effective_model_settings`.\n"
         )
 
 

@@ -810,14 +810,12 @@ def gate_derived_estimands(
     quantities: Iterable[str],
     label: str = "derived_estimands",
 ) -> dict:
-    """Extend the convergence gate to POST-PROCESSED headline quantities (#585).
+    """Check the posterior sampling precision of derived headline quantities.
 
-    ``az.summary`` and the all-free-RV gate only ever see sampled variables. The
-    g-formula NDE / NIE / total are computed from posterior draws afterwards and
-    carry mediator re-simulation noise on top of posterior autocorrelation, so
-    their Monte-Carlo precision can be materially worse than their parents'. They
-    were reported per row but never gated: a fit could pass with unusable derived
-    draws.
+    The g-formula's direct, indirect and total effects are calculated from the
+    posterior draws. Their sampling precision can differ from that of the sampled
+    parameters, so it needs its own check. This does not measure numerical error
+    in the mediator integration, which uses exact sums or checked quadrature.
 
     A quantity fails when its bulk or tail ESS is below
     :data:`DERIVED_ESS_FLOOR`, when its MCSE exceeds

@@ -132,18 +132,10 @@ def write_indicator_prior_check(ctx: StatisticalFitContext, nodes: Sequence[str]
 
 
 class PriorEvidenceUnavailable(LookupError):
-    """The prior evidence a pushforward needs is not present in this fit.
+    """The prior group or a required prior parameter is absent from this fit.
 
-    The **only** condition that may produce an ``unavailable`` row (#637 stage 1).
-    Four families caught every ``Exception`` while pushing their prior through the
-    reported estimand, so a ``KeyError``, a wrong dimension or a schema defect
-    became a valid ``prior_pushforward.csv`` recording "check unavailable" — and
-    the release stage checks the file's presence, not its row status, so a
-    programming error read on the rendered page exactly like an honest absence.
-
-    Raise this for the two things that genuinely are absences: a fit with no
-    persisted ``prior`` group, and a prior group that does not carry the term the
-    check is about. Everything else is a defect and must fail the run.
+    Only these absences may produce an unavailable prior-check row. Invalid
+    dimensions, unexpected keys and other programming errors must fail the run.
     """
 
 

@@ -819,42 +819,26 @@ def load_and_prepare(
         if has_pre:
             checks.append(("pre", merged[f"{m.column}_pre"].to_numpy(dtype=float)))
         for which, arr in checks:
-            finite = arr[np.isfinite(arr)]
-            if finite.size and np.any(finite != np.rint(finite)):
-                invalid = np.unique(finite[finite != np.rint(finite)])
-                raise ValueError(
-                    f"Measure {s!r} ({m.column}_{which}) must contain integer "
-                    f"counts; found fractional value(s) {invalid.tolist()}"
+            _validate_bounded_counts(
+                arr,
+                m.n_trials,
+                f"Measure {s!r} ({m.column}_{which})",
+                allow_above_ceiling=s in drop_ceiling_violations,
+            )
+            bad = arr > m.n_trials
+            if s in drop_ceiling_violations and bad.any():
+                warnings.warn(
+                    f"load_and_prepare: {s} ({m.column}_{which}) has "
+                    f"{int(bad.sum())} value(s) above the n_trials ceiling "
+                    f"{m.n_trials} (max {arr[bad].max():g}); setting to NaN "
+                    "(dropped as missing) — corrupt source cell, flag to the "
+                    "data owner.",
+                    stacklevel=2,
                 )
-            if finite.size and finite.min() < 0:
-                raise ValueError(
-                    f"Measure {s!r} ({m.column}_{which}) has value "
-                    f"{finite.min():g} below the valid lower bound 0; check the "
-                    "source data."
-                )
-            if finite.size and finite.max() > m.n_trials:
-                if s in drop_ceiling_violations:
-                    # Corrupt cell(s): treat as missing (NaN) so the factory keep-mask
-                    # drops the row, rather than raising. Opt-in per measure only.
-                    bad = np.asarray(arr, dtype=float) > m.n_trials
-                    warnings.warn(
-                        f"load_and_prepare: {s} ({m.column}_{which}) has "
-                        f"{int(bad.sum())} value(s) above the n_trials ceiling "
-                        f"{m.n_trials} (max {finite.max():g}); setting to NaN "
-                        "(dropped as missing) — corrupt source cell, flag to the "
-                        "data owner.",
-                        stacklevel=2,
-                    )
-                    if which == "post":
-                        post_counts[s] = np.where(bad, np.nan, np.asarray(post_counts[s], dtype=float))
-                    else:  # pre: NaN the merged column so logit_safe below sees NaN
-                        merged.loc[bad, f"{m.column}_pre"] = np.nan
+                if which == "post":
+                    post_counts[s] = np.where(bad, np.nan, arr)
                 else:
-                    raise ValueError(
-                        f"Measure {s!r} ({m.column}_{which}) has value "
-                        f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
-                        "fix measures.py or check the source data."
-                    )
+                    merged.loc[bad, f"{m.column}_pre"] = np.nan
         if has_pre:
             pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
             # Un-logited pre count, on the same rows — the items-scale companion to
@@ -981,28 +965,8 @@ def load_and_prepare_lagged_outcome(
     )
     # Align the later-wave outcome to the ITT base rows by subject; missing -> NaN.
     new_post = later.reindex(base.subject_ids).to_numpy(dtype=float)
-    # Beta-Binomial ceiling guard (#80), same as load_and_prepare: a replaced
-    # later-wave count above n_trials would silently produce a NaN/-inf
-    # log-likelihood. Fail loudly (issue #273).
     m = MEASURES[outcome_symbol]
-    finite = new_post[np.isfinite(new_post)]
-    if finite.size and np.any(finite != np.rint(finite)):
-        invalid = np.unique(finite[finite != np.rint(finite)])
-        raise ValueError(
-            f"Measure {outcome_symbol!r} ({col} at t{outcome_time}) must contain "
-            f"integer counts; found fractional value(s) {invalid.tolist()}"
-        )
-    if finite.size and finite.min() < 0:
-        raise ValueError(
-            f"Measure {outcome_symbol!r} ({col} at t{outcome_time}) has value "
-            f"{finite.min():g} below the valid lower bound 0; check the source data."
-        )
-    if finite.size and finite.max() > m.n_trials:
-        raise ValueError(
-            f"Measure {outcome_symbol!r} ({col} at t{outcome_time}) has value "
-            f"{finite.max():g} above its n_trials ceiling {m.n_trials}; "
-            "fix measures.py or check the source data."
-        )
+    _validate_bounded_counts(new_post, m.n_trials, f"Measure {outcome_symbol!r} ({col} at t{outcome_time})")
     post_counts = dict(base.post_counts)
     post_counts[outcome_symbol] = new_post
     return replace(base, post_counts=post_counts)
@@ -1270,24 +1234,7 @@ def load_and_prepare_aligned(
         post_counts[s] = merged[f"{m.column}_post"].to_numpy()
         pre_arr = merged[f"{m.column}_pre"].to_numpy(dtype=float)
         for which, arr in (("post", post_counts[s].astype(float)), ("pre", pre_arr)):
-            finite = arr[np.isfinite(arr)]
-            if finite.size and np.any(finite != np.rint(finite)):
-                invalid = np.unique(finite[finite != np.rint(finite)])
-                raise ValueError(
-                    f"Measure {s!r} ({m.column}_{which}) must contain integer "
-                    f"counts; found fractional value(s) {invalid.tolist()}"
-                )
-            if finite.size and finite.min() < 0:
-                raise ValueError(
-                    f"Measure {s!r} ({m.column}_{which}) has value "
-                    f"{finite.min():g} below the valid lower bound 0; check the "
-                    "source data."
-                )
-            if finite.size and finite.max() > m.n_trials:
-                raise ValueError(
-                    f"Measure {s!r} ({m.column}_{which}) has value {finite.max():g} "
-                    f"above its n_trials ceiling {m.n_trials}; fix measures.py or data."
-                )
+            _validate_bounded_counts(arr, m.n_trials, f"Measure {s!r} ({m.column}_{which})")
         pre_logit[s] = logit_safe(merged[f"{m.column}_pre"], m.n_trials)
         # Raw onset counts: the off-floor likelihood's binary off-floor-at-onset
         # indicator needs them (2026-08-21 aligned review, finding 2).
@@ -1948,20 +1895,16 @@ def _require_finite_integers(values, source, label: str) -> None:
         raise ValueError(f"{source}: {label} has non-integer value(s): {', '.join(f'{v:g}' for v in bad)}.")
 
 
-def _validate_bounded_counts(arr, n_trials: int, label: str) -> None:
-    """Validate the non-missing cells of a bounded-count array (#631 finding 5).
+def _validate_bounded_counts(arr, n_trials: int, label: str, *, allow_above_ceiling: bool = False) -> None:
+    """Require finite whole counts within bounds, allowing NaN for missing cells.
 
-    Mirrors the strict :func:`load_and_prepare` guards, which the alternative
-    loaders had skipped: on the finite entries only — ``NaN`` cells stay the
-    loaders' documented missing-data state, exactly as on the strict path —
-    require exact integrality, a lower bound of zero and the measure's
-    ``n_trials`` ceiling. A fractional count would otherwise be silently
-    truncated by a downstream ``int`` cast, and a negative or above-ceiling
-    count produces an invalid likelihood or a silent NaN Haldane logit rather
-    than an error. Raises :class:`ValueError` naming ``label``.
+    ``allow_above_ceiling`` is only for loaders that quarantine finite counts
+    above the ceiling. Infinity, negative counts and fractions always fail.
     """
     values = np.asarray(arr, dtype=float)
-    finite = values[np.isfinite(values)]
+    if np.isinf(values).any():
+        raise ValueError(f"{label} has infinite count values; only NaN may represent a missing count.")
+    finite = values[~np.isnan(values)]
     if not finite.size:
         return
     if np.any(finite != np.rint(finite)):
@@ -1969,7 +1912,7 @@ def _validate_bounded_counts(arr, n_trials: int, label: str) -> None:
         raise ValueError(f"{label} must contain integer counts; found fractional value(s) {invalid.tolist()}")
     if finite.min() < 0:
         raise ValueError(f"{label} has value {finite.min():g} below the valid lower bound 0; check the source data.")
-    if finite.max() > n_trials:
+    if not allow_above_ceiling and finite.max() > n_trials:
         raise ValueError(
             f"{label} has value {finite.max():g} above its n_trials ceiling "
             f"{n_trials}; fix the measure registration or check the source data."

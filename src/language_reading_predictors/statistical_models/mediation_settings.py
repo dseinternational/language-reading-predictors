@@ -603,7 +603,8 @@ def _recipe(
         "rather than one pointwise predictive density. Release requires the "
         "convergence gate, posterior-predictive checks, power-scaling sensitivity "
         "and the registered temporal or confounding checks. The saved `config.json` "
-        "contains the same resolved run plan.\n"
+        "records the declared plan under `resolved_run_plan` and the fitted settings "
+        "under `effective_model_settings`.\n"
     )
 
 

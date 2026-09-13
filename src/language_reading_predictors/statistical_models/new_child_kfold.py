@@ -259,10 +259,13 @@ def _fold_assignment(n_children: int, groups: np.ndarray | None, kfold: KFoldPla
     """
     rng = np.random.default_rng(kfold.random_seed)
     folds: np.ndarray = np.empty(n_children, dtype=int)
-    if groups is None or not kfold.stratify:
+    if not kfold.stratify:
         order = rng.permutation(n_children)
         folds[order] = np.arange(n_children) % kfold.n_folds
         return folds
+    if groups is None:
+        raise ValueError("Stratified child folds require a group label for every child")
+    groups = _valid_group_labels(groups, n_children)
     for value in np.unique(groups):
         members = np.flatnonzero(groups == value)
         order = members[rng.permutation(members.size)]
@@ -270,18 +273,43 @@ def _fold_assignment(n_children: int, groups: np.ndarray | None, kfold: KFoldPla
     return folds
 
 
+def _valid_group_labels(values: Any, size: int) -> np.ndarray:
+    """Require one observed, finite group label per row or child."""
+    groups = np.asarray(values)
+    if groups.ndim != 1 or groups.size != size or pd.isna(groups).any():
+        raise ValueError("Expected one non-missing group label per child or row")
+    if pd.Series(groups).isin([np.inf, -np.inf]).any() or (
+        np.issubdtype(groups.dtype, np.number) and not np.isfinite(groups).all()
+    ):
+        raise ValueError("Group labels must be finite")
+    return groups
+
+
 def _child_groups(ctx: StatisticalFitContext, n_children: int) -> np.ndarray | None:
-    """One group code per child, from whatever container the family prepared."""
+    """Recover consistent group labels in the fitted child order."""
     prepared = getattr(ctx, "prepared", None)
     if prepared is None:
         return None
-    for attribute in ("group_codes", "G"):
-        values = getattr(prepared, attribute, None)
-        if values is None:
-            continue
-        arr = np.asarray(values).ravel()
-        if arr.size == n_children:
-            return arr
+    values = getattr(prepared, "G", None)
+    if values is not None:
+        child_idx = getattr(prepared, "child_idx", None)
+        if child_idx is None:
+            return _valid_group_labels(values, n_children)
+        indices = np.asarray(child_idx)
+        if (
+            indices.ndim != 1
+            or not np.issubdtype(indices.dtype, np.integer)
+            or not np.array_equal(np.unique(indices), np.arange(n_children))
+        ):
+            raise ValueError("The child index must cover every fitted child and no others")
+        groups = _valid_group_labels(values, indices.size)
+        per_child = []
+        for child in range(n_children):
+            labels = np.unique(groups[indices == child])
+            if labels.size != 1:
+                raise ValueError(f"Conflicting group labels for fitted child {child}")
+            per_child.append(labels[0])
+        return np.asarray(per_child)
     long = getattr(prepared, "long", None)
     dataset = getattr(prepared, "dataset", None)
     subject_col = getattr(dataset, "subject_col", None)
@@ -295,11 +323,13 @@ def _child_groups(ctx: StatisticalFitContext, n_children: int) -> np.ndarray | N
         and subject_col in long
         and group_col in long
     ):
-        by_subject = long.drop_duplicates(subject_col).set_index(subject_col)[group_col]
-        try:
-            return np.asarray([by_subject.loc[value] for value in subject_ids])
-        except KeyError:  # pragma: no cover - a panel id missing from its own frame
-            return None
+        # A longitudinal panel's group_codes lists categories, not child labels.
+        rows = long.loc[long[subject_col].isin(subject_ids)]
+        _valid_group_labels(rows[group_col], len(rows))
+        grouped = rows.groupby(subject_col, sort=False)[group_col]
+        if (grouped.nunique() != 1).any():
+            raise ValueError("Conflicting group labels within a child's longitudinal rows")
+        return _valid_group_labels(grouped.first().reindex(subject_ids).to_numpy(), n_children)
     return None
 
 
@@ -380,7 +410,8 @@ def run_child_kfold(
     if observed is None:  # pragma: no cover - checked by child_row_maps
         raise NewChildEvidenceUnavailable("trace carries no observed_data group")
 
-    folds = _fold_assignment(n_children, _child_groups(ctx, n_children), kfold)
+    groups = _child_groups(ctx, n_children) if kfold.stratify else None
+    folds = _fold_assignment(n_children, groups, kfold)
     pointwise: np.ndarray = np.full(n_children, np.nan, dtype=float)
     converged: dict[int, bool] = {}
     refused: dict[int, str] = {}

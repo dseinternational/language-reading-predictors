@@ -464,7 +464,7 @@ def test_hearing_association_term_is_a_category_contrast_not_a_sd_shift(
     )
 
     plan, built, adjust = _built_gf_004_with_hearing
-    terms = _gf_association_terms(plan, built, adjust_for=adjust, off_floor=False)
+    terms = _gf_association_terms(plan, built)
     hs_term = next(t for t in terms if t.label == "hs")
 
     scaler = built.prepared.covariate_scalers["hs"]
@@ -488,7 +488,7 @@ def test_continuous_adjusters_keep_the_sd_shift(_built_gf_004_with_hearing):
     )
 
     plan, built, adjust = _built_gf_004_with_hearing
-    terms = _gf_association_terms(plan, built, adjust_for=adjust, off_floor=False)
+    terms = _gf_association_terms(plan, built)
     labels = {t.label: t for t in terms}
     continuous = [name for name in adjust if name in labels and name != "hs" and not name.endswith("_missing")]
     assert continuous, "expected at least one continuous adjuster in gf-004"
