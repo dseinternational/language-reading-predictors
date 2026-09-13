@@ -1,45 +1,35 @@
+> [!NOTE]
+> Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Predictors of progress in language and reading skills for children with Down syndrome
 
 > [!WARNING]
 > This is work in progress. All data and models are preliminary.
 
-**This repository hosts an exploratory study of factors associated with language and reading outcomes for children with Down syndrome.**
+This repository contains an exploratory study of factors associated with language and reading outcomes in children with Down syndrome.
 
 ## About this study
 
-All children with Down syndrome experience delays in language and reading development. If we can identify the factors that contribute to better outcomes, then we may be able to offer families and practitioners better advice about effective teaching strategies and interventions.
+Children with Down syndrome experience delays in language and reading development. Understanding the factors associated with better outcomes may help families and practitioners choose teaching strategies and interventions.
 
-This project draws together data collected on a variety of language, reading and other measures in studies of children with Down syndrome. We are using a variety of machine learning and modern statistical techniques to describe what these data show, and to estimate the influences of multiple factors on rates of language and literacy learning.
+We analyse language, reading and related measures from the [Reading and Language Intervention (RLI) trial](https://www.down-syndrome.org/resources/reading-language-intervention/). Earlier publications report the [randomised trial](https://doi.org/10.1111/j.1469-7610.2012.02557.x), [speech production accuracy](https://doi.org/10.1111/jir.12890) and [teaching of blending skills](https://doi.org/10.1177/0265659012474674).
 
-The first data set that we are exploring is from the [Reading and Language Intervention (RLI) trial](https://www.down-syndrome.org/resources/reading-language-intervention/). The RCT component of this study was [previously reported](https://doi.org/10.1111/j.1469-7610.2012.02557.x), as were analyses of [speech production accuracy](https://doi.org/10.1111/jir.12890) and an associated [investigation of teaching blending skills](https://doi.org/10.1177/0265659012474674). With this data set, we are using gradient boosting (machine learning algorithms that combine multiple decision trees) to train models that predict gains and achievement levels from the available variables. We then analyse these trained models to understand which variables contribute to the best predictions. This offers a data-driven approach to identifying predictors that may be important for different outcomes. The second phase of our exploration takes these candidate predictors and develops statistical models to estimate the independent and joint effects of selected predictors on outcomes of interest. We use Bayesian inference to obtain full posterior probability distributions for all parameters in our models in order to quantify uncertainty in our estimates.
-
-### Open and reproducible
-
-We are developing, evaluating and iterating our models openly in this repository, where we share all source code and anonymised source data under open licenses.
-
-### Future directions
-
-Over time, we may extend this project to explore further data sets and modelling techniques and welcome input from interested partners on how the project might evolve.
+We first use gradient boosting, which combines decision trees, to identify variables that help predict gains and achievement levels. Bayesian models then estimate treatment contrasts and adjusted associations, with probability distributions that describe their uncertainty. [METHODS.md](METHODS.md) explains the methods and limits on causal interpretation.
 
 ## Contributing
 
-We welcome partners interested in developing statistical models, evaluating and interpreting findings, and sharing original data.
+We share source code and anonymised data under open licences. We welcome partners to develop models, interpret findings, contribute data and explore further datasets or methods.
 
 ## Getting started
 
-### Clone repositories
-
-In the same directory (perhaps `dseinternational`):
+### Clone the repository
 
 ```bash
 git clone https://github.com/dseinternational/language-reading-predictors.git
+cd language-reading-predictors
 ```
 
-For now, also:
-
-```bash
-git clone https://github.com/dseinternational/research.git
-```
+`uv sync` fetches the pinned `dse-research-utils` dependency from GitHub. A sibling `research` checkout is needed only for local development of that library; see `pyproject.toml` for the path-source option.
 
 ### Prerequisites
 
@@ -47,15 +37,13 @@ For a worked introduction to the Bayesian code, follow [one statistical model fr
 
 #### Fitting models
 
-To fit models, [uv](https://docs.astral.sh/uv/getting-started/installation/) is required. It provisions the Python interpreter itself, so no separate Python installation is needed.
-
-Then, to create the environment from the committed lockfile, from the repository root:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), which also provides Python. From the repository root, create the environment:
 
 ```bash
 uv sync
 ```
 
-Run commands inside that environment with `uv run` — for example `uv run pytest` or `uv run python scripts/fit_model.py LRP01`. Activating `.venv` in the usual way also works.
+Run commands with `uv run`, for example `uv run pytest` or `uv run python scripts/fit_model.py lrp-rli-gbg-001`. Activating `.venv` also works.
 
 Supported platforms are Linux (x86-64 and arm64), Apple Silicon macOS, and Windows (x86-64). Intel macOS is not supported, because [numba](https://numba.pydata.org/) no longer publishes macOS x86-64 wheels.
 
@@ -63,9 +51,9 @@ Plotting model graphs additionally requires the system [Graphviz](https://graphv
 
 #### Creating reports
 
-To update or create reports, [Quarto](https://quarto.org/docs/get-started/) is required. We also use CSpell for checking spelling, for which a recent installation of [Node.js](https://nodejs.org/en) is required.
+Install [Quarto](https://quarto.org/docs/get-started/) to create reports and [Node.js](https://nodejs.org/en) to run the spelling and formatting tools.
 
-To install Node dependencies, from the repository root:
+Install the Node dependencies from the repository root:
 
 ```bash
 npm install
@@ -75,7 +63,7 @@ npm install
 
 All source code in this repository is licensed under the GNU Affero General Public License v3.0 **(AGPL-3.0-only)**. See `LICENSE`.
 
-Some other artifacts are licensed under other licenses:
+Licences by content type:
 
 - **Code**: GNU Affero General Public License v3.0 (AGPL-3.0) — see `LICENSE`.
 - **Documentation, reports and papers**: Creative Commons Attribution 4.0 International (CC BY 4.0) — see `docs/LICENSE`.

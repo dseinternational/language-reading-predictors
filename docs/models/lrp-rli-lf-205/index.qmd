@@ -26,7 +26,7 @@ In the four-wave fit the post-crossover t3/t4 likelihood reaches the reported t2
 
 Read the four-wave report for the levels view across all four timepoints — showing them on one scale is that model's purpose, and this restriction gives it up.
 
-LRPLF05 is the **level-factors** model for phonetic spelling (`spphon`).
+LRPLF205 is the **level-factors** model for phonetic spelling (`spphon`).
 
 _Off-floor likelihood + level-model crossover caveat._ Phonetic spelling is heavily floored, so the level outcome is the **off-floor
 indicator** (score $> 0$) at each timepoint, modelled by a Bernoulli; the linear
@@ -60,17 +60,9 @@ shared template in `priors.py`.
 
 ![Model diagram](model_graph.png){#fig-model .lightbox fig-align="left"}
 
-**Arm-gap parameterisation (#552).** The per-timepoint group coefficient is centred on the timepoint-1 arm gap: $b_{\text{grp}[t1]} = a_{t1}$ and $b_{\text{grp}[t]} = a_{t1} + d_{\text{grp}[t]}$ for $t = t2$ (this fit's only later wave), where $a_{t1}$ (`arm_gap_t1`) is the covariate-adjusted immediate-minus-waitlist gap at t1 — before anyone was treated, so a **chance balance quantity** on the cross-coupling prior, reported and never read as an effect — and $d_{\text{grp}[t]}$ (`d_grp_time[t]`) is the change in that gap from t1, on the outcome-tier treatment prior. A levels model conditions on nothing at baseline while adjusting for age and ability at every wave, so a free per-timepoint vector (the pre-#552 parameterisation, retained as the `arm_gap_reference="free"` comparator) carries the covariate-adjusted chance t1 imbalance straight into the t2 contrast; centring on the t1 gap removes it and puts the prior on the randomised difference directly. The randomised contrast is therefore the **t2 change `d_grp_time[t2]`**, a difference-in-differences of adjusted levels — and in this comparator it is the only arm-gap change the model has.
+{{< include _partials/model/level-arm-gap-window.qmd >}}
 
-**Intercepts (#389 finding 2).** $\alpha$ is **anchored**: a pooled, arm-blind
-empirical-Bayes anchor at the observed **pre-randomisation t1** logit plus a free
-zero-centred offset, and $\alpha_{\text{time}}$ is an exact **zero-sum**
-wave-deviation vector. The previous parameterisation — a free global intercept and
-four free per-timepoint offsets, all centred at logit zero — was identified only
-through its sums (posterior correlations to $-0.96$) and implied prior-predictive
-scores near half the instrument maximum for a population observed far below it.
-The anchor uses only pre-randomisation data, so no treatment-affected quantity
-enters the prior; the priors table labels the offset as empirical Bayes.
+{{< include _partials/model/level-intercepts.qmd >}}
 
 {{< include _partials/_priors.qmd >}}
 {{< include _partials/_prior_predictive.qmd >}}

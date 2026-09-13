@@ -1,9 +1,11 @@
 > [!NOTE]
+> Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
+>
 > Drafted by a LLM-based AI tool (Codex/GPT-6).
 
 # Statistical code clarity implementation
 
-This implements the approved [12 September review](20260912-statistical-code-clarity-review.md). It changes how model code is organised, how priors are described and how incomplete derived draws are diagnosed. It does not rerun the study's reporting fits or replace their saved results.
+This implements the approved [12 September review](20260912-statistical-code-clarity-review.md): code organisation, fitted-prior descriptions and derived-draw diagnostics. No study reporting fits were rerun or saved results replaced.
 
 ## Correctness changes
 
@@ -13,19 +15,19 @@ This implements the approved [12 September review](20260912-statistical-code-cla
 - The architecture test names modules by their actual relative paths and resolves package imports. Deliberately cyclic and acyclic fixtures test the graph itself.
 - Extracting the findings builders also exposed a survival fallback that treated a dictionary as a pandas row. The fallback now reports a covariate association without inventing an assignment contrast. Missing optional subject counts in historical-growth findings retain their previous behaviour.
 
-The prior-table repair command validates the stored run plan, variable names and distributions before changing a fit. It can restore missing panels, removes only unused named-prior density files and updates only the affected manifest entries. It does not refit a trace. No stored study output was repaired during this implementation.
+The prior-table repair command validates the stored run plan, variable names and distributions before restoring panels, removing unused named-prior density files and updating affected manifest entries. It does not refit traces. No stored study output was repaired.
 
 ## Code organisation and compatibility
 
 `posteriors.py` holds shared interval and simulation-precision helpers. `summaries/` holds family calculations, and `findings/` holds family prose builders. Active callers import the owning module. `estimands.py`, `reporting.py` and the factory package exports remain compatibility paths for older scripts and notebooks.
 
-Metadata uses the fit's attached validated plan. `reconstruct_run_plan` is the explicit route for a caller with an older declaration. It uses the family registry and rejects incomplete declarations. The shared context now requires the small `ResolvedRunPlan` interface; consumers retain concrete family plans and prepared arrays locally. Concurrent wave fits use a typed record in place of a dictionary. Gain-factor period-1 treatment comparisons and concurrent association comparisons have named functions.
+Metadata uses the attached validated plan. Older callers must use `reconstruct_run_plan`, which resolves through the family registry and rejects incomplete declarations. The shared context requires `ResolvedRunPlan`; consumers keep concrete family plans and prepared arrays locally. Typed records replace concurrent wave-fit dictionaries. Named functions handle gain-factor period-1 treatment and concurrent association comparisons.
 
 Posterior helpers with a default interval now use the shared 89% reporting constant. Callers can still request another supported coverage explicitly. Prediction-check choices remain separate. `growth_association_summary` no longer accepts `ci_prob`, which it previously ignored; it continues to return fixed 50% and 89% bands. External callers should remove that argument. For model-specific density panels, callers should use `save_model_prior_panels(model, output_dir)`; `save_shared_prior_panel` is only the default constructor catalogue.
 
-Comments now describe the current operations and statistical meaning. The changes remove empty type-checking blocks, replace tuple-producing side-effect lambdas with named hooks, correct the claim about transformation-invariant medians and describe later level-factor arm contrasts as randomised schedule comparisons. A separate formatter commit keeps line wrapping distinct from the functional review.
+Comments describe current operations and statistical meaning. The changes remove empty type-checking blocks, replace side-effect lambdas with named hooks, correct the median-transformation claim and label later level-factor arm contrasts as randomised schedule comparisons. A separate commit holds formatter changes.
 
-The [student walkthrough](../docs/learning/itt-model-walkthrough.md) follows the registered ITT-001 vocabulary model using synthetic children. It connects prepared arrays, priors, the likelihood, sampling checks, predictive checks and differences calculated within each draw. It explains the observed-data selection limit and includes a numerical counterexample to substituting median coefficients.
+The [student walkthrough](../docs/learning/itt-model-walkthrough.md) uses synthetic children and the registered ITT-001 vocabulary model. It connects data, priors, likelihood, sampling and predictive checks to differences calculated within each draw. It explains observed-data selection and demonstrates why substituting median coefficients gives the wrong result.
 
 ## Verification
 
