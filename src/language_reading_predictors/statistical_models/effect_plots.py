@@ -59,14 +59,14 @@ def benefit_curve_table(items: np.ndarray, delta: float, *, xmax: float) -> pd.D
     return pd.DataFrame({"delta": dgrid, "prob_effect_gt_delta": pex})
 
 
-def _draw_effect(ax: plt.Axes, items: np.ndarray, *, delta: float, symbol: str,
-                 risk_difference: bool, xmin: float, xmax: float) -> None:
+def _draw_effect(
+    ax: plt.Axes, items: np.ndarray, *, delta: float, symbol: str, risk_difference: bool, xmin: float, xmax: float
+) -> None:
     effect_label, _, scale_title = _labels(risk_difference)
     xs = np.linspace(xmin, xmax, 300)
     kde = gaussian_kde(items)
     med = float(np.median(items))
-    ax.axvspan(-delta, delta, color=_ROPE_COLOR, alpha=0.30,
-               label=f"ROPE (within ±{delta:g})")
+    ax.axvspan(-delta, delta, color=_ROPE_COLOR, alpha=0.30, label=f"ROPE (within ±{delta:g})")
     ax.axvline(0, color="#444444", lw=1.0, ls=":")
     ax.plot(xs, kde(xs), color=_EFFECT_COLOR, lw=2.2)
     ax.fill_between(xs, kde(xs), color=_EFFECT_COLOR, alpha=0.12)
@@ -77,8 +77,7 @@ def _draw_effect(ax: plt.Axes, items: np.ndarray, *, delta: float, symbol: str,
     ax.legend(fontsize=8, frameon=False)
 
 
-def _draw_benefit(ax: plt.Axes, sweep: pd.DataFrame, *, delta: float,
-                  risk_difference: bool) -> None:
+def _draw_benefit(ax: plt.Axes, sweep: pd.DataFrame, *, delta: float, risk_difference: bool) -> None:
     _, delta_label, _ = _labels(risk_difference)
     ax.plot(sweep["delta"], sweep["prob_effect_gt_delta"], color=_BENEFIT_COLOR, lw=2.2)
     ax.axvline(delta, color="#888888", lw=1.0, ls="--", label=f"delta = {delta:g}")
@@ -120,8 +119,7 @@ def write_rope_figures(
 
     if not split:
         fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(11, 4.2))
-        _draw_effect(ax_l, items, delta=delta, symbol=symbol,
-                     risk_difference=risk_difference, xmin=xmin, xmax=xmax)
+        _draw_effect(ax_l, items, delta=delta, symbol=symbol, risk_difference=risk_difference, xmin=xmin, xmax=xmax)
         _draw_benefit(ax_r, sweep, delta=delta, risk_difference=risk_difference)
         _despine(ax_l, ax_r)
         fig.tight_layout()
@@ -129,8 +127,7 @@ def write_rope_figures(
         return
 
     fig_e, ax_e = plt.subplots(figsize=FIGSIZE_LG)
-    _draw_effect(ax_e, items, delta=delta, symbol=symbol,
-                 risk_difference=risk_difference, xmin=xmin, xmax=xmax)
+    _draw_effect(ax_e, items, delta=delta, symbol=symbol, risk_difference=risk_difference, xmin=xmin, xmax=xmax)
     _despine(ax_e)
     fig_e.tight_layout()
     save_styled_figure(output_dir, "rope_summary", fig=fig_e)

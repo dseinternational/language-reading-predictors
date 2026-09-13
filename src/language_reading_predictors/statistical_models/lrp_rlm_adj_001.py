@@ -38,10 +38,7 @@ from language_reading_predictors.statistical_models.pipelines.adjusted import fi
 SPEC = ModelSpec(
     model_id="lrp-rlm-adj-001",
     kind="adjusted",
-    title=(
-        "Byrne wave-1 predictors of word-reading gain, waves 1-3 "
-        "(between-child, mutually adjusted)"
-    ),
+    title=("Byrne wave-1 predictors of word-reading gain, waves 1-3 (between-child, mutually adjusted)"),
     outcome_symbol="basread",
     study_id="rlm",
     family="adjusted",

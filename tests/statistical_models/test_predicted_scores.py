@@ -30,10 +30,8 @@ from language_reading_predictors.statistical_models.predicted_scores import (
     predicted_scores_table,
     write_predicted_scores_artifacts,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    _itt_ame_draws,
-    treatment_marginal_effect,
-)
+from language_reading_predictors.statistical_models.summaries.gain_factors import treatment_marginal_effect
+from language_reading_predictors.statistical_models.summaries.itt import _itt_ame_draws
 
 
 def _trace(eta, tau, *, tau_i=None, kappa=None, extra=None):
@@ -70,11 +68,7 @@ def _rng_trace(n_chain=2, n_draw=40, n_obs=12, *, seed=7, tau_i=False, kappa=Tru
     rng = np.random.default_rng(seed)
     eta = rng.normal(0.0, 1.0, size=(n_chain, n_draw, n_obs))
     tau = rng.normal(0.4, 0.2, size=(n_chain, n_draw))
-    ti = (
-        tau[:, :, None] + rng.normal(0.0, 0.1, size=(n_chain, n_draw, n_obs))
-        if tau_i
-        else None
-    )
+    ti = tau[:, :, None] + rng.normal(0.0, 0.1, size=(n_chain, n_draw, n_obs)) if tau_i else None
     kp = rng.uniform(20.0, 60.0, size=(n_chain, n_draw)) if kappa else None
     return eta, tau, ti, kp
 
@@ -103,9 +97,7 @@ def test_ame_matches_itt_ame_draws(use_tau_i, use_mask):
     row_mask = (np.arange(n_obs) < 8) if use_mask else None
     moderators = [("gamma_int", mod_vec)]
 
-    _, expected_ame = _itt_ame_draws(
-        trace, G=G, moderators=moderators, row_mask=row_mask
-    )
+    _, expected_ame = _itt_ame_draws(trace, G=G, moderators=moderators, row_mask=row_mask)
     contrast = counterfactual_predictive_contrast(
         trace,
         G=G,
@@ -128,9 +120,7 @@ def test_summary_median_matches_treatment_marginal():
     row_mask = np.arange(n_obs) < 9
     n_trials = 54
 
-    tme = treatment_marginal_effect(
-        trace, trt=trt, n_trials=n_trials, term="tau", ci_prob=0.95, row_mask=row_mask
-    )
+    tme = treatment_marginal_effect(trace, trt=trt, n_trials=n_trials, term="tau", ci_prob=0.95, row_mask=row_mask)
     contrast = counterfactual_predictive_contrast(
         trace,
         G=trt,
@@ -169,9 +159,7 @@ def test_bernoulli_contrast_probabilities_are_analytic():
     )
     eta0 = eta[0] - 0.8 * G[None, :]
     np.testing.assert_allclose(contrast.prob_control, expit(eta0).mean(axis=1))
-    np.testing.assert_allclose(
-        contrast.prob_intervention, expit(eta0 + 0.8).mean(axis=1)
-    )
+    np.testing.assert_allclose(contrast.prob_intervention, expit(eta0 + 0.8).mean(axis=1))
     assert contrast.score_control.size == 0  # no score simulation for the floor rule
 
 
@@ -192,9 +180,7 @@ def test_three_choice_guessing_floor_transforms_arm_means_and_ame():
     )
     eta0 = eta[0] - 0.8 * G[None, :]
     expected_control = (1.0 / 3.0) + (2.0 / 3.0) * expit(eta0).mean(axis=1)
-    expected_intervention = (1.0 / 3.0) + (2.0 / 3.0) * expit(
-        eta0 + 0.8
-    ).mean(axis=1)
+    expected_intervention = (1.0 / 3.0) + (2.0 / 3.0) * expit(eta0 + 0.8).mean(axis=1)
     np.testing.assert_allclose(contrast.prob_control, expected_control)
     np.testing.assert_allclose(contrast.prob_intervention, expected_intervention)
     np.testing.assert_allclose(
@@ -232,9 +218,7 @@ def test_score_simulation_mean_tracks_score_mean_link(score_mean_link, floor):
     )
     eta0 = eta - 0.6 * G[None, None, :]
     expected_c = n_trials * (floor + (1.0 - floor) * expit(eta0).mean())
-    expected_t = n_trials * (
-        floor + (1.0 - floor) * expit(eta0 + 0.6).mean()
-    )
+    expected_t = n_trials * (floor + (1.0 - floor) * expit(eta0 + 0.6).mean())
     assert contrast.score_control.mean() == pytest.approx(expected_c, abs=0.35)
     assert contrast.score_intervention.mean() == pytest.approx(expected_t, abs=0.35)
     assert contrast.score_control.min() >= 0
@@ -431,12 +415,22 @@ def test_bernoulli_table_emits_both_population_targets():
         },
     )
     contrast = counterfactual_predictive_contrast(
-        trace, G=(np.arange(n_obs) % 2).astype(float), n_trials=1, term="tau",
-        varying_term="", likelihood="bernoulli", child_effect_name="u_child",
-        child_sd_name="sigma_child", child_idx=np.arange(n_obs),
+        trace,
+        G=(np.arange(n_obs) % 2).astype(float),
+        n_trials=1,
+        term="tau",
+        varying_term="",
+        likelihood="bernoulli",
+        child_effect_name="u_child",
+        child_sd_name="sigma_child",
+        child_idx=np.arange(n_obs),
     )
     table = predicted_scores_table(
-        contrast, outcome_symbol="P", ci_prob=0.89, population="ref", contrast_status="s",
+        contrast,
+        outcome_symbol="P",
+        ci_prob=0.89,
+        population="ref",
+        contrast_status="s",
     )
     assert list(table.quantity) == [
         "event_probability_control",
@@ -528,7 +522,11 @@ def test_table_schema_graded_and_binary():
 
     graded = predicted_scores_table(
         counterfactual_predictive_contrast(
-            trace, G=G, n_trials=32, term="tau", varying_term="",
+            trace,
+            G=G,
+            n_trials=32,
+            term="tau",
+            varying_term="",
             rng=np.random.default_rng(1),
         ),
         outcome_symbol="L",
@@ -543,8 +541,18 @@ def test_table_schema_graded_and_binary():
         "average_marginal_effect",
     ]
     assert set(graded.columns) >= {
-        "outcome", "quantity", "scale", "median", "lo", "hi", "lo50", "hi50",
-        "n_trials", "score_mean_link", "population", "intercept_basis",
+        "outcome",
+        "quantity",
+        "scale",
+        "median",
+        "lo",
+        "hi",
+        "lo50",
+        "hi50",
+        "n_trials",
+        "score_mean_link",
+        "population",
+        "intercept_basis",
         "contrast_status",
     }
     # No child intercept was supplied, so there is a single population and no
@@ -553,7 +561,11 @@ def test_table_schema_graded_and_binary():
 
     binary = predicted_scores_table(
         counterfactual_predictive_contrast(
-            trace, G=G, n_trials=1, term="tau", varying_term="",
+            trace,
+            G=G,
+            n_trials=1,
+            term="tau",
+            varying_term="",
             likelihood="bernoulli",
         ),
         outcome_symbol="P",
@@ -592,9 +604,7 @@ def test_writer_emits_all_artifacts(tmp_path):
     assert (tmp_path / "icon_array.png").exists()
     assert (tmp_path / "icon_array.csv").exists()
     assert len(summary) == 4
-    assert set(summary["score_mean_link"]) == {
-        "three_choice_guessing_floor"
-    }
+    assert set(summary["score_mean_link"]) == {"three_choice_guessing_floor"}
 
     binary_dir = tmp_path / "binary"
     binary_dir.mkdir()
@@ -683,7 +693,11 @@ def test_the_simulated_arm_difference_is_not_a_within_child_contrast():
     G = (np.arange(eta.shape[2]) % 2).astype(float)
 
     contrast = counterfactual_predictive_contrast(
-        trace, G=G, n_trials=32, term="tau", varying_term="",
+        trace,
+        G=G,
+        n_trials=32,
+        term="tau",
+        varying_term="",
         rng=np.random.default_rng(3),
     )
     difference = np.asarray(contrast.score_difference_independent, dtype=float)
@@ -695,8 +709,11 @@ def test_the_simulated_arm_difference_is_not_a_within_child_contrast():
     assert difference.std() > 1.0
 
     table = predicted_scores_table(
-        contrast, outcome_symbol="L", ci_prob=0.89,
-        population="pop", contrast_status="status",
+        contrast,
+        outcome_symbol="L",
+        ci_prob=0.89,
+        population="pop",
+        contrast_status="status",
     )
     # Named for what it is, and never as the average marginal effect.
     assert "predicted_score_difference_independent_children" in set(table.quantity)

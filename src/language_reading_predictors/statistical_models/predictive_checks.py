@@ -10,8 +10,10 @@ of the observed data the fitted model's prediction intervals contain.
 ``prior_artifacts`` and ``ppc_artifacts`` write these; this module computes them.
 """
 
-
 from __future__ import annotations
+
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
 
 from collections.abc import Mapping, Sequence
 from typing import Any, Literal
@@ -26,15 +28,14 @@ from dse_research_utils.statistics.predictive import (
 from dse_research_utils.statistics.samples import sample_matrix
 from scipy.special import expit
 
-from language_reading_predictors.statistical_models.estimands import (
-    _itt_ame_draws,
-    _joint_ame_draws,
-    level_t2_marginal_effect,
-)
+from language_reading_predictors.statistical_models.summaries.itt import _itt_ame_draws
+from language_reading_predictors.statistical_models.summaries.joint import _joint_ame_draws
+from language_reading_predictors.statistical_models.summaries.level_factors import level_t2_marginal_effect
 from language_reading_predictors.statistical_models.likelihood import (
     ScoreMeanLink,
     apply_score_mean_link,
 )
+
 
 def pushforward_values(
     effect_draws: np.ndarray,
@@ -114,9 +115,7 @@ def labelled_pushforward(
         "estimand": estimand,
         "estimand_label": estimand_label,
         "role": role,
-        "scale": scale
-        if scale is not None
-        else pushforward_scale_for(values.get("n_trials", 0)),
+        "scale": scale if scale is not None else pushforward_scale_for(values.get("n_trials", 0)),
         "status": "ok",
         "reason": "",
         **{k: v for k, v in values.items()},
@@ -168,7 +167,7 @@ def prior_pushforward(
     varying_term: str = "tau_i",
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     row_mask: np.ndarray | None = None,
     score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float]:
@@ -199,9 +198,7 @@ def prior_pushforward(
         row_mask=row_mask,
         score_mean_link=score_mean_link,
     )
-    return pushforward_values(
-        effect_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
-    )
+    return pushforward_values(effect_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob)
 
 
 def marginal_prior_pushforward(
@@ -210,7 +207,7 @@ def marginal_prior_pushforward(
     term: str,
     n_trials: int,
     eta_name: str = "eta",
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     convention: Literal["net_out", "forward"] = "net_out",
     row_mask: np.ndarray | None = None,
     term_index: Mapping[str, Any] | None = None,
@@ -250,12 +247,7 @@ def marginal_prior_pushforward(
     if term_index:
         da = da.sel(term_index)
     beta = da.stack(sample=("chain", "draw")).values.ravel()  # (S,)
-    eta = (
-        prior[eta_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta = prior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     if row_mask is not None:
         eta = eta[np.asarray(row_mask)]
     delta = beta[None, :]  # (1, S) — a +1 shift on every retained row
@@ -268,9 +260,7 @@ def marginal_prior_pushforward(
         apply_score_mean_link(expit(base + delta), score_mean_link)
         - apply_score_mean_link(expit(base), score_mean_link)
     ).mean(axis=0)  # (S,)
-    return pushforward_values(
-        beta, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
-    )
+    return pushforward_values(beta, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob)
 
 
 def joint_prior_pushforward(
@@ -279,7 +269,7 @@ def joint_prior_pushforward(
     outcomes: Sequence[str],
     G: np.ndarray,
     n_trials: Mapping[str, int],
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     row_mask: np.ndarray | None = None,
 ) -> list[dict[str, Any]]:
     """One labelled prior-pushforward row per outcome of a joint ITT fit (#381).
@@ -290,17 +280,13 @@ def joint_prior_pushforward(
     posterior :func:`joint_treatment_marginals` uses — on the ``prior`` group, and
     returns rows already labelled per outcome.
     """
-    coefs, ames = _joint_ame_draws(
-        trace, outcomes, G=G, group="prior", row_mask=row_mask
-    )
+    coefs, ames = _joint_ame_draws(trace, outcomes, G=G, group="prior", row_mask=row_mask)
     rows: list[dict[str, Any]] = []
     for k, name in enumerate(str(o) for o in outcomes):
         n = int(n_trials[name])
         rows.append(
             labelled_pushforward(
-                pushforward_values(
-                    coefs[k], ames[k] * float(n), n_trials=n, ci_prob=ci_prob
-                ),
+                pushforward_values(coefs[k], ames[k] * float(n), n_trials=n, ci_prob=ci_prob),
                 estimand=f"tau[{name}]",
                 estimand_label=f"the treatment effect on {name}",
                 role="causal",
@@ -313,7 +299,7 @@ def indicator_prior_check(
     trace: xr.DataTree,
     *,
     nodes: Sequence[str],
-    ci_prob: float = 0.89,
+    ci_prob: float = REPORTING_CI_PROB,
 ) -> pd.DataFrame:
     """Indicator-scale prior-predictive check for the measurement families (#381).
 
@@ -353,16 +339,12 @@ def indicator_prior_check(
         try:
             pp = trace.prior_predictive[node]
             observed = np.asarray(trace.observed_data[node].values, dtype=float)
-        except (AttributeError, KeyError):
+        except AttributeError, KeyError:
             continue
         stacked = pp.stack(sample=("chain", "draw"))
         other = [d for d in stacked.dims if d != "sample"]
         draws = stacked.transpose(*other, "sample").values
-        labels = (
-            [str(x) for x in stacked.coords[other[-1]].values]
-            if len(other) > 1
-            else [node]
-        )
+        labels = [str(x) for x in stacked.coords[other[-1]].values] if len(other) > 1 else [node]
         if draws.ndim == 2:  # a single-column node
             draws = draws[:, None, :]
             observed = observed.reshape(observed.shape[0], 1)
@@ -382,9 +364,7 @@ def indicator_prior_check(
             # flatter a prior that is wide overall but wrong row by row.
             band_lo = np.quantile(sim, 0.05, axis=1)
             band_hi = np.quantile(sim, 0.95, axis=1)
-            inside_flags[label].append(
-                (obs[finite] >= band_lo[finite]) & (obs[finite] <= band_hi[finite])
-            )
+            inside_flags[label].append((obs[finite] >= band_lo[finite]) & (obs[finite] <= band_hi[finite]))
 
     lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
     rows: list[dict[str, Any]] = []
@@ -463,11 +443,7 @@ def proportion_at_zero_ppc(
     finite = post[np.isfinite(post)]
     obs_p0 = float(np.mean(finite == 0.0)) if finite.size else float("nan")
     pp = trace.posterior_predictive[node]
-    yrep = (
-        pp.stack(sample=("chain", "draw"))
-        .transpose("sample", "obs_id")
-        .values
-    )  # (S, n_obs)
+    yrep = pp.stack(sample=("chain", "draw")).transpose("sample", "obs_id").values  # (S, n_obs)
     rep_p0 = np.mean(yrep == 0.0, axis=1)  # (S,)
     upper_tail = float(np.mean(rep_p0 >= obs_p0))
     lower_tail = float(np.mean(rep_p0 <= obs_p0))
@@ -483,9 +459,7 @@ def proportion_at_zero_ppc(
     }
 
 
-def _ppc_node_arrays(
-    trace: xr.DataTree, node: str
-) -> tuple[np.ndarray, np.ndarray]:
+def _ppc_node_arrays(trace: xr.DataTree, node: str) -> tuple[np.ndarray, np.ndarray]:
     """Return ``(y_rep, y_obs)`` for a likelihood ``node`` from the trace.
 
     ``y_rep`` is ``(n_obs, n_samples)`` (observation dims flattened, chain/draw
@@ -507,9 +481,7 @@ def _ppc_node_arrays(
         pp = trace.posterior_predictive[node]
         obs_da = trace.observed_data[node]
     except (AttributeError, KeyError) as exc:
-        raise KeyError(
-            f"trace must contain posterior_predictive and observed_data for {node!r}"
-        ) from exc
+        raise KeyError(f"trace must contain posterior_predictive and observed_data for {node!r}") from exc
     sample_dims = tuple(d for d in pp.dims if d in ("chain", "draw"))
     obs_dims = tuple(d for d in pp.dims if d not in ("chain", "draw"))
     if not sample_dims or not obs_dims:
@@ -518,9 +490,7 @@ def _ppc_node_arrays(
     try:
         y_obs = matrix.observed_values(obs_da).astype(float)
     except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f"{node!r} observed values do not identify the replicated rows: {exc}"
-        ) from exc
+        raise ValueError(f"{node!r} observed values do not identify the replicated rows: {exc}") from exc
     return matrix.values, y_obs
 
 
@@ -551,10 +521,7 @@ def _observation_checks(
     """
     if y_obs.shape[0] == 0 or not np.isfinite(y_obs).all():
         return None
-    return predictive_observation_checks(
-        y_obs, y_rep, interval_probs=tuple(float(p) for p in probs), sample_axis=1
-    )
-
+    return predictive_observation_checks(y_obs, y_rep, interval_probs=tuple(float(p) for p in probs), sample_axis=1)
 
 
 def _summary_columns(
@@ -645,10 +612,7 @@ def ppc_interval_coverage_by_group(
     y_rep, y_obs = _ppc_node_arrays(trace, node)
     labels = np.asarray(group_labels).astype(str)
     if labels.shape[0] != y_obs.shape[0]:
-        raise ValueError(
-            f"group_labels has {labels.shape[0]} entries but {node!r} has "
-            f"{y_obs.shape[0]} observations"
-        )
+        raise ValueError(f"group_labels has {labels.shape[0]} entries but {node!r} has {y_obs.shape[0]} observations")
     finite = np.isfinite(y_obs)
     y_rep, y_obs, labels = y_rep[finite], y_obs[finite], labels[finite]
     rows: list[dict[str, object]] = []
@@ -658,9 +622,7 @@ def ppc_interval_coverage_by_group(
         n = int(subset_obs.shape[0])
         checks = _observation_checks(subset_obs, subset_rep, ci_levels)
         for column, p in enumerate(ci_levels):
-            n_in = (
-                0 if checks is None else int(np.count_nonzero(checks.inside[:, column]))
-            )
+            n_in = 0 if checks is None else int(np.count_nonzero(checks.inside[:, column]))
             rows.append(
                 {
                     "mode": "count_interval",
@@ -825,9 +787,7 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
         return ""
     # Drop degenerate rows (no observations / non-finite coverage) so a NaN never
     # propagates into the rendered sentence (review: coverage is NaN when n_total==0).
-    usable = cov[
-        (cov["n_total"].astype(float) > 0) & np.isfinite(cov["coverage"].astype(float))
-    ]
+    usable = cov[(cov["n_total"].astype(float) > 0) & np.isfinite(cov["coverage"].astype(float))]
     if usable.empty:
         return ""
     # Per-group breakdown rows (``ppc_interval_coverage_by_group``) are a *split* of
@@ -881,8 +841,7 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
     target = 0.90 if cov90 is not None else 0.50
     if abs(ref - target) <= 0.05:
         verdict = (
-            "This is close to the nominal level: the fitted model reproduces the "
-            "spread of these children's scores."
+            "This is close to the nominal level: the fitted model reproduces the spread of these children's scores."
         )
     elif ref > target + 0.05:
         verdict = (
@@ -902,7 +861,10 @@ def ppc_coverage_markdown(cov: pd.DataFrame) -> str:
             "are too narrow — treat the fit with caution."
         )
     return (
-        "**Coverage.** " + "; ".join(clauses) + ". " + verdict
+        "**Coverage.** "
+        + "; ".join(clauses)
+        + ". "
+        + verdict
         + " (These are same-children, in-sample ranges — how well the fitted model "
         "re-predicts the children it was fit on, not new-child prediction.)"
     )
@@ -915,7 +877,7 @@ def level_prior_pushforward(
     G: np.ndarray,
     n_trials: int,
     ability: np.ndarray | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     contrast_term: str = "b_grp_time",
     contrast_index: int | None = None,
     balance_term: str | None = None,
@@ -947,6 +909,4 @@ def level_prior_pushforward(
         balance_term=balance_term,
         score_mean_link=score_mean_link,
     )
-    return pushforward_values(
-        contrast_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob
-    )
+    return pushforward_values(contrast_draws, ame_prob * float(n_trials), n_trials=n_trials, ci_prob=ci_prob)

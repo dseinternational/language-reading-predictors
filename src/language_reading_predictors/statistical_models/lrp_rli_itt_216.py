@@ -105,9 +105,7 @@ if not isinstance(_PARENT_SETTINGS, JointModelSettings):
     )
 _PARENT_CONTRAST = _PARENT_SETTINGS.contrast
 if _PARENT_CONTRAST is None:
-    raise ValueError(
-        f"{_PARENT.model_id} declares no contrast for this companion to reuse"
-    )
+    raise ValueError(f"{_PARENT.model_id} declares no contrast for this companion to reuse")
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-216",
     kind="joint",

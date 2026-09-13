@@ -32,10 +32,7 @@ from language_reading_predictors.statistical_models.pipelines.adjusted import (
 SPEC = ModelSpec(
     model_id="lrp-rlm-adj-003",
     kind="adjusted",
-    title=(
-        "Byrne wave-1 predictors of receptive-vocabulary gain, waves 1-3 "
-        "(confirmed-input, mutually adjusted)"
-    ),
+    title=("Byrne wave-1 predictors of receptive-vocabulary gain, waves 1-3 (confirmed-input, mutually adjusted)"),
     outcome_symbol="bpvs",
     study_id="rlm",
     family="adjusted",

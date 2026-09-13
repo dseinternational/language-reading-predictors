@@ -42,10 +42,7 @@ from scipy.special import expit
 
 from language_reading_predictors import paths
 from language_reading_predictors.statistical_models.measures import MEASURES
-from language_reading_predictors.statistical_models.reporting import (
-    evidence_label,
-    favoured_direction,
-)
+from dse_research_utils.statistics.evidence import evidence_label, favoured_direction
 
 # The ability-adjusted available-case modified ITT family (LRPITT17-24), restricted to the six vocabulary
 # outcomes (LRPITT23/24 are the L/W reading companions -- add them with --models
@@ -62,9 +59,7 @@ ADJUSTER = "gamma_blocks"
 
 
 def _spec(model_id: str):
-    mod = importlib.import_module(
-        f"language_reading_predictors.statistical_models.{model_id}"
-    )
+    mod = importlib.import_module(f"language_reading_predictors.statistical_models.{model_id}")
     return mod.SPEC
 
 
@@ -75,9 +70,7 @@ def _spec(model_id: str):
 # gate now fails closed on, so nothing is masked here.
 
 
-def summarise_gamma(
-    g: np.ndarray, eta: np.ndarray | None, n_trials: int
-) -> dict[str, object]:
+def summarise_gamma(g: np.ndarray, eta: np.ndarray | None, n_trials: int) -> dict[str, object]:
     """Summarise a standardised-covariate coefficient's adjusted association.
 
     ``g`` is the posterior draws ``(S,)`` of the coefficient on ``z(blocks)`` (per
@@ -116,22 +109,17 @@ def read_model(model_id: str, config: str) -> dict[str, object]:
     spec = _spec(model_id)
     symbol = spec.outcome_symbol
     measure = MEASURES[symbol]
-    model_dir = os.path.join(
-        paths.output_root(), "statistical_models", "models", f"{model_id}-{config}"
-    )
+    model_dir = os.path.join(paths.output_root(), "statistical_models", "models", f"{model_id}-{config}")
     trace = az.from_netcdf(os.path.join(model_dir, "trace.nc"))
     post = trace.posterior
     if ADJUSTER not in post:
         raise KeyError(
-            f"{model_id}: {ADJUSTER!r} not in posterior -- is this an "
-            "ability-adjusted (adjust_for=('blocks',)) model?"
+            f"{model_id}: {ADJUSTER!r} not in posterior -- is this an ability-adjusted (adjust_for=('blocks',)) model?"
         )
     g = post[ADJUSTER].stack(sample=("chain", "draw")).values  # (S,)
     eta = None
     if "eta" in post:
-        eta = (
-            post["eta"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
-        )  # (n_obs, S)
+        eta = post["eta"].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     return {
         "config": config,
         "model_id": model_id,
@@ -187,8 +175,13 @@ def main() -> None:
     _forest(df, os.path.splitext(out)[0] + ".png")
 
     cols = [
-        "outcome", "label", "gamma_logit_median",
-        "gamma_logit_lo90", "gamma_logit_hi90", "prob_positive", "evidence_label",
+        "outcome",
+        "label",
+        "gamma_logit_median",
+        "gamma_logit_lo90",
+        "gamma_logit_hi90",
+        "prob_positive",
+        "evidence_label",
     ]
     if "items_ame_median" in df.columns:
         cols += ["items_ame_median"]

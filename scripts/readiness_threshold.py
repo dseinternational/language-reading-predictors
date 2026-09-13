@@ -20,6 +20,9 @@ re-generates ``readiness_threshold.csv`` from an existing trace without a re-fit
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import readiness as _readiness_summary
+
+
 import argparse
 import json
 
@@ -28,7 +31,7 @@ import pandas as pd
 from rich import print as rprint
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.measures import MEASURES
 
 
@@ -58,7 +61,7 @@ def main() -> None:
     n_trials = MEASURES[mech_symbol].n_trials
 
     trace = az.from_netcdf(trace_path)
-    summary = _report.readiness_threshold(trace, n_trials=n_trials, n_bins=args.n_bins)
+    summary = _readiness_summary.readiness_threshold(trace, n_trials=n_trials, n_bins=args.n_bins)
 
     out_path = model_dir / "readiness_threshold.csv"
     pd.DataFrame([summary]).to_csv(out_path, index=False)

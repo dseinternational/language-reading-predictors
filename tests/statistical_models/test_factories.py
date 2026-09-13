@@ -18,20 +18,22 @@ import pytest
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models import mechanism, priors
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_adjusted_model,
-    build_aligned_model,
-    build_block_exposure_model,
-    build_concurrent_model,
-    build_correlated_factor_model,
-    build_did_model,
-    build_dose_response_model,
-    build_gain_factors_model,
-    build_itt_model,
-    build_joint_model,
-    build_level_factors_model,
+from language_reading_predictors.statistical_models.factories.adjusted import build_adjusted_model
+from language_reading_predictors.statistical_models.factories.aligned import build_aligned_model
+from language_reading_predictors.statistical_models.factories.block_exposure import build_block_exposure_model
+from language_reading_predictors.statistical_models.factories.concurrent import build_concurrent_model
+from language_reading_predictors.statistical_models.factories.corr_factor import build_correlated_factor_model
+from language_reading_predictors.statistical_models.factories.did import build_did_model
+from language_reading_predictors.statistical_models.factories.dose_response import build_dose_response_model
+from language_reading_predictors.statistical_models.factories.gain_factors import build_gain_factors_model
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
+from language_reading_predictors.statistical_models.factories.joint import build_joint_model
+from language_reading_predictors.statistical_models.factories.level_factors import build_level_factors_model
+from language_reading_predictors.statistical_models.factories.long_corr_factor import (
     build_longitudinal_corr_factor_model,
-    build_mechanism_model,
+)
+from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
+from language_reading_predictors.statistical_models.factories.mediation import (
     build_mediation_model,
     build_two_mediator_model,
 )
@@ -212,12 +214,8 @@ def test_ps_is_outcome_only_not_a_word_reading_predictor():
     # sets the word-reading models use.
     assert "P" in FLOORED
     # The explicit word-reading predictor models must not list P.
-    assert "P" not in resolve_horseshoe_run_plan(
-        lrp_rli_hs_001.SPEC
-    ).predictors  # W-gain ranking
-    assert "P" not in resolve_horseshoe_run_plan(
-        lrp_rli_hs_002.SPEC
-    ).predictors  # W-level ranking
+    assert "P" not in resolve_horseshoe_run_plan(lrp_rli_hs_001.SPEC).predictors  # W-gain ranking
+    assert "P" not in resolve_horseshoe_run_plan(lrp_rli_hs_002.SPEC).predictors  # W-level ranking
     adj = lrp_rli_adj_065.get_spec()  # baseline predictors of W gain (ADJ-065)
     adj_plan = resolve_adjusted_run_plan(adj)
     assert "P" not in adj_plan.predictor_symbols
@@ -255,13 +253,9 @@ def test_itt_factory_default_cross_is_all_itt_outcomes(tmp_path):
 def test_itt_factory_hearing_status_adjuster():
     """#244: hearing status (HS) enters the ITT via adjust_for without dropping rows."""
     base = load_and_prepare(phase_mode="itt", outcomes=("W",))
-    prep = load_and_prepare(
-        phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES
-    )
+    prep = load_and_prepare(phase_mode="itt", outcomes=("W",), covariates=HEARING_STATUS_COVARIATES)
     assert prep.n_obs == base.n_obs  # missing hearing status costs no children
-    built = build_itt_model(
-        prep, outcome_symbol="W", cross_symbols=(), adjust_for=HEARING_STATUS_COVARIATES
-    )
+    built = build_itt_model(prep, outcome_symbol="W", cross_symbols=(), adjust_for=HEARING_STATUS_COVARIATES)
     names = {v.name for v in built.model.free_RVs}
     assert {"gamma_hs", "gamma_hs_missing"}.issubset(names)
 
@@ -278,9 +272,7 @@ def test_joint_factory_two_outcome_taught_contrast(tmp_path):
     within-child residual correlation block, which is identifiable at K=2."""
     p = _write_synthetic(tmp_path, n_children=20)
     prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("TE", "UE"))
-    built = build_joint_model(
-        prep, outcomes=("TE", "UE"), use_residual_correlation=True
-    )
+    built = build_joint_model(prep, outcomes=("TE", "UE"), use_residual_correlation=True)
     names = {v.name for v in built.model.free_RVs}
     assert "tau" in names and "u_chol" in names
     # #551: the free pairwise residual correlation is exposed as a scalar
@@ -306,9 +298,7 @@ def test_tau_difference_summary_contrast():
     import xarray as xr
     from types import SimpleNamespace
 
-    from language_reading_predictors.statistical_models.reporting import (
-        tau_difference_summary,
-    )
+    from language_reading_predictors.statistical_models.summaries.joint import tau_difference_summary
 
     rng = np.random.default_rng(0)
     n_draws = 800
@@ -394,9 +384,7 @@ def test_itt_factory_age_linear_adds_gamma_A(tmp_path):
     )
     assert "gamma_A" in {v.name for v in built.model.free_RVs}
     # Default (legacy LRP52 behaviour) has no linear age term.
-    base = build_itt_model(
-        prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False
-    )
+    base = build_itt_model(prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False)
     assert "gamma_A" not in {v.name for v in base.model.free_RVs}
 
 
@@ -404,9 +392,7 @@ def test_itt_factory_age_gp_and_linear_mutually_exclusive(tmp_path):
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="itt")
     with pytest.raises(ValueError):
-        build_itt_model(
-            prep, outcome_symbol="W", use_age_gp=True, use_age_linear=True
-        )
+        build_itt_model(prep, outcome_symbol="W", use_age_gp=True, use_age_linear=True)
 
 
 def test_itt_factory_age_only_drops_own_baseline(tmp_path):
@@ -481,9 +467,7 @@ def test_itt_factory_tau_moderator_covariate(tmp_path):
         tau_moderator_symbol="A",
         tau_moderator_is_covariate=True,
     )
-    assert {"gamma_tau_mod", "gamma_tau_int"}.issubset(
-        {v.name for v in built.model.free_RVs}
-    )
+    assert {"gamma_tau_mod", "gamma_tau_int"}.issubset({v.name for v in built.model.free_RVs})
     base = build_itt_model(
         prep,
         outcome_symbol="W",
@@ -513,9 +497,7 @@ def test_itt_factory_tau_moderator_baseline(tmp_path):
         use_age_linear=True,
         tau_moderator_symbol="E",
     )
-    assert {"gamma_tau_mod", "gamma_tau_int"}.issubset(
-        {v.name for v in built.model.free_RVs}
-    )
+    assert {"gamma_tau_mod", "gamma_tau_int"}.issubset({v.name for v in built.model.free_RVs})
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=23)
     assert pp.prior_predictive["y_post"].shape[-1] == prep.n_obs
@@ -542,9 +524,7 @@ def _assert_itt_diag_vars_subset(
     )
     plan = resolve_itt_run_plan(spec)
     diag = itt_diag_vars(plan, adjust_for, likelihood=likelihood)
-    built_names = {v.name for v in built.model.free_RVs} | {
-        v.name for v in built.model.deterministics
-    }
+    built_names = {v.name for v in built.model.free_RVs} | {v.name for v in built.model.deterministics}
     missing = set(diag) - built_names
     assert not missing, f"itt_diag_vars names RVs the model never builds: {missing}"
     return set(diag)
@@ -554,7 +534,10 @@ def test_itt_diag_vars_match_graded_build(tmp_path):
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="itt")
     built = build_itt_model(
-        prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False,
+        prep,
+        outcome_symbol="W",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
         cross_symbols=(),
     )
     diag = _assert_itt_diag_vars_subset(
@@ -570,9 +553,14 @@ def test_itt_diag_vars_match_offfloor_age_only_build(tmp_path):
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("N",))
     built = build_itt_model(
-        prep, outcome_symbol="N", likelihood="bernoulli_offfloor",
-        use_age_gp=False, use_own_baseline_gp=False, cross_symbols=(),
-        use_age_linear=True, use_own_baseline=False,
+        prep,
+        outcome_symbol="N",
+        likelihood="bernoulli_offfloor",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=True,
+        use_own_baseline=False,
     )
     diag = _assert_itt_diag_vars_subset(
         built,
@@ -588,9 +576,14 @@ def test_itt_diag_vars_match_tau_moderator_build(tmp_path):
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="itt")
     built = build_itt_model(
-        prep, outcome_symbol="W", use_age_gp=False, use_own_baseline_gp=False,
-        cross_symbols=(), use_age_linear=False,
-        tau_moderator_symbol="A", tau_moderator_is_covariate=True,
+        prep,
+        outcome_symbol="W",
+        use_age_gp=False,
+        use_own_baseline_gp=False,
+        cross_symbols=(),
+        use_age_linear=False,
+        tau_moderator_symbol="A",
+        tau_moderator_is_covariate=True,
     )
     diag = _assert_itt_diag_vars_subset(
         built,
@@ -697,9 +690,7 @@ def test_mechanism_factory_adjust_for_unknown_covariate_raises(tmp_path):
     p = _write_synthetic(tmp_path, n_children=10)
     prep = load_and_prepare(path=p, phase_mode="all")
     with pytest.raises(KeyError):
-        build_mechanism_model(
-            prep, mechanism_symbol="R", outcome_symbol="W", adjust_for=("nope",)
-        )
+        build_mechanism_model(prep, mechanism_symbol="R", outcome_symbol="W", adjust_for=("nope",))
 
 
 def _mech_ell_params(built):
@@ -712,9 +703,7 @@ def test_mechanism_hsgp_knobs_default_to_the_shared_settings(tmp_path):
     """#430: ``None`` means "shared default" — basis count 10, InverseGamma(5, 5)."""
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all")
-    built = build_mechanism_model(
-        prep, mechanism_symbol="R", outcome_symbol="W", confounder_symbols=()
-    )
+    built = build_mechanism_model(prep, mechanism_symbol="R", outcome_symbol="W", confounder_symbols=())
     coeffs = built.model.initial_point()["f_mech__g_unit_hsgp_coeffs"]
     assert coeffs.shape == (10,)
     assert _mech_ell_params(built) == (5.0, 5.0)
@@ -892,9 +881,7 @@ def test_fit_mechanism_loads_and_complete_cases_covariate_moderator(monkeypatch)
     with pytest.raises(_StopBeforeFit):
         mechanism.resolve_mechanism_plan(spec)
 
-    loaded = set(captured.get("covariates", ())) | set(
-        captured.get("post_covariates", ())
-    )
+    loaded = set(captured.get("covariates", ())) | set(captured.get("post_covariates", ()))
     # The moderator is loaded from the data (not injected by the caller)...
     assert "erbto" in loaded
     # ...and its missingness flag is loaded so require_observed can filter on it...
@@ -933,9 +920,7 @@ def test_mechanism_factory_mechanism_at_pre_uses_period_start_regressor(tmp_path
     # The two alignments produce genuinely different regressors.
     assert not np.allclose(post_reg, pre_reg)
     # Each matches its source: post = logit_safe(post counts); pre = the pre logit.
-    np.testing.assert_allclose(
-        post_reg, logit_safe(prep.post_counts["R"], prep.n_trials["R"])
-    )
+    np.testing.assert_allclose(post_reg, logit_safe(prep.post_counts["R"], prep.n_trials["R"]))
     np.testing.assert_allclose(pre_reg, prep.pre_logit["R"])
 
 
@@ -975,9 +960,7 @@ def test_joint_mechanism_levels_builds_identified_contrasts(tmp_path):
     intercept with a fixed loading of 1 on both logits), the conditional slope built
     from it, and a flattened two-outcome likelihood that prior-samples.
     """
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     sub = _joint_mechanism_levels_subset(tmp_path)
     built = build_joint_mechanism_model(
@@ -1023,9 +1006,7 @@ def test_joint_mechanism_levels_conditional_slope_matches_covariance(tmp_path):
     ``beta_W - rho (sigma_W / sigma_N) beta_N``, and ``share_retained`` its ratio to
     ``beta_W``. Checked against the model's own prior draws so a future refactor
     cannot silently change what the published quantity means."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     sub = _joint_mechanism_levels_subset(tmp_path)
     built = build_joint_mechanism_model(sub, design="levels")
@@ -1039,12 +1020,8 @@ def test_joint_mechanism_levels_conditional_slope_matches_covariance(tmp_path):
     rho = prior["rho_outcome"].values.ravel()
 
     expected = beta_w - rho * (sigma_w / sigma_n) * beta_n
-    np.testing.assert_allclose(
-        prior["beta_mech_focal_given_held"].values.ravel(), expected, rtol=1e-6
-    )
-    np.testing.assert_allclose(
-        prior["share_retained"].values.ravel(), expected / beta_w, rtol=1e-6
-    )
+    np.testing.assert_allclose(prior["beta_mech_focal_given_held"].values.ravel(), expected, rtol=1e-6)
+    np.testing.assert_allclose(prior["share_retained"].values.ravel(), expected / beta_w, rtol=1e-6)
 
 
 def test_joint_mechanism_transition_uses_bivariate_child_intercept(tmp_path):
@@ -1055,9 +1032,7 @@ def test_joint_mechanism_transition_uses_bivariate_child_intercept(tmp_path):
     It reports the correlation and Delta but deliberately no share retained: a
     between-child covariance does not answer "holding this child's decoding fixed at
     this wave"."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
@@ -1090,9 +1065,7 @@ def test_joint_mechanism_rejects_mismatched_phase_mode(tmp_path):
     """Each design names the frame it needs, so a levels model can never be built on
     stacked transitions (which would silently make the 'per-wave' estimand a
     multi-row-per-child one)."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W", "N", "L"))
@@ -1109,9 +1082,7 @@ def test_joint_mechanism_rejects_a_duplicate_or_incomplete_contrast(tmp_path):
     and the conditional slope partialled the focal outcome against itself. The typed
     run plans already rejected it, but this is a public factory boundary and must
     enforce the same invariant (2026-08-23 follow-up review, robustness gap 6)."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
 
     sub = _joint_mechanism_levels_subset(tmp_path)
     for contrast in (("N", "N"), ("W", "W"), ("N",), ("N", "W", "N")):
@@ -1133,9 +1104,7 @@ def test_joint_mechanism_levels_recovers_a_simulated_slope_difference(tmp_path):
     through to ``delta_ls_decoding`` rather than a sign-flipped or index-swapped one.
     Deliberately generous: this is a wiring check on ~20 children, not a calibration
     study (2026-08-23 follow-up review, test gap)."""
-    from language_reading_predictors.statistical_models.factories import (
-        build_joint_mechanism_model,
-    )
+    from language_reading_predictors.statistical_models.factories.joint_mechanism import build_joint_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
         logit_safe,
         standardise,
@@ -1151,13 +1120,22 @@ def test_joint_mechanism_levels_recovers_a_simulated_slope_difference(tmp_path):
         sub.post_counts[symbol] = rng.binomial(sub.n_trials[symbol], p).astype(float)
 
     built = build_joint_mechanism_model(
-        sub, design="levels", contrast=("N", "W"), include_group=False,
+        sub,
+        design="levels",
+        contrast=("N", "W"),
+        include_group=False,
         confounder_symbols=(),
     )
     with built.model:
         idata = pm.sample(
-            draws=400, tune=400, chains=2, cores=1, target_accept=0.9,
-            nuts_sampler="nutpie", random_seed=11, progressbar=False,
+            draws=400,
+            tune=400,
+            chains=2,
+            cores=1,
+            target_accept=0.9,
+            nuts_sampler="nutpie",
+            random_seed=11,
+            progressbar=False,
         )
     delta = idata.posterior["delta_ls_decoding"].values.ravel()
     # The truth is +1.4; recovery only has to land clearly on the right side of zero
@@ -1265,8 +1243,12 @@ def test_adjusted_factory_builds(tmp_path):
     )
     names = {v.name for v in built.model.free_RVs}
     assert {
-        "beta_L", "beta_lang", "beta_B", "beta_age",
-        f"beta_{V.BLOCKS}", f"beta_{V.BEHAV}",
+        "beta_L",
+        "beta_lang",
+        "beta_B",
+        "beta_age",
+        f"beta_{V.BLOCKS}",
+        f"beta_{V.BEHAV}",
     }.issubset(names)
     assert "gamma_own" in names
     # Genuinely between-child: no phase intercept, no child random intercept.
@@ -1281,9 +1263,7 @@ def test_adjusted_factory_builds(tmp_path):
 def test_adjusted_factory_bivariate_single_predictor(tmp_path):
     """A single-element predictor list yields just that one slope (bivariate fit)."""
     p = _write_synthetic(tmp_path, n_children=25)
-    prep = load_and_prepare(
-        path=p, phase_mode="span", outcomes=("W", "L", "B", "R", "E", "F")
-    )
+    prep = load_and_prepare(path=p, phase_mode="span", outcomes=("W", "L", "B", "R", "E", "F"))
     built = build_adjusted_model(prep, predictors=["lang"])
     betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
     assert betas == {"beta_lang"}
@@ -1339,13 +1319,9 @@ def test_concurrent_factory_builds(tmp_path):
     )
 
     p = _write_synthetic(tmp_path, n_children=30)
-    prep = load_and_prepare(
-        path=p, phase_mode="levels", outcomes=("W", "L", "B", "TR", "TE", "R", "E")
-    )
+    prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L", "B", "TR", "TE", "R", "E"))
     wave = _subset_prepared(prep, prep.phase == 1)  # a single timepoint
-    built = build_concurrent_model(
-        wave, outcome_symbol="W", predictor_symbols=["L", "B", "TR", "TE", "R", "E"]
-    )
+    built = build_concurrent_model(wave, outcome_symbol="W", predictor_symbols=["L", "B", "TR", "TE", "R", "E"])
     names = {v.name for v in built.model.free_RVs}
     assert {"beta_L", "beta_B", "beta_TR", "beta_TE", "beta_R", "beta_E"}.issubset(names)
     assert "beta_age" in names
@@ -1386,8 +1362,11 @@ def test_concurrent_factory_bivariate_single_predictor(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L"))
     wave = _subset_prepared(prep, prep.phase == 2)
     built = build_concurrent_model(
-        wave, outcome_symbol="W", predictor_symbols=["L"],
-        include_age=False, include_group=False,
+        wave,
+        outcome_symbol="W",
+        predictor_symbols=["L"],
+        include_age=False,
+        include_group=False,
     )
     betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
     assert betas == {"beta_L"}
@@ -1425,9 +1404,7 @@ def test_concurrent_factory_omits_filtered_constant_indicator(tmp_path):
     wave = _subset_prepared(prep, prep.phase == 1)
     wave.covariates["hs"] = np.linspace(-1.0, 1.0, wave.n_obs)
     wave.covariates["hs_missing"] = np.full(wave.n_obs, 0.25)
-    filtered, effective, dropped = filter_informative_covariates(
-        wave, ("hs", "hs_missing")
-    )
+    filtered, effective, dropped = filter_informative_covariates(wave, ("hs", "hs_missing"))
     assert effective == ("hs",)
     assert dropped == ("hs_missing",)
 
@@ -1470,9 +1447,7 @@ def test_concurrent_factory_accepts_non_w_focal(tmp_path):
     p = _write_synthetic(tmp_path, n_children=20)
     prep = load_and_prepare(path=p, phase_mode="levels", outcomes=("W", "L", "B"))
     wave = _subset_prepared(prep, prep.phase == 1)
-    built = build_concurrent_model(
-        wave, outcome_symbol="L", predictor_symbols=["W", "B"]
-    )
+    built = build_concurrent_model(wave, outcome_symbol="L", predictor_symbols=["W", "B"])
     betas = {v.name for v in built.model.free_RVs if v.name.startswith("beta_")}
     assert {"beta_W", "beta_B"}.issubset(betas)
     assert "beta_L" not in betas  # the focal never predicts itself
@@ -1554,15 +1529,18 @@ def test_longitudinal_corr_factor_builds(tmp_path):
     assert "factor_z" not in free and "factors" not in free
     dets = {v.name for v in built.model.deterministics}
     assert {
-        "factor_corr", "factor_corr_pairs", "Sigma_z", "mean_z",
+        "factor_corr",
+        "factor_corr_pairs",
+        "Sigma_z",
+        "mean_z",
         # The loading / residual pair is DERIVED under the default (#383 follow-up).
-        "lambda_load", "sigma_indicator", "within_share",
+        "lambda_load",
+        "sigma_indicator",
+        "within_share",
     }.issubset(dets)
     # One observed MvNormal per observed-cell pattern; every child is used (masked,
     # not dropped).
-    assert built.payload.z_nodes == tuple(
-        v.name for v in built.model.observed_RVs
-    )
+    assert built.payload.z_nodes == tuple(v.name for v in built.model.observed_RVs)
     assert built.payload.n_used_children == panel.n_children
     # Finite logp at the initial point, and prior-predictive draws succeed.
     ip = built.model.initial_point()
@@ -1571,8 +1549,12 @@ def test_longitudinal_corr_factor_builds(tmp_path):
         pp = pm.sample_prior_predictive(
             draws=20,
             var_names=[
-                "communality", "lambda_load", "sigma_indicator", "within_share",
-                "factor_mean", *built.payload.z_nodes,
+                "communality",
+                "lambda_load",
+                "sigma_indicator",
+                "within_share",
+                "factor_mean",
+                *built.payload.z_nodes,
             ],
             random_seed=3,
         )
@@ -1604,17 +1586,13 @@ def test_longitudinal_corr_factor_legacy_free_pair(tmp_path):
     """loading_prior="free" reproduces the pre-port unconstrained pair, which does
     NOT enforce the pooled budget — the point of a geometry-only contrast."""
     panel = _lcf_panel(tmp_path)
-    built = build_longitudinal_corr_factor_model(
-        panel, domains=_LCF_TEST_DOMAINS, loading_prior="free"
-    )
+    built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS, loading_prior="free")
     free = {v.name for v in built.model.free_RVs}
     dets = {v.name for v in built.model.deterministics}
     assert {"lambda_load", "sigma_indicator"}.issubset(free)
     assert {"communality", "within_share"}.issubset(dets)
     with built.model:
-        pp = pm.sample_prior_predictive(
-            draws=50, var_names=["lambda_load", "sigma_indicator"], random_seed=9
-        )
+        pp = pm.sample_prior_predictive(draws=50, var_names=["lambda_load", "sigma_indicator"], random_seed=9)
     lam_d = pp.prior["lambda_load"].values
     sig_d = pp.prior["sigma_indicator"].values
     assert np.abs(lam_d**2 + sig_d**2 - 1.0).max() > 0.1
@@ -1624,13 +1602,9 @@ def test_longitudinal_corr_factor_rejects_bad_loading_prior(tmp_path):
     """Unknown parameterisations and non-positive Beta shapes are rejected."""
     panel = _lcf_panel(tmp_path)
     with pytest.raises(ValueError, match="loading_prior"):
-        build_longitudinal_corr_factor_model(
-            panel, domains=_LCF_TEST_DOMAINS, loading_prior="bounded"
-        )
+        build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS, loading_prior="bounded")
     with pytest.raises(ValueError, match="comm_alpha and comm_beta"):
-        build_longitudinal_corr_factor_model(
-            panel, domains=_LCF_TEST_DOMAINS, comm_alpha=0.0
-        )
+        build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS, comm_alpha=0.0)
 
 
 def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
@@ -1661,12 +1635,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     actual = _lcf_child_log_likelihood(trace, built, chunk_size=2)
 
     expected_children = np.sort(
-        np.concatenate(
-            [
-                np.asarray(built.payload.child_of_node[node], dtype=int)
-                for node in built.payload.z_nodes
-            ]
-        )
+        np.concatenate([np.asarray(built.payload.child_of_node[node], dtype=int) for node in built.payload.z_nodes])
     )
     assert actual.dims == ("chain", "draw", "child_lcf")
     assert actual.shape == (1, 50, panel.n_children)
@@ -1683,12 +1652,8 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
         observed = built.payload.observed_z_of_node[node]
         for draw in range(3):
             mean = posterior["mean_z"].isel(chain=0, draw=draw).values[cell_indices]
-            covariance = posterior["Sigma_z"].isel(chain=0, draw=draw).values[
-                np.ix_(cell_indices, cell_indices)
-            ]
-            expected = multivariate_normal.logpdf(
-                observed, mean=mean, cov=covariance
-            )
+            covariance = posterior["Sigma_z"].isel(chain=0, draw=draw).values[np.ix_(cell_indices, cell_indices)]
+            expected = multivariate_normal.logpdf(observed, mean=mean, cov=covariance)
             np.testing.assert_allclose(
                 actual.sel(child_lcf=children).isel(chain=0, draw=draw),
                 np.atleast_1d(expected),
@@ -1699,23 +1664,17 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
     # Exercise the production wrapper too: the predictive diagnostic is required,
     # so it must attach the per-child group and write LOO rather than swallowing a
     # transformed-variable failure.
-    ctx = SimpleNamespace(
-        trace=trace, loo=None, output_dir=str(tmp_path), model=built.model
-    )
+    ctx = SimpleNamespace(trace=trace, loo=None, output_dir=str(tmp_path), model=built.model)
     _lcf_stitch_loo(ctx, built)
     assert ctx.loo is not None
     assert "lcf_child" in ctx.trace.log_likelihood
-    assert set(ctx.trace.log_prior.data_vars) == {
-        rv.name for rv in built.model.free_RVs
-    }
+    assert set(ctx.trace.log_prior.data_vars) == {rv.name for rv in built.model.free_RVs}
     assert all(np.isfinite(v).all() for v in ctx.trace.log_prior.data_vars.values())
     assert (tmp_path / "loo.txt").exists()
 
     # Hand-check the conditional measurement translation. With C the third
     # domain: Cov(a,b|C)=0.5-0.2*0.3=0.44 and Var(b|C)=1-0.3^2=0.91.
-    known_corr = np.array(
-        [[[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3], [0.2, 0.3, 1.0]]]]
-    )
+    known_corr = np.array([[[[1.0, 0.5, 0.2], [0.5, 1.0, 0.3], [0.2, 0.3, 1.0]]]])
     known_loadings = np.array([[2.0, 0.8]])
     known_residuals = np.array([[0.4, 0.6]])
     known_slope = _lcf_observed_conditional_slope(
@@ -1762,9 +1721,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
         reporting=SimpleNamespace(ci_prob=0.95, config_name="test"),
         output_dir=str(tmp_path / "models" / "lrp-rli-lcf-001-test"),
     )
-    comparison = _lcf_concurrent_comparison(
-        comparison_ctx, built, ca_tables=ca_tables
-    )
+    comparison = _lcf_concurrent_comparison(comparison_ctx, built, ca_tables=ca_tables)
     assert len(comparison) == 48
     assert comparison["ca_available"].all()
     assert comparison["predictor_contrast"].eq("+1 same-wave SD").all()
@@ -1774,9 +1731,7 @@ def test_longitudinal_corr_factor_child_log_likelihood(tmp_path):
 def test_longitudinal_corr_factor_rejects_singleton_domain(tmp_path):
     panel = _lcf_panel(tmp_path, n_children=12)
     with pytest.raises(ValueError, match="at least two indicators"):
-        build_longitudinal_corr_factor_model(
-            panel, domains={"vocabulary": ("R",), "code": ("L", "B")}
-        )
+        build_longitudinal_corr_factor_model(panel, domains={"vocabulary": ("R",), "code": ("L", "B")})
 
 
 def test_longitudinal_corr_factor_rejects_single_domain(tmp_path):
@@ -1784,9 +1739,7 @@ def test_longitudinal_corr_factor_rejects_single_domain(tmp_path):
     cross-domain correlations, and factor_corr_pairs / the cross-check are empty."""
     panel = _lcf_panel(tmp_path, n_children=12)
     with pytest.raises(ValueError, match=">= 2 domains"):
-        build_longitudinal_corr_factor_model(
-            panel, domains={"vocabulary": ("R", "E", "TR", "TE")}
-        )
+        build_longitudinal_corr_factor_model(panel, domains={"vocabulary": ("R", "E", "TR", "TE")})
 
 
 def test_longitudinal_corr_factor_sigma_z_positive_definite(tmp_path):
@@ -1798,9 +1751,7 @@ def test_longitudinal_corr_factor_sigma_z_positive_definite(tmp_path):
     panel = _lcf_panel(tmp_path, n_children=30)
     built = build_longitudinal_corr_factor_model(panel, domains=_LCF_TEST_DOMAINS)
     with built.model:
-        pr = pm.sample_prior_predictive(
-            draws=100, var_names=["Sigma_z", "factor_corr"], random_seed=5
-        )
+        pr = pm.sample_prior_predictive(draws=100, var_names=["Sigma_z", "factor_corr"], random_seed=5)
     S = pr.prior["Sigma_z"].values[0]  # (draws, C, C)
     mins = np.array([np.linalg.eigvalsh(S[i]).min() for i in range(S.shape[0])])
     assert (mins > 0).all(), f"Sigma_z not PD under prior (min eig {mins.min():.2e})"
@@ -1843,6 +1794,8 @@ def test_adjusted_factory_rejects_pooled_phase(tmp_path):
     prep = load_and_prepare(path=p, phase_mode="all")
     with pytest.raises(ValueError):
         build_adjusted_model(prep, predictors=["L"])
+
+
 # ---------------------------------------------------------------------------
 # Dose-response factory (LRP77, #104 Phase 2)
 # ---------------------------------------------------------------------------
@@ -1851,9 +1804,7 @@ def test_adjusted_factory_rejects_pooled_phase(tmp_path):
 def test_dose_response_factory_builds_period_varying(tmp_path):
     """Default build: partial-pooled per-period dose slopes + design adjusters."""
     p = _write_synthetic(tmp_path, n_children=20)
-    prep = load_and_prepare(
-        path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul")
-    )
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul"))
     built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=True)
     free = {v.name for v in built.model.free_RVs}
     dets = {v.name for v in built.model.deterministics}
@@ -1861,9 +1812,16 @@ def test_dose_response_factory_builds_period_varying(tmp_path):
     # the post-crossover arm term, age and the subject RI. ``beta_G`` was renamed
     # ``beta_arm_late`` in #587: arm can only enter where it is not collinear with
     # treatment presence, which in these data is period 2 onward.
-    assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw", "theta_treated",
-            "beta_arm_late", "beta_dose_between", "gamma_A",
-            "sigma_child"}.issubset(free)
+    assert {
+        "mu_dose",
+        "sigma_dose",
+        "beta_dose_phase_raw",
+        "theta_treated",
+        "beta_arm_late",
+        "beta_dose_between",
+        "gamma_A",
+        "sigma_child",
+    }.issubset(free)
     assert "beta_G" not in free
     assert "beta_dose_phase" in dets
     assert "beta_dose" not in free  # pooled slope only in the comparator
@@ -1876,7 +1834,9 @@ def test_dose_response_factory_builds_period_varying(tmp_path):
 
     # Explicitly opting into the collider-sensitivity control re-adds gamma_dose_stage.
     built_sens = build_dose_response_model(
-        prep, outcome_symbol="W", period_varying_dose=True,
+        prep,
+        outcome_symbol="W",
+        period_varying_dose=True,
         dose_stage_covariate="attend_cumul",
     )
     assert "gamma_dose_stage" in {v.name for v in built_sens.model.free_RVs}
@@ -1885,9 +1845,7 @@ def test_dose_response_factory_builds_period_varying(tmp_path):
 def test_dose_response_factory_pooled_slope(tmp_path):
     """``period_varying_dose=False`` gives a single pooled slope, no phase slopes."""
     p = _write_synthetic(tmp_path, n_children=20)
-    prep = load_and_prepare(
-        path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul")
-    )
+    prep = load_and_prepare(path=p, phase_mode="all", outcomes=("W",), covariates=("attend", "attend_cumul"))
     built = build_dose_response_model(prep, outcome_symbol="W", period_varying_dose=False)
     free = {v.name for v in built.model.free_RVs}
     assert "beta_dose" in free
@@ -1904,18 +1862,14 @@ def test_dose_response_factory_ability_adjusters(tmp_path):
         outcomes=("W", "L", "E", "B"),
         covariates=("attend", "attend_cumul"),
     )
-    built = build_dose_response_model(
-        prep, outcome_symbol="W", ability_adjust_symbols=("L", "E", "B")
-    )
+    built = build_dose_response_model(prep, outcome_symbol="W", ability_adjust_symbols=("L", "E", "B"))
     free = {v.name for v in built.model.free_RVs}
     assert {"gamma_L_pre", "gamma_E_pre", "gamma_B_pre"}.issubset(free)
 
 
 def test_dose_response_factory_rejects_wrong_phase(tmp_path):
     p = _write_synthetic(tmp_path, n_children=12)
-    prep = load_and_prepare(
-        path=p, phase_mode="itt", outcomes=("W",), covariates=("attend", "attend_cumul")
-    )
+    prep = load_and_prepare(path=p, phase_mode="itt", outcomes=("W",), covariates=("attend", "attend_cumul"))
     with pytest.raises(ValueError):
         build_dose_response_model(prep, outcome_symbol="W")
 
@@ -1943,9 +1897,7 @@ def test_mediation_factory_builds_beta_binomial(tmp_path):
     draws a prior predictive sample for both observation nodes."""
     p = _write_synthetic(tmp_path, n_children=20)
     prep = load_and_prepare(path=p, phase_mode="itt")
-    built, med = build_mediation_model(
-        prep, mediator_symbol="L", outcome_symbol="W", confounder_symbols=("E", "R")
-    )
+    built, med = build_mediation_model(prep, mediator_symbol="L", outcome_symbol="W", confounder_symbols=("E", "R"))
     names = {v.name for v in built.model.free_RVs}
     # Shared outcome leg + the confounder coefficients + the Beta-Binomial
     # mediator leg (a_L / kappa_M).
@@ -2106,18 +2058,14 @@ def test_did_factory_builds(tmp_path):
     }.issubset(names)
     assert not {"delta", "gamma_own", "gamma_t1"} & names
     dets = {v.name for v in built.model.deterministics}
-    assert {"alpha", "arm_gap_wave", "delta_crossover", "eta_base", "eta"}.issubset(
-        dets
-    )
+    assert {"alpha", "arm_gap_wave", "delta_crossover", "eta_base", "eta"}.issubset(dets)
     assert set(np.unique(built.prepared.phase)) == {0, 1, 2}
     assert built.prepared.n_phases == 3
     assert built.prepared.dropped_rows >= prep.dropped_rows
     t1 = built.prepared.post_counts["W"][built.prepared.phase == 0]
     successes = float(t1.sum())
     failures = float(t1.size * built.prepared.n_trials["W"] - successes)
-    assert built.payload.alpha_anchor == pytest.approx(
-        np.log((successes + 0.5) / (failures + 0.5))
-    )
+    assert built.payload.alpha_anchor == pytest.approx(np.log((successes + 0.5) / (failures + 0.5)))
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=31)
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
@@ -2133,9 +2081,7 @@ def test_did_factory_builds(tmp_path):
     np.testing.assert_allclose(arm_gap_wave[..., 1], pp.prior["tau_t2"])
     np.testing.assert_allclose(arm_gap_wave[..., 2], pp.prior["arm_gap_t3"])
     eta_base = pp.prior["eta_base"].values
-    expected_eta = eta_base + (
-        arm_gap_wave[..., built.prepared.phase] * built.prepared.G[None, None, :]
-    )
+    expected_eta = eta_base + (arm_gap_wave[..., built.prepared.phase] * built.prepared.G[None, None, :])
     np.testing.assert_allclose(pp.prior["eta"].values, expected_eta)
 
 
@@ -2159,9 +2105,7 @@ def test_did_factory_free_intercept_companion(tmp_path):
     # The dose models already build a free intercept; claiming the companion
     # setting there would be a no-op and is refused.
     with pytest.raises(ValueError, match="free intercept"):
-        build_did_model(
-            prep, outcome_symbol="W", dose=True, use_intercept_anchor=False
-        )
+        build_did_model(prep, outcome_symbol="W", dose=True, use_intercept_anchor=False)
 
 
 def test_did_analysis_contract_persists_exact_rows_and_attrition(tmp_path):
@@ -2216,11 +2160,7 @@ def test_did_factory_varying_crossover_is_waitlist_t3_only(tmp_path):
     assert {"sigma_delta", "v_delta_raw"}.issubset(free)
     assert {"v_delta", "delta_crossover_i"}.issubset(dets)
     assert len(built.model.coords["waitlist_child"]) == len(
-        np.unique(
-            built.prepared.subject_ids[
-                (built.prepared.G == 0) & (built.prepared.phase == 2)
-            ]
-        )
+        np.unique(built.prepared.subject_ids[(built.prepared.G == 0) & (built.prepared.phase == 2)])
     )
 
     waitlist_t3 = np.asarray(built.model["waitlist_t3"].get_value())
@@ -2234,15 +2174,11 @@ def test_did_factory_varying_crossover_is_waitlist_t3_only(tmp_path):
         pp.prior["delta_crossover_i"],
         pp.prior["delta_crossover"] + pp.prior["v_delta"],
     )
-    safe_idx = np.asarray(
-        built.model["waitlist_crossover_idx"].get_value(), dtype=int
-    )
+    safe_idx = np.asarray(built.model["waitlist_crossover_idx"].get_value(), dtype=int)
     expected_eta = (
         pp.prior["eta_base"].values
-        + pp.prior["arm_gap_wave"].values[..., built.prepared.phase]
-        * built.prepared.G[None, None, :]
-        + pp.prior["v_delta"].values[..., safe_idx]
-        * waitlist_t3[None, None, :]
+        + pp.prior["arm_gap_wave"].values[..., built.prepared.phase] * built.prepared.G[None, None, :]
+        + pp.prior["v_delta"].values[..., safe_idx] * waitlist_t3[None, None, :]
     )
     np.testing.assert_allclose(pp.prior["eta"].values, expected_eta)
 
@@ -2259,18 +2195,14 @@ def test_did_factory_toggles_and_dose(tmp_path):
     """Binary toggles and dose presence/intensive-margin terms stay distinct."""
     p = _write_synthetic(tmp_path, n_children=20)
     levels = load_and_prepare(path=p, phase_mode="levels")
-    base = build_did_model(
-        levels, outcome_symbol="W", use_child_re=False, use_age=False
-    )
+    base = build_did_model(levels, outcome_symbol="W", use_child_re=False, use_age=False)
     bnames = {v.name for v in base.model.free_RVs}
     assert {"arm_gap_t1", "tau_t2", "arm_gap_t3"}.issubset(bnames)
     assert "sigma_child" not in bnames and "gamma_A" not in bnames
 
     # Load attendance through the production path so both the standardised values
     # and their raw-unit scaler are available to the treated-centred dose model.
-    transitions = load_and_prepare(
-        path=p, phase_mode="all", covariates=("attend",)
-    )
+    transitions = load_and_prepare(path=p, phase_mode="all", covariates=("attend",))
     dosed = build_did_model(transitions, outcome_symbol="W", dose=True)
     dnames = {v.name for v in dosed.model.free_RVs}
     assert {
@@ -2309,9 +2241,7 @@ def test_did_factory_partitions_row_exclusions_by_reason(tmp_path):
     w[in_design_row] = np.nan
     levels.post_counts["W"] = w
     expected_design = int(np.sum(~np.isin(levels.phase, (0, 1, 2))))
-    expected_missing = int(
-        np.sum(~np.isfinite(levels.post_counts["W"][np.isin(levels.phase, (0, 1, 2))]))
-    )
+    expected_missing = int(np.sum(~np.isfinite(levels.post_counts["W"][np.isin(levels.phase, (0, 1, 2))])))
     assert expected_design > 0 and expected_missing > 0
     built = build_did_model(levels, outcome_symbol="W")
     by = built.prepared.dropped_by_reason
@@ -2321,9 +2251,7 @@ def test_did_factory_partitions_row_exclusions_by_reason(tmp_path):
     # Components are mutually exclusive by construction (sequential masks); they
     # must reconcile to both the total and the source row count.
     assert sum(by.values()) == built.prepared.dropped_rows
-    assert (
-        built.prepared.n_obs + expected_design + expected_missing == levels.n_obs
-    )
+    assert built.prepared.n_obs + expected_design + expected_missing == levels.n_obs
 
     # Dose branch: same partition over the P1/P2 transition frame, with the
     # missing mask spanning outcome, sessions and the broadcast t1 baseline.
@@ -2334,9 +2262,7 @@ def test_did_factory_partitions_row_exclusions_by_reason(tmp_path):
     transitions.post_counts["W"] = wt
     dosed = build_did_model(transitions, outcome_symbol="W", dose=True)
     dose_by = dosed.prepared.dropped_by_reason
-    assert dose_by.get("design_excluded", 0) == int(
-        np.sum(~np.isin(transitions.phase, (0, 1)))
-    )
+    assert dose_by.get("design_excluded", 0) == int(np.sum(~np.isin(transitions.phase, (0, 1))))
     assert dose_by.get("missing_data", 0) >= 1
     assert sum(dose_by.values()) == dosed.prepared.dropped_rows
 
@@ -2345,9 +2271,7 @@ def test_did_factory_period_varying_dose(tmp_path):
     """period_varying_dose swaps the pooled beta_dose for partial-pooled per-period slopes (#135)."""
     p = _write_synthetic(tmp_path, n_children=20)
     prep = load_and_prepare(path=p, phase_mode="all", covariates=("attend",))
-    pv = build_did_model(
-        prep, outcome_symbol="W", dose=True, period_varying_dose=True
-    )
+    pv = build_did_model(prep, outcome_symbol="W", dose=True, period_varying_dose=True)
     free = {v.name for v in pv.model.free_RVs}
     dets = {v.name for v in pv.model.deterministics}
     assert {"mu_dose", "sigma_dose", "beta_dose_phase_raw"}.issubset(free)
@@ -2375,9 +2299,7 @@ def test_did_factory_requires_design_specific_frames_and_windows(tmp_path):
     with pytest.raises(ValueError, match="phase_mode='all'"):
         build_did_model(levels, outcome_symbol="W", dose=True)
     with pytest.raises(ValueError, match=r"periods=\(0, 1\)"):
-        build_did_model(
-            transitions, outcome_symbol="W", dose=True, periods=(0,)
-        )
+        build_did_model(transitions, outcome_symbol="W", dose=True, periods=(0,))
 
 
 def test_did_factory_bernoulli_offfloor(tmp_path):
@@ -2387,9 +2309,7 @@ def test_did_factory_bernoulli_offfloor(tmp_path):
     built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
     names = {v.name for v in built.model.free_RVs}
     assert "kappa" not in names
-    assert {"alpha_offset", "beta_period", "arm_gap_t1", "tau_t2", "arm_gap_t3"}.issubset(
-        names
-    )
+    assert {"alpha_offset", "beta_period", "arm_gap_t1", "tau_t2", "arm_gap_t3"}.issubset(names)
     assert "gamma_own" not in names
     assert "own_pre_logit" not in {v.name for v in built.model.named_vars.values()}
     assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
@@ -2431,9 +2351,7 @@ def test_did_factory_rejects_bad_likelihood_and_offfloor_dose(tmp_path):
     levels = load_and_prepare(path=p, phase_mode="levels")
     with pytest.raises(ValueError):
         build_did_model(levels, outcome_symbol="W", likelihood="poisson")
-    transitions = load_and_prepare(
-        path=p, phase_mode="all", covariates=("attend",)
-    )
+    transitions = load_and_prepare(path=p, phase_mode="all", covariates=("attend",))
     with pytest.raises(ValueError):
         build_did_model(
             transitions,
@@ -2454,9 +2372,7 @@ def test_did_diag_vars_match_offfloor_build(tmp_path):
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="levels")
     built = build_did_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
-    names = {v.name for v in built.model.free_RVs} | {
-        v.name for v in built.model.deterministics
-    }
+    names = {v.name for v in built.model.free_RVs} | {v.name for v in built.model.deterministics}
     plan = resolve_did_run_plan(
         ModelSpec(
             model_id="lrp-test-did-diag",
@@ -2581,9 +2497,7 @@ def test_correlated_factor_model_requires_two_indicators(tmp_path):
     p = _write_synthetic(tmp_path, n_children=15)
     prep = load_and_prepare(path=p, phase_mode="itt")
     with pytest.raises(ValueError):
-        build_correlated_factor_model(
-            prep, outcome_symbol="W", domains={"single": ("F",)}
-        )
+        build_correlated_factor_model(prep, outcome_symbol="W", domains={"single": ("F",)})
 
 
 # ---------------------------------------------------------------------------
@@ -2605,8 +2519,7 @@ def test_gain_factors_factory_builds(tmp_path):
     prep = _prep_all(tmp_path, n_children=20)
     built = build_gain_factors_model(prep, outcome_symbol="W")
     names = {v.name for v in built.model.free_RVs}
-    assert {"alpha", "alpha_phase", "beta_trt", "gamma_own", "gamma_A", "kappa",
-            "sigma_child"}.issubset(names)
+    assert {"alpha", "alpha_phase", "beta_trt", "gamma_own", "gamma_A", "kappa", "sigma_child"}.issubset(names)
     assert {v.name for v in built.model.observed_RVs} == {"y_post"}
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=41)
@@ -2626,8 +2539,7 @@ def test_gain_factors_skills_ability_interactions(tmp_path):
         interactions=(("trt", "ability"), ("age", "ability")),
     )
     names = {v.name for v in built.model.free_RVs}
-    assert {"gamma_L", "gamma_R", "gamma_ability",
-            "gamma_int_trt_ability", "gamma_int_age_ability"}.issubset(names)
+    assert {"gamma_L", "gamma_R", "gamma_ability", "gamma_int_trt_ability", "gamma_int_age_ability"}.issubset(names)
     # The trt×ability interaction is exposed for the interaction-aware AME (the
     # non-trt age×ability interaction is NOT — it cancels in the toggle). The
     # moderator vector must equal the standardised ability the factory used
@@ -2698,6 +2610,7 @@ def test_gf_coef_names_report_the_offfloor_indicator_unconditionally():
     )
 
     base = {"likelihood": "bernoulli_offfloor", "interactions": ()}
+
     def names(extra):
         return resolve_gain_factors_run_plan(
             ModelSpec(
@@ -2792,9 +2705,7 @@ def test_gain_factors_bernoulli_offfloor(tmp_path):
     """The floor rule: a Bernoulli on the off-floor indicator, no kappa, a
     y_offfloor node taking only 0/1."""
     prep = _prep_all(tmp_path, n_children=20)
-    built = build_gain_factors_model(
-        prep, outcome_symbol="P", likelihood="bernoulli_offfloor"
-    )
+    built = build_gain_factors_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
     names = {v.name for v in built.model.free_RVs}
     assert "kappa" not in names
     assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
@@ -2822,9 +2733,17 @@ def test_level_factors_factory_builds(tmp_path):
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     built = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks")
     names = {v.name for v in built.model.free_RVs}
-    assert {"alpha_offset", "alpha_time", "arm_gap_t1", "d_grp_time", "gamma_A",
-            "gamma_ability_time", "gamma_grp_ability", "inv_sqrt_kappa",
-            "sigma_child"}.issubset(names)
+    assert {
+        "alpha_offset",
+        "alpha_time",
+        "arm_gap_t1",
+        "d_grp_time",
+        "gamma_A",
+        "gamma_ability_time",
+        "gamma_grp_ability",
+        "inv_sqrt_kappa",
+        "sigma_child",
+    }.issubset(names)
     # #584 decision 4: the dispersion prior sits on 1/sqrt(kappa), so ``kappa`` is a
     # Deterministic — the unit the reports quote, not the sampled quantity.
     assert "kappa" not in names
@@ -2862,9 +2781,7 @@ def test_level_factors_factory_builds(tmp_path):
     np.testing.assert_allclose(b[..., 1:], a[..., None] + d, atol=1e-10)
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
     # alpha_time is an exact zero-sum wave-deviation vector: no translation ridge.
-    np.testing.assert_allclose(
-        pp.prior["alpha_time"].values.sum(axis=-1), 0.0, atol=1e-10
-    )
+    np.testing.assert_allclose(pp.prior["alpha_time"].values.sum(axis=-1), 0.0, atol=1e-10)
     # alpha draws centre on the anchor, not on logit zero.
     alpha_mean = float(pp.prior["alpha"].values.mean())
     assert abs(alpha_mean - built.payload.alpha_anchor) < 1.0
@@ -2875,9 +2792,7 @@ def test_level_factors_free_comparator_keeps_free_vector(tmp_path):
     tau-prior coefficient per timepoint, no balance term, no change vector."""
     prep = _prep_levels(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
-    built = build_level_factors_model(
-        prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_reference="free"
-    )
+    built = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_reference="free")
     names = {v.name for v in built.model.free_RVs}
     assert "b_grp_time" in names
     assert "arm_gap_t1" not in names
@@ -2895,13 +2810,9 @@ def test_level_factors_rejects_incoherent_arm_gap_reference(tmp_path):
     prep = _prep_levels(tmp_path, n_children=15)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     with pytest.raises(ValueError, match="requires group_by_time"):
-        build_level_factors_model(
-            prep, outcome_symbol="W", ability_covariate="blocks", group_by_time=False
-        )
+        build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks", group_by_time=False)
     with pytest.raises(ValueError, match="arm_gap_reference"):
-        build_level_factors_model(
-            prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_reference="t2"
-        )
+        build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_reference="t2")
     # A pooled group term with the free reference is fine.
     built = build_level_factors_model(
         prep,
@@ -2925,12 +2836,8 @@ def test_level_factors_arm_gap_prior_sigma_override(tmp_path):
         # Normal RV inputs end with (mu, sigma), the _mech_ell_params idiom.
         return float(np.asarray(b.model["arm_gap_t1"].owner.inputs[-1].eval()))
 
-    default = build_level_factors_model(
-        prep, outcome_symbol="W", ability_covariate="blocks"
-    )
-    wide = build_level_factors_model(
-        prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_prior_sigma=1.0
-    )
+    default = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks")
+    wide = build_level_factors_model(prep, outcome_symbol="W", ability_covariate="blocks", arm_gap_prior_sigma=1.0)
     assert _sigma(default) == pytest.approx(0.3)
     assert _sigma(wide) == pytest.approx(1.0)
     with pytest.raises(ValueError, match="arm_gap_prior_sigma"):
@@ -2949,7 +2856,9 @@ def test_level_factors_offfloor_anchor_uses_mover_rate(tmp_path):
     prep = _prep_levels(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     built = build_level_factors_model(
-        prep, outcome_symbol="P", ability_covariate="blocks",
+        prep,
+        outcome_symbol="P",
+        ability_covariate="blocks",
         likelihood="bernoulli_offfloor",
     )
     post = built.prepared.post_counts["P"]
@@ -2967,7 +2876,9 @@ def test_level_factors_adjust_for_covariates(tmp_path):
     prep.covariates["hs"] = np.zeros(prep.n_obs)
     prep.covariates["erbto"] = np.linspace(-1.0, 1.0, prep.n_obs)
     built = build_level_factors_model(
-        prep, outcome_symbol="R", ability_covariate="blocks",
+        prep,
+        outcome_symbol="R",
+        ability_covariate="blocks",
         adjust_for=("hs", "erbto"),
     )
     names = {v.name for v in built.model.free_RVs}
@@ -2981,16 +2892,16 @@ def test_level_factors_adjust_for_unknown_covariate_raises(tmp_path):
     """#247: an adjuster absent from prepared.covariates is a loud KeyError."""
     prep = _prep_levels(tmp_path, n_children=15)
     with pytest.raises(KeyError):
-        build_level_factors_model(
-            prep, outcome_symbol="W", group_ability=False, adjust_for=("nope",)
-        )
+        build_level_factors_model(prep, outcome_symbol="W", group_ability=False, adjust_for=("nope",))
 
 
 def test_level_factors_bernoulli_offfloor(tmp_path):
     prep = _prep_levels(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     built = build_level_factors_model(
-        prep, outcome_symbol="P", ability_covariate="blocks",
+        prep,
+        outcome_symbol="P",
+        ability_covariate="blocks",
         likelihood="bernoulli_offfloor",
     )
     names = {v.name for v in built.model.free_RVs}
@@ -3024,12 +2935,8 @@ def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
     )
 
     gp = _prep_all(tmp_path, n_children=15)
-    g_built = build_gain_factors_model(
-        gp, outcome_symbol="P", likelihood="bernoulli_offfloor"
-    )
-    g_names = {v.name for v in g_built.model.free_RVs} | {
-        v.name for v in g_built.model.deterministics
-    }
+    g_built = build_gain_factors_model(gp, outcome_symbol="P", likelihood="bernoulli_offfloor")
+    g_names = {v.name for v in g_built.model.free_RVs} | {v.name for v in g_built.model.deterministics}
     g_plan = resolve_gain_factors_run_plan(
         ModelSpec(
             model_id="lrp-test-gf-diag",
@@ -3046,15 +2953,17 @@ def test_gf_lf_diag_vars_match_offfloor_builds(tmp_path):
     lp = _prep_levels(tmp_path, n_children=15)
     lp.covariates["blocks"] = np.linspace(-1.0, 1.0, lp.n_obs)
     l_built = build_level_factors_model(
-        lp, outcome_symbol="P", ability_covariate="blocks",
+        lp,
+        outcome_symbol="P",
+        ability_covariate="blocks",
         likelihood="bernoulli_offfloor",
     )
-    l_names = {v.name for v in l_built.model.free_RVs} | {
-        v.name for v in l_built.model.deterministics
-    }
+    l_names = {v.name for v in l_built.model.free_RVs} | {v.name for v in l_built.model.deterministics}
     l_plan = resolve_level_factors_run_plan(
         ModelSpec(
-            model_id="lrp-test-lf-diag", kind="level_factors", title="t",
+            model_id="lrp-test-lf-diag",
+            kind="level_factors",
+            title="t",
             outcome_symbol="P",
             extra={"likelihood": "bernoulli_offfloor", "ability_covariate": "blocks"},
         )
@@ -3073,6 +2982,7 @@ def _prep_aligned(tmp_path, **kw):
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare_aligned,
     )
+
     return load_and_prepare_aligned(path=_write_synthetic(tmp_path, **kw))
 
 
@@ -3097,22 +3007,16 @@ def test_aligned_factory_ability_dose_and_no_cohort(tmp_path):
     prep = _prep_aligned(tmp_path, n_children=24)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     prep.covariates["dose"] = np.linspace(1.0, -1.0, prep.n_obs)
-    built = build_aligned_model(
-        prep, outcome_symbol="W", ability_covariate="blocks", use_dose=True
-    )
+    built = build_aligned_model(prep, outcome_symbol="W", ability_covariate="blocks", use_dose=True)
     names = {v.name for v in built.model.free_RVs}
     assert {"gamma_ability", "gamma_dose", "beta_cohort"}.issubset(names)
-    base = build_aligned_model(
-        prep, outcome_symbol="W", ability_covariate="blocks", use_cohort=False
-    )
+    base = build_aligned_model(prep, outcome_symbol="W", ability_covariate="blocks", use_cohort=False)
     assert "beta_cohort" not in {v.name for v in base.model.free_RVs}
 
 
 def test_aligned_factory_bernoulli_offfloor(tmp_path):
     prep = _prep_aligned(tmp_path, n_children=24)
-    built = build_aligned_model(
-        prep, outcome_symbol="P", likelihood="bernoulli_offfloor"
-    )
+    built = build_aligned_model(prep, outcome_symbol="P", likelihood="bernoulli_offfloor")
     names = {v.name for v in built.model.free_RVs}
     assert "kappa" not in names
     assert {v.name for v in built.model.observed_RVs} == {"y_offfloor"}
@@ -3121,12 +3025,8 @@ def test_aligned_factory_bernoulli_offfloor(tmp_path):
     # finding 2).
     assert "gamma_own_offfloor" in names
     assert "gamma_own" not in names
-    own_off = np.asarray(
-        built.model["own_offfloor_pre"].get_value(), dtype=float
-    )
-    expected = (
-        np.asarray(built.prepared.pre_counts["P"], dtype=float) > 0
-    ).astype(float)
+    own_off = np.asarray(built.model["own_offfloor_pre"].get_value(), dtype=float)
+    expected = (np.asarray(built.prepared.pre_counts["P"], dtype=float) > 0).astype(float)
     assert np.array_equal(own_off, expected)
 
 
@@ -3160,9 +3060,7 @@ def test_al_diag_vars_match_build(tmp_path):
         )
     )
     diag = plan.diagnostic_vars()
-    built_names = {v.name for v in built.model.free_RVs} | {
-        v.name for v in built.model.deterministics
-    }
+    built_names = {v.name for v in built.model.free_RVs} | {v.name for v in built.model.deterministics}
     assert not (set(diag) - built_names)
     assert "kappa" in diag and "sigma_child" not in diag
 
@@ -3194,12 +3092,8 @@ def test_itt_tau_sigma_override(tmp_path):
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="itt")
     # Override a distal outcome up to 0.75 and a proximal one down to 0.25.
-    r = build_itt_model(
-        prep, outcome_symbol="R", cross_symbols=(), use_age_linear=True, tau_sigma=0.75
-    )
-    w = build_itt_model(
-        prep, outcome_symbol="W", cross_symbols=(), use_age_linear=True, tau_sigma=0.25
-    )
+    r = build_itt_model(prep, outcome_symbol="R", cross_symbols=(), use_age_linear=True, tau_sigma=0.75)
+    w = build_itt_model(prep, outcome_symbol="W", cross_symbols=(), use_age_linear=True, tau_sigma=0.25)
     assert _tau_dist(r.model) == "Normal(0, 0.75)"
     assert _tau_dist(w.model) == "Normal(0, 0.25)"
 
@@ -3209,9 +3103,7 @@ def test_itt_gamma_own_sigma_override(tmp_path):
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="itt")
     default = build_itt_model(prep, outcome_symbol="W", cross_symbols=())
-    wider = build_itt_model(
-        prep, outcome_symbol="W", cross_symbols=(), gamma_own_sigma=0.5
-    )
+    wider = build_itt_model(prep, outcome_symbol="W", cross_symbols=(), gamma_own_sigma=0.5)
     assert _tau_dist(default.model, "gamma_own") == "Normal(1, 0.25)"
     assert _tau_dist(wider.model, "gamma_own") == "Normal(1, 0.5)"
 
@@ -3221,9 +3113,7 @@ def test_itt_kappa_sigma_override(tmp_path):
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="itt")
     default = build_itt_model(prep, outcome_symbol="W", cross_symbols=())
-    wider = build_itt_model(
-        prep, outcome_symbol="W", cross_symbols=(), kappa_sigma=100.0
-    )
+    wider = build_itt_model(prep, outcome_symbol="W", cross_symbols=(), kappa_sigma=100.0)
     assert _tau_dist(default.model, "kappa") == "HalfNormal(50)"
     assert _tau_dist(wider.model, "kappa") == "HalfNormal(100)"
 
@@ -3236,31 +3126,29 @@ def test_did_and_gain_and_level_treatment_terms_tiered(tmp_path):
     levels = load_and_prepare(path=p, phase_mode="levels")
     levels.covariates["blocks"] = np.linspace(-1.0, 1.0, levels.n_obs)
     # distal E
-    assert _tau_dist(
-        build_did_model(levels, outcome_symbol="E").model, "tau_t2"
-    ) == "Normal(0, 0.3)"
-    assert _tau_dist(
-        build_gain_factors_model(allp, outcome_symbol="E").model, "beta_trt"
-    ) == "Normal(0, 0.3)"
+    assert _tau_dist(build_did_model(levels, outcome_symbol="E").model, "tau_t2") == "Normal(0, 0.3)"
+    assert _tau_dist(build_gain_factors_model(allp, outcome_symbol="E").model, "beta_trt") == "Normal(0, 0.3)"
     # The level family's focal vector is the t1-referenced change vector
     # ``d_grp_time`` (#552); its balance term ``arm_gap_t1`` is on gamma_cross.
-    assert _tau_dist(
-        build_level_factors_model(levels, outcome_symbol="E", ability_covariate="blocks").model,
-        "d_grp_time",
-    ) == "Normal(0, 0.3)"
-    assert _tau_dist(
-        build_level_factors_model(
-            levels, outcome_symbol="E", ability_covariate="blocks", arm_gap_reference="free"
-        ).model,
-        "b_grp_time",
-    ) == "Normal(0, 0.3)"
+    assert (
+        _tau_dist(
+            build_level_factors_model(levels, outcome_symbol="E", ability_covariate="blocks").model,
+            "d_grp_time",
+        )
+        == "Normal(0, 0.3)"
+    )
+    assert (
+        _tau_dist(
+            build_level_factors_model(
+                levels, outcome_symbol="E", ability_covariate="blocks", arm_gap_reference="free"
+            ).model,
+            "b_grp_time",
+        )
+        == "Normal(0, 0.3)"
+    )
     # proximal L
-    assert _tau_dist(
-        build_did_model(levels, outcome_symbol="L").model, "tau_t2"
-    ) == "Normal(0, 0.5)"
-    assert _tau_dist(
-        build_gain_factors_model(allp, outcome_symbol="L").model, "beta_trt"
-    ) == "Normal(0, 0.5)"
+    assert _tau_dist(build_did_model(levels, outcome_symbol="L").model, "tau_t2") == "Normal(0, 0.5)"
+    assert _tau_dist(build_gain_factors_model(allp, outcome_symbol="L").model, "beta_trt") == "Normal(0, 0.5)"
 
 
 def test_association_group_terms_not_tiered(tmp_path):
@@ -3273,9 +3161,7 @@ def test_association_group_terms_not_tiered(tmp_path):
         load_and_prepare_aligned,
     )
 
-    mech = build_mechanism_model(
-        allp, mechanism_symbol="L", outcome_symbol="E", confounder_symbols=("G",)
-    )
+    mech = build_mechanism_model(allp, mechanism_symbol="L", outcome_symbol="E", confounder_symbols=("G",))
     assert _tau_dist(mech.model, "beta_G") == "Normal(0, 0.5)"
     aligned = load_and_prepare_aligned(path=p)
     al = build_aligned_model(aligned, outcome_symbol="E")
@@ -3375,9 +3261,7 @@ def test_mechanism_writers_use_pre_exposure_when_lagged(tmp_path):
     # standardised contribution, which is single-valued in the exposure).
     got = np.sort(curve["mech_logit"].to_numpy())
     pre = np.unique(np.asarray(built.prepared.pre_logit["R"], dtype=float))
-    post = np.unique(
-        logit_safe(built.prepared.post_counts["R"], MEASURES["R"].n_trials)
-    )
+    post = np.unique(logit_safe(built.prepared.post_counts["R"], MEASURES["R"].n_trials))
     assert np.allclose(got, pre)
     assert got.shape != post.shape or not np.allclose(got, post)
 
@@ -3405,9 +3289,7 @@ def _itt_kappa_draws(family: str, sigma: float | None, *, draws: int = 200_000):
 
     with pm.Model():
         if family == "halfnormal_inverse_sqrt":
-            inv = P.inv_sqrt_kappa_prior(
-                sigma=0.25 if sigma is None else sigma
-            ).to_pymc("inv")
+            inv = P.inv_sqrt_kappa_prior(sigma=0.25 if sigma is None else sigma).to_pymc("inv")
             return 1.0 / (np.asarray(pm.draw(inv, draws=draws, random_seed=3)) ** 2 + 1e-6)
         spec = P.kappa_prior() if sigma is None else P.kappa_prior(sigma=sigma)
         return np.asarray(pm.draw(spec.to_pymc("k"), draws=draws, random_seed=3))
@@ -3422,9 +3304,7 @@ def _itt_kappa_draws(family: str, sigma: float | None, *, draws: int = 200_000):
         ("halfnormal_inverse_sqrt", 0.25, True),
     ],
 )
-def test_only_the_dispersion_scale_prior_reaches_the_near_binomial_limit(
-    family, sigma, reaches_near_binomial
-):
+def test_only_the_dispersion_scale_prior_reaches_the_near_binomial_limit(family, sigma, reaches_near_binomial):
     """The registered prior enforces a floor on over-dispersion.
 
     Beta-Binomial variance is ``(n + kappa) / (1 + kappa)`` times Binomial, so at
@@ -3448,14 +3328,20 @@ def test_the_itt_factory_builds_both_dispersion_prior_families(tmp_path):
     """Both families build, and only the default names ``kappa`` as a free RV."""
     itt_prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt")
     registered = build_itt_model(
-        itt_prepared, outcome_symbol="W", cross_symbols=(),
-        use_age_linear=True, use_own_baseline=True,
+        itt_prepared,
+        outcome_symbol="W",
+        cross_symbols=(),
+        use_age_linear=True,
+        use_own_baseline=True,
     )
     assert "kappa" in {rv.name for rv in registered.model.free_RVs}
 
     alternative = build_itt_model(
-        itt_prepared, outcome_symbol="W", cross_symbols=(),
-        use_age_linear=True, use_own_baseline=True,
+        itt_prepared,
+        outcome_symbol="W",
+        cross_symbols=(),
+        use_age_linear=True,
+        use_own_baseline=True,
         kappa_prior_family="halfnormal_inverse_sqrt",
     )
     free = {rv.name for rv in alternative.model.free_RVs}
@@ -3469,8 +3355,11 @@ def test_an_unknown_dispersion_prior_family_is_rejected(tmp_path):
     itt_prepared = load_and_prepare(path=_write_synthetic(tmp_path), phase_mode="itt")
     with pytest.raises(ValueError, match="kappa_prior_family"):
         build_itt_model(
-            itt_prepared, outcome_symbol="W", cross_symbols=(),
-            use_age_linear=True, use_own_baseline=True,
+            itt_prepared,
+            outcome_symbol="W",
+            cross_symbols=(),
+            use_age_linear=True,
+            use_own_baseline=True,
             kappa_prior_family="lognormal",
         )
 
@@ -3484,13 +3373,9 @@ def test_block_exposure_factory_identifies_its_intercepts(tmp_path):
     prep = _prep_levels(tmp_path, n_children=20)
     prep.covariates["blocks"] = np.linspace(-1.0, 1.0, prep.n_obs)
     # Mirror the registered design: no block-2 outcome observed at t1.
-    prep.post_counts["W"] = np.where(
-        prep.phase == 0, np.nan, prep.post_counts["W"]
-    )
+    prep.post_counts["W"] = np.where(prep.phase == 0, np.nan, prep.post_counts["W"])
 
-    built = build_block_exposure_model(
-        prep, outcome_symbol="W", ability_covariate="blocks"
-    )
+    built = build_block_exposure_model(prep, outcome_symbol="W", ability_covariate="blocks")
 
     names = {v.name for v in built.model.free_RVs}
     assert {"alpha", "alpha_time", "delta"}.issubset(names)
@@ -3502,9 +3387,7 @@ def test_block_exposure_factory_identifies_its_intercepts(tmp_path):
     with built.model:
         pp = pm.sample_prior_predictive(draws=50, random_seed=57)
     assert pp.prior["alpha_time"].shape[-1] == len(phases)
-    np.testing.assert_allclose(
-        pp.prior["alpha_time"].values.sum(axis=-1), 0.0, atol=1e-10
-    )
+    np.testing.assert_allclose(pp.prior["alpha_time"].values.sum(axis=-1), 0.0, atol=1e-10)
     assert pp.prior_predictive["y_post"].shape[-1] == built.prepared.n_obs
 
 
@@ -3514,9 +3397,15 @@ def test_mechanism_refit_replays_saved_design_and_priors(tmp_path, drop):
     from language_reading_predictors.statistical_models.preprocessing import _subset
 
     prep = load_and_prepare(path=_write_synthetic(tmp_path, n_children=15), phase_mode="all")
-    kwargs = dict(mechanism_symbol="R", outcome_symbol="W", confounder_symbols=(),
-                  mech_hsgp_m=6, mech_lengthscale_prior=priors.ell_prior_mech_tight(),
-                  moderator_symbol="A", moderator_is_covariate=True)
+    kwargs = dict(
+        mechanism_symbol="R",
+        outcome_symbol="W",
+        confounder_symbols=(),
+        mech_hsgp_m=6,
+        mech_lengthscale_prior=priors.ell_prior_mech_tight(),
+        moderator_symbol="A",
+        moderator_is_covariate=True,
+    )
     full = build_mechanism_model(prep, **kwargs)
     design = MechanismDesign.from_dict(full.payload.design.as_dict())
     # Remove every tied extreme so the retained input midpoint really changes.
@@ -3527,13 +3416,13 @@ def test_mechanism_refit_replays_saved_design_and_priors(tmp_path, drop):
     assert subset.payload.design == design
     for name in ("z_moderator", "z_mech_logit"):
         np.testing.assert_allclose(subset.model[name].get_value(), full.model[name].get_value()[keep])
-    assert _mech_ell_params(subset) == _mech_ell_params(full) == (8., 8.)
+    assert _mech_ell_params(subset) == _mech_ell_params(full) == (8.0, 8.0)
     curves = []
     for built in (full, subset):
         model = built.model
         curve = model.replace_rvs_by_values([model["f_mech"]])[0]
         point = model.initial_point()
-        point["f_mech__g_unit_hsgp_coeffs"] = np.linspace(-1., 1., 6)
+        point["f_mech__g_unit_hsgp_coeffs"] = np.linspace(-1.0, 1.0, 6)
         curves.append(model.compile_fn(curve, inputs=model.value_vars, on_unused_input="ignore")(point))
     np.testing.assert_allclose(curves[0][keep], curves[1], atol=1e-12, rtol=1e-12)
 
@@ -3564,6 +3453,7 @@ def test_held_out_density_uses_the_recorded_full_basis(tmp_path):
     actual = wrapper.log_likelihood__i(row, trace)
     mu = expit(posterior["eta"].values[..., row])
     kappa = posterior["kappa"].values
-    expected = betabinom.logpmf(original.prepared.post_counts["W"][row],
-                               original.prepared.n_trials["W"], mu * kappa, (1 - mu) * kappa)
+    expected = betabinom.logpmf(
+        original.prepared.post_counts["W"][row], original.prepared.n_trials["W"], mu * kappa, (1 - mu) * kappa
+    )
     np.testing.assert_allclose(actual.values, expected, rtol=1e-10, atol=1e-10)

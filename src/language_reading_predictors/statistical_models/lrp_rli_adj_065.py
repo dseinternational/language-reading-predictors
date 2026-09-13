@@ -230,6 +230,7 @@ def render_dag(output_dir: str | None = None, *, fmt: str = "svg") -> str:
 # Step 2 - model specification (consumed by ``fit_adjusted``)
 # ---------------------------------------------------------------------------
 
+
 # ``ModelSpec`` lives in ``context``, which imports the Bayesian stack
 # (arviz / pymc / dse_research_utils). The spec is therefore built lazily so the
 # Step-1 DAG (``causal_dag`` / ``render_dag`` above) can be rendered with only
@@ -246,9 +247,7 @@ def get_spec() -> "ModelSpec":
         kind="adjusted",
         title="Adjusted model: independent baseline predictors of word-reading gain",
         outcome_symbol="W",
-        adjustment=[
-            "L", "lang", "B", "A", "W_pre", "blocks", "behav", "hs", "deapp_c", "erbto"
-        ],
+        adjustment=["L", "lang", "B", "A", "W_pre", "blocks", "behav", "hs", "deapp_c", "erbto"],
         model_settings=AdjustedModelSettings(
             # Headline = genuinely between-child: one row per child, T1 baselines,
             # full-study gain (W at last wave conditioned on W_T1). No phase

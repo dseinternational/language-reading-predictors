@@ -19,6 +19,16 @@ mediator of the group×time effect (#247).
 
 from __future__ import annotations
 
+from dse_research_utils.statistics import evidence as _evidence_statistics
+from dse_research_utils.statistics import rope as _rope_statistics
+from language_reading_predictors.statistical_models.factories import level_factors as _level_factors_factory
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import factors as _factors_summary
+from language_reading_predictors.statistical_models.summaries import level_factors as _level_factors_summary
+from language_reading_predictors.statistical_models.summaries import rope as _rope_summary
+
+
 import numpy as np
 import pandas as pd
 
@@ -28,11 +38,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -85,7 +91,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     plan = resolve_level_factors_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     ability_covariate = plan.ability_covariate
     off_floor = plan.off_floor
@@ -110,7 +116,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_level_factors_model(
+    built = _level_factors_factory.build_level_factors_model(
         prepared, **plan.factory_kwargs(effective_adjustment=adjust_for)
     )
     attach_built(ctx, built)
@@ -129,23 +135,22 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # the pre-randomisation gap the changes are measured from.
     _causal_lf = plan.causal_vector
     _forest_vars = [*plan.balance_terms, _causal_lf]
+
+    def save_prior_posterior_figures(c: StatisticalFitContext) -> None:
+        _diag.save_prior_posterior_plot(c, var_names=_lf_diag)
+        save_forest_plot(c, _forest_vars)
+
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
             diagnostic_vars=tuple(_lf_diag),
             ppc_var_names=(obs_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, spec.outcome_symbol, node=obs_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, spec.outcome_symbol, node=obs_node),
             # The family's established post-trace order — overlay, forest, then
             # power scaling — declared to the runner rather than performed after
             # it (#637 stage 4). Same figures, same order, one owner.
             psense_timing="after_trace",
-            after_trace_audit=lambda c: (
-                _diag.save_prior_posterior_plot(c, var_names=_lf_diag),
-                save_forest_plot(c, _forest_vars),
-            )
-            and None,
+            after_trace_audit=save_prior_posterior_figures,
             # Power scaling covers the focal arm terms **and** the free nuisance
             # scales (#584 finding 6): the stored suite flags ``sigma_child`` in
             # every fit and ``kappa`` in most graded ones, and an audit that scans
@@ -166,7 +171,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # they are never read as effects or as adjusted associations.
     causal = plan.causal_terms
     _lf_coefs = plan.coefficient_names(effective_adjustment=adjust_for)
-    fs = _report.factor_summary(
+    fs = _factors_summary.factor_summary(
         ctx.trace,
         _lf_coefs,
         ci_prob=ctx.reporting.ci_prob,
@@ -178,11 +183,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     # (causal element), the balance term and the derived levels view are excluded.
     save_association_forest(
         ctx,
-        [
-            c
-            for c in _lf_coefs
-            if c not in plan.balance_terms and c not in plan.levels_view_terms
-        ],
+        [c for c in _lf_coefs if c not in plan.balance_terms and c not in plan.levels_view_terms],
         causal,
     )
     print_table(
@@ -233,12 +234,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
     _graded_card = delta_items is not None and not off_floor and _gbt
     _offfloor_card = off_floor and delta_prob is not None and _gbt
     if _graded_card or _offfloor_card:
-        ability = (
-            built.prepared.covariates[ability_covariate]
-            if ability_covariate is not None
-            else None
-        )
-        contrast_draws, ame_prob = _report.level_t2_marginal_effect(
+        ability = built.prepared.covariates[ability_covariate] if ability_covariate is not None else None
+        contrast_draws, ame_prob = _level_factors_summary.level_t2_marginal_effect(
             ctx.trace,
             phase=built.prepared.phase,
             G=built.prepared.G,
@@ -251,20 +248,14 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         if _graded_card:
             n_marg = int(built.prepared.n_trials[spec.outcome_symbol])
             delta = delta_items
-            title = (
-                f"ROPE summary (t2 contrast, {spec.outcome_symbol}, "
-                f"delta={delta_items:g} items)"
-            )
+            title = f"ROPE summary (t2 contrast, {spec.outcome_symbol}, delta={delta_items:g} items)"
         else:
             # Off-floor (Bernoulli) t2 contrast: expit(eta) = Pr(off-floor), so the
             # probability-scale AME from level_t2_marginal_effect IS the off-floor risk
             # difference (n_trials = 1), matching the gain-factor off-floor path.
             n_marg = 1
             delta = delta_prob
-            title = (
-                f"ROPE summary (t2 off-floor risk difference, "
-                f"{spec.outcome_symbol}, delta={delta_prob:g})"
-            )
+            title = f"ROPE summary (t2 off-floor risk difference, {spec.outcome_symbol}, delta={delta_prob:g})"
         items = ame_prob * n_marg
         # Estimand-scale prior pushforward for the t2 term (#389 finding 3): the
         # prior-predictive counterpart of this card, pushed through the same t2
@@ -278,10 +269,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         # ``guard_optional``, so the skip and its cause land in
         # ``artifact_manifest.json`` rather than scrolling away in a warning the
         # manifest never records (#584 lower-severity 1).
-        with guard_optional(
-            ctx, "prior_pushforward", filename="prior_pushforward.csv", kind="table"
-        ):
-            pf = _report.level_prior_pushforward(
+        with guard_optional(ctx, "prior_pushforward", filename="prior_pushforward.csv", kind="table"):
+            pf = _predictive.level_prior_pushforward(
                 ctx.trace,
                 phase=built.prepared.phase,
                 G=built.prepared.G,
@@ -299,10 +288,8 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         # level family's rope_summary.csv matches the median + 50% + 89% convention
         # the other families publish (2026-07-17 standard; 2026-08-20 review,
         # finding 3).
-        rope_s = _report.drop_retired_90_band(
-            _report.rope_card(
-                contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob
-            )
+        rope_s = _rope_summary.drop_retired_90_band(
+            _rope_statistics.rope_card(contrast_draws, items, delta=delta, ci_prob=ctx.reporting.ci_prob)
         )
         if _offfloor_card:
             rope_s["provisional_delta"] = False  # 10 pp signed off (#144, 2026-07-01)
@@ -317,9 +304,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                 columns=["metric", "value"],
             )
         )
-        save_rope_plot(
-            ctx, spec.outcome_symbol, None, n_marg, delta, items=items, split=True
-        )
+        save_rope_plot(ctx, spec.outcome_symbol, None, n_marg, delta, items=items, split=True)
         if _offfloor_card:
             # δ-sensitivity sweep on the risk-difference grid (10/15/20 pp), mirroring
             # the gain-factor off-floor path (#144). Built from the same ``items``
@@ -334,7 +319,7 @@ def fit_level_factors(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
                         "prob_benefit_ge_delta": p_benefit,
                         "prob_in_rope": float(np.mean(np.abs(items) <= d)),
                         "prob_harm_ge_delta": float(np.mean(items <= -d)),
-                        "benefit_label": _report.evidence_label(p_benefit),
+                        "benefit_label": _evidence_statistics.evidence_label(p_benefit),
                     }
                 )
             sens_df = pd.DataFrame(sens_rows)

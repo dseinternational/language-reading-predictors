@@ -49,6 +49,9 @@ two against drift by asserting identical average-marginal-effect draws.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -185,12 +188,7 @@ def _counterfactual_components(
     """
     posterior = getattr(trace, group)
     term_draws = posterior[term].stack(sample=("chain", "draw")).values.ravel()  # (S,)
-    eta = (
-        posterior[eta_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("obs_id", "sample")
-        .values
-    )  # (n_obs, S)
+    eta = posterior[eta_name].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values  # (n_obs, S)
     G = np.asarray(G, dtype=float)
     if G.shape[0] != eta.shape[0]:
         raise ValueError(
@@ -199,10 +197,7 @@ def _counterfactual_components(
         )
     if varying_term and varying_term in posterior:
         delta = (
-            posterior[varying_term]
-            .stack(sample=("chain", "draw"))
-            .transpose("obs_id", "sample")
-            .values
+            posterior[varying_term].stack(sample=("chain", "draw")).transpose("obs_id", "sample").values
         )  # (n_obs, S)
     else:
         delta = np.broadcast_to(term_draws[None, :], eta.shape)
@@ -227,10 +222,7 @@ def _counterfactual_components(
         if m.ndim != 1:
             raise ValueError(f"row_mask must be 1-D, got a {m.ndim}-D array.")
         if m.dtype == bool and m.shape[0] != eta.shape[0]:
-            raise ValueError(
-                f"boolean row_mask has {m.shape[0]} entries but eta has "
-                f"{eta.shape[0]} observations."
-            )
+            raise ValueError(f"boolean row_mask has {m.shape[0]} entries but eta has {eta.shape[0]} observations.")
         eta0 = eta0[m]
         delta = delta[m]
         if eta0.shape[0] == 0:
@@ -263,18 +255,13 @@ def _new_child_adjustment(
         raise ValueError("child_sd_name and child_idx are required with child_effect_name")
     posterior = getattr(trace, group)
     u_child = (
-        posterior[child_effect_name]
-        .stack(sample=("chain", "draw"))
-        .transpose("child", "sample")
-        .values
+        posterior[child_effect_name].stack(sample=("chain", "draw")).transpose("child", "sample").values
     )  # (n_children, S)
     idx = np.asarray(child_idx, dtype=int)
     if row_mask is not None:
         idx = idx[np.asarray(row_mask)]
     if idx.shape[0] != eta0.shape[0]:
-        raise ValueError(
-            f"child_idx selects {idx.shape[0]} rows but eta0 has {eta0.shape[0]}."
-        )
+        raise ValueError(f"child_idx selects {idx.shape[0]} rows but eta0 has {eta0.shape[0]}.")
     sigma = posterior[child_sd_name].stack(sample=("chain", "draw")).values.ravel()  # (S,)
     return eta0 - u_child[idx], sigma
 
@@ -425,9 +412,7 @@ def counterfactual_predictive_contrast(
     n_rows, n_samples = eta0_new.shape
     n_sims = int(min(max_score_sims, max(n_samples, 4_000)))
     sample_j = (
-        rng.choice(n_samples, size=n_sims, replace=n_sims > n_samples)
-        if n_sims != n_samples
-        else np.arange(n_samples)
+        rng.choice(n_samples, size=n_sims, replace=n_sims > n_samples) if n_sims != n_samples else np.arange(n_samples)
     )
     row_j = rng.integers(0, n_rows, size=n_sims)
 
@@ -512,9 +497,7 @@ def predicted_scores_table(
     rows: list[dict] = []
     if contrast.score_control.size:
         rows.append(_row("predicted_score_control", contrast.score_control, "items", newchild_basis))
-        rows.append(
-            _row("predicted_score_intervention", contrast.score_intervention, "items", newchild_basis)
-        )
+        rows.append(_row("predicted_score_intervention", contrast.score_intervention, "items", newchild_basis))
         rows.append(
             _row(
                 "predicted_score_difference_independent_children",
@@ -608,7 +591,10 @@ def _effect_density_axis(
         ax.plot(grid, density, color=_INTERVENTION_COLOR, lw=1.0)
     if delta is not None:
         ax.axvspan(
-            -delta, delta, color=_ROPE_COLOR, alpha=0.45,
+            -delta,
+            delta,
+            color=_ROPE_COLOR,
+            alpha=0.45,
             label=f"ROPE (±{delta:g}{delta_unit})",
         )
         p_benefit, p_rope, p_harm = _rope_triple(effect, delta)
@@ -647,10 +633,17 @@ def _draw_distribution_axis(
     if contrast.score_control.size:
         n = contrast.n_trials
         bins = np.arange(-0.5, n + 1.5) if n <= 60 else 60
-        ax.hist(contrast.score_control, bins=bins, density=True,
-                color=_CONTROL_COLOR, alpha=0.55, label="wait-list control")
-        ax.hist(contrast.score_intervention, bins=bins, density=True,
-                color=_INTERVENTION_COLOR, alpha=0.55, label="immediate intervention")
+        ax.hist(
+            contrast.score_control, bins=bins, density=True, color=_CONTROL_COLOR, alpha=0.55, label="wait-list control"
+        )
+        ax.hist(
+            contrast.score_intervention,
+            bins=bins,
+            density=True,
+            color=_INTERVENTION_COLOR,
+            alpha=0.55,
+            label="immediate intervention",
+        )
         med_c = float(np.median(contrast.score_control))
         med_t = float(np.median(contrast.score_intervention))
         # Annotate the NEW-CHILD panel with the new-child effect when the model
@@ -672,9 +665,13 @@ def _draw_distribution_axis(
         ax.set_title(f"Predicted score, new typical child ({outcome_symbol})", fontsize=10)
         ax.legend(fontsize=8)
         ax.text(
-            0.98, 0.98,
+            0.98,
+            0.98,
             f"medians: {med_t:.0f} vs {med_c:.0f}\n{ame_label} ≈ {ame_med:+.1f} items",
-            transform=ax.transAxes, va="top", ha="right", fontsize=8,
+            transform=ax.transAxes,
+            va="top",
+            ha="right",
+            fontsize=8,
             bbox={"boxstyle": "round", "facecolor": "white", "alpha": 0.8},
         )
     else:
@@ -708,9 +705,7 @@ def _draw_distribution_axis(
         )
 
 
-def _draw_effect_axis(
-    ax: plt.Axes, contrast: PredictiveContrast, *, delta: float | None
-) -> None:
+def _draw_effect_axis(ax: plt.Axes, contrast: PredictiveContrast, *, delta: float | None) -> None:
     """Right-panel body: items-scale (graded) or percentage-point (floor) effect
     density with the ROPE band and the three ROPE probabilities printed."""
     if contrast.score_control.size:
@@ -718,15 +713,18 @@ def _draw_effect_axis(
         # published card (treatment_marginal.csv) and the ROPE verdict use — and
         # titled as such, so the panel pair reads as two labelled populations
         # rather than an unmarked mix (#575 finding 8).
-        _effect_density_axis(ax, contrast.ame_items, delta=delta,
-                             unit_label="treatment effect (items)", delta_unit=" items")
+        _effect_density_axis(
+            ax, contrast.ame_items, delta=delta, unit_label="treatment effect (items)", delta_unit=" items"
+        )
         ax.set_title("Items-scale effect with ROPE (fitted-sample average)", fontsize=10)
     else:
         # Percentage-point scale so the ROPE band / triple read "±10 pp".
         _effect_density_axis(
-            ax, contrast.ame_prob * 100.0,
+            ax,
+            contrast.ame_prob * 100.0,
             delta=None if delta is None else float(delta) * 100.0,
-            unit_label="risk difference (percentage points)", delta_unit=" pp",
+            unit_label="risk difference (percentage points)",
+            delta_unit=" pp",
         )
         ax.set_title("Risk difference with ROPE", fontsize=10)
 
@@ -749,8 +747,9 @@ def save_predicted_scores_panel(
     :func:`save_predicted_distribution` and :func:`save_predicted_effect`).
     """
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4))
-    _draw_distribution_axis(ax1, contrast, outcome_symbol=outcome_symbol,
-                            item_label=item_label, event_label=event_label)
+    _draw_distribution_axis(
+        ax1, contrast, outcome_symbol=outcome_symbol, item_label=item_label, event_label=event_label
+    )
     _draw_effect_axis(ax2, contrast, delta=delta)
     fig.tight_layout()
     save_styled_figure(output_dir, name, fig=fig, data=summary)
@@ -768,8 +767,7 @@ def save_predicted_distribution(
 ) -> None:
     """Individual predicted-distribution figure (the combined panel's left half)."""
     fig, ax = plt.subplots(figsize=FIGSIZE_LG)
-    _draw_distribution_axis(ax, contrast, outcome_symbol=outcome_symbol,
-                            item_label=item_label, event_label=event_label)
+    _draw_distribution_axis(ax, contrast, outcome_symbol=outcome_symbol, item_label=item_label, event_label=event_label)
     fig.tight_layout()
     save_styled_figure(output_dir, name, fig=fig, data=summary)
 
@@ -789,9 +787,7 @@ def save_predicted_effect(
     save_styled_figure(output_dir, name, fig=fig, data=summary)
 
 
-def icon_array_counts(
-    p_benefit: float, p_rope: float, p_harm: float, *, total: int = 100
-) -> tuple[int, int, int]:
+def icon_array_counts(p_benefit: float, p_rope: float, p_harm: float, *, total: int = 100) -> tuple[int, int, int]:
     """Integer dot counts for the icon array, summing exactly to ``total``.
 
     Largest-remainder (Hamilton) rounding over the *four*-way split (benefit /
@@ -837,23 +833,18 @@ def save_icon_array(
 ) -> None:
     """100-dot icon array coloured by the ROPE triple (#316 item 3)."""
     n_benefit, n_rope, n_harm = icon_array_counts(p_benefit, p_rope, p_harm)
-    colors = (
-        [_BENEFIT_COLOR] * n_benefit + [_ROPE_COLOR] * n_rope + [_HARM_COLOR] * n_harm
-    )
+    colors = [_BENEFIT_COLOR] * n_benefit + [_ROPE_COLOR] * n_rope + [_HARM_COLOR] * n_harm
     fig, ax = plt.subplots(figsize=(5.4, 5.6))
     for i, color in enumerate(colors):
         # Fill row-by-row from the top-left so the benefit block reads first.
         row, col = divmod(i, 10)
-        ax.add_patch(
-            plt.Circle((col + 0.5, 9 - row + 0.5), 0.38, color=color, ec="white", lw=0.5)
-        )
+        ax.add_patch(plt.Circle((col + 0.5, 9 - row + 0.5), 0.38, color=color, ec="white", lw=0.5))
     ax.set_xlim(0, 10)
     ax.set_ylim(0, 10)
     ax.set_aspect("equal")
     ax.axis("off")
     ax.set_title(
-        f"In {n_benefit} of 100 plausible worlds the benefit is at least "
-        f"{delta_label} ({outcome_symbol})",
+        f"In {n_benefit} of 100 plausible worlds the benefit is at least {delta_label} ({outcome_symbol})",
         fontsize=10,
     )
     handles = [
@@ -899,7 +890,7 @@ def write_predicted_scores_artifacts(
     child_sd_name: str | None = None,
     child_idx: np.ndarray | None = None,
     delta: float | None = None,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     population: str = "new typical child; covariates from the fitted reference rows",
     contrast_status: str = "randomised contrast",
     event_label: str = "off the floor at follow-up",
@@ -945,8 +936,12 @@ def write_predicted_scores_artifacts(
     summary.to_csv(os.path.join(output_dir, "predicted_scores.csv"), index=False)
     if split:
         save_predicted_distribution(
-            output_dir, contrast, outcome_symbol=outcome_symbol,
-            item_label=item_label, summary=summary, event_label=event_label,
+            output_dir,
+            contrast,
+            outcome_symbol=outcome_symbol,
+            item_label=item_label,
+            summary=summary,
+            event_label=event_label,
         )
         save_predicted_effect(output_dir, contrast, delta=delta, summary=summary)
     else:

@@ -32,10 +32,7 @@ from language_reading_predictors.statistical_models.pipelines.adjusted import fi
 SPEC = ModelSpec(
     model_id="lrp-rlm-adj-002",
     kind="adjusted",
-    title=(
-        "Byrne Down-syndrome-only predictors of word-reading gain, waves 1-3 "
-        "(reduced mutually adjusted set)"
-    ),
+    title=("Byrne Down-syndrome-only predictors of word-reading gain, waves 1-3 (reduced mutually adjusted set)"),
     outcome_symbol="basread",
     study_id="rlm",
     family="adjusted",

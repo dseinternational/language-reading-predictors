@@ -1,12 +1,7 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Mechanism dose-response model construction.
-
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
-"""
+"""Mechanism dose-response model construction."""
 
 from __future__ import annotations
 
@@ -50,6 +45,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _alpha_sigma_for,
     _rlm_dispersion_kappa,
 )
+
 
 def build_mechanism_model(
     prepared: PreparedData,
@@ -291,11 +287,7 @@ def build_mechanism_model(
         raise KeyError(f"Mechanism {mechanism_symbol!r} missing from prepared data")
     if outcome_symbol not in prepared.pre_logit:
         raise KeyError(f"Outcome {outcome_symbol!r} missing from prepared data")
-    if (
-        moderator_symbol is not None
-        and not moderator_is_covariate
-        and moderator_symbol not in prepared.pre_logit
-    ):
+    if moderator_symbol is not None and not moderator_is_covariate and moderator_symbol not in prepared.pre_logit:
         raise KeyError(f"Moderator {moderator_symbol!r} missing from prepared data")
 
     # Outcome post (target) and mechanism exposure (predictor) are both needed.
@@ -343,9 +335,7 @@ def build_mechanism_model(
         mech_input = prepared.pre_logit[mechanism_symbol]
     else:
         N_mechanism = prepared.n_trials[mechanism_symbol]
-        mech_input = logit_safe(
-            prepared.post_counts[mechanism_symbol], N_mechanism
-        )
+        mech_input = logit_safe(prepared.post_counts[mechanism_symbol], N_mechanism)
 
     own_pre_logit = prepared.pre_logit[adjust_baseline_symbol]
 
@@ -374,9 +364,7 @@ def build_mechanism_model(
         mech_logit_std, _mech_scaler = standardise(mech_input)
     else:
         _mech_scaler = frozen_design.mech_scaler
-        mech_logit_std = (np.asarray(mech_input, dtype=float) - _mech_scaler.mean) / (
-            _mech_scaler.sd
-        )
+        mech_logit_std = (np.asarray(mech_input, dtype=float) - _mech_scaler.mean) / (_mech_scaler.sd)
     z_L: np.ndarray | None = None
     z_M: np.ndarray | None = None
     if moderator_symbol is not None or linear_mechanism:
@@ -395,8 +383,7 @@ def build_mechanism_model(
                 raw_M = prepared.covariates[moderator_symbol]
             else:
                 raise KeyError(
-                    f"Covariate moderator {moderator_symbol!r} not in "
-                    "prepared.covariates (use 'A' for age)."
+                    f"Covariate moderator {moderator_symbol!r} not in prepared.covariates (use 'A' for age)."
                 )
             if frozen_design is None:
                 z_M, _mod_scaler = standardise(raw_M)
@@ -412,9 +399,7 @@ def build_mechanism_model(
                 z_M, _mod_scaler = standardise(moderator_post_logit)
             else:
                 _mod_scaler = frozen_design.require_moderator_scaler()
-                z_M = (
-                    np.asarray(moderator_post_logit, dtype=float) - _mod_scaler.mean
-                ) / _mod_scaler.sd
+                z_M = (np.asarray(moderator_post_logit, dtype=float) - _mod_scaler.mean) / _mod_scaler.sd
 
     # Mundlak split of the standardised exposure (#603). Built on the *fitted* rows —
     # after the keep-mask above — so the child mean is the mean of the rows this model
@@ -449,23 +434,15 @@ def build_mechanism_model(
             pm.Data("mech_covariate", mech_input, dims="obs_id")
         else:
             pm.Data("mech_post_logit", mech_input, dims="obs_id")
-        phase_d = pm.Data(
-            "phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
-        )
-        child_idx_d = pm.Data(
-            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
-        )
+        phase_d = pm.Data("phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+        child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
         z_L_d = z_M_d = None
         if z_L is not None:
             z_L_d = pm.Data("z_mech_logit", z_L, dims="obs_id")
         mech_between_d = mech_within_d = None
         if decompose_between_within:
-            mech_between_d = pm.Data(
-                "mech_child_mean", mech_child_mean, dims="obs_id"
-            )
-            mech_within_d = pm.Data(
-                "mech_within_dev", mech_within_dev, dims="obs_id"
-            )
+            mech_between_d = pm.Data("mech_child_mean", mech_child_mean, dims="obs_id")
+            mech_within_d = pm.Data("mech_within_dev", mech_within_dev, dims="obs_id")
         if moderator_symbol is not None:
             z_M_d = pm.Data("z_moderator", z_M, dims="obs_id")
         confounder_data: dict[str, pt.TensorVariable] = {}
@@ -473,45 +450,30 @@ def build_mechanism_model(
             if s in {"G", "A"}:
                 continue
             if s not in prepared.post_counts:
-                raise KeyError(
-                    f"Confounder {s!r} has no post-score in prepared data"
-                )
+                raise KeyError(f"Confounder {s!r} has no post-score in prepared data")
             c_val_np = logit_safe(prepared.post_counts[s], prepared.n_trials[s])
-            confounder_data[s] = pm.Data(
-                f"{s}_post_logit", c_val_np, dims="obs_id"
-            )
+            confounder_data[s] = pm.Data(f"{s}_post_logit", c_val_np, dims="obs_id")
         adjust_data: dict[str, pt.TensorVariable] = {}
         for c in adjust_for:
-            adjust_data[c] = pm.Data(
-                f"{c}_adj", prepared.covariates[c], dims="obs_id"
-            )
+            adjust_data[c] = pm.Data(f"{c}_adj", prepared.covariates[c], dims="obs_id")
 
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
         alpha_phase = _priors.declare(
-                          pm.Normal(
-                                      "alpha_phase", mu=0.0, sigma=0.5, dims="phase"
-                                  ),
-                          role="nuisance",
-                          rationale=(
-                              "Per-phase intercept offset alpha_phase ~ Normal(0, 0.5)."
-                          ),
-                      )
-        beta_G = _priors.tau_prior().to_pymc("beta_G")
+            pm.Normal("alpha_phase", mu=0.0, sigma=0.5, dims="phase"),
+            role="nuisance",
+            rationale=("Per-phase intercept offset alpha_phase."),
+        )
+        beta_G = _priors.tau_prior().to_pymc(
+            "beta_G",
+            role="association",
+            rationale="Group main effect entered as a DAG backdoor adjustment beside the mechanism slopes; an adjusted association, not the randomised treatment effect.",
+        )
         gamma_own = _priors.gamma_own_prior().to_pymc("gamma_own")
 
-        eta = (
-            alpha
-            + alpha_phase[phase_d]
-            + beta_G * G_d
-            + gamma_own * own_pre_d
-        )
+        eta = alpha + alpha_phase[phase_d] + beta_G * G_d + gamma_own * own_pre_d
 
         if use_subject_random_intercept:
-            eta = _add_child_random_intercept(
-                eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma
-            )
+            eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=sigma_child_prior_sigma)
 
         # Confounder linear terms (on logit scale for measures)
         for s in confounder_symbols:
@@ -525,7 +487,7 @@ def build_mechanism_model(
         # (erbto), session dose (attend). Linear gamma terms, mirroring the
         # build_itt_model adjust_for path (#245).
         for c in adjust_for:
-            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}")
+            gamma_c = _priors.gamma_cross_prior().to_pymc(f"gamma_{c}", **_priors.adjustment_metadata(c))
             eta = eta + gamma_c * adjust_data[c]
 
         # Linear moderation of the mechanism effect by the moderator M.
@@ -555,9 +517,7 @@ def build_mechanism_model(
         # ``gamma_mod * z(age)`` already represents it, so a second linear term
         # would be collinear — skip it in that case.
         age_is_moderator = moderator_symbol == "A" and moderator_is_covariate
-        age_linear_added = (
-            "A" in confounder_symbols and not use_age_gp and not age_is_moderator
-        )
+        age_linear_added = "A" in confounder_symbols and not use_age_gp and not age_is_moderator
         if age_linear_added:
             gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
             eta = eta + gamma_A * A_std_d
@@ -573,8 +533,7 @@ def build_mechanism_model(
         missing = [s for s in confounder_symbols if s not in represented]
         if missing:
             raise ValueError(
-                f"Declared confounder(s) {missing!r} have no representation in "
-                "the mechanism-model linear predictor."
+                f"Declared confounder(s) {missing!r} have no representation in the mechanism-model linear predictor."
             )
 
         # Mechanism GP (the estimand). The HSGP basis size depends on the
@@ -592,7 +551,12 @@ def build_mechanism_model(
                 # the within-child deviation is the one a period-varying sensitivity
                 # would vary. Same arrangement as the dose family's
                 # ``beta_dose_between`` beside its period slopes.
-                beta_between = _priors.beta_mech_prior().to_pymc("beta_between")
+                beta_between = _priors.beta_mech_prior().to_pymc(
+                    "beta_between",
+                    rationale="Between-child association: outcome logit per 1 SD of the fitted-row mean exposure {unit} for a child. It can reflect stable child characteristics, including latent general ability.".format(
+                        unit="raw score" if mechanism_is_covariate else "logit"
+                    ),
+                )
                 eta = eta + beta_between * mech_between_d
                 slope_target = mech_within_d
             else:
@@ -600,9 +564,15 @@ def build_mechanism_model(
             if phase_varying_slope:
                 # Partially-pooled per-period slopes (#604): a shared mean plus
                 # shrunk per-period deviations, non-centred for geometry.
-                mu_mech = _priors.beta_mech_prior().to_pymc("mu_mech")
+                mu_mech = _priors.beta_mech_prior().to_pymc(
+                    "mu_mech",
+                    role="association",
+                    rationale="Shared mean of the partially pooled per-period exposure slopes. Each period slope is an adjusted association.",
+                )
                 sigma_mech_phase = _priors.sigma_mech_phase_prior().to_pymc(
-                    "sigma_mech_phase"
+                    "sigma_mech_phase",
+                    role="nuisance",
+                    rationale="Between-period SD of the exposure slope. Controls shrinkage toward the shared mean; variation alone does not establish a change in mechanism.",
                 )
                 beta_mech_phase_raw = _priors.declare(
                     pm.Normal("beta_mech_phase_raw", mu=0.0, sigma=1.0, dims="phase"),
@@ -621,7 +591,12 @@ def build_mechanism_model(
                 )
                 eta = eta + beta_mech_phase[phase_d] * slope_target
             elif decompose_between_within:
-                beta_within = _priors.beta_mech_prior().to_pymc("beta_within")
+                beta_within = _priors.beta_mech_prior().to_pymc(
+                    "beta_within",
+                    rationale="Within-child association: outcome logit per 1 SD of the deviation from the mean exposure {unit} for that child. Stable child differences are removed, but temporal order and time-varying confounding remain concerns.".format(
+                        unit="raw score" if mechanism_is_covariate else "logit"
+                    ),
+                )
                 eta = eta + beta_within * slope_target
             else:
                 beta_mech = _priors.beta_mech_prior().to_pymc("beta_mech")
@@ -635,9 +610,7 @@ def build_mechanism_model(
                         mech_logit_std,
                         m=_MECH_HSGP_M if mech_hsgp_m is None else mech_hsgp_m,
                         lengthscale_prior=(
-                            _priors.ell_prior_mech()
-                            if mech_lengthscale_prior is None
-                            else mech_lengthscale_prior
+                            _priors.ell_prior_mech() if mech_lengthscale_prior is None else mech_lengthscale_prior
                         ),
                     )
                 )
@@ -683,9 +656,7 @@ def build_mechanism_model(
                 L=_hsgp_L,
                 center=_hsgp_center,
                 lengthscale_prior=(
-                    _priors.ell_prior_mech()
-                    if mech_lengthscale_prior is None
-                    else mech_lengthscale_prior
+                    _priors.ell_prior_mech() if mech_lengthscale_prior is None else mech_lengthscale_prior
                 ),
             )
             eta = eta + f_mech
@@ -700,16 +671,12 @@ def build_mechanism_model(
             # prior enforces roughly threefold and sixfold overdispersion a priori.
             # Same constructor as the ITT sensitivity and the level-factors default.
             kappa = _rlm_dispersion_kappa(
-                float(_priors.inv_sqrt_kappa_prior().sigma)
-                if kappa_sigma is None
-                else kappa_sigma
+                float(_priors.inv_sqrt_kappa_prior().sigma) if kappa_sigma is None else kappa_sigma
             )
         else:
-            kappa = (
-                _priors.kappa_prior()
-                if kappa_sigma is None
-                else _priors.kappa_prior(sigma=kappa_sigma)
-            ).to_pymc("kappa")
+            kappa = (_priors.kappa_prior() if kappa_sigma is None else _priors.kappa_prior(sigma=kappa_sigma)).to_pymc(
+                "kappa"
+            )
 
         beta_binomial_from_logit(
             "y_post",

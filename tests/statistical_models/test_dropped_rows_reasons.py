@@ -11,10 +11,14 @@ counts always reconcile to ``dropped_rows``.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import mechanism as _mechanism_factory
+from language_reading_predictors.statistical_models import preprocessing as _preprocessing
+
+
 import numpy as np
 import pandas as pd
 
-from language_reading_predictors.statistical_models import factories as F
+
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
@@ -26,7 +30,7 @@ def test_subset_records_reason_and_reconciles(tmp_path):
     prep = load_and_prepare(path=_write_synthetic(tmp_path, n_children=15), phase_mode="all")
     keep = np.ones(prep.n_obs, dtype=bool)
     keep[:3] = False
-    sub = F._subset(prep, keep)
+    sub = _preprocessing._subset(prep, keep)
     assert sub.dropped_by_reason.get("factory_stage") == 3
     assert sub.dropped_rows == prep.dropped_rows + 3
     assert sum(sub.dropped_by_reason.values()) == sub.dropped_rows
@@ -35,7 +39,7 @@ def test_subset_records_reason_and_reconciles(tmp_path):
     # two are mutually exclusive and still reconcile.
     keep2 = np.ones(sub.n_obs, dtype=bool)
     keep2[:2] = False
-    sub2 = F._subset(sub, keep2, reason="design_excluded")
+    sub2 = _preprocessing._subset(sub, keep2, reason="design_excluded")
     assert sub2.dropped_by_reason["factory_stage"] == 3
     assert sub2.dropped_by_reason["design_excluded"] == 2
     assert sum(sub2.dropped_by_reason.values()) == sub2.dropped_rows
@@ -43,7 +47,7 @@ def test_subset_records_reason_and_reconciles(tmp_path):
 
 def test_subset_all_keep_is_a_noop(tmp_path):
     prep = load_and_prepare(path=_write_synthetic(tmp_path, n_children=15), phase_mode="all")
-    assert F._subset(prep, np.ones(prep.n_obs, dtype=bool)) is prep
+    assert _preprocessing._subset(prep, np.ones(prep.n_obs, dtype=bool)) is prep
 
 
 def test_loader_attributes_its_own_drops(tmp_path):
@@ -63,7 +67,7 @@ def test_loader_attributes_its_own_drops(tmp_path):
 
 def test_reasons_reconcile_after_a_factory_fit(tmp_path):
     prep = load_and_prepare(path=_write_synthetic(tmp_path, n_children=15), phase_mode="all")
-    built = F.build_mechanism_model(
+    built = _mechanism_factory.build_mechanism_model(
         prep, mechanism_symbol="R", outcome_symbol="W", confounder_symbols=()
     )
     fitted = built.prepared

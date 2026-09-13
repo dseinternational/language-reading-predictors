@@ -75,19 +75,14 @@ def _supported_waves(
     measure: str,
     group_label: str,
 ) -> list[int]:
-    part = panel.long[
-        (panel.long[panel.group_label_col] == group_label)
-        & panel.long[measure].notna()
-    ]
+    part = panel.long[(panel.long[panel.group_label_col] == group_label) & panel.long[measure].notna()]
     return sorted(int(wave) for wave in part[panel.dataset.wave_col].unique())
 
 
 def _common_waves(panel: LongitudinalPanel, *, measure: str) -> list[int]:
     common = set(panel.all_waves)
     for label in panel.group_labels:
-        common &= set(
-            _supported_waves(panel, measure=measure, group_label=label)
-        )
+        common &= set(_supported_waves(panel, measure=measure, group_label=label))
     return sorted(common)
 
 
@@ -148,15 +143,10 @@ def participant_bayesian_bootstrap_growth(
             raise ValueError(f"Duplicate participant rows for group {label!r}")
         n_group = len(wide)
         if n_group < 2:
-            raise ValueError(
-                f"Bayesian bootstrap requires at least two participants in {label!r}"
-            )
+            raise ValueError(f"Bayesian bootstrap requires at least two participants in {label!r}")
         weights = rng.dirichlet(np.ones(n_group), size=draws)
         waves = _supported_waves(panel, measure=measure, group_label=label)
-        intervals = [
-            (waves[index], waves[index + 1])
-            for index in range(len(waves) - 1)
-        ]
+        intervals = [(waves[index], waves[index + 1]) for index in range(len(waves) - 1)]
         if len(waves) > 2:
             intervals.append((waves[0], waves[-1]))
 
@@ -178,11 +168,7 @@ def participant_bayesian_bootstrap_growth(
                     "quantity": f"growth_{start}_{end}_items",
                     "label": f"Wave {start} to wave {end}",
                     "readgrp_label": label,
-                    "window": (
-                        "core"
-                        if start in panel.waves and end in panel.waves
-                        else "extension"
-                    ),
+                    "window": ("core" if start in panel.waves and end in panel.waves else "extension"),
                     "n_subjects": n_subjects,
                     "bootstrap_draws": draws,
                     "bootstrap_seed": seed,
@@ -213,15 +199,9 @@ def participant_bayesian_bootstrap_growth(
                         "likelihood": "none",
                         "denominator": pd.NA,
                         "quantity": f"total_growth_{b}_minus_{a}",
-                        "label": (
-                            f"Total growth (waves {start}-{end}): {b} minus {a}"
-                        ),
+                        "label": (f"Total growth (waves {start}-{end}): {b} minus {a}"),
                         "readgrp_label": "",
-                        "window": (
-                            "core"
-                            if start in panel.waves and end in panel.waves
-                            else "extension"
-                        ),
+                        "window": ("core" if start in panel.waves and end in panel.waves else "extension"),
                         "n_subjects": pd.NA,
                         "bootstrap_draws": draws,
                         "bootstrap_seed": seed,
@@ -241,9 +221,7 @@ def monte_carlo_stability(
 ) -> tuple[pd.DataFrame, dict[str, object]]:
     """Compare independent bootstrap simulations and apply a numerical gate."""
 
-    observed_maximum = _positive_integer(
-        observed_maximum, name="observed_maximum"
-    )
+    observed_maximum = _positive_integer(observed_maximum, name="observed_maximum")
     if not np.isfinite(tolerance_fraction) or tolerance_fraction <= 0:
         raise ValueError("tolerance_fraction must be positive and finite")
     required = {*_KEY_COLUMNS, *_QUANTILE_COLUMNS}
@@ -270,17 +248,13 @@ def monte_carlo_stability(
     difference_columns = []
     for column in _QUANTILE_COLUMNS:
         difference = f"absolute_{column}_difference"
-        merged[difference] = (
-            merged[f"{column}_primary"] - merged[f"{column}_replicate"]
-        ).abs()
+        merged[difference] = (merged[f"{column}_primary"] - merged[f"{column}_replicate"]).abs()
         difference_columns.append(difference)
     merged["maximum_quantile_difference"] = merged[difference_columns].max(axis=1)
     merged["maximum_quantile_difference_fraction_observed_max"] = (
         merged["maximum_quantile_difference"] / observed_maximum
     )
-    maximum_fraction = float(
-        merged["maximum_quantile_difference_fraction_observed_max"].max()
-    )
+    maximum_fraction = float(merged["maximum_quantile_difference_fraction_observed_max"].max())
     passed = maximum_fraction <= tolerance_fraction
     return merged, {
         "status": "pass" if passed else "no_go",
@@ -304,9 +278,7 @@ def compare_bootstrap_with_likelihoods(
 ) -> tuple[pd.DataFrame, dict[str, object]]:
     """Apply the pre-specified five-method empirical robustness rule."""
 
-    observed_maximum = _positive_integer(
-        observed_maximum, name="observed_maximum"
-    )
+    observed_maximum = _positive_integer(observed_maximum, name="observed_maximum")
     required = {"variant", *_KEY_COLUMNS, *_QUANTILE_COLUMNS}
     for name, frame in (
         ("bootstrap", bootstrap),
@@ -322,27 +294,21 @@ def compare_bootstrap_with_likelihoods(
         raise ValueError("bootstrap table must contain only the bootstrap variant")
     observed_variants = tuple(dict.fromkeys(reference["variant"].astype(str)))
     if set(observed_variants) != set(expected_likelihood_variants):
-        raise ValueError(
-            "likelihood variants do not match the pre-specified reference set"
-        )
+        raise ValueError("likelihood variants do not match the pre-specified reference set")
     if boot.duplicated(_KEY_COLUMNS).any():
         raise ValueError("bootstrap table has duplicate estimand rows")
     if reference.duplicated(["variant", *_KEY_COLUMNS]).any():
         raise ValueError("likelihood table has duplicate variant-estimand rows")
 
     boot_keys = set(map(tuple, boot[_KEY_COLUMNS].itertuples(index=False, name=None)))
-    reference_keys = set(
-        map(tuple, reference[_KEY_COLUMNS].itertuples(index=False, name=None))
-    )
+    reference_keys = set(map(tuple, reference[_KEY_COLUMNS].itertuples(index=False, name=None)))
     if boot_keys != reference_keys:
         raise ValueError("bootstrap and likelihood estimand sets differ")
 
     rows: list[dict[str, object]] = []
     for key, boot_part in boot.groupby(_KEY_COLUMNS, dropna=False, sort=False):
         reference_part = reference[
-            (reference["quantity"] == key[0])
-            & (reference["label"] == key[1])
-            & (reference["readgrp_label"] == key[2])
+            (reference["quantity"] == key[0]) & (reference["label"] == key[1]) & (reference["readgrp_label"] == key[2])
         ]
         if len(reference_part) != len(expected_likelihood_variants):
             raise ValueError(f"incomplete likelihood set for estimand {key!r}")
@@ -353,9 +319,7 @@ def compare_bootstrap_with_likelihoods(
         median_range = float(np.ptp(medians))
         all_nonnegative = bool(np.all(medians >= 0))
         all_nonpositive = bool(np.all(medians <= 0))
-        baseline = reference_part[
-            reference_part["variant"] == "beta_binomial_1x"
-        ]
+        baseline = reference_part[reference_part["variant"] == "beta_binomial_1x"]
         if len(baseline) != 1:
             raise ValueError("reference lacks exactly one beta_binomial_1x row")
         bootstrap_median = float(boot_part.iloc[0]["q50"])
@@ -368,33 +332,23 @@ def compare_bootstrap_with_likelihoods(
                 "n_methods": len(combined),
                 "bootstrap_median": bootstrap_median,
                 "beta_binomial_1x_median": baseline_median,
-                "bootstrap_minus_beta_binomial_1x": (
-                    bootstrap_median - baseline_median
-                ),
+                "bootstrap_minus_beta_binomial_1x": (bootstrap_median - baseline_median),
                 "absolute_bootstrap_difference_fraction_observed_max": (
                     abs(bootstrap_median - baseline_median) / observed_maximum
                 ),
                 "combined_median_min": float(np.min(medians)),
                 "combined_median_max": float(np.max(medians)),
                 "combined_median_range": median_range,
-                "combined_median_range_fraction_observed_max": (
-                    median_range / observed_maximum
-                ),
-                "combined_median_direction_stable": (
-                    all_nonnegative or all_nonpositive
-                ),
-                "combined_89_interval_overlap": bool(
-                    float(np.max(lower)) <= float(np.min(upper))
-                ),
+                "combined_median_range_fraction_observed_max": (median_range / observed_maximum),
+                "combined_median_direction_stable": (all_nonnegative or all_nonpositive),
+                "combined_89_interval_overlap": bool(float(np.max(lower)) <= float(np.min(upper))),
             }
         )
 
     comparison = pd.DataFrame(rows)
     direction_stable = bool(comparison["combined_median_direction_stable"].all())
     intervals_overlap = bool(comparison["combined_89_interval_overlap"].all())
-    maximum_fraction = float(
-        comparison["combined_median_range_fraction_observed_max"].max()
-    )
+    maximum_fraction = float(comparison["combined_median_range_fraction_observed_max"].max())
     passed = bool(
         likelihood_reference_passed
         and monte_carlo_passed
@@ -408,12 +362,8 @@ def compare_bootstrap_with_likelihoods(
         "monte_carlo_stability_passed": bool(monte_carlo_passed),
         "all_five_method_median_directions_stable": direction_stable,
         "all_five_method_89_intervals_overlap": intervals_overlap,
-        "maximum_five_method_median_range_fraction_observed_max": (
-            maximum_fraction
-        ),
-        "maximum_allowed_median_range_fraction_observed_max": (
-            MAX_MEDIAN_RANGE_FRACTION
-        ),
+        "maximum_five_method_median_range_fraction_observed_max": (maximum_fraction),
+        "maximum_allowed_median_range_fraction_observed_max": (MAX_MEDIAN_RANGE_FRACTION),
         "interpretation": (
             "Empirical Phase-A growth robustness only. A pass does not identify "
             "an instrument ceiling, validate a score definition, repair other "

@@ -58,8 +58,7 @@ SPEC = ModelSpec(
     model_id="lrp-rli-gf-306",
     kind="gain_factors",
     title=(
-        "Factors associated with gains in phoneme blending (blending) (B): "
-        "three-choice guessing-floor link sensitivity"
+        "Factors associated with gains in phoneme blending (blending) (B): three-choice guessing-floor link sensitivity"
     ),
     outcome_symbol="B",
     # Deliberately a one-key diff from lrp-rli-gf-006's declaration, in the same

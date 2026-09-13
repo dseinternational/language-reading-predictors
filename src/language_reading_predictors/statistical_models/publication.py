@@ -119,8 +119,11 @@ def _strip_quarto_code_links(path: str) -> None:
 
 def render_model_graph(context: StatisticalFitContext) -> None:
     with guard_optional(
-        context, "Graphviz render",
-        filename="model_graph.png", kind="figure", verb="failed",
+        context,
+        "Graphviz render",
+        filename="model_graph.png",
+        kind="figure",
+        verb="failed",
     ):
         g = _graphviz(context.model)
         g.render(

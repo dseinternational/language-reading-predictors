@@ -1,23 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Onset-aligned per-protocol model construction.
-
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
-"""
+"""Onset-aligned per-protocol model construction."""
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING
-
 import numpy as np
 import pymc as pm
-
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -37,6 +27,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _alpha_sigma_for,
     _scalar_prior,
 )
+
 
 def build_aligned_model(
     prepared: PreparedData,
@@ -79,10 +70,7 @@ def build_aligned_model(
     if prepared.phase_mode != "aligned":
         raise ValueError("build_aligned_model requires phase_mode='aligned'")
     if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
-        raise ValueError(
-            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
-            f"got {likelihood!r}"
-        )
+        raise ValueError(f"likelihood must be 'beta_binomial' or 'bernoulli_offfloor', got {likelihood!r}")
     off_floor = likelihood == "bernoulli_offfloor"
     own = outcome_symbol
     if own not in prepared.post_counts or own not in prepared.pre_logit:
@@ -96,8 +84,7 @@ def build_aligned_model(
         raise KeyError(f"ability_covariate {ability_covariate!r} not in prepared.covariates")
     if use_dose and "dose" not in prepared.covariates:
         raise KeyError(
-            "use_dose=True requires a 'dose' covariate "
-            "(load with load_and_prepare_aligned(include_dose=True))"
+            "use_dose=True requires a 'dose' covariate (load with load_and_prepare_aligned(include_dose=True))"
         )
 
     keep = ~np.isnan(prepared.post_counts[own]) & ~np.isnan(prepared.pre_logit[own])
@@ -119,9 +106,7 @@ def build_aligned_model(
     with pm.Model(coords=coords) as model:
         A_std_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
 
-        alpha = _priors.alpha_prior(
-            sigma=_alpha_sigma_for(outcome_symbol)
-        ).to_pymc("alpha")
+        alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
         gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
         if off_floor:
             # Binary off-floor-at-onset indicator (#391 finding 2, adopted for the
@@ -129,13 +114,9 @@ def build_aligned_model(
             # children at the onset floor, the graded logit is a spike at the
             # Haldane floor value and the Normal(1, 0.25) tracking prior turns
             # into a strongly pessimistic implied intercept for at-floor children.
-            own_off = (
-                np.asarray(prepared.pre_counts[own], dtype=float) > 0
-            ).astype(float)
+            own_off = (np.asarray(prepared.pre_counts[own], dtype=float) > 0).astype(float)
             own_off_d = pm.Data("own_offfloor_pre", own_off, dims="obs_id")
-            gamma_own_off = _priors.gamma_own_offfloor_prior().to_pymc(
-                "gamma_own_offfloor"
-            )
+            gamma_own_off = _priors.gamma_own_offfloor_prior().to_pymc("gamma_own_offfloor")
             eta = alpha + gamma_own_off * own_off_d + gamma_A * A_std_d
         else:
             own_pre_d = pm.Data("own_pre_logit", own_pre_logit, dims="obs_id")
@@ -157,39 +138,46 @@ def build_aligned_model(
             beta_cohort = _priors.tau_prior().to_pymc(
                 "beta_cohort",
                 role="association",
-                rationale=(
-                    "Per-protocol cohort contrast (immediate versus wait-list at "
-                    "aligned endpoints) carried on the treatment prior "
-                    "tau ~ Normal(0, 0.5). NOT randomised: confounded by "
-                    "age-at-onset and cohort timing, so no term in this family is "
-                    "flagged causal."
-                ),
+                rationale="Per-protocol cohort contrast (immediate vs wait-list) at onset-aligned endpoints; an adjusted association confounded by age-at-onset and cohort/timing, never the randomised treatment effect.",
             )
             eta = eta + beta_cohort * cohort_d
         if ability_covariate is not None:
             ability_d = pm.Data(
                 f"{ability_covariate}_std",
-                prepared.covariates[ability_covariate], dims="obs_id",
+                prepared.covariates[ability_covariate],
+                dims="obs_id",
             )
-            gamma_ability = _priors.gamma_cross_prior().to_pymc("gamma_ability")
+            gamma_ability = _priors.gamma_cross_prior().to_pymc(
+                "gamma_ability",
+                rationale="Cognitive-ability (block design) covariate coupling; an adjusted association, not a cross-baseline coupling.",
+            )
             eta = eta + gamma_ability * ability_d
         if use_dose:
             dose_d = pm.Data("dose_std", prepared.covariates["dose"], dims="obs_id")
-            gamma_dose = _priors.gamma_cross_prior().to_pymc("gamma_dose")
+            gamma_dose = _priors.gamma_cross_prior().to_pymc(
+                "gamma_dose",
+                rationale="Within-arm cumulative-session dose coupling; a collider-adjusted sensitivity association, never a causal dose effect.",
+            )
             eta = eta + gamma_dose * dose_d
 
         eta = pm.Deterministic("eta", eta, dims="obs_id")
         if likelihood == "beta_binomial":
             kappa = _scalar_prior("kappa", _priors.kappa_prior)
             beta_binomial_from_score_mean_link(
-                "y_post", eta, n_trials=prepared.n_trials[own], kappa=kappa,
+                "y_post",
+                eta,
+                n_trials=prepared.n_trials[own],
+                kappa=kappa,
                 score_mean_link=score_mean_link,
-                observed=post, dims="obs_id",
+                observed=post,
+                dims="obs_id",
             )
         else:  # bernoulli_offfloor: exploratory estimand for floored outcomes (e.g. P)
             pm.Bernoulli(
-                "y_offfloor", logit_p=eta,
-                observed=(post > 0).astype(np.int64), dims="obs_id",
+                "y_offfloor",
+                logit_p=eta,
+                observed=(post > 0).astype(np.int64),
+                dims="obs_id",
             )
 
     return BuiltModel(

@@ -43,8 +43,7 @@ SPEC = ModelSpec(
     model_id="lrp-rli-itt-006",
     kind="itt",
     title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "standardised expressive vocabulary (E)"
+        "Available-case modified ITT estimate of the assigned-arm contrast in standardised expressive vocabulary (E)"
     ),
     outcome_symbol="E",
     model_settings=IttModelSettings(

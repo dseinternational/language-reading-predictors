@@ -70,19 +70,13 @@ def validate_mechanism_design(
             # never read as "use the shared default": ``mech_hsgp_m=0`` is a
             # misconfiguration, not a request for the default basis count.
             default = (
-                f" (or None for the shared default {default_hsgp_m})"
-                if default_hsgp_m is not None
-                else " (or None)"
+                f" (or None for the shared default {default_hsgp_m})" if default_hsgp_m is not None else " (or None)"
             )
-            raise ValueError(
-                "mech_hsgp_m must be a positive HSGP basis count"
-                f"{default}; got {mech_hsgp_m!r}."
-            )
+            raise ValueError(f"mech_hsgp_m must be a positive HSGP basis count{default}; got {mech_hsgp_m!r}.")
 
     if kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
         raise ValueError(
-            "kappa_prior_family must be one of "
-            f"{sorted(KAPPA_PRIOR_FAMILIES)}, got {kappa_prior_family!r}"
+            f"kappa_prior_family must be one of {sorted(KAPPA_PRIOR_FAMILIES)}, got {kappa_prior_family!r}"
         )
 
     if moderator_is_covariate and moderator_symbol is None:
@@ -95,9 +89,7 @@ def validate_mechanism_design(
         )
 
     if linear_mechanism and (mech_hsgp_m is not None or hsgp_lengthscale_declared):
-        raise ValueError(
-            "linear_mechanism cannot declare HSGP basis or lengthscale settings"
-        )
+        raise ValueError("linear_mechanism cannot declare HSGP basis or lengthscale settings")
 
     if linear_mechanism and phase_specific_mechanism:
         raise ValueError(
@@ -135,14 +127,8 @@ def validate_mechanism_design(
     # the main slope by period while its interaction stayed pooled. Both are
     # coherent designs, but neither is this one, and the report would describe the
     # wrong model.
-    if moderator_symbol is not None and (
-        decompose_between_within or phase_varying_slope
-    ):
-        which = (
-            "decompose_between_within"
-            if decompose_between_within
-            else "phase_varying_slope"
-        )
+    if moderator_symbol is not None and (decompose_between_within or phase_varying_slope):
+        which = "decompose_between_within" if decompose_between_within else "phase_varying_slope"
         raise ValueError(
             f"{which} cannot be combined with moderator_symbol: the interaction "
             "term would still be built on the pooled exposure"

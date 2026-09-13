@@ -62,6 +62,9 @@ sections.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -71,7 +74,7 @@ from dse_research_utils.math.constants import EPSILON
 from language_reading_predictors.statistical_models.likelihood import (
     apply_score_mean_link,
 )
-from language_reading_predictors.statistical_models.factories import (
+from language_reading_predictors.statistical_models.factories.mediation import (
     MediationData,
     PeriodStackedMediationData,
     TwoMediatorData,
@@ -134,13 +137,9 @@ def _effect_row(
     # Posterior sampling precision of the integrated effect. Nonlinear functions
     # can mix differently from their parent coefficients, so check each effect.
     if n_chains is not None and n_draws is not None:
-        from language_reading_predictors.statistical_models.reporting import (
-            derived_mc_diagnostics,
-        )
+        from language_reading_predictors.statistical_models.posteriors import derived_mc_diagnostics
 
-        row.update(
-            derived_mc_diagnostics(draws, n_chains=n_chains, n_draws=n_draws)
-        )
+        row.update(derived_mc_diagnostics(draws, n_chains=n_chains, n_draws=n_draws))
     return row
 
 
@@ -196,9 +195,7 @@ def _proportion_row(
         "total_prob_pos": float(np.mean(total > 0)),  # context, explicitly named
     }
     if prop.size and n_chains is not None and n_draws is not None:
-        from language_reading_predictors.statistical_models.reporting import (
-            derived_mc_diagnostics,
-        )
+        from language_reading_predictors.statistical_models.posteriors import derived_mc_diagnostics
 
         row.update(derived_mc_diagnostics(prop, n_chains=n_chains, n_draws=n_draws))
     return row
@@ -208,7 +205,7 @@ def decompose(
     trace: xr.DataTree,
     med: MediationData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     interventional: bool = False,
     b_m_shift: float = 0.0,
     score_mean_link: str = "logit",
@@ -292,13 +289,7 @@ def decompose(
         if off_floor:
             # The off-floor outcome keeps its baseline as the binary
             # off-floor-at-baseline contrast rather than the graded logit (#585).
-            eta = (
-                b0[:, None]
-                + b_G[:, None] * g
-                + b_M[:, None] * z_m
-                + b_GM[:, None] * (g * z_m)
-                + b_A[:, None] * A
-            )
+            eta = b0[:, None] + b_G[:, None] * g + b_M[:, None] * z_m + b_GM[:, None] * (g * z_m) + b_A[:, None] * A
             if b_own_off is not None:
                 eta = eta + b_own_off[:, None] * own_off_row
         else:
@@ -372,9 +363,7 @@ def decompose(
     _nc, _nd = int(post.sizes["chain"]), int(post.sizes["draw"])
 
     def row(name: str, draws: np.ndarray) -> dict:
-        return _effect_row(
-            name, draws, N_W, lo_q, hi_q, off_floor, n_chains=_nc, n_draws=_nd
-        )
+        return _effect_row(name, draws, N_W, lo_q, hi_q, off_floor, n_chains=_nc, n_draws=_nd)
 
     direct_label, indirect_label = ("IDE", "IIE") if interventional else ("NDE", "NIE")
     rows = [row("total", total), row(direct_label, nde), row(indirect_label, nie)]
@@ -390,7 +379,7 @@ def sensitivity_sweep(
     trace: xr.DataTree,
     med: MediationData | PeriodStackedMediationData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     n_deltas: int = 21,
     delta_max: float | None = None,
     decompose_fn=None,
@@ -456,16 +445,12 @@ def sensitivity_sweep(
     indirect = {"NIE", "IIE"}
     rows = []
     for dlt in deltas:
-        df = decompose_fn(
-            trace, med, ci_prob=ci_prob, b_m_shift=float(shrink_sign * dlt), **decompose_kw
-        )
+        df = decompose_fn(trace, med, ci_prob=ci_prob, b_m_shift=float(shrink_sign * dlt), **decompose_kw)
         nie = df[df["quantity"].isin(indirect)].iloc[0]
         rows.append(
             {
                 "delta": float(dlt),
-                "delta_frac_of_bM": (
-                    float(dlt / ref_mag) if ref_mag > ref_eps else float("nan")
-                ),
+                "delta_frac_of_bM": (float(dlt / ref_mag) if ref_mag > ref_eps else float("nan")),
                 "nie_median": float(nie["prob_median"]),
                 "nie_lo": float(nie["prob_lo"]),
                 "nie_hi": float(nie["prob_hi"]),
@@ -489,9 +474,7 @@ def sensitivity_sweep(
         "already_null_at_zero": already_null,
         "tipping_delta": (float("nan") if already_null else tip),
         "tipping_frac_of_bM": (
-            float(tip / ref_mag)
-            if (ref_mag > ref_eps and not already_null and np.isfinite(tip))
-            else float("nan")
+            float(tip / ref_mag) if (ref_mag > ref_eps and not already_null and np.isfinite(tip)) else float("nan")
         ),
         "nie_median_at_zero": float(nie0["nie_median"]),
         "robust_over_full_sweep": bool(not already_null and not np.isfinite(tip)),
@@ -503,7 +486,7 @@ def decompose_period_stacked(
     trace: xr.DataTree,
     med: PeriodStackedMediationData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     b_m_shift: float = 0.0,
     row_mask: np.ndarray | None = None,
     score_mean_link: str = "logit",
@@ -537,19 +520,13 @@ def decompose_period_stacked(
         # Vector parameters as (S, len(dim)), row-indexable by phase/child idx.
         return post[name].stack(_s=("chain", "draw")).transpose("_s", dim).values
 
-    mask = (
-        np.ones(med.trt.shape[0], dtype=bool)
-        if row_mask is None
-        else np.asarray(row_mask, dtype=bool)
-    )
+    mask = np.ones(med.trt.shape[0], dtype=bool) if row_mask is None else np.asarray(row_mask, dtype=bool)
     phase_idx = med.phase_idx[mask]
     child_idx = med.child_idx[mask]
     confs = med.confounder_symbols
 
     # --- Outcome leg ---
-    b0, b_trt, b_M, b_trtM, b_W, b_A = (
-        d("b0"), d("b_trt"), d("b_M"), d("b_trtM"), d("b_W"), d("b_A")
-    )
+    b0, b_trt, b_M, b_trtM, b_W, b_A = (d("b0"), d("b_trt"), d("b_M"), d("b_trtM"), d("b_W"), d("b_A"))
     # Sensitivity lever (#230), as in :func:`decompose`.
     b_M = b_M - b_m_shift
     b_conf = {s: d(f"b_{s}") for s in confs}
@@ -598,14 +575,7 @@ def decompose_period_stacked(
         return apply_score_mean_link(_sigmoid(eta), score_mean_link)
 
     def mediator_p(t: float) -> np.ndarray:
-        mu = (
-            a0[:, None]
-            + a_phase_rows
-            + a_trt[:, None] * t
-            + a_M[:, None] * L1
-            + a_A[:, None] * A
-            + uM_rows
-        )
+        mu = a0[:, None] + a_phase_rows + a_trt[:, None] * t + a_M[:, None] * L1 + a_A[:, None] * A + uM_rows
         for s in confs:
             mu = mu + a_conf[s][:, None] * conf[s]
         for name, row in med_cross_rows.items():
@@ -684,14 +654,20 @@ def decompose_two_mediator(
 
     # Outcome model.
     b0, b_G, b_L, b_E, b_GL, b_GE, b_W, b_A = (
-        d("b0"), d("b_G"), d("b_L"), d(f"b_{mE}"), d("b_GL"), d(f"b_G{mE}"), d("b_W"), d("b_A")
+        d("b0"),
+        d("b_G"),
+        d("b_L"),
+        d(f"b_{mE}"),
+        d("b_GL"),
+        d(f"b_G{mE}"),
+        d("b_W"),
+        d("b_A"),
     )
     b_m_shifts = b_m_shifts or {}
     unknown_shifts = set(b_m_shifts) - {mL, mE}
     if unknown_shifts:
         raise ValueError(
-            f"b_m_shifts contains unknown mediators {sorted(unknown_shifts)!r}; "
-            f"expected a subset of {(mL, mE)!r}"
+            f"b_m_shifts contains unknown mediators {sorted(unknown_shifts)!r}; expected a subset of {(mL, mE)!r}"
         )
     # Per-leg sensitivity lever (#335): subtract the portion of each fitted
     # mediator->outcome slope attributed to unmeasured confounding. The treatment
@@ -716,10 +692,7 @@ def decompose_two_mediator(
     out_cross = dict(getattr(med, "outcome_cross_values", {}) or {})
     med_cross = dict(getattr(med, "mediator_cross_values", {}) or {})
     b_cross = {name: d(name) for name in out_cross}
-    a_cross = {
-        symbol: {name: d(name) for name in terms}
-        for symbol, terms in med_cross.items()
-    }
+    a_cross = {symbol: {name: d(name) for name in terms} for symbol, terms in med_cross.items()}
     off2_pre = getattr(med, "second_mediator_offfloor_pre", None)
     aE_own_off = d(f"a{mE}_own_offfloor") if off2 else None
 
@@ -730,8 +703,7 @@ def decompose_two_mediator(
     conf = {s: med.conf1_logit[s][None, :] for s in confs}
     out_cross_rows = {name: value[None, :] for name, value in out_cross.items()}
     med_cross_rows = {
-        symbol: {name: value[None, :] for name, value in terms.items()}
-        for symbol, terms in med_cross.items()
+        symbol: {name: value[None, :] for name, value in terms.items()} for symbol, terms in med_cross.items()
     }
     off2_pre_row = None if off2_pre is None else np.asarray(off2_pre)[None, :]
     N_W = med.n_trials_W
@@ -817,10 +789,7 @@ def decompose_two_mediator(
     y_TT_TT, y_TT_CC, y_CC_CC, y_T_Lt_Ec, y_T_Lc_Et = np.zeros((5, S))
 
     def second_mass(k, zL, treated):
-        p = (
-            mediator2_p(_TREAT if treated else _CTRL, zL)
-            if med.chain else (pE_t if treated else pE_c)
-        )
+        p = mediator2_p(_TREAT if treated else _CTRL, zL) if med.chain else (pE_t if treated else pE_c)
         return np.where(k == 1, p, 1 - p) if off2 else count_mass(k, N_E, p, kappa_E)
 
     # The first mediator's Beta-Binomial mass depends only on its support value, so
@@ -880,9 +849,7 @@ def decompose_two_mediator(
     nde = y_TT_CC - y_CC_CC
     nie_joint = y_TT_TT - y_TT_CC
     if order not in ((mL, mE), (mE, mL)):
-        raise ValueError(
-            f"order must be {(mL, mE)!r} or {(mE, mL)!r}; got {order!r}"
-        )
+        raise ValueError(f"order must be {(mL, mE)!r} or {(mE, mL)!r}; got {order!r}")
     if order == (mL, mE):
         nie_L = y_T_Lt_Ec - y_TT_CC  # move L first (mE at control)
         nie_E = y_TT_TT - y_T_Lt_Ec  # then move mE (L at treated)
@@ -894,9 +861,7 @@ def decompose_two_mediator(
     _nc, _nd = int(post.sizes["chain"]), int(post.sizes["draw"])
 
     def row(name: str, draws: np.ndarray) -> dict:
-        from language_reading_predictors.statistical_models.reporting import (
-            derived_mc_diagnostics,
-        )
+        from language_reading_predictors.statistical_models.posteriors import derived_mc_diagnostics
 
         return {
             "quantity": name,
@@ -929,9 +894,7 @@ def decompose_two_mediator(
     # Shared with the single-mediator path (#585): the two-mediator proportion used
     # to have its own unguarded copy, so an all-non-finite ratio (Total == 0 on
     # every draw) raised inside the report instead of degrading to NaN intervals.
-    rows.append(
-        _proportion_row(nie_joint, total, lo_q, hi_q, n_chains=_nc, n_draws=_nd)
-    )
+    rows.append(_proportion_row(nie_joint, total, lo_q, hi_q, n_chains=_nc, n_draws=_nd))
     return pd.DataFrame(rows)
 
 
@@ -960,7 +923,7 @@ def sensitivity_sweep_two_mediator(
     trace: xr.DataTree,
     med: TwoMediatorData,
     *,
-    ci_prob: float = 0.95,
+    ci_prob: float = REPORTING_CI_PROB,
     n_deltas: int = 21,
     delta_max: float | dict[str, float] | None = None,
     **decompose_kw,
@@ -1016,9 +979,7 @@ def sensitivity_sweep_two_mediator(
                 "mediator": mediator,
                 "quantity": f"NIE_{mediator}",
                 "delta": float(dlt),
-                "delta_frac_of_effective_slope": (
-                    float(dlt / ref_mag) if ref_mag > ref_eps else float("nan")
-                ),
+                "delta_frac_of_effective_slope": (float(dlt / ref_mag) if ref_mag > ref_eps else float("nan")),
                 "nie_median": float(leg["prob_median"]),
                 "nie_lo": float(leg["prob_lo"]),
                 "nie_hi": float(leg["prob_hi"]),
@@ -1053,10 +1014,7 @@ def sensitivity_sweep_two_mediator(
                 "tipping_delta": leg_tip["tipping_delta"],
                 "tipping_frac_of_effective_slope": (
                     float(leg_tip["tipping_delta"] / ref_mag)
-                    if (
-                        ref_mag > ref_eps
-                        and np.isfinite(float(leg_tip["tipping_delta"]))
-                    )
+                    if (ref_mag > ref_eps and np.isfinite(float(leg_tip["tipping_delta"])))
                     else float("nan")
                 ),
                 "nie_median_at_zero": leg_tip["effect_median_at_zero"],
@@ -1065,10 +1023,7 @@ def sensitivity_sweep_two_mediator(
                 "joint_tipping_delta": joint_tip["tipping_delta"],
                 "joint_tipping_frac_of_effective_slope": (
                     float(joint_tip["tipping_delta"] / ref_mag)
-                    if (
-                        ref_mag > ref_eps
-                        and np.isfinite(float(joint_tip["tipping_delta"]))
-                    )
+                    if (ref_mag > ref_eps and np.isfinite(float(joint_tip["tipping_delta"])))
                     else float("nan")
                 ),
                 "joint_nie_median_at_zero": joint_tip["effect_median_at_zero"],
@@ -1116,34 +1071,23 @@ def calibrate_session_confounding(
     taught-vocabulary dose model (#335).
     """
     if session_symbol not in prepared.covariates:
-        raise KeyError(
-            f"Session calibration requires {session_symbol!r} in prepared.covariates"
-        )
+        raise KeyError(f"Session calibration requires {session_symbol!r} in prepared.covariates")
     if n_bootstrap < 1:
         raise ValueError("n_bootstrap must be positive")
 
     treated = np.asarray(prepared.G) == 1
     n_treated = int(treated.sum())
     if n_treated < 8:
-        raise ValueError(
-            f"Session calibration needs at least 8 treated observations; got {n_treated}"
-        )
+        raise ValueError(f"Session calibration needs at least 8 treated observations; got {n_treated}")
 
     mL, mE = med.mediator_symbols
     z_mediators = {
-        mL: (
-            logit_safe(prepared.post_counts[mL][treated], med.n_trials_L) - med.zL_mean
-        )
-        / med.zL_sd,
-        mE: (
-            logit_safe(prepared.post_counts[mE][treated], med.n_trials_E) - med.zE_mean
-        )
-        / med.zE_sd,
+        mL: (logit_safe(prepared.post_counts[mL][treated], med.n_trials_L) - med.zL_mean) / med.zL_sd,
+        mE: (logit_safe(prepared.post_counts[mE][treated], med.n_trials_E) - med.zE_mean) / med.zE_sd,
     }
     y = logit_safe(prepared.post_counts["W"][treated], med.n_trials_W)
     raw_sessions = (
-        prepared.covariates[session_symbol]
-        * prepared.covariate_scalers[session_symbol].sd
+        prepared.covariates[session_symbol] * prepared.covariate_scalers[session_symbol].sd
         + prepared.covariate_scalers[session_symbol].mean
     )[treated]
     sessions, _ = standardise(raw_sessions)
@@ -1196,7 +1140,7 @@ def calibrate_session_confounding(
         idx = rng.integers(0, n_treated, size=n_treated)
         try:
             result = estimates(idx)
-        except (ValueError, np.linalg.LinAlgError):
+        except ValueError, np.linalg.LinAlgError:
             continue
         for mediator in (mL, mE):
             if np.isfinite(result[mediator]).all():

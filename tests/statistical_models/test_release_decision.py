@@ -42,10 +42,7 @@ from language_reading_predictors.statistical_models.release import (
     evaluate_publication,
     write_release_decision,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    KEY_FINDINGS_FILENAME,
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import KEY_FINDINGS_FILENAME, generate_key_findings
 
 REPO = Path(__file__).resolve().parents[2]
 PARTIAL = REPO / "docs/models/_partials/_key_findings.qmd"
@@ -83,10 +80,7 @@ def _write_core_artifacts(d: Path, kind: str) -> None:
         json.dumps(
             {
                 "model_id": "lrp-test-001",
-                "artifacts": [
-                    {"filename": name, "status": "written", "required": True}
-                    for name in names
-                ],
+                "artifacts": [{"filename": name, "status": "written", "required": True} for name in names],
             }
         )
     )
@@ -141,15 +135,14 @@ def _natural_mediation_fit_dir(tmp_path: Path) -> Path:
     config["extra"] = {"estimand": "natural"}
     (d / "config.json").write_text(json.dumps(config))
     (d / "mediation_summary_t3.csv").write_text(
-        "quantity,converged,trace_file\n"
-        f"NIE,True,{MEDIATION_T3_TRACE_FILENAME}\n"
+        f"quantity,converged,trace_file\nNIE,True,{MEDIATION_T3_TRACE_FILENAME}\n"
     )
     (d / "subfit_provenance.csv").write_text(
-        "label,role,converged,trace_file\n"
-        f"lrp-test-001 t3 sensitivity,sensitivity,True,{MEDIATION_T3_TRACE_FILENAME}\n"
+        f"label,role,converged,trace_file\nlrp-test-001 t3 sensitivity,sensitivity,True,{MEDIATION_T3_TRACE_FILENAME}\n"
     )
     (d / MEDIATION_T3_TRACE_FILENAME).write_bytes(b"trace fixture")
     return d
+
 
 def _growth_influence_fit_dir(tmp_path: Path) -> Path:
     """Minimal RLM growth bundle with one clean, trace-bound influence refit."""
@@ -220,9 +213,7 @@ def _growth_influence_fit_dir(tmp_path: Path) -> Path:
     return d
 
 
-def _write_clean_missingness_trace(
-    path: Path, *, include_prior_groups: bool = True
-) -> dict[str, float | int]:
+def _write_clean_missingness_trace(path: Path, *, include_prior_groups: bool = True) -> dict[str, float | int]:
     """Persist a deterministic trace that clears every raw sub-fit threshold."""
 
     rng = np.random.default_rng(811)
@@ -254,10 +245,7 @@ def _write_clean_missingness_trace(
     # (2026-08-22 ITT audit, finding 8) — and this fixture, with one target and
     # one observation, is precisely what used to qualify.
     _n_targets = release_module_missingness.RANDOMISED_N
-    _n_observed = (
-        release_module_missingness.OBSERVED_INTERVENTION_N
-        + release_module_missingness.OBSERVED_CONTROL_N
-    )
+    _n_observed = release_module_missingness.OBSERVED_INTERVENTION_N + release_module_missingness.OBSERVED_CONTROL_N
     prior = xr.Dataset(
         {
             "p0_target": (
@@ -270,9 +258,7 @@ def _write_clean_missingness_trace(
             ),
         }
     )
-    prior_predictive = xr.Dataset(
-        {"y_post": (("chain", "draw", "obs_id"), np.full((1, 2, _n_observed), 10))}
-    )
+    prior_predictive = xr.Dataset({"y_post": (("chain", "draw", "obs_id"), np.full((1, 2, _n_observed), 10))})
     groups = {"posterior": posterior, "sample_stats": sample_stats}
     if include_prior_groups:
         groups.update({"prior": prior, "prior_predictive": prior_predictive})
@@ -342,9 +328,7 @@ def _word_reading_missingness_fit_dir(tmp_path: Path) -> Path:
                     "scenarios": list(MISSINGNESS_SCENARIOS),
                     "common_estimand_class": "common_profile_standardisation",
                     "completion_estimand_class": "randomised_arm_factual_completion",
-                    "intercept_prior_anchor": (
-                        "mean_all_57_screening_word_reading_logit"
-                    ),
+                    "intercept_prior_anchor": ("mean_all_57_screening_word_reading_logit"),
                     "intercept_prior_sigma": SCREENING_ALPHA_SIGMA,
                     "prior_predictive_draws": MISSINGNESS_PRIOR_DRAWS,
                     "trace_filename": MISSINGNESS_TRACE_FILENAME,
@@ -481,16 +465,12 @@ def _word_reading_missingness_fit_dir(tmp_path: Path) -> Path:
         [
             {
                 "estimand": "common_profile_all_57",
-                "target_population": (
-                    "all 57 randomised screening profiles under both arms"
-                ),
+                "target_population": ("all 57 randomised screening profiles under both arms"),
                 **prior_common,
             },
             {
                 "estimand": "randomised_arm_factual_mar",
-                "target_population": (
-                    "29 intervention-arm versus 28 control-arm screening profiles"
-                ),
+                "target_population": ("29 intervention-arm versus 28 control-arm screening profiles"),
                 **prior_common,
             },
         ]
@@ -626,9 +606,7 @@ def test_a_clean_ungated_fit_publishes(tmp_path):
 
 
 @pytest.mark.parametrize("config_name", ["dev", "test"])
-def test_diagnostic_presets_keep_local_reports_but_fail_scientific_release(
-    tmp_path, config_name
-):
+def test_diagnostic_presets_keep_local_reports_but_fail_scientific_release(tmp_path, config_name):
     decision = evaluate_publication(_fit_dir(tmp_path, config_name=config_name))
 
     assert decision.publishable
@@ -640,9 +618,7 @@ def test_diagnostic_presets_keep_local_reports_but_fail_scientific_release(
 
 
 @pytest.mark.parametrize("config_name", ["rep-lite", "reporting"])
-def test_publication_sampling_presets_are_scientifically_eligible(
-    tmp_path, config_name
-):
+def test_publication_sampling_presets_are_scientifically_eligible(tmp_path, config_name):
     decision = evaluate_publication(_fit_dir(tmp_path, config_name=config_name))
 
     assert decision.publishable
@@ -684,19 +660,15 @@ def test_clean_natural_mediation_requires_and_accepts_trace_backed_t3(tmp_path):
 
 
 @pytest.mark.parametrize("failure", ["summary", "provenance"])
-def test_natural_mediation_t3_gate_failure_withholds_the_whole_release(
-    tmp_path, failure
-):
+def test_natural_mediation_t3_gate_failure_withholds_the_whole_release(tmp_path, failure):
     d = _natural_mediation_fit_dir(tmp_path)
     if failure == "summary":
         (d / "mediation_summary_t3.csv").write_text(
-            "quantity,converged,trace_file\n"
-            f"NIE,False,{MEDIATION_T3_TRACE_FILENAME}\n"
+            f"quantity,converged,trace_file\nNIE,False,{MEDIATION_T3_TRACE_FILENAME}\n"
         )
     elif failure == "provenance":
         (d / "subfit_provenance.csv").write_text(
-            "label,role,converged,trace_file\n"
-            f"lrp-test-001 t3 sensitivity,sensitivity,,{MEDIATION_T3_TRACE_FILENAME}\n"
+            f"label,role,converged,trace_file\nlrp-test-001 t3 sensitivity,sensitivity,,{MEDIATION_T3_TRACE_FILENAME}\n"
         )
     decision = evaluate_publication(d)
     assert (decision.status, decision.stage) == ("gate_failed", "computation")
@@ -705,9 +677,7 @@ def test_natural_mediation_t3_gate_failure_withholds_the_whole_release(
 
 
 @pytest.mark.parametrize("failure", ["summary", "provenance", "trace"])
-def test_natural_mediation_t3_artifact_failure_does_not_misstate_sampling(
-    tmp_path, failure
-):
+def test_natural_mediation_t3_artifact_failure_does_not_misstate_sampling(tmp_path, failure):
     d = _natural_mediation_fit_dir(tmp_path)
     artifact = {
         "summary": d / "mediation_summary_t3.csv",
@@ -729,8 +699,7 @@ def _interventional_mediation_fit_dir(tmp_path: Path) -> Path:
     config["extra"] = {"estimand": "interventional"}
     (d / "config.json").write_text(json.dumps(config))
     (d / "mediation_summary_t3.csv").write_text(
-        "quantity,converged,trace_file\n"
-        f"IIE,True,{MEDIATION_T3_TRACE_FILENAME}\n"
+        f"quantity,converged,trace_file\nIIE,True,{MEDIATION_T3_TRACE_FILENAME}\n"
     )
     return d
 
@@ -760,9 +729,7 @@ def test_mediation_t3_gate_does_not_apply_to_period_stacked_fit(tmp_path):
     assert evaluate_publication(d).publishable
 
 
-def _concurrent_published_fit_dir(
-    tmp_path: Path, *, bivariate_converged: object = True
-) -> Path:
+def _concurrent_published_fit_dir(tmp_path: Path, *, bivariate_converged: object = True) -> Path:
     """Minimal concurrent bundle whose published fits all converged (#631 f.6)."""
     d = _fit_dir(tmp_path, kind="concurrent")
     pd.DataFrame(
@@ -792,10 +759,7 @@ def test_a_failed_or_unchecked_concurrent_subfit_withholds(tmp_path, verdict):
     decision = evaluate_publication(d)
     assert (decision.status, decision.stage) == ("gate_failed", "computation")
     assert not decision.publishable
-    assert any(
-        "concurrent published fit t2 bivariate L" in check
-        for check in decision.failing_checks
-    )
+    assert any("concurrent published fit t2 bivariate L" in check for check in decision.failing_checks)
 
 
 def test_a_concurrent_fit_without_its_diagnostics_table_cannot_publish(tmp_path):
@@ -814,9 +778,9 @@ def _rli_adjusted_fit_dir(tmp_path: Path, *, ses_error: str | None = None) -> Pa
     config = json.loads((d / "config.json").read_text())
     config["extra"] = {"ses_error": ses_error}
     (d / "config.json").write_text(json.dumps(config))
-    pd.DataFrame(
-        [{"predictor": "L", "n_children": 40, "median": 0.2, "converged": True}]
-    ).to_csv(d / "ses_sensitivity.csv", index=False)
+    pd.DataFrame([{"predictor": "L", "n_children": 40, "median": 0.2, "converged": True}]).to_csv(
+        d / "ses_sensitivity.csv", index=False
+    )
     return d
 
 
@@ -845,9 +809,9 @@ def test_a_silently_absent_ses_table_withholds_even_without_an_error(tmp_path):
 
 def test_a_non_converged_ses_refit_withholds_at_the_computation_stage(tmp_path):
     d = _rli_adjusted_fit_dir(tmp_path)
-    pd.DataFrame(
-        [{"predictor": "L", "n_children": 40, "median": 0.2, "converged": False}]
-    ).to_csv(d / "ses_sensitivity.csv", index=False)
+    pd.DataFrame([{"predictor": "L", "n_children": 40, "median": 0.2, "converged": False}]).to_csv(
+        d / "ses_sensitivity.csv", index=False
+    )
 
     decision = evaluate_publication(d)
     assert (decision.status, decision.stage) == ("gate_failed", "computation")
@@ -878,9 +842,9 @@ def _gain_period1_fit_dir(
     (d / "config.json").write_text(json.dumps(config))
     # The family's pre-existing robustness gate reads beta_trt's power-scaling
     # diagnosis; supply a clean row so these tests exercise the period-1 stage.
-    pd.DataFrame(
-        [{"prior": 0.01, "likelihood": 0.02, "diagnosis": "✓"}], index=["beta_trt"]
-    ).to_csv(d / "psense_summary.csv")
+    pd.DataFrame([{"prior": 0.01, "likelihood": 0.02, "diagnosis": "✓"}], index=["beta_trt"]).to_csv(
+        d / "psense_summary.csv"
+    )
     pd.DataFrame(
         [
             {
@@ -931,13 +895,9 @@ def test_a_non_converged_gain_period1_refit_withholds(tmp_path, verdict):
     [(-0.35, (-0.9, -0.05)), (0.35, (0.9, 1.4))],
     ids=["direction-flip", "no-interval-overlap"],
 )
-def test_a_disagreeing_gain_period1_refit_withholds_at_robustness(
-    tmp_path, median, interval
-):
+def test_a_disagreeing_gain_period1_refit_withholds_at_robustness(tmp_path, median, interval):
     """The documented rule: a sign flip or non-overlapping 89% intervals withhold."""
-    d = _gain_period1_fit_dir(
-        tmp_path, refit_median=median, refit_interval=interval
-    )
+    d = _gain_period1_fit_dir(tmp_path, refit_median=median, refit_interval=interval)
 
     decision = evaluate_publication(d)
     assert (decision.status, decision.stage) == ("robustness_unresolved", "robustness")
@@ -959,6 +919,7 @@ def test_the_gain_period1_gate_does_not_apply_to_variants_or_legacy_plans(tmp_pa
     (legacy / "period1_sensitivity.csv").unlink()
     (legacy / "trace_period1_only.nc").unlink()
     assert evaluate_publication(legacy).publishable
+
 
 def test_clean_growth_influence_bundle_allows_release(tmp_path):
     assert evaluate_publication(_growth_influence_fit_dir(tmp_path)).publishable
@@ -1114,9 +1075,7 @@ def test_declared_word_reading_missingness_bundle_is_required(tmp_path):
                     "scenarios": list(MISSINGNESS_SCENARIOS),
                     "common_estimand_class": "common_profile_standardisation",
                     "completion_estimand_class": "randomised_arm_factual_completion",
-                    "intercept_prior_anchor": (
-                        "mean_all_57_screening_word_reading_logit"
-                    ),
+                    "intercept_prior_anchor": ("mean_all_57_screening_word_reading_logit"),
                     "intercept_prior_sigma": SCREENING_ALPHA_SIGMA,
                     "prior_predictive_draws": MISSINGNESS_PRIOR_DRAWS,
                     "trace_filename": MISSINGNESS_TRACE_FILENAME,
@@ -1172,9 +1131,7 @@ def test_mutated_word_reading_missingness_table_fails_its_content_binding(tmp_pa
         ("n_divergences", 1),
     ],
 )
-def test_raw_missingness_thresholds_override_a_stored_true_verdict(
-    tmp_path, monkeypatch, field, failed_value
-):
+def test_raw_missingness_thresholds_override_a_stored_true_verdict(tmp_path, monkeypatch, field, failed_value):
     d = _word_reading_missingness_fit_dir(tmp_path)
     raw = {
         "max_rhat": 1.001,
@@ -1225,10 +1182,7 @@ def test_mutated_missingness_diagnostic_surface_cannot_disagree_with_trace(
     decision = evaluate_publication(d)
 
     assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
-    assert any(
-        filename in item and "do not match the trace" in item
-        for item in decision.missing_artifacts
-    )
+    assert any(filename in item and "do not match the trace" in item for item in decision.missing_artifacts)
 
 
 def test_missingness_trace_must_retain_prior_and_prior_predictive_groups(tmp_path):
@@ -1247,8 +1201,7 @@ def test_missingness_trace_must_retain_prior_and_prior_predictive_groups(tmp_pat
 
     assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
     assert any(
-        MISSINGNESS_TRACE_FILENAME in item
-        and "missing required trace group" in item
+        MISSINGNESS_TRACE_FILENAME in item and "missing required trace group" in item
         for item in decision.missing_artifacts
     )
 
@@ -1274,8 +1227,7 @@ def test_mutated_missingness_prior_check_cannot_pass_its_registered_contract(tmp
 
     assert (decision.status, decision.stage) == ("artifacts_incomplete", "artifacts")
     assert any(
-        MISSINGNESS_PRIOR_FILENAME in item and "registered draw count" in item
-        for item in decision.missing_artifacts
+        MISSINGNESS_PRIOR_FILENAME in item and "registered draw count" in item for item in decision.missing_artifacts
     )
 
 
@@ -1333,9 +1285,7 @@ def test_unresolved_fit_time_input_contract_withholds_findings(tmp_path):
     payload = generate_key_findings(d, decision=decision)
 
     assert (decision.status, decision.stage) == ("inputs_unresolved", "inputs")
-    assert decision.as_dict()["input_failures"] == [
-        "dataset source provenance is unresolved"
-    ]
+    assert decision.as_dict()["input_failures"] == ["dataset source provenance is unresolved"]
     assert payload["status"] == "inputs_unresolved"
     assert payload["input_failures"] == ["dataset source provenance is unresolved"]
     assert payload["sentences"] == []
@@ -1599,9 +1549,7 @@ def test_report_fail_closes_t3_table_on_verdict_and_trace():
 # ---------------------------------------------------------------------------
 
 
-def _floor_fit_dir(
-    tmp_path: Path, *, prior: float, likelihood: float, diagnosis: str
-) -> Path:
+def _floor_fit_dir(tmp_path: Path, *, prior: float, likelihood: float, diagnosis: str) -> Path:
     d = tmp_path / "lrp-rli-itt-009-reporting"
     d.mkdir(parents=True)
     (d / "config.json").write_text(
@@ -1623,17 +1571,11 @@ def _floor_fit_dir(
 
 def _ready_grid(monkeypatch) -> None:
     # The floor branch lives in ``release.robustness`` since #637 stage 3c.
-    monkeypatch.setattr(
-        release_robustness, "load_primary_floor_reference", lambda *a, **k: object()
-    )
-    monkeypatch.setattr(
-        release_robustness, "evaluate_floor_sensitivity", lambda *a, **k: {"ready": True}
-    )
+    monkeypatch.setattr(release_robustness, "load_primary_floor_reference", lambda *a, **k: object())
+    monkeypatch.setattr(release_robustness, "evaluate_floor_sensitivity", lambda *a, **k: {"ready": True})
 
 
-def test_floored_conflict_release_carries_the_attenuation_note(
-    tmp_path, monkeypatch
-):
+def test_floored_conflict_release_carries_the_attenuation_note(tmp_path, monkeypatch):
     """A released floored ``prior_data_conflict`` must carry the lower-bound note
     the module policy promises, exactly as the graded branch does."""
     d = _floor_fit_dir(
@@ -1718,9 +1660,7 @@ def _blending_fit_dir(
     return d
 
 
-def test_unpaired_blending_fit_is_withheld_by_the_release_decision(
-    tmp_path, monkeypatch
-):
+def test_unpaired_blending_fit_is_withheld_by_the_release_decision(tmp_path, monkeypatch):
     from language_reading_predictors.statistical_models import (
         blending_sensitivity as bs,
     )
@@ -2007,9 +1947,7 @@ def test_a_stored_joint_plan_without_the_companion_field_still_binds(tmp_path):
 def test_an_unregistered_joint_fit_without_a_companion_field_is_unaffected(tmp_path):
     """A joint fit that neither the constant nor its own plan pairs is out of
     scope, so old decisions for such fits re-decide identically."""
-    d = _joint_contrast_fit_dir(
-        tmp_path, model_id="lrp-rli-itt-997", companion=None
-    )
+    d = _joint_contrast_fit_dir(tmp_path, model_id="lrp-rli-itt-997", companion=None)
     evaluation = evaluate_publication(d)
     assert evaluation.status == "ok"
     assert (evaluation.robustness.note or "") == ""
@@ -2059,9 +1997,7 @@ def test_a_tampered_binding_field_fails_the_pairing_closed(tmp_path, kwargs, exp
     assert expected in evaluation.robustness.note
 
 
-@pytest.mark.parametrize(
-    "field", ["fitted_subject_identity", "fitted_data_identity", "sampling", "provenance"]
-)
+@pytest.mark.parametrize("field", ["fitted_subject_identity", "fitted_data_identity", "sampling", "provenance"])
 def test_an_unrecorded_binding_field_fails_the_pairing_closed(tmp_path, field):
     """A field absent on either side is not evidence of a match."""
     d = _joint_contrast_fit_dir(tmp_path, identity_overrides={field: None})
@@ -2223,10 +2159,7 @@ _HJ_PLAN: dict = {
 
 def _within_scale_summary(directory: Path, resolvable: dict[str, bool]) -> None:
     pd.DataFrame(
-        [
-            {"measure": name, "resolvable": flag, "prob_above_minimum": 0.9}
-            for name, flag in resolvable.items()
-        ]
+        [{"measure": name, "resolvable": flag, "prob_above_minimum": 0.9} for name, flag in resolvable.items()]
     ).to_csv(directory / "within_scale_summary.csv", index=False)
 
 
@@ -2335,9 +2268,7 @@ def test_a_bound_prior_sensitivity_that_agrees_attaches_nothing(tmp_path):
 def test_a_prior_sensitivity_that_reclassifies_a_measure_is_qualified(tmp_path):
     """The classification *is* the conclusion for this family."""
     d = _historical_joint_fit_dir(tmp_path)
-    _historical_joint_companion_dir(
-        tmp_path, resolvable={"basread": True, "bpvs": True, "basdig": False}
-    )
+    _historical_joint_companion_dir(tmp_path, resolvable={"basread": True, "bpvs": True, "basdig": False})
     qualification = evaluate_publication(d).publication_qualification
     assert "changes the resolvability classification" in qualification
     assert "bpvs: unresolvable here, resolvable under the wider prior" in qualification
@@ -2345,9 +2276,7 @@ def test_a_prior_sensitivity_that_reclassifies_a_measure_is_qualified(tmp_path):
 
 def test_a_companion_under_the_same_prior_varies_nothing(tmp_path):
     d = _historical_joint_fit_dir(tmp_path)
-    _historical_joint_companion_dir(
-        tmp_path, plan_overrides={"sigma_within_prior_sigma": 0.5}
-    )
+    _historical_joint_companion_dir(tmp_path, plan_overrides={"sigma_within_prior_sigma": 0.5})
     assert "varies nothing" in evaluate_publication(d).publication_qualification
 
 
@@ -2434,11 +2363,7 @@ def test_every_prior_binding_field_is_one_the_real_pipeline_records():
         "fitted_subject_identity": {"sha256": "row-digest-stands-in"},
         "resolved_run_plan": plan.as_dict(),
     }
-    unrecordable = [
-        description
-        for description, reader in _HISTORICAL_JOINT_PRIOR_BINDING
-        if reader(config) is None
-    ]
+    unrecordable = [description for description, reader in _HISTORICAL_JOINT_PRIOR_BINDING if reader(config) is None]
     assert not unrecordable, (
         "the historical-joint prior-companion binding requires field(s) the real "
         f"pipeline never records, so it can never open: {unrecordable}"
@@ -2470,9 +2395,9 @@ def _joint_blending_fit_dir(tmp_path: Path, *, data_sha256: str = "abc123") -> P
             }
         )
     )
-    pd.DataFrame(
-        [{"prior": 0.01, "likelihood": 0.30, "diagnosis": "✓"}], index=["tau[W]"]
-    ).to_csv(d / "psense_summary.csv")
+    pd.DataFrame([{"prior": 0.01, "likelihood": 0.30, "diagnosis": "✓"}], index=["tau[W]"]).to_csv(
+        d / "psense_summary.csv"
+    )
     _write_core_artifacts(d, "joint")
     return d
 
@@ -2614,15 +2539,11 @@ def test_fit_time_evaluation_still_requires_the_core_inventory(tmp_path):
     assert evaluation.stage == "artifacts"
     assert "trace.nc" in evaluation.missing_artifacts
     # The manifest stays exempt on this path — it has not been written yet.
-    assert not any(
-        "artifact_manifest.json" in m for m in evaluation.missing_artifacts
-    )
+    assert not any("artifact_manifest.json" in m for m in evaluation.missing_artifacts)
 
 
 @pytest.mark.parametrize("core_artifacts", [True, False])
-def test_live_and_stored_release_decisions_agree_across_manifest_writing(
-    tmp_path, core_artifacts
-):
+def test_live_and_stored_release_decisions_agree_across_manifest_writing(tmp_path, core_artifacts):
     """The same directory must decide the same either side of ``write_manifest``.
 
     ``stages.finalize_report`` evaluates with the live log and *then* writes
@@ -2688,9 +2609,7 @@ def _dependence_table(verdict: str) -> pd.DataFrame:
 def test_a_prior_dominated_dependence_block_attaches_a_qualifier(tmp_path):
     """A companion whose block learned nothing must say so beside its interval."""
     d = _fit_dir(tmp_path, kind="joint")
-    _dependence_table("prior-dominated").to_csv(
-        d / "dependence_identification.csv", index=False
-    )
+    _dependence_table("prior-dominated").to_csv(d / "dependence_identification.csv", index=False)
     note = release_module._dependence_identification_note(d)
     assert "did not move off its prior" in note
     assert "u_corr_pair[UE|TE]" in note
@@ -2700,9 +2619,7 @@ def test_a_prior_dominated_dependence_block_attaches_a_qualifier(tmp_path):
 
 def test_an_informed_dependence_block_attaches_nothing(tmp_path):
     d = _fit_dir(tmp_path, kind="joint")
-    _dependence_table("informed").to_csv(
-        d / "dependence_identification.csv", index=False
-    )
+    _dependence_table("informed").to_csv(d / "dependence_identification.csv", index=False)
     assert release_module._dependence_identification_note(d) == ""
 
 
@@ -2755,9 +2672,7 @@ def test_adjusted_robustness_tier_is_itt_only():
 def test_the_withhold_policy_is_unchanged_by_the_tier_correction():
     """The correction is metadata only: every tier the gate can assign is still
     in the withhold set, so no stored decision changes status."""
-    assert {"primary", "adjusted_robustness", "off_grid"} == set(
-        release_module._WITHHOLD_TIERS
-    )
+    assert {"primary", "adjusted_robustness", "off_grid"} == set(release_module._WITHHOLD_TIERS)
 
 
 # --- joint-mechanism per-wave bundle (2026-08-23 follow-up review, finding 1) ----
@@ -2805,9 +2720,7 @@ def _joint_mechanism_levels_fit_dir(
         ).to_csv(d / ppc_file, index=False)
         # Explicit UTF-8: the tick is unwritable under Windows' cp1252 default,
         # which failed this whole fixture on a Windows checkout.
-        (d / psense_file).write_text(
-            ",prior,likelihood,diagnosis\nbeta_mech,0.01,0.02,✓\n", encoding="utf-8"
-        )
+        (d / psense_file).write_text(",prior,likelihood,diagnosis\nbeta_mech,0.01,0.02,✓\n", encoding="utf-8")
         rows.append(
             {
                 "wave": wave,
@@ -2869,14 +2782,12 @@ def test_a_wave_without_its_subfit_provenance_row_withholds(tmp_path):
 def test_a_slope_table_naming_an_unpublished_wave_withholds(tmp_path):
     """Slopes and the wave diagnostics must describe the same set of fits."""
     d = _joint_mechanism_levels_fit_dir(tmp_path)
-    pd.DataFrame(
-        [{"wave": w, "term": "delta_ls_decoding", "median": 0.5} for w in ("t3", "t9")]
-    ).to_csv(d / "joint_mechanism_slopes.csv", index=False)
+    pd.DataFrame([{"wave": w, "term": "delta_ls_decoding", "median": 0.5} for w in ("t3", "t9")]).to_csv(
+        d / "joint_mechanism_slopes.csv", index=False
+    )
     decision = evaluate_publication(d)
     assert decision.status == "artifacts_incomplete"
-    assert any(
-        "joint_mechanism_slopes.csv" in item for item in decision.missing_artifacts
-    )
+    assert any("joint_mechanism_slopes.csv" in item for item in decision.missing_artifacts)
 
 
 def test_poor_new_child_coverage_qualifies_rather_than_withholds(tmp_path):

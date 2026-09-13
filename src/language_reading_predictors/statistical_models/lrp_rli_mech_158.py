@@ -61,16 +61,13 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import f
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-158",
     kind="mechanism",
-    title=(
-        "Mechanism model: letter-sound (L) -> word reading (W) - "
-        "complete-case comparator (no imputed confounders)"
-    ),
+    title=("Mechanism model: letter-sound (L) -> word reading (W) - complete-case comparator (no imputed confounders)"),
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
-        # Matches LRP58: HSGP curve kept, target_accept lifted for boundary steps. A
-        # few boundary divergences remain (the HSGP geometry LRP58 also shows);
-        # disclosed in the report rather than removed by dropping the curve.
+    # Matches LRP58: HSGP curve kept, target_accept lifted for boundary steps. A
+    # few boundary divergences remain (the HSGP geometry LRP58 also shows);
+    # disclosed in the report rather than removed by dropping the curve.
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         # Identical to LRP58 ...

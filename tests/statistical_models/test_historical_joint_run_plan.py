@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import importlib
 import inspect
 from types import SimpleNamespace
@@ -12,12 +15,10 @@ from types import SimpleNamespace
 import pytest
 
 from language_reading_predictors.statistical_models import historical_joint as HJ
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import (
-    build_rlm_joint_growth_model,
-    default_of,
-)
+from language_reading_predictors.statistical_models.factories.base import default_of
+from language_reading_predictors.statistical_models.factories.historical import build_rlm_joint_growth_model
 
 
 _LEGACY_REGISTERED_EXTRA = {
@@ -184,8 +185,8 @@ def test_reporting_dispatch_and_recipe_use_the_attached_plan(tmp_path):
     spec = _spec(settings=HJ.HistoricalJointModelSettings(extension_waves=(4, 5)))
     plan = HJ.resolve_historical_joint_run_plan(spec)
     ctx = SimpleNamespace(spec=spec, resolved_plan=plan, output_dir=str(tmp_path))
-    assert R._resolved_run_plan(ctx) is plan
-    path = R.write_model_recipe(ctx)
+    assert _metadata._resolved_run_plan(ctx) is plan
+    path = _metadata.write_model_recipe(ctx)
     assert path is not None
     text = (tmp_path / "model_recipe.md").read_text(encoding="utf-8")
     assert "validated historical-joint run plan" in text
@@ -298,9 +299,7 @@ def test_plan_nulls_every_prior_scale_the_fitted_model_lacks():
     assert between.sigma_within_prior_sigma is None
     assert between.within_lkj_eta is None
 
-    within = HJ.resolve_historical_joint_run_plan(
-        _review_spec(within_correlation=True, extension_waves=())
-    )
+    within = HJ.resolve_historical_joint_run_plan(_review_spec(within_correlation=True, extension_waves=()))
     assert within.dispersion_prior_sigma is None
     assert within.sigma_within_prior_sigma == 0.5
     assert within.within_lkj_eta == 2.0
@@ -313,9 +312,7 @@ def test_plan_nulls_every_prior_scale_the_fitted_model_lacks():
 def test_a_kappa_scale_is_rejected_on_the_within_child_branch():
     """Finding 10: an explicitly-declared setting must never be silently discarded."""
     with pytest.raises(ValueError, match="no effect when within_correlation is\\s+true"):
-        HJ.HistoricalJointModelSettings(
-            within_correlation=True, dispersion_prior_sigma=0.5
-        )
+        HJ.HistoricalJointModelSettings(within_correlation=True, dispersion_prior_sigma=0.5)
     # The default is not a declaration, so it stays acceptable.
     HJ.HistoricalJointModelSettings(within_correlation=True)
 
@@ -323,9 +320,7 @@ def test_a_kappa_scale_is_rejected_on_the_within_child_branch():
 def test_declared_waves_are_checked_against_the_measure_catalogue():
     """Finding 10: the joint resolver checks every measure's available window."""
     with pytest.raises(ValueError, match="no data at waves"):
-        HJ.resolve_historical_joint_run_plan(
-            _review_spec(measures=("basread", "basmat"), waves=(1, 2, 3))
-        )
+        HJ.resolve_historical_joint_run_plan(_review_spec(measures=("basread", "basmat"), waves=(1, 2, 3)))
     # basmat is wave-3+ only; a window inside it resolves.
     HJ.resolve_historical_joint_run_plan(
         _review_spec(measures=("basread", "basmat"), waves=(3, 4), extension_waves=(5,))
@@ -353,10 +348,7 @@ def test_within_child_estimand_records_the_attenuation_and_scale_limits():
 def test_registered_joint_models_declare_windows_their_measures_support():
     """Every registered declaration resolves under the new catalogue check."""
     for model_id in ("lrp-rlm-jc-001", "lrp-rlm-jc-002"):
-        module = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + model_id.replace("-", "_")
-        )
+        module = importlib.import_module("language_reading_predictors.statistical_models." + model_id.replace("-", "_"))
         plan = HJ.resolve_historical_joint_run_plan(module.SPEC)
         assert plan.model_id == model_id
 
@@ -370,25 +362,16 @@ def test_the_registered_prior_companion_constant_matches_the_modules():
     sensitivity it claims to be."""
     for parent_id, companion_id in HJ.HISTORICAL_JOINT_PRIOR_COMPANIONS.items():
         parent = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + parent_id.replace("-", "_")
+            "language_reading_predictors.statistical_models." + parent_id.replace("-", "_")
         ).SPEC
         companion = importlib.import_module(
-            "language_reading_predictors.statistical_models."
-            + companion_id.replace("-", "_")
+            "language_reading_predictors.statistical_models." + companion_id.replace("-", "_")
         ).SPEC
         assert companion.model_id == companion_id
         assert companion.kind == parent.kind == "historical_joint"
         parent_plan = HJ.resolve_historical_joint_run_plan(parent).as_dict()
         companion_plan = HJ.resolve_historical_joint_run_plan(companion).as_dict()
-        differing = {
-            key
-            for key in parent_plan
-            if parent_plan[key] != companion_plan[key]
-        }
+        differing = {key for key in parent_plan if parent_plan[key] != companion_plan[key]}
         assert differing == {"model_id", "sigma_within_prior_sigma"}
         assert parent_plan["within_correlation"] is True
-        assert (
-            companion_plan["sigma_within_prior_sigma"]
-            > parent_plan["sigma_within_prior_sigma"]
-        )
+        assert companion_plan["sigma_within_prior_sigma"] > parent_plan["sigma_within_prior_sigma"]

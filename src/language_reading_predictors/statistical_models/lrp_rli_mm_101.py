@@ -56,8 +56,7 @@ SPEC = ModelSpec(
     model_id="lrp-rli-mm-101",
     kind="corr_factor",
     title=(
-        "Prior sensitivity for the correlated-domain-factor measurement model "
-        "(legacy free loading / residual pair)"
+        "Prior sensitivity for the correlated-domain-factor measurement model (legacy free loading / residual pair)"
     ),
     outcome_symbol="W",
     model_settings=CorrFactorModelSettings(
@@ -70,11 +69,11 @@ SPEC = ModelSpec(
         use_age=True,
         loading_prior="free",
     ),
-        # The legacy geometry at its knob DEFAULTS (HalfNormal(1) pair): LRPMM01
-        # uses the factory-default communality parameterisation, so this companion
-        # varies only the geometry, not the knob values.
-        # Matched to LRPMM01 so the loading-prior geometry is the ONLY difference
-        # between the fits.
+    # The legacy geometry at its knob DEFAULTS (HalfNormal(1) pair): LRPMM01
+    # uses the factory-default communality parameterisation, so this companion
+    # varies only the geometry, not the knob values.
+    # Matched to LRPMM01 so the loading-prior geometry is the ONLY difference
+    # between the fits.
     target_accept=0.999,
 )
 

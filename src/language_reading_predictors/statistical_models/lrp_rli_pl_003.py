@@ -52,7 +52,12 @@ SPEC = ModelSpec(
     mechanism_symbol="E",
     model_settings=PooledLevelsModelSettings(
         adjust_for=(
-            "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+            "hs",
+            "hs_missing",
+            "erbto",
+            "erbto_missing",
+            "deapp_c",
+            "deapp_c_missing",
         ),
         skill_symbols=("TR", "TE", "R"),
         ability_covariate="blocks",

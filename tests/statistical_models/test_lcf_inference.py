@@ -20,7 +20,7 @@ import pytest
 import xarray as xr
 from scipy.stats import multivariate_normal
 
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import (
     LongCorrFactorPayload,
 )
@@ -90,9 +90,7 @@ def test_child_log_likelihood_matches_scipy_mvnormal_without_a_factory():
     covs = trace.posterior["Sigma_z"].values
     for draw in range(2):
         for child in range(2):
-            expected = multivariate_normal.logpdf(
-                observed[child], mean=means[0, draw], cov=covs[0, draw]
-            )
+            expected = multivariate_normal.logpdf(observed[child], mean=means[0, draw], cov=covs[0, draw])
             np.testing.assert_allclose(
                 actual.isel(chain=0, draw=draw).sel(child_lcf=child),
                 expected,
@@ -112,9 +110,7 @@ def test_child_log_likelihood_rejects_coordinate_drift():
     """Positional drift between the rebuilt model's cells and the posterior must be
     refused rather than silently producing a mismatched likelihood."""
     trace, built, _ = _synthetic_trace_and_built()
-    built.payload = replace(
-        built.payload, cell_names=("dom0_w0", "WRONG")
-    )
+    built.payload = replace(built.payload, cell_names=("dom0_w0", "WRONG"))
     with pytest.raises(ValueError, match="coordinates do not match"):
         child_log_likelihood(trace, built)
 

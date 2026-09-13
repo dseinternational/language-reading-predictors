@@ -24,7 +24,6 @@ waves on one scale is its purpose — and this comparator is reported beside it 
 a reader can see how much the longitudinal working model moved the answer.
 """
 
-
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,

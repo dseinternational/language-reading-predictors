@@ -37,13 +37,8 @@ SPEC = ModelSpec(
         "post-hoc floor-rule branch"
     ),
     outcome_symbol="N",
-    design=(
-        "waitlist_randomised_t1_to_t2_available_case_modified_itt_"
-        "observed_baseline_floor_subgroup"
-    ),
-    estimand_type=(
-        "available_case_modified_itt_estimate_post_hoc_subgroup_risk_difference"
-    ),
+    design=("waitlist_randomised_t1_to_t2_available_case_modified_itt_observed_baseline_floor_subgroup"),
+    estimand_type=("available_case_modified_itt_estimate_post_hoc_subgroup_risk_difference"),
     causal_status=(
         "randomised_assignment_within_observed_baseline_floor_subgroup_"
         "conditional_on_eligibility_and_outcome_missingness"

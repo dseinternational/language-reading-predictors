@@ -61,10 +61,7 @@ from language_reading_predictors.statistical_models.pipelines.mediation import f
 SPEC = ModelSpec(
     model_id="lrp-rli-med-087",
     kind="mediation",
-    title=(
-        "Mediation: does the intervention raise phoneme blending (B) via "
-        "letter-sound knowledge (L)?"
-    ),
+    title=("Mediation: does the intervention raise phoneme blending (B) via letter-sound knowledge (L)?"),
     outcome_symbol="B",
     mechanism_symbol="L",  # the mediator
     adjustment=[
@@ -74,8 +71,15 @@ SPEC = ModelSpec(
         # confirmed NOT adjusted (treatment-affected recanting witness; MED-187/#324).
         # "W_pre" is the outcome-own-baseline marker (stripped by fit_mediation; the
         # factory uses B's pre-score).
-        "G", "A", "W_pre", "L_t1", "W",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "W_pre",
+        "L_t1",
+        "W",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     model_settings=MediationModelSettings(
         # Restrict the complete-case mask to B + L + baseline-W availability.

@@ -30,10 +30,7 @@ from language_reading_predictors.statistical_models.pipelines.adjusted import (
 SPEC = ModelSpec(
     model_id="lrp-rlm-adj-006",
     kind="adjusted",
-    title=(
-        "Byrne annual predictors of word-reading progress, waves 1-5 "
-        "(pooled transitions, confirmed inputs)"
-    ),
+    title=("Byrne annual predictors of word-reading progress, waves 1-5 (pooled transitions, confirmed inputs)"),
     outcome_symbol="basread",
     study_id="rlm",
     family="adjusted",

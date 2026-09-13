@@ -82,9 +82,7 @@ def _fixture_dir(tmp_path: Path, name: str, run_plan: dict) -> Path:
         "---\n"
         f'title: "{name} fixture"\n'
         "format: html\n"
-        "---\n\n"
-        + _SETUP_STUB
-        + "\n{{< include _partials/_results_mechanism.qmd >}}\n"
+        "---\n\n" + _SETUP_STUB + "\n{{< include _partials/_results_mechanism.qmd >}}\n"
     )
     return fit
 
@@ -123,9 +121,10 @@ def _render(fit: Path) -> str:
     env["HOME"] = str(fit)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(fit / ".cache")
-    env["PYTHONPATH"] = os.pathsep.join(
-        filter(None, (str(REPO / "src"), str(REPO), env.get("PYTHONPATH")))
-    )
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(fit / ".local")
+        env["APPDATA"] = str(fit / ".config")
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, (str(REPO / "src"), str(REPO), env.get("PYTHONPATH"))))
     subprocess.run(
         [QUARTO, "render", "index.qmd", "--to", "html"],
         cwd=fit,
@@ -172,9 +171,7 @@ def test_default_hsgp_report_states_its_own_lengthscale(tmp_path):
 
 @pytest.mark.skipif(QUARTO is None, reason="Quarto is not installed")
 def test_tight_hsgp_report_states_its_own_lengthscale(tmp_path):
-    html = _render(
-        _fixture_dir(tmp_path, "tight-hsgp", _plan(mech_lengthscale_tight=True))
-    )
+    html = _render(_fixture_dir(tmp_path, "tight-hsgp", _plan(mech_lengthscale_tight=True)))
 
     assert "InverseGamma(8, 8)" in html
     assert "InverseGamma(5, 5)" not in html

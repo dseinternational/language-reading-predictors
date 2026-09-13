@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import itt as _owner_summaries_itt
+
 import hashlib
 import json
 from pathlib import Path
@@ -15,7 +17,7 @@ import xarray as xr
 
 from language_reading_predictors.statistical_models import influence
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import BuiltModel
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
 from language_reading_predictors.statistical_models.fitted_payloads import IttPayload
 from language_reading_predictors.statistical_models.lrp_rli_itt_012 import (
     SPEC as JOINT_SPEC,
@@ -97,9 +99,7 @@ def _reference_for_prepared(spec, prepared, tmp_path):
         ),
     ],
 )
-def test_build_influence_model_reconstructs_registered_specs(
-    spec, expected_full_n, expected_free, tmp_path
-):
+def test_build_influence_model_reconstructs_registered_specs(spec, expected_full_n, expected_free, tmp_path):
     if spec.kind == "joint":
         prepared, _outcomes = influence._prepare_joint(spec)
     else:
@@ -190,14 +190,10 @@ def test_load_reference_recomputes_flag_from_saved_threshold(tmp_path):
     )
     _write_reference_files(tmp_path, spec)
 
-    reference = influence.load_influence_reference(
-        spec, "reporting", model_output_root=tmp_path
-    )
+    reference = influence.load_influence_reference(spec, "reporting", model_output_root=tmp_path)
 
     assert reference.flagged["subject_id"].tolist() == ["A"]
-    assert reference.primary_hashes == influence.hash_primary_artifacts(
-        reference.model_dir
-    )
+    assert reference.primary_hashes == influence.hash_primary_artifacts(reference.model_dir)
 
 
 def test_load_reference_accepts_the_pre_typed_registered_itt_contract(tmp_path):
@@ -218,9 +214,7 @@ def test_load_reference_accepts_the_pre_typed_registered_itt_contract(tmp_path):
         model_output_root=tmp_path,
     )
 
-    assert reference.metadata["spec_extra"]["adjust_for"] == list(
-        SES_SPEC.adjustment
-    )
+    assert reference.metadata["spec_extra"]["adjust_for"] == list(SES_SPEC.adjustment)
 
 
 def test_load_reference_rejects_internally_inconsistent_clean_gate(tmp_path):
@@ -252,9 +246,7 @@ def test_load_reference_rejects_internally_inconsistent_clean_gate(tmp_path):
     )
 
     with pytest.raises(ValueError, match="did not pass its convergence gate"):
-        influence.load_influence_reference(
-            spec, "reporting", model_output_root=tmp_path
-        )
+        influence.load_influence_reference(spec, "reporting", model_output_root=tmp_path)
 
 
 def test_load_reference_rejects_non_child_level_pareto_rows(tmp_path):
@@ -268,9 +260,7 @@ def test_load_reference_rejects_non_child_level_pareto_rows(tmp_path):
     _write_reference_files(tmp_path, spec, duplicate_subject=True)
 
     with pytest.raises(ValueError, match="one Pareto-k point per unique child"):
-        influence.load_influence_reference(
-            spec, "reporting", model_output_root=tmp_path
-        )
+        influence.load_influence_reference(spec, "reporting", model_output_root=tmp_path)
 
 
 def test_load_reference_rejects_corrupt_primary_trace(tmp_path):
@@ -285,9 +275,7 @@ def test_load_reference_rejects_corrupt_primary_trace(tmp_path):
     (model_dir / "trace.nc").write_bytes(b"not a readable NetCDF trace")
 
     with pytest.raises(ValueError, match="primary trace is unreadable"):
-        influence.load_influence_reference(
-            spec, "reporting", model_output_root=tmp_path
-        )
+        influence.load_influence_reference(spec, "reporting", model_output_root=tmp_path)
 
 
 def _synthetic_trace(*, n_obs: int, seed: int, divergent: bool = False):
@@ -319,9 +307,7 @@ def _synthetic_trace(*, n_obs: int, seed: int, divergent: bool = False):
             "energy": (("chain", "draw"), rng.normal(size=(n_chains, n_draws))),
         }
     )
-    constant_data = xr.Dataset(
-        {"G": (("obs_id",), treatment)}, coords={"obs_id": np.arange(n_obs)}
-    )
+    constant_data = xr.Dataset({"G": (("obs_id",), treatment)}, coords={"obs_id": np.arange(n_obs)})
     return xr.DataTree.from_dict(
         {
             "posterior": posterior,
@@ -345,7 +331,7 @@ def _candidate_bundle(tmp_path, *, divergent: bool = False):
     primary_trace.to_netcdf(model_dir / "trace.nc")
     full = pd.DataFrame(
         [
-            influence._report.tau_summary_itt(
+            _owner_summaries_itt.tau_summary_itt(
                 primary_trace,
                 ci_prob=0.95,
                 G=np.asarray(primary_trace.constant_data["G"].values),
@@ -379,9 +365,7 @@ def _candidate_bundle(tmp_path, *, divergent: bool = False):
             "random_seed": 42,
         },
     }
-    (model_dir / "config.json").write_text(
-        json.dumps(metadata), encoding="utf-8"
-    )
+    (model_dir / "config.json").write_text(json.dumps(metadata), encoding="utf-8")
     reference = influence.InfluenceReference(
         model_dir=model_dir,
         metadata=metadata,
@@ -392,15 +376,9 @@ def _candidate_bundle(tmp_path, *, divergent: bool = False):
     )
     trace = _synthetic_trace(n_obs=2, seed=43, divergent=divergent)
     built = BuiltModel(
-        model=SimpleNamespace(
-            free_RVs=[SimpleNamespace(name="alpha"), SimpleNamespace(name="tau")]
-        ),
-        prepared=SimpleNamespace(
-            G=np.asarray(trace.constant_data["G"].values), n_obs=2
-        ),
-        payload=IttPayload(
-            tau_interaction_moderators=(), score_mean_link="logit"
-        ),
+        model=SimpleNamespace(free_RVs=[SimpleNamespace(name="alpha"), SimpleNamespace(name="tau")]),
+        prepared=SimpleNamespace(G=np.asarray(trace.constant_data["G"].values), n_obs=2),
+        payload=IttPayload(tau_interaction_moderators=(), score_mean_link="logit"),
     )
     influence_build = influence.InfluenceBuild(
         built=built,
@@ -450,19 +428,12 @@ def test_writer_installs_hash_bound_trace_and_provenance(tmp_path):
     assert installed.loc[0, "excluded_subject_ids"] == "A"
     assert installed.loc[0, "convergence_scope"] == "all_free_variables"
     assert installed.loc[0, "ame_comparison_population"] == "common_retained_children"
-    assert installed.loc[0, "shift_decomposition"] == (
-        "total_shift=composition_shift+refit_shift"
-    )
-    assert installed.loc[0, "delta_ame_prob_median_alias"] == (
-        "total_shift_ame_prob_median"
-    )
+    assert installed.loc[0, "shift_decomposition"] == ("total_shift=composition_shift+refit_shift")
+    assert installed.loc[0, "delta_ame_prob_median_alias"] == ("total_shift_ame_prob_median")
     assert installed.loc[0, "total_shift_ame_prob_median"] == pytest.approx(
-        installed.loc[0, "composition_shift_ame_prob_median"]
-        + installed.loc[0, "refit_shift_ame_prob_median"]
+        installed.loc[0, "composition_shift_ame_prob_median"] + installed.loc[0, "refit_shift_ame_prob_median"]
     )
-    assert installed.loc[0, "delta_ame_prob_median"] == pytest.approx(
-        installed.loc[0, "total_shift_ame_prob_median"]
-    )
+    assert installed.loc[0, "delta_ame_prob_median"] == pytest.approx(installed.loc[0, "total_shift_ame_prob_median"])
     assert bool(installed.loc[0, "bundle_validation_passed"])
     assert trace_name == f"{influence.INFLUENCE_TRACE_STEM}-{trace_hash[:16]}.nc"
     assert central_csv.is_file()
@@ -471,22 +442,16 @@ def test_writer_installs_hash_bound_trace_and_provenance(tmp_path):
     assert influence.sha256_file(candidate.reference.model_dir / trace_name) == trace_hash
     installed_trace = xr.open_datatree(candidate.reference.model_dir / trace_name)
     try:
-        assert json.loads(
-            installed_trace.posterior.attrs[
-                influence.INFLUENCE_FREE_VARIABLES_ATTR
-            ]
-        ) == ["alpha", "tau"]
-        assert json.loads(
-            installed_trace.posterior.attrs[influence.INFLUENCE_SAMPLING_ATTR]
-        ) == json.loads(str(installed.loc[0, "sampling_json"]))
-        assert json.loads(
-            installed_trace.posterior.attrs[influence.INFLUENCE_IDENTITY_ATTR]
-        ) == json.loads(str(installed.loc[0, "identity_json"]))
+        assert json.loads(installed_trace.posterior.attrs[influence.INFLUENCE_FREE_VARIABLES_ATTR]) == ["alpha", "tau"]
+        assert json.loads(installed_trace.posterior.attrs[influence.INFLUENCE_SAMPLING_ATTR]) == json.loads(
+            str(installed.loc[0, "sampling_json"])
+        )
+        assert json.loads(installed_trace.posterior.attrs[influence.INFLUENCE_IDENTITY_ATTR]) == json.loads(
+            str(installed.loc[0, "identity_json"])
+        )
     finally:
         installed_trace.close()
-    assert (
-        candidate.reference.model_dir / "_partials" / "_diagnostics.qmd"
-    ).is_file()
+    assert (candidate.reference.model_dir / "_partials" / "_diagnostics.qmd").is_file()
     for column, expected in candidate.reference.primary_hashes.items():
         assert installed[column].eq(expected).all()
 
@@ -497,15 +462,11 @@ def test_writer_installs_hash_bound_trace_and_provenance(tmp_path):
         "reporting",
     )
     assert status["ready"] is True
-    assert status["max_refit_ame_shift"] == pytest.approx(
-        abs(float(installed.loc[0, "refit_shift_ame_prob_median"]))
-    )
+    assert status["max_refit_ame_shift"] == pytest.approx(abs(float(installed.loc[0, "refit_shift_ame_prob_median"])))
     assert status["max_composition_ame_shift"] == pytest.approx(
         abs(float(installed.loc[0, "composition_shift_ame_prob_median"]))
     )
-    assert status["max_total_ame_shift"] == pytest.approx(
-        abs(float(installed.loc[0, "total_shift_ame_prob_median"]))
-    )
+    assert status["max_total_ame_shift"] == pytest.approx(abs(float(installed.loc[0, "total_shift_ame_prob_median"])))
 
 
 def test_report_validator_accepts_relative_primary_directory(tmp_path, monkeypatch):
@@ -597,9 +558,7 @@ def test_report_validator_rejects_trace_free_variable_contract_drift(tmp_path):
     temporary = candidate.reference.model_dir / "drifted.tmp.nc"
     try:
         drifted.load()
-        drifted.posterior.attrs[influence.INFLUENCE_FREE_VARIABLES_ATTR] = (
-            json.dumps(["alpha"])
-        )
+        drifted.posterior.attrs[influence.INFLUENCE_FREE_VARIABLES_ATTR] = json.dumps(["alpha"])
         drifted.to_netcdf(temporary)
     finally:
         drifted.close()
@@ -635,9 +594,7 @@ def test_report_validator_rejects_self_consistent_free_variable_subset(tmp_path)
     temporary = candidate.reference.model_dir / "subset-contract.tmp.nc"
     try:
         drifted.load()
-        drifted.posterior.attrs[influence.INFLUENCE_FREE_VARIABLES_ATTR] = (
-            json.dumps(["alpha"])
-        )
+        drifted.posterior.attrs[influence.INFLUENCE_FREE_VARIABLES_ATTR] = json.dumps(["alpha"])
         drifted.to_netcdf(temporary)
     finally:
         drifted.close()
@@ -689,13 +646,9 @@ def test_report_validator_rejects_trace_identity_contract_drift(tmp_path):
     temporary = candidate.reference.model_dir / "identity-drifted.tmp.nc"
     try:
         drifted.load()
-        identity = json.loads(
-            drifted.posterior.attrs[influence.INFLUENCE_IDENTITY_ATTR]
-        )
+        identity = json.loads(drifted.posterior.attrs[influence.INFLUENCE_IDENTITY_ATTR])
         identity["excluded_subject_ids"] = ["B"]
-        drifted.posterior.attrs[influence.INFLUENCE_IDENTITY_ATTR] = json.dumps(
-            identity, sort_keys=True
-        )
+        drifted.posterior.attrs[influence.INFLUENCE_IDENTITY_ATTR] = json.dumps(identity, sort_keys=True)
         drifted.to_netcdf(temporary)
     finally:
         drifted.close()
@@ -780,9 +733,7 @@ def test_report_validator_recomputes_saved_ame_shift(tmp_path):
         ("total_shift_ame_prob_median", "total AME shifts"),
     ],
 )
-def test_report_validator_rejects_tampered_ame_decomposition(
-    tmp_path, column, reason
-):
+def test_report_validator_rejects_tampered_ame_decomposition(tmp_path, column, reason):
     candidate = _candidate_bundle(tmp_path)
     _installed, _central_csv, report_csv = influence.write_influence_artifacts(
         candidate.trace,

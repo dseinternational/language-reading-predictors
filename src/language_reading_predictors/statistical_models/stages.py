@@ -13,6 +13,10 @@ historical monolithic pipeline.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import key_findings as _findings
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
@@ -23,7 +27,6 @@ from language_reading_predictors.statistical_models import (
     artifacts as _artifacts,
     diagnostics as _diag,
     release as _release,
-    reporting as _report,
 )
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
@@ -100,18 +103,11 @@ class PrimaryFitPlan:
     psense_vars: tuple[str, ...] | None = None
     """Power-scaling sensitivity variables; ``None`` means ``diagnostic_vars``."""
 
-    psense_timing: Literal[
-        "before_ppc", "after_ppc", "before_trace", "after_trace", "skip"
-    ] = "before_ppc"
+    psense_timing: Literal["before_ppc", "after_ppc", "before_trace", "after_trace", "skip"] = "before_ppc"
     """Where power scaling runs, or ``"skip"`` for a fit that reports none.
 
-    ``after_trace`` is the slot the established late families use: they persist
-    the trace and write their prior-vs-posterior overlay and forest first, and
-    power-scale last. That used to be ``"family_tail"``, which did **nothing**
-    inside the runner — six pipelines called ``run_psense`` themselves afterwards,
-    so the runner could neither order the stage nor enforce that it ran exactly
-    once (#637 stage 4). The figures those families wrote first are now the
-    :attr:`after_trace_audit` hook, and the published order is unchanged.
+    ``after_trace`` runs after trace persistence and the figures written by
+    :attr:`after_trace_audit`.
 
     ``skip`` is for a fit with nothing to power-scale — a treated-only gain-factor
     variant has no focal term — and is declared rather than achieved by omission,
@@ -172,7 +168,7 @@ class SharedFitStages:
         if compute_loo:
             section_header("LOO-PSIS")
             _diag.compute_log_likelihood_and_loo(ctx)
-            _report.write_loo_summary(ctx)
+            _metadata.write_loo_summary(ctx)
             self.hooks.write_loo_influence(ctx)
             self.hooks.print_loo_row(ctx)
 
@@ -189,9 +185,7 @@ class SharedFitStages:
         _diag.sample_posterior_predictive(ctx, var_names=names)
         self.hooks.save_ppc(ctx, primary_node=names[-1])
 
-    def run_primary_fit(
-        self, ctx: StatisticalFitContext, plan: PrimaryFitPlan
-    ) -> dict[str, Any]:
+    def run_primary_fit(self, ctx: StatisticalFitContext, plan: PrimaryFitPlan) -> dict[str, Any]:
         """Execute the invariant primary-fit sequence for a built, attached model.
 
         Prior prediction, posterior sampling with optional PSIS-LOO, the
@@ -237,14 +231,11 @@ class SharedFitStages:
             # branches below are mutually exclusive by construction (#637 stage 4).
             if "power_scaling" in ctx.lifecycle_stages:
                 raise RuntimeError(
-                    "power-scaling sensitivity ran twice in one primary fit; "
-                    f"stages so far: {ctx.lifecycle_stages}"
+                    f"power-scaling sensitivity ran twice in one primary fit; stages so far: {ctx.lifecycle_stages}"
                 )
             if plan.prepare_psense is not None:
                 plan.prepare_psense(ctx)
-            psense_vars = (
-                list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
-            )
+            psense_vars = list(plan.psense_vars) if plan.psense_vars is not None else diag_vars
             _record("power_scaling")
             _diag.run_psense(ctx, var_names=psense_vars)
 
@@ -292,8 +283,7 @@ class SharedFitStages:
             _run_psense()
         if plan.psense_timing != "skip" and "power_scaling" not in ctx.lifecycle_stages:
             raise RuntimeError(
-                f"psense_timing={plan.psense_timing!r} named a slot that never ran; "
-                f"stages: {ctx.lifecycle_stages}"
+                f"psense_timing={plan.psense_timing!r} named a slot that never ran; stages: {ctx.lifecycle_stages}"
             )
         return gate
 
@@ -305,7 +295,7 @@ class SharedFitStages:
     ) -> None:
         """Write the common run record plus optional family-specific metadata."""
 
-        _report.write_run_metadata(ctx, extra=extra)
+        _metadata.write_run_metadata(ctx, extra=extra)
 
     def finalize_report(self, ctx: StatisticalFitContext) -> StatisticalFitContext:
         """Decide the release, generate key findings, copy the report, finish.
@@ -319,16 +309,11 @@ class SharedFitStages:
         """
 
         section_header("Report")
-        decision = _release.evaluate_publication(
-            ctx.output_dir, artifacts=getattr(ctx, "artifacts", None)
-        )
+        decision = _release.evaluate_publication(ctx.output_dir, artifacts=getattr(ctx, "artifacts", None))
         _release.write_release_decision(ctx, decision)
         rprint(f"  Release decision: {decision.summary()}")
-        findings = _report.generate_key_findings(ctx.output_dir, decision=decision)
-        rprint(
-            "  Key findings: "
-            f"{findings['status']} ({len(findings['sentences'])} sentences)"
-        )
+        findings = _findings.generate_key_findings(ctx.output_dir, decision=decision)
+        rprint(f"  Key findings: {findings['status']} ({len(findings['sentences'])} sentences)")
         self.hooks.copy_report_template(ctx)
         # Manifest last-but-one: after the template copy so the report support
         # files are inventoried, before publication so it ships with the fit.

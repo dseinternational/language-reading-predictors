@@ -83,11 +83,7 @@ Model-specific prose must stay byte-for-byte.
 
 
 def _prose_lines(text: str) -> list[str]:
-    return [
-        line
-        for line in text.splitlines()
-        if line.strip() and "{{< include " not in line
-    ]
+    return [line for line in text.splitlines() if line.strip() and "{{< include " not in line]
 
 
 def test_rewriter_is_conservative_idempotent_and_preserves_prose():
@@ -130,15 +126,8 @@ def _statistical_templates() -> list[Path]:
 
 
 def _managed_sequence(text: str) -> tuple[str, ...]:
-    includes = [
-        name
-        for line in text.splitlines()
-        if (name := _REWRITER._include(line.strip())) is not None
-    ]
-    return tuple(
-        "<results>" if name.startswith("_partials/_results_") else name
-        for name in includes
-    )
+    includes = [name for line in text.splitlines() if (name := _REWRITER._include(line.strip())) is not None]
+    return tuple("<results>" if name.startswith("_partials/_results_") else name for name in includes)
 
 
 def test_every_real_template_conforms_to_the_documented_order():
@@ -206,9 +195,7 @@ def test_rewriter_rejects_the_superseded_results_before_priors_order():
 
 
 def test_rewriter_rejects_an_unrecognised_partial_contract():
-    malformed = _OLD_TEMPLATE.replace(
-        "{{< include _partials/_diagnostics.qmd >}}\n", ""
-    )
+    malformed = _OLD_TEMPLATE.replace("{{< include _partials/_diagnostics.qmd >}}\n", "")
     with pytest.raises(TemplateContractError, match="_diagnostics"):
         rewrite_template(malformed)
 
@@ -219,15 +206,9 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
     partials.mkdir()
     for name in ("_gate_badge.qmd", "_key_findings.qmd", "_technical.qmd"):
         shutil.copy(REPO / "docs/models/_partials" / name, partials / name)
-    (partials / "_convergence.qmd").write_text(
-        "## Full convergence detail\n\nFULL CONVERGENCE CONTENT\n"
-    )
+    (partials / "_convergence.qmd").write_text("## Full convergence detail\n\nFULL CONVERGENCE CONTENT\n")
     (partials / "_diagnostics.qmd").write_text(
-        "## Analyst diagnostic views\n\n"
-        "```{python}\n"
-        "# | echo: false\n"
-        'print("ANALYST PPC CONTENT")\n'
-        "```\n"
+        '## Analyst diagnostic views\n\n```{python}\n# | echo: false\nprint("ANALYST PPC CONTENT")\n```\n'
     )
     (tmp_path / "diagnostics_summary.json").write_text(
         json.dumps(
@@ -250,9 +231,7 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
         json.dumps(
             {
                 "status": "ok",
-                "sentences": [
-                    {"kind": "decoy", "text": "SECRET FINDING MUST NOT RENDER"}
-                ],
+                "sentences": [{"kind": "decoy", "text": "SECRET FINDING MUST NOT RENDER"}],
             }
         )
     )
@@ -281,6 +260,9 @@ def test_failed_gate_and_technical_fold_render_end_to_end(tmp_path):
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(tmp_path / ".local")
+        env["APPDATA"] = str(tmp_path / ".config")
     env["PYTHONPATH"] = os.pathsep.join(
         filter(
             None,
@@ -332,11 +314,7 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
                 "kind": "corr_factor",
                 "outcome_symbol": "W",
                 "title": "Failed result fixture",
-                "extra": {
-                    "mechanism_items": {
-                        "caption": "SECRET CAPTION MUST NOT RENDER"
-                    }
-                },
+                "extra": {"mechanism_items": {"caption": "SECRET CAPTION MUST NOT RENDER"}},
             }
         )
     )
@@ -357,15 +335,9 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
             }
         )
     )
-    az.from_dict({"posterior": {"theta": np.zeros((2, 4))}}).to_netcdf(
-        tmp_path / "trace.nc"
-    )
-    (tmp_path / "loadings_summary.csv").write_text(
-        "indicator,loading_median\nSECRET_LOADING,9\n"
-    )
-    (tmp_path / "factor_correlation.csv").write_text(
-        ",SECRET_FACTOR\nSECRET_FACTOR,1\n"
-    )
+    az.from_dict({"posterior": {"theta": np.zeros((2, 4))}}).to_netcdf(tmp_path / "trace.nc")
+    (tmp_path / "loadings_summary.csv").write_text("indicator,loading_median\nSECRET_LOADING,9\n")
+    (tmp_path / "factor_correlation.csv").write_text(",SECRET_FACTOR\nSECRET_FACTOR,1\n")
     (tmp_path / "diagnostics.csv").write_text(
         ",mean,sd,hdi_5.5%,hdi_94.5%,mcse_mean,mcse_sd,r_hat,ess_bulk,ess_tail\n"
         "theta,9876.54321,4321.09876,9870.12345,9880.67890,0.123,0.456,1.02,10,20\n"
@@ -375,13 +347,10 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
         "derived_theta,8765.43210,3210.98765,8760.12345,8770.67890,0.789,0.654,1.03,11,21\n"
     )
     (tmp_path / "structural_summary.csv").write_text(
-        "coefficient,mean,lo50,hi50,lo,hi,prob_pos\n"
-        "SECRET_SLOPE,9,8,10,7,11,1\n"
+        "coefficient,mean,lo50,hi50,lo,hi,prob_pos\nSECRET_SLOPE,9,8,10,7,11,1\n"
     )
     (tmp_path / "secret_result.png").write_bytes(
-        base64.b64decode(
-            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
-        )
+        base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")
     )
     (tmp_path / "index.qmd").write_text(
         "---\n"
@@ -404,6 +373,9 @@ def test_failed_gate_suppresses_scientific_tables_and_figures(tmp_path):
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(tmp_path / ".local")
+        env["APPDATA"] = str(tmp_path / ".config")
     env["PYTHONPATH"] = os.pathsep.join(
         filter(
             None,
@@ -450,9 +422,10 @@ def _render_report_fixture(tmp_path):
     env["HOME"] = str(tmp_path)
     env["QUARTO_PYTHON"] = sys.executable
     env["XDG_CACHE_HOME"] = str(tmp_path / ".cache")
-    env["PYTHONPATH"] = os.pathsep.join(
-        filter(None, (str(REPO / "src"), str(REPO), env.get("PYTHONPATH")))
-    )
+    if os.name == "nt":
+        env["LOCALAPPDATA"] = str(tmp_path / ".local")
+        env["APPDATA"] = str(tmp_path / ".config")
+    env["PYTHONPATH"] = os.pathsep.join(filter(None, (str(REPO / "src"), str(REPO), env.get("PYTHONPATH"))))
     subprocess.run(
         [QUARTO, "render", "index.qmd", "--to", "html"],
         cwd=tmp_path,
@@ -464,9 +437,7 @@ def _render_report_fixture(tmp_path):
     return (tmp_path / "index.html").read_text(encoding="utf-8")
 
 
-def _unreadable_fixture(
-    tmp_path, *, gate: str, loadings: str, release: str | None = None
-) -> None:
+def _unreadable_fixture(tmp_path, *, gate: str, loadings: str, release: str | None = None) -> None:
     """A minimal corr_factor fit directory with a chosen gate and loadings file."""
     import arviz as az
     import numpy as np
@@ -489,13 +460,9 @@ def _unreadable_fixture(
     (tmp_path / "diagnostics_summary.json").write_text(gate)
     if release is not None:
         (tmp_path / "release_decision.json").write_text(release)
-    az.from_dict({"posterior": {"theta": np.zeros((2, 4))}}).to_netcdf(
-        tmp_path / "trace.nc"
-    )
+    az.from_dict({"posterior": {"theta": np.zeros((2, 4))}}).to_netcdf(tmp_path / "trace.nc")
     (tmp_path / "loadings_summary.csv").write_text(loadings)
-    (tmp_path / "factor_correlation.csv").write_text(
-        ",SECRET_FACTOR\nSECRET_FACTOR,1\n"
-    )
+    (tmp_path / "factor_correlation.csv").write_text(",SECRET_FACTOR\nSECRET_FACTOR,1\n")
     (tmp_path / "index.qmd").write_text(
         "---\n"
         'title: "Unreadable fixture"\n'
@@ -635,10 +602,7 @@ def test_every_name_the_report_templates_import_is_importable():
                 continue
             for alias in node.names:
                 if not hasattr(module, alias.name):
-                    missing.append(
-                        f"{qmd.relative_to(REPO)}: "
-                        f"{node.module} has no {alias.name!r}"
-                    )
+                    missing.append(f"{qmd.relative_to(REPO)}: {node.module} has no {alias.name!r}")
     assert not missing, "report templates import names the package does not provide:\n" + "\n".join(
         sorted(set(missing))
     )

@@ -64,10 +64,7 @@ from language_reading_predictors.statistical_models.pipelines.mechanism import f
 SPEC = ModelSpec(
     model_id="lrp-rli-mech-090",
     kind="mechanism",
-    title=(
-        "Mechanism model: phonological memory (RW, word/nonword repetition) -> "
-        "word reading (W)"
-    ),
+    title=("Mechanism model: phonological memory (RW, word/nonword repetition) -> word reading (W)"),
     outcome_symbol="W",
     mechanism_symbol="erbto",
     adjustment=["G", "A", "W_pre"],

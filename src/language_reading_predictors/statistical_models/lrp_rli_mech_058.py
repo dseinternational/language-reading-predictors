@@ -49,11 +49,11 @@ SPEC = ModelSpec(
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
     # Age GP off (age enters linearly), subject random intercept on.
-        # A few boundary divergences survive at the reporting preset's 0.95 on an
-        # otherwise-healthy posterior (R-hat 1.0, min ESS ~2400). Lift target_accept
-        # for smaller steps near the boundary — the same legitimate response the
-        # mm-001 fit uses, touching no adjusters. The HSGP mechanism curve is kept
-        # (unlike LRP56/57, the letter-sound mechanism converges as a curve).
+    # A few boundary divergences survive at the reporting preset's 0.95 on an
+    # otherwise-healthy posterior (R-hat 1.0, min ESS ~2400). Lift target_accept
+    # for smaller steps near the boundary — the same legitimate response the
+    # mm-001 fit uses, touching no adjusters. The HSGP mechanism curve is kept
+    # (unlike LRP56/57, the letter-sound mechanism converges as a curve).
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         outcomes=("W", "L"),

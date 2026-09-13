@@ -133,8 +133,7 @@ def _optional_positive_float(value: Any, *, name: str) -> float | None:
         return None
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise TypeError(
-            f"{name} must be a number when set, got {value!r} "
-            f"({type(value).__name__}); bool is not a prior width"
+            f"{name} must be a number when set, got {value!r} ({type(value).__name__}); bool is not a prior width"
         )
     width = float(value)
     if not math.isfinite(width) or width <= 0.0:
@@ -250,9 +249,7 @@ class DiDModelSettings:
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
-        object.__setattr__(
-            self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes")
-        )
+        object.__setattr__(self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes"))
         object.__setattr__(self, "waves", _tuple_of_ints(self.waves, name="waves"))
         object.__setattr__(self, "periods", _tuple_of_ints(self.periods, name="periods"))
         if not self.use_intercept_anchor and self.dose:
@@ -264,35 +261,27 @@ class DiDModelSettings:
         if self.period_varying_dose and not self.dose:
             raise ValueError("period_varying_dose requires dose=True")
         if self.likelihood not in _LIKELIHOODS:
-            raise ValueError(
-                f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
-            )
+            raise ValueError(f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}")
         # The remaining cross-field constraints build_did_model enforces (#455). They
         # depend on nothing but these settings, so the factory would only reject them
         # after make_context had reset an output directory and the loader had read the
         # panel. Checked here, incoherent settings fail at settings construction time
         # (often at model-module import time, otherwise at resolve time). The factory keeps its own copies as belt-and-braces for direct callers.
         if self.dose and self.likelihood == "bernoulli_offfloor":
-            raise ValueError(
-                "bernoulli_offfloor is the binary prevalence estimand; use dose=False"
-            )
+            raise ValueError("bernoulli_offfloor is the binary prevalence estimand; use dose=False")
         if self.use_varying_delta and self.dose:
             raise ValueError("use_varying_delta is unavailable for dose models")
         if self.use_varying_delta and not self.use_child_re:
             raise ValueError("use_varying_delta=True requires use_child_re=True")
         if self.dose and self.periods != (0, 1):
-            raise ValueError(
-                f"DiD dose variants require periods=(0, 1); got {self.periods}."
-            )
+            raise ValueError(f"DiD dose variants require periods=(0, 1); got {self.periods}.")
         for name in (
             "tau_t2_prior_sigma",
             "arm_gap_t1_prior_sigma",
             "sigma_child_prior_sigma",
             "kappa_prior_sigma",
         ):
-            object.__setattr__(
-                self, name, _optional_positive_float(getattr(self, name), name=name)
-            )
+            object.__setattr__(self, name, _optional_positive_float(getattr(self, name), name=name))
         if self.tau_t2_prior_sigma is not None and self.dose:
             raise ValueError(
                 "tau_t2_prior_sigma applies to the arm-by-wave tau_t2 contrast; "
@@ -301,8 +290,7 @@ class DiDModelSettings:
             )
         if self.arm_gap_t1_prior_sigma is not None and self.dose:
             raise ValueError(
-                "arm_gap_t1_prior_sigma applies to the arm-by-wave baseline-gap "
-                "term; a dose model has no arm_gap_t1"
+                "arm_gap_t1_prior_sigma applies to the arm-by-wave baseline-gap term; a dose model has no arm_gap_t1"
             )
         if self.sigma_child_prior_sigma is not None and not self.use_child_re:
             raise ValueError(
@@ -310,10 +298,7 @@ class DiDModelSettings:
                 "child random intercept there is no scale to widen"
             )
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {list(SCORE_MEAN_LINKS)}, "
-                f"got {self.score_mean_link!r}"
-            )
+            raise ValueError(f"score_mean_link must be one of {list(SCORE_MEAN_LINKS)}, got {self.score_mean_link!r}")
         if self.score_mean_link != "logit":
             if self.likelihood != "beta_binomial":
                 raise ValueError(
@@ -328,12 +313,10 @@ class DiDModelSettings:
                 )
         if self.kappa_prior_family not in KAPPA_PRIOR_FAMILIES:
             raise ValueError(
-                f"kappa_prior_family must be one of {sorted(KAPPA_PRIOR_FAMILIES)}, "
-                f"got {self.kappa_prior_family!r}"
+                f"kappa_prior_family must be one of {sorted(KAPPA_PRIOR_FAMILIES)}, got {self.kappa_prior_family!r}"
             )
         if self.likelihood == "bernoulli_offfloor" and (
-            self.kappa_prior_family != "halfnormal_concentration"
-            or self.kappa_prior_sigma is not None
+            self.kappa_prior_family != "halfnormal_concentration" or self.kappa_prior_sigma is not None
         ):
             raise ValueError(
                 "the off-floor Bernoulli branch has no dispersion parameter, so a "
@@ -357,9 +340,7 @@ class DiDModelSettings:
             )
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> DiDModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> DiDModelSettings:
         """Strictly translate the former ``spec.extra`` dictionary boundary.
 
         Rejects unknown keys so a misspelling fails before data loading rather than
@@ -388,9 +369,7 @@ class DiDModelSettings:
             score_mean_link=extra.get("score_mean_link", "logit"),
             arm_gap_t1_prior_sigma=extra.get("arm_gap_t1_prior_sigma"),
             sigma_child_prior_sigma=extra.get("sigma_child_prior_sigma"),
-            kappa_prior_family=extra.get(
-                "kappa_prior_family", "halfnormal_concentration"
-            ),
+            kappa_prior_family=extra.get("kappa_prior_family", "halfnormal_concentration"),
             kappa_prior_sigma=extra.get("kappa_prior_sigma"),
         )
 
@@ -562,11 +541,7 @@ class DiDRunPlan:
                 "arm_gap_t3",
             ]
         else:
-            dose_vars = (
-                ["mu_dose", "sigma_dose", "beta_dose_phase"]
-                if self.period_varying
-                else ["beta_dose"]
-            )
+            dose_vars = ["mu_dose", "sigma_dose", "beta_dose_phase"] if self.period_varying else ["beta_dose"]
             variables = [
                 "alpha",
                 "beta_period",
@@ -653,15 +628,9 @@ def declared_did_settings(spec: ModelSpec) -> tuple[DiDModelSettings, str]:
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: DiD settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: DiD settings cannot be split between model_settings and extra")
         if not isinstance(settings, DiDModelSettings):
-            raise TypeError(
-                f"{spec.model_id}: kind='did' requires DiDModelSettings, got "
-                f"{type(settings).__name__}"
-            )
+            raise TypeError(f"{spec.model_id}: kind='did' requires DiDModelSettings, got {type(settings).__name__}")
         return settings, "typed"
     return (
         DiDModelSettings.from_legacy_extra(spec.extra, model_id=spec.model_id),

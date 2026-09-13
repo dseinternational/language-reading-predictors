@@ -23,22 +23,16 @@ def _patch_primary_fit_diag(monkeypatch, events):
         stages._diag,
         "run_prior_predictive",
         lambda _ctx, *, draws, var_names=None: events.append(
-            f"prior_predictive[{draws}]"
-            if var_names is None
-            else f"prior_predictive[{draws},{var_names}]"
+            f"prior_predictive[{draws}]" if var_names is None else f"prior_predictive[{draws},{var_names}]"
         ),
     )
-    monkeypatch.setattr(
-        stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
-    )
+    monkeypatch.setattr(stages._diag, "sample_posterior", lambda _ctx: events.append("sample"))
     monkeypatch.setattr(
         stages._diag,
         "compute_log_likelihood_and_loo",
         lambda _ctx: events.append("loo"),
     )
-    monkeypatch.setattr(
-        stages._report, "write_loo_summary", lambda _ctx: events.append("loo_summary")
-    )
+    monkeypatch.setattr(stages._metadata, "write_loo_summary", lambda _ctx: events.append("loo_summary"))
     monkeypatch.setattr(
         stages._diag,
         "summary_diagnostics",
@@ -65,16 +59,11 @@ def _patch_primary_fit_diag(monkeypatch, events):
         # ``fallback_var_names`` carries the curated list the ESS-evolution panel
         # falls back to when a family declares no causal term; recorded here so
         # the stage contract is pinned, not just tolerated.
-        lambda _ctx, *, causal_term, include_loo_pit, fallback_var_names=None: (
-            events.append(
-                f"extended[{causal_term},loo_pit={include_loo_pit},"
-                f"fallback={tuple(fallback_var_names or ())}]"
-            )
+        lambda _ctx, *, causal_term, include_loo_pit, fallback_var_names=None: events.append(
+            f"extended[{causal_term},loo_pit={include_loo_pit},fallback={tuple(fallback_var_names or ())}]"
         ),
     )
-    monkeypatch.setattr(
-        stages._diag, "save_trace", lambda _ctx: events.append("save_trace")
-    )
+    monkeypatch.setattr(stages._diag, "save_trace", lambda _ctx: events.append("save_trace"))
 
 
 def _stage_runner(events):
@@ -110,16 +99,14 @@ def test_sampling_stage_keeps_sampling_loo_reporting_order(monkeypatch):
     runner = _stage_runner(events)
     ctx = SimpleNamespace(lifecycle_stages=[])
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
-    monkeypatch.setattr(
-        stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
-    )
+    monkeypatch.setattr(stages._diag, "sample_posterior", lambda _ctx: events.append("sample"))
     monkeypatch.setattr(
         stages._diag,
         "compute_log_likelihood_and_loo",
         lambda _ctx: events.append("loo"),
     )
     monkeypatch.setattr(
-        stages._report,
+        stages._metadata,
         "write_loo_summary",
         lambda _ctx: events.append("loo_summary"),
     )
@@ -145,15 +132,13 @@ def test_sample_and_loo_skips_the_loo_block_when_disabled(monkeypatch):
     runner = _stage_runner(events)
     ctx = SimpleNamespace(lifecycle_stages=[])
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
-    monkeypatch.setattr(
-        stages._diag, "sample_posterior", lambda _ctx: events.append("sample")
-    )
+    monkeypatch.setattr(stages._diag, "sample_posterior", lambda _ctx: events.append("sample"))
 
     def _fail(_ctx):
         raise AssertionError("LOO must not run when compute_loo=False")
 
     monkeypatch.setattr(stages._diag, "compute_log_likelihood_and_loo", _fail)
-    monkeypatch.setattr(stages._report, "write_loo_summary", _fail)
+    monkeypatch.setattr(stages._metadata, "write_loo_summary", _fail)
 
     runner.sample_and_loo(ctx, compute_loo=False)
 
@@ -424,9 +409,7 @@ def test_run_primary_fit_can_run_psense_after_ppc_and_return_the_gate(monkeypatc
 
     assert returned is gate
     assert events.index("save_ppc") < events.index("psense['alpha', 'beta']")
-    assert events.index("psense['alpha', 'beta']") < events.index(
-        "Extended diagnostics"
-    )
+    assert events.index("psense['alpha', 'beta']") < events.index("Extended diagnostics")
 
 
 def test_run_primary_fit_runs_post_ppc_audit_before_the_gate(monkeypatch):
@@ -521,7 +504,7 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
     ctx = SimpleNamespace(output_dir=str(tmp_path))
     metadata = []
     monkeypatch.setattr(
-        stages._report,
+        stages._metadata,
         "write_run_metadata",
         lambda context, *, extra: metadata.append((context, extra)),
     )
@@ -534,7 +517,7 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
         events.append("key_findings")
         return {"status": "ok", "sentences": ["one"]}
 
-    monkeypatch.setattr(stages._report, "generate_key_findings", _fake_findings)
+    monkeypatch.setattr(stages._findings, "generate_key_findings", _fake_findings)
     monkeypatch.setattr(stages, "section_header", lambda title: events.append(title))
 
     runner.write_metadata(ctx, extra={"family": "example"})
@@ -548,7 +531,7 @@ def test_metadata_and_report_finalization_are_shared(monkeypatch, tmp_path):
     # The release decision is settled and on disk *before* the findings that
     # follow from it — the acceptance criterion, asserted as an ordering.
     assert (tmp_path / "release_decision.json").exists()
-    (_output, decision), = findings_calls
+    ((_output, decision),) = findings_calls
     assert decision is not None and decision.status == "not_available"
     written = json.loads((tmp_path / "release_decision.json").read_text())
     assert written["status"] == decision.status

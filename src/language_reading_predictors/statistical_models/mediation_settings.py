@@ -108,10 +108,7 @@ class NamedConfounderCalibration:
             raise TypeError("named_confounder_calibration must be a mapping")
         unknown = sorted(set(value) - {"symbol", "label"})
         if unknown:
-            raise ValueError(
-                "unknown named-confounder calibration setting(s): "
-                f"{', '.join(unknown)}"
-            )
+            raise ValueError(f"unknown named-confounder calibration setting(s): {', '.join(unknown)}")
         return cls(
             symbol=value.get("symbol", "attend"),
             label=value.get("label", "IS"),
@@ -164,25 +161,17 @@ class MediationModelSettings:
         if self.estimand not in {"natural", "interventional"}:
             raise ValueError(f"unsupported estimand {self.estimand!r}")
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-                f"got {self.score_mean_link!r}"
-            )
+            raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {self.score_mean_link!r}")
         # The off-floor outcome models a binary indicator, which has no score mean to
         # map and no chance floor to respect. Checked here so an incoherent pair
         # fails at declaration, before an output directory is reset; the B-only check
         # needs ``outcome_symbol`` and lives in the resolver.
-        if (
-            self.score_mean_link != "logit"
-            and self.outcome_kind != "beta_binomial"
-        ):
+        if self.score_mean_link != "logit" and self.outcome_kind != "beta_binomial":
             raise ValueError(
                 "score_mean_link applies to the graded Beta-Binomial outcome mean; "
                 f"the {self.outcome_kind!r} outcome has no score mean to map"
             )
-        if self.companion_of is not None and (
-            not isinstance(self.companion_of, str) or not self.companion_of
-        ):
+        if self.companion_of is not None and (not isinstance(self.companion_of, str) or not self.companion_of):
             raise TypeError("companion_of must be a non-empty string or None")
 
     @classmethod
@@ -194,9 +183,7 @@ class MediationModelSettings:
     ) -> MediationModelSettings:
         unknown = sorted(set(extra) - _SINGLE_KEYS - _GLOBAL_KEYS)
         if unknown:
-            raise ValueError(
-                f"{model_id}: unknown mediation setting(s): {', '.join(unknown)}"
-            )
+            raise ValueError(f"{model_id}: unknown mediation setting(s): {', '.join(unknown)}")
         return cls(
             outcomes=extra.get("outcomes"),
             drop_missing_pre=extra.get("drop_missing_pre", True),
@@ -250,9 +237,7 @@ class MediationMultiModelSettings:
     ) -> MediationMultiModelSettings:
         unknown = sorted(set(extra) - _MULTI_KEYS - _GLOBAL_KEYS)
         if unknown:
-            raise ValueError(
-                f"{model_id}: unknown multi-mediation setting(s): {', '.join(unknown)}"
-            )
+            raise ValueError(f"{model_id}: unknown multi-mediation setting(s): {', '.join(unknown)}")
         mediators = _symbols(extra.get("mediators", ("L", "E")), name="mediators")
         return cls(
             mediators=mediators,
@@ -324,11 +309,7 @@ def _baseline_terms(
     return tuple(
         BaselineTerm(
             symbol=symbol,
-            coefficient=(
-                f"{prefix}_base_{symbol}_offfloor"
-                if symbol in floored
-                else f"{prefix}_base_{symbol}"
-            ),
+            coefficient=(f"{prefix}_base_{symbol}_offfloor" if symbol in floored else f"{prefix}_base_{symbol}"),
             form="offfloor" if symbol in floored else "logit",
         )
         for symbol in common
@@ -410,9 +391,7 @@ class MediationRunPlan:
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-    def with_effective_confounders(
-        self, confounders: tuple[str, ...]
-    ) -> MediationRunPlan:
+    def with_effective_confounders(self, confounders: tuple[str, ...]) -> MediationRunPlan:
         unknown = sorted(set(confounders) - set(self.declared_confounders))
         if unknown:
             raise ValueError(f"effective confounders were not declared: {unknown}")
@@ -446,17 +425,9 @@ class MediationRunPlan:
         if self.entrypoint != "period_stacked":
             raise ValueError("period_prepare_kwargs requires a period-stacked plan")
         pre_covariates, post_covariates = split_covariates_by_wave(self.raw_covariates)
-        baseline_covariates, post_covariates = split_confounders_by_timing(
-            post_covariates
-        )
-        measures = tuple(
-            symbol
-            for symbol in self.declared_confounders
-            if symbol not in self.raw_covariates
-        )
-        outcomes = tuple(
-            dict.fromkeys((self.outcome_symbol, self.mediator_symbol, *measures))
-        )
+        baseline_covariates, post_covariates = split_confounders_by_timing(post_covariates)
+        measures = tuple(symbol for symbol in self.declared_confounders if symbol not in self.raw_covariates)
+        outcomes = tuple(dict.fromkeys((self.outcome_symbol, self.mediator_symbol, *measures)))
         return {
             "phase_mode": "all",
             "outcomes": outcomes,
@@ -554,9 +525,7 @@ class MediationMultiRunPlan:
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
-    def with_effective_confounders(
-        self, confounders: tuple[str, ...]
-    ) -> MediationMultiRunPlan:
+    def with_effective_confounders(self, confounders: tuple[str, ...]) -> MediationMultiRunPlan:
         unknown = sorted(set(confounders) - set(self.declared_confounders))
         if unknown:
             raise ValueError(f"effective confounders were not declared: {unknown}")
@@ -651,13 +620,10 @@ def declared_mediation_settings(
             )
         if not isinstance(settings, MediationModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='mediation' requires MediationModelSettings, "
-                f"got {type(settings).__name__}"
+                f"{spec.model_id}: kind='mediation' requires MediationModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
-    return MediationModelSettings.from_legacy_extra(
-        spec.extra, model_id=spec.model_id
-    ), "legacy_extra"
+    return MediationModelSettings.from_legacy_extra(spec.extra, model_id=spec.model_id), "legacy_extra"
 
 
 def declared_mediation_multi_settings(
@@ -677,9 +643,7 @@ def declared_mediation_multi_settings(
                 f"MediationMultiModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
-    return MediationMultiModelSettings.from_legacy_extra(
-        spec.extra, model_id=spec.model_id
-    ), "legacy_extra"
+    return MediationMultiModelSettings.from_legacy_extra(spec.extra, model_id=spec.model_id), "legacy_extra"
 
 
 def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
@@ -697,10 +661,7 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
             raise ValueError("gaussian_composite mediation requires route_symbols")
     elif settings.route_symbols:
         raise ValueError("route_symbols apply only to gaussian_composite mediation")
-    if (
-        settings.score_mean_link == "three_choice_guessing_floor"
-        and spec.outcome_symbol != "B"
-    ):
+    if settings.score_mean_link == "three_choice_guessing_floor" and spec.outcome_symbol != "B":
         raise ValueError(
             f"{spec.model_id}: three_choice_guessing_floor is only valid for "
             f"phoneme blending (B) as the modelled OUTCOME, got "
@@ -717,9 +678,7 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
     # off-floor outcome has no score mean.
     graded_outcome = settings.outcome_kind == "beta_binomial"
     model_of_record = settings.companion_of is None
-    link_pair_required = (
-        spec.outcome_symbol == "B" and graded_outcome and model_of_record
-    )
+    link_pair_required = spec.outcome_symbol == "B" and graded_outcome and model_of_record
     link_companion = (
         (
             MEDIATION_BLENDING_PRIMARY_MODEL_ID
@@ -731,9 +690,7 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
     )
     if settings.companion_of and settings.estimand != "interventional":
         raise ValueError("companion_of requires estimand='interventional'")
-    if settings.mediator_kind == "gaussian_composite" and (
-        settings.outcome_kind != "beta_binomial"
-    ):
+    if settings.mediator_kind == "gaussian_composite" and (settings.outcome_kind != "beta_binomial"):
         # The composite factory branches before ``outcome_kind`` is consulted, so
         # the combination used to resolve, silently fit a graded outcome and then
         # ask the PPC writer for a ``y_offfloor`` node that was never built (#585).
@@ -763,19 +720,9 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
     # mediator baseline(s) and every bounded-measure confounder, conditioned on by
     # BOTH legs (#585 finding 1). ``dict.fromkeys`` keeps declaration order and
     # de-duplicates a measure that is both a baseline and a declared confounder.
-    mediator_own = (
-        settings.route_symbols
-        if settings.mediator_kind == "gaussian_composite"
-        else (mediator_symbol,)
-    )
-    common = tuple(
-        dict.fromkeys((spec.outcome_symbol, *mediator_own, *measure_confounders))
-    )
-    floored = (
-        frozenset({spec.outcome_symbol})
-        if settings.outcome_kind == "bernoulli_offfloor"
-        else frozenset()
-    )
+    mediator_own = settings.route_symbols if settings.mediator_kind == "gaussian_composite" else (mediator_symbol,)
+    common = tuple(dict.fromkeys((spec.outcome_symbol, *mediator_own, *measure_confounders)))
+    floored = frozenset({spec.outcome_symbol}) if settings.outcome_kind == "bernoulli_offfloor" else frozenset()
     # A composite mediator conditions the outcome leg on the composite baseline
     # (one term matching the mediator leg's ``a_comp``), not on its route symbols
     # one by one.
@@ -803,19 +750,9 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
         required=pre_required,
         outcomes=settings.outcomes if not settings.period_stacked else None,
     )
-    mediator_node = (
-        "M_post"
-        if settings.mediator_kind == "gaussian_composite"
-        else f"{mediator_symbol}_post"
-    )
-    outcome_node = (
-        "y_offfloor"
-        if settings.outcome_kind == "bernoulli_offfloor"
-        else "y_post"
-    )
-    entrypoint: Literal["single", "period_stacked"] = (
-        "period_stacked" if settings.period_stacked else "single"
-    )
+    mediator_node = "M_post" if settings.mediator_kind == "gaussian_composite" else f"{mediator_symbol}_post"
+    outcome_node = "y_offfloor" if settings.outcome_kind == "bernoulli_offfloor" else "y_post"
+    entrypoint: Literal["single", "period_stacked"] = "period_stacked" if settings.period_stacked else "single"
     design = (
         "Period-stacked all-transition mediation with per-period treatment exposure."
         if settings.period_stacked
@@ -844,9 +781,7 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
         common_baselines=common,
         mediator_cross_baselines=mediator_cross,
         outcome_cross_baselines=outcome_cross,
-        outcome_own_baseline_form=(
-            "offfloor" if settings.outcome_kind == "bernoulli_offfloor" else "logit"
-        ),
+        outcome_own_baseline_form=("offfloor" if settings.outcome_kind == "bernoulli_offfloor" else "logit"),
         pre_required=pre_required,
         observation_nodes=(mediator_node, outcome_node),
         compute_loo=False,
@@ -856,8 +791,7 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
             "assumptions; not an identified causal mediation effect."
         ),
         analysis_population=(
-            "Available RLI children with every outcome, mediator and declared "
-            "confounder needed by this fit."
+            "Available RLI children with every outcome, mediator and declared confounder needed by this fit."
         ),
         missing_data_assumption=(
             "Complete-case analysis assumes the fitted rows are conditionally "
@@ -869,9 +803,7 @@ def resolve_mediation_run_plan(spec: ModelSpec) -> MediationRunPlan:
 def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
     """Validate one two-mediator declaration before context or data I/O."""
     if spec.kind != "mediation_multi":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'mediation_multi', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'mediation_multi', got {spec.kind!r}")
     if spec.study_id != "rli" or not spec.outcome_symbol:
         raise ValueError(f"{spec.model_id}: multi-mediation requires an RLI outcome")
     settings, source = declared_mediation_multi_settings(spec)
@@ -882,11 +814,7 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
     if set(settings.order) != set(settings.mediators) or len(settings.order) != 2:
         raise ValueError("order must be a permutation of mediators")
     baselines = tuple(f"{symbol}_t1" for symbol in settings.mediators)
-    confounders = tuple(
-        symbol
-        for symbol in spec.adjustment
-        if symbol not in ("G", "A", "W_pre", *baselines)
-    )
+    confounders = tuple(symbol for symbol in spec.adjustment if symbol not in ("G", "A", "W_pre", *baselines))
     raw = _raw_covariates(confounders)
     measure_confounders = _measure_confounders(confounders)
     calibration = settings.named_confounder_calibration
@@ -895,12 +823,8 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
     # Common pre-exposure vector, conditioned on by every leg (#585 finding 1):
     # before this each mediator law saw only its own baseline and the outcome law
     # saw neither mediator's.
-    common = tuple(
-        dict.fromkeys((spec.outcome_symbol, *mediators, *measure_confounders))
-    )
-    floored = (
-        frozenset({mediators[1]}) if settings.second_mediator_offfloor else frozenset()
-    )
+    common = tuple(dict.fromkeys((spec.outcome_symbol, *mediators, *measure_confounders)))
+    floored = frozenset({mediators[1]}) if settings.second_mediator_offfloor else frozenset()
     mediator_cross = {
         symbol: _baseline_terms(
             prefix=f"a{symbol}",
@@ -919,15 +843,9 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
         floored=floored,
     )
     pre_required = common
-    _validate_load_set(
-        model_id=spec.model_id, required=pre_required, outcomes=settings.outcomes
-    )
+    _validate_load_set(model_id=spec.model_id, required=pre_required, outcomes=settings.outcomes)
     order = (settings.order[0], settings.order[1])
-    second_node = (
-        f"{mediators[1]}_offfloor"
-        if settings.second_mediator_offfloor
-        else f"{mediators[1]}_post"
-    )
+    second_node = f"{mediators[1]}_offfloor" if settings.second_mediator_offfloor else f"{mediators[1]}_post"
     return MediationMultiRunPlan(
         model_id=spec.model_id,
         settings_source=source,
@@ -945,9 +863,7 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
         common_baselines=common,
         mediator_cross_baselines=mediator_cross,
         outcome_cross_baselines=outcome_cross,
-        second_mediator_own_baseline_form=(
-            "offfloor" if settings.second_mediator_offfloor else "logit"
-        ),
+        second_mediator_own_baseline_form=("offfloor" if settings.second_mediator_offfloor else "logit"),
         pre_required=pre_required,
         observation_nodes=(f"{mediators[0]}_post", second_node, "y_post"),
         compute_loo=False,
@@ -957,8 +873,7 @@ def resolve_mediation_multi_run_plan(spec: ModelSpec) -> MediationMultiRunPlan:
             "not an identified causal mediation effect."
         ),
         analysis_population=(
-            "Available RLI children with every outcome, mediator and declared "
-            "confounder needed by this fit."
+            "Available RLI children with every outcome, mediator and declared confounder needed by this fit."
         ),
         missing_data_assumption=(
             "Complete-case analysis assumes the fitted rows are conditionally "

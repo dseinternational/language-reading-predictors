@@ -96,14 +96,9 @@ class AlignedModelSettings:
         ):
             raise TypeError("ability_covariate must be a non-empty string or None")
         if self.likelihood not in _LIKELIHOODS:
-            raise ValueError(
-                f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}"
-            )
+            raise ValueError(f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}")
         if self.score_mean_link not in SCORE_MEAN_LINKS:
-            raise ValueError(
-                f"score_mean_link must be one of {SCORE_MEAN_LINKS}, "
-                f"got {self.score_mean_link!r}"
-            )
+            raise ValueError(f"score_mean_link must be one of {SCORE_MEAN_LINKS}, got {self.score_mean_link!r}")
         # The off-floor branch models a binary indicator, which has no score mean to
         # map and no chance floor to respect. Checked here so an incoherent pair
         # fails at declaration, before an output directory is reset. The B-only
@@ -116,9 +111,7 @@ class AlignedModelSettings:
             )
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> AlignedModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> AlignedModelSettings:
         """Strictly translate the former ``spec.extra`` dictionary boundary.
 
         Rejects unknown keys so a misspelling fails before data loading rather than
@@ -267,14 +260,10 @@ def declared_aligned_settings(spec: ModelSpec) -> tuple[AlignedModelSettings, st
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: aligned settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: aligned settings cannot be split between model_settings and extra")
         if not isinstance(settings, AlignedModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='aligned' requires AlignedModelSettings, got "
-                f"{type(settings).__name__}"
+                f"{spec.model_id}: kind='aligned' requires AlignedModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
@@ -288,9 +277,7 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
     if spec.kind != "aligned":
         raise ValueError(f"{spec.model_id}: expected kind 'aligned', got {spec.kind!r}")
     if not spec.outcome_symbol:
-        raise ValueError(
-            f"{spec.model_id}: outcome_symbol is required for an aligned model"
-        )
+        raise ValueError(f"{spec.model_id}: outcome_symbol is required for an aligned model")
     # Validate the outcome against the measure registry *before* make_context can
     # reset an output directory (2026-08-21 aligned review, finding 5) — the
     # loader's KeyError otherwise fires only after the reset.
@@ -298,8 +285,7 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
 
     if spec.outcome_symbol not in MEASURES:
         raise ValueError(
-            f"{spec.model_id}: unknown aligned outcome_symbol "
-            f"{spec.outcome_symbol!r}; not in the measure registry"
+            f"{spec.model_id}: unknown aligned outcome_symbol {spec.outcome_symbol!r}; not in the measure registry"
         )
 
     settings, source = declared_aligned_settings(spec)
@@ -307,8 +293,7 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
     off_floor = settings.likelihood == "bernoulli_offfloor"
     if settings.score_mean_link == "three_choice_guessing_floor" and own != "B":
         raise ValueError(
-            f"{spec.model_id}: three_choice_guessing_floor is only valid for "
-            f"phoneme blending (B), got {own!r}"
+            f"{spec.model_id}: three_choice_guessing_floor is only valid for phoneme blending (B), got {own!r}"
         )
 
     # The mandatory phoneme-blending link pairing (#619, under the #608 policy).
@@ -388,8 +373,7 @@ def resolve_aligned_run_plan(spec: ModelSpec) -> AlignedRunPlan:
         "collider descendant; neither is an available-case modified ITT estimate."
     )
     analysis_population = (
-        "Available-case children with onset-aligned pre and post scores (the "
-        "per-protocol onset window)."
+        "Available-case children with onset-aligned pre and post scores (the per-protocol onset window)."
     )
     missing_data_assumption = (
         "Available-case analysis under ignorable missingness: children without an "

@@ -157,8 +157,7 @@ def save_table(
         missing = [c for c in required_columns if c not in df.columns]
         if missing:
             raise ValueError(
-                f"artefact {resolved!r} is missing required column(s) "
-                f"{missing}; present: {list(df.columns)}"
+                f"artefact {resolved!r} is missing required column(s) {missing}; present: {list(df.columns)}"
             )
     df.to_csv(os.path.join(ctx.output_dir, resolved), index=index)
     if register:
@@ -287,11 +286,7 @@ def write_manifest(ctx: Any) -> dict[str, Any]:
     # Stems that have a figure file: an untracked CSV sharing a stem with a
     # .png/.svg is that figure's data sidecar (``save_styled_figure(data=...)``),
     # not a not-yet-migrated table, and is classified accordingly.
-    figure_stems = {
-        os.path.splitext(rel)[0]
-        for rel in on_disk
-        if os.path.splitext(rel)[1].lower() in {".png", ".svg"}
-    }
+    figure_stems = {os.path.splitext(rel)[0] for rel in on_disk if os.path.splitext(rel)[1].lower() in {".png", ".svg"}}
     entries: list[dict[str, Any]] = []
     for rel in on_disk:
         if rel == MANIFEST_FILENAME:

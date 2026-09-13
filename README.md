@@ -43,6 +43,8 @@ git clone https://github.com/dseinternational/research.git
 
 ### Prerequisites
 
+For a worked introduction to the Bayesian code, follow [one statistical model from synthetic data to a reported difference](docs/learning/itt-model-walkthrough.md).
+
 #### Fitting models
 
 To fit models, [uv](https://docs.astral.sh/uv/getting-started/installation/) is required. It provisions the Python interpreter itself, so no separate Python installation is needed.

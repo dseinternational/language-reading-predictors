@@ -342,8 +342,7 @@ def declared_horseshoe_settings(
             )
         if not isinstance(settings, HorseshoeModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='horseshoe' requires "
-                f"HorseshoeModelSettings, got {type(settings).__name__}"
+                f"{spec.model_id}: kind='horseshoe' requires HorseshoeModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
@@ -360,10 +359,7 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
     if spec.kind != "horseshoe":
         raise ValueError(f"{spec.model_id}: expected kind 'horseshoe', got {spec.kind!r}")
     if spec.study_id not in {"rli", "rlm"}:
-        raise ValueError(
-            f"{spec.model_id}: horseshoe study_id must be 'rli' or 'rlm', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: horseshoe study_id must be 'rli' or 'rlm', got {spec.study_id!r}")
     if not spec.outcome_symbol:
         raise ValueError(f"{spec.model_id}: outcome_symbol is required for horseshoe")
 
@@ -371,8 +367,7 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
     legacy_study = spec.extra.get("study_id")
     if legacy_study is not None and legacy_study != spec.study_id:
         raise ValueError(
-            f"{spec.model_id}: legacy study_id {legacy_study!r} conflicts with "
-            f"ModelSpec.study_id {spec.study_id!r}"
+            f"{spec.model_id}: legacy study_id {legacy_study!r} conflicts with ModelSpec.study_id {spec.study_id!r}"
         )
 
     outcome = spec.outcome_symbol
@@ -382,26 +377,18 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             "use_age_predictor": settings.use_age_predictor,
             "pre_wave": settings.pre_wave,
             "post_wave": settings.post_wave,
-            "require_confirmed_inputs": (
-                True if settings.require_confirmed_inputs else None
-            ),
+            "require_confirmed_inputs": (True if settings.require_confirmed_inputs else None),
         }
         supplied = [name for name, value in rlm_fields.items() if value not in ((), None)]
         if supplied:
-            raise ValueError(
-                f"{spec.model_id}: RLM-only settings are invalid for the RLI port: "
-                f"{', '.join(supplied)}"
-            )
+            raise ValueError(f"{spec.model_id}: RLM-only settings are invalid for the RLI port: {', '.join(supplied)}")
         if not settings.predictors:
             raise ValueError(f"{spec.model_id}: RLI horseshoe predictors cannot be empty")
         gain = True if settings.gain is None else settings.gain
         language = settings.language_composite_symbols or ("R", "E", "F")
         phase_mode = settings.phase_mode or ("span" if gain else "levels")
         if phase_mode not in {"span", "levels"}:
-            raise ValueError(
-                f"{spec.model_id}: RLI phase_mode must be 'span' or 'levels', got "
-                f"{phase_mode!r}"
-            )
+            raise ValueError(f"{spec.model_id}: RLI phase_mode must be 'span' or 'levels', got {phase_mode!r}")
         # Settings-only coherence, rejected before any output-directory reset or
         # data I/O (#455): the factory would otherwise fail only after a full CSV
         # load (2026-08-21 review, finding 9).
@@ -439,9 +426,7 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
 
         unknown_rli = sorted(set(measures) - set(_rli_measures))
         if unknown_rli:
-            raise ValueError(
-                f"{spec.model_id}: unknown RLI measure(s): {', '.join(unknown_rli)}"
-            )
+            raise ValueError(f"{spec.model_id}: unknown RLI measure(s): {', '.join(unknown_rli)}")
         port: Literal["rli", "rlm"] = "rli"
         predictor_measures: tuple[str, ...] = ()
         use_age: bool | None = None
@@ -493,10 +478,7 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
         }
         supplied = [name for name, value in rli_fields.items() if value not in ((), None)]
         if supplied:
-            raise ValueError(
-                f"{spec.model_id}: RLI-only settings are invalid for the RLM port: "
-                f"{', '.join(supplied)}"
-            )
+            raise ValueError(f"{spec.model_id}: RLI-only settings are invalid for the RLM port: {', '.join(supplied)}")
         predictor_measures = settings.predictor_measures or (
             "bpvs",
             "trog",
@@ -504,15 +486,11 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
             "bassim",
             "basnum",
         )
-        use_age = (
-            True if settings.use_age_predictor is None else settings.use_age_predictor
-        )
+        use_age = True if settings.use_age_predictor is None else settings.use_age_predictor
         pre_wave = 1 if settings.pre_wave is None else settings.pre_wave
         rlm_post_wave = 3 if settings.post_wave is None else settings.post_wave
         if rlm_post_wave <= pre_wave:
-            raise ValueError(
-                f"{spec.model_id}: post_wave must be greater than pre_wave"
-            )
+            raise ValueError(f"{spec.model_id}: post_wave must be greater than pre_wave")
         from language_reading_predictors.statistical_models.datasets import (
             resolve_dataset,
         )
@@ -521,22 +499,17 @@ def resolve_horseshoe_run_plan(spec: ModelSpec) -> HorseshoeRunPlan:
         requested = (outcome, *predictor_measures)
         unknown_measures = sorted(set(requested) - set(rlm_measures))
         if unknown_measures:
-            raise ValueError(
-                f"{spec.model_id}: unknown RLM horseshoe measure(s): "
-                + ", ".join(unknown_measures)
-            )
+            raise ValueError(f"{spec.model_id}: unknown RLM horseshoe measure(s): " + ", ".join(unknown_measures))
         if settings.require_confirmed_inputs:
             unresolved = [
                 symbol
                 for symbol in requested
-                if not rlm_measures[symbol].n_trials_confirmed
-                or not rlm_measures[symbol].instrument_identity_confirmed
+                if not rlm_measures[symbol].n_trials_confirmed or not rlm_measures[symbol].instrument_identity_confirmed
             ]
             if unresolved:
                 raise ValueError(
                     f"{spec.model_id}: RLM horseshoe model requires confirmed "
-                    "denominators and instrument identities; unresolved: "
-                    + ", ".join(dict.fromkeys(unresolved))
+                    "denominators and instrument identities; unresolved: " + ", ".join(dict.fromkeys(unresolved))
                 )
         port = "rlm"
         gain = True

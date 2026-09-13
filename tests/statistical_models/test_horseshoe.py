@@ -19,15 +19,11 @@ import numpy as np
 import pymc as pm
 import xarray as xr
 
-from language_reading_predictors.statistical_models.factories import (
-    build_horseshoe_model,
-)
+from language_reading_predictors.statistical_models.factories.horseshoe import build_horseshoe_model
 from language_reading_predictors.statistical_models.preprocessing import (
     load_and_prepare,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    horseshoe_ranking,
-)
+from language_reading_predictors.statistical_models.summaries.horseshoe import horseshoe_ranking
 
 from .test_factories import _write_synthetic
 
@@ -68,9 +64,7 @@ def test_horseshoe_gain_builds(tmp_path):
     assert "gamma_own" in names  # gain conditions on its own baseline
     beta = built.model["beta"]
     assert beta.eval().shape == (len(_PREDICTORS),)
-    assert list(built.model.coords["predictor"]) and len(
-        built.model.coords["predictor"]
-    ) == len(_PREDICTORS)
+    assert list(built.model.coords["predictor"]) and len(built.model.coords["predictor"]) == len(_PREDICTORS)
 
     with built.model:
         pp = pm.sample_prior_predictive(draws=5, random_seed=1)
@@ -84,9 +78,7 @@ def test_horseshoe_level_builds_age_as_predictor(tmp_path):
     ``gamma_A`` slope is suppressed, so age is not double-counted (#160 review)."""
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="levels")
-    built = build_horseshoe_model(
-        prep, outcome_symbol="W", predictors=_PREDICTORS, gain=False
-    )
+    built = build_horseshoe_model(prep, outcome_symbol="W", predictors=_PREDICTORS, gain=False)
 
     names = {v.name for v in built.model.free_RVs}
     assert _HS_CORE.issubset(names)
@@ -105,9 +97,7 @@ def test_horseshoe_level_age_adjusted_when_not_a_predictor(tmp_path):
     added (age adjusted for but not ranked) — the complement of the guard above."""
     p = _write_synthetic(tmp_path)
     prep = load_and_prepare(path=p, phase_mode="levels")
-    built = build_horseshoe_model(
-        prep, outcome_symbol="W", predictors=["L", "R", "E", "T"], gain=False
-    )
+    built = build_horseshoe_model(prep, outcome_symbol="W", predictors=["L", "R", "E", "T"], gain=False)
     names = {v.name for v in built.model.free_RVs}
     assert "gamma_A" in names  # age adjusted for, not ranked
     assert built.model["beta"].eval().shape == (4,)  # no age column in the design
@@ -129,10 +119,10 @@ def test_horseshoe_ranking_schema_and_order():
     chains, draws = 2, 400
     beta = np.stack(
         [
-            rng.normal(1.0, 0.10, (chains, draws)),   # strong +  -> should rank 1
-            rng.normal(0.0, 0.02, (chains, draws)),   # noise
+            rng.normal(1.0, 0.10, (chains, draws)),  # strong +  -> should rank 1
+            rng.normal(0.0, 0.02, (chains, draws)),  # noise
             rng.normal(-0.6, 0.10, (chains, draws)),  # moderate -
-            rng.normal(0.0, 0.02, (chains, draws)),   # noise
+            rng.normal(0.0, 0.02, (chains, draws)),  # noise
         ],
         axis=-1,
     )
@@ -142,8 +132,16 @@ def test_horseshoe_ranking_schema_and_order():
     df = horseshoe_ranking(idata, delta=0.1)
 
     expected_cols = {
-        "rank", "predictor", "p_abs_gt_delta", "beta_median", "beta_mean", "beta_sd",
-        "beta_hdi_lo", "beta_hdi_hi", "sign", "lambda_mean",
+        "rank",
+        "predictor",
+        "p_abs_gt_delta",
+        "beta_median",
+        "beta_mean",
+        "beta_sd",
+        "beta_hdi_lo",
+        "beta_hdi_hi",
+        "sign",
+        "lambda_mean",
     }
     assert expected_cols.issubset(df.columns)
     assert len(df) == 4

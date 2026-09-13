@@ -15,10 +15,9 @@ import pytest
 import xarray as xr
 from scipy.special import expit
 
-from language_reading_predictors.statistical_models.reporting import (
+from dse_research_utils.statistics.evidence import evidence_label
+from language_reading_predictors.statistical_models.predictive_checks import (
     _indicator_prior_verdict,
-    evidence_label,
-    factor_summary,
     indicator_prior_check,
     joint_prior_pushforward,
     labelled_pushforward,
@@ -26,10 +25,11 @@ from language_reading_predictors.statistical_models.reporting import (
     prior_pushforward,
     pushforward_scale_for,
     pushforward_values,
-    rope_markdown,
-    tau_summary_itt,
     unavailable_pushforward,
 )
+from language_reading_predictors.statistical_models.summaries.factors import factor_summary
+from language_reading_predictors.statistical_models.summaries.itt import tau_summary_itt
+from language_reading_predictors.statistical_models.summaries.rope import rope_markdown
 from language_reading_predictors.statistical_models.figure_artifacts import (
     save_contrast_heatmap,
 )
@@ -85,9 +85,7 @@ def test_factor_summary_has_direction_label():
         {"beta_trt": (("chain", "draw"), beta)},
         coords={"chain": np.arange(2), "draw": np.arange(300)},
     )
-    df = factor_summary(
-        SimpleNamespace(posterior=ds), ["beta_trt"], ci_prob=0.95, causal_terms=("beta_trt",)
-    )
+    df = factor_summary(SimpleNamespace(posterior=ds), ["beta_trt"], ci_prob=0.95, causal_terms=("beta_trt",))
     assert "direction_label" in df.columns
     row = df.iloc[0]
     assert row["role"] == "causal"
@@ -110,8 +108,10 @@ def test_factor_summary_labels_vector_elements_by_coordinate_and_applies_roles()
             "gamma_A": (("chain", "draw"), rng.normal(0.0, 0.1, (2, 50))),
         },
         coords={
-            "chain": np.arange(2), "draw": np.arange(50),
-            "post_phase": ["t2", "t3", "t4"], "phase": np.arange(4),
+            "chain": np.arange(2),
+            "draw": np.arange(50),
+            "post_phase": ["t2", "t3", "t4"],
+            "phase": np.arange(4),
         },
     )
     df = factor_summary(
@@ -143,19 +143,27 @@ def test_factor_summary_labels_vector_elements_by_coordinate_and_applies_roles()
     }
     # The element label matches the value the summary was computed from.
     t2 = df[df["term"] == "d_grp_time[t2]"].iloc[0]
-    assert t2["median"] == pytest.approx(
-        float(np.median(ds["d_grp_time"].sel(post_phase="t2").values))
-    )
+    assert t2["median"] == pytest.approx(float(np.median(ds["d_grp_time"].sel(post_phase="t2").values)))
 
 
 def test_rope_markdown_items_and_risk_difference():
     base = {
-        "tau_logit_median": 0.3, "tau_logit_lo50": 0.1, "tau_logit_hi50": 0.5,
-        "tau_logit_lo": -0.1, "tau_logit_hi": 0.7,
-        "items_median": 2.0, "items_lo50": 1.0, "items_hi50": 3.0,
-        "items_lo": -0.5, "items_hi": 4.5, "delta_items": 1.0,
-        "pd": 0.97, "prob_benefit_ge_delta": 0.85, "prob_in_rope": 0.05,
-        "prob_harm_ge_delta": 0.01, "direction_label": "moderate",
+        "tau_logit_median": 0.3,
+        "tau_logit_lo50": 0.1,
+        "tau_logit_hi50": 0.5,
+        "tau_logit_lo": -0.1,
+        "tau_logit_hi": 0.7,
+        "items_median": 2.0,
+        "items_lo50": 1.0,
+        "items_hi50": 3.0,
+        "items_lo": -0.5,
+        "items_hi": 4.5,
+        "delta_items": 1.0,
+        "pd": 0.97,
+        "prob_benefit_ge_delta": 0.85,
+        "prob_in_rope": 0.05,
+        "prob_harm_ge_delta": 0.01,
+        "direction_label": "moderate",
         "benefit_label": "suggestive",
     }
     md = rope_markdown(pd.DataFrame([base]), "letter sounds")
@@ -164,8 +172,17 @@ def test_rope_markdown_items_and_risk_difference():
     assert "δ" in md
 
     # Floored risk-difference scale: median ×100 to percentage points, flagged provisional.
-    rd = dict(base, delta_scale="risk_difference", provisional_delta=True, items_median=0.12,
-              items_lo50=0.05, items_hi50=0.20, items_lo=-0.02, items_hi=0.30, delta_items=0.10)
+    rd = dict(
+        base,
+        delta_scale="risk_difference",
+        provisional_delta=True,
+        items_median=0.12,
+        items_lo50=0.05,
+        items_hi50=0.20,
+        items_lo=-0.02,
+        items_hi=0.30,
+        delta_items=0.10,
+    )
     md2 = rope_markdown(pd.DataFrame([rd]), "P(off-floor)")
     assert "percentage points" in md2
     assert "provisional" in md2
@@ -187,12 +204,8 @@ def test_probability_contrast_heatmap_saves_with_colorbar(tmp_path):
 
 def test_floor_report_renders_same_estimand_bounds_and_gates_secondaries():
     repo = Path(__file__).resolve().parents[2]
-    floor_results = (
-        repo / "docs/models/_partials/_results_floored.qmd"
-    ).read_text(encoding="utf-8")
-    diagnostics = (repo / "docs/models/_partials/_diagnostics.qmd").read_text(
-        encoding="utf-8"
-    )
+    floor_results = (repo / "docs/models/_partials/_results_floored.qmd").read_text(encoding="utf-8")
+    diagnostics = (repo / "docs/models/_partials/_diagnostics.qmd").read_text(encoding="utf-8")
 
     assert "floor_transition_missingness_bounds.csv" in floor_results
     assert "full_randomised_population" not in floor_results  # driven by the CSV
@@ -212,22 +225,16 @@ def test_floor_report_renders_same_estimand_bounds_and_gates_secondaries():
 
 def test_itt_evidence_callout_is_separated_from_preceding_output():
     repo = Path(__file__).resolve().parents[2]
-    itt_results = (repo / "docs/models/_partials/_results_itt.qmd").read_text(
-        encoding="utf-8"
-    )
+    itt_results = (repo / "docs/models/_partials/_results_itt.qmd").read_text(encoding="utf-8")
 
-    assert "'\\n::: {.callout-note title=\"Reading the evidence labels\"}" in itt_results
+    assert '\'\\n::: {.callout-note title="Reading the evidence labels"}' in itt_results
     assert "point.\\n\\n:::\\n" in itt_results
 
 
 def test_joint_report_warns_when_persisted_shape_check_flags_p():
     repo = Path(__file__).resolve().parents[2]
-    joint_results = (repo / "docs/models/_partials/_results_joint.qmd").read_text(
-        encoding="utf-8"
-    )
-    diagnostics = (repo / "docs/models/_partials/_diagnostics.qmd").read_text(
-        encoding="utf-8"
-    )
+    joint_results = (repo / "docs/models/_partials/_results_joint.qmd").read_text(encoding="utf-8")
+    diagnostics = (repo / "docs/models/_partials/_diagnostics.qmd").read_text(encoding="utf-8")
 
     assert "posterior_predictive_shape_calibration.csv" in joint_results
     assert "ppc_shape_flag" in joint_results
@@ -242,9 +249,7 @@ def test_joint_report_warns_when_persisted_shape_check_flags_p():
 
 def test_diagnostics_report_surfaces_unreliable_pareto_k():
     repo = Path(__file__).resolve().parents[2]
-    diagnostics = (repo / "docs/models/_partials/_diagnostics.qmd").read_text(
-        encoding="utf-8"
-    )
+    diagnostics = (repo / "docs/models/_partials/_diagnostics.qmd").read_text(encoding="utf-8")
 
     assert '_csv("pareto_k.csv")' in diagnostics
     assert "_pareto_k > _pareto_thresholds" in diagnostics
@@ -296,12 +301,8 @@ def test_marginal_pushforward_conventions_differ_and_match_their_transforms():
     beta = np.full((1, 4), 0.5)
     trace = SimpleNamespace(prior=_ds(eta, beta.reshape(1, 4), extra={"b": beta}))
 
-    fwd = marginal_prior_pushforward(
-        trace, term="b", n_trials=10, ci_prob=0.9, convention="forward"
-    )
-    net = marginal_prior_pushforward(
-        trace, term="b", n_trials=10, ci_prob=0.9, convention="net_out"
-    )
+    fwd = marginal_prior_pushforward(trace, term="b", n_trials=10, ci_prob=0.9, convention="forward")
+    net = marginal_prior_pushforward(trace, term="b", n_trials=10, ci_prob=0.9, convention="net_out")
     expected_fwd = 10 * (expit(0.8 + 0.5) - expit(0.8))
     expected_net = 10 * (expit(0.8) - expit(0.8 - 0.5))
     assert fwd["prior_items_median"] == pytest.approx(expected_fwd)
@@ -321,9 +322,9 @@ def test_marginal_pushforward_selects_one_element_of_a_vector_term():
     """
     n_draw = 200
     rng = np.random.default_rng(11)
-    beta = np.stack(
-        [rng.normal(-2.0, 0.01, n_draw), rng.normal(2.0, 0.01, n_draw)], axis=-1
-    )[None, ...]  # (1, n_draw, 2)
+    beta = np.stack([rng.normal(-2.0, 0.01, n_draw), rng.normal(2.0, 0.01, n_draw)], axis=-1)[
+        None, ...
+    ]  # (1, n_draw, 2)
     ds = xr.Dataset(
         {
             "eta": (("chain", "draw", "obs_id"), np.zeros((1, n_draw, 3))),
@@ -337,12 +338,8 @@ def test_marginal_pushforward_selects_one_element_of_a_vector_term():
         },
     )
     trace = SimpleNamespace(prior=ds)
-    low = marginal_prior_pushforward(
-        trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "low"}
-    )
-    high = marginal_prior_pushforward(
-        trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "high"}
-    )
+    low = marginal_prior_pushforward(trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "low"})
+    high = marginal_prior_pushforward(trace, term="beta", n_trials=10, ci_prob=0.9, term_index={"predictor": "high"})
     assert low["prior_logit_median"] == pytest.approx(-2.0, abs=0.05)
     assert high["prior_logit_median"] == pytest.approx(2.0, abs=0.05)
 
@@ -355,13 +352,9 @@ def test_labelled_pushforward_keeps_the_numeric_keys_the_blending_bundle_matches
     string key in the returned dict would fail the released phoneme-blending
     bundle. The labels therefore live only on the *written* row.
     """
-    values = pushforward_values(
-        np.array([0.1, 0.2, 0.3]), np.array([1.0, 2.0, 3.0]), n_trials=10, ci_prob=0.9
-    )
+    values = pushforward_values(np.array([0.1, 0.2, 0.3]), np.array([1.0, 2.0, 3.0]), n_trials=10, ci_prob=0.9)
     assert all(isinstance(v, (int, float)) for v in values.values())
-    row = labelled_pushforward(
-        values, estimand="tau", estimand_label="the treatment effect", role="causal"
-    )
+    row = labelled_pushforward(values, estimand="tau", estimand_label="the treatment effect", role="causal")
     assert set(values) <= set(row)
     assert row["status"] == "ok"
     assert row["role"] == "causal"
@@ -438,9 +431,7 @@ def test_scale_is_derived_from_the_denominator_so_it_cannot_disagree():
     assert pushforward_scale_for(79) == "items"
     assert pushforward_scale_for(1) == "percentage points"
 
-    values = pushforward_values(
-        np.array([0.0]), np.array([0.05]), n_trials=1, ci_prob=0.9
-    )
+    values = pushforward_values(np.array([0.0]), np.array([0.05]), n_trials=1, ci_prob=0.9)
     row = labelled_pushforward(
         values,
         estimand="tau",
@@ -449,9 +440,7 @@ def test_scale_is_derived_from_the_denominator_so_it_cannot_disagree():
     )
     assert row["scale"] == "percentage points"
     # An explicit scale still wins, for a family whose units are neither.
-    override = labelled_pushforward(
-        values, estimand="tau", estimand_label="x", role="causal", scale="words/year"
-    )
+    override = labelled_pushforward(values, estimand="tau", estimand_label="x", role="causal", scale="words/year")
     assert override["scale"] == "words/year"
 
 
@@ -526,12 +515,8 @@ def test_indicator_prior_check_pools_missingness_blocks_by_indicator():
     big = _cfa_trace(1.0, node="z_obs_0", n_obs=40, seed=1)
     small = _cfa_trace(1.0, node="z_obs_1", n_obs=1, seed=2)
     merged = SimpleNamespace(
-        prior_predictive=xr.merge(
-            [big.prior_predictive, small.prior_predictive], compat="override"
-        ),
-        observed_data=xr.merge(
-            [big.observed_data, small.observed_data], compat="override"
-        ),
+        prior_predictive=xr.merge([big.prior_predictive, small.prior_predictive], compat="override"),
+        observed_data=xr.merge([big.observed_data, small.observed_data], compat="override"),
     )
     df = indicator_prior_check(merged, nodes=["z_obs_0", "z_obs_1"])
     # One row per indicator, not per (node, indicator) — and the single-row block
@@ -561,10 +546,7 @@ def test_empty_prior_group_is_replaced_so_a_re_emit_can_repair_it(tmp_path):
                     coords={"chain": [0], "draw": [0, 1]},
                 ),
                 "prior": xr.Dataset(
-                    {
-                        name: (("chain", "draw"), np.full((1, 2), val))
-                        for name, val in prior_vars.items()
-                    },
+                    {name: (("chain", "draw"), np.full((1, 2), val)) for name, val in prior_vars.items()},
                     coords={"chain": [0], "draw": [0, 1]},
                 ),
             }
@@ -591,9 +573,7 @@ def test_a_publishable_fit_shows_the_qualification_it_publishes_under():
     sensitivity — was written to ``release_decision.json`` and shown to nobody
     (2026-08-24 historical-joint review)."""
     repo = Path(__file__).resolve().parents[2]
-    badge = (repo / "docs/models/_partials/_gate_badge.qmd").read_text(
-        encoding="utf-8"
-    )
+    badge = (repo / "docs/models/_partials/_gate_badge.qmd").read_text(encoding="utf-8")
 
     # Read in both branches: the development-only banner and the new
     # published-with-a-qualification one.
@@ -602,17 +582,13 @@ def test_a_publishable_fit_shows_the_qualification_it_publishes_under():
     assert "This fit is release-eligible" in badge
     # The development-only banner still owns the not-eligible message; the new
     # branch is an ``elif`` so a development fit shows one banner, not two.
-    assert badge.index('title="Development-only fit"') < badge.index(
-        'title="Published with a qualification"'
-    )
+    assert badge.index('title="Development-only fit"') < badge.index('title="Published with a qualification"')
     assert "elif isinstance(_release_decision, dict)" in badge
 
 
 def test_the_historical_joint_report_states_which_scale_the_rule_uses():
     repo = Path(__file__).resolve().parents[2]
-    results = (
-        repo / "docs/models/_partials/_results_historical_joint.qmd"
-    ).read_text(encoding="utf-8")
+    results = (repo / "docs/models/_partials/_results_historical_joint.qmd").read_text(encoding="utf-8")
 
     assert "realised_prob_above_minimum" in results
     assert "lenient" in results

@@ -25,9 +25,7 @@ from types import SimpleNamespace
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.reporting import (
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import generate_key_findings
 from language_reading_predictors.statistical_models.release import (
     evaluate_publication,
     write_release_decision,
@@ -46,9 +44,7 @@ def _subdirs(root: Path) -> list[Path]:
     """
     if not root.is_dir():
         return []
-    return sorted(
-        d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")
-    )
+    return sorted(d for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))
 
 
 def resolve_targets(target: str) -> list[Path]:
@@ -57,11 +53,7 @@ def resolve_targets(target: str) -> list[Path]:
     if target == "all":
         return _subdirs(root)
     # Statistical dirs are named "<id>-<config>"; accept either form.
-    return [
-        d
-        for d in _subdirs(root)
-        if d.name == target or d.name.startswith(f"{target}-")
-    ]
+    return [d for d in _subdirs(root) if d.name == target or d.name.startswith(f"{target}-")]
 
 
 def main() -> None:

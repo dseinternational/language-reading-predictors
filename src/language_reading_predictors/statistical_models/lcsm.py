@@ -82,17 +82,11 @@ def _coupling_items(value: Any, *, name: str) -> CouplingItems | None:
         raise TypeError(f"{name} must be a target-to-sources mapping, got {value!r}")
     out: list[tuple[str, tuple[str, ...]]] = []
     for item in raw_items:
-        if (
-            isinstance(item, (str, bytes))
-            or not isinstance(item, Sequence)
-            or len(item) != 2
-        ):
+        if isinstance(item, (str, bytes)) or not isinstance(item, Sequence) or len(item) != 2:
             raise TypeError(f"{name} entries must be (target, sources) pairs")
         target, sources = item
         target = _string(target, name=f"{name} target")
-        out.append(
-            (target, _tuple_of_strings(sources, name=f"{name}[{target!r}]") )
-        )
+        out.append((target, _tuple_of_strings(sources, name=f"{name}[{target!r}]")))
     targets = [target for target, _ in out]
     if len(targets) != len(set(targets)):
         raise ValueError(f"{name} contains duplicate targets: {targets!r}")
@@ -171,9 +165,7 @@ class LcsmModelSettings:
         )
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> LcsmModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> LcsmModelSettings:
         """Strictly translate the former ``spec.extra`` declaration."""
         unknown = sorted(set(extra) - _LEGACY_KEYS)
         if unknown:
@@ -269,9 +261,7 @@ class LcsmRunPlan:
         """Map source-target pairs to their fitted level-coupling names."""
         single_target = len(self.couplings) == 1
         return {
-            (source, target): (
-                f"g_{source}" if single_target else f"g_{source}_{target}"
-            )
+            (source, target): (f"g_{source}" if single_target else f"g_{source}_{target}")
             for target, sources in self.couplings
             for source in sources
         }
@@ -280,9 +270,7 @@ class LcsmRunPlan:
         """Map source-target pairs to their fitted change-coupling names."""
         single_target = len(self.lagged_change_couplings) == 1
         return {
-            (source, target): (
-                f"h_{source}" if single_target else f"h_{source}_{target}"
-            )
+            (source, target): (f"h_{source}" if single_target else f"h_{source}_{target}")
             for target, sources in self.lagged_change_couplings
             for source in sources
         }
@@ -300,15 +288,16 @@ class LcsmRunPlan:
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language account generated from the validated run plan."""
         couplings = ", ".join(
-            f"{source} to {target} change"
-            for target, sources in self.couplings
-            for source in sources
+            f"{source} to {target} change" for target, sources in self.couplings for source in sources
         )
-        lagged = ", ".join(
-            f"prior {source} change to {target} change"
-            for target, sources in self.lagged_change_couplings
-            for source in sources
-        ) or "none"
+        lagged = (
+            ", ".join(
+                f"prior {source} change to {target} change"
+                for target, sources in self.lagged_change_couplings
+                for source in sources
+            )
+            or "none"
+        )
         adjusters = ", ".join(self.covariate_block) or "none"
         return (
             "Note: Generated from the validated LCSM run plan; template drafted "
@@ -348,10 +337,7 @@ def declared_lcsm_settings(spec: ModelSpec) -> tuple[LcsmModelSettings, str]:
                 f"model_settings and extra: {', '.join(family_extra)}"
             )
         if not isinstance(settings, LcsmModelSettings):
-            raise TypeError(
-                f"{spec.model_id}: kind='lcsm' requires LcsmModelSettings, got "
-                f"{type(settings).__name__}"
-            )
+            raise TypeError(f"{spec.model_id}: kind='lcsm' requires LcsmModelSettings, got {type(settings).__name__}")
         return settings, "typed"
     return (
         LcsmModelSettings.from_legacy_extra(spec.extra, model_id=spec.model_id),
@@ -371,14 +357,9 @@ def _validate_couplings(
             raise ValueError(f"{name} target {target!r} is not in outcomes {outcomes!r}")
         unknown = sorted(set(sources) - known)
         if unknown:
-            raise ValueError(
-                f"{name}[{target!r}] contains symbols outside outcomes: {unknown!r}"
-            )
+            raise ValueError(f"{name}[{target!r}] contains symbols outside outcomes: {unknown!r}")
         if target in sources:
-            raise ValueError(
-                f"{name} target {target!r} cannot couple to itself; b_self owns "
-                "self-feedback"
-            )
+            raise ValueError(f"{name} target {target!r} cannot couple to itself; b_self owns self-feedback")
 
 
 def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
@@ -386,9 +367,7 @@ def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
     if spec.kind != "lcsm":
         raise ValueError(f"{spec.model_id}: expected kind 'lcsm', got {spec.kind!r}")
     if spec.study_id != "rli":
-        raise ValueError(
-            f"{spec.model_id}: LCSM requires study_id='rli', got {spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: LCSM requires study_id='rli', got {spec.study_id!r}")
     reading_symbol = spec.outcome_symbol
     if reading_symbol is None:
         raise ValueError(f"{spec.model_id}: LCSM requires outcome_symbol")
@@ -398,10 +377,7 @@ def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
     if len(outcomes) < 2:
         raise ValueError("LCSM outcomes must contain at least two measures")
     if reading_symbol not in outcomes:
-        raise ValueError(
-            f"{spec.model_id}: outcome_symbol {reading_symbol!r} is not in "
-            f"outcomes {outcomes!r}"
-        )
+        raise ValueError(f"{spec.model_id}: outcome_symbol {reading_symbol!r} is not in outcomes {outcomes!r}")
 
     # `is None`, not falsy-or: an explicitly-empty coupling set (a couplings-free
     # comparator) must stay empty rather than silently fitting the full LRP67
@@ -430,35 +406,21 @@ def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
             "the fitted transitions are post-crossover"
         )
     if bool(settings.covariate_block) != bool(settings.covariate_targets):
-        raise ValueError(
-            "covariate_block and covariate_targets must be declared together"
-        )
+        raise ValueError("covariate_block and covariate_targets must be declared together")
     unknown_targets = sorted(set(settings.covariate_targets) - set(outcomes))
     if unknown_targets:
-        raise ValueError(
-            f"covariate_targets contains symbols outside outcomes: {unknown_targets!r}"
-        )
+        raise ValueError(f"covariate_targets contains symbols outside outcomes: {unknown_targets!r}")
     if settings.shared_process_noise and not settings.use_process_noise:
-        raise ValueError(
-            "shared_process_noise=True requires use_process_noise=True"
-        )
+        raise ValueError("shared_process_noise=True requires use_process_noise=True")
     if settings.dominance_pair is not None:
         left, right = settings.dominance_pair
         if left not in outcomes or right not in outcomes:
             raise ValueError("dominance_pair symbols must both appear in outcomes")
-        coupling_set = {
-            (source_symbol, target)
-            for target, sources in couplings
-            for source_symbol in sources
-        }
+        coupling_set = {(source_symbol, target) for target, sources in couplings for source_symbol in sources}
         if {(left, right), (right, left)} - coupling_set:
-            raise ValueError(
-                "dominance_pair requires reciprocal level couplings in both directions"
-            )
+            raise ValueError("dominance_pair requires reciprocal level couplings in both directions")
 
-    include_hearing = any(
-        name in {"hs", "hs_missing"} for name in settings.covariate_block
-    )
+    include_hearing = any(name in {"hs", "hs_missing"} for name in settings.covariate_block)
     wave_covariates = tuple(
         dict.fromkeys(
             name
@@ -467,8 +429,7 @@ def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
         )
     )
     arm_design = (
-        "Arm-by-window change intercepts separate the randomised first window from "
-        "post-crossover windows."
+        "Arm-by-window change intercepts separate the randomised first window from post-crossover windows."
         if settings.arm_window_intercepts
         else "A pooled change intercept is used across arms and transitions."
     )
@@ -495,8 +456,7 @@ def resolve_lcsm_run_plan(spec: ModelSpec) -> LcsmRunPlan:
         design=(
             "A coupled McArdle latent change-score model over four RLI waves, with "
             "bounded scores observed through Beta-Binomial measurement models and "
-            "time-invariant cross-process coupling coefficients. "
-            + arm_design
+            "time-invariant cross-process coupling coefficients. " + arm_design
         ),
         estimand=(
             "Each g coefficient is the association between a source measure's "

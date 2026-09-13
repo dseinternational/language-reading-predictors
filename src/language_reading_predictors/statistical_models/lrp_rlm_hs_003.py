@@ -30,10 +30,7 @@ from language_reading_predictors.statistical_models.pipelines.horseshoe import (
 SPEC = ModelSpec(
     model_id="lrp-rlm-hs-003",
     kind="horseshoe",
-    title=(
-        "Byrne horseshoe ranking of wave-1 predictors of receptive-grammar "
-        "gain, waves 1-3 (confirmed-input)"
-    ),
+    title=("Byrne horseshoe ranking of wave-1 predictors of receptive-grammar gain, waves 1-3 (confirmed-input)"),
     outcome_symbol="trog",
     study_id="rlm",
     family="horseshoe",
@@ -53,9 +50,9 @@ SPEC = ModelSpec(
         slab_scale=2.0,
         slab_df=4.0,
     ),
-        # The horseshoe's global-local funnel needs smaller steps than the
-        # tier defaults. The rep-lite fit diverged at 0.99 and cleared the
-        # zero-divergence gate at 0.999.
+    # The horseshoe's global-local funnel needs smaller steps than the
+    # tier defaults. The rep-lite fit diverged at 0.99 and cleared the
+    # zero-divergence gate at 0.999.
     target_accept=0.999,
 )
 

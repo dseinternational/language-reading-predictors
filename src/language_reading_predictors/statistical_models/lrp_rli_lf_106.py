@@ -24,7 +24,6 @@ the other. The empirical-Bayes intercept anchor is mapped back through the link
 rather than 1.1 logits away.
 """
 
-
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,

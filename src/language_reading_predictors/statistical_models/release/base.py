@@ -41,9 +41,7 @@ GROWTH_INFLUENCE_TRACE_FILENAME = "trace_growth_influence_sensitivity.nc"
 JOINT_MECHANISM_MARGINAL_COVERAGE_FLOORS: dict[int, float] = {50: 0.35, 90: 0.75}
 
 
-TauSensitivityClass = Literal[
-    "clear", "prior_data_conflict", "prior_dominant", "unavailable"
-]
+TauSensitivityClass = Literal["clear", "prior_data_conflict", "prior_dominant", "unavailable"]
 
 
 ReleaseStatus = Literal["release", "qualify", "withhold"]
@@ -60,7 +58,7 @@ GATED_KINDS = frozenset({"itt", "joint", "did", "gain_factors", "level_factors"}
 def _finite(value: Any) -> float | None:
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return number if pd.notna(number) and abs(number) != float("inf") else None
 
@@ -71,7 +69,7 @@ def _read_csv(output_dir: str | Path, name: str, **kwargs: Any) -> pd.DataFrame 
         return None
     try:
         return pd.read_csv(path, **kwargs)
-    except (OSError, UnicodeDecodeError, pd.errors.ParserError, ValueError):
+    except OSError, UnicodeDecodeError, pd.errors.ParserError, ValueError:
         return None
 
 
@@ -104,9 +102,7 @@ def _model_tier(config: Mapping[str, Any]) -> str:
     )
 
     plan = config.get("resolved_run_plan") or {}
-    if config.get("kind") == "itt" and (
-        plan.get("adjust_for") or plan.get("adjustment")
-    ):
+    if config.get("kind") == "itt" and (plan.get("adjust_for") or plan.get("adjustment")):
         return "adjusted_robustness"
     if str(config.get("outcome_symbol") or "") not in STANDARD_SENSITIVITY_OUTCOMES:
         return "off_grid"
@@ -120,7 +116,7 @@ def _load_config(output_dir: Path) -> dict[str, Any] | None:
     try:
         with open(path, encoding="utf-8") as handle:
             loaded = json.load(handle)
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except OSError, UnicodeDecodeError, json.JSONDecodeError:
         return None
     return loaded if isinstance(loaded, dict) else None
 
@@ -148,7 +144,7 @@ def _read_json(path: str | Path) -> tuple[Any, str | None]:
     try:
         with open(path, encoding="utf-8") as handle:
             return json.load(handle), None
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+    except OSError, UnicodeDecodeError, json.JSONDecodeError:
         return None, "unreadable"
 
 
@@ -190,8 +186,7 @@ _JOINT_PAIR_BINDING: tuple[tuple[str, Callable[[Mapping[str, Any]], Any]], ...] 
     ("the input data checksum", lambda c: str(c.get("data_sha256") or "") or None),
     (
         "the fitted-row identity",
-        lambda c: str((c.get("fitted_subject_identity") or {}).get("sha256") or "")
-        or None,
+        lambda c: str((c.get("fitted_subject_identity") or {}).get("sha256") or "") or None,
     ),
     (
         "the fitted-data digest and observed denominators",
@@ -204,10 +199,7 @@ _JOINT_PAIR_BINDING: tuple[tuple[str, Callable[[Mapping[str, Any]], Any]], ...] 
     ("the sampling configuration", lambda c: c.get("sampling") or None),
     (
         "the source commit",
-        lambda c: str(
-            ((c.get("provenance") or {}).get("source") or {}).get("commit") or ""
-        )
-        or None,
+        lambda c: str(((c.get("provenance") or {}).get("source") or {}).get("commit") or "") or None,
     ),
 )
 
@@ -223,9 +215,7 @@ def _plan(config: Mapping[str, Any]) -> Mapping[str, Any]:
 #: *same* model under a *different* prior (#588 finding 5). Everything the fitted
 #: equation and the analysis rows depend on, and every prior scale except the one
 #: under test.
-_HISTORICAL_JOINT_PRIOR_BINDING: tuple[
-    tuple[str, Callable[[Mapping[str, Any]], Any]], ...
-] = (
+_HISTORICAL_JOINT_PRIOR_BINDING: tuple[tuple[str, Callable[[Mapping[str, Any]], Any]], ...] = (
     ("the measure list", lambda c: list(_plan(c).get("measures") or [])),
     (
         "the analysis window",
@@ -247,8 +237,7 @@ _HISTORICAL_JOINT_PRIOR_BINDING: tuple[
     ("the input data checksum", lambda c: str(c.get("data_sha256") or "") or None),
     (
         "the fitted-row identity",
-        lambda c: str((c.get("fitted_subject_identity") or {}).get("sha256") or "")
-        or None,
+        lambda c: str((c.get("fitted_subject_identity") or {}).get("sha256") or "") or None,
     ),
 )
 

@@ -110,16 +110,16 @@ SPEC = ModelSpec(
         use_subject_random_intercept=True,
         outcomes=("W",),
     ),
-        # The between-period dose-slope scale is a funnel: only three phase slopes
-        # inform ``sigma_dose``, so NUTS occasionally shoots into its upper tail.
-        # ``beta_dose_phase`` is already non-centred, so the remaining lever is the
-        # step size. 0.99 cleared the pre-#587 geometry but leaves 2 divergences in
-        # the repaired one (both at sigma_dose ~ 1.4 against a posterior median of
-        # 0.14); the strict gate requires zero and the divergence-qualification policy
-        # will not waive them. Recorded so the stored reporting fit is reproducible
-        # from the registry rather than only from a CLI override —
-        # notes/202608050649-reporting-refit-predictive-checks.md and
-        # notes/202608232100-dose-response-587-remediation.md.
+    # The between-period dose-slope scale is a funnel: only three phase slopes
+    # inform ``sigma_dose``, so NUTS occasionally shoots into its upper tail.
+    # ``beta_dose_phase`` is already non-centred, so the remaining lever is the
+    # step size. 0.99 cleared the pre-#587 geometry but leaves 2 divergences in
+    # the repaired one (both at sigma_dose ~ 1.4 against a posterior median of
+    # 0.14); the strict gate requires zero and the divergence-qualification policy
+    # will not waive them. Recorded so the stored reporting fit is reproducible
+    # from the registry rather than only from a CLI override —
+    # notes/202608050649-reporting-refit-predictive-checks.md and
+    # notes/202608232100-dose-response-587-remediation.md.
     target_accept=0.995,
 )
 

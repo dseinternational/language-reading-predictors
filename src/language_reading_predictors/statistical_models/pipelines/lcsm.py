@@ -14,6 +14,10 @@ are adjusted associations; nothing but that window-1 contrast is causal.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import lcsm as _lcsm_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 from itertools import combinations
 from typing import Any, Mapping
 
@@ -24,12 +28,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    lcsm as _lcsm,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag, lcsm as _lcsm
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -46,7 +45,7 @@ from language_reading_predictors.statistical_models.publication import (
     print_header,
     render_model_graph,
 )
-from language_reading_predictors.statistical_models.reporting import coef_row
+from language_reading_predictors.statistical_models.posteriors import coef_row
 from language_reading_predictors.statistical_models.runtime import (
     attach_built,
     finalize_report,
@@ -57,9 +56,7 @@ from language_reading_predictors.statistical_models.runtime import (
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
 
 
-def standardised_coupling_rows(
-    post: Any, coupling_names: Mapping[tuple[str, str], str], ci_prob: float
-) -> list[dict]:
+def standardised_coupling_rows(post: Any, coupling_names: Mapping[tuple[str, str], str], ci_prob: float) -> list[dict]:
     """SD-standardised level -> change couplings, and contrasts between sources.
 
     A raw coupling ``g_{src}`` is per unit of the *source's* latent logit, so two
@@ -85,21 +82,13 @@ def standardised_coupling_rows(
         by_target.setdefault(tgt, []).append(src)
     rows: list[dict] = []
     for tgt, sources in by_target.items():
-        sd_target_change = (
-            x.sel(outcome=tgt).diff("wave").std(dim=("child", "wave"))
-        )
+        sd_target_change = x.sel(outcome=tgt).diff("wave").std(dim=("child", "wave"))
         std_g: dict[str, Any] = {}
         for src in sources:
-            sd_source_level = (
-                x.isel(wave=slice(0, -1))
-                .sel(outcome=src)
-                .std(dim=("child", "wave"))
-            )
+            sd_source_level = x.isel(wave=slice(0, -1)).sel(outcome=src).std(dim=("child", "wave"))
             g = post[coupling_names[(src, tgt)]]
             std_g[src] = g * sd_source_level / sd_target_change
-            row = coef_row(
-                f"std g ({src} -> {tgt} change)", std_g[src].values, ci_prob
-            )
+            row = coef_row(f"std g ({src} -> {tgt} change)", std_g[src].values, ci_prob)
             row["kind"] = "standardised_coupling"
             row["source"] = src
             row["target"] = tgt
@@ -167,7 +156,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     outcomes = plan.outcomes
@@ -183,7 +172,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_lcsm_model(
+    built = _lcsm_factory.build_lcsm_model(
         panel,
         **plan.factory_kwargs(),
     )
@@ -209,9 +198,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 symbol,
                 node=plan.observation_node,
                 filename_stem=(
-                    "prior_predictive_check"
-                    if symbol == reading_symbol
-                    else f"prior_predictive_check_{symbol.lower()}"
+                    "prior_predictive_check" if symbol == reading_symbol else f"prior_predictive_check_{symbol.lower()}"
                 ),
             )
 
@@ -264,9 +251,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
         legacy = single_target and tgt == reading_symbol and tgt == "W"
         rows.append(
             coef_row(
-                f"b_self[{tgt}] (reading self-feedback)"
-                if legacy
-                else f"b_self[{tgt}] ({tgt} self-feedback)",
+                f"b_self[{tgt}] (reading self-feedback)" if legacy else f"b_self[{tgt}] ({tgt} self-feedback)",
                 post["b_self"].sel(outcome=tgt).values,
                 ctx.reporting.ci_prob,
             )
@@ -283,9 +268,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             )
         rows.append(
             coef_row(
-                f"d_age[{tgt}] (age -> reading change)"
-                if legacy
-                else f"d_age[{tgt}] (age -> {tgt} change)",
+                f"d_age[{tgt}] (age -> reading change)" if legacy else f"d_age[{tgt}] (age -> {tgt} change)",
                 post["d_age"].sel(outcome=tgt).values,
                 ctx.reporting.ci_prob,
             )
@@ -295,10 +278,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_table(
         ranked_dataframe_table(
             coupling_df,
-            title=(
-                f"Change couplings - {int(ctx.reporting.ci_prob * 100)}% CI "
-                "(equal-tailed)"
-            ),
+            title=(f"Change couplings - {int(ctx.reporting.ci_prob * 100)}% CI (equal-tailed)"),
             columns=["coefficient", "mean", "lo", "hi", "prob_pos"],
             rank_column=False,
             precision=3,
@@ -311,10 +291,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # arm x window shape carries it.
     itt_rows: list[dict] = []
     if arm_window:
-        section_header(
-            "Window-1 randomised contrast "
-            "(available-case modified ITT consistency check)"
-        )
+        section_header("Window-1 randomised contrast (available-case modified ITT consistency check)")
         for s in outcomes:
             itt_rows.append(
                 coef_row(
@@ -347,9 +324,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
 
         def _std_coupling(src: str, tgt: str):
             g = post[coupling_names[(src, tgt)]]
-            sd_src = x.isel(wave=slice(0, -1)).sel(outcome=src).std(
-                dim=("child", "wave")
-            )
+            sd_src = x.isel(wave=slice(0, -1)).sel(outcome=src).std(dim=("child", "wave"))
             sd_dt = x.sel(outcome=tgt).diff("wave").std(dim=("child", "wave"))
             return g * sd_src / sd_dt
 
@@ -404,9 +379,7 @@ def fit_lcsm(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "outcomes": list(outcomes),
             "reading_symbol": reading_symbol,
             "couplings": {tgt: list(srcs) for tgt, srcs in couplings.items()},
-            "lagged_change_couplings": {
-                tgt: list(srcs) for tgt, srcs in lagged_change_couplings.items()
-            },
+            "lagged_change_couplings": {tgt: list(srcs) for tgt, srcs in lagged_change_couplings.items()},
             "arm_window_intercepts": arm_window,
             "covariate_block": list(covariate_block),
             "covariate_targets": list(covariate_targets),

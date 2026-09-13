@@ -13,6 +13,9 @@ fit. Split out of ``pipeline.py`` for #394.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+
+
 from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
@@ -24,10 +27,7 @@ from dse_research_utils.plot.styles import (
     FIGSIZE_LG,
 )
 
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import (
     guard_optional,
     record_artifact,
@@ -64,15 +64,15 @@ def _draw_did_cell_panel(
     hi = cell_ppc[f"replicated_{stem}_hi"].to_numpy(float)
     observed = cell_ppc[f"observed_{stem}"].to_numpy(float)
     ax.errorbar(
-        x, centre, yerr=np.vstack((centre - lo, hi - centre)), fmt="o", capsize=4,
+        x,
+        centre,
+        yerr=np.vstack((centre - lo, hi - centre)),
+        fmt="o",
+        capsize=4,
         color=COLOUR_BLUE,
-        label=(
-            "posterior predictive median and "
-            f"{int(round(ci_prob * 100))}% interval"
-        ),
+        label=(f"posterior predictive median and {int(round(ci_prob * 100))}% interval"),
     )
-    ax.scatter(x, observed, marker="x", s=55, linewidth=2, color=COLOUR_RED,
-               label="observed")
+    ax.scatter(x, observed, marker="x", s=55, linewidth=2, color=COLOUR_RED, label="observed")
     ax.set_ylabel(ylabel)
     ax.grid(axis="y", alpha=0.2)
     ax.set_xticks(x, labels)
@@ -96,12 +96,18 @@ def save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -
         ("zero_rate", "proportion at zero", "did_cell_ppc_zero_rate"),
     ):
         with guard_optional(
-            ctx, f"DiD cell PPC plot ({ylabel})",
-            filename=f"{name}.png", kind="figure", verb="failed",
+            ctx,
+            f"DiD cell PPC plot ({ylabel})",
+            filename=f"{name}.png",
+            kind="figure",
+            verb="failed",
         ):
             fig, ax = plt.subplots(figsize=FIGSIZE_LG)
             _draw_did_cell_panel(
-                ax, cell_ppc, stem=stem, ylabel=ylabel,
+                ax,
+                cell_ppc,
+                stem=stem,
+                ylabel=ylabel,
                 title=f"Cell-stratified PPC: {ylabel}",
                 ci_prob=ctx.reporting.ci_prob,
             )
@@ -109,13 +115,14 @@ def save_did_cell_ppc_plot(ctx: StatisticalFitContext, cell_ppc: pd.DataFrame) -
             save_styled_figure(ctx.output_dir, name, fig=fig)
 
 
-def save_proportion_at_zero_plot(
-    ctx: StatisticalFitContext, symbol: str, ppc0: dict
-) -> None:
+def save_proportion_at_zero_plot(ctx: StatisticalFitContext, symbol: str, ppc0: dict) -> None:
     """Plot the proportion-at-zero PPC: replicated distribution vs observed."""
     with guard_optional(
-        ctx, "Proportion-at-zero PPC plot",
-        filename="proportion_at_zero_ppc.png", kind="figure", verb="failed",
+        ctx,
+        "Proportion-at-zero PPC plot",
+        filename="proportion_at_zero_ppc.png",
+        kind="figure",
+        verb="failed",
     ):
         rep = ppc0["rep"]
         obs = ppc0["obs_prop_at_zero"]
@@ -124,10 +131,7 @@ def save_proportion_at_zero_plot(
         plt.axvline(obs, color=COLOUR_RED, lw=2, label=f"observed = {obs:.2f}")
         plt.xlabel(f"proportion of {symbol} post-scores at zero")
         plt.ylabel("posterior-predictive density")
-        plt.title(
-            f"Proportion-at-zero PPC ({symbol}); two-sided tail = "
-            f"{ppc0['ppc_two_sided_tail']:.2f}"
-        )
+        plt.title(f"Proportion-at-zero PPC ({symbol}); two-sided tail = {ppc0['ppc_two_sided_tail']:.2f}")
         plt.legend()
         # Scalar PPC summary (rep excluded) is already written to CSV by the
         # graded/floor path, so no data= here — just the styled PNG + SVG.
@@ -163,23 +167,34 @@ def save_rope_plot(
     rather than one combined figure.
     """
     with guard_optional(
-        ctx, "ROPE plot",
-        filename="rope_summary.png", kind="figure", verb="failed",
+        ctx,
+        "ROPE plot",
+        filename="rope_summary.png",
+        kind="figure",
+        verb="failed",
     ):
         from language_reading_predictors.statistical_models.effect_plots import (
             write_rope_figures,
         )
 
         if items is None:
-            _, ame_prob = _report._itt_ame_draws(
-                ctx.trace, G=G, term=term, varying_term=varying_term,
-                moderators=moderators, row_mask=row_mask,
+            _, ame_prob = _itt_summary._itt_ame_draws(
+                ctx.trace,
+                G=G,
+                term=term,
+                varying_term=varying_term,
+                moderators=moderators,
+                row_mask=row_mask,
                 score_mean_link=score_mean_link,
             )
             items = ame_prob * float(n_trials)
         write_rope_figures(
-            ctx.output_dir, items, symbol=symbol, delta=delta,
-            n_trials=n_trials, split=split,
+            ctx.output_dir,
+            items,
+            symbol=symbol,
+            delta=delta,
+            n_trials=n_trials,
+            split=split,
         )
 
 
@@ -217,8 +232,11 @@ def write_predicted_scores(
     )
 
     with guard_optional(
-        ctx, "Predicted-scores figures",
-        filename="predicted_scores.png", kind="figure", verb="failed",
+        ctx,
+        "Predicted-scores figures",
+        filename="predicted_scores.png",
+        kind="figure",
+        verb="failed",
     ):
         summary = write_predicted_scores_artifacts(
             ctx.output_dir,
@@ -283,8 +301,11 @@ def write_arm_overlap(
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     with guard_optional(
-        ctx, "Arm-overlap figures",
-        filename="arm_overlap_mean.png", kind="figure", verb="failed",
+        ctx,
+        "Arm-overlap figures",
+        filename="arm_overlap_mean.png",
+        kind="figure",
+        verb="failed",
     ):
         tables = write_arm_overlap_artifacts(
             ctx.output_dir,
@@ -347,8 +368,11 @@ def write_group_trajectory(
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     with guard_optional(
-        ctx, "Group-trajectory figure",
-        filename="group_trajectory.png", kind="figure", verb="failed",
+        ctx,
+        "Group-trajectory figure",
+        filename="group_trajectory.png",
+        kind="figure",
+        verb="failed",
     ):
         m = MEASURES[outcome_symbol]
         summary = _tp.write_group_arm_trajectory(
@@ -388,8 +412,11 @@ def write_child_fit(
     from language_reading_predictors.statistical_models.measures import MEASURES
 
     with guard_optional(
-        ctx, "Per-child fit figure",
-        filename="child_fit_panels.png", kind="figure", verb="failed",
+        ctx,
+        "Per-child fit figure",
+        filename="child_fit_panels.png",
+        kind="figure",
+        verb="failed",
     ):
         m = MEASURES[outcome_symbol]
         summary = _tp.write_child_fit_obsid(
@@ -415,8 +442,11 @@ def write_panel_trajectory(ctx: StatisticalFitContext, *, latent_name: str) -> N
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
 
     with guard_optional(
-        ctx, "Cohort-trajectory figure",
-        filename="group_trajectory.png", kind="figure", verb="failed",
+        ctx,
+        "Cohort-trajectory figure",
+        filename="group_trajectory.png",
+        kind="figure",
+        verb="failed",
     ):
         summary = _tp.write_outcome_trajectory(
             ctx.output_dir,
@@ -439,8 +469,11 @@ def write_panel_child_fit(
     from language_reading_predictors.statistical_models import trajectory_plots as _tp
 
     with guard_optional(
-        ctx, "Per-child fit figure",
-        filename="child_fit_panels.png", kind="figure", verb="failed",
+        ctx,
+        "Per-child fit figure",
+        filename="child_fit_panels.png",
+        kind="figure",
+        verb="failed",
     ):
         summary = _tp.write_child_fit_panel(
             ctx.output_dir,
@@ -459,8 +492,11 @@ def write_panel_child_fit(
 def save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
     """Heatmap of joint pairwise probability-scale AME ordering (#125 Area 4)."""
     with guard_optional(
-        ctx, "Contrast heatmap",
-        filename="contrast_heatmap.png", kind="figure", verb="failed",
+        ctx,
+        "Contrast heatmap",
+        filename="contrast_heatmap.png",
+        kind="figure",
+        verb="failed",
     ):
         import numpy as _np
 
@@ -495,9 +531,7 @@ def save_forest_plot(
     joint model the vector ``tau`` forests every outcome's effect in one panel —
     the single most communicative artifact for the suite. Guarded.
     """
-    with guard_optional(
-        ctx, f"Forest plot ({name})", filename=name, kind="figure", verb="failed"
-    ):
+    with guard_optional(ctx, f"Forest plot ({name})", filename=name, kind="figure", verb="failed"):
         import arviz_plots as azp
 
         tr = _diag.thin_for_plots(ctx.trace)
@@ -543,8 +577,7 @@ def save_association_forest(
     assoc = [
         c
         for c in coef_names
-        if c in ctx.trace.posterior
-        and not any(ct == c or ct.startswith(c + "[") for ct in causal_terms)
+        if c in ctx.trace.posterior and not any(ct == c or ct.startswith(c + "[") for ct in causal_terms)
     ]
     if assoc:
         save_forest_plot(ctx, assoc, name="association_forest.png")

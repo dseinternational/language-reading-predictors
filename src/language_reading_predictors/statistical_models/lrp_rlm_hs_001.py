@@ -27,10 +27,7 @@ from language_reading_predictors.statistical_models.pipelines.horseshoe import f
 SPEC = ModelSpec(
     model_id="lrp-rlm-hs-001",
     kind="horseshoe",
-    title=(
-        "Byrne horseshoe ranking of wave-1 predictors of word-reading gain, "
-        "waves 1-3"
-    ),
+    title=("Byrne horseshoe ranking of wave-1 predictors of word-reading gain, waves 1-3"),
     outcome_symbol="basread",
     study_id="rlm",
     family="horseshoe",
@@ -48,8 +45,8 @@ SPEC = ModelSpec(
         slab_scale=2.0,
         slab_df=4.0,
     ),
-        # The horseshoe's global-local funnel needs smaller steps than the
-        # tier defaults, matching the RLI horseshoe fits.
+    # The horseshoe's global-local funnel needs smaller steps than the
+    # tier defaults, matching the RLI horseshoe fits.
     target_accept=0.99,
 )
 

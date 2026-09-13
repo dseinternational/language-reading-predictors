@@ -5,13 +5,16 @@
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+
+
 import inspect
 from dataclasses import asdict
 from types import SimpleNamespace
 
 import pytest
 
-from language_reading_predictors.statistical_models import reporting as R
+
 from language_reading_predictors.statistical_models.adjusted import (
     AdjustedModelSettings,
     AdjustedRunPlan,
@@ -60,13 +63,7 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
     assert isinstance(RLM_DS_SPEC.model_settings, AdjustedModelSettings)
     assert isinstance(RLM_BPVS_SPEC.model_settings, AdjustedModelSettings)
     assert isinstance(RLM_TRANSITION_SPEC.model_settings, AdjustedModelSettings)
-    assert (
-        rli.extra
-        == RLM_SPEC.extra
-        == RLM_DS_SPEC.extra
-        == RLM_BPVS_SPEC.extra
-        == {}
-    )
+    assert rli.extra == RLM_SPEC.extra == RLM_DS_SPEC.extra == RLM_BPVS_SPEC.extra == {}
     rli_plan = resolve_adjusted_run_plan(rli)
     rlm_plan = resolve_adjusted_run_plan(RLM_SPEC)
     rlm_ds_plan = resolve_adjusted_run_plan(RLM_DS_SPEC)
@@ -139,9 +136,7 @@ def test_registered_adjusted_specs_are_typed_and_resolve_both_ports():
         ),
     ],
 )
-def test_typed_and_legacy_declarations_resolve_identically(
-    study_id, settings, extra
-):
+def test_typed_and_legacy_declarations_resolve_identically(study_id, settings, extra):
     typed = resolve_adjusted_run_plan(_spec(study_id=study_id, settings=settings))
     legacy = resolve_adjusted_run_plan(_spec(study_id=study_id, extra=extra))
     assert asdict(typed) == {**asdict(legacy), "settings_source": "typed"}
@@ -342,7 +337,7 @@ def test_wrong_port_entrypoint_fails_before_context_or_data(monkeypatch):
 def test_reporting_reuses_attached_plan_and_recipe():
     spec = get_spec()
     plan = resolve_adjusted_run_plan(spec)
-    assert R._resolved_run_plan(SimpleNamespace(spec=spec, resolved_plan=plan)) is plan
+    assert _metadata._resolved_run_plan(SimpleNamespace(spec=spec, resolved_plan=plan)) is plan
     recipe = plan.recipe_markdown(title="Adjusted test")
     assert "Codex/GPT-5" in recipe
     assert "Adjusted between-child association" in recipe
@@ -367,9 +362,7 @@ def test_gamma_own_sweep_is_declared_validated_and_pinned_to_the_prior_default()
         GAMMA_OWN_SIGMA,
     )
 
-    assert GAMMA_OWN_SIGMA == inspect.signature(priors.gamma_own_prior).parameters[
-        "sigma"
-    ].default
+    assert GAMMA_OWN_SIGMA == inspect.signature(priors.gamma_own_prior).parameters["sigma"].default
     plan = resolve_adjusted_run_plan(get_spec())
     assert plan.gamma_own_sigma == GAMMA_OWN_SIGMA
     assert plan.gamma_own_sensitivity_sigmas == (0.5,)
@@ -381,9 +374,7 @@ def test_gamma_own_sweep_is_declared_validated_and_pinned_to_the_prior_default()
     )
     assert legacy.gamma_own_sensitivity_sigmas == (0.4, 0.6)
     with pytest.raises(ValueError, match="must not repeat the fitted own-baseline"):
-        resolve_adjusted_run_plan(
-            _spec(settings=AdjustedModelSettings(gamma_own_sensitivity_sigmas=(0.25,)))
-        )
+        resolve_adjusted_run_plan(_spec(settings=AdjustedModelSettings(gamma_own_sensitivity_sigmas=(0.25,))))
     with pytest.raises(ValueError, match="contains duplicates"):
         AdjustedModelSettings(gamma_own_sensitivity_sigmas=(0.5, 0.5))
     with pytest.raises(ValueError, match="positive"):
@@ -402,9 +393,7 @@ def test_recipe_states_the_operating_point_and_both_prior_sweeps():
     assert "own-baseline-prior" in span
     rlm_span = resolve_adjusted_run_plan(RLM_SPEC).recipe_markdown(title="t")
     assert "reference group" in rlm_span
-    transition = resolve_adjusted_run_plan(RLM_TRANSITION_SPEC).recipe_markdown(
-        title="t"
-    )
+    transition = resolve_adjusted_run_plan(RLM_TRANSITION_SPEC).recipe_markdown(title="t")
     assert "averaged over the fitted transition rows" in transition
     assert "child random intercept at zero" in transition
     assert "one operating point" not in transition

@@ -21,8 +21,7 @@ SPEC = ModelSpec(
     model_id="lrp-rli-itt-001",
     kind="itt",
     title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "taught receptive vocabulary, block 1 (TR)"
+        "Available-case modified ITT estimate of the assigned-arm contrast in taught receptive vocabulary, block 1 (TR)"
     ),
     outcome_symbol="TR",
     model_settings=IttModelSettings(),

@@ -13,6 +13,11 @@ adjusted, latent-ability-confounded association, never causal.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import growth as _growth_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import growth as _growth_summary
+
+
 import numpy as np
 import pandas as pd
 from rich import print as rprint
@@ -22,11 +27,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
@@ -90,7 +91,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     plan = resolve_growth_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     outcomes = plan.outcomes
     baseline_cov = plan.baseline_covariate
@@ -120,7 +121,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_growth_model(panel, **plan.factory_kwargs())
+    built = _growth_factory.build_growth_model(panel, **plan.factory_kwargs())
     attach_built(ctx, built)
 
     render_model_graph(ctx)
@@ -144,11 +145,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 c,
                 symbol,
                 node="y_obs",
-                filename_stem=(
-                    "prior_predictive_check"
-                    if index == 0
-                    else f"prior_predictive_check_{symbol.lower()}"
-                ),
+                filename_stem=("prior_predictive_check" if index == 0 else f"prior_predictive_check_{symbol.lower()}"),
             )
 
     shared_stages().run_primary_fit(
@@ -179,9 +176,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             sensitivity_panel = exclude_growth_observation_cells(
                 panel, flagged["observation_index"].to_numpy(dtype=int)
             )
-            sensitivity_built = _factories.build_growth_model(
-                sensitivity_panel, **plan.factory_kwargs()
-            )
+            sensitivity_built = _growth_factory.build_growth_model(sensitivity_panel, **plan.factory_kwargs())
             sensitivity_result = run_subfit(
                 ctx,
                 sensitivity_built,
@@ -195,9 +190,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 sensitivity_result.trace,
                 excluded_cells=flagged,
                 sensitivity_converged=influence_converged,
-                n_fully_excluded_children=(
-                    panel.n_children - sensitivity_panel.n_children
-                ),
+                n_fully_excluded_children=(panel.n_children - sensitivity_panel.n_children),
             )
             save_table(ctx, "growth_influence_sensitivity", influence_summary)
             rprint(
@@ -216,9 +209,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # round out the trajectory characterisation. All adjusted associations.
     display_baseline = baseline_label[0].upper() + baseline_label[1:]
     section_header(f"{display_baseline} -> trajectory shape")
-    gs = _report.growth_association_summary(
-        ctx.trace, coefs=summary_coefs(plan), ci_prob=ctx.reporting.ci_prob
-    )
+    gs = _growth_summary.growth_association_summary(ctx.trace, coefs=summary_coefs(plan))
     save_table(ctx, "growth_association_summary", gs)
     save_forest_plot(ctx, ["gamma"], name="gamma_forest.png")
     print_table(
@@ -226,7 +217,11 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             gs[gs["coefficient"] == "gamma"],
             title=f"{display_baseline} -> growth rate (gamma, logit)",
             columns=[
-                "outcome", "median", "lo89", "hi89", "prob_positive",
+                "outcome",
+                "median",
+                "lo89",
+                "hi89",
+                "prob_positive",
                 "favoured_direction_label",
             ],
             rank_column=False,
@@ -240,7 +235,11 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
                 gs[gs["coefficient"] == "gamma_int"],
                 title="Baseline-age x ability interaction on growth rate (gamma_int, logit)",
                 columns=[
-                    "outcome", "median", "lo89", "hi89", "prob_positive",
+                    "outcome",
+                    "median",
+                    "lo89",
+                    "hi89",
+                    "prob_positive",
                     "favoured_direction_label",
                 ],
                 rank_column=False,
@@ -259,12 +258,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
     # still correlate G and blocks through the likelihood. Descriptive only.
     tempo_corr: dict[str, float] | None = None
     if use_factor and "G_tempo" in ctx.trace.posterior:
-        G = (
-            ctx.trace.posterior["G_tempo"]
-            .stack(sample=("chain", "draw"))
-            .transpose("child", "sample")
-            .values
-        )  # (N, S)
+        G = ctx.trace.posterior["G_tempo"].stack(sample=("chain", "draw")).transpose("child", "sample").values  # (N, S)
         zb = np.asarray(panel.baseline[baseline_cov], dtype=float)  # (N,)
         Gc = G - G.mean(axis=0, keepdims=True)
         zc = (zb - zb.mean())[:, None]
@@ -305,9 +299,7 @@ def fit_growth(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext:
             "source_n_children": panel.source_n_children,
             "excluded_children": panel.excluded_children,
             "dropped_by_reason": panel.dropped_by_reason,
-            "observation_influence_sensitivity": (
-                plan.observation_influence_sensitivity
-            ),
+            "observation_influence_sensitivity": (plan.observation_influence_sensitivity),
             "observation_influence_flagged_cells": influence_flagged,
             "observation_influence_converged": influence_converged,
             "growth_association_summary": gs.to_dict("records"),

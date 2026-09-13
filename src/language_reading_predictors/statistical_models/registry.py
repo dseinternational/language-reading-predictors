@@ -58,9 +58,7 @@ class LazyModel:
 
         module = importlib.import_module(self.module_name)
         if not _defines_fit(module):
-            raise TypeError(
-                f"{self.module_name} does not define its own top-level fit(config)"
-            )
+            raise TypeError(f"{self.module_name} does not define its own top-level fit(config)")
         return module
 
     def fit(

@@ -22,7 +22,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from language_reading_predictors.statistical_models.factories import (
+from language_reading_predictors.statistical_models.factories.mediation import (
     build_mediation_model,
     build_period_stacked_mediation_model,
     build_two_mediator_model,
@@ -66,9 +66,7 @@ def _prepare(tmp_path, n_children: int = 15):
     return load_and_prepare(path=p, phase_mode="itt")
 
 
-def _fake_trace(
-    names, *, positive=(), values=None, chains: int = 2, draws: int = 20, seed: int = 0
-):
+def _fake_trace(names, *, positive=(), values=None, chains: int = 2, draws: int = 20, seed: int = 0):
     """A minimal posterior stand-in: an xarray ``Dataset`` of (chain, draw)
     coefficient draws exposed as ``.posterior`` — exactly what ``decompose``
     consumes (``trace.posterior[name].stack(...)``).
@@ -136,21 +134,8 @@ def test_word_reading_confounder_is_distinct_from_blending_baseline(tmp_path):
     assert "b_B" not in built.model.named_vars
 
     from language_reading_predictors.statistical_models import priors
-    from language_reading_predictors.statistical_models.prior_artifacts import (
-        _prior_table_overrides,
-    )
 
-    context = SimpleNamespace(
-        spec=SimpleNamespace(kind="mediation", outcome_symbol="B", extra={}),
-        model=built.model,
-    )
-    ctor, role, rationale = _prior_table_overrides(context)
-    prior_rows = priors.priors_table(
-        built.model,
-        ctor_overrides=ctor,
-        role_overrides=role,
-        rationale_overrides=rationale,
-    ).set_index("parameter")
+    prior_rows = priors.priors_table(built.model).set_index("parameter")
     assert prior_rows.loc["b_W", ["panel", "role"]].tolist() == [
         "gamma_own",
         "precision",
@@ -160,11 +145,7 @@ def test_word_reading_confounder_is_distinct_from_blending_baseline(tmp_path):
         "association",
     ]
 
-    names = (
-        ["b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_conf_W"]
-        + _BB_MEDIATOR_DRAWS
-        + ["a_W", "kappa_M"]
-    )
+    names = ["b0", "b_G", "b_M", "b_GM", "b_W", "b_A", "b_conf_W"] + _BB_MEDIATOR_DRAWS + ["a_W", "kappa_M"]
     df = decompose(_fake_trace(names, positive=["kappa_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
 
@@ -179,9 +160,7 @@ def test_decompose_offfloor_outcome(tmp_path):
     same measurement. Effects are still reported on the off-floor risk-difference
     scale (``n_trials_W = 1``, so ``words_* == prob_*``)."""
     path = _write_synthetic(tmp_path, n_children=15)
-    prep = load_and_prepare(
-        path=path, phase_mode="itt", outcomes=("N", "L", "W")
-    )
+    prep = load_and_prepare(path=path, phase_mode="itt", outcomes=("N", "L", "W"))
     built, med = build_mediation_model(
         prep,
         outcome_symbol="N",
@@ -197,11 +176,7 @@ def test_decompose_offfloor_outcome(tmp_path):
     assert med.own_offfloor is not None
     # Fake trace without the GRADED own-baseline coefficient and without kappa_Y
     # (the Bernoulli has no dispersion), so an accidental read would raise KeyError.
-    names = (
-        ["b0", "b_G", "b_M", "b_GM", "b_A", "b_conf_W", "b_own_offfloor"]
-        + _BB_MEDIATOR_DRAWS
-        + ["a_W", "kappa_M"]
-    )
+    names = ["b0", "b_G", "b_M", "b_GM", "b_A", "b_conf_W", "b_own_offfloor"] + _BB_MEDIATOR_DRAWS + ["a_W", "kappa_M"]
     df = decompose(_fake_trace(names, positive=["kappa_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
     eff = df[df["quantity"].isin(["total", "NDE", "NIE"])]
@@ -213,9 +188,7 @@ def test_decompose_offfloor_outcome(tmp_path):
 
 
 @pytest.mark.parametrize("estimand", ["natural", "interventional"])
-def test_t3_sensitivity_preserves_offfloor_outcome_kind(
-    tmp_path, monkeypatch, estimand
-):
+def test_t3_sensitivity_preserves_offfloor_outcome_kind(tmp_path, monkeypatch, estimand):
     """The temporal sensitivity must rebuild the primary outcome likelihood.
 
     MED-086 uses a Bernoulli off-floor outcome. Dropping ``outcome_kind`` from
@@ -289,9 +262,7 @@ def test_t3_sensitivity_preserves_offfloor_outcome_kind(
     assert "kappa_Y" not in named_vars
     assert captured["med_data"].off_floor is True
     assert bool(result["converged"].iloc[0]) is True
-    assert captured["subfit_kwargs"]["trace_filename"] == (
-        "trace_mediation_t3_sensitivity.nc"
-    )
+    assert captured["subfit_kwargs"]["trace_filename"] == ("trace_mediation_t3_sensitivity.nc")
     assert set(result["trace_file"]) == {"trace_mediation_t3_sensitivity.nc"}
 
 
@@ -301,9 +272,7 @@ def test_decompose_interventional_offfloor_outcome(tmp_path):
     scale and do not require the graded outcome's absent ``b_W`` coefficient (the
     binary ``b_own_offfloor`` contrast takes its place since #585)."""
     prep = _prepare(tmp_path)
-    _, med = build_mediation_model(
-        prep, confounder_symbols=("E", "R"), outcome_kind="bernoulli_offfloor"
-    )
+    _, med = build_mediation_model(prep, confounder_symbols=("E", "R"), outcome_kind="bernoulli_offfloor")
     names = (
         ["b0", "b_G", "b_M", "b_GM", "b_A", "b_E", "b_R", "b_own_offfloor"]
         + _BB_MEDIATOR_DRAWS
@@ -362,11 +331,14 @@ def test_code_route_interventional_specs_mirror_their_parents():
         assert isinstance(companion_settings, MediationModelSettings)
         assert companion_settings.estimand == "interventional"
         assert companion_settings.companion_of == parent.model_id
-        assert replace(
-            companion_settings,
-            estimand=parent_settings.estimand,
-            companion_of=parent_settings.companion_of,
-        ) == parent_settings
+        assert (
+            replace(
+                companion_settings,
+                estimand=parent_settings.estimand,
+                companion_of=parent_settings.companion_of,
+            )
+            == parent_settings
+        )
         assert "W" in parent.adjustment
         assert parent_settings.outcomes is not None
         assert companion_settings.outcomes is not None
@@ -383,9 +355,7 @@ def test_decompose_gaussian_composite(tmp_path):
         route_symbols=("L", "B"),
         confounder_symbols=("E", "R"),
     )
-    names = (
-        _OUTCOME_DRAWS + ["b_E", "b_R"] + _GAUSSIAN_MEDIATOR_DRAWS + ["a_E", "a_R", "sigma_M"]
-    )
+    names = _OUTCOME_DRAWS + ["b_E", "b_R"] + _GAUSSIAN_MEDIATOR_DRAWS + ["a_E", "a_R", "sigma_M"]
     df = decompose(_fake_trace(names, positive=["sigma_M"]), med)
     assert set(df["quantity"]) == _QUANTITIES
 
@@ -402,19 +372,16 @@ def test_sensitivity_sweep(tmp_path):
     assert sweep["delta"].iloc[0] == 0.0
     assert {"nie_median", "nie_lo", "nie_hi", "delta_frac_of_bM"} <= set(sweep.columns)
     assert {
-        "tipping_delta", "tipping_frac_of_bM", "already_null_at_zero",
-        "robust_over_full_sweep", "b_M_effective_mean",
+        "tipping_delta",
+        "tipping_frac_of_bM",
+        "already_null_at_zero",
+        "robust_over_full_sweep",
+        "b_M_effective_mean",
     } <= set(summary)
     # Exactly one state holds: already-null at 0, robust over the whole sweep, or a
     # finite tipping point in between.
-    finite_tip = not summary["already_null_at_zero"] and not summary[
-        "robust_over_full_sweep"
-    ]
-    assert (
-        int(summary["already_null_at_zero"])
-        + int(summary["robust_over_full_sweep"])
-        + int(finite_tip)
-    ) == 1
+    finite_tip = not summary["already_null_at_zero"] and not summary["robust_over_full_sweep"]
+    assert (int(summary["already_null_at_zero"]) + int(summary["robust_over_full_sweep"]) + int(finite_tip)) == 1
     # Tie the flags to the value they summarise: a finite tipping_delta iff finite_tip.
     assert np.isfinite(summary["tipping_delta"]) == finite_tip
 
@@ -430,9 +397,20 @@ def test_sensitivity_sweep_attenuates_toward_null_for_both_signs(tmp_path):
     names = _OUTCOME_DRAWS + ["b_E", "b_R"] + _BB_MEDIATOR_DRAWS + ["a_E", "a_R", "kappa_M"]
     for b_m in (3.0, -3.0):
         vals = {
-            "b0": 0.0, "b_G": 0.0, "b_M": b_m, "b_GM": 0.0, "b_W": 0.0, "b_A": 0.0,
-            "b_E": 0.0, "b_R": 0.0,
-            "a0": 0.0, "a_G": 1.5, "a_L": 0.0, "a_A": 0.0, "a_E": 0.0, "a_R": 0.0,
+            "b0": 0.0,
+            "b_G": 0.0,
+            "b_M": b_m,
+            "b_GM": 0.0,
+            "b_W": 0.0,
+            "b_A": 0.0,
+            "b_E": 0.0,
+            "b_R": 0.0,
+            "a0": 0.0,
+            "a_G": 1.5,
+            "a_L": 0.0,
+            "a_A": 0.0,
+            "a_E": 0.0,
+            "a_R": 0.0,
         }
         trace = _fake_trace(names, positive=["kappa_M"], values=vals, seed=3)
         _, summary = sensitivity_sweep(trace, med, n_deltas=21)
@@ -663,9 +641,27 @@ def test_decompose_follows_fitted_confounder_set(tmp_path):
 # --- Two-mediator per-leg sensitivity + IS calibration (#335) ---------------
 
 _TWO_MEDIATOR_DRAWS = [
-    "b0", "b_G", "b_L", "b_E", "b_GL", "b_GE", "b_W", "b_A", "b_R",
-    "aL0", "aL_G", "aL_L", "aL_A", "aL_R", "kappa_L",
-    "aE0", "aE_G", "aE_E", "aE_A", "aE_R", "kappa_E",
+    "b0",
+    "b_G",
+    "b_L",
+    "b_E",
+    "b_GL",
+    "b_GE",
+    "b_W",
+    "b_A",
+    "b_R",
+    "aL0",
+    "aL_G",
+    "aL_L",
+    "aL_A",
+    "aL_R",
+    "kappa_L",
+    "aE0",
+    "aE_G",
+    "aE_E",
+    "aE_A",
+    "aE_R",
+    "kappa_E",
 ]
 
 
@@ -702,12 +698,8 @@ def test_decompose_two_mediator_per_leg_shift_attenuates_target(tmp_path):
         med,
         b_m_shifts={"L": 2.0},
     ).set_index("quantity")
-    assert abs(shifted.loc["NIE_L", "prob_median"]) < abs(
-        base.loc["NIE_L", "prob_median"]
-    )
-    assert abs(shifted.loc["NIE_joint", "prob_median"]) < abs(
-        base.loc["NIE_joint", "prob_median"]
-    )
+    assert abs(shifted.loc["NIE_L", "prob_median"]) < abs(base.loc["NIE_L", "prob_median"])
+    assert abs(shifted.loc["NIE_joint", "prob_median"]) < abs(base.loc["NIE_joint", "prob_median"])
 
 
 def test_sensitivity_sweep_two_mediator_reports_each_leg_and_joint(tmp_path):
@@ -721,14 +713,21 @@ def test_sensitivity_sweep_two_mediator_reports_each_leg_and_joint(tmp_path):
     assert set(sweep["mediator"]) == {"L", "E"}
     assert (sweep.groupby("mediator")["delta"].first() == 0.0).all()
     assert {
-        "nie_median", "nie_lo", "nie_hi",
-        "nie_joint_median", "nie_joint_lo", "nie_joint_hi",
+        "nie_median",
+        "nie_lo",
+        "nie_hi",
+        "nie_joint_median",
+        "nie_joint_lo",
+        "nie_joint_hi",
         "delta_frac_of_effective_slope",
     } <= set(sweep.columns)
     assert set(summary["mediator"]) == {"L", "E"}
     assert {
-        "tipping_delta", "already_null_at_zero", "robust_over_full_sweep",
-        "joint_tipping_delta", "joint_already_null_at_zero",
+        "tipping_delta",
+        "already_null_at_zero",
+        "robust_over_full_sweep",
+        "joint_tipping_delta",
+        "joint_already_null_at_zero",
         "joint_robust_over_full_sweep",
     } <= set(summary.columns)
 
@@ -738,9 +737,27 @@ def test_two_mediator_sweep_generalises_to_blending_and_chain(tmp_path):
     p = _write_synthetic(tmp_path, n_children=30)
     prep = load_and_prepare(path=p, phase_mode="itt")
     names = [
-        "b0", "b_G", "b_L", "b_B", "b_GL", "b_GB", "b_W", "b_A", "b_R",
-        "aL0", "aL_G", "aL_L", "aL_A", "aL_R", "kappa_L",
-        "aB0", "aB_G", "aB_B", "aB_A", "aB_R", "kappa_B",
+        "b0",
+        "b_G",
+        "b_L",
+        "b_B",
+        "b_GL",
+        "b_GB",
+        "b_W",
+        "b_A",
+        "b_R",
+        "aL0",
+        "aL_G",
+        "aL_L",
+        "aL_A",
+        "aL_R",
+        "kappa_L",
+        "aB0",
+        "aB_G",
+        "aB_B",
+        "aB_A",
+        "aB_R",
+        "kappa_B",
     ]
     for chain in (False, True):
         _, med = build_two_mediator_model(
@@ -753,9 +770,7 @@ def test_two_mediator_sweep_generalises_to_blending_and_chain(tmp_path):
         chain_names = [*names]
         if chain:
             chain_names.append("aB_L")
-        values = {
-            name: 0.0 for name in chain_names if not name.startswith("kappa")
-        }
+        values = {name: 0.0 for name in chain_names if not name.startswith("kappa")}
         values.update({"aL_G": 1.2, "aB_G": 0.8, "b_L": 2.0, "b_B": 1.0})
         trace = _fake_trace(
             chain_names,
@@ -791,8 +806,13 @@ def test_session_calibration_returns_one_computed_row_per_leg(tmp_path):
     assert set(calibration["mediator"]) == {"L", "E"}
     assert (calibration["n_treated"] >= 8).all()
     assert {
-        "delta_is", "delta_is_lo", "delta_is_hi", "tipping_delta",
-        "mediator_is_slope", "outcome_is_slope", "is_band_reaches_tipping",
+        "delta_is",
+        "delta_is_lo",
+        "delta_is_hi",
+        "tipping_delta",
+        "mediator_is_slope",
+        "outcome_is_slope",
+        "is_band_reaches_tipping",
         "conclusion",
     } <= set(calibration.columns)
     assert calibration["conclusion"].str.contains("NIE_").all()
@@ -801,8 +821,22 @@ def test_session_calibration_returns_one_computed_row_per_leg(tmp_path):
 # --- MED-092: period-stacked g-formula on the gain-factor scaffold (#229) ----
 
 _PS_SCALARS = [
-    "a0", "a_trt", "a_L", "a_A", "a_E", "a_R", "kappa_M",
-    "b0", "b_trt", "b_M", "b_trtM", "b_W", "b_A", "b_E", "b_R", "kappa_Y",
+    "a0",
+    "a_trt",
+    "a_L",
+    "a_A",
+    "a_E",
+    "a_R",
+    "kappa_M",
+    "b0",
+    "b_trt",
+    "b_M",
+    "b_trtM",
+    "b_W",
+    "b_A",
+    "b_E",
+    "b_R",
+    "kappa_Y",
 ]
 
 
@@ -811,9 +845,7 @@ def _prepare_stacked(tmp_path, n_children: int = 15):
     return load_and_prepare(path=p, phase_mode="all")
 
 
-def _fake_trace_stacked(
-    med, *, chains: int = 2, draws: int = 20, seed: int = 0, values=None
-):
+def _fake_trace_stacked(med, *, chains: int = 2, draws: int = 20, seed: int = 0, values=None):
     """A synthetic posterior for :func:`decompose_period_stacked`: the scalar
     coefficients plus the vector parameters the stacked design adds (per-phase
     intercepts and the per-leg child random-intercept deterministics)."""
@@ -846,14 +878,21 @@ def test_period_stacked_factory_builds(tmp_path):
     per-leg child random intercepts) and the exposure is the on-intervention
     indicator, not the randomised group."""
     prep = _prepare_stacked(tmp_path)
-    built, med = build_period_stacked_mediation_model(
-        prep, confounder_symbols=("E", "R")
-    )
+    built, med = build_period_stacked_mediation_model(prep, confounder_symbols=("E", "R"))
     names = {v.name for v in built.model.free_RVs}
     assert {
-        "a_trt", "a_L", "kappa_M", "sigma_child_M",
-        "b_trt", "b_M", "b_trtM", "b_W", "kappa_Y", "sigma_child_Y",
-        "a_phase", "b_phase",
+        "a_trt",
+        "a_L",
+        "kappa_M",
+        "sigma_child_M",
+        "b_trt",
+        "b_M",
+        "b_trtM",
+        "b_W",
+        "kappa_Y",
+        "sigma_child_Y",
+        "a_phase",
+        "b_phase",
     }.issubset(names)
     det = {v.name for v in built.model.deterministics}
     assert {"u_child_M", "u_child_Y", "mu_M", "eta"}.issubset(det)
@@ -903,9 +942,7 @@ def test_decompose_period_stacked_all_rows_and_p1_mask(tmp_path):
     assert set(df["quantity"]) == _QUANTITIES
     effects = df[df["quantity"].isin(["total", "NDE", "NIE"])]
     assert effects[["prob_mean", "words_mean"]].notna().all().all()
-    df_p1 = decompose_period_stacked(
-        trace, med, row_mask=med.phase_idx == 0
-    )
+    df_p1 = decompose_period_stacked(trace, med, row_mask=med.phase_idx == 0)
     assert set(df_p1["quantity"]) == _QUANTITIES
 
 
@@ -937,16 +974,15 @@ def test_sensitivity_sweep_period_stacked(tmp_path):
         interaction_name="b_trtM",
     )
     assert sweep["delta"].iloc[0] == 0.0
-    assert {"tipping_delta", "already_null_at_zero", "robust_over_full_sweep"} <= set(
-        summary
-    )
+    assert {"tipping_delta", "already_null_at_zero", "robust_over_full_sweep"} <= set(summary)
 
 
 def test_integration_settings_are_recorded_for_every_mediation_entry_point():
     import inspect
     from language_reading_predictors.statistical_models.pipelines import mediation as pipeline
     from language_reading_predictors.statistical_models.mediation_integration import (
-        NORMAL_INTEGRATION_ORDERS, NORMAL_INTEGRATION_TOLERANCE,
+        NORMAL_INTEGRATION_ORDERS,
+        NORMAL_INTEGRATION_TOLERANCE,
     )
 
     assert inspect.getsource(pipeline).count('"integration": _integration_record()') == 3

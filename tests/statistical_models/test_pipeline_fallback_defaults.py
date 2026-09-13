@@ -13,46 +13,57 @@ reintroduce silently. Change a value here only alongside a deliberate,
 documented prior recalibration.
 """
 
+from language_reading_predictors.statistical_models.factories import adjusted as _adjusted_factory
+from language_reading_predictors.statistical_models.factories import corr_factor as _corr_factor_factory
+from language_reading_predictors.statistical_models.factories import did as _did_factory
+from language_reading_predictors.statistical_models.factories import gain_factors as _gain_factors_factory
+from language_reading_predictors.statistical_models.factories import growth as _growth_factory
+from language_reading_predictors.statistical_models.factories import historical as _historical_factory
+from language_reading_predictors.statistical_models.factories import lcsm as _lcsm_factory
+from language_reading_predictors.statistical_models.factories import level_factors as _level_factors_factory
+from language_reading_predictors.statistical_models.factories import long_corr_factor as _long_corr_factor_factory
+
+
 import pytest
 
-from language_reading_predictors.statistical_models import factories, priors
-from language_reading_predictors.statistical_models.factories import default_of
+from language_reading_predictors.statistical_models import priors
+from language_reading_predictors.statistical_models.factories.base import default_of
 
 # (factory, keyword, reconciled default). Every entry the pipeline reads through
 # ``default_of``; the growth entries are locked at source too (its fit path uses
 # the factory defaults directly).
 RECONCILED_FACTORY_DEFAULTS = [
-    (factories.build_adjusted_model, "predictor_slope_sigma", 0.3),
-    (factories.build_lcsm_model, "coupling_prior_sigma", 0.3),
-    (factories.build_lcsm_model, "covariate_prior_sigma", 0.3),
-    (factories.build_historical_growth_model, "eta_prior_sigma", 1.5),
+    (_adjusted_factory.build_adjusted_model, "predictor_slope_sigma", 0.3),
+    (_lcsm_factory.build_lcsm_model, "coupling_prior_sigma", 0.3),
+    (_lcsm_factory.build_lcsm_model, "covariate_prior_sigma", 0.3),
+    (_historical_factory.build_historical_growth_model, "eta_prior_sigma", 1.5),
     # Widened 0.5 -> 1.0 (#383, prior-critical-review 2026-07-21): the DS
     # verbal/reading sigma_subject posteriors (1.25-1.39) sat at/beyond the
     # HalfNormal(0.5) 99th percentile — a genuine prior-data conflict.
-    (factories.build_historical_growth_model, "sigma_subject_prior_sigma", 1.0),
-    (factories.build_rlm_joint_growth_model, "sigma_subject_prior_sigma", 1.0),
-    (factories.build_historical_growth_model, "dispersion_prior_sigma", 0.25),
+    (_historical_factory.build_historical_growth_model, "sigma_subject_prior_sigma", 1.0),
+    (_historical_factory.build_rlm_joint_growth_model, "sigma_subject_prior_sigma", 1.0),
+    (_historical_factory.build_historical_growth_model, "dispersion_prior_sigma", 0.25),
     # Default loading geometry is the communality scale (#383): communality ~
     # Beta(2, 2) with lambda = sqrt(c), sigma = sqrt(1 - c), enforcing the
     # lambda**2 + sigma**2 = 1 budget standardised indicators imply while keeping
     # the prior median communality of 0.5 that the LRPMM101 ablation defended
     # (the rejected 0.6/0.5 recalibration shifted it to 0.79).
-    (factories.build_correlated_factor_model, "loading_prior", "communality"),
-    (factories.build_correlated_factor_model, "comm_alpha", 2.0),
-    (factories.build_correlated_factor_model, "comm_beta", 2.0),
+    (_corr_factor_factory.build_correlated_factor_model, "loading_prior", "communality"),
+    (_corr_factor_factory.build_correlated_factor_model, "comm_alpha", 2.0),
+    (_corr_factor_factory.build_correlated_factor_model, "comm_beta", 2.0),
     # The legacy free-pair knobs stay at the ORIGINAL HalfNormal(1)/HalfNormal(1)
     # values: TruncatedNormal(mu=0, sigma=1, lower=0) is exactly HalfNormal(1),
     # and LRPMM101 (loading_prior="free" at these defaults) is the
     # geometry-sensitivity companion, so they must not drift.
-    (factories.build_correlated_factor_model, "loading_mu", 0.0),
-    (factories.build_correlated_factor_model, "loading_sigma", 1.0),
-    (factories.build_correlated_factor_model, "residual_sigma", 1.0),
+    (_corr_factor_factory.build_correlated_factor_model, "loading_mu", 0.0),
+    (_corr_factor_factory.build_correlated_factor_model, "loading_sigma", 1.0),
+    (_corr_factor_factory.build_correlated_factor_model, "residual_sigma", 1.0),
     # Structural-slope prior reconciled 0.5 -> 0.3 to match the shared
     # predictor_slope_prior default (review finding B4, 2026-07-13).
-    (factories.build_correlated_factor_model, "predictor_slope_sigma", 0.3),
+    (_corr_factor_factory.build_correlated_factor_model, "predictor_slope_sigma", 0.3),
     # #382 item 1: unset by default — only the LRPMM102 sensitivity companion
     # widens the focal beta_factor / beta_G pair to the N(0, 1) mechanism scale.
-    (factories.build_correlated_factor_model, "focal_slope_sigma", None),
+    (_corr_factor_factory.build_correlated_factor_model, "focal_slope_sigma", None),
     # #383 follow-up: the longitudinal CFA takes the pooled-budget communality
     # parameterisation — communality ~ Beta(2, 2) with lambda / sigma derived so
     # the model-implied POOLED indicator variance is exactly 1 (the exact budget
@@ -60,27 +71,27 @@ RECONCILED_FACTORY_DEFAULTS = [
     # pooled standardisation puts 5-18% of the unit variance between waves). The
     # legacy free-pair knobs stay at the original HalfNormal(1) values so a
     # geometry-only sensitivity contrast remains constructible.
-    (factories.build_longitudinal_corr_factor_model, "loading_prior", "communality"),
-    (factories.build_longitudinal_corr_factor_model, "comm_alpha", 2.0),
-    (factories.build_longitudinal_corr_factor_model, "comm_beta", 2.0),
-    (factories.build_longitudinal_corr_factor_model, "loading_sigma", 1.0),
-    (factories.build_longitudinal_corr_factor_model, "residual_sigma", 1.0),
-    (factories.build_growth_model, "assoc_prior_sigma", 0.3),
-    (factories.build_growth_model, "re_intercept_prior_sigma", 0.5),
+    (_long_corr_factor_factory.build_longitudinal_corr_factor_model, "loading_prior", "communality"),
+    (_long_corr_factor_factory.build_longitudinal_corr_factor_model, "comm_alpha", 2.0),
+    (_long_corr_factor_factory.build_longitudinal_corr_factor_model, "comm_beta", 2.0),
+    (_long_corr_factor_factory.build_longitudinal_corr_factor_model, "loading_sigma", 1.0),
+    (_long_corr_factor_factory.build_longitudinal_corr_factor_model, "residual_sigma", 1.0),
+    (_growth_factory.build_growth_model, "assoc_prior_sigma", 0.3),
+    (_growth_factory.build_growth_model, "re_intercept_prior_sigma", 0.5),
     # #389 finding 2: the level family's zero-sum wave-deviation scale (sized so
     # the largest observed wave deviation, ~0.85 logits, sits within ~1.3
     # marginal prior SD) and the sweep-only override for the focal t2 contrast
     # (None = the outcome-tier default; only the treatment-prior sweep sets it).
-    (factories.build_level_factors_model, "alpha_time_prior_sigma", 0.75),
-    (factories.build_level_factors_model, "tau_prior_sigma", None),
+    (_level_factors_factory.build_level_factors_model, "alpha_time_prior_sigma", 0.75),
+    (_level_factors_factory.build_level_factors_model, "tau_prior_sigma", None),
     # #390: the did sweep's focal-prior overrides. Both default to None (the
     # registered tier/Normal(0, 1) scales); only the treatment-prior sweep and
     # the LRPDID102 companion set them.
-    (factories.build_did_model, "tau_t2_prior_sigma", None),
-    (factories.build_did_model, "dose_slope_prior_sigma", None),
+    (_did_factory.build_did_model, "tau_t2_prior_sigma", None),
+    (_did_factory.build_did_model, "dose_slope_prior_sigma", None),
     # #391: the gain-factor sweep's focal-prior override (None = the outcome
     # tier); only the treatment-prior sweep sets it.
-    (factories.build_gain_factors_model, "trt_prior_sigma", None),
+    (_gain_factors_factory.build_gain_factors_model, "trt_prior_sigma", None),
 ]
 
 
@@ -97,7 +108,7 @@ def test_default_of_raises_on_unknown_param():
     # A renamed/removed factory param must fail loudly (not fall back to a stale
     # literal), which is the whole point of sourcing the default from the factory.
     with pytest.raises(KeyError):
-        default_of(factories.build_lcsm_model, "not_a_real_param")
+        default_of(_lcsm_factory.build_lcsm_model, "not_a_real_param")
 
 
 def test_shared_constructor_scales_reconciled():

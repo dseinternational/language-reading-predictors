@@ -42,6 +42,10 @@ Usage::
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import horseshoe as _horseshoe_factory
+from language_reading_predictors.statistical_models.summaries import horseshoe as _horseshoe_summary
+
+
 import argparse
 import hashlib
 import json
@@ -54,8 +58,8 @@ import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import factories as _factories
-from language_reading_predictors.statistical_models import reporting as _report
+
+
 from language_reading_predictors.statistical_models.context import (
     ModelSpec,
     spec_target_accept,
@@ -103,7 +107,7 @@ def _build(plan: HorseshoeRunPlan, tau0: float, slab_scale: float):
         frame = load_rlm_span_frame(**plan.rlm_prepare_kwargs())
         kwargs = plan.rlm_factory_kwargs(predictors=list(frame.predictors))
         kwargs.update({"tau0": tau0, "slab_scale": slab_scale})
-        return _factories.build_rlm_horseshoe_model(frame, **kwargs)
+        return _horseshoe_factory.build_rlm_horseshoe_model(frame, **kwargs)
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
@@ -111,7 +115,7 @@ def _build(plan: HorseshoeRunPlan, tau0: float, slab_scale: float):
     prepared = load_and_prepare(**plan.rli_prepare_kwargs())
     kwargs = plan.rli_factory_kwargs()
     kwargs.update({"tau0": tau0, "slab_scale": slab_scale})
-    return _factories.build_horseshoe_model(prepared, **kwargs)
+    return _horseshoe_factory.build_horseshoe_model(prepared, **kwargs)
 
 
 def _cell_converged(idata) -> tuple[bool, dict[str, float]]:
@@ -192,9 +196,7 @@ def main() -> int:
         # target_accept: CLI override > registered spec override (hs-001 needs
         # 0.999) > family default.
         target_accept = (
-            float(args.target_accept)
-            if args.target_accept is not None
-            else spec_target_accept(spec) or 0.99
+            float(args.target_accept) if args.target_accept is not None else spec_target_accept(spec) or 0.99
         )
 
         cells = [(t, ref_slab) for t in TAU0_GRID] + [(ref_tau0, s) for s in SLAB_GRID]
@@ -212,7 +214,7 @@ def main() -> int:
                     progressbar=False,
                 )
             ok, stats = _cell_converged(idata)
-            ranking = _report.horseshoe_ranking(idata, delta=delta)
+            ranking = _horseshoe_summary.horseshoe_ranking(idata, delta=delta)
             order = list(ranking["predictor"])
             p_map = dict(zip(ranking["predictor"], ranking["p_abs_gt_delta"], strict=True))
             shared = [p for p in ref_order if p in p_map]
@@ -283,9 +285,7 @@ def main() -> int:
         for model_id in cells_df["model_id"].unique():
             dst = out_root / "models" / f"{model_id}-reporting"
             if dst.is_dir():
-                cells_df[cells_df["model_id"] == model_id].to_csv(
-                    dst / "horseshoe_prior_sensitivity.csv", index=False
-                )
+                cells_df[cells_df["model_id"] == model_id].to_csv(dst / "horseshoe_prior_sensitivity.csv", index=False)
                 print(f"Wrote report-local sensitivity: {dst}")
     print(cells_df.to_string(index=False))
     return 0

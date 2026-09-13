@@ -62,9 +62,7 @@ import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.factories import (
-    build_level_factors_model,
-)
+from language_reading_predictors.statistical_models.factories.level_factors import build_level_factors_model
 from language_reading_predictors.statistical_models.measures import MEASURES
 from language_reading_predictors.statistical_models.measures import is_distal
 from language_reading_predictors.statistical_models.sensitivity import (
@@ -123,9 +121,7 @@ def _grid_for(outcome: str, axis: str) -> tuple[float, ...]:
     if axis == "sigma_child":
         return tuple(LEVEL_SENSITIVITY_SIGMA_CHILD_SIGMAS)
     return tuple(
-        STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS
-        if is_distal(outcome)
-        else STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
+        STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS if is_distal(outcome) else STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
     )
 
 
@@ -138,10 +134,7 @@ def _resolve_plan(outcome: str):
     )
 
     model_id = LEVEL_SENSITIVITY_MODEL_IDS[outcome]
-    module = importlib.import_module(
-        "language_reading_predictors.statistical_models."
-        + model_id.replace("-", "_")
-    )
+    module = importlib.import_module("language_reading_predictors.statistical_models." + model_id.replace("-", "_"))
     return resolve_level_factors_run_plan(module.SPEC)
 
 
@@ -167,10 +160,8 @@ def _fit_cell(
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        level_t2_marginal_effect,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.level_factors import level_t2_marginal_effect
 
     plan = _resolve_plan(outcome)
     prepared = load_and_prepare(**plan.prepare_kwargs())
@@ -203,11 +194,7 @@ def _fit_cell(
             progressbar=False,
         )
 
-    ability = (
-        built.prepared.covariates[plan.ability_covariate]
-        if plan.ability_covariate is not None
-        else None
-    )
+    ability = built.prepared.covariates[plan.ability_covariate] if plan.ability_covariate is not None else None
     contrast_draws, ame_prob = level_t2_marginal_effect(
         trace,
         phase=built.prepared.phase,
@@ -228,9 +215,7 @@ def _fit_cell(
         else np.array([np.nan])
     )
     free_names = [rv.name for rv in built.model.free_RVs]
-    convergence = _diag.subfit_convergence(
-        trace, label=f"{outcome} {axis}", var_names=free_names
-    )
+    convergence = _diag.subfit_convergence(trace, label=f"{outcome} {axis}", var_names=free_names)
 
     # Arm counts over all fitted rows, matching load_primary_level_reference's
     # definition so the binding check is like-for-like; the t2 per-arm split (the
@@ -279,9 +264,7 @@ def _fit_cell(
         "tau_logit_mean": float(np.mean(contrast_draws)),
         "tau_logit_lo": float(np.quantile(contrast_draws, lo_q)),
         "tau_logit_hi": float(np.quantile(contrast_draws, 1.0 - lo_q)),
-        "ci_width_logit": float(
-            np.quantile(contrast_draws, 1.0 - lo_q) - np.quantile(contrast_draws, lo_q)
-        ),
+        "ci_width_logit": float(np.quantile(contrast_draws, 1.0 - lo_q) - np.quantile(contrast_draws, lo_q)),
         "tau_sd_logit": float(np.std(contrast_draws)),
         "kappa_median": float(np.nanmedian(kappa_draws)),
         "items_mean": float(np.mean(ame_prob)) * n_trials,
@@ -348,11 +331,7 @@ def _fit_cell(
     )
     sigma_token = f"{sigma:g}".replace(".", "p")
     axis_token = "tau" if axis == "tau" else "armgap"
-    semantic = (
-        Path("traces")
-        / f"level-{config}"
-        / f"trace_{outcome}_{axis_token}-{sigma_token}.nc"
-    )
+    semantic = Path("traces") / f"level-{config}" / f"trace_{outcome}_{axis_token}-{sigma_token}.nc"
     trace_file, trace_sha256 = persist_sensitivity_trace(
         trace,
         sensitivity_dir=sensitivity_dir,
@@ -367,7 +346,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config", default="dev", help="sampling preset (dev/test/reporting)")
     ap.add_argument(
-        "--outcomes", nargs="+", default=list(LEVEL_SENSITIVITY_OUTCOMES),
+        "--outcomes",
+        nargs="+",
+        default=list(LEVEL_SENSITIVITY_OUTCOMES),
         help=(
             "level outcomes to sweep (default: the #389 review's W L P B N; "
             "all eleven registered LF outcomes are supported)"
@@ -385,7 +366,8 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--attach", action="store_true",
+        "--attach",
+        action="store_true",
         help=(
             "install each outcome's trace-backed bundle beside its primary "
             "(manifest + digest-verified cell traces; only when every cell "
@@ -393,24 +375,24 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--reattach", action="store_true",
+        "--reattach",
+        action="store_true",
         help=(
             "skip fitting: re-install bundles from the sweep directory's "
             "existing combined CSV (re-verifying every binding and trace hash)"
         ),
     )
     ap.add_argument(
-        "--output-dir", type=str, default=None,
+        "--output-dir",
+        type=str,
+        default=None,
         help="override the output root (above DSE_LRP_OUTPUT_DIR); layout unchanged",
     )
     args = ap.parse_args()
 
     unknown = sorted(set(args.outcomes) - set(LEVEL_SENSITIVITY_MODEL_IDS))
     if unknown:
-        ap.error(
-            f"unsupported level outcomes: {unknown}; choose from "
-            f"{sorted(LEVEL_SENSITIVITY_MODEL_IDS)}"
-        )
+        ap.error(f"unsupported level outcomes: {unknown}; choose from {sorted(LEVEL_SENSITIVITY_MODEL_IDS)}")
     if args.axis == "arm_gap" and (args.attach or args.reattach):
         # The balance-prior sweep is a sensitivity companion, not gate evidence:
         # attaching it as tau_prior_sensitivity.csv would let a non-treatment
@@ -425,9 +407,7 @@ def main() -> None:
 
     sampling = _sampling.get_sampling_configuration(args.config, random_seed=20260701)
     combined_path = sensitivity_dir / (
-        f"level_{STANDARD_SENSITIVITY_FILENAME}"
-        if args.axis == "tau"
-        else ARM_GAP_SENSITIVITY_FILENAME
+        f"level_{STANDARD_SENSITIVITY_FILENAME}" if args.axis == "tau" else ARM_GAP_SENSITIVITY_FILENAME
     )
 
     if args.reattach:
@@ -439,13 +419,9 @@ def main() -> None:
         for outcome in args.outcomes:
             model_id = LEVEL_SENSITIVITY_MODEL_IDS[outcome]
             primary_dir = models_root / f"{model_id}-{args.config}"
-            reference = load_primary_level_reference(
-                primary_dir, outcome, config_name=args.config
-            )
+            reference = load_primary_level_reference(primary_dir, outcome, config_name=args.config)
             assert_primary_sampling_contract(sampling, reference, config=args.config)
-            outcome_rows = combined.loc[
-                combined["outcome"].astype(str) == outcome
-            ]
+            outcome_rows = combined.loc[combined["outcome"].astype(str) == outcome]
             destination = attach_outcome_bundle(
                 outcome_rows,
                 outcome=outcome,
@@ -461,18 +437,13 @@ def main() -> None:
     for outcome in args.outcomes:
         model_id = LEVEL_SENSITIVITY_MODEL_IDS[outcome]
         primary_dir = models_root / f"{model_id}-{args.config}"
-        reference = load_primary_level_reference(
-            primary_dir, outcome, config_name=args.config
-        )
+        reference = load_primary_level_reference(primary_dir, outcome, config_name=args.config)
         # The primary may carry a per-model --target-accept override; a sweep
         # sampled under a different contract is not that fit's evidence.
         assert_primary_sampling_contract(sampling, reference, config=args.config)
         outcome_rows = []
         for sigma in _grid_for(outcome, args.axis):
-            print(
-                f"--- {outcome} ({model_id}): "
-                f"{'tau_sigma' if args.axis == 'tau' else 'arm_gap_sigma'}={sigma} ---"
-            )
+            print(f"--- {outcome} ({model_id}): {'tau_sigma' if args.axis == 'tau' else 'arm_gap_sigma'}={sigma} ---")
             row = _fit_cell(
                 outcome,
                 float(sigma),
@@ -493,10 +464,7 @@ def main() -> None:
         attach_ready[outcome] = all_ok
         if args.attach:
             if not all_ok:
-                print(
-                    f"    NOT attaching {outcome}: one or more cells failed the "
-                    "convergence gate"
-                )
+                print(f"    NOT attaching {outcome}: one or more cells failed the convergence gate")
                 continue
             destination = attach_outcome_bundle(
                 pd.DataFrame(outcome_rows),

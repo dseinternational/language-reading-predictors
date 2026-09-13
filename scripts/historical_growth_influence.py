@@ -17,6 +17,9 @@ Usage::
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models import convergence as _convergence
+
+
 import argparse
 import json
 import os
@@ -33,11 +36,9 @@ import pymc as pm
 from language_reading_predictors.atomic_files import write_atomic
 from language_reading_predictors import paths
 from language_reading_predictors.statistical_models import diagnostics as _diag
-from language_reading_predictors.statistical_models import reporting as _report
+
 from language_reading_predictors.statistical_models.datasets import resolve_dataset
-from language_reading_predictors.statistical_models.factories import (
-    build_historical_growth_model,
-)
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 from language_reading_predictors.statistical_models.historical_growth import (
     exclude_historical_growth_observations,
     historical_growth_influence_summary,
@@ -85,9 +86,7 @@ def _atomic_write_json(value: dict[str, Any], destination: Path) -> None:
     """As above, with this script's own indentation and trailing newline retained."""
     write_atomic(
         destination,
-        lambda temporary: temporary.write_text(
-            json.dumps(value, indent=2) + "\n", encoding="utf-8"
-        ),
+        lambda temporary: temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8"),
         mode="process_default",
     )
 
@@ -99,10 +98,7 @@ def _registered_spec(model_id: str):
         raise ValueError(f"unknown registered statistical model: {model_id!r}")
     spec = models[canonical].SPEC
     if spec.kind != "historical_growth":
-        raise ValueError(
-            "historical-growth influence supports kind='historical_growth', "
-            f"not {spec.kind!r}"
-        )
+        raise ValueError(f"historical-growth influence supports kind='historical_growth', not {spec.kind!r}")
     return spec
 
 
@@ -114,17 +110,12 @@ def _validate_primary(
     metadata = _read_json(model_dir / "config.json")
     diagnostics = _read_json(model_dir / "diagnostics_summary.json")
     if metadata.get("model_id") != spec.model_id:
-        raise ValueError(
-            f"completed fit is for {metadata.get('model_id')!r}, not {spec.model_id!r}"
-        )
+        raise ValueError(f"completed fit is for {metadata.get('model_id')!r}, not {spec.model_id!r}")
     if metadata.get("kind") != spec.kind:
         raise ValueError("completed fit kind does not match the registered model")
     if metadata.get("config_name") != config_name:
-        raise ValueError(
-            f"completed fit config is {metadata.get('config_name')!r}, "
-            f"not {config_name!r}"
-        )
-    if not _report.convergence_gate_clean_passed(diagnostics):
+        raise ValueError(f"completed fit config is {metadata.get('config_name')!r}, not {config_name!r}")
+    if not _convergence.convergence_gate_clean_passed(diagnostics):
         raise ValueError("completed primary fit did not pass its convergence gate")
     if metadata.get("publication_input_contract", {}).get("publication_ready") is not True:
         raise ValueError("completed primary fit did not pass its publication input contract")
@@ -147,9 +138,7 @@ def run(
     spec = _registered_spec(model_id)
     plan = resolve_historical_growth_run_plan(spec)
     model_dir = paths.stat_models_dir() / f"{spec.model_id}-{config}"
-    metadata, _primary_diagnostics = _validate_primary(
-        spec, config, model_dir
-    )
+    metadata, _primary_diagnostics = _validate_primary(spec, config, model_dir)
 
     config_path = model_dir / "config.json"
     primary_trace_path = model_dir / "trace.nc"
@@ -157,9 +146,7 @@ def run(
     primary_trace_sha256 = sha256_file(primary_trace_path)
     recorded_trace_sha256 = metadata.get("trace_sha256")
     if recorded_trace_sha256 != primary_trace_sha256:
-        raise ValueError(
-            "primary trace hash does not match the completed fit's config.json"
-        )
+        raise ValueError("primary trace hash does not match the completed fit's config.json")
 
     dataset, measures = resolve_dataset(plan.study_id)
     panel = load_longitudinal_panel(
@@ -175,9 +162,7 @@ def run(
     # artefact rather than to something this run just wrote.
     pareto_path = model_dir / PRIMARY_PARETO_FILENAME
     if not pareto_path.is_file():
-        raise FileNotFoundError(
-            f"required completed-fit artefact is missing: {pareto_path}"
-        )
+        raise FileNotFoundError(f"required completed-fit artefact is missing: {pareto_path}")
     flagged = pareto.loc[~pareto["loo_reliable"]].copy()
 
     base_provenance: dict[str, Any] = {
@@ -189,8 +174,7 @@ def run(
         "sensitivity_target": "all observation rows above ArviZ good_k",
         "loo_unit": plan.loo_unit,
         "interpretation": (
-            "Separate direct row-exclusion refit for coefficient stability; "
-            "not exact LOO and not new-child prediction."
+            "Separate direct row-exclusion refit for coefficient stability; not exact LOO and not new-child prediction."
         ),
         "primary_config_sha256": primary_config_sha256,
         "primary_trace_sha256": primary_trace_sha256,
@@ -198,9 +182,7 @@ def run(
         "pareto_threshold": float(pareto["good_k_threshold"].iloc[0]),
         "max_pareto_k": float(pareto["pareto_k"].max()),
         "n_flagged_rows": int(len(flagged)),
-        "flagged_observation_indices": [
-            int(value) for value in flagged["observation_index"]
-        ],
+        "flagged_observation_indices": [int(value) for value in flagged["observation_index"]],
     }
     if flagged.empty:
         base_provenance["status"] = "no_flagged_observations"
@@ -208,9 +190,7 @@ def run(
         print("No observation exceeds the ArviZ Pareto-k threshold.")
         return None
 
-    sensitivity_panel = exclude_historical_growth_observations(
-        panel, flagged["observation_index"].to_numpy(dtype=int)
-    )
+    sensitivity_panel = exclude_historical_growth_observations(panel, flagged["observation_index"].to_numpy(dtype=int))
     built = build_historical_growth_model(
         sensitivity_panel,
         **plan.factory_kwargs(),
@@ -243,17 +223,15 @@ def run(
         label=f"{spec.model_id} high-Pareto observation exclusion",
         var_names=free_variables,
     )
-    sensitivity_trace.posterior.attrs[
-        "historical_growth_influence_sampling_json"
-    ] = json.dumps({**sampling, "cores": sampling_cores, "nuts_sampler": "nutpie"})
-    sensitivity_trace.posterior.attrs[
-        "historical_growth_influence_identity_json"
-    ] = json.dumps(base_provenance, sort_keys=True)
+    sensitivity_trace.posterior.attrs["historical_growth_influence_sampling_json"] = json.dumps(
+        {**sampling, "cores": sampling_cores, "nuts_sampler": "nutpie"}
+    )
+    sensitivity_trace.posterior.attrs["historical_growth_influence_identity_json"] = json.dumps(
+        base_provenance, sort_keys=True
+    )
 
     trace_path = model_dir / TRACE_FILENAME
-    temporary_trace = trace_path.with_name(
-        f".{trace_path.name}.{uuid.uuid4().hex}.tmp"
-    )
+    temporary_trace = trace_path.with_name(f".{trace_path.name}.{uuid.uuid4().hex}.tmp")
     try:
         sensitivity_trace.to_netcdf(temporary_trace)
         os.replace(temporary_trace, trace_path)
@@ -274,9 +252,7 @@ def run(
     summary.insert(1, "config", config)
     summary["primary_config_sha256"] = primary_config_sha256
     summary["primary_trace_sha256"] = primary_trace_sha256
-    summary["primary_pareto_k_sha256"] = base_provenance[
-        "primary_pareto_k_sha256"
-    ]
+    summary["primary_pareto_k_sha256"] = base_provenance["primary_pareto_k_sha256"]
     summary["sensitivity_trace_file"] = TRACE_FILENAME
     summary["sensitivity_trace_sha256"] = sensitivity_trace_sha256
     summary["sampling_draws"] = int(sampling["draws"])
@@ -294,9 +270,7 @@ def run(
 
     provenance = {
         **base_provenance,
-        "status": (
-            "completed" if convergence["converged"] is True else "not_converged"
-        ),
+        "status": ("completed" if convergence["converged"] is True else "not_converged"),
         "sensitivity_trace_file": TRACE_FILENAME,
         "sensitivity_trace_sha256": sensitivity_trace_sha256,
         "sensitivity_summary_file": SUMMARY_FILENAME,
@@ -346,10 +320,7 @@ def main() -> None:
         "--output-dir",
         type=str,
         default=None,
-        help=(
-            "override the output root (highest precedence, above "
-            "DSE_LRP_OUTPUT_DIR); relative layout is unchanged"
-        ),
+        help=("override the output root (highest precedence, above DSE_LRP_OUTPUT_DIR); relative layout is unchanged"),
     )
     args = parser.parse_args()
     if args.cores is not None and args.cores < 1:

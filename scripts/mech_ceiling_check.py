@@ -34,6 +34,9 @@ decision.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import mechanism as _mechanism_factory
+
+
 import argparse
 import sys
 from pathlib import Path
@@ -50,7 +53,8 @@ import dse_research_utils.environment.setup as setup  # noqa: E402
 import dse_research_utils.statistics.models.sampling as _sampling  # noqa: E402
 
 from language_reading_predictors import paths  # noqa: E402
-from language_reading_predictors.statistical_models import factories  # noqa: E402
+
+# noqa: E402
 from language_reading_predictors.statistical_models.preprocessing import (  # noqa: E402
     load_and_prepare,
     logit_safe,
@@ -97,7 +101,7 @@ def check_model(model_id: str, config: str, spec) -> list[dict[str, Any]]:
     plan = resolve_mechanism_run_plan(spec)
     print(f"{model_id} ({plan.outcome_symbol} moderated by {plan.moderator_symbol})")
     loaded = load_and_prepare(**plan.prepare_kwargs())
-    built = factories.build_mechanism_model(loaded, **plan.factory_kwargs())
+    built = _mechanism_factory.build_mechanism_model(loaded, **plan.factory_kwargs())
     model = built.model
     # The factory drops rows with a missing confounder post-score, so the basis
     # must be built from the rows it actually kept, not from the loaded frame.
@@ -142,20 +146,20 @@ def check_model(model_id: str, config: str, spec) -> list[dict[str, Any]]:
                 # The note's proposed mechanism needs the interaction column to
                 # be largely the squared exposure: it reports corr(z_L·z_M, z_L²)
                 # of about 0.7 on the registered basis.
-                "corr_interaction_with_zsq": float(
-                    np.corrcoef(z * z_moderator, z**2)[0, 1]
-                ),
+                "corr_interaction_with_zsq": float(np.corrcoef(z * z_moderator, z**2)[0, 1]),
                 "share_of_interaction_ss_top_decile": float(
-                    np.sort((z * z_moderator) ** 2)[-max(1, len(z) // 10):].sum()
-                    / ((z * z_moderator) ** 2).sum()
+                    np.sort((z * z_moderator) ** 2)[-max(1, len(z) // 10) :].sum() / ((z * z_moderator) ** 2).sum()
                 ),
                 "target_accept": target_accept,
                 "n_divergences": divergences,
             }
         )
-        print(f"  {name:8s} gamma_int {rows[-1]['gamma_int_median']:+.3f} "
-              f"[{rows[-1]['gamma_int_lo']:+.3f}, {rows[-1]['gamma_int_hi']:+.3f}] "
-              f"P(neg)={rows[-1]['prob_negative']:.3f} div={divergences}", flush=True)
+        print(
+            f"  {name:8s} gamma_int {rows[-1]['gamma_int_median']:+.3f} "
+            f"[{rows[-1]['gamma_int_lo']:+.3f}, {rows[-1]['gamma_int_hi']:+.3f}] "
+            f"P(neg)={rows[-1]['prob_negative']:.3f} div={divergences}",
+            flush=True,
+        )
     return rows
 
 

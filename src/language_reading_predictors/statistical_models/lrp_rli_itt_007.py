@@ -20,10 +20,7 @@ from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-007",
     kind="itt",
-    title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "letter-sound knowledge (L)"
-    ),
+    title=("Available-case modified ITT estimate of the assigned-arm contrast in letter-sound knowledge (L)"),
     outcome_symbol="L",
     model_settings=IttModelSettings(),
 )

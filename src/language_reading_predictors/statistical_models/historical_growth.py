@@ -225,8 +225,7 @@ class HistoricalGrowthModelSettings:
             raise TypeError("study_id must be a non-empty string")
         if legacy_study_id != spec_study_id:
             raise ValueError(
-                f"{model_id}: extra study_id={legacy_study_id!r} contradicts "
-                f"ModelSpec.study_id={spec_study_id!r}"
+                f"{model_id}: extra study_id={legacy_study_id!r} contradicts ModelSpec.study_id={spec_study_id!r}"
             )
         return cls(
             measure=extra.get("measure", outcome_symbol or _DEFAULT_MEASURE),
@@ -331,8 +330,7 @@ def declared_historical_growth_settings(
     if settings is not None:
         if spec.extra:
             raise ValueError(
-                f"{spec.model_id}: historical_growth settings cannot be split "
-                "between model_settings and extra"
+                f"{spec.model_id}: historical_growth settings cannot be split between model_settings and extra"
             )
         if not isinstance(settings, HistoricalGrowthModelSettings):
             raise TypeError(
@@ -362,9 +360,7 @@ def resolve_historical_growth_run_plan(spec: ModelSpec) -> HistoricalGrowthRunPl
     settings, source = declared_historical_growth_settings(spec)
     _dataset, catalogue = resolve_dataset(spec.study_id)
     if settings.measure not in catalogue:
-        raise ValueError(
-            f"{spec.model_id}: unregistered {spec.study_id!r} measure symbol: {settings.measure}"
-        )
+        raise ValueError(f"{spec.model_id}: unregistered {spec.study_id!r} measure symbol: {settings.measure}")
     if spec.outcome_symbol is not None and spec.outcome_symbol != settings.measure:
         raise ValueError(
             f"{spec.model_id}: outcome_symbol={spec.outcome_symbol!r} contradicts "
@@ -438,9 +434,7 @@ def historical_growth_pareto_table(
     if measure not in panel.measures:
         raise KeyError(f"measure {measure!r} is not in panel {panel.measures!r}")
     if loo is None or getattr(loo, "pareto_k", None) is None:
-        raise ValueError(
-            "historical-growth influence sensitivity requires pointwise PSIS-LOO"
-        )
+        raise ValueError("historical-growth influence sensitivity requires pointwise PSIS-LOO")
 
     pareto_k = np.asarray(loo.pareto_k, dtype=float).ravel()
     if len(panel.long) != len(pareto_k):
@@ -481,9 +475,7 @@ def exclude_historical_growth_observations(
     """
     raw = np.asarray(observation_indices)
     if raw.ndim != 1 or raw.size == 0:
-        raise ValueError(
-            "observation_indices must be a non-empty one-dimensional array"
-        )
+        raise ValueError("observation_indices must be a non-empty one-dimensional array")
     if not np.issubdtype(raw.dtype, np.integer):
         raise TypeError("observation_indices must contain integers")
     indices = raw.astype(int)
@@ -491,9 +483,7 @@ def exclude_historical_growth_observations(
         raise ValueError("observation_indices must be unique")
     unknown = sorted(set(indices) - set(range(len(panel.long))))
     if unknown:
-        raise IndexError(
-            f"historical-growth observation index out of range: {unknown}"
-        )
+        raise IndexError(f"historical-growth observation index out of range: {unknown}")
 
     dataset = panel.dataset
     subject_col = dataset.subject_col
@@ -553,13 +543,9 @@ def historical_growth_influence_summary(
     required = {"subject_id", "observation_index", "pareto_k"}
     missing = required - set(excluded_rows.columns)
     if missing:
-        raise ValueError(
-            "excluded_rows lacks required columns: " + ", ".join(sorted(missing))
-        )
+        raise ValueError("excluded_rows lacks required columns: " + ", ".join(sorted(missing)))
     if excluded_rows.empty:
-        raise ValueError(
-            "historical-growth influence summary requires an excluded row"
-        )
+        raise ValueError("historical-growth influence summary requires an excluded row")
 
     from language_reading_predictors.statistical_models import historical
 
@@ -568,25 +554,19 @@ def historical_growth_influence_summary(
 
     def _summary(trace: Any, panel: Any, prefix: str) -> pd.DataFrame:
         frame = historical.growth_summary(trace, panel, measure)
-        return frame[keys + statistics].rename(
-            columns={column: f"{prefix}_{column}" for column in statistics}
-        )
+        return frame[keys + statistics].rename(columns={column: f"{prefix}_{column}" for column in statistics})
 
     primary = _summary(primary_trace, primary_panel, "primary")
     sensitivity = _summary(sensitivity_trace, sensitivity_panel, "sensitivity")
     out = primary.merge(sensitivity, on=keys, how="outer", validate="one_to_one")
     out["median_shift"] = out["sensitivity_q50"] - out["primary_q50"]
-    out["median_direction_stable"] = np.sign(out["primary_q50"]) == np.sign(
-        out["sensitivity_q50"]
+    out["median_direction_stable"] = np.sign(out["primary_q50"]) == np.sign(out["sensitivity_q50"])
+    out["intervals_overlap"] = np.maximum(out["primary_q_lo"], out["sensitivity_q_lo"]) <= np.minimum(
+        out["primary_q_hi"], out["sensitivity_q_hi"]
     )
-    out["intervals_overlap"] = np.maximum(
-        out["primary_q_lo"], out["sensitivity_q_lo"]
-    ) <= np.minimum(out["primary_q_hi"], out["sensitivity_q_hi"])
     out["n_excluded_rows"] = int(len(excluded_rows))
     out["n_excluded_children"] = int(excluded_rows["subject_id"].nunique())
-    out["n_fully_excluded_children"] = int(
-        len(set(primary_panel.subject_ids) - set(sensitivity_panel.subject_ids))
-    )
+    out["n_fully_excluded_children"] = int(len(set(primary_panel.subject_ids) - set(sensitivity_panel.subject_ids)))
     out["max_excluded_pareto_k"] = float(excluded_rows["pareto_k"].max())
     out["sensitivity_converged"] = sensitivity_converged
     return out
@@ -667,13 +647,9 @@ def evaluate_historical_growth_influence_bundle(
         }
         if not pareto_required.issubset(pareto.columns):
             raise ValueError("current Pareto-k table lacks its row mapping")
-        observation_indices = pd.to_numeric(
-            pareto["observation_index"], errors="coerce"
-        )
+        observation_indices = pd.to_numeric(pareto["observation_index"], errors="coerce")
         values = pd.to_numeric(pareto["pareto_k"], errors="coerce")
-        thresholds = pd.to_numeric(
-            pareto["good_k_threshold"], errors="coerce"
-        )
+        thresholds = pd.to_numeric(pareto["good_k_threshold"], errors="coerce")
         expected_n = int(report_config.get("n_obs", -1))
         if (
             len(pareto) != expected_n
@@ -700,11 +676,7 @@ def evaluate_historical_growth_influence_bundle(
         if Path(trace_name).name != trace_name:
             raise ValueError("sensitivity trace path is not a report-local filename")
         sensitivity_trace = primary_dir / trace_name
-        if (
-            not sensitivity_trace.is_file()
-            or str(_one("sensitivity_trace_sha256"))
-            != sha256_file(sensitivity_trace)
-        ):
+        if not sensitivity_trace.is_file() or str(_one("sensitivity_trace_sha256")) != sha256_file(sensitivity_trace):
             raise ValueError("sensitivity trace is absent or hash-mismatched")
 
         provenance_path = primary_dir / "historical_growth_influence_provenance.json"
@@ -718,14 +690,10 @@ def evaluate_historical_growth_influence_bundle(
         for column, path in artefacts.items():
             if provenance.get(column) != sha256_file(path):
                 raise ValueError(f"influence provenance {column} does not match")
-        flagged_indices = sorted(
-            int(value) for value in flagged["observation_index"]
-        )
+        flagged_indices = sorted(int(value) for value in flagged["observation_index"])
         if provenance.get("flagged_observation_indices") != flagged_indices:
             raise ValueError("influence provenance flags do not match current Pareto-k")
-        if provenance.get("sensitivity_trace_sha256") != sha256_file(
-            sensitivity_trace
-        ):
+        if provenance.get("sensitivity_trace_sha256") != sha256_file(sensitivity_trace):
             raise ValueError("influence provenance is not bound to the sensitivity trace")
         summary_path = primary_dir / "historical_growth_influence_sensitivity.csv"
         if provenance.get("sensitivity_summary_sha256") != sha256_file(summary_path):
@@ -742,9 +710,7 @@ def evaluate_historical_growth_influence_bundle(
         result.update(
             ready=True,
             reason="trace-bound row-exclusion sensitivity passed",
-            max_median_shift=float(
-                pd.to_numeric(summary["median_shift"], errors="raise").abs().max()
-            ),
+            max_median_shift=float(pd.to_numeric(summary["median_shift"], errors="raise").abs().max()),
         )
     except (OSError, ValueError, TypeError, KeyError, json.JSONDecodeError) as exc:
         result["reason"] = str(exc)

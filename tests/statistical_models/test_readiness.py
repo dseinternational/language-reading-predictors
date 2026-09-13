@@ -12,21 +12,20 @@ via ``increasing_frac``, and the input guards.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import readiness as _readiness_summary
+
+
 import math
 
 import numpy as np
 import pytest
-
-from language_reading_predictors.statistical_models import reporting
 
 
 def _haldane_logit(counts: np.ndarray, n_trials: int) -> np.ndarray:
     return np.log((counts + 0.5) / (n_trials - counts + 0.5))
 
 
-def _logistic_draws(
-    L: np.ndarray, l0: float, *, n_sample: int, seed: int = 0
-) -> np.ndarray:
+def _logistic_draws(L: np.ndarray, l0: float, *, n_sample: int, seed: int = 0) -> np.ndarray:
     """Increasing logistic curves in the count L with steepest rise at ``l0``."""
     rng = np.random.default_rng(seed)
     base = 1.5 / (1.0 + np.exp(-0.4 * (L - l0)))
@@ -39,9 +38,7 @@ def test_recovers_known_knee_and_half_rise():
     n_trials, l0 = 32, 16.0
     counts = np.linspace(0.0, 32.0, 120)
     ell = _haldane_logit(counts, n_trials)
-    out = reporting._readiness_knee(
-        _logistic_draws(counts, l0, n_sample=300), ell, n_trials=n_trials
-    )
+    out = _readiness_summary._readiness_knee(_logistic_draws(counts, l0, n_sample=300), ell, n_trials=n_trials)
 
     # The knee is quantised to between-bin midpoints, so allow ~a bin width.
     assert abs(out["knee_count_median"] - l0) < 5.5
@@ -65,7 +62,7 @@ def test_flags_flat_noise_curve():
     ell = _haldane_logit(counts, n_trials)
     rng = np.random.default_rng(1)
     f = rng.normal(0.0, 0.3, size=(counts.size, 400))  # no trend
-    out = reporting._readiness_knee(f, ell, n_trials=n_trials)
+    out = _readiness_summary._readiness_knee(f, ell, n_trials=n_trials)
     # A trendless curve rises about half the time, so the knee is not well-defined.
     assert 0.2 < out["increasing_frac"] < 0.8
 
@@ -75,7 +72,7 @@ def test_falling_curve_yields_no_knee():
     counts = np.linspace(0.0, 32.0, 120)
     ell = _haldane_logit(counts, n_trials)
     f = -_logistic_draws(counts, 16.0, n_sample=100)  # strictly falling
-    out = reporting._readiness_knee(f, ell, n_trials=n_trials)
+    out = _readiness_summary._readiness_knee(f, ell, n_trials=n_trials)
     # No increasing draws: the estimand summaries are undefined, not misleading.
     assert out["increasing_frac"] == 0.0
     assert math.isnan(out["knee_count_median"])
@@ -86,7 +83,7 @@ def test_input_guard_too_few_bins():
     n_trials = 32
     ell = np.zeros(50)  # one distinct predictor value -> one bin
     with pytest.raises(ValueError, match="bins"):
-        reporting._readiness_knee(np.zeros((50, 10)), ell, n_trials=n_trials)
+        _readiness_summary._readiness_knee(np.zeros((50, 10)), ell, n_trials=n_trials)
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +106,7 @@ def test_linear_increasing_curve_is_not_a_well_defined_knee():
     slope = rng.normal(0.05, 0.004, size=400).clip(0.02)
     f = counts[:, None] * slope[None, :] + rng.normal(0.0, 0.01, size=(counts.size, 400))
 
-    out = reporting._readiness_knee(f, ell, n_trials=n_trials)
+    out = _readiness_summary._readiness_knee(f, ell, n_trials=n_trials)
 
     # Every draw rises end to end, so the *old* criterion would have passed it.
     assert out["increasing_frac"] > 0.9
@@ -126,11 +123,9 @@ def test_curve_accelerating_to_the_edge_is_boundary_pinned():
     rng = np.random.default_rng(4)
     # Convex and still steepening where the data stop — the letter-sound shape.
     amp = rng.normal(1.0, 0.05, size=400).clip(0.5)
-    f = ((counts / 32.0) ** 3)[:, None] * amp[None, :] + rng.normal(
-        0.0, 0.01, size=(counts.size, 400)
-    )
+    f = ((counts / 32.0) ** 3)[:, None] * amp[None, :] + rng.normal(0.0, 0.01, size=(counts.size, 400))
 
-    out = reporting._readiness_knee(f, ell, n_trials=n_trials)
+    out = _readiness_summary._readiness_knee(f, ell, n_trials=n_trials)
 
     assert out["increasing_frac"] > 0.9
     # The curvature check passes — it really is bending — but the location is not
@@ -163,7 +158,7 @@ def test_items_scale_maximum_can_differ_from_the_latent_logit_maximum():
 
     # And the implementation labels its own scale, so a renderer cannot confuse them.
     counts = np.linspace(0.0, 32.0, 120)
-    out = reporting._readiness_knee(
+    out = _readiness_summary._readiness_knee(
         _logistic_draws(counts, 16.0, n_sample=120),
         _haldane_logit(counts, 32),
         n_trials=32,
@@ -183,11 +178,9 @@ def test_low_end_steepest_interval_reports_no_below_slope():
     rng = np.random.default_rng(5)
     # Saturating: steepest at the very start, flat thereafter.
     amp = rng.normal(1.0, 0.05, size=300).clip(0.5)
-    f = (1.0 - np.exp(-0.6 * counts))[:, None] * amp[None, :] + rng.normal(
-        0.0, 0.01, size=(counts.size, 300)
-    )
+    f = (1.0 - np.exp(-0.6 * counts))[:, None] * amp[None, :] + rng.normal(0.0, 0.01, size=(counts.size, 300))
 
-    out = reporting._readiness_knee(f, ell, n_trials=n_trials)
+    out = _readiness_summary._readiness_knee(f, ell, n_trials=n_trials)
 
     assert out["steepest_interval_index"] == 0
     assert out["boundary_pinned"] is True

@@ -21,7 +21,7 @@ import xarray as xr
 from language_reading_predictors.statistical_models import diagnostics as _diag
 from language_reading_predictors.statistical_models import sensitivity as _sensitivity
 from language_reading_predictors.statistical_models.measures import MEASURES
-from language_reading_predictors.statistical_models.reporting import tau_summary_itt
+from language_reading_predictors.statistical_models.summaries.itt import tau_summary_itt
 from language_reading_predictors.statistical_models.sensitivity import (
     STANDARD_SENSITIVITY_FILENAME,
     STANDARD_SENSITIVITY_MODEL_IDS,

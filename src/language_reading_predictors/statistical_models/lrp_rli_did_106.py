@@ -35,10 +35,7 @@ from language_reading_predictors.statistical_models.pipelines.did import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-106",
     kind="did",
-    title=(
-        "Dispersion-prior sensitivity for the receptive-vocabulary arm-by-wave "
-        "contrasts (ROWPVT) (R)"
-    ),
+    title=("Dispersion-prior sensitivity for the receptive-vocabulary arm-by-wave contrasts (ROWPVT) (R)"),
     outcome_symbol="R",
     family="did",
     design="waitlist-crossover arm-by-wave levels, inverse-sqrt dispersion prior",

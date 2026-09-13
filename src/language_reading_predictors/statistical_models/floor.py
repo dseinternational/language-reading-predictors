@@ -84,10 +84,7 @@ def baseline_floor_eligibility_by_arm(
     loader this is the outcome-available t2 analysis frame.
     """
     if symbol not in prepared.pre_logit:
-        raise ValueError(
-            f"cannot classify baseline-floor eligibility for {symbol!r}: its "
-            "pre-score is not loaded"
-        )
+        raise ValueError(f"cannot classify baseline-floor eligibility for {symbol!r}: its pre-score is not loaded")
     if symbol not in prepared.post_counts:
         raise KeyError(f"{symbol!r} not in prepared.post_counts")
 
@@ -165,9 +162,7 @@ def baseline_floor_status_bounds(
         unknown_events = int((unknown_arm & event).sum())
         unknown_zeros = int((unknown_arm & ~event).sum())
         if known_n == 0:
-            raise ValueError(
-                f"Cannot bound {symbol!r}: arm G={g} has no known baseline-floor rows"
-            )
+            raise ValueError(f"Cannot bound {symbol!r}: arm G={g} has no known baseline-floor rows")
         observed_rate = known_events / known_n
         min_rate = known_events / (known_n + unknown_zeros)
         max_rate = (known_events + unknown_events) / (known_n + unknown_events)
@@ -190,25 +185,14 @@ def baseline_floor_status_bounds(
                 "outcome": symbol,
                 "scale": "off_floor_risk_difference",
                 "observed_known_eligibility_difference": (
-                    float(intervention["observed_rate"])
-                    - float(control["observed_rate"])
+                    float(intervention["observed_rate"]) - float(control["observed_rate"])
                 ),
-                "eligibility_status_lower": (
-                    float(intervention["min_rate"]) - float(control["max_rate"])
-                ),
-                "eligibility_status_upper": (
-                    float(intervention["max_rate"]) - float(control["min_rate"])
-                ),
-                "intervention_known_eligible_n": int(
-                    intervention["known_eligible_n"]
-                ),
+                "eligibility_status_lower": (float(intervention["min_rate"]) - float(control["max_rate"])),
+                "eligibility_status_upper": (float(intervention["max_rate"]) - float(control["min_rate"])),
+                "intervention_known_eligible_n": int(intervention["known_eligible_n"]),
                 "control_known_eligible_n": int(control["known_eligible_n"]),
-                "intervention_unknown_eligibility_n": int(
-                    intervention["unknown_eligibility_n"]
-                ),
-                "control_unknown_eligibility_n": int(
-                    control["unknown_eligibility_n"]
-                ),
+                "intervention_unknown_eligibility_n": int(intervention["unknown_eligibility_n"]),
+                "control_unknown_eligibility_n": int(control["unknown_eligibility_n"]),
                 "interpretation": (
                     "Raw risk-difference extrema over all classifications of "
                     "observed-post children with missing baseline-floor status; "
@@ -236,10 +220,7 @@ def _validated_raw_transition_frame(
     if symbol not in MEASURES:
         raise KeyError(f"Unknown bounded-score outcome {symbol!r}")
     if not prepared.data_path:
-        raise ValueError(
-            "PreparedData.data_path is required for the floor-transition "
-            "missingness bound"
-        )
+        raise ValueError("PreparedData.data_path is required for the floor-transition missingness bound")
 
     path = Path(prepared.data_path)
     if not path.is_file():
@@ -249,10 +230,7 @@ def _validated_raw_transition_frame(
     required = {V.SUBJECT_ID, V.TIME, V.GROUP, measure.column}
     missing_columns = sorted(required.difference(data.columns))
     if missing_columns:
-        raise ValueError(
-            "Floor-transition source data are missing required column(s): "
-            f"{missing_columns}"
-        )
+        raise ValueError(f"Floor-transition source data are missing required column(s): {missing_columns}")
     if data[V.SUBJECT_ID].isna().any():
         raise ValueError("Floor-transition source data contain a missing subject_id")
 
@@ -278,8 +256,7 @@ def _validated_raw_transition_frame(
             [V.SUBJECT_ID, "_time"],
         ].drop_duplicates()
         raise ValueError(
-            "Floor-transition source data contain duplicate child/time rows: "
-            f"{duplicate.to_dict(orient='records')}"
+            f"Floor-transition source data contain duplicate child/time rows: {duplicate.to_dict(orient='records')}"
         )
 
     raw_score = transition[measure.column]
@@ -287,16 +264,12 @@ def _validated_raw_transition_frame(
     non_numeric = raw_score.notna() & score.isna()
     if non_numeric.any():
         invalid = raw_score.loc[non_numeric].drop_duplicates().tolist()
-        raise ValueError(
-            f"Measure {symbol!r} ({measure.column}) contains non-numeric "
-            f"value(s) {invalid}"
-        )
+        raise ValueError(f"Measure {symbol!r} ({measure.column}) contains non-numeric value(s) {invalid}")
     finite = score.dropna().to_numpy(dtype=float)
     if finite.size and np.any(finite != np.rint(finite)):
         invalid = np.unique(finite[finite != np.rint(finite)]).tolist()
         raise ValueError(
-            f"Measure {symbol!r} ({measure.column}) must contain integer counts; "
-            f"found fractional value(s) {invalid}"
+            f"Measure {symbol!r} ({measure.column}) must contain integer counts; found fractional value(s) {invalid}"
         )
     if finite.size and (finite.min() < 0 or finite.max() > measure.n_trials):
         raise ValueError(
@@ -348,15 +321,9 @@ def _transition_components(frame: pd.DataFrame, g: int) -> dict[str, int]:
         "fixed_eligible_observed_n": int(fixed.sum()),
         "fixed_events_n": int((fixed & (post > 0)).sum()),
         "known_eligible_missing_post_n": int((known_eligible & ~post_observed).sum()),
-        "unknown_eligibility_observed_event_n": int(
-            (unknown_eligibility_observed & (post > 0)).sum()
-        ),
-        "unknown_eligibility_observed_zero_n": int(
-            (unknown_eligibility_observed & (post == 0)).sum()
-        ),
-        "unknown_eligibility_missing_post_n": int(
-            ((~pre_observed) & (~post_observed)).sum()
-        ),
+        "unknown_eligibility_observed_event_n": int((unknown_eligibility_observed & (post > 0)).sum()),
+        "unknown_eligibility_observed_zero_n": int((unknown_eligibility_observed & (post == 0)).sum()),
+        "unknown_eligibility_missing_post_n": int(((~pre_observed) & (~post_observed)).sum()),
         "known_ineligible_n": int((pre_observed & (pre > 0)).sum()),
     }
 
@@ -375,18 +342,15 @@ def _arm_transition_extrema(
     known_missing = int(components["known_eligible_missing_post_n"])
     unknown_events = int(components["unknown_eligibility_observed_event_n"])
     unknown_zeros = int(components["unknown_eligibility_observed_zero_n"])
-    unknown_joint = (
-        int(components["unknown_eligibility_missing_post_n"])
-        + absent_randomised_n
-    )
+    unknown_joint = int(components["unknown_eligibility_missing_post_n"]) + absent_randomised_n
 
     # Minimum: missing outcomes for known-eligible children are zero; unknown
     # observed zeros and all jointly unknown children are eligible zeros; unknown
     # observed events are ineligible. Maximum reverses each admissible choice.
     minimum = fixed_events / (fixed_n + known_missing + unknown_zeros + unknown_joint)
-    maximum = (
-        fixed_events + known_missing + unknown_events + unknown_joint
-    ) / (fixed_n + known_missing + unknown_events + unknown_joint)
+    maximum = (fixed_events + known_missing + unknown_events + unknown_joint) / (
+        fixed_n + known_missing + unknown_events + unknown_joint
+    )
     return float(minimum), float(maximum)
 
 
@@ -432,22 +396,15 @@ def binary_transition_missingness_bounds(
         randomised_n = int(randomised_by_g[g])
         archive_n = components[g]["archive_n"]
         if randomised_n < archive_n:
-            raise ValueError(
-                f"Randomised G={g} count {randomised_n} is below archived count "
-                f"{archive_n}"
-            )
+            raise ValueError(f"Randomised G={g} count {randomised_n} is below archived count {archive_n}")
         absent[g] = randomised_n - archive_n
 
     for g in (1, 0):
         if components[g]["fixed_eligible_observed_n"] == 0:
-            raise ValueError(
-                f"No observed baseline-floor child with observed t2 in arm G={g}"
-            )
+            raise ValueError(f"No observed baseline-floor child with observed t2 in arm G={g}")
     observed_rd = (
-        components[1]["fixed_events_n"]
-        / components[1]["fixed_eligible_observed_n"]
-        - components[0]["fixed_events_n"]
-        / components[0]["fixed_eligible_observed_n"]
+        components[1]["fixed_events_n"] / components[1]["fixed_eligible_observed_n"]
+        - components[0]["fixed_events_n"] / components[0]["fixed_eligible_observed_n"]
     )
     rows = []
     for scope, include_absent in (
@@ -477,11 +434,7 @@ def binary_transition_missingness_bounds(
             for key, value in components[g].items():
                 row[f"{label}_{key}"] = value
             row[f"{label}_absent_randomised_n"] = absent[g]
-            row[f"{label}_scope_n"] = (
-                int(randomised_by_g[g])
-                if include_absent
-                else components[g]["archive_n"]
-            )
+            row[f"{label}_scope_n"] = int(randomised_by_g[g]) if include_absent else components[g]["archive_n"]
         row["interpretation"] = (
             "Sharp extrema for the binary transition risk difference over missing "
             "baseline-floor eligibility and t2 event status"

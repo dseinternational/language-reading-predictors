@@ -81,8 +81,17 @@ SPEC = ModelSpec(
         # E/R retained — settled by the time-indexed d-separation (#264;
         # notes/202607142340-lrp264-mediation-adjustment-dsep.md); the revised-DAG
         # common causes HS/RW/SP added by the missing-indicator method (#246).
-        "G", "A", "E", "R", "W_pre",
-        "hs", "hs_missing", "erbto", "erbto_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "E",
+        "R",
+        "W_pre",
+        "hs",
+        "hs_missing",
+        "erbto",
+        "erbto_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     model_settings=MediationModelSettings(
         mediator_kind="gaussian_composite",

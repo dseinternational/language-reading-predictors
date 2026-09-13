@@ -22,6 +22,9 @@ two-mediator MED-064 calibration is handled separately by its fit pipeline (#335
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import mediation as _mediation_factory
+
+
 import argparse
 import json
 from pathlib import Path
@@ -30,7 +33,7 @@ import pandas as pd
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import factories as _factories
+
 from language_reading_predictors.statistical_models.mediation_calibration import (
     IS_CALIBRATION_SOURCES,
     generate_is_calibration,
@@ -57,9 +60,7 @@ def _subdirs(root: Path) -> list[Path]:
     """
     if not root.is_dir():
         return []
-    return sorted(
-        d for d in root.iterdir() if d.is_dir() and not d.name.startswith(".")
-    )
+    return sorted(d for d in root.iterdir() if d.is_dir() and not d.name.startswith("."))
 
 
 def resolve_targets(target: str) -> list[Path]:
@@ -70,12 +71,7 @@ def resolve_targets(target: str) -> list[Path]:
         return [d for d in candidates if any(d.name.startswith(f"{mid}-") for mid in supported)]
     if target in IS_CALIBRATION_SOURCES:
         return [d for d in candidates if d.name.startswith(f"{target}-")]
-    return [
-        d
-        for d in candidates
-        if d.name == target
-        and any(d.name.startswith(f"{mid}-") for mid in supported)
-    ]
+    return [d for d in candidates if d.name == target and any(d.name.startswith(f"{mid}-") for mid in supported)]
 
 
 def _config_name(output_dir: Path, model_id: str) -> str:
@@ -102,7 +98,7 @@ def regenerate_one(output_dir: Path, models: dict) -> pd.DataFrame:
     plan = resolve_mediation_run_plan(spec)
     prepared, confounders = prepare_mediation_data(spec)
     plan = plan.with_effective_confounders(confounders)
-    built, med_data = _factories.build_mediation_model(
+    built, med_data = _mediation_factory.build_mediation_model(
         prepared,
         **plan.factory_kwargs(),
     )

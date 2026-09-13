@@ -1,24 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Waitlist-crossover difference-in-differences model construction.
-
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
-"""
+"""Waitlist-crossover difference-in-differences model construction."""
 
 from __future__ import annotations
 
 
-from typing import TYPE_CHECKING, Any, Iterable
+from typing import Any, Iterable
 
 import numpy as np
 import pymc as pm
 import pytensor.tensor as pt
-
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -48,6 +40,7 @@ from language_reading_predictors.statistical_models.factories.base import (
     _standardise_child_baseline,
     _tau_sigma_for,
 )
+
 
 def build_did_model(
     prepared: PreparedData,
@@ -119,14 +112,9 @@ def build_did_model(
     if own not in prepared.post_counts:
         raise KeyError(f"Outcome {own!r} missing from prepared data")
     if likelihood not in ("beta_binomial", "bernoulli_offfloor"):
-        raise ValueError(
-            "likelihood must be 'beta_binomial' or 'bernoulli_offfloor', "
-            f"got {likelihood!r}"
-        )
+        raise ValueError(f"likelihood must be 'beta_binomial' or 'bernoulli_offfloor', got {likelihood!r}")
     if likelihood == "bernoulli_offfloor" and dose:
-        raise ValueError(
-            "bernoulli_offfloor is the binary prevalence estimand; use dose=False"
-        )
+        raise ValueError("bernoulli_offfloor is the binary prevalence estimand; use dose=False")
     if period_varying_dose and not dose:
         raise ValueError("period_varying_dose=True requires dose=True")
     if dose_slope_prior_sigma is not None and not dose:
@@ -156,22 +144,15 @@ def build_did_model(
         if _width is None:
             continue
         if isinstance(_width, bool) or not isinstance(_width, (int, float)):
-            raise TypeError(
-                f"{_name} must be a number when set, got {_width!r}; bool is not a "
-                "prior width"
-            )
+            raise TypeError(f"{_name} must be a number when set, got {_width!r}; bool is not a prior width")
         if not np.isfinite(float(_width)) or float(_width) <= 0.0:
             raise ValueError(f"{_name} must be finite and positive when set")
     if score_mean_link not in SCORE_MEAN_LINKS:
-        raise ValueError(
-            f"score_mean_link must be one of {list(SCORE_MEAN_LINKS)}, "
-            f"got {score_mean_link!r}"
-        )
+        raise ValueError(f"score_mean_link must be one of {list(SCORE_MEAN_LINKS)}, got {score_mean_link!r}")
     if score_mean_link != "logit":
         if outcome_symbol != "B":
             raise ValueError(
-                "three_choice_guessing_floor is only valid for phoneme blending (B), "
-                f"got {outcome_symbol!r}"
+                f"three_choice_guessing_floor is only valid for phoneme blending (B), got {outcome_symbol!r}"
             )
         if dose or likelihood != "beta_binomial":
             raise ValueError(
@@ -197,17 +178,10 @@ def build_did_model(
             raise KeyError("dose=True requires the 'attend' covariate")
         periods = tuple(int(p) for p in periods)
         if periods != (0, 1):
-            raise ValueError(
-                "DiD dose variants require periods=(0, 1); "
-                f"got {periods}."
-            )
+            raise ValueError(f"DiD dose variants require periods=(0, 1); got {periods}.")
 
-        baseline_t1_all = _broadcast_phase_zero(
-            prepared, prepared.pre_logit[own], label=f"{own} t1 baseline"
-        )
-        age_t1_all, age_scaler = _standardise_child_baseline(
-            prepared, prepared.A_months, label="t1 age"
-        )
+        baseline_t1_all = _broadcast_phase_zero(prepared, prepared.pre_logit[own], label=f"{own} t1 baseline")
+        age_t1_all, age_scaler = _standardise_child_baseline(prepared, prepared.A_months, label="t1 age")
         # #390 P3: a deliberate design restriction and a missing-data exclusion
         # are different facts about a row; subset in two labelled steps so the
         # persisted ``dropped_by_reason`` partitions them instead of folding
@@ -244,9 +218,7 @@ def build_did_model(
         obs_ids = np.asarray(
             [
                 f"{subject}|P{int(phase) + 1}"
-                for subject, phase in zip(
-                    prepared.subject_ids, prepared.phase, strict=True
-                )
+                for subject, phase in zip(prepared.subject_ids, prepared.phase, strict=True)
             ]
         )
         coords: dict[str, Any] = {
@@ -260,38 +232,40 @@ def build_did_model(
             period_d = pm.Data("period", is_p2, dims="obs_id")
             G_d = pm.Data("G", G_f, dims="obs_id")
             treated_d = pm.Data("treated", treated, dims="obs_id")
-            baseline_t1_d = pm.Data(
-                "baseline_t1_logit", baseline_t1, dims="obs_id"
-            )
+            baseline_t1_d = pm.Data("baseline_t1_logit", baseline_t1, dims="obs_id")
             dose_d = pm.Data("dose_treated_std", dose_centered, dims="obs_id")
 
-            alpha = _priors.alpha_prior(
-                sigma=_alpha_sigma_for(outcome_symbol)
-            ).to_pymc("alpha")
-            beta_period = _priors.tau_prior().to_pymc("beta_period")
-            beta_group = _priors.gamma_cross_prior().to_pymc("beta_group")
-            theta_treated = _priors.tau_prior(
-                sigma=_tau_sigma_for(own)
-            ).to_pymc("theta_treated")
-            gamma_t1 = _priors.gamma_own_prior().to_pymc("gamma_t1")
+            alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
+            beta_period = _priors.tau_prior().to_pymc(
+                "beta_period",
+                role="association",
+                rationale="Wave/period offset; an age, maturation and treatment-history association, not a randomised treatment effect.",
+            )
+            beta_group = _priors.gamma_cross_prior().to_pymc(
+                "beta_group",
+                role="association",
+                rationale="Randomised-arm and prior-treatment-history adjustment in the transition dose model; not itself the t2 randomised arm contrast.",
+            )
+            theta_treated = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc(
+                "theta_treated",
+                role="association",
+                rationale="Crossover arm-by-period cell contrast at the mean treated dose. It combines treatment timing and history in a saturated four-cell design; it does not isolate current treatment presence.",
+            )
+            gamma_t1 = _priors.gamma_own_prior().to_pymc(
+                "gamma_t1",
+                role="precision",
+                rationale="Shared pre-randomisation t1 outcome precision term broadcast to both period rows; never the treatment-affected t2 period-start score.",
+            )
             eta = (
-                alpha
-                + beta_period * period_d
-                + beta_group * G_d
-                + theta_treated * treated_d
-                + gamma_t1 * baseline_t1_d
+                alpha + beta_period * period_d + beta_group * G_d + theta_treated * treated_d + gamma_t1 * baseline_t1_d
             )
             if use_age:
                 age_t1_d = pm.Data("A_t1_std", age_t1, dims="obs_id")
                 gamma_A = _priors.gamma_age_prior().to_pymc("gamma_A")
                 eta = eta + gamma_A * age_t1_d
             if use_child_re:
-                child_idx_d = pm.Data(
-                    "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
-                )
-                eta = _add_child_random_intercept(
-                    eta, child_idx_d, sigma_prior_sigma=0.5
-                )
+                child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
+                eta = _add_child_random_intercept(eta, child_idx_d, sigma_prior_sigma=0.5)
 
             eta_base = pm.Deterministic("eta_base", eta, dims="obs_id")
             _dose_slope_prior = (
@@ -300,32 +274,31 @@ def build_did_model(
                 else _priors.beta_mech_prior(sigma=float(dose_slope_prior_sigma))
             )
             if period_varying_dose:
-                dose_phase_idx = pm.Data(
-                    "dose_phase_idx", prepared.phase.astype(np.int64), dims="obs_id"
+                dose_phase_idx = pm.Data("dose_phase_idx", prepared.phase.astype(np.int64), dims="obs_id")
+                mu_dose = _dose_slope_prior.to_pymc(
+                    "mu_dose",
+                    role="association",
+                    rationale="Hierarchical centre of the per-period session slopes. The reported quantity is the treated-row natural-scale dose marginal, not this coefficient.",
                 )
-                mu_dose = _dose_slope_prior.to_pymc("mu_dose")
-                sigma_dose = _priors.sigma_dose_phase_prior().to_pymc(
-                    "sigma_dose"
-                )
+                sigma_dose = _priors.sigma_dose_phase_prior().to_pymc("sigma_dose")
                 beta_dose_phase = pm.Deterministic(
                     "beta_dose_phase",
                     mu_dose
                     + sigma_dose
                     * _priors.declare(
-                          pm.Normal(
-                                                  "beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"
-                                              ),
-                          role="nuisance",
-                          rationale=(
-                              "Standard-normal non-centred period-dose offset; scaled by "
-                              "sigma_dose."
-                          ),
-                      ),
+                        pm.Normal("beta_dose_phase_raw", 0.0, 1.0, dims="dose_phase"),
+                        role="nuisance",
+                        rationale=("Standard-normal non-centred period-dose offset; scaled by sigma_dose."),
+                    ),
                     dims="dose_phase",
                 )
                 eta_full = eta_base + beta_dose_phase[dose_phase_idx] * dose_d
             else:
-                beta_dose = _dose_slope_prior.to_pymc("beta_dose")
+                beta_dose = _dose_slope_prior.to_pymc(
+                    "beta_dose",
+                    role="association",
+                    rationale="Observational session association per treated-row SD of sessions, with untreated rows coded at zero intensity.",
+                )
                 eta_full = eta_base + beta_dose * dose_d
 
             eta_full = pm.Deterministic("eta", eta_full, dims="obs_id")
@@ -357,14 +330,9 @@ def build_did_model(
         raise ValueError("Binary DiD triangulation requires phase_mode='levels'")
     waves = tuple(int(w) for w in waves)
     if waves != (0, 1, 2):
-        raise ValueError(
-            "Binary DiD triangulation requires waves=(0, 1, 2); "
-            f"got {waves}."
-        )
+        raise ValueError(f"Binary DiD triangulation requires waves=(0, 1, 2); got {waves}.")
 
-    age_t1_all, age_scaler = _standardise_child_baseline(
-        prepared, prepared.A_months, label="t1 age"
-    )
+    age_t1_all, age_scaler = _standardise_child_baseline(prepared, prepared.A_months, label="t1 age")
     # #390 P3: partition the exclusions — rows outside the modelled waves leave
     # by design (the levels frame carries t4, which this model does not fit);
     # rows with an unobserved outcome leave as missing data.
@@ -400,9 +368,7 @@ def build_did_model(
             raise ValueError(f"Cannot anchor {own}: no observed t1 outcome values")
         if likelihood == "bernoulli_offfloor":
             movers = int(np.sum(t1 > 0))
-            alpha_anchor = float(
-                np.log((movers + 0.5) / (t1.size - movers + 0.5))
-            )
+            alpha_anchor = float(np.log((movers + 0.5) / (t1.size - movers + 0.5)))
         else:
             successes = float(np.sum(t1))
             failures = float(t1.size * n_trials - successes)
@@ -417,12 +383,7 @@ def build_did_model(
             alpha_anchor = float(np.log(unit / (1.0 - unit)))
 
     obs_ids = np.asarray(
-        [
-            f"{subject}|t{int(wave) + 1}"
-            for subject, wave in zip(
-                prepared.subject_ids, prepared.phase, strict=True
-            )
-        ]
+        [f"{subject}|t{int(wave) + 1}" for subject, wave in zip(prepared.subject_ids, prepared.phase, strict=True)]
     )
     coords: dict[str, Any] = {
         "obs_id": obs_ids,
@@ -430,64 +391,62 @@ def build_did_model(
         "wave": ["t1", "t2", "t3"],
         "post_wave": ["t2", "t3"],
     }
-    waitlist_subjects = np.unique(
-        prepared.subject_ids[(prepared.G == 0) & (prepared.phase == 2)]
-    )
+    waitlist_subjects = np.unique(prepared.subject_ids[(prepared.G == 0) & (prepared.phase == 2)])
     if use_varying_delta:
         if not waitlist_subjects.size:
             raise ValueError("Crossover heterogeneity requires waitlist children")
         coords["waitlist_child"] = waitlist_subjects.astype(str)
 
     with pm.Model(coords=coords) as model:
-        wave_d = pm.Data(
-            "wave_idx", prepared.phase.astype(np.int64), dims="obs_id"
-        )
+        wave_d = pm.Data("wave_idx", prepared.phase.astype(np.int64), dims="obs_id")
         G_d = pm.Data("G", prepared.G.astype(float), dims="obs_id")
-        child_idx_d = pm.Data(
-            "child_idx", prepared.child_idx.astype(np.int64), dims="obs_id"
-        )
+        child_idx_d = pm.Data("child_idx", prepared.child_idx.astype(np.int64), dims="obs_id")
 
         if use_intercept_anchor:
-            alpha_offset = _priors.alpha_prior(
-                sigma=_alpha_sigma_for(outcome_symbol)
-            ).to_pymc("alpha_offset")
+            alpha_offset = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc(
+                "alpha_offset",
+                rationale="Zero-centred offset around the pooled observed t1 logit anchor; the deterministic alpha is the anchored t1 level. "
+                + _priors.EMPIRICAL_BAYES_SENTENCE,
+            )
             alpha = pm.Deterministic("alpha", alpha_anchor + alpha_offset)
         else:
             # The independent-prior sensitivity (#390 P1 condition 1): the same
             # zero-centred tier-scale prior the dose variants use, with no
             # outcome-informed location at all.
-            alpha = _priors.alpha_prior(
-                sigma=_alpha_sigma_for(outcome_symbol)
-            ).to_pymc("alpha")
+            alpha = _priors.alpha_prior(sigma=_alpha_sigma_for(outcome_symbol)).to_pymc("alpha")
         beta_period = _priors.tau_prior().to_pymc(
-            "beta_period", dims="post_wave"
+            "beta_period",
+            dims="post_wave",
+            role="association",
+            rationale="Wave/period offset; an age, maturation and treatment-history association, not a randomised treatment effect.",
         )
-        wave_offset = pt.concatenate(
-            [pt.zeros((1,), dtype=beta_period.dtype), beta_period]
-        )
+        wave_offset = pt.concatenate([pt.zeros((1,), dtype=beta_period.dtype), beta_period])
         arm_gap_t1 = (
             _priors.gamma_cross_prior()
             if arm_gap_t1_prior_sigma is None
             else _priors.gamma_cross_prior(sigma=float(arm_gap_t1_prior_sigma))
-        ).to_pymc("arm_gap_t1")
+        ).to_pymc(
+            "arm_gap_t1",
+            role="association",
+            rationale="Pre-randomisation immediate-minus-waitlist balance quantity; regularised as an association, not interpreted as an effect.",
+        )
         tau_t2 = _priors.tau_prior(
-            sigma=(
-                _tau_sigma_for(own)
-                if tau_t2_prior_sigma is None
-                else float(tau_t2_prior_sigma)
-            )
-        ).to_pymc("tau_t2")
+            sigma=_tau_sigma_for(own) if tau_t2_prior_sigma is None else float(tau_t2_prior_sigma)
+        ).to_pymc(
+            "tau_t2",
+            rationale="Immediate-minus-waitlist t2 contrast identified by the original randomisation: the effect of assignment to immediate treatment versus no treatment yet, and the only treated-versus-untreated coefficient in the binary crossover model.",
+        )
         arm_gap_t3 = _priors.tau_prior(sigma=_tau_sigma_for(own)).to_pymc(
-            "arm_gap_t3"
+            "arm_gap_t3",
+            role="regime",
+            rationale="Randomised t3 contrast between assigned treatment *schedules* — early-start (about 40 weeks) versus delayed-start (about 20 weeks). Both arms are treated by t3, so it is not a treated-versus-untreated effect; randomisation still identifies it, but duration, carryover, maturation, ceiling effects and different taught blocks are inseparable within it.",
         )
         arm_gap_wave = pm.Deterministic(
             "arm_gap_wave",
             pt.stack([arm_gap_t1, tau_t2, arm_gap_t3]),
             dims="wave",
         )
-        delta_crossover = pm.Deterministic(
-            "delta_crossover", tau_t2 - arm_gap_t3
-        )
+        delta_crossover = pm.Deterministic("delta_crossover", tau_t2 - arm_gap_t3)
 
         eta_base = alpha + wave_offset[wave_d]
         if use_age:
@@ -498,11 +457,7 @@ def build_did_model(
             eta_base = _add_child_random_intercept(
                 eta_base,
                 child_idx_d,
-                sigma_prior_sigma=(
-                    0.5
-                    if sigma_child_prior_sigma is None
-                    else float(sigma_child_prior_sigma)
-                ),
+                sigma_prior_sigma=(0.5 if sigma_child_prior_sigma is None else float(sigma_child_prior_sigma)),
             )
         eta_base = pm.Deterministic("eta_base", eta_base, dims="obs_id")
         eta_full = eta_base + arm_gap_wave[wave_d] * G_d
@@ -514,26 +469,22 @@ def build_did_model(
                 dtype=np.int64,
             )
             waitlist_t3 = ((prepared.G == 0) & (prepared.phase == 2)).astype(float)
-            waitlist_idx_d = pm.Data(
-                "waitlist_crossover_idx", safe_idx, dims="obs_id"
+            waitlist_idx_d = pm.Data("waitlist_crossover_idx", safe_idx, dims="obs_id")
+            waitlist_t3_d = pm.Data("waitlist_t3", waitlist_t3, dims="obs_id")
+            sigma_delta = _priors.sigma_delta_prior().to_pymc(
+                "sigma_delta",
+                rationale="Exploratory between-waitlist-child SD of unexplained t3 catch-up; may mix response, maturation, history, period shocks and measurement variation.",
             )
-            waitlist_t3_d = pm.Data(
-                "waitlist_t3", waitlist_t3, dims="obs_id"
-            )
-            sigma_delta = _priors.sigma_delta_prior().to_pymc("sigma_delta")
             v_delta = pm.Deterministic(
                 "v_delta",
                 sigma_delta
                 * _priors.declare(
-                      pm.Normal(
-                                          "v_delta_raw", 0.0, 1.0, dims="waitlist_child"
-                                      ),
-                      role="nuisance",
-                      rationale=(
-                          "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
-                          "scaled by sigma_delta to form the waitlist t3 random deviation."
-                      ),
-                  ),
+                    pm.Normal("v_delta_raw", 0.0, 1.0, dims="waitlist_child"),
+                    role="nuisance",
+                    rationale=(
+                        "Non-centred standard-normal per-child offsets; scaled by sigma_delta to form the waitlist t3 random deviation."
+                    ),
+                ),
                 dims="waitlist_child",
             )
             pm.Deterministic(

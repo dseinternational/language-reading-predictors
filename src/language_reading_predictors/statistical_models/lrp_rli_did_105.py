@@ -37,10 +37,7 @@ from language_reading_predictors.statistical_models.pipelines.did import fit_did
 SPEC = ModelSpec(
     model_id="lrp-rli-did-105",
     kind="did",
-    title=(
-        "Dispersion-prior sensitivity for the basic-concepts arm-by-wave contrasts "
-        "(CELF) (F)"
-    ),
+    title=("Dispersion-prior sensitivity for the basic-concepts arm-by-wave contrasts (CELF) (F)"),
     outcome_symbol="F",
     family="did",
     design="waitlist-crossover arm-by-wave levels, inverse-sqrt dispersion prior",

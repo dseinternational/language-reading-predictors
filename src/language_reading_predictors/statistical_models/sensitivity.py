@@ -82,9 +82,7 @@ _SENSITIVITY_SAMPLING_COLUMNS = (
     "sampling_target_accept",
     "sampling_random_seed",
 )
-_PRIMARY_SAMPLING_COLUMNS = tuple(
-    f"primary_sampling_{key}" for key in _PRIMARY_SAMPLING_KEYS
-)
+_PRIMARY_SAMPLING_COLUMNS = tuple(f"primary_sampling_{key}" for key in _PRIMARY_SAMPLING_KEYS)
 
 _FLOOR_REQUIRED_COLUMNS = {
     "config",
@@ -261,12 +259,7 @@ class PrimaryFloorReference:
             "primary_config_sha256": self.config_sha256,
             "primary_trace_sha256": self.trace_sha256,
         }
-        values.update(
-            {
-                f"primary_sampling_{key}": self.sampling[key]
-                for key in _PRIMARY_SAMPLING_KEYS
-            }
-        )
+        values.update({f"primary_sampling_{key}": self.sampling[key] for key in _PRIMARY_SAMPLING_KEYS})
         return values
 
 
@@ -312,12 +305,7 @@ class PrimaryStandardReference:
             # row-versus-reference comparison that walks these keys) of families
             # without run-plan binding are unchanged.
             values["primary_run_plan_sha256"] = self.run_plan_digest
-        values.update(
-            {
-                f"primary_sampling_{key}": self.sampling[key]
-                for key in _PRIMARY_SAMPLING_KEYS
-            }
-        )
+        values.update({f"primary_sampling_{key}": self.sampling[key] for key in _PRIMARY_SAMPLING_KEYS})
         return values
 
 
@@ -341,9 +329,7 @@ def _floor_arm_counts(config: Mapping[str, Any]) -> tuple[int, int]:
         floor_rule = config["extra"]["floor_rule"]
         eligibility = floor_rule["eligibility_by_arm"]
     except (KeyError, TypeError) as exc:
-        raise ValueError(
-            "primary config lacks extra.floor_rule.eligibility_by_arm"
-        ) from exc
+        raise ValueError("primary config lacks extra.floor_rule.eligibility_by_arm") from exc
 
     counts: dict[str, int] = {}
     for row in eligibility:
@@ -356,9 +342,7 @@ def _floor_arm_counts(config: Mapping[str, Any]) -> tuple[int, int]:
             raise ValueError(f"primary floor eligibility repeats arm {arm!r}")
         counts[arm] = count
     if set(counts) != {"intervention", "control"}:
-        raise ValueError(
-            "primary floor eligibility must contain intervention and control exactly once"
-        )
+        raise ValueError("primary floor eligibility must contain intervention and control exactly once")
     if counts["intervention"] <= 0 or counts["control"] <= 0:
         raise ValueError("primary floor analysis must retain both randomised arms")
     return counts["intervention"], counts["control"]
@@ -395,15 +379,9 @@ def load_primary_floor_reference(
     if expected_model_id is None:
         raise ValueError(f"unsupported floored outcome {outcome_symbol!r}")
     if str(config.get("model_id")) != expected_model_id:
-        raise ValueError(
-            f"primary model mismatch: expected {expected_model_id!r}, "
-            f"got {config.get('model_id')!r}"
-        )
+        raise ValueError(f"primary model mismatch: expected {expected_model_id!r}, got {config.get('model_id')!r}")
     if str(config.get("outcome_symbol")) != outcome_symbol:
-        raise ValueError(
-            f"primary outcome mismatch: expected {outcome_symbol!r}, "
-            f"got {config.get('outcome_symbol')!r}"
-        )
+        raise ValueError(f"primary outcome mismatch: expected {outcome_symbol!r}, got {config.get('outcome_symbol')!r}")
 
     data_sha256 = str(config.get("data_sha256", "")).strip().lower()
     if not _is_sha256(data_sha256):
@@ -414,9 +392,7 @@ def load_primary_floor_reference(
         raise ValueError("primary config lacks a valid n_obs") from exc
     n_intervention, n_control = _floor_arm_counts(config)
     if n <= 0 or n_intervention + n_control != n:
-        raise ValueError(
-            "primary n_obs does not equal the sum of exploratory-eligible arm counts"
-        )
+        raise ValueError("primary n_obs does not equal the sum of exploratory-eligible arm counts")
     try:
         at_risk_n = int(config["extra"]["floor_rule"]["at_risk_n"])
         floor_outcome = str(config["extra"]["floor_rule"]["outcome"])
@@ -447,24 +423,19 @@ def load_primary_floor_reference(
         sampling[key] = value
 
     try:
-        posterior_variables, posterior_sizes, _posterior_attrs = _posterior_metadata(
-            trace_path
-        )
+        posterior_variables, posterior_sizes, _posterior_attrs = _posterior_metadata(trace_path)
     except Exception as exc:  # noqa: BLE001 - corrupt primary artefact is gate data
         raise ValueError(f"primary trace is not a readable NetCDF: {trace_path}") from exc
     missing_primary_variables = {"alpha", "tau"} - posterior_variables
     if missing_primary_variables:
         raise ValueError(
-            "primary trace posterior lacks required variables: "
-            + ", ".join(sorted(missing_primary_variables))
+            "primary trace posterior lacks required variables: " + ", ".join(sorted(missing_primary_variables))
         )
     if (
         int(posterior_sizes.get("chain", -1)) != sampling["chains"]
         or int(posterior_sizes.get("draw", -1)) != sampling["draws"]
     ):
-        raise ValueError(
-            "primary trace posterior chain/draw dimensions do not match config sampling"
-        )
+        raise ValueError("primary trace posterior chain/draw dimensions do not match config sampling")
 
     return PrimaryFloorReference(
         model_dir=directory,
@@ -494,9 +465,7 @@ def load_primary_standard_reference(
     config_path = directory / "config.json"
     trace_path = directory / "trace.nc"
     if not config_path.is_file() or not trace_path.is_file():
-        raise FileNotFoundError(
-            f"primary standard fit is incomplete: {directory}"
-        )
+        raise FileNotFoundError(f"primary standard fit is incomplete: {directory}")
     try:
         config = json.loads(config_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -506,8 +475,7 @@ def load_primary_standard_reference(
         raise ValueError(f"unsupported standard sensitivity outcome {outcome_symbol!r}")
     if str(config.get("model_id")) != expected_model_id:
         raise ValueError(
-            f"primary model mismatch for {outcome_symbol}: expected "
-            f"{expected_model_id}, got {config.get('model_id')!r}"
+            f"primary model mismatch for {outcome_symbol}: expected {expected_model_id}, got {config.get('model_id')!r}"
         )
     if str(config.get("outcome_symbol")) != outcome_symbol:
         raise ValueError(f"primary outcome mismatch for {outcome_symbol}")
@@ -523,15 +491,11 @@ def load_primary_standard_reference(
         if key not in sampling_raw:
             raise ValueError(f"primary sampling metadata lacks {key!r}")
         if key == "target_accept":
-            value: int | float = _required_float(
-                sampling_raw[key], f"primary sampling {key}"
-            )
+            value: int | float = _required_float(sampling_raw[key], f"primary sampling {key}")
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"primary sampling metadata has invalid {key!r}")
         else:
-            value = _required_int(
-                sampling_raw[key], f"primary sampling {key}", positive=True
-            )
+            value = _required_int(sampling_raw[key], f"primary sampling {key}", positive=True)
         sampling[key] = value
 
     try:
@@ -546,9 +510,7 @@ def load_primary_standard_reference(
             int(posterior.sizes.get("chain", -1)) != sampling["chains"]
             or int(posterior.sizes.get("draw", -1)) != sampling["draws"]
         ):
-            raise ValueError(
-                "primary trace posterior chain/draw dimensions do not match config"
-            )
+            raise ValueError("primary trace posterior chain/draw dimensions do not match config")
         constant_data = getattr(trace, "constant_data", None)
         if constant_data is None or "G" not in constant_data:
             raise ValueError("primary trace constant_data lacks G")
@@ -731,20 +693,15 @@ def load_primary_level_reference(
         raise ValueError(f"primary config is not readable JSON: {config_path}") from exc
     expected_model_id = LEVEL_SENSITIVITY_MODEL_IDS.get(outcome_symbol)
     if expected_model_id is None:
-        raise ValueError(
-            f"unsupported level sensitivity outcome {outcome_symbol!r}"
-        )
+        raise ValueError(f"unsupported level sensitivity outcome {outcome_symbol!r}")
     if str(config.get("model_id")) != expected_model_id:
         raise ValueError(
-            f"primary model mismatch for {outcome_symbol}: expected "
-            f"{expected_model_id}, got {config.get('model_id')!r}"
+            f"primary model mismatch for {outcome_symbol}: expected {expected_model_id}, got {config.get('model_id')!r}"
         )
     if str(config.get("outcome_symbol")) != outcome_symbol:
         raise ValueError(f"primary outcome mismatch for {outcome_symbol}")
     if str(config.get("kind")) != "level_factors":
-        raise ValueError(
-            f"primary kind mismatch for {outcome_symbol}: {config.get('kind')!r}"
-        )
+        raise ValueError(f"primary kind mismatch for {outcome_symbol}: {config.get('kind')!r}")
     data_sha256 = str(config.get("data_sha256", "")).strip().lower()
     if not _is_sha256(data_sha256):
         raise ValueError("primary config lacks a valid data_sha256")
@@ -757,15 +714,11 @@ def load_primary_level_reference(
         if key not in sampling_raw:
             raise ValueError(f"primary sampling metadata lacks {key!r}")
         if key == "target_accept":
-            value: int | float = _required_float(
-                sampling_raw[key], f"primary sampling {key}"
-            )
+            value: int | float = _required_float(sampling_raw[key], f"primary sampling {key}")
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"primary sampling metadata has invalid {key!r}")
         else:
-            value = _required_int(
-                sampling_raw[key], f"primary sampling {key}", positive=True
-            )
+            value = _required_int(sampling_raw[key], f"primary sampling {key}", positive=True)
         sampling[key] = value
 
     try:
@@ -774,17 +727,13 @@ def load_primary_level_reference(
         raise ValueError(f"primary trace is not a readable NetCDF: {trace_path}") from exc
     try:
         posterior = getattr(trace, "posterior", None)
-        if posterior is None or not {"alpha", "b_grp_time"}.issubset(
-            posterior.data_vars
-        ):
+        if posterior is None or not {"alpha", "b_grp_time"}.issubset(posterior.data_vars):
             raise ValueError("primary trace posterior lacks alpha or b_grp_time")
         if (
             int(posterior.sizes.get("chain", -1)) != sampling["chains"]
             or int(posterior.sizes.get("draw", -1)) != sampling["draws"]
         ):
-            raise ValueError(
-                "primary trace posterior chain/draw dimensions do not match config"
-            )
+            raise ValueError("primary trace posterior chain/draw dimensions do not match config")
         constant_data = getattr(trace, "constant_data", None)
         if constant_data is None or "G" not in constant_data:
             raise ValueError("primary trace constant_data lacks G")
@@ -863,22 +812,16 @@ def load_primary_did_reference(
     if model_id not in DID_SENSITIVITY_MODEL_IDS:
         raise ValueError(f"unsupported did sensitivity model {model_id!r}")
     if str(config.get("model_id")) != model_id:
-        raise ValueError(
-            f"primary model mismatch: expected {model_id}, got "
-            f"{config.get('model_id')!r}"
-        )
+        raise ValueError(f"primary model mismatch: expected {model_id}, got {config.get('model_id')!r}")
     if str(config.get("kind")) != "did":
-        raise ValueError(
-            f"primary kind mismatch for {model_id}: {config.get('kind')!r}"
-        )
+        raise ValueError(f"primary kind mismatch for {model_id}: {config.get('kind')!r}")
     outcome = str(config.get("outcome_symbol") or "")
     if not outcome:
         raise ValueError(f"primary config lacks an outcome_symbol: {model_id}")
     plan = config.get("resolved_run_plan")
     if not isinstance(plan, dict):
         raise ValueError(
-            f"primary config lacks a resolved run plan: {model_id}; the sweep "
-            "cannot determine the focal term"
+            f"primary config lacks a resolved run plan: {model_id}; the sweep cannot determine the focal term"
         )
     focal = did_focal_term(plan)
     data_sha256 = str(config.get("data_sha256", "")).strip().lower()
@@ -893,15 +836,11 @@ def load_primary_did_reference(
         if key not in sampling_raw:
             raise ValueError(f"primary sampling metadata lacks {key!r}")
         if key == "target_accept":
-            value: int | float = _required_float(
-                sampling_raw[key], f"primary sampling {key}"
-            )
+            value: int | float = _required_float(sampling_raw[key], f"primary sampling {key}")
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"primary sampling metadata has invalid {key!r}")
         else:
-            value = _required_int(
-                sampling_raw[key], f"primary sampling {key}", positive=True
-            )
+            value = _required_int(sampling_raw[key], f"primary sampling {key}", positive=True)
         sampling[key] = value
 
     try:
@@ -911,16 +850,12 @@ def load_primary_did_reference(
     try:
         posterior = getattr(trace, "posterior", None)
         if posterior is None or not {"alpha", focal}.issubset(posterior.data_vars):
-            raise ValueError(
-                f"primary trace posterior lacks alpha or the focal term {focal!r}"
-            )
+            raise ValueError(f"primary trace posterior lacks alpha or the focal term {focal!r}")
         if (
             int(posterior.sizes.get("chain", -1)) != sampling["chains"]
             or int(posterior.sizes.get("draw", -1)) != sampling["draws"]
         ):
-            raise ValueError(
-                "primary trace posterior chain/draw dimensions do not match config"
-            )
+            raise ValueError("primary trace posterior chain/draw dimensions do not match config")
         constant_data = getattr(trace, "constant_data", None)
         if constant_data is None or "G" not in constant_data:
             raise ValueError("primary trace constant_data lacks G")
@@ -989,14 +924,9 @@ def load_primary_gf_reference(
     if model_id not in GF_SENSITIVITY_MODEL_IDS:
         raise ValueError(f"unsupported gain-factor sensitivity model {model_id!r}")
     if str(config.get("model_id")) != model_id:
-        raise ValueError(
-            f"primary model mismatch: expected {model_id}, got "
-            f"{config.get('model_id')!r}"
-        )
+        raise ValueError(f"primary model mismatch: expected {model_id}, got {config.get('model_id')!r}")
     if str(config.get("kind")) != "gain_factors":
-        raise ValueError(
-            f"primary kind mismatch for {model_id}: {config.get('kind')!r}"
-        )
+        raise ValueError(f"primary kind mismatch for {model_id}: {config.get('kind')!r}")
     outcome = str(config.get("outcome_symbol") or "")
     if not outcome:
         raise ValueError(f"primary config lacks an outcome_symbol: {model_id}")
@@ -1007,9 +937,7 @@ def load_primary_gf_reference(
             "cannot confirm the fit is a gated headline"
         )
     if bool(plan.get("treated_only", False)):
-        raise ValueError(
-            f"{model_id} is a treated-only companion: it has no beta_trt to sweep"
-        )
+        raise ValueError(f"{model_id} is a treated-only companion: it has no beta_trt to sweep")
     if bool(plan.get("moderation_variant", False)):
         raise ValueError(
             f"{model_id} is a moderation variant: its beta_trt is never released "
@@ -1027,15 +955,11 @@ def load_primary_gf_reference(
         if key not in sampling_raw:
             raise ValueError(f"primary sampling metadata lacks {key!r}")
         if key == "target_accept":
-            value: int | float = _required_float(
-                sampling_raw[key], f"primary sampling {key}"
-            )
+            value: int | float = _required_float(sampling_raw[key], f"primary sampling {key}")
             if not 0.0 < value <= 1.0:
                 raise ValueError(f"primary sampling metadata has invalid {key!r}")
         else:
-            value = _required_int(
-                sampling_raw[key], f"primary sampling {key}", positive=True
-            )
+            value = _required_int(sampling_raw[key], f"primary sampling {key}", positive=True)
         sampling[key] = value
 
     try:
@@ -1044,27 +968,17 @@ def load_primary_gf_reference(
         raise ValueError(f"primary trace is not a readable NetCDF: {trace_path}") from exc
     try:
         posterior = getattr(trace, "posterior", None)
-        if posterior is None or not {"alpha", "beta_trt"}.issubset(
-            posterior.data_vars
-        ):
+        if posterior is None or not {"alpha", "beta_trt"}.issubset(posterior.data_vars):
             raise ValueError("primary trace posterior lacks alpha or beta_trt")
         if (
             int(posterior.sizes.get("chain", -1)) != sampling["chains"]
             or int(posterior.sizes.get("draw", -1)) != sampling["draws"]
         ):
-            raise ValueError(
-                "primary trace posterior chain/draw dimensions do not match config"
-            )
+            raise ValueError("primary trace posterior chain/draw dimensions do not match config")
         constant_data = getattr(trace, "constant_data", None)
-        if constant_data is None or not {"on_intervention", "phase_idx"}.issubset(
-            constant_data
-        ):
-            raise ValueError(
-                "primary trace constant_data lacks on_intervention or phase_idx"
-            )
-        trt = np.asarray(
-            constant_data["on_intervention"].values, dtype=float
-        ).reshape(-1)
+        if constant_data is None or not {"on_intervention", "phase_idx"}.issubset(constant_data):
+            raise ValueError("primary trace constant_data lacks on_intervention or phase_idx")
+        trt = np.asarray(constant_data["on_intervention"].values, dtype=float).reshape(-1)
         phase = np.asarray(constant_data["phase_idx"].values, dtype=float).reshape(-1)
         if trt.size != n or phase.size != n or not np.isin(trt, (0.0, 1.0)).all():
             raise ValueError("primary trace treatment assignment is inconsistent")
@@ -1072,9 +986,7 @@ def load_primary_gf_reference(
         n_intervention = int(np.sum(trt[p1] == 1.0))
         n_control = int(np.sum(trt[p1] == 0.0))
         if n_intervention <= 0 or n_control <= 0:
-            raise ValueError(
-                "primary trace must contain both randomised arms in period 1"
-            )
+            raise ValueError("primary trace must contain both randomised arms in period 1")
     finally:
         close = getattr(trace, "close", None)
         if callable(close):
@@ -1118,17 +1030,13 @@ def assert_primary_sampling_contract(
     """
     for key in keys:
         observed = getattr(sampling, key)
-        if not np.isclose(
-            float(observed), float(reference.sampling[key]), rtol=0.0, atol=1e-12
-        ):
+        if not np.isclose(float(observed), float(reference.sampling[key]), rtol=0.0, atol=1e-12):
             raise RuntimeError(
-                f"{label or reference.outcome} sensitivity sampling does not "
-                f"match its current {config} primary fit"
+                f"{label or reference.outcome} sensitivity sampling does not match its current {config} primary fit"
             )
     if reference.config_name != config:
         raise RuntimeError(
-            f"{label or reference.outcome} sensitivity sampling does not "
-            f"match its current {config} primary fit"
+            f"{label or reference.outcome} sensitivity sampling does not match its current {config} primary fit"
         )
 
 
@@ -1147,7 +1055,7 @@ def _optional_floats(row: Mapping[str, Any], *columns: str) -> tuple[float, ...]
             return None
         try:
             values.append(float(value))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return None
     return tuple(values)
 
@@ -1163,7 +1071,7 @@ def _primary_plan_focal_term(reference: PrimaryStandardReference) -> str | None:
     path = reference.model_dir / "config.json"
     try:
         config = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except OSError, json.JSONDecodeError:
         return None
     plan = config.get("resolved_run_plan")
     if not isinstance(plan, Mapping):
@@ -1190,24 +1098,17 @@ def _focal_term_draws(posterior, focal: str, *, outcome: str) -> np.ndarray:
             )
         return np.asarray(values.values, dtype=float).reshape(-1)
     if not extra:
-        raise RuntimeError(
-            f"{outcome}: focal term {focal!r} is indexed but {base!r} is a scalar"
-        )
+        raise RuntimeError(f"{outcome}: focal term {focal!r} is indexed but {base!r} is a scalar")
     label = indexed.rstrip("]")
     dim = extra[0]
-    coords = (
-        [str(c) for c in np.asarray(values.coords[dim].values).reshape(-1)]
-        if dim in values.coords
-        else []
-    )
+    coords = [str(c) for c in np.asarray(values.coords[dim].values).reshape(-1)] if dim in values.coords else []
     if label in coords:
         position = coords.index(label)
     elif label.lstrip("-").isdigit():
         position = int(label)
     else:
         raise RuntimeError(
-            f"{outcome}: focal element {label!r} is not a coordinate of "
-            f"{base!r}'s {dim!r} dimension (labels: {coords})"
+            f"{outcome}: focal element {label!r} is not a coordinate of {base!r}'s {dim!r} dimension (labels: {coords})"
         )
     if not 0 <= position < int(values.sizes[dim]):
         raise RuntimeError(
@@ -1217,9 +1118,7 @@ def _focal_term_draws(posterior, focal: str, *, outcome: str) -> np.ndarray:
     return np.asarray(values.isel({dim: position}).values, dtype=float).reshape(-1)
 
 
-def _verify_cell_convergence(
-    trace, row: Mapping[str, Any], *, outcome: str, free_variables: Sequence[str]
-) -> None:
+def _verify_cell_convergence(trace, row: Mapping[str, Any], *, outcome: str, free_variables: Sequence[str]) -> None:
     """Re-run the sub-fit convergence gate on the cell's own trace.
 
     ``attach_outcome_bundle`` refuses a bundle whose cells did not converge, but
@@ -1233,9 +1132,7 @@ def _verify_cell_convergence(
         subfit_convergence,
     )
 
-    recomputed = subfit_convergence(
-        trace, label=f"{outcome} sweep cell", var_names=list(free_variables) or None
-    )
+    recomputed = subfit_convergence(trace, label=f"{outcome} sweep cell", var_names=list(free_variables) or None)
     if recomputed["converged"] is not True:
         raise RuntimeError(
             f"{outcome}: cell trace does not pass the convergence gate when it is "
@@ -1254,18 +1151,13 @@ def _verify_cell_convergence(
         claimed = row.get(column)
         if claimed in (None, "") or recomputed[key] is None:
             continue
-        if not np.isclose(
-            float(claimed), float(recomputed[key]), rtol=1e-3, atol=1e-6
-        ):
+        if not np.isclose(float(claimed), float(recomputed[key]), rtol=1e-3, atol=1e-6):
             raise RuntimeError(
-                f"{outcome}: cell row's {column} ({claimed}) is not what its trace "
-                f"gives ({recomputed[key]})"
+                f"{outcome}: cell row's {column} ({claimed}) is not what its trace gives ({recomputed[key]})"
             )
 
 
-def _validate_cell_trace(
-    source: Path, row: Mapping[str, Any], *, reference: PrimaryStandardReference
-) -> None:
+def _validate_cell_trace(source: Path, row: Mapping[str, Any], *, reference: PrimaryStandardReference) -> None:
     """Verify a cell trace *is* the evidence its manifest row claims (#489 review).
 
     The digest check alone only proves the file matches the row's own recorded
@@ -1305,24 +1197,18 @@ def _validate_cell_trace(
     try:
         trace = az.from_netcdf(source)
     except Exception as exc:  # noqa: BLE001 - a corrupt cell trace is gate data
-        raise RuntimeError(
-            f"{outcome}: cell trace is not a readable NetCDF: {source}"
-        ) from exc
+        raise RuntimeError(f"{outcome}: cell trace is not a readable NetCDF: {source}") from exc
     try:
         posterior = getattr(trace, "posterior", None)
         if posterior is None:
             raise RuntimeError(f"{outcome}: cell trace has no posterior group: {source}")
         raw = posterior.attrs.get(STANDARD_SENSITIVITY_PROVENANCE_ATTR)
         if not raw:
-            raise RuntimeError(
-                f"{outcome}: cell trace carries no sweep provenance: {source}"
-            )
+            raise RuntimeError(f"{outcome}: cell trace carries no sweep provenance: {source}")
         try:
             provenance = json.loads(str(raw))
         except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"{outcome}: cell trace provenance is not valid JSON: {source}"
-            ) from exc
+            raise RuntimeError(f"{outcome}: cell trace provenance is not valid JSON: {source}") from exc
         identity = (
             ("outcome", outcome, False),
             ("primary_model_id", reference.model_id, False),
@@ -1354,8 +1240,7 @@ def _validate_cell_trace(
                 recorded = recorded.lower()
             if recorded != expected:
                 raise RuntimeError(
-                    f"{outcome}: cell trace provenance {key} does not match its "
-                    f"row ({recorded!r} != {expected!r})"
+                    f"{outcome}: cell trace provenance {key} does not match its row ({recorded!r} != {expected!r})"
                 )
         if not np.isclose(
             float(provenance.get("tau_sigma", np.nan)),
@@ -1363,10 +1248,7 @@ def _validate_cell_trace(
             rtol=0.0,
             atol=1e-9,
         ):
-            raise RuntimeError(
-                f"{outcome}: cell trace provenance names a different prior scale "
-                "than its row"
-            )
+            raise RuntimeError(f"{outcome}: cell trace provenance names a different prior scale than its row")
         sampling = provenance.get("sampling") or {}
         for key, column in (
             ("draws", "sampling_draws"),
@@ -1380,29 +1262,21 @@ def _validate_cell_trace(
                 rtol=0.0,
                 atol=1e-9,
             ):
-                raise RuntimeError(
-                    f"{outcome}: cell trace sampling provenance does not match "
-                    f"its row ({key})"
-                )
+                raise RuntimeError(f"{outcome}: cell trace sampling provenance does not match its row ({key})")
         if int(posterior.sizes.get("chain", -1)) != int(row["sampling_chains"]) or int(
             posterior.sizes.get("draw", -1)
         ) != int(row["sampling_draws"]):
-            raise RuntimeError(
-                f"{outcome}: cell trace chain/draw dimensions do not match its row"
-            )
+            raise RuntimeError(f"{outcome}: cell trace chain/draw dimensions do not match its row")
         free = provenance.get("free_variables") or []
         missing_vars = sorted(set(map(str, free)) - set(map(str, posterior.data_vars)))
         if missing_vars:
             raise RuntimeError(
-                f"{outcome}: cell trace posterior lacks its own recorded free "
-                f"variables ({missing_vars[:3]})"
+                f"{outcome}: cell trace posterior lacks its own recorded free variables ({missing_vars[:3]})"
             )
         focal = str(provenance.get("focal_term", ""))
         base = focal.split("[", 1)[0]
         if not base or base not in posterior.data_vars:
-            raise RuntimeError(
-                f"{outcome}: cell trace posterior lacks the focal term {focal!r}"
-            )
+            raise RuntimeError(f"{outcome}: cell trace posterior lacks the focal term {focal!r}")
         planned = _primary_plan_focal_term(reference)
         if planned is not None and focal != planned:
             raise RuntimeError(
@@ -1412,9 +1286,7 @@ def _validate_cell_trace(
             )
         draws = _focal_term_draws(posterior, focal, outcome=outcome)
         recomputed = float(draws.mean())
-        if not np.isclose(
-            recomputed, float(row["tau_logit_mean"]), rtol=0.0, atol=1e-8
-        ):
+        if not np.isclose(recomputed, float(row["tau_logit_mean"]), rtol=0.0, atol=1e-8):
             raise RuntimeError(
                 f"{outcome}: cell trace does not reproduce its row's focal "
                 f"summary ({recomputed:.6f} != {float(row['tau_logit_mean']):.6f})"
@@ -1428,9 +1300,7 @@ def _validate_cell_trace(
                     "bracket the focal mean recomputed from its trace "
                     f"({recomputed:.6f})"
                 )
-        if str(provenance.get("model_kind", "")) == "level_factors" and _optional_floats(
-            row, "pd"
-        ):
+        if str(provenance.get("model_kind", "")) == "level_factors" and _optional_floats(row, "pd"):
             # The level family's items-scale marginal adds the same focal draw to
             # every fitted row, so ``expit(eta0 + d) - expit(eta0)`` carries the
             # sign of ``d`` in every row and the published direction probability is
@@ -1446,8 +1316,7 @@ def _validate_cell_trace(
         sample_stats = getattr(trace, "sample_stats", None)
         if sample_stats is None or "diverging" not in sample_stats:
             raise RuntimeError(
-                f"{outcome}: cell trace lacks sample_stats.diverging, so its "
-                "convergence claim cannot be re-checked"
+                f"{outcome}: cell trace lacks sample_stats.diverging, so its convergence claim cannot be re-checked"
             )
         divergences = int(np.asarray(sample_stats["diverging"].values).sum())
         if divergences != int(float(row["n_divergences"])):
@@ -1507,9 +1376,7 @@ def attach_outcome_bundle(
         raise RuntimeError(f"{outcome}: no sweep rows to attach")
     missing = sorted(_STANDARD_REQUIRED_COLUMNS - set(rows.columns))
     if missing:
-        raise RuntimeError(
-            f"{outcome}: sweep rows lack required columns: {missing[:4]}"
-        )
+        raise RuntimeError(f"{outcome}: sweep rows lack required columns: {missing[:4]}")
     if set(rows["outcome"].astype(str)) != {outcome}:
         raise RuntimeError(f"{outcome}: sweep rows mix outcomes")
     # Two did fits share outcome W, so outcome identity alone cannot prove the
@@ -1517,26 +1384,19 @@ def attach_outcome_bundle(
     recorded_models = set(rows["primary_model_id"].astype(str))
     if recorded_models != {reference.model_id}:
         raise RuntimeError(
-            f"{outcome}: sweep rows name a different primary model "
-            f"({sorted(recorded_models)} != {reference.model_id})"
+            f"{outcome}: sweep rows name a different primary model ({sorted(recorded_models)} != {reference.model_id})"
         )
     if rows["tau_sigma"].nunique() < 2:
         raise RuntimeError(f"{outcome}: fewer than two tau scales")
     if not rows["converged"].astype(bool).all():
-        raise RuntimeError(
-            f"{outcome}: refusing to attach — one or more cells failed the "
-            "convergence gate"
-        )
+        raise RuntimeError(f"{outcome}: refusing to attach — one or more cells failed the convergence gate")
     # The sign that must be stable is the *published estimand's*, not necessarily the
     # swept coefficient's (#576 finding 1); the gate's own final check below uses the
     # same helper, so this fast-fail cannot disagree with it.
     primary_config, _ = _read_json_file(primary_dir / "config.json")
     sign_column, estimand_label = _sweep_sign_column(primary_config)
     if sign_column not in rows.columns:
-        raise RuntimeError(
-            f"{outcome}: sweep rows lack the {sign_column!r} column carrying "
-            f"{estimand_label}"
-        )
+        raise RuntimeError(f"{outcome}: sweep rows lack the {sign_column!r} column carrying {estimand_label}")
     signs = set(np.sign(rows[sign_column].astype(float)).tolist())
     if len(signs) != 1:
         raise RuntimeError(
@@ -1562,8 +1422,7 @@ def attach_outcome_bundle(
         recorded = {str(v).strip().lower() for v in rows[column]}
         if recorded != {str(expected).strip().lower()}:
             raise RuntimeError(
-                f"{outcome}: sweep rows bind to a different primary {column}; "
-                "re-run the sweep against the current fit"
+                f"{outcome}: sweep rows bind to a different primary {column}; re-run the sweep against the current fit"
             )
 
     installed_new: list[Path] = []
@@ -1581,20 +1440,13 @@ def attach_outcome_bundle(
             if not source.is_file():
                 raise RuntimeError(f"{outcome}: missing cell trace {source}")
             if sha256_file(source) != trace_sha256:
-                raise RuntimeError(
-                    f"{outcome}: cell trace does not match its recorded sha256: "
-                    f"{source}"
-                )
+                raise RuntimeError(f"{outcome}: cell trace does not match its recorded sha256: {source}")
             # The digest only proves the bytes match the row's own claim;
             # verify the trace's stamped provenance says it is this cell of
             # this primary's sweep, and that it reproduces the row (#489).
             _validate_cell_trace(source, row, reference=reference)
             digest_suffix = f"-{trace_sha256[:12]}"
-            name = (
-                source.name
-                if source.stem.endswith(digest_suffix)
-                else f"{source.stem}{digest_suffix}.nc"
-            )
+            name = source.name if source.stem.endswith(digest_suffix) else f"{source.stem}{digest_suffix}.nc"
             target = primary_dir / name
             if target.exists():
                 if sha256_file(target) != trace_sha256:
@@ -1606,18 +1458,13 @@ def attach_outcome_bundle(
                 shutil.copy2(source, target)
                 installed_new.append(target)
                 if sha256_file(target) != trace_sha256:
-                    raise RuntimeError(
-                        f"{outcome}: installed trace changed during copy: {target}"
-                    )
+                    raise RuntimeError(f"{outcome}: installed trace changed during copy: {target}")
             rows.at[index, "trace_file"] = name
         rows.to_csv(staging, index=False)
         os.replace(staging, destination)
         ready, reason = _standard_sweep_evidence(primary_dir, outcome)
         if not ready:
-            raise RuntimeError(
-                f"{outcome}: installed bundle fails the release gate's own "
-                f"evidence check ({reason})"
-            )
+            raise RuntimeError(f"{outcome}: installed bundle fails the release gate's own evidence check ({reason})")
     except BaseException:
         for target in installed_new:
             target.unlink(missing_ok=True)
@@ -1638,9 +1485,7 @@ def persist_sensitivity_trace(
     """Atomically install an immutable cell trace named by its content digest."""
     trace_dir = sensitivity_dir / semantic_file.parent
     trace_dir.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{semantic_file.stem}-", suffix=".nc", dir=trace_dir
-    )
+    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{semantic_file.stem}-", suffix=".nc", dir=trace_dir)
     os.close(descriptor)
     temporary = Path(temporary_name)
     try:
@@ -1649,9 +1494,7 @@ def persist_sensitivity_trace(
         destination = trace_dir / f"{semantic_file.stem}-{digest[:12]}.nc"
         if destination.exists():
             if sha256_file(destination) != digest:
-                raise RuntimeError(
-                    f"{label} trace digest-prefix collision: {destination}"
-                )
+                raise RuntimeError(f"{label} trace digest-prefix collision: {destination}")
             temporary.unlink()
         else:
             os.replace(temporary, destination)
@@ -1716,49 +1559,27 @@ def floor_trace_provenance(row: Mapping[str, Any]) -> dict[str, Any]:
     cell cannot be substituted together with its matching digest.
     """
     age_adjusted = _required_bool(row["age_adjusted"], "age_adjusted")
-    free_variables = [
-        name.strip()
-        for name in str(row["free_variables"]).split("|")
-        if name.strip()
-    ]
-    expected_free_variables = (
-        ["alpha", "tau", "gamma_A"] if age_adjusted else ["alpha", "tau"]
-    )
+    free_variables = [name.strip() for name in str(row["free_variables"]).split("|") if name.strip()]
+    expected_free_variables = ["alpha", "tau", "gamma_A"] if age_adjusted else ["alpha", "tau"]
     if free_variables != expected_free_variables:
-        raise ValueError(
-            "free_variables do not match the floor model's ordered free variables"
-        )
-    n_free_variables = _required_int(
-        row["n_free_variables"], "n_free_variables", positive=True
-    )
+        raise ValueError("free_variables do not match the floor model's ordered free variables")
+    n_free_variables = _required_int(row["n_free_variables"], "n_free_variables", positive=True)
     if n_free_variables != len(free_variables):
         raise ValueError("n_free_variables does not match free_variables")
 
     sampling = {
         "draws": _required_int(row["sampling_draws"], "sampling_draws", positive=True),
         "tune": _required_int(row["sampling_tune"], "sampling_tune", positive=True),
-        "chains": _required_int(
-            row["sampling_chains"], "sampling_chains", positive=True
-        ),
+        "chains": _required_int(row["sampling_chains"], "sampling_chains", positive=True),
         "cores": _required_int(row["sampling_cores"], "sampling_cores", positive=True),
-        "target_accept": _required_float(
-            row["sampling_target_accept"], "sampling_target_accept"
-        ),
-        "random_seed": _required_int(
-            row["sampling_random_seed"], "sampling_random_seed", positive=True
-        ),
+        "target_accept": _required_float(row["sampling_target_accept"], "sampling_target_accept"),
+        "random_seed": _required_int(row["sampling_random_seed"], "sampling_random_seed", positive=True),
         "nuts_sampler": str(row["sampling_nuts_sampler"]),
     }
     primary_sampling = {
-        "draws": _required_int(
-            row["primary_sampling_draws"], "primary_sampling_draws", positive=True
-        ),
-        "tune": _required_int(
-            row["primary_sampling_tune"], "primary_sampling_tune", positive=True
-        ),
-        "chains": _required_int(
-            row["primary_sampling_chains"], "primary_sampling_chains", positive=True
-        ),
+        "draws": _required_int(row["primary_sampling_draws"], "primary_sampling_draws", positive=True),
+        "tune": _required_int(row["primary_sampling_tune"], "primary_sampling_tune", positive=True),
+        "chains": _required_int(row["primary_sampling_chains"], "primary_sampling_chains", positive=True),
         "target_accept": _required_float(
             row["primary_sampling_target_accept"],
             "primary_sampling_target_accept",
@@ -1781,14 +1602,10 @@ def floor_trace_provenance(row: Mapping[str, Any]) -> dict[str, Any]:
         "tau_sigma": _required_float(row["tau_sigma"], "tau_sigma"),
         "age_adjusted": age_adjusted,
         "use_age_linear": _required_bool(row["use_age_linear"], "use_age_linear"),
-        "use_own_baseline": _required_bool(
-            row["use_own_baseline"], "use_own_baseline"
-        ),
+        "use_own_baseline": _required_bool(row["use_own_baseline"], "use_own_baseline"),
         "data_sha256": str(row["data_sha256"]),
         "n": _required_int(row["n"], "n", positive=True),
-        "n_intervention": _required_int(
-            row["n_intervention"], "n_intervention", positive=True
-        ),
+        "n_intervention": _required_int(row["n_intervention"], "n_intervention", positive=True),
         "n_control": _required_int(row["n_control"], "n_control", positive=True),
         "primary_config_sha256": str(row["primary_config_sha256"]),
         "primary_trace_sha256": str(row["primary_trace_sha256"]),
@@ -1808,23 +1625,17 @@ def _standard_expected_cells() -> set[StandardSensitivityCell]:
     cells: set[StandardSensitivityCell] = set()
     for outcome in STANDARD_SENSITIVITY_DISTAL_OUTCOMES:
         cells.update(
-            (outcome, "tau_sigma", sigma, 0.25, 50.0, True)
-            for sigma in STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS
+            (outcome, "tau_sigma", sigma, 0.25, 50.0, True) for sigma in STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS
         )
     for outcome in STANDARD_SENSITIVITY_PROXIMAL_OUTCOMES:
         cells.update(
-            (outcome, "tau_sigma", sigma, 0.25, 50.0, True)
-            for sigma in STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
+            (outcome, "tau_sigma", sigma, 0.25, 50.0, True) for sigma in STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
         )
         cells.update(
-            (outcome, "gamma_own_sigma", 0.5, sigma, 50.0, True)
-            for sigma in STANDARD_SENSITIVITY_GAMMA_OWN_SIGMAS
+            (outcome, "gamma_own_sigma", 0.5, sigma, 50.0, True) for sigma in STANDARD_SENSITIVITY_GAMMA_OWN_SIGMAS
         )
         cells.add((outcome, "unadjusted_benchmark", 0.5, None, 50.0, False))
-        cells.update(
-            (outcome, "kappa_sigma", 0.5, 0.25, sigma, True)
-            for sigma in STANDARD_SENSITIVITY_KAPPA_SIGMAS
-        )
+        cells.update((outcome, "kappa_sigma", 0.5, 0.25, sigma, True) for sigma in STANDARD_SENSITIVITY_KAPPA_SIGMAS)
     return cells
 
 
@@ -1843,49 +1654,27 @@ def standard_trace_provenance(row: Mapping[str, Any]) -> dict[str, Any]:
     """Return the canonical model/run identity for one standard-sweep trace."""
     cell = _standard_cell(row)
     use_precision_terms = cell[-1]
-    free_variables = [
-        name.strip()
-        for name in str(row["free_variables"]).split("|")
-        if name.strip()
-    ]
+    free_variables = [name.strip() for name in str(row["free_variables"]).split("|") if name.strip()]
     expected_free_variables = (
-        ["alpha", "tau", "gamma_own", "gamma_A", "kappa"]
-        if use_precision_terms
-        else ["alpha", "tau", "kappa"]
+        ["alpha", "tau", "gamma_own", "gamma_A", "kappa"] if use_precision_terms else ["alpha", "tau", "kappa"]
     )
     if free_variables != expected_free_variables:
-        raise ValueError(
-            "free_variables do not match the standard ITT model's ordered free variables"
-        )
-    if _required_int(
-        row["n_free_variables"], "n_free_variables", positive=True
-    ) != len(free_variables):
+        raise ValueError("free_variables do not match the standard ITT model's ordered free variables")
+    if _required_int(row["n_free_variables"], "n_free_variables", positive=True) != len(free_variables):
         raise ValueError("n_free_variables does not match free_variables")
     sampling = {
         "draws": _required_int(row["sampling_draws"], "sampling_draws", positive=True),
         "tune": _required_int(row["sampling_tune"], "sampling_tune", positive=True),
-        "chains": _required_int(
-            row["sampling_chains"], "sampling_chains", positive=True
-        ),
+        "chains": _required_int(row["sampling_chains"], "sampling_chains", positive=True),
         "cores": _required_int(row["sampling_cores"], "sampling_cores", positive=True),
-        "target_accept": _required_float(
-            row["sampling_target_accept"], "sampling_target_accept"
-        ),
-        "random_seed": _required_int(
-            row["sampling_random_seed"], "sampling_random_seed", positive=True
-        ),
+        "target_accept": _required_float(row["sampling_target_accept"], "sampling_target_accept"),
+        "random_seed": _required_int(row["sampling_random_seed"], "sampling_random_seed", positive=True),
         "nuts_sampler": str(row["sampling_nuts_sampler"]),
     }
     primary_sampling = {
-        "draws": _required_int(
-            row["primary_sampling_draws"], "primary_sampling_draws", positive=True
-        ),
-        "tune": _required_int(
-            row["primary_sampling_tune"], "primary_sampling_tune", positive=True
-        ),
-        "chains": _required_int(
-            row["primary_sampling_chains"], "primary_sampling_chains", positive=True
-        ),
+        "draws": _required_int(row["primary_sampling_draws"], "primary_sampling_draws", positive=True),
+        "tune": _required_int(row["primary_sampling_tune"], "primary_sampling_tune", positive=True),
+        "chains": _required_int(row["primary_sampling_chains"], "primary_sampling_chains", positive=True),
         "target_accept": _required_float(
             row["primary_sampling_target_accept"],
             "primary_sampling_target_accept",
@@ -1911,9 +1700,7 @@ def standard_trace_provenance(row: Mapping[str, Any]) -> dict[str, Any]:
         "n_trials": _required_int(row["n_trials"], "n_trials", positive=True),
         "data_sha256": str(row["data_sha256"]),
         "n": _required_int(row["n"], "n", positive=True),
-        "n_intervention": _required_int(
-            row["n_intervention"], "n_intervention", positive=True
-        ),
+        "n_intervention": _required_int(row["n_intervention"], "n_intervention", positive=True),
         "n_control": _required_int(row["n_control"], "n_control", positive=True),
         "primary_model_id": str(row["primary_model_id"]),
         "primary_config_sha256": str(row["primary_config_sha256"]),
@@ -1982,7 +1769,7 @@ def _values_close(recorded: Any, recomputed: Any) -> bool:
     try:
         recorded_float = float(recorded)
         recomputed_float = float(recomputed)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     return bool(
         np.isfinite(recorded_float)
@@ -2001,11 +1788,9 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
     import arviz as az
 
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        rope_summary,
-        tau_summary_offfloor,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.itt import tau_summary_offfloor
+    from language_reading_predictors.statistical_models.summaries.rope import rope_summary
 
     expected_provenance = floor_trace_provenance(row)
     expected_sampling = expected_provenance["sampling"]
@@ -2018,29 +1803,19 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
         posterior = getattr(trace, "posterior", None)
         if posterior is None:
             raise ValueError("trace has no posterior group")
-        missing_free_variables = sorted(
-            set(free_variables) - set(posterior.data_vars)
-        )
+        missing_free_variables = sorted(set(free_variables) - set(posterior.data_vars))
         if missing_free_variables:
-            raise ValueError(
-                "missing posterior variables " + ", ".join(missing_free_variables)
-            )
+            raise ValueError("missing posterior variables " + ", ".join(missing_free_variables))
         if "eta" not in posterior:
             raise ValueError("missing posterior variable eta")
         if (
-            _required_int(posterior.sizes.get("chain", -1), "posterior chain")
-            != expected_sampling["chains"]
-            or _required_int(posterior.sizes.get("draw", -1), "posterior draw")
-            != expected_sampling["draws"]
+            _required_int(posterior.sizes.get("chain", -1), "posterior chain") != expected_sampling["chains"]
+            or _required_int(posterior.sizes.get("draw", -1), "posterior draw") != expected_sampling["draws"]
         ):
-            raise ValueError(
-                "posterior dimensions do not match sampling provenance"
-            )
+            raise ValueError("posterior dimensions do not match sampling provenance")
 
         try:
-            trace_provenance = json.loads(
-                str(posterior.attrs[FLOOR_SENSITIVITY_PROVENANCE_ATTR])
-            )
+            trace_provenance = json.loads(str(posterior.attrs[FLOOR_SENSITIVITY_PROVENANCE_ATTR]))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise ValueError("missing or malformed trace provenance") from exc
         canonical_trace_provenance = json.dumps(
@@ -2057,9 +1832,7 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
             raise ValueError("trace provenance does not match manifest")
 
         try:
-            trace_sampling = json.loads(
-                str(posterior.attrs[FLOOR_SENSITIVITY_SAMPLING_ATTR])
-            )
+            trace_sampling = json.loads(str(posterior.attrs[FLOOR_SENSITIVITY_SAMPLING_ATTR]))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise ValueError("missing or malformed sampling provenance") from exc
         if trace_sampling != expected_sampling:
@@ -2094,9 +1867,7 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
         for column in _TRACE_CONVERGENCE_COLUMNS:
             if not _values_close(row[column], convergence[column]):
                 raise ValueError(f"manifest {column} does not match trace")
-        if _required_int(row["n_divergences"], "n_divergences") != int(
-            convergence["n_divergences"]
-        ):
+        if _required_int(row["n_divergences"], "n_divergences") != int(convergence["n_divergences"]):
             raise ValueError("manifest n_divergences does not match trace")
 
         summary = tau_summary_offfloor(trace, ci_prob=REPORTING_CI_PROB, G=G)
@@ -2115,9 +1886,7 @@ def _validate_floor_trace(path: Path, row: Mapping[str, Any]) -> None:
             row["prob_risk_difference_ge_0_10"],
             magnitude["prob_benefit_ge_delta"],
         ):
-            raise ValueError(
-                "manifest prob_risk_difference_ge_0_10 does not match trace"
-            )
+            raise ValueError("manifest prob_risk_difference_ge_0_10 does not match trace")
     finally:
         close = getattr(trace, "close", None)
         if callable(close):
@@ -2129,10 +1898,8 @@ def _validate_standard_trace(path: Path, row: Mapping[str, Any]) -> None:
     import arviz as az
 
     from language_reading_predictors.statistical_models import diagnostics as _diag
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-        tau_summary_itt,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
+    from language_reading_predictors.statistical_models.summaries.itt import tau_summary_itt
 
     expected_provenance = standard_trace_provenance(row)
     expected_sampling = expected_provenance["sampling"]
@@ -2145,37 +1912,25 @@ def _validate_standard_trace(path: Path, row: Mapping[str, Any]) -> None:
         posterior = getattr(trace, "posterior", None)
         if posterior is None:
             raise ValueError("trace has no posterior group")
-        missing_variables = sorted(
-            (set(free_variables) | {"eta"}) - set(posterior.data_vars)
-        )
+        missing_variables = sorted((set(free_variables) | {"eta"}) - set(posterior.data_vars))
         if missing_variables:
-            raise ValueError(
-                "missing posterior variables " + ", ".join(missing_variables)
-            )
+            raise ValueError("missing posterior variables " + ", ".join(missing_variables))
         if (
-            _required_int(posterior.sizes.get("chain", -1), "posterior chain")
-            != expected_sampling["chains"]
-            or _required_int(posterior.sizes.get("draw", -1), "posterior draw")
-            != expected_sampling["draws"]
+            _required_int(posterior.sizes.get("chain", -1), "posterior chain") != expected_sampling["chains"]
+            or _required_int(posterior.sizes.get("draw", -1), "posterior draw") != expected_sampling["draws"]
         ):
             raise ValueError("posterior dimensions do not match sampling provenance")
 
         try:
-            trace_provenance = json.loads(
-                str(posterior.attrs[STANDARD_SENSITIVITY_PROVENANCE_ATTR])
-            )
+            trace_provenance = json.loads(str(posterior.attrs[STANDARD_SENSITIVITY_PROVENANCE_ATTR]))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise ValueError("missing or malformed trace provenance") from exc
-        if json.dumps(
-            trace_provenance, sort_keys=True, separators=(",", ":")
-        ) != json.dumps(
+        if json.dumps(trace_provenance, sort_keys=True, separators=(",", ":")) != json.dumps(
             expected_provenance, sort_keys=True, separators=(",", ":")
         ):
             raise ValueError("trace provenance does not match manifest")
         try:
-            trace_sampling = json.loads(
-                str(posterior.attrs[STANDARD_SENSITIVITY_SAMPLING_ATTR])
-            )
+            trace_sampling = json.loads(str(posterior.attrs[STANDARD_SENSITIVITY_SAMPLING_ATTR]))
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
             raise ValueError("missing or malformed sampling provenance") from exc
         if trace_sampling != expected_sampling:
@@ -2197,8 +1952,7 @@ def _validate_standard_trace(path: Path, row: Mapping[str, Any]) -> None:
         convergence = _diag.subfit_convergence(
             trace,
             label=(
-                f"{expected_provenance['outcome']} standard sensitivity trace "
-                f"{expected_provenance['sensitivity_axis']}"
+                f"{expected_provenance['outcome']} standard sensitivity trace {expected_provenance['sensitivity_axis']}"
             ),
             var_names=free_variables,
         )
@@ -2209,9 +1963,7 @@ def _validate_standard_trace(path: Path, row: Mapping[str, Any]) -> None:
         for column in _TRACE_CONVERGENCE_COLUMNS:
             if not _values_close(row[column], convergence[column]):
                 raise ValueError(f"manifest {column} does not match trace")
-        if _required_int(row["n_divergences"], "n_divergences") != int(
-            convergence["n_divergences"]
-        ):
+        if _required_int(row["n_divergences"], "n_divergences") != int(convergence["n_divergences"]):
             raise ValueError("manifest n_divergences does not match trace")
 
         summary = tau_summary_itt(trace, ci_prob=REPORTING_CI_PROB, G=G)
@@ -2298,8 +2050,7 @@ def evaluate_standard_sensitivity(
     expected = _standard_expected_cells()
     requested = tuple(str(value) for value in requested_outcomes)
     requested_aligned = bool(
-        len(requested) == len(STANDARD_SENSITIVITY_OUTCOMES)
-        and set(requested) == set(STANDARD_SENSITIVITY_OUTCOMES)
+        len(requested) == len(STANDARD_SENSITIVITY_OUTCOMES) and set(requested) == set(STANDARD_SENSITIVITY_OUTCOMES)
     )
     result: dict[str, Any] = {
         "expected_n": len(expected),
@@ -2381,8 +2132,7 @@ def evaluate_standard_sensitivity(
     ]
     integer_values = numeric[integer_columns].to_numpy(dtype=float)
     integer_contract = bool(
-        np.isfinite(integer_values).all()
-        and np.equal(integer_values, np.floor(integer_values)).all()
+        np.isfinite(integer_values).all() and np.equal(integer_values, np.floor(integer_values)).all()
     )
     provenance_contract = True
     provenance_errors: list[str] = []
@@ -2445,9 +2195,7 @@ def evaluate_standard_sensitivity(
         and (numeric["kappa_median"] > 0.0).all()
         and np.allclose(
             numeric["ci_width_logit"].to_numpy(dtype=float),
-            (
-                numeric["tau_logit_hi"] - numeric["tau_logit_lo"]
-            ).to_numpy(dtype=float),
+            (numeric["tau_logit_hi"] - numeric["tau_logit_lo"]).to_numpy(dtype=float),
             rtol=1e-10,
             atol=1e-12,
         )
@@ -2457,10 +2205,7 @@ def evaluate_standard_sensitivity(
         and rows["config"].astype(str).eq(str(config_name)).all()
         and set(rows["outcome"].astype(str)) == set(STANDARD_SENSITIVITY_OUTCOMES)
         and all(
-            rows.loc[rows["outcome"].astype(str) == outcome, "primary_model_id"]
-            .astype(str)
-            .eq(model_id)
-            .all()
+            rows.loc[rows["outcome"].astype(str) == outcome, "primary_model_id"].astype(str).eq(model_id).all()
             for outcome, model_id in STANDARD_SENSITIVITY_MODEL_IDS.items()
         )
         and trial_contract
@@ -2473,9 +2218,7 @@ def evaluate_standard_sensitivity(
         and (numeric["n"] > 0).all()
         and (numeric["n_intervention"] > 0).all()
         and (numeric["n_control"] > 0).all()
-        and (
-            numeric["n_intervention"] + numeric["n_control"] == numeric["n"]
-        ).all()
+        and (numeric["n_intervention"] + numeric["n_control"] == numeric["n"]).all()
         and coherence
     )
     result["complete"] = bool(
@@ -2507,9 +2250,7 @@ def evaluate_standard_sensitivity(
         and (numeric["n_divergences"] == 0).all()
     )
 
-    if primary_references is not None and set(primary_references) == set(
-        STANDARD_SENSITIVITY_OUTCOMES
-    ):
+    if primary_references is not None and set(primary_references) == set(STANDARD_SENSITIVITY_OUTCOMES):
         result["primary_aligned"] = all(
             reference.outcome == outcome
             and reference.model_id == STANDARD_SENSITIVITY_MODEL_IDS[outcome]
@@ -2537,9 +2278,7 @@ def evaluate_standard_sensitivity(
                 break
             trace_paths.append(candidate)
         result["traces_present"] = bool(
-            result["complete"]
-            and len(trace_paths) == len(expected)
-            and all(path.is_file() for path in trace_paths)
+            result["complete"] and len(trace_paths) == len(expected) and all(path.is_file() for path in trace_paths)
         )
     if result["traces_present"]:
         trace_errors: list[str] = []
@@ -2633,9 +2372,7 @@ def evaluate_floor_sensitivity(
         result["missing_columns"] = missing_columns
         return result
 
-    rows = sensitivity.loc[
-        sensitivity["outcome"].astype(str) == outcome_symbol
-    ].copy()
+    rows = sensitivity.loc[sensitivity["outcome"].astype(str) == outcome_symbol].copy()
     result["observed_n"] = int(len(rows))
     if rows.empty:
         return result
@@ -2644,9 +2381,7 @@ def evaluate_floor_sensitivity(
     rows["_age_bool"] = rows["age_adjusted"].map(_as_bool)
     cells = [
         (float(tau_sigma), bool(age_adjusted))
-        for tau_sigma, age_adjusted in zip(
-            rows["tau_sigma"], rows["_age_bool"], strict=True
-        )
+        for tau_sigma, age_adjusted in zip(rows["tau_sigma"], rows["_age_bool"], strict=True)
         if np.isfinite(tau_sigma) and age_adjusted is not None
     ]
     observed = set(cells)
@@ -2674,13 +2409,11 @@ def evaluate_floor_sensitivity(
     numeric = rows[numeric_columns].apply(pd.to_numeric, errors="coerce")
     numeric_complete = bool(np.isfinite(numeric.to_numpy(dtype=float)).all())
     free_variable_lists = [
-        [name.strip() for name in str(value).split("|") if name.strip()]
-        for value in rows["free_variables"]
+        [name.strip() for name in str(value).split("|") if name.strip()] for value in rows["free_variables"]
     ]
     free_variable_contract = all(
         age_adjusted is not None
-        and names
-        == (["alpha", "tau", "gamma_A"] if age_adjusted else ["alpha", "tau"])
+        and names == (["alpha", "tau", "gamma_A"] if age_adjusted else ["alpha", "tau"])
         and len(names) == n_free
         for names, age_adjusted, n_free in zip(
             free_variable_lists,
@@ -2736,24 +2469,15 @@ def evaluate_floor_sensitivity(
     )
     contract_complete = bool(
         rows["model_id"].astype(str).eq(expected_model_id).all()
-        and rows["estimand"]
-        .astype(str)
-        .eq("off_floor_risk_difference_given_observed_baseline_floor")
-        .all()
-        and rows["analysis_subset"]
-        .astype(str)
-        .eq("observed_baseline_floor")
-        .all()
+        and rows["estimand"].astype(str).eq("off_floor_risk_difference_given_observed_baseline_floor").all()
+        and rows["analysis_subset"].astype(str).eq("observed_baseline_floor").all()
         and rows["likelihood"].astype(str).eq("bernoulli_offfloor").all()
         and rows["sensitivity_axis"].astype(str).eq(FLOOR_SENSITIVITY_AXIS).all()
         and rows["config"].astype(str).str.strip().ne("").all()
         and rows["config"].astype(str).nunique() == 1
         and rows["use_age_linear"].map(_as_bool).equals(rows["_age_bool"])
         and rows["use_own_baseline"].map(_as_bool).eq(False).all()
-        and rows["convergence_scope"]
-        .astype(str)
-        .eq("all_free_variables")
-        .all()
+        and rows["convergence_scope"].astype(str).eq("all_free_variables").all()
         and free_variable_contract
         and integer_contract
         and hashes_valid
@@ -2763,27 +2487,14 @@ def evaluate_floor_sensitivity(
         and numeric["n"].nunique() == 1
         and (numeric["n_intervention"] > 0).all()
         and (numeric["n_control"] > 0).all()
-        and (
-            numeric["n_intervention"] + numeric["n_control"] == numeric["n"]
-        ).all()
+        and (numeric["n_intervention"] + numeric["n_control"] == numeric["n"]).all()
         and numeric["n_intervention"].nunique() == 1
         and numeric["n_control"].nunique() == 1
-        and (
-            numeric["risk_difference_lo"] <= numeric["risk_difference_median"]
-        ).all()
-        and (
-            numeric["risk_difference_median"] <= numeric["risk_difference_hi"]
-        ).all()
-        and (
-            numeric["risk_difference_lo50"] <= numeric["risk_difference_median"]
-        ).all()
-        and (
-            numeric["risk_difference_median"] <= numeric["risk_difference_hi50"]
-        ).all()
-        and (
-            numeric["risk_difference_hpdi_lo"]
-            <= numeric["risk_difference_hpdi_hi"]
-        ).all()
+        and (numeric["risk_difference_lo"] <= numeric["risk_difference_median"]).all()
+        and (numeric["risk_difference_median"] <= numeric["risk_difference_hi"]).all()
+        and (numeric["risk_difference_lo50"] <= numeric["risk_difference_median"]).all()
+        and (numeric["risk_difference_median"] <= numeric["risk_difference_hi50"]).all()
+        and (numeric["risk_difference_hpdi_lo"] <= numeric["risk_difference_hpdi_hi"]).all()
         and (numeric["tau_logit_lo"] <= numeric["tau_logit_median"]).all()
         and (numeric["tau_logit_median"] <= numeric["tau_logit_hi"]).all()
         and risk_differences_bounded
@@ -2840,14 +2551,10 @@ def evaluate_floor_sensitivity(
                 break
             trace_paths.append(candidate)
         result["traces_present"] = bool(
-            result["complete"]
-            and len(trace_paths) == len(expected)
-            and all(path.is_file() for path in trace_paths)
+            result["complete"] and len(trace_paths) == len(expected) and all(path.is_file() for path in trace_paths)
         )
     elif trace_exists is not None:
-        result["traces_present"] = bool(
-            result["complete"] and all(trace_exists(name) for name in trace_names)
-        )
+        result["traces_present"] = bool(result["complete"] and all(trace_exists(name) for name in trace_names))
 
     if result["traces_present"] and trace_paths:
         traces_validated = True
@@ -2892,11 +2599,7 @@ def evaluate_floor_sensitivity(
             risk_difference_interval_max=float(numeric["risk_difference_hi"].max()),
             prob_positive_min=float(numeric["prob_risk_difference_positive"].min()),
             prob_positive_max=float(numeric["prob_risk_difference_positive"].max()),
-            prob_meaningful_min=float(
-                numeric["prob_risk_difference_ge_0_10"].min()
-            ),
-            prob_meaningful_max=float(
-                numeric["prob_risk_difference_ge_0_10"].max()
-            ),
+            prob_meaningful_min=float(numeric["prob_risk_difference_ge_0_10"].min()),
+            prob_meaningful_max=float(numeric["prob_risk_difference_ge_0_10"].max()),
         )
     return result

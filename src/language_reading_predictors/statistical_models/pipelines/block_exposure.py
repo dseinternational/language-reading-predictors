@@ -10,6 +10,12 @@ and wave-varying covariates enter on the right footing.
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.factories import block_exposure as _block_exposure_factory
+from language_reading_predictors.statistical_models import run_metadata as _metadata
+from language_reading_predictors.statistical_models.summaries import block_exposure as _block_exposure_summary
+from language_reading_predictors.statistical_models.summaries import factors as _factors_summary
+
+
 import pandas as pd
 
 from language_reading_predictors.models._reporting import (
@@ -18,12 +24,7 @@ from language_reading_predictors.models._reporting import (
     ranked_dataframe_table,
     section_header,
 )
-from language_reading_predictors.statistical_models import (
-    block_exposure as _block_exposure,
-    diagnostics as _diag,
-    factories as _factories,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import block_exposure as _block_exposure, diagnostics as _diag
 from language_reading_predictors.statistical_models.adjustment import (
     effective_adjustment,
 )
@@ -73,7 +74,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     plan = _block_exposure.resolve_block_exposure_run_plan(spec)
     ctx = make_context(spec, config)
     ctx.resolved_plan = plan
-    _report.write_model_recipe(ctx)
+    _metadata.write_model_recipe(ctx)
 
     section_header("Prepare data")
     sym = plan.outcome_symbol
@@ -85,7 +86,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     print_header(ctx)
 
     section_header("Build model")
-    built = _factories.build_block_exposure_model(
+    built = _block_exposure_factory.build_block_exposure_model(
         prepared,
         **plan.factory_kwargs(effective_adjustment=adjust_for),
     )
@@ -97,30 +98,27 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
 
     # ``delta`` is the focal (association) effect — gets the prior-sensitivity +
     # forest evidence, exactly as the level-factor group term does.
+    def save_prior_posterior_figures(c: StatisticalFitContext) -> None:
+        _diag.save_prior_posterior_plot(c, var_names=diag_vars)
+        save_forest_plot(
+            c,
+            [plan.focal_term],
+            name="delta_forest.png",
+            title="Block-active exposure effect (forest, reference line at 0)",
+        )
+
     shared_stages().run_primary_fit(
         ctx,
         PrimaryFitPlan(
             diagnostic_vars=tuple(diag_vars),
             ppc_var_names=(plan.observation_node,),
-            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(
-                c, sym, node=plan.observation_node
-            ),
+            plot_prior_predictive=lambda c: _diag.save_prior_predictive_plot(c, sym, node=plan.observation_node),
             # The family's established post-trace order — overlay, forest, then
             # power scaling — now declared to the runner rather than performed
             # after it (#637 stage 4). Same figures, same order, one owner.
             psense_timing="after_trace",
             psense_vars=(plan.focal_term,),
-            after_trace_audit=lambda c: (
-                _diag.save_prior_posterior_plot(c, var_names=diag_vars),
-                save_forest_plot(
-                    c, [plan.focal_term], name="delta_forest.png",
-                    title=(
-                        "Block-active exposure effect "
-                        "(forest, reference line at 0)"
-                    ),
-                ),
-            )
-            and None,
+            after_trace_audit=save_prior_posterior_figures,
             extended_term=plan.focal_term,
             compute_loo=plan.compute_loo,
         ),
@@ -129,7 +127,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     section_header("Factor summary")
     # No randomised contrast: block-active exposure is an association (parallel trends),
     # so no term is flagged causal.
-    fs = _report.factor_summary(
+    fs = _factors_summary.factor_summary(
         ctx.trace,
         coef_names,
         ci_prob=ctx.reporting.ci_prob,
@@ -150,7 +148,7 @@ def fit_block_exposure(spec: ModelSpec, config: str = "dev") -> StatisticalFitCo
     section_header("Block-2 exposure effect summary")
     from language_reading_predictors.statistical_models.measures import MEASURES
 
-    bx_s = _report.block_exposure_summary(
+    bx_s = _block_exposure_summary.block_exposure_summary(
         ctx.trace,
         ci_prob=ctx.reporting.ci_prob,
         n_trials=1 if plan.off_floor else MEASURES[sym].n_trials,

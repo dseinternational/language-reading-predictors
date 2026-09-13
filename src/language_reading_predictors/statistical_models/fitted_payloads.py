@@ -84,9 +84,7 @@ class IttPayload(FittedPayload):
 class JointPayload(FittedPayload):
     """Fitted dependence and observation-unit metadata for a joint ITT fit."""
 
-    joint_dependence: Literal[
-        "residual_correlated", "factorised_outcome_marginals"
-    ]
+    joint_dependence: Literal["residual_correlated", "factorised_outcome_marginals"]
     loo_unit: Literal["child"]
     outcomes: tuple[str, ...]
 
@@ -96,9 +94,7 @@ class JointMechanismPayload(FittedPayload):
     """Realised design metadata for a joint mechanism fit."""
 
     design: Literal["levels", "transition"]
-    joint_dependence: Literal[
-        "lkj_residual_within_wave", "lkj_child_intercept"
-    ]
+    joint_dependence: Literal["lkj_residual_within_wave", "lkj_child_intercept"]
     likelihood: Literal["binomial", "beta_binomial"]
     loo_unit: Literal["child"]
     outcomes: tuple[str, ...]
@@ -171,6 +167,7 @@ class MechanismDesign:
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> MechanismDesign:
         """Read stored scalers without estimating anything from refit rows."""
+
         def scaler(value: Any) -> Standardiser:
             if not isinstance(value, Mapping):
                 raise ValueError("missing saved standardisation; a fresh full fit is required")

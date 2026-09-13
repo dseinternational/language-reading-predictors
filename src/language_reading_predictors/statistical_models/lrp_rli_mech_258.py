@@ -39,7 +39,7 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="L",
     adjustment=["G", "A", "W_pre"],
-        # Matched to LRP58 exactly so the curves are comparable.
+    # Matched to LRP58 exactly so the curves are comparable.
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         outcomes=("W", "L"),

@@ -18,9 +18,7 @@ from language_reading_predictors.statistical_models.blending_sensitivity import 
     BLENDING_SENSITIVITY_FILENAME,
     build_blending_link_sensitivity,
 )
-from language_reading_predictors.statistical_models.reporting import (
-    generate_key_findings,
-)
+from language_reading_predictors.statistical_models.key_findings import generate_key_findings
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -35,10 +33,7 @@ def _parser() -> argparse.ArgumentParser:
         "--archive-dir",
         type=Path,
         default=None,
-        help=(
-            "Central content-addressed archive. Defaults to "
-            "<statistical-model-root>/blending_link_sensitivity."
-        ),
+        help=("Central content-addressed archive. Defaults to <statistical-model-root>/blending_link_sensitivity."),
     )
     return parser
 
@@ -62,13 +57,8 @@ def main() -> int:
         output_dir = models / f"{model_id}-{args.config}"
         payload = generate_key_findings(output_dir)
         if payload.get("status") != "ok":
-            raise RuntimeError(
-                f"{model_id} key findings were not regenerated cleanly: {payload}"
-            )
-    print(
-        "Regenerated trace-bound key findings for lrp-rli-itt-008 and "
-        "lrp-rli-itt-108. Next: render both reports."
-    )
+            raise RuntimeError(f"{model_id} key findings were not regenerated cleanly: {payload}")
+    print("Regenerated trace-bound key findings for lrp-rli-itt-008 and lrp-rli-itt-108. Next: render both reports.")
     return 0
 
 

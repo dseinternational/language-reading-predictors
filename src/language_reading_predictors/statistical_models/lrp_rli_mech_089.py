@@ -77,8 +77,13 @@ SPEC = ModelSpec(
         # a genuine confounder; the IG -> IS <- GA collider path it could open is
         # closed at the always-conditioned arm G. See the review note in notes/.
         adjust_for=(
-            "hs", "hs_missing", "attend", "erbto", "erbto_missing",
-            "deapp_c", "deapp_c_missing",
+            "hs",
+            "hs_missing",
+            "attend",
+            "erbto",
+            "erbto_missing",
+            "deapp_c",
+            "deapp_c_missing",
         ),
         use_age_gp=False,
         phase_specific_mechanism=False,

@@ -15,7 +15,7 @@ import pytest
 import xarray as xr
 
 from language_reading_predictors.statistical_models.context import ModelSpec
-from language_reading_predictors.statistical_models.factories import build_growth_model
+from language_reading_predictors.statistical_models.factories.growth import build_growth_model
 from language_reading_predictors.statistical_models.growth import (
     GrowthModelSettings,
     exclude_growth_observation_cells,
@@ -48,8 +48,7 @@ def _write_rlm_panel_csv(tmp_path, n_per_group: int = 10) -> str:
                         "age": age0 + 12 * (wave - 1),
                         "basread": int(
                             np.clip(
-                                5 + 4 * wave + similarity + 5 * (group - 1)
-                                + rng.normal(0, 2),
+                                5 + 4 * wave + similarity + 5 * (group - 1) + rng.normal(0, 2),
                                 0,
                                 90,
                             )
@@ -154,14 +153,10 @@ def test_rlm_growth_loader_rejects_invalid_outcome_counts(tmp_path, value, match
     count passed and was silently truncated by the factory's int cast."""
     path = _write_rlm_panel_csv(tmp_path)
     frame = pd.read_csv(path)
-    frame.loc[
-        (frame["subject_id"] == "R002") & (frame["time"] == 2), "basread"
-    ] = value
+    frame.loc[(frame["subject_id"] == "R002") & (frame["time"] == 2), "basread"] = value
     frame.to_csv(path, index=False)
     with pytest.raises(ValueError, match=match):
-        load_rlm_growth_panel(
-            outcomes=("basread",), baseline_covariate="bassim", path=path
-        )
+        load_rlm_growth_panel(outcomes=("basread",), baseline_covariate="bassim", path=path)
 
 
 def test_rlm_growth_loader_rejects_fractional_baseline(tmp_path):
@@ -169,14 +164,10 @@ def test_rlm_growth_loader_rejects_fractional_baseline(tmp_path):
     so exact integrality applies to it exactly as to the outcomes."""
     path = _write_rlm_panel_csv(tmp_path)
     frame = pd.read_csv(path)
-    frame.loc[
-        (frame["subject_id"] == "R002") & (frame["time"] == 1), "bassim"
-    ] = 7.5
+    frame.loc[(frame["subject_id"] == "R002") & (frame["time"] == 1), "bassim"] = 7.5
     frame.to_csv(path, index=False)
     with pytest.raises(ValueError, match="integer counts"):
-        load_rlm_growth_panel(
-            outcomes=("basread",), baseline_covariate="bassim", path=path
-        )
+        load_rlm_growth_panel(outcomes=("basread",), baseline_covariate="bassim", path=path)
 
 
 def test_group_adjusted_growth_factory_builds_and_samples_prior(tmp_path):
@@ -201,9 +192,7 @@ def test_group_adjusted_growth_factory_builds_and_samples_prior(tmp_path):
     assert "z_slope" not in built.model.named_vars
     with built.model:
         prior = pm.sample_prior_predictive(draws=4, random_seed=15)
-    assert prior.prior_predictive["y_obs"].shape[-1] == int(
-        panel.obs_mask["basread"].sum()
-    )
+    assert prior.prior_predictive["y_obs"].shape[-1] == int(panel.obs_mask["basread"].sum())
 
 
 def test_growth_observation_map_and_flagged_cell_exclusion(tmp_path):
@@ -229,15 +218,11 @@ def test_growth_observation_map_and_flagged_cell_exclusion(tmp_path):
     selected = flagged.head(2)["observation_index"].to_numpy(dtype=int)
     sensitivity = exclude_growth_observation_cells(panel, selected)
     assert len(growth_observation_index(sensitivity)) == len(mapping) - 2
-    assert sum(mask.sum() for mask in sensitivity.obs_mask.values()) == (
-        len(mapping) - 2
-    )
+    assert sum(mask.sum() for mask in sensitivity.obs_mask.values()) == (len(mapping) - 2)
     assert sum(mask.sum() for mask in panel.obs_mask.values()) == len(mapping)
 
     first_child = mapping.loc[mapping["child_index"] == 0, "observation_index"]
-    child_excluded = exclude_growth_observation_cells(
-        panel, first_child.to_numpy(dtype=int)
-    )
+    child_excluded = exclude_growth_observation_cells(panel, first_child.to_numpy(dtype=int))
     assert child_excluded.n_children == panel.n_children - 1
     assert panel.subject_ids[0] not in set(child_excluded.subject_ids)
     assert child_excluded.dropped_by_reason["all_observed_cells_high_pareto"] == 1

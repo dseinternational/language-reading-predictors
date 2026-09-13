@@ -28,15 +28,23 @@ from language_reading_predictors.statistical_models.pipelines.joint import fit_j
 
 # The ten baseline-bearing suite outcomes (LRPITT_OUTCOMES minus post-only N).
 LRPITT12_OUTCOMES: tuple[str, ...] = (
-    "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W",
+    "TR",
+    "TE",
+    "UR",
+    "UE",
+    "R",
+    "E",
+    "L",
+    "B",
+    "P",
+    "W",
 )
 
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-012",
     kind="joint",
     title=(
-        "Joint available-case modified ITT estimates over the LRPITT suite outcomes "
-        "(TR, TE, UR, UE, R, E, L, B, P, W)"
+        "Joint available-case modified ITT estimates over the LRPITT suite outcomes (TR, TE, UR, UE, R, E, L, B, P, W)"
     ),
     model_settings=JointModelSettings(
         outcomes=LRPITT12_OUTCOMES,

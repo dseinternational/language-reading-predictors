@@ -26,10 +26,7 @@ from language_reading_predictors.statistical_models.pipelines.joint import fit_j
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-115",
     kind="joint",
-    title=(
-        "Available-case modified ITT estimate: receptive taught-versus-not-taught "
-        "vocabulary contrast, block 1"
-    ),
+    title=("Available-case modified ITT estimate: receptive taught-versus-not-taught vocabulary contrast, block 1"),
     # LKJ residual correlation is OFF (same spec as LRPITT15) because an earlier
     # dependence sensitivity mixed poorly. The factorised fit is more stable, but
     # it does not estimate within-child covariance and is not automatically

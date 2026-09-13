@@ -68,7 +68,7 @@ import pymc as pm
 
 import dse_research_utils.statistics.models.sampling as _sampling
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models.factories import build_did_model
+from language_reading_predictors.statistical_models.factories.did import build_did_model
 from language_reading_predictors.statistical_models.fitted_payloads import (
     DidDosePayload,
 )
@@ -97,9 +97,7 @@ KAPPA_SIGMA = 50.0
 GAMMA_OWN_SIGMA_DEFAULT = 0.25
 
 
-def assert_did_sampling_contract(
-    sampling, reference: PrimaryStandardReference, *, config: str
-) -> None:
+def assert_did_sampling_contract(sampling, reference: PrimaryStandardReference, *, config: str) -> None:
     """The did variant of the shared contract: match the preset on
     draws/tune/chains and *adopt* the primary's recorded ``target_accept``
     (a registered spec may override the preset — did-007 does, at 0.97)."""
@@ -120,10 +118,7 @@ def _resolve_plan(model_id: str):
         resolve_did_run_plan,
     )
 
-    module = importlib.import_module(
-        "language_reading_predictors.statistical_models."
-        + model_id.replace("-", "_")
-    )
+    module = importlib.import_module("language_reading_predictors.statistical_models." + model_id.replace("-", "_"))
     return resolve_did_run_plan(module.SPEC)
 
 
@@ -137,9 +132,7 @@ def _grid_for(plan) -> tuple[float, ...]:
     return STANDARD_SENSITIVITY_PROXIMAL_TAU_SIGMAS
 
 
-def _items_translation(
-    trace, built, plan, *, n_trials: int, ci_prob: float
-) -> tuple[float, float, float]:
+def _items_translation(trace, built, plan, *, n_trials: int, ci_prob: float) -> tuple[float, float, float]:
     """(items_mean, items_lo, items_hi) for this fit's **published focal estimand**.
 
     These are the columns the release gate's sign-stability clause reads for a
@@ -158,7 +151,7 @@ def _items_translation(
     from language_reading_predictors.statistical_models.pipelines.dose_response import (
         dose_marginal_draws,
     )
-    from language_reading_predictors.statistical_models.reporting import did_summary
+    from language_reading_predictors.statistical_models.summaries.did import did_summary
 
     lo_q = (1.0 - ci_prob) / 2.0
     if not plan.dose:
@@ -179,9 +172,7 @@ def _items_translation(
     # Match write_dose_slope_summary's DiD averaging population: the dose is
     # treated-centred with untreated rows hard-coded to zero, so the
     # intensive-margin marginal averages over treated rows only.
-    treated = np.asarray(
-        built.require_payload(DidDosePayload, family="did sensitivity").treated
-    )
+    treated = np.asarray(built.require_payload(DidDosePayload, family="did sensitivity").treated)
     phase_idx = np.asarray(built.prepared.phase, dtype=np.int64)
     items = dose_marginal_draws(
         trace.posterior,
@@ -213,9 +204,7 @@ def _fit_cell(
     from language_reading_predictors.statistical_models.preprocessing import (
         load_and_prepare,
     )
-    from language_reading_predictors.statistical_models.reporting import (
-        REPORTING_CI_PROB,
-    )
+    from language_reading_predictors.statistical_models.posteriors import REPORTING_CI_PROB
 
     plan = _resolve_plan(model_id)
     focal = plan.effect_term
@@ -262,9 +251,7 @@ def _fit_cell(
         else np.array([np.nan])
     )
     free_names = [rv.name for rv in built.model.free_RVs]
-    convergence = _diag.subfit_convergence(
-        trace, label=f"{model_id} {axis}", var_names=free_names
-    )
+    convergence = _diag.subfit_convergence(trace, label=f"{model_id} {axis}", var_names=free_names)
 
     G = np.asarray(built.prepared.G)
     phase = np.asarray(built.prepared.phase)
@@ -282,8 +269,7 @@ def _fit_cell(
         or n_control != primary_reference.n_control
     ):
         raise RuntimeError(
-            f"{model_id} did sensitivity does not match its current primary "
-            "did data, sample, arm counts, or config"
+            f"{model_id} did sensitivity does not match its current primary did data, sample, arm counts, or config"
         )
     # #576 finding 6. None of the checks above move when the *equation* changes:
     # a primary fitted under an older likelihood, intercept anchor, age adjustment,
@@ -321,9 +307,7 @@ def _fit_cell(
         "tau_logit_mean": float(np.mean(focal_draws)),
         "tau_logit_lo": float(np.quantile(focal_draws, lo_q)),
         "tau_logit_hi": float(np.quantile(focal_draws, 1.0 - lo_q)),
-        "ci_width_logit": float(
-            np.quantile(focal_draws, 1.0 - lo_q) - np.quantile(focal_draws, lo_q)
-        ),
+        "ci_width_logit": float(np.quantile(focal_draws, 1.0 - lo_q) - np.quantile(focal_draws, lo_q)),
         "tau_sd_logit": float(np.std(focal_draws)),
         "kappa_median": float(np.nanmedian(kappa_draws)),
         "items_mean": items_mean,
@@ -390,11 +374,7 @@ def _fit_cell(
     )
     sigma_token = f"{sigma:g}".replace(".", "p")
     token = model_id.removeprefix("lrp-rli-")
-    semantic = (
-        Path("traces")
-        / f"did-{config}"
-        / f"trace_{token}_{axis}-{sigma_token}.nc"
-    )
+    semantic = Path("traces") / f"did-{config}" / f"trace_{token}_{axis}-{sigma_token}.nc"
     trace_file, trace_sha256 = persist_sensitivity_trace(
         trace,
         sensitivity_dir=sensitivity_dir,
@@ -409,14 +389,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--config", default="dev", help="sampling preset (dev/test/reporting)")
     ap.add_argument(
-        "--models", nargs="+", default=list(DID_SENSITIVITY_MODEL_IDS),
-        help=(
-            "did model ids to sweep (default: the four #390 withheld fits plus "
-            "the did-101 intercept companion)"
-        ),
+        "--models",
+        nargs="+",
+        default=list(DID_SENSITIVITY_MODEL_IDS),
+        help=("did model ids to sweep (default: the four #390 withheld fits plus the did-101 intercept companion)"),
     )
     ap.add_argument(
-        "--attach", action="store_true",
+        "--attach",
+        action="store_true",
         help=(
             "install each model's trace-backed bundle beside its primary "
             "(manifest + digest-verified cell traces; only when every cell "
@@ -424,18 +404,23 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--reattach", action="store_true",
+        "--reattach",
+        action="store_true",
         help=(
             "skip fitting: re-install bundles from the sweep directory's "
             "existing combined CSV (re-verifying every binding and trace hash)"
         ),
     )
     ap.add_argument(
-        "--output-dir", type=str, default=None,
+        "--output-dir",
+        type=str,
+        default=None,
         help="override the output root (above DSE_LRP_OUTPUT_DIR); layout unchanged",
     )
     ap.add_argument(
-        "--seed", type=int, default=20260701,
+        "--seed",
+        type=int,
+        default=20260701,
         help=(
             "cell sampling seed (recorded per row); a reseed is the legitimate "
             "first response to a stochastic divergence-only cell failure — the "
@@ -443,7 +428,9 @@ def main() -> None:
         ),
     )
     ap.add_argument(
-        "--cell-target-accept", type=float, default=None,
+        "--cell-target-accept",
+        type=float,
+        default=None,
         help=(
             "escalate the cells' target_accept ABOVE the primary's recorded "
             "value (each cell runs at max(primary, this); recorded per row in "
@@ -458,10 +445,7 @@ def main() -> None:
 
     unknown = sorted(set(args.models) - set(DID_SENSITIVITY_MODEL_IDS))
     if unknown:
-        ap.error(
-            f"unsupported did sensitivity models: {unknown}; choose from "
-            f"{sorted(DID_SENSITIVITY_MODEL_IDS)}"
-        )
+        ap.error(f"unsupported did sensitivity models: {unknown}; choose from {sorted(DID_SENSITIVITY_MODEL_IDS)}")
 
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
@@ -481,13 +465,9 @@ def main() -> None:
         combined = pd.read_csv(combined_path)
         for model_id in args.models:
             primary_dir = models_root / f"{model_id}-{args.config}"
-            reference = load_primary_did_reference(
-                primary_dir, model_id, config_name=args.config
-            )
+            reference = load_primary_did_reference(primary_dir, model_id, config_name=args.config)
             assert_did_sampling_contract(sampling, reference, config=args.config)
-            model_rows = combined.loc[
-                combined["primary_model_id"].astype(str) == model_id
-            ]
+            model_rows = combined.loc[combined["primary_model_id"].astype(str) == model_id]
             destination = attach_outcome_bundle(
                 model_rows,
                 outcome=reference.outcome,
@@ -502,19 +482,14 @@ def main() -> None:
     attach_ready: dict[str, bool] = {}
     for model_id in args.models:
         primary_dir = models_root / f"{model_id}-{args.config}"
-        reference = load_primary_did_reference(
-            primary_dir, model_id, config_name=args.config
-        )
+        reference = load_primary_did_reference(primary_dir, model_id, config_name=args.config)
         # Preset must match the primary on draws/tune/chains; the primary's own
         # target_accept (did-007: a registered 0.97 override) is adopted below.
         assert_did_sampling_contract(sampling, reference, config=args.config)
         plan = _resolve_plan(model_id)
         model_rows = []
         for sigma in _grid_for(plan):
-            print(
-                f"--- {model_id} ({plan.outcome_symbol}, {plan.effect_term}): "
-                f"sigma={sigma} ---"
-            )
+            print(f"--- {model_id} ({plan.outcome_symbol}, {plan.effect_term}): sigma={sigma} ---")
             row = _fit_cell(
                 model_id,
                 float(sigma),
@@ -535,10 +510,7 @@ def main() -> None:
         attach_ready[model_id] = all_ok
         if args.attach:
             if not all_ok:
-                print(
-                    f"    NOT attaching {model_id}: one or more cells failed "
-                    "the convergence gate"
-                )
+                print(f"    NOT attaching {model_id}: one or more cells failed the convergence gate")
                 continue
             destination = attach_outcome_bundle(
                 pd.DataFrame(model_rows),
@@ -556,9 +528,7 @@ def main() -> None:
     if combined_path.exists():
         previous = pd.read_csv(combined_path)
         swept = set(combined["primary_model_id"].astype(str))
-        previous = previous.loc[
-            ~previous["primary_model_id"].astype(str).isin(swept)
-        ]
+        previous = previous.loc[~previous["primary_model_id"].astype(str).isin(swept)]
         combined = pd.concat([previous, combined], ignore_index=True)
     combined.to_csv(combined_path, index=False)
     print(f"\nWrote {combined_path} ({len(combined)} rows)")

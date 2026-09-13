@@ -36,10 +36,7 @@ SES_ADJUSTERS = (
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-013",
     kind="itt",
-    title=(
-        "SES-adjusted available-case modified ITT estimate of the assigned-arm "
-        "contrast in word reading (W)"
-    ),
+    title=("SES-adjusted available-case modified ITT estimate of the assigned-arm contrast in word reading (W)"),
     outcome_symbol="W",
     adjustment=list(SES_ADJUSTERS),
     model_settings=IttModelSettings(adjust_for=SES_ADJUSTERS),

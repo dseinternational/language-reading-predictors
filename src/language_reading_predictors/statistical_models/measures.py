@@ -77,16 +77,12 @@ MEASURES: dict[str, Measure] = {
     # confirmed ceiling until 2026-08-18; both are now confirmed from the manual.
     #
     # EG - Grammar, 37 whole marks. Observed max 28.
-    "EG": Measure(
-        "EG", V.APTGRAM, 37, "APT expressive grammar (EG)", n_trials_confirmed=True
-    ),
+    "EG": Measure("EG", V.APTGRAM, 37, "APT expressive grammar (EG)", n_trials_confirmed=True),
     # EI - Information, 40 marks with half marks on some items, so the modelled
     # count is the doubled half-mark scale out of 80 (exact: every observed
     # fractional part is 0.5). Observed max 37.5 -> 75 of 80. See
     # ``preprocessing.add_apt_derived_scores``.
-    "EI": Measure(
-        "EI", V.APTINFO_X2, 80, "APT expressive information, half marks (EI)", n_trials_confirmed=True
-    ),
+    "EI": Measure("EI", V.APTINFO_X2, 80, "APT expressive information, half marks (EI)", n_trials_confirmed=True),
     # EI40 - the same instrument rounded to whole marks out of 40: the registered
     # denominator-sensitivity comparator for EI, not a separate construct.
     "EI40": Measure(
@@ -111,11 +107,17 @@ MEASURES: dict[str, Measure] = {
     # Taught tests: "Six words of each type (nouns, adverbs, adjectives,
     # prepositions)" = 24 items; the paper tabulates the maximum as (24).
     "TE": Measure(
-        "TE", V.B1EXTAU, 24, "Taught expressive vocabulary, block 1 (b1extau)",
+        "TE",
+        V.B1EXTAU,
+        24,
+        "Taught expressive vocabulary, block 1 (b1extau)",
         n_trials_confirmed=True,
     ),
     "TR": Measure(
-        "TR", V.B1RETAU, 24, "Taught receptive vocabulary, block 1 (b1retau)",
+        "TR",
+        V.B1RETAU,
+        24,
+        "Taught receptive vocabulary, block 1 (b1retau)",
         n_trials_confirmed=True,
     ),
     # Not-taught comparison sets. Confirmed against the RLI assessment word list
@@ -126,11 +128,17 @@ MEASURES: dict[str, Measure] = {
     # undocumented until the word list resolved it.) 12 is the denominator for
     # both the expressive (b1exnt) and receptive (b1rent) not-taught tests.
     "UE": Measure(
-        "UE", V.B1EXNT, 12, "Not-taught expressive vocabulary, block 1 (b1exnt)",
+        "UE",
+        V.B1EXNT,
+        12,
+        "Not-taught expressive vocabulary, block 1 (b1exnt)",
         n_trials_confirmed=True,
     ),
     "UR": Measure(
-        "UR", V.B1RENT, 12, "Not-taught receptive vocabulary, block 1 (b1rent)",
+        "UR",
+        V.B1RENT,
+        12,
+        "Not-taught receptive vocabulary, block 1 (b1rent)",
         n_trials_confirmed=True,
     ),
     # --- Block-2 taught-vocabulary tests (block-exposure family `bx`) ----------
@@ -147,19 +155,31 @@ MEASURES: dict[str, Measure] = {
     # as block 1, so ``n_trials_confirmed=True``. (The one corrupt b2rent cell > 12 is
     # a separate source-data fix, handled by the UR2 loader drop.)
     "TE2": Measure(
-        "TE2", V.B2EXTAU, 24, "Taught expressive vocabulary, block 2 (b2extau)",
+        "TE2",
+        V.B2EXTAU,
+        24,
+        "Taught expressive vocabulary, block 2 (b2extau)",
         n_trials_confirmed=True,
     ),
     "TR2": Measure(
-        "TR2", V.B2RETAU, 24, "Taught receptive vocabulary, block 2 (b2retau)",
+        "TR2",
+        V.B2RETAU,
+        24,
+        "Taught receptive vocabulary, block 2 (b2retau)",
         n_trials_confirmed=True,
     ),
     "UE2": Measure(
-        "UE2", V.B2EXNT, 12, "Not-taught expressive vocabulary, block 2 (b2exnt)",
+        "UE2",
+        V.B2EXNT,
+        12,
+        "Not-taught expressive vocabulary, block 2 (b2exnt)",
         n_trials_confirmed=True,
     ),
     "UR2": Measure(
-        "UR2", V.B2RENT, 12, "Not-taught receptive vocabulary, block 2 (b2rent)",
+        "UR2",
+        V.B2RENT,
+        12,
+        "Not-taught receptive vocabulary, block 2 (b2rent)",
         n_trials_confirmed=True,
     ),
 }
@@ -245,9 +265,7 @@ def is_distal(symbol: str | None) -> bool:
 # (which works in symbols) should test outcome symbols against. SP (speech) and
 # RW (phonological memory) are DAG-only nodes with no registered outcome measure,
 # so they map to no symbol.
-HS_CHILDREN_DAG_NODES: frozenset[str] = frozenset(
-    {"TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"}
-)
+HS_CHILDREN_DAG_NODES: frozenset[str] = frozenset({"TR", "RV", "TE", "EV", "SP", "RW", "PA", "LS"})
 """DAG children of hearing status (`HS`) under the 2026-07-10 revision, in DAG-node
 names (RV/EV/PA/LS, *not* this module's measure symbols). For symbol-keyed
 membership use :data:`HS_CHILD_SYMBOLS`."""
@@ -260,7 +278,17 @@ SP/RW are DAG-only nodes (no outcome measure) and so are absent here."""
 
 
 LRPITT_OUTCOMES: tuple[str, ...] = (
-    "TR", "TE", "UR", "UE", "R", "E", "L", "B", "P", "W", "N",
+    "TR",
+    "TE",
+    "UR",
+    "UE",
+    "R",
+    "E",
+    "L",
+    "B",
+    "P",
+    "W",
+    "N",
 )
 """The eleven RCT-phase outcomes of the available-case modified ITT suite (#119),
 in LRPITT01-LRPITT11 order: taught/not-taught receptive & expressive vocabulary,
@@ -349,8 +377,7 @@ def rope_delta(symbol: str) -> float:
     """
     if symbol not in ROPE_DELTA:
         raise KeyError(
-            f"No items-scale ROPE delta set for {symbol!r}; floored outcomes (P/N) "
-            "use ROPE_DELTA_PROB instead."
+            f"No items-scale ROPE delta set for {symbol!r}; floored outcomes (P/N) use ROPE_DELTA_PROB instead."
         )
     return ROPE_DELTA[symbol]
 

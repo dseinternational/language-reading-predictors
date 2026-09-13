@@ -90,17 +90,13 @@ class GrowthModelSettings:
 
     def __post_init__(self) -> None:
         require_declared_booleans(self)
-        object.__setattr__(
-            self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes")
-        )
+        object.__setattr__(self, "outcomes", _tuple_of_strings(self.outcomes, name="outcomes"))
         if not self.outcomes:
             raise ValueError("outcomes must list at least one measure")
         if not isinstance(self.baseline_covariate, str) or not self.baseline_covariate:
             raise TypeError("baseline_covariate must be a non-empty string")
         if self.waves is not None:
-            if isinstance(self.waves, (str, bytes)) or not hasattr(
-                self.waves, "__iter__"
-            ):
+            if isinstance(self.waves, (str, bytes)) or not hasattr(self.waves, "__iter__"):
                 raise TypeError("waves must be a sequence of integers or None")
             waves = tuple(self.waves)
             if len(waves) < 2:
@@ -120,9 +116,7 @@ class GrowthModelSettings:
             raise TypeError("min_outcome_waves must be a positive integer")
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> GrowthModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> GrowthModelSettings:
         """Strictly translate the former ``spec.extra`` dictionary boundary.
 
         Rejects unknown keys so a misspelling fails before data loading rather than
@@ -145,9 +139,7 @@ class GrowthModelSettings:
             baseline_scale=extra.get("baseline_scale", "raw"),
             min_outcome_waves=extra.get("min_outcome_waves", 1),
             adjust_for_group=extra.get("adjust_for_group", False),
-            observation_influence_sensitivity=extra.get(
-                "observation_influence_sensitivity", False
-            ),
+            observation_influence_sensitivity=extra.get("observation_influence_sensitivity", False),
         )
 
 
@@ -236,14 +228,10 @@ def declared_growth_settings(spec: ModelSpec) -> tuple[GrowthModelSettings, str]
     settings = spec.model_settings
     if settings is not None:
         if spec.extra:
-            raise ValueError(
-                f"{spec.model_id}: growth settings cannot be split between "
-                "model_settings and extra"
-            )
+            raise ValueError(f"{spec.model_id}: growth settings cannot be split between model_settings and extra")
         if not isinstance(settings, GrowthModelSettings):
             raise TypeError(
-                f"{spec.model_id}: kind='growth' requires GrowthModelSettings, got "
-                f"{type(settings).__name__}"
+                f"{spec.model_id}: kind='growth' requires GrowthModelSettings, got {type(settings).__name__}"
             )
         return settings, "typed"
     return (
@@ -260,45 +248,28 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
     settings, source = declared_growth_settings(spec)
 
     if spec.study_id not in {"rli", "rlm"}:
-        raise ValueError(
-            f"{spec.model_id}: growth supports study_id 'rli' or 'rlm', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: growth supports study_id 'rli' or 'rlm', got {spec.study_id!r}")
     study_id: Literal["rli", "rlm"] = spec.study_id
     waves = settings.waves or ((1, 2, 3, 4) if study_id == "rli" else (1, 2, 3))
 
     if settings.min_outcome_waves > len(waves):
-        raise ValueError(
-            f"{spec.model_id}: min_outcome_waves cannot exceed the number of waves"
-        )
+        raise ValueError(f"{spec.model_id}: min_outcome_waves cannot exceed the number of waves")
 
     # Settings-only identification constraint, so it must fail here rather than in
     # the factory (#455): with one outcome the rank-1 tempo factor is just a second
     # random-slope term duplicating sigma_slope — an unidentified variance split.
     if settings.use_shared_factor and len(settings.outcomes) < 2:
-        raise ValueError(
-            f"{spec.model_id}: a shared growth-tempo factor needs at least two "
-            "trajectory outcomes"
-        )
+        raise ValueError(f"{spec.model_id}: a shared growth-tempo factor needs at least two trajectory outcomes")
 
     if study_id == "rli":
         if waves != (1, 2, 3, 4):
-            raise ValueError(
-                f"{spec.model_id}: the RLI growth port requires waves (1, 2, 3, 4)"
-            )
+            raise ValueError(f"{spec.model_id}: the RLI growth port requires waves (1, 2, 3, 4)")
         if settings.baseline_scale != "raw":
-            raise ValueError(
-                f"{spec.model_id}: the RLI growth port requires baseline_scale='raw'"
-            )
+            raise ValueError(f"{spec.model_id}: the RLI growth port requires baseline_scale='raw'")
         if settings.min_outcome_waves != 1:
-            raise ValueError(
-                f"{spec.model_id}: the RLI growth port requires min_outcome_waves=1"
-            )
+            raise ValueError(f"{spec.model_id}: the RLI growth port requires min_outcome_waves=1")
         if settings.adjust_for_group:
-            raise ValueError(
-                f"{spec.model_id}: the RLI growth port does not use group nuisance "
-                "trajectories"
-            )
+            raise ValueError(f"{spec.model_id}: the RLI growth port does not use group nuisance trajectories")
     else:
         from language_reading_predictors.statistical_models.datasets import (
             resolve_dataset,
@@ -308,14 +279,11 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
         requested = (*settings.outcomes, settings.baseline_covariate)
         unknown = sorted(set(requested) - set(catalogue))
         if unknown:
-            raise ValueError(
-                f"{spec.model_id}: unregistered RLM measure(s): {', '.join(unknown)}"
-            )
+            raise ValueError(f"{spec.model_id}: unregistered RLM measure(s): {', '.join(unknown)}")
         unresolved = [
             symbol
             for symbol in requested
-            if not catalogue[symbol].n_trials_confirmed
-            or not catalogue[symbol].instrument_identity_confirmed
+            if not catalogue[symbol].n_trials_confirmed or not catalogue[symbol].instrument_identity_confirmed
         ]
         if unresolved:
             raise ValueError(
@@ -325,15 +293,13 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
         baseline_waves = catalogue[settings.baseline_covariate].available_waves
         if baseline_waves and 1 not in baseline_waves:
             raise ValueError(
-                f"{spec.model_id}: baseline measure {settings.baseline_covariate} "
-                "has no source value at wave 1"
+                f"{spec.model_id}: baseline measure {settings.baseline_covariate} has no source value at wave 1"
             )
         insufficient_outcomes = [
             symbol
             for symbol in settings.outcomes
             if catalogue[symbol].available_waves
-            and len(set(waves) & set(catalogue[symbol].available_waves))
-            < settings.min_outcome_waves
+            and len(set(waves) & set(catalogue[symbol].available_waves)) < settings.min_outcome_waves
         ]
         if insufficient_outcomes:
             raise ValueError(
@@ -342,30 +308,17 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
                 f"{settings.min_outcome_waves} source waves in the requested window"
             )
         if settings.baseline_covariate in settings.outcomes:
-            raise ValueError(
-                f"{spec.model_id}: the baseline ability measure cannot also be a "
-                "trajectory outcome"
-            )
+            raise ValueError(f"{spec.model_id}: the baseline ability measure cannot also be a trajectory outcome")
         if waves != (1, 2, 3):
             raise ValueError(
-                f"{spec.model_id}: the primary Byrne growth port requires the "
-                "paper-compatible waves (1, 2, 3)"
+                f"{spec.model_id}: the primary Byrne growth port requires the paper-compatible waves (1, 2, 3)"
             )
         if settings.baseline_scale != "logit_safe":
-            raise ValueError(
-                f"{spec.model_id}: bounded RLM baseline measures require "
-                "baseline_scale='logit_safe'"
-            )
+            raise ValueError(f"{spec.model_id}: bounded RLM baseline measures require baseline_scale='logit_safe'")
         if settings.min_outcome_waves < 2:
-            raise ValueError(
-                f"{spec.model_id}: RLM growth requires at least two observed outcome "
-                "waves per child"
-            )
+            raise ValueError(f"{spec.model_id}: RLM growth requires at least two observed outcome waves per child")
         if not settings.adjust_for_group:
-            raise ValueError(
-                f"{spec.model_id}: pooled RLM growth requires reading-group nuisance "
-                "trajectories"
-            )
+            raise ValueError(f"{spec.model_id}: pooled RLM growth requires reading-group nuisance trajectories")
         if settings.use_random_slope:
             raise ValueError(
                 f"{spec.model_id}: the three-wave single-outcome Byrne port uses "
@@ -433,8 +386,7 @@ def resolve_growth_run_plan(spec: ModelSpec) -> GrowthRunPlan:
             "waves 1-3."
         )
     missing_data_assumption = (
-        "Masked outcome cells are assumed ignorable given the modelled trajectory "
-        "and baseline covariate."
+        "Masked outcome cells are assumed ignorable given the modelled trajectory and baseline covariate."
         if study_id == "rli"
         else "Available-case baseline selection plus masked outcome cells under "
         "ignorable missingness: retained missing wave scores are assumed ignorable "
@@ -514,9 +466,7 @@ def exclude_growth_observation_cells(panel: Any, observation_indices: Any) -> An
     """
     raw = np.asarray(observation_indices)
     if raw.ndim != 1 or raw.size == 0:
-        raise ValueError(
-            "observation_indices must be a non-empty one-dimensional array"
-        )
+        raise ValueError("observation_indices must be a non-empty one-dimensional array")
     if not np.issubdtype(raw.dtype, np.integer):
         raise TypeError("observation_indices must contain integers")
     indices = raw.astype(int)
@@ -527,26 +477,14 @@ def exclude_growth_observation_cells(panel: Any, observation_indices: Any) -> An
         return int(np.asarray(value).item())
 
     mapping = growth_observation_index(panel)
-    cells = {
-        _integer(row.observation_index): row
-        for row in mapping.itertuples(index=False)
-    }
+    cells = {_integer(row.observation_index): row for row in mapping.itertuples(index=False)}
     unknown = sorted(set(indices) - set(cells))
     if unknown:
         raise IndexError(f"growth observation index out of range: {unknown}")
 
-    masks = {
-        name: np.array(value, dtype=bool, copy=True)
-        for name, value in panel.obs_mask.items()
-    }
-    counts = {
-        name: np.array(value, dtype=float, copy=True)
-        for name, value in panel.counts.items()
-    }
-    logits = {
-        name: np.array(value, dtype=float, copy=True)
-        for name, value in panel.logit.items()
-    }
+    masks = {name: np.array(value, dtype=bool, copy=True) for name, value in panel.obs_mask.items()}
+    counts = {name: np.array(value, dtype=float, copy=True) for name, value in panel.counts.items()}
+    logits = {name: np.array(value, dtype=float, copy=True) for name, value in panel.logit.items()}
     wave_lookup = {int(wave): index for index, wave in enumerate(panel.waves)}
     for index in indices:
         cell = cells[int(index)]
@@ -565,9 +503,7 @@ def exclude_growth_observation_cells(panel: Any, observation_indices: Any) -> An
         dropped_by_reason["all_observed_cells_high_pareto"] = n_fully_excluded
 
     def _slice_dict(values: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-        return {
-            name: np.asarray(value)[keep].copy() for name, value in values.items()
-        }
+        return {name: np.asarray(value)[keep].copy() for name, value in values.items()}
 
     return replace(
         panel,
@@ -582,11 +518,7 @@ def exclude_growth_observation_cells(panel: Any, observation_indices: Any) -> An
         dose_std=np.asarray(panel.dose_std)[keep].copy(),
         baseline=_slice_dict(panel.baseline),
         baseline_raw=_slice_dict(panel.baseline_raw),
-        group=(
-            np.asarray(panel.group)[keep].copy()
-            if panel.group is not None
-            else None
-        ),
+        group=(np.asarray(panel.group)[keep].copy() if panel.group is not None else None),
         child_covariates=_slice_dict(panel.child_covariates),
         wave_covariates=_slice_dict(panel.wave_covariates),
         excluded_children=panel.excluded_children + n_fully_excluded,
@@ -613,9 +545,7 @@ def growth_influence_summary(
         missing = ", ".join(sorted(required - set(excluded_cells.columns)))
         raise ValueError(f"excluded_cells lacks required columns: {missing}")
     if excluded_cells.empty:
-        raise ValueError(
-            "growth influence summary requires at least one excluded cell"
-        )
+        raise ValueError("growth influence summary requires at least one excluded cell")
     if n_fully_excluded_children < 0:
         raise ValueError("n_fully_excluded_children cannot be negative")
 
@@ -623,23 +553,17 @@ def growth_influence_summary(
         try:
             values = trace.posterior[coefficient].sel(outcome=outcome)
         except (AttributeError, KeyError) as exc:
-            raise KeyError(
-                f"trace lacks {coefficient!r} for outcome {outcome!r}"
-            ) from exc
+            raise KeyError(f"trace lacks {coefficient!r} for outcome {outcome!r}") from exc
         return np.asarray(values, dtype=float).ravel()
 
-    outcomes = [
-        str(value) for value in primary_trace.posterior["gamma"].outcome.values
-    ]
+    outcomes = [str(value) for value in primary_trace.posterior["gamma"].outcome.values]
     rows: list[dict[str, Any]] = []
     for coefficient in ("gamma", "delta"):
         for outcome in outcomes:
             primary = _draws(primary_trace, coefficient, outcome)
             sensitivity = _draws(sensitivity_trace, coefficient, outcome)
             primary_lo, primary_hi = np.quantile(primary, (0.055, 0.945))
-            sensitivity_lo, sensitivity_hi = np.quantile(
-                sensitivity, (0.055, 0.945)
-            )
+            sensitivity_lo, sensitivity_hi = np.quantile(sensitivity, (0.055, 0.945))
             primary_median = float(np.median(primary))
             sensitivity_median = float(np.median(sensitivity))
             rows.append(
@@ -655,17 +579,10 @@ def growth_influence_summary(
                     "sensitivity_hi89": float(sensitivity_hi),
                     "sensitivity_prob_positive": float(np.mean(sensitivity > 0)),
                     "median_shift": sensitivity_median - primary_median,
-                    "median_direction_stable": bool(
-                        np.sign(primary_median) == np.sign(sensitivity_median)
-                    ),
-                    "intervals_overlap": bool(
-                        max(primary_lo, sensitivity_lo)
-                        <= min(primary_hi, sensitivity_hi)
-                    ),
+                    "median_direction_stable": bool(np.sign(primary_median) == np.sign(sensitivity_median)),
+                    "intervals_overlap": bool(max(primary_lo, sensitivity_lo) <= min(primary_hi, sensitivity_hi)),
                     "n_excluded_cells": int(len(excluded_cells)),
-                    "n_excluded_children": int(
-                        excluded_cells["subject_id"].nunique()
-                    ),
+                    "n_excluded_children": int(excluded_cells["subject_id"].nunique()),
                     "n_fully_excluded_children": int(n_fully_excluded_children),
                     "sensitivity_converged": sensitivity_converged,
                 }

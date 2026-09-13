@@ -29,6 +29,10 @@ Usage::
 
 from __future__ import annotations
 
+from language_reading_predictors.statistical_models.summaries import itt as _itt_summary
+from language_reading_predictors.statistical_models.summaries import rope as _rope_summary
+
+
 import argparse
 import os
 import shutil
@@ -41,8 +45,8 @@ import pymc as pm
 from scipy import stats
 
 from language_reading_predictors import paths as _paths
-from language_reading_predictors.statistical_models import reporting as _report
-from language_reading_predictors.statistical_models.factories import build_itt_model
+
+from language_reading_predictors.statistical_models.factories.itt import build_itt_model
 from language_reading_predictors.statistical_models.itt import resolve_itt_run_plan
 from language_reading_predictors.statistical_models.measures import MEASURES, ROPE_DELTA
 from language_reading_predictors.statistical_models.preprocessing import load_and_prepare
@@ -79,11 +83,7 @@ LAM_MOD = stats.norm.ppf(0.90)  # 1.28 -> pd 0.90
 def _prepare_and_build(spec):
     plan = resolve_itt_run_plan(spec)
     prepared = load_and_prepare(**plan.prepare_kwargs())
-    effective_adjustment = tuple(
-        covariate
-        for covariate in plan.adjust_for
-        if covariate in prepared.covariates
-    )
+    effective_adjustment = tuple(covariate for covariate in plan.adjust_for if covariate in prepared.covariates)
     return build_itt_model(
         prepared,
         **plan.factory_kwargs(effective_adjustment=effective_adjustment),
@@ -105,19 +105,13 @@ def _refit_convergence(model, idata) -> dict:
     except Exception:  # pragma: no cover - defensive
         max_rhat, min_ess = float("nan"), float("nan")
     converged = bool(
-        np.isfinite(max_rhat)
-        and max_rhat <= 1.01
-        and np.isfinite(min_ess)
-        and min_ess >= 400
-        and n_div == 0
+        np.isfinite(max_rhat) and max_rhat <= 1.01 and np.isfinite(min_ess) and min_ess >= 400 and n_div == 0
     )
     return dict(max_rhat=max_rhat, min_ess=min_ess, n_div=n_div, converged=converged)
 
 
 def fit_outcome(mod_name, sym, draws, tune, chains, seed):
-    module = __import__(
-        f"language_reading_predictors.statistical_models.{mod_name}", fromlist=["SPEC"]
-    )
+    module = __import__(f"language_reading_predictors.statistical_models.{mod_name}", fromlist=["SPEC"])
     built = _prepare_and_build(module.SPEC)
     with built.model:
         idata = pm.sample(
@@ -134,7 +128,7 @@ def fit_outcome(mod_name, sym, draws, tune, chains, seed):
     G = np.asarray(built.prepared.G)
     n_trials = int(built.prepared.n_trials[sym])
     # Per-draw items-scale average marginal effect (shared core).
-    _, ame_prob = _report._itt_ame_draws(trace, G=G)
+    _, ame_prob = _itt_summary._itt_ame_draws(trace, G=G)
     items = ame_prob * n_trials
     # Record convergence for this refit: the evidence-strength note is built from
     # these tau/s, so a silently non-converged refit must be surfaced and must
@@ -181,16 +175,19 @@ def _tier_color(lam):
 
 def figure_design_analysis(results, out_png, out_pdf):
     label_off = {
-        "L": (7, 5), "W": (8, 9), "TE": (9, -14), "B": (-20, 10),
-        "TR": (8, 7), "UR": (-22, -14), "UE": (8, 5),
+        "L": (7, 5),
+        "W": (8, 9),
+        "TE": (9, -14),
+        "B": (-20, 10),
+        "TR": (8, 7),
+        "UR": (-22, -14),
+        "UE": (8, 5),
     }
     xs = np.linspace(0.4, 4.0, 500)
     typem = np.array([retrodesign(x)[2] for x in xs])
     types = np.array([retrodesign(x)[1] for x in xs]) * 100.0
 
-    fig, (ax1, ax2) = plt.subplots(
-        2, 1, figsize=(8.6, 8.8), sharex=True, gridspec_kw={"hspace": 0.13}
-    )
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8.6, 8.8), sharex=True, gridspec_kw={"hspace": 0.13})
 
     def bands(ax):
         ax.axvspan(LAM_STRONG, 4.0, color=C_STRONG, alpha=0.06)
@@ -212,9 +209,13 @@ def figure_design_analysis(results, out_png, out_pdf):
         col = _tier_color(lam)
         ax1.scatter([lam], [m], s=70, color=col, edgecolor="white", lw=1.1, zorder=5)
         ax1.annotate(
-            r["sym"], (lam, m), textcoords="offset points",
-            xytext=label_off.get(r["sym"], (6, 5)), fontsize=9.5,
-            fontweight="bold", color=col,
+            r["sym"],
+            (lam, m),
+            textcoords="offset points",
+            xytext=label_off.get(r["sym"], (6, 5)),
+            fontsize=9.5,
+            fontweight="bold",
+            color=col,
         )
 
     bands(ax2)
@@ -259,11 +260,11 @@ def figure_rope(results, out_png, out_pdf):
         sym = r["sym"]
         delta = ROPE_DELTA[sym]
         item_word = "item" if delta == 1 else "items"
-        axL.axvspan(-delta, delta, color=colors[sym], alpha=0.10,
-                    label=f"{sym} ROPE (|effect| < {delta:g} {item_word})")
+        axL.axvspan(
+            -delta, delta, color=colors[sym], alpha=0.10, label=f"{sym} ROPE (|effect| < {delta:g} {item_word})"
+        )
         kde = stats.gaussian_kde(r["items"])
-        axL.plot(xgrid, kde(xgrid), color=colors[sym], lw=2.4,
-                 label=f"{sym} {LABELS[sym]}")
+        axL.plot(xgrid, kde(xgrid), color=colors[sym], lw=2.4, label=f"{sym} {LABELS[sym]}")
         axL.fill_between(xgrid, kde(xgrid), color=colors[sym], alpha=0.12)
     axL.set_xlabel("treatment effect (extra test items correct)")
     axL.set_ylabel("posterior density")
@@ -298,7 +299,7 @@ def print_cards(results):
     for sym in ("L", "W"):
         r = by[sym]
         delta = ROPE_DELTA[sym]
-        s = _report.rope_summary(r["trace"], G=r["G"], n_trials=r["n_trials"], delta=delta)
+        s = _rope_summary.rope_summary(r["trace"], G=r["G"], n_trials=r["n_trials"], delta=delta)
         print(
             f"{sym} {LABELS[sym]} (n={r['n']}, {r['n_trials']} items, delta={delta:g})\n"
             f"  items: median {s['items_median']:+.2f}  "
@@ -344,16 +345,15 @@ def main():
     print("\n" + "=" * 78)
     print(f"{'outcome':26s} {'n':>4s} {'tau':>8s} {'s':>7s} {'|t|/s':>7s}")
     for r in sorted(results, key=lambda x: -abs(x["mean"] / x["sd"])):
-        print(f"{r['sym']+' '+LABELS[r['sym']]:26.26s} {r['n']:4d} "
-              f"{r['mean']:8.3f} {r['sd']:7.3f} {abs(r['mean']/r['sd']):7.2f}")
+        print(
+            f"{r['sym'] + ' ' + LABELS[r['sym']]:26.26s} {r['n']:4d} "
+            f"{r['mean']:8.3f} {r['sd']:7.3f} {abs(r['mean'] / r['sd']):7.2f}"
+        )
 
     print("\nconvergence (refits, issue #274):")
     for r in sorted(results, key=lambda x: x["sym"]):
         flag = "OK" if r["converged"] else "REVIEW"
-        print(
-            f"  {r['sym']:3s} max R-hat={r['max_rhat']:.4f} "
-            f"min ESS={r['min_ess']:.0f} div={r['n_div']}  [{flag}]"
-        )
+        print(f"  {r['sym']:3s} max R-hat={r['max_rhat']:.4f} min ESS={r['min_ess']:.0f} div={r['n_div']}  [{flag}]")
     all_converged = all(r["converged"] for r in results)
 
     da_png = os.path.join(out_dir, "type_s_m_design_analysis.png")

@@ -49,9 +49,7 @@ def _summarize(values: np.ndarray) -> dict[str, float]:
     }
 
 
-def observed_baseline(
-    panel: LongitudinalPanel, measure: str, measure_label: str
-) -> pd.DataFrame:
+def observed_baseline(panel: LongitudinalPanel, measure: str, measure_label: str) -> pd.DataFrame:
     """Observed group-by-wave means/SDs/counts for ``measure``.
 
     One row per group with ``time_{w}_mean`` / ``time_{w}_sd`` / ``time_{w}_n``
@@ -79,19 +77,13 @@ def observed_baseline(
         for wave in panel.all_waves:
             values = part.loc[part[wave_c] == wave, measure].dropna()
             row[f"time_{wave}_n"] = int(len(values))
-            row[f"time_{wave}_mean"] = (
-                float(values.mean()) if len(values) else float("nan")
-            )
-            row[f"time_{wave}_sd"] = (
-                float(values.std(ddof=1)) if len(values) > 1 else float("nan")
-            )
+            row[f"time_{wave}_mean"] = float(values.mean()) if len(values) else float("nan")
+            row[f"time_{wave}_sd"] = float(values.std(ddof=1)) if len(values) > 1 else float("nan")
         rows.append(row)
     return pd.DataFrame(rows)
 
 
-def _cell_obs_index(
-    panel: LongitudinalPanel, label: str, wave: int, subjects: set | None = None
-) -> np.ndarray:
+def _cell_obs_index(panel: LongitudinalPanel, label: str, wave: int, subjects: set | None = None) -> np.ndarray:
     """Row positions of one (group, wave) cell, optionally restricted to ``subjects``.
 
     The result indexes the trace's ``obs`` dimension positionally, so it must be
@@ -101,9 +93,7 @@ def _cell_obs_index(
     another cell's draws (2026-08-21 review).
     """
     df = panel.long
-    mask = (df[panel.group_label_col] == label) & (
-        df[panel.dataset.wave_col] == wave
-    )
+    mask = (df[panel.group_label_col] == label) & (df[panel.dataset.wave_col] == wave)
     if subjects is not None:
         mask &= df[panel.dataset.subject_col].isin(subjects)
     return np.flatnonzero(mask.to_numpy())
@@ -143,9 +133,7 @@ def _cell_values(
 def _cell_subjects(panel: LongitudinalPanel, label: str, wave: int) -> set:
     """Subjects observed in one (group, wave) cell."""
     df = panel.long
-    mask = (df[panel.group_label_col] == label) & (
-        df[panel.dataset.wave_col] == wave
-    )
+    mask = (df[panel.group_label_col] == label) & (df[panel.dataset.wave_col] == wave)
     return set(df.loc[mask, panel.dataset.subject_col])
 
 
@@ -207,9 +195,7 @@ def cell_summary(
         if len(audit_row) != 1:
             raise ValueError(f"Expected one baseline row for group {label!r}.")
         audit_row = audit_row.iloc[0]
-        fitted = _summarize(
-            _cell_values(posterior, panel, label, wave, fitted_var=fitted_var)
-        )
+        fitted = _summarize(_cell_values(posterior, panel, label, wave, fitted_var=fitted_var))
         pop = _summarize(population.isel(cell=cell_pos[(code, wave)]).values)
         observed_mean = float(audit_row[f"time_{wave}_mean"])
         rows.append(
@@ -274,26 +260,16 @@ def growth_summary(
     common = _common_waves(panel, measure)
 
     def _interval(label: str, start: int, end: int) -> dict[str, Any] | None:
-        subjects = _cell_subjects(panel, label, start) & _cell_subjects(
-            panel, label, end
-        )
+        subjects = _cell_subjects(panel, label, start) & _cell_subjects(panel, label, end)
         if not subjects:
             # No child bridges the two waves, so this interval has no matched
             # comparison to make. Skip it rather than raising: the summaries run
             # after sampling, and losing the whole fit to one unsupported
             # interval would be a poor trade (2026-08-21 review).
             return None
-        start_vals = _cell_values(
-            posterior, panel, label, start, subjects, fitted_var=fitted_var
-        )
-        end_vals = _cell_values(
-            posterior, panel, label, end, subjects, fitted_var=fitted_var
-        )
-        window = (
-            "core"
-            if (start in panel.waves and end in panel.waves)
-            else "extension"
-        )
+        start_vals = _cell_values(posterior, panel, label, start, subjects, fitted_var=fitted_var)
+        end_vals = _cell_values(posterior, panel, label, end, subjects, fitted_var=fitted_var)
+        window = "core" if (start in panel.waves and end in panel.waves) else "extension"
         return {
             "readgrp_label": label,
             "window": window,
@@ -326,19 +302,13 @@ def growth_summary(
         start, end = common[0], common[-1]
         total = {}
         n_common: dict[str, int] = {}
-        window = (
-            "core" if (start in panel.waves and end in panel.waves) else "extension"
-        )
+        window = "core" if (start in panel.waves and end in panel.waves) else "extension"
         for label in panel.group_labels:
-            subjects = _cell_subjects(panel, label, start) & _cell_subjects(
-                panel, label, end
-            )
+            subjects = _cell_subjects(panel, label, start) & _cell_subjects(panel, label, end)
             if not subjects:
                 continue
             n_common[label] = len(subjects)
-            total[label] = _cell_values(
-                posterior, panel, label, end, subjects, fitted_var=fitted_var
-            ) - _cell_values(
+            total[label] = _cell_values(posterior, panel, label, end, subjects, fitted_var=fitted_var) - _cell_values(
                 posterior, panel, label, start, subjects, fitted_var=fitted_var
             )
             # Publish each group's own total over the common window when the
@@ -365,9 +335,7 @@ def growth_summary(
                 rows.append(
                     {
                         "quantity": f"total_growth_{b}_minus_{a}",
-                        "label": (
-                            f"Total growth (waves {start}-{end}): {b} minus {a}"
-                        ),
+                        "label": (f"Total growth (waves {start}-{end}): {b} minus {a}"),
                         "readgrp_label": "",
                         "window": window,
                         "n_subjects": pd.NA,

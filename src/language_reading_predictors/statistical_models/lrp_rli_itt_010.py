@@ -24,10 +24,7 @@ from language_reading_predictors.statistical_models.pipelines.itt import fit_itt
 SPEC = ModelSpec(
     model_id="lrp-rli-itt-010",
     kind="itt",
-    title=(
-        "Available-case modified ITT estimate of the assigned-arm contrast in "
-        "word reading (W)"
-    ),
+    title=("Available-case modified ITT estimate of the assigned-arm contrast in word reading (W)"),
     outcome_symbol="W",
     model_settings=IttModelSettings(missingness_sensitivity=True),
 )

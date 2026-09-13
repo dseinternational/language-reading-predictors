@@ -64,10 +64,7 @@ from language_reading_predictors.statistical_models.pipelines.corr_factor import
 SPEC = ModelSpec(
     model_id="lrp-rli-mm-002",
     kind="corr_factor",
-    title=(
-        "Errors-in-variables code->word-reading mechanism "
-        "(latent code factor, mech-058 adjustment)"
-    ),
+    title=("Errors-in-variables code->word-reading mechanism (latent code factor, mech-058 adjustment)"),
     outcome_symbol="W",
     model_settings=CorrFactorModelSettings(
         domains=(
@@ -87,14 +84,14 @@ SPEC = ModelSpec(
             "erbto_missing",
         ),
     ),
-        # mech-058 set on the span frame PLUS RW: G (use_group), age (use_age), own W
-        # baseline (gamma_own), hearing + speech, and phonological memory (erbto).
-        # RW is added because the exposure is a code factor on L AND B, and blending
-        # (PA) has parents letter sounds lacks — RW -> PA — so the L-only mech-058
-        # mirror is insufficient once B joins the exposure (signed off 2026-07-14).
-        # No `blocks` (mech-058 does not adjust for ability); no `attend` (the t1 code
-        # exposure precedes sessions, so IS is not a confounder here — see docstring).
-        # Same small-n latent-factor geometry fix as LRPMM01.
+    # mech-058 set on the span frame PLUS RW: G (use_group), age (use_age), own W
+    # baseline (gamma_own), hearing + speech, and phonological memory (erbto).
+    # RW is added because the exposure is a code factor on L AND B, and blending
+    # (PA) has parents letter sounds lacks — RW -> PA — so the L-only mech-058
+    # mirror is insufficient once B joins the exposure (signed off 2026-07-14).
+    # No `blocks` (mech-058 does not adjust for ability); no `attend` (the t1 code
+    # exposure precedes sessions, so IS is not a confounder here — see docstring).
+    # Same small-n latent-factor geometry fix as LRPMM01.
     target_accept=0.999,
 )
 

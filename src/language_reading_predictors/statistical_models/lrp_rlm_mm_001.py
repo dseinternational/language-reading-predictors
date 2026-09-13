@@ -37,10 +37,7 @@ from language_reading_predictors.statistical_models.pipelines.corr_factor import
 SPEC = ModelSpec(
     model_id="lrp-rlm-mm-001",
     kind="corr_factor",
-    title=(
-        "Byrne correlated domain-factor measurement model, wave 3 "
-        "(reading / language / memory / ability)"
-    ),
+    title=("Byrne correlated domain-factor measurement model, wave 3 (reading / language / memory / ability)"),
     outcome_symbol=None,
     study_id="rlm",
     family="corr_factor",
@@ -61,20 +58,20 @@ SPEC = ModelSpec(
         comm_alpha=2.0,
         comm_beta=2.0,
     ),
-        # Communality parameterisation (#409 item B, the gate rescue): the free
-        # parameter is each indicator's communality c ~ Beta(comm_alpha, comm_beta),
-        # with lambda = sqrt(c) and sigma = sqrt(1 - c) so lambda**2 + sigma**2 = 1
-        # (the unit variance standardised indicators imply). This removes the
-        # over-parameterised lambda-sigma ridge / Heywood corner that gate-failed the
-        # earlier free HalfNormal build (143 divergences, R-hat 1.03). Beta(2, 2) is a
-        # weakly-informative communality prior centred at 0.5 — flagged for review.
-        # Retain target_accept=0.99 as a conservative sampling setting for the
-        # near-collinear wave-3 domains (factor correlations 0.81-0.95). The current
-        # reporting fit passes the full convergence gate with zero divergences; this
-        # specification carries no permanent model-level waiver. Factor correlations
-        # remain covariance and latent-structure headlines, so any future fit must
-        # also clear the zero-divergence policy before release. A higher-order or
-        # single-general-factor model remains the preferred structural investigation.
+    # Communality parameterisation (#409 item B, the gate rescue): the free
+    # parameter is each indicator's communality c ~ Beta(comm_alpha, comm_beta),
+    # with lambda = sqrt(c) and sigma = sqrt(1 - c) so lambda**2 + sigma**2 = 1
+    # (the unit variance standardised indicators imply). This removes the
+    # over-parameterised lambda-sigma ridge / Heywood corner that gate-failed the
+    # earlier free HalfNormal build (143 divergences, R-hat 1.03). Beta(2, 2) is a
+    # weakly-informative communality prior centred at 0.5 — flagged for review.
+    # Retain target_accept=0.99 as a conservative sampling setting for the
+    # near-collinear wave-3 domains (factor correlations 0.81-0.95). The current
+    # reporting fit passes the full convergence gate with zero divergences; this
+    # specification carries no permanent model-level waiver. Factor correlations
+    # remain covariance and latent-structure headlines, so any future fit must
+    # also clear the zero-divergence policy before release. A higher-order or
+    # single-general-factor model remains the preferred structural investigation.
     target_accept=0.99,
 )
 

@@ -76,9 +76,7 @@ def effective_adjustment(
     relabelled as confounders: a moderator that descends from the exposure is not a
     backdoor adjuster, and the record must not imply that it is.
     """
-    requested_adjust_for = (
-        adjust_for if requested_adjust_for is None else requested_adjust_for
-    )
+    requested_adjust_for = adjust_for if requested_adjust_for is None else requested_adjust_for
     terms = []
     for s in skill_baselines:
         # Upstream-skill DAG-parent adjusters, entered as their period baseline
@@ -90,11 +88,7 @@ def effective_adjustment(
         terms.append(
             {
                 "term": f"{s}_pre",
-                "kind": (
-                    "descriptive_associate"
-                    if s in descriptive_skills
-                    else "measure_baseline"
-                ),
+                "kind": ("descriptive_associate" if s in descriptive_skills else "measure_baseline"),
                 "source_column": prepared.column_map.get(s, s),
                 "wave": "pre",
                 "missing_indicator": False,

@@ -1,19 +1,13 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Prior-side artefacts: the prior panel, ``priors_table.csv`` and pushforwards.
-
-Two responsibilities, both prior-side and shared by every family: the pruned
-prior panel plus the per-parameter ``priors_table.csv`` (with the constructor /
-role / rationale overrides that keep the table honest about what a model
-actually registered), and the estimand-scale prior pushforward rows that answer
-"what does this prior imply on the scale the reader cares about". Split out of
-``pipeline.py`` for #394.
-"""
+"""Write declared priors and their implications for the reported quantities."""
 
 from __future__ import annotations
 
-import os
+from language_reading_predictors.statistical_models import predictive_checks as _predictive
+
+
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -25,855 +19,22 @@ from language_reading_predictors.models._reporting import (
     print_table,
     ranked_dataframe_table,
 )
-from language_reading_predictors.statistical_models import (
-    priors as _priors,
-    reporting as _report,
-)
+from language_reading_predictors.statistical_models import priors as _priors
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
-from language_reading_predictors.statistical_models.did import (
-    DiDRunPlan,
-    resolve_did_run_plan,
-)
-from language_reading_predictors.statistical_models.gain_factors import (
-    GainFactorsRunPlan,
-    resolve_gain_factors_run_plan,
-)
-from language_reading_predictors.statistical_models.itt import (
-    IttRunPlan,
-    resolve_itt_run_plan,
-)
-from language_reading_predictors.statistical_models.level_factors import (
-    LevelFactorsRunPlan,
-    resolve_level_factors_run_plan,
-)
-from language_reading_predictors.statistical_models.measures import is_distal
-from language_reading_predictors.statistical_models.mechanism import (
-    MechanismRunPlan,
-    resolve_mechanism_run_plan,
-)
 
 
 def emit_priors(context: StatisticalFitContext) -> None:
-    """Write the pruned prior panel + ``priors_table.csv`` (issue #125 Area 1).
-
-    Only the priors the model actually registered are panelled (no more 4–6 dead
-    panels per model), and ``priors_table.csv`` documents every parameter's
-    distribution, role (causal / precision / association / nuisance / GP) and
-    rationale, driven by the built model so it cannot drift from the source.
-    """
+    """Write the distributions and explanations recorded during construction."""
     model = context.model
-    # Clear stale prior-PDF panels from a previous run so only the used set
-    # remains (one file per named prior; not the prior-predictive / overlay PNGs).
-    for key in _priors.ALL_PRIORS:
-        for ext in ("png", "svg"):
-            stale = os.path.join(context.output_dir, f"prior_{key}.{ext}")
-            try:
-                os.remove(stale)
-            except OSError:
-                pass
-    ctor_overrides, role_overrides, rationale_overrides = _prior_table_overrides(context)
-    _priors.save_shared_prior_panel(
-        context.output_dir,
-        used=_priors.used_prior_keys(model, ctor_overrides=ctor_overrides),
-    )
-    table = _priors.priors_table(
-        model,
-        ctor_overrides=ctor_overrides,
-        role_overrides=role_overrides,
-        rationale_overrides=rationale_overrides,
-    )
+    # Remove density panels only; retain prior predictive and comparison figures.
+    for stale in _priors.prior_density_panel_files(context.output_dir):
+        stale.unlink(missing_ok=True)
+    _priors.save_model_prior_panels(model, context.output_dir)
+    table = _priors.priors_table(model)
     save_table(context, "priors_table", table)
-
-
-def _prior_table_overrides(
-    context: StatisticalFitContext,
-) -> tuple[dict[str, str], dict[str, str], dict[str, str]]:
-    """Context-specific prior-table corrections for reused RV names.
-
-    Some factories reuse a PyMC variable name with a different prior constructor
-    or a different reporting role. Keep the model code stable and teach the
-    artifact writer about those contextual meanings here.
-    """
-    ctor: dict[str, str] = {}
-    role: dict[str, str] = {}
-    rationale: dict[str, str] = {}
-    spec = context.spec
-
-    if spec.kind == "dose_response":
-        ctor.update(
-            {
-                "beta_dose": "beta_mech",
-                "beta_dose_phase": "beta_mech",
-                "mu_dose": "beta_mech",
-                "sigma_dose": "sigma_dose",
-            }
-        )
-        role.update(
-            {
-                "beta_dose": "association",
-                "beta_dose_phase": "association",
-                "mu_dose": "association",
-                "sigma_dose": "nuisance",
-                "beta_arm_late": "association",
-                "beta_dose_between": "association",
-                "alpha_phase_free": "nuisance",
-            }
-        )
-        ctor["beta_dose_between"] = "beta_mech"
-        # role is demoted above, but without a rationale override each RV would
-        # inherit its reused constructor's docstring ("Treatment effect tau…" for
-        # the arm term, "Linear-mechanism slope beta_mech…" for the dose slopes).
-        rationale.update(
-            {
-                "beta_arm_late": (
-                    "Assigned-arm (G) backdoor adjustment in the post-crossover "
-                    "periods only, where both arms are on the intervention and arm "
-                    "reads as intervention order; an adjusted association, not the "
-                    "randomised treatment effect. Period 1's arm difference is "
-                    "carried by theta_treated, with which it would be exactly "
-                    "collinear there (#587)."
-                ),
-                "theta_treated": (
-                    "On-intervention presence — the extensive margin. Read in period "
-                    "1 this is the randomised contrast (every immediate-arm child "
-                    "attended, every waitlist child attended none); it is the only "
-                    "randomisation-identified term in this family."
-                ),
-                "alpha_phase_free": (
-                    "Reference-coded period intercept deviations from period 1 "
-                    "(alpha_phase[1] = 0), so the intercept design has full rank "
-                    "(#587 finding 11)."
-                ),
-                "beta_dose_between": (
-                    "Between-child intensive-margin session association: a child "
-                    "whose study-average attendance is 1 SD higher than another's. "
-                    "Split from the within-child slope Mundlak-style so neither is "
-                    "a blend of the two (#587)."
-                ),
-                "mu_dose": (
-                    "Average (pooled) per-period dose-response slope; outcome-logit "
-                    "change per 1 SD of treated-row sessions — the model's focal "
-                    "adjusted-association estimand, on the intensive margin only."
-                ),
-                "beta_dose_phase": (
-                    "Partial-pooled per-period dose-response slopes; each period's "
-                    "outcome-logit change per 1 SD of treated-row sessions, an "
-                    "adjusted association on the intensive margin."
-                ),
-                "beta_dose": (
-                    "Single pooled dose-response slope (no period variation); the "
-                    "comparator's focal adjusted-association estimand, not a mechanism "
-                    "slope."
-                ),
-            }
-        )
-    elif spec.kind == "gain_factors":
-        plan = getattr(context, "resolved_plan", None)
-        if not isinstance(plan, GainFactorsRunPlan):
-            plan = resolve_gain_factors_run_plan(spec)
-        if plan.moderation_variant:
-            # Moderation variants (#391 finding 3): beta_trt keeps the tau-tier prior
-            # but is never presented as causal — its interaction-aware marginal is
-            # model-dependent (the trt interactions are estimated on all stacked
-            # periods, partly post-crossover). The causal headline lives in the
-            # interaction-free primary; every artefact of a variant fit must agree.
-            role["beta_trt"] = "association"
-            rationale["beta_trt"] = (
-                "On-intervention log-odds contrast inside an explicitly associational "
-                "moderation variant: netted with the fitted treatment interactions it "
-                "is a model-dependent association, partly informed by post-crossover "
-                "data — read the randomised causal headline from the interaction-free "
-                "primary model."
-            )
-    elif spec.kind == "did":
-        plan = getattr(context, "resolved_plan", None)
-        if not isinstance(plan, DiDRunPlan):
-            plan = resolve_did_run_plan(spec)
-        # Time offsets are associations. Both arm gaps after t1 are identified by
-        # the original randomisation, but they are contrasts of *different*
-        # exposures: t2 is treated-versus-untreated, t3 is early-start-versus-
-        # delayed-start treatment schedule (#576 finding 3). The distinct ``regime``
-        # role keeps that difference visible in the priors table instead of
-        # collapsing t3 into the ordinary "adjusted association" bucket, which
-        # misdescribed it as latent-ability-confounded.
-        role["beta_period"] = "association"
-        role["arm_gap_t1"] = "association"
-        role["arm_gap_t3"] = "regime"
-        role["delta_crossover"] = "regime"
-        rationale["beta_period"] = (
-            "Wave/period offset; an age, maturation and treatment-history association, "
-            "not a randomised treatment effect."
-        )
-        rationale["arm_gap_t1"] = (
-            "Pre-randomisation immediate-minus-waitlist balance quantity; regularised "
-            "as an association, not interpreted as an effect."
-        )
-        rationale["tau_t2"] = (
-            "Immediate-minus-waitlist t2 contrast identified by the original "
-            "randomisation: the effect of assignment to immediate treatment versus no "
-            "treatment yet, and the only treated-versus-untreated coefficient in the "
-            "binary crossover model."
-        )
-        rationale["arm_gap_t3"] = (
-            "Randomised t3 contrast between assigned treatment *schedules* — "
-            "early-start (about 40 weeks) versus delayed-start (about 20 weeks). Both "
-            "arms are treated by t3, so it is not a treated-versus-untreated effect; "
-            "randomisation still identifies it, but duration, carryover, maturation, "
-            "ceiling effects and different taught blocks are inseparable within it."
-        )
-        rationale["delta_crossover"] = (
-            "Change between two randomised regime contrasts (t2 gap minus t3 gap); a "
-            "description of how the assigned-arm difference moves after crossover, "
-            "never an identified catch-up mechanism."
-        )
-        rationale["sigma_delta"] = (
-            "Exploratory between-waitlist-child SD of unexplained t3 catch-up; may mix "
-            "response, maturation, history, period shocks and measurement variation."
-        )
-        if not plan.dose:
-            role["tau_t2"] = "causal"
-            if plan.use_intercept_anchor:
-                role["alpha_offset"] = "nuisance"
-                # The empirical-Bayes sentence comes from ``priors`` rather than
-                # being written again here, so the family prose and the suite-wide
-                # label cannot drift (#390 P1, Frank's 2026-07-24 ruling, condition
-                # 2). Scoped to the *anchored* arm-by-wave models, which is correct
-                # rather than incidental: the dose variants and the LRPDID101
-                # independent-prior companion build an ordinary free
-                # ``alpha ~ Normal(0, 1.5)`` and have no anchor to label.
-                rationale["alpha_offset"] = (
-                    "Zero-centred offset around the pooled observed t1 logit anchor; "
-                    "the deterministic alpha is the anchored t1 level. "
-                    f"{_priors.EMPIRICAL_BAYES_SENTENCE}"
-                )
-        if plan.dose:
-            role["beta_group"] = "association"
-            role["theta_treated"] = "association"
-            role["gamma_t1"] = "precision"
-            rationale["beta_group"] = (
-                "Randomised-arm and prior-treatment-history adjustment in the transition "
-                "dose model; not itself the t2 randomised arm contrast."
-            )
-            rationale["theta_treated"] = (
-                "Crossover arm-by-period *cell* contrast at the mean treated dose. "
-                "With treated = (immediate arm) OR (period 2) the four-cell fixed-"
-                "effect design is saturated, so this term is (waitlist P2 - waitlist "
-                "P1) - (immediate P2 - immediate P1): a treatment-timing/history "
-                "association, not a separately identified current-treatment-presence "
-                "effect and not a second available-case modified ITT estimate."
-            )
-            rationale["gamma_t1"] = (
-                "Shared pre-randomisation t1 outcome precision term broadcast to both "
-                "period rows; never the treatment-affected t2 period-start score."
-            )
-            rationale["beta_dose"] = (
-                "Observational intensive-margin association per treated-row SD of raw "
-                "sessions, with untreated rows coded at zero intensity."
-            )
-            rationale["mu_dose"] = (
-                "Hierarchical centre the per-period session slopes are drawn around. "
-                "It is the swept and power-scaled coefficient, not the quantity the "
-                "fit publishes: the headline is the treated-row natural-scale dose "
-                "marginal in dose_marginal_summary.csv (#576 finding 1)."
-            )
-            rationale["beta_dose_phase"] = (
-                "Partial-pooled observational intensive-margin session associations by "
-                "period. The period-2 slope relates period-2 sessions to the t3 "
-                "period-end level conditional on t1; it is not a period-2 gain slope, "
-                "because the treatment-affected t2 period-start score and the prior "
-                "period-1 dose are deliberately omitted."
-            )
-            # Dose slopes now share build_dose_response_model's ``beta_mech`` prior
-            # (Normal(0, 1)) so the shared summary compares like with like.
-            if plan.period_varying:
-                ctor.update(
-                    {
-                        "mu_dose": "beta_mech",
-                        "beta_dose_phase": "beta_mech",
-                        "sigma_dose": "sigma_dose",
-                    }
-                )
-                role.update(
-                    {
-                        "mu_dose": "association",
-                        "beta_dose_phase": "association",
-                        "sigma_dose": "nuisance",
-                    }
-                )
-            else:
-                ctor["beta_dose"] = "beta_mech"
-                role["beta_dose"] = "association"
-    elif spec.kind in ("mediation", "mediation_multi"):
-        # The mediation coefficients ``a_G`` (group→mediator) and ``b_G``
-        # (group→outcome direct path) reuse the ``tau`` constructor's scale but
-        # are structural building blocks of the g-formula, not the reported
-        # estimand: the NDE/NIE come from the counterfactual simulation
-        # (``mediation_summary.csv``), never a raw coefficient. Label them adjusted
-        # associations so the prior table does not imply a bare coefficient is the
-        # reported quantity. The simulated NDE/NIE are **not** causal either: they
-        # are not identified natural effects (latent GA confounds the
-        # mediator->outcome path, and dose ``IS`` is a treatment-induced
-        # mediator-outcome confounder). See the :mod:`mediation` module docstring.
-        role["a_G"] = "association"
-        role["b_G"] = "association"
-        rationale["a_G"] = (
-            "Group->mediator (a-path) coefficient (tau-scaled Normal(0, 0.5)); a "
-            "structural g-formula building block, an adjusted association, not the "
-            "reported estimand."
-        )
-        rationale["b_G"] = (
-            "Group->outcome direct-path (c') coefficient (tau-scaled Normal(0, 0.5)); "
-            "a structural g-formula building block, an adjusted association, not an "
-            "identified natural effect and not the reported estimand."
-        )
-        # B3 (review 2026-07-13; generalised #384). A confounder coefficient in the
-        # a-/b-legs is built from gamma_cross_prior (Normal(0, 0.3)); a genuine
-        # mediator b-path is b_path (Normal(0, 1)) and an own-baseline autoregression
-        # is gamma_own (Normal(1, 0.25)). Reused names are ctor-mapped by NAME to the
-        # wrong panel — b_E/b_B are globally mapped to b_path (mediators) yet are
-        # confounders in LRP66/75; a_L is mapped to gamma_own (own-baseline) yet is a
-        # cross-baseline confounder in LRP68/80 where the own-baseline is a_TE/a_TR —
-        # so the rationale + panel misreport them (the distribution column, read off
-        # the RV, stays correct). Detect confounders by their fitted scale and route
-        # to gamma_cross for BOTH kinds. a_G/b_G (tau, 0.5) and the reported b_M
-        # (b_path, 1.0) never match Normal(0, 0.3), so their explicit labels stand.
-        if context.model is not None:
-            for rv in context.model.free_RVs:
-                # Per-mediator group->mediator a-paths in the two-mediator model are
-                # named a{sym}_G (aL_G / aE_G / aB_G) rather than a_G; they are the
-                # tau-scaled a-paths and otherwise carry an empty rationale.
-                if (
-                    rv.name != "a_G"
-                    and rv.name.startswith("a")
-                    and rv.name.endswith("_G")
-                ):
-                    rationale.setdefault(
-                        rv.name,
-                        "Group->mediator (a-path) coefficient for one mediator "
-                        "(tau-scaled Normal(0, 0.5)); a structural g-formula building "
-                        "block, an adjusted association, not the reported estimand.",
-                    )
-                    continue
-                if rv.name in ("a_G", "b_G"):
-                    continue
-                if not (rv.name.startswith("a_") or rv.name.startswith("b_")):
-                    continue
-                dist = (_priors._dist_from_rv(rv) or "").replace(" ", "")
-                # Scale-string-fragile (#384 review, Frank, non-blocking): this keys
-                # the confounder reroute off the exact ``Normal(0, 0.3)`` scale. The
-                # explicit a_G/b_G (tau 0.5) and reported b_M (b_path 1.0) carve-outs
-                # above never match it, so it is correct today — but a future
-                # confounder built at a different scale, or a genuine reported path
-                # that happens to be Normal(0, 0.3), would be silently mislabelled.
-                # Labelling-only risk; no estimand is affected.
-                if dist == "Normal(0,0.3)":
-                    ctor[rv.name] = "gamma_cross"
-                    role[rv.name] = "association"
-                    rationale[rv.name] = (
-                        "Cross-baseline confounder coupling in the mediation legs "
-                        "(Normal(0, 0.3)); an adjusted association, not a mediator "
-                        "a-/b-path and not the reported estimand."
-                    )
-        # Period-stacked two-mediator model (med-092). b_trt (direct path, tau 0.5)
-        # and b_phase (per-phase offset, Normal(0, 0.5)) are not rerouted above (not
-        # 0.3) but would inherit empty/misleading rationales; b_trtM (exposure x
-        # mediator, gamma_cross 0.3) IS rerouted above but wants a specific
-        # description. These names are unique to med-092, so the overrides are inert
-        # on other models (no matching row). Set after the loop so b_trtM wins.
-        rationale["b_trt"] = (
-            "Per-period on-intervention direct-path coefficient (tau-scaled "
-            "Normal(0, 0.5)); a structural g-formula building block leaning on "
-            "gain-factor ignorability, an adjusted association, not a cross-baseline "
-            "coupling."
-        )
-        rationale["b_phase"] = (
-            "Per-phase intercept/period offset (Normal(0, 0.5)); an "
-            "age/maturation/period association, not a cross-baseline skill coupling."
-        )
-        rationale["b_trtM"] = (
-            "Exposure x mediator interaction (on-intervention x standardised "
-            "mediator; Normal(0, 0.3)); admits exposure-mediator interaction in the "
-            "g-formula, not a cross-baseline coupling."
-        )
-    elif spec.kind == "mechanism":
-        # ``beta_G`` reuses the tau constructor (its Normal(0, 0.5) scale) but here
-        # it is the group main effect entered as a DAG backdoor adjustment, not the
-        # available-case modified ITT estimate — an adjusted association, not a causal term. The
-        # role is demoted but the rationale still inherits the tau docstring, so set
-        # it explicitly.
-        role["beta_G"] = "association"
-        rationale["beta_G"] = (
-            "Group main effect entered as a DAG backdoor adjustment (reuses the tau "
-            "Normal(0, 0.5) scale); an adjusted association, not the randomised "
-            "treatment effect."
-        )
-        # The mechanism curve's lengthscale constructor comes from the resolved run
-        # plan, never from the RV-name suffix (#586 finding 3). ``f_mech__ell`` is
-        # built with ``ell_prior_mech()`` = IG(5, 5) or, under
-        # ``mech_lengthscale_tight``, ``ell_prior_mech_tight()`` = IG(8, 8); the
-        # ``__ell`` suffix used to route both to the shared ``ell`` constructor, so
-        # every HSGP mechanism report panelled an IG(3, 1) density the model never
-        # fitted and printed a hard-coded IG(5, 5) rationale beside a distribution
-        # column that (read off the RV) said IG(8, 8). A linear-mechanism fit
-        # registers no ``f_mech__ell`` at all, so the override is simply unused.
-        plan = getattr(context, "resolved_plan", None)
-        if not isinstance(plan, MechanismRunPlan):
-            plan = resolve_mechanism_run_plan(spec)
-        # The #603 / #604 exposure terms all reuse ``beta_mech_prior`` (Normal(0, 1))
-        # or the partial-pooling scale, under names whose default rationale would be
-        # the pooled-slope docstring. Each answers a different question, so each gets
-        # its own row rather than three copies of "linear-mechanism slope".
-        _unit = (
-            "1 SD of the standardised exposure"
-            if plan.mechanism_is_covariate
-            else "1 SD of the exposure logit"
-        )
-        if plan.decompose_between_within:
-            rationale["beta_between"] = (
-                "Between-child association (Normal(0, 1), the beta_mech scale): the "
-                f"outcome logit per {_unit} of a child's fitted-row average exposure. "
-                "A cross-sectional comparison, confounded by every stable child "
-                "characteristic including latent general ability."
-            )
-            rationale["beta_within"] = (
-                "Within-child association (Normal(0, 1), the beta_mech scale): the "
-                f"outcome logit per {_unit} of a wave's deviation from that child's "
-                "own average exposure. Removes stable between-child confounding, but "
-                "exposure and outcome are still same-wave, so it is neither "
-                "temporally ordered nor free of time-varying confounding."
-            )
-        if plan.phase_varying_slope:
-            rationale["mu_mech"] = (
-                "Shared mean of the partially-pooled per-period exposure slopes "
-                "(Normal(0, 1), the beta_mech scale); the pooled association the "
-                "per-period slopes are shrunk toward, and an adjusted association "
-                "like every one of them."
-            )
-            rationale["sigma_mech_phase"] = (
-                "Between-period SD of the exposure slope (HalfNormal(0.5), matching "
-                "the dose family's period-varying scale). It shrinks three ~52-row "
-                "period slopes toward their shared mean; a large posterior is "
-                "evidence against pooling, not evidence of mechanism change over "
-                "time."
-            )
-        if not plan.linear_mechanism:
-            tight = plan.mech_lengthscale_tight
-            ctor["f_mech__ell"] = "ell_mech_tight" if tight else "ell_mech"
-            rationale["f_mech__ell"] = (
-                "Mechanism-curve GP lengthscale on standardised inputs: "
-                + (
-                    "ell ~ InverseGamma(8, 8), the thin-support tightening adopted "
-                    "for this fit (issue #430) — it thins the short-lengthscale tail "
-                    "that drives the boundary-geometry funnel while leaving the mode "
-                    "essentially unchanged."
-                    if tight
-                    else "ell ~ InverseGamma(5, 5), the mechanism-family default "
-                    "(issue #265) — moderate-to-long lengthscales, so the curve is "
-                    "smoother than the shared InverseGamma(3, 1) GP prior allows."
-                )
-            )
-    elif spec.kind == "joint_mechanism":
-        # Nothing in this family is causal (the run plan says so in terms). The
-        # transition design's ``beta_G`` reuses the tau constructor exactly as the
-        # mechanism family's does, and without this branch inherits tau's "causal"
-        # role and treatment-effect rationale (2026-08-21 joint-mechanism review,
-        # finding 5). The levels design's ``beta_group_nuisance`` is classified a
-        # nuisance by its name prefix; only its rationale needs the family's own
-        # wording (the inline record describes the RLM cohort dummies).
-        role["beta_G"] = "association"
-        rationale["beta_G"] = (
-            "Group main effect entered as a nuisance adjustment beside the "
-            "mechanism slopes (reuses the tau Normal(0, 0.5) scale, as in the "
-            "matched mech-096 / mech-101 fits); an adjusted association, never "
-            "the randomised treatment effect."
-        )
-        rationale["beta_group_nuisance"] = (
-            "Per-outcome arm-composition nuisance (wide Normal(0, 1), as in the "
-            "matched ca-010 / ca-011 concurrent fits): absorbs arm composition "
-            "at the wave; flagged non-interpretable, never reported as an "
-            "association or a group effect."
-        )
-    elif spec.kind == "aligned":
-        ctor["beta_cohort"] = "tau"
-        role["beta_cohort"] = "association"
-        rationale["beta_cohort"] = (
-            "Per-protocol cohort contrast (immediate vs wait-list) at onset-aligned "
-            "endpoints; an adjusted association confounded by age-at-onset and "
-            "cohort/timing, never the randomised treatment effect."
-        )
-        rationale["gamma_ability"] = (
-            "Cognitive-ability (block design) covariate coupling ~ Normal(0, 0.3); an "
-            "adjusted association, not a cross-baseline coupling."
-        )
-        rationale["gamma_dose"] = (
-            "Within-arm cumulative-session dose coupling ~ Normal(0, 0.3); a "
-            "collider-adjusted sensitivity association, never a causal dose effect."
-        )
-    elif spec.kind == "adjusted" and context.model is not None:
-        for rv in context.model.free_RVs:
-            # Cohort group-nuisance dummies are classified as inline nuisances in
-            # priors.prior_info_for_rv (prefix match) — do not sweep them into the
-            # predictor-slope/association bucket here.
-            if rv.name.startswith("beta_group_nuisance"):
-                continue
-            # Missing-data indicators (beta_{cov}_missing) are handled by the
-            # universal missing-indicator sweep below (role nuisance, #384 review) —
-            # skip them here so they are not tagged as predictor-slope associations.
-            if rv.name.endswith("_missing"):
-                continue
-            if rv.name.startswith("beta_"):
-                ctor[rv.name] = "predictor_slope"
-                role[rv.name] = "association"
-    elif spec.kind == "growth":
-        # Baseline non-verbal ability -> trajectory shape (gamma on the growth rate,
-        # delta on the baseline level): adjusted, latent-GA-confounded associations,
-        # never causal — routed to the predictor-slope panel / association role.
-        # gamma_age (baseline-age main effect) and gamma_int (the #228 item-10
-        # baseline age x ability interaction) are also association slopes, but their
-        # names fall through the ``gamma`` prefix to the gamma_cross panel + its
-        # "cross-baseline coupling gamma_k" docstring — the wrong quantity.
-        for _rv in ("gamma", "delta", "gamma_age", "gamma_int"):
-            ctor[_rv] = "predictor_slope"
-            role[_rv] = "association"
-        rationale["gamma_age"] = (
-            "Baseline (t1) age main effect on the growth rate (gamma_age * age0); an "
-            "adjusted, GA-confounded association, not a cross-baseline coupling."
-        )
-        rationale["gamma_int"] = (
-            "Baseline age x ability interaction on the growth rate (the #228 item-10 "
-            "headline: older-and-more-able children grow faster than age and ability "
-            "predict separately); an adjusted, GA-confounded association, never "
-            "causal."
-        )
-        # ``loading`` (rank-1 growth-tempo factor loading) otherwise inherits the
-        # CFA test->domain measurement-loading fallback text, which is the wrong
-        # model — override the rationale (role/association already correct).
-        rationale["loading"] = (
-            "Positive loading (HalfNormal(0.5)) of the shared child-level "
-            "growth-tempo factor G onto measure k's growth rate; a rank-1 stand-in "
-            "for cross-measure slope covariation, not a CFA test->domain measurement "
-            "loading."
-        )
-    elif spec.kind == "level_factors":
-        plan = getattr(context, "resolved_plan", None)
-        if not isinstance(plan, LevelFactorsRunPlan):
-            plan = resolve_level_factors_run_plan(spec)
-        # #584 decision 4: both nuisance scales differ from the shared registry
-        # defaults here, and the ``distribution`` column is read from the built RV
-        # so it is already right — but the *rationale* is the registry's, and it
-        # would quote the scale this family does not use. Say why instead.
-        rationale["sigma_child"] = (
-            "Child random-intercept SD on the level logit ~ HalfNormal("
-            f"{plan.sigma_child_prior_sigma:g}), wider than the shared "
-            "HalfNormal(0.5) because a levels model has no own-baseline term: this "
-            "intercept carries the entire between-child spread in level, where a "
-            "gain model conditions that spread away. At the shared scale's median "
-            "the middle 95% of children span 0.18 to 0.45 of a mid-difficulty "
-            "measure, narrower than the tests resolve, and two of the eleven fitted "
-            "posteriors sat past its 99th percentile (#584 decision 4)."
-        )
-        if plan.kappa_prior_family == "halfnormal_inverse_sqrt":
-            rationale["inv_sqrt_kappa"] = (
-                "Beta-Binomial dispersion 1/sqrt(kappa) ~ HalfNormal("
-                f"{plan.kappa_prior_sigma or 0.25:g}); kappa is the reported "
-                "Deterministic. The prior sits on the dispersion scale so the "
-                "near-Binomial limit -- no extra-Binomial dispersion beyond the "
-                "child random intercept -- is simply zero and therefore reachable. "
-                "A HalfNormal on the concentration cannot get there: at this "
-                "family's denominators it gave the within-10%-of-Binomial region "
-                "essentially no mass, while the fitted vocabulary posteriors (kappa "
-                "medians 170 and 198) sat past its 99th percentile. The scale is "
-                "calibration-preserving: it reproduces the old prior's median "
-                "variance inflation at every level denominator to within 3% "
-                "(#584 decision 4)."
-            )
-        if plan.t1_referenced:
-            # #552: the arm-by-time vector is a pre-randomisation balance term plus
-            # per-wave changes. The prior table is one row per free RV: the balance
-            # term is a nuisance quantity (never an effect) and ``d_grp_time`` is a
-            # vector whose elements have different interpretation — only
-            # d_grp_time[t2] is the randomised treated-versus-untreated change (a
-            # difference-in-differences of adjusted levels); t3/t4 are randomised
-            # early-start-versus-delayed-start schedule contrasts, so the vector
-            # row takes the DiD family's ``regime`` role (#631 finding 13) and
-            # factor_summary.csv carries the element-level causal label.
-            # ``b_grp_time`` is a Deterministic here (no prior row).
-            role["arm_gap_t1"] = "nuisance"
-            rationale["arm_gap_t1"] = (
-                "Covariate-adjusted pre-randomisation (t1) immediate-minus-waitlist "
-                "arm gap: a balance quantity the per-wave changes are measured from, "
-                "regularised on the cross-coupling prior and never interpreted as an "
-                "effect (#552; the DiD arm_gap_t1 idiom)."
-            )
-            role["d_grp_time"] = "regime"
-            rationale["d_grp_time"] = (
-                "Change in the adjusted arm gap from t1 to each later wave; the t2 "
-                "element is the randomised treated-versus-untreated change (a "
-                "difference-in-differences of adjusted levels), while the t3/t4 "
-                "elements are randomised early-start-versus-delayed-start schedule "
-                "contrasts of assignment — both arms taught by t3, mechanism "
-                "unidentified (#631; the DiD arm_gap_t3 idiom)."
-            )
-        elif plan.group_by_time:
-            # The prior table is one row per RV, while ``b_grp_time`` is a vector whose
-            # elements have different interpretation: only b_grp_time[1] is the clean
-            # randomised t2 contrast. Keep the vector row conservative and let
-            # factor_summary.csv carry the element-level causal label.
-            role["b_grp_time"] = "association"
-            rationale["b_grp_time"] = (
-                "Level-model group-by-time vector (the free per-timepoint comparator, "
-                "#552); only b_grp_time[1] is the "
-                "randomised treated-versus-untreated t2 contrast, while the vector "
-                "row is documented conservatively because the other elements are a "
-                "pre-randomisation balance quantity and randomised schedule "
-                "contrasts (#631 finding 13)."
-            )
-    elif spec.kind == "itt":
-        plan = getattr(context, "resolved_plan", None)
-        if not isinstance(plan, IttRunPlan):
-            plan = resolve_itt_run_plan(spec)
-        # adjust_for covariates are built as gamma_{covariate} from gamma_cross_prior,
-        # so they inherit the gamma_cross panel's "cross-baseline coupling gamma_k"
-        # rationale + association role. They are pre-randomisation adjustment/precision
-        # covariates, not cross-baseline skill couplings: under randomisation a
-        # baseline covariate is balanced across arms in expectation, so it cannot
-        # confound tau and only sharpens it — the definition of a precision covariate.
-        # ``blocks``/``area`` and the SES adjusters (parental education, age first
-        # exposed to books) are all documented "precision covariate" in their modules,
-        # so the role is quoted, not inferred (#384 review, Frank: promote SES to
-        # precision — identical causal status to blocks/area).
-        _quoted_precision = {"blocks", "area", "mumedupost16", "dadedupost16", "agebooks"}
-        for c in plan.adjust_for:
-            name = f"gamma_{c}"
-            if c in _quoted_precision:
-                role[name] = "precision"
-                rationale[name] = (
-                    f"Baseline adjustment/precision covariate ({c}) ~ Normal(0, 0.3); "
-                    "a pre-randomisation term that sharpens tau and cannot confound "
-                    "the randomised effect, not a cross-baseline coupling."
-                )
-            else:
-                rationale[name] = (
-                    f"Pre-randomisation adjustment covariate ({c}) ~ Normal(0, 0.3); "
-                    "a robustness adjustment that cannot confound the randomised "
-                    "effect (balanced across arms in expectation), not a "
-                    "cross-baseline coupling."
-                )
-    elif spec.kind == "corr_factor" and context.model is not None:
-        _rv_names = {rv.name for rv in context.model.free_RVs}
-        if "beta_G" in _rv_names:
-            # The randomised arm G enters mm-002 as a mech-058 backdoor covariate on
-            # the predictor_slope prior (Normal(0, 0.3)); it reuses the ``beta_G``
-            # name, so _RV_TO_CTOR maps it to ``tau`` (role causal + "Treatment
-            # effect tau" rationale) — the most severe mislabel, a causal claim the
-            # model explicitly disowns. Route to predictor_slope + association.
-            ctor["beta_G"] = "predictor_slope"
-            role["beta_G"] = "association"
-            rationale["beta_G"] = (
-                "Randomised arm G entered as an adjusted-association (mech-058) "
-                "backdoor covariate on the standardised predictor_slope prior, not "
-                "the available-case modified ITT estimate (the conditional causal "
-                "claim lives in the ITT suite)."
-            )
-        if "factor_corr_chol" in _rv_names:
-            # ``factor_corr_chol``'s off-diagonals are the reported factor-correlation
-            # matrix (exposed as the ``factor_corr_pairs`` deterministic the strict
-            # gate evaluates), so it is an ``association`` — the same carve-out this
-            # branch already applies to ``measure_corr_chol`` / ``trait_corr_chol`` /
-            # ``state_corr_chol_w`` (#384 review, Frank: promote nuisance ->
-            # association).
-            #
-            # Formerly ``factor_cov``, an ``LKJCholeskyCov`` whose ``sd_dist`` scales
-            # were discarded. That observation — scale is carried by the loadings, so
-            # the sds do nothing — is exactly why they were unidentified, and why the
-            # all-free-RV gate failed on them while every reported quantity converged.
-            # The bare ``LKJCorr`` has no such component to leave dangling.
-            role["factor_corr_chol"] = "association"
-            rationale["factor_corr_chol"] = (
-                "LKJ(eta=2) prior on the domain-factor correlation matrix, sampled as "
-                "its Cholesky factor (R = L L'); scale is carried by the loadings. Its "
-                "off-diagonals are the reported factor-correlation matrix — the "
-                "study's headline descriptive association."
-            )
-    elif spec.kind == "concurrent" and context.model is not None:
-        # The focal concurrent skill coefficients are ``beta``/``beta_age``; every
-        # ``gamma_{c}`` is a trait-covariate adjustment (non-verbal ability, hearing,
-        # speech, phonological memory) built from predictor_slope_prior (Normal(0,
-        # 0.3)). The ``gamma`` prefix routes them to the gamma_cross panel + its
-        # "cross-baseline coupling" docstring — the wrong quantity.
-        for rv in context.model.free_RVs:
-            if rv.name.startswith("gamma_"):
-                ctor[rv.name] = "predictor_slope"
-                role[rv.name] = "association"
-                rationale[rv.name] = (
-                    "Trait-covariate adjustment slope (non-verbal ability / hearing / "
-                    "speech / phonological-memory t1 baseline; Normal(0, 0.3)); a "
-                    "regularised adjusted association, not a between-skill "
-                    "cross-baseline coupling."
-                )
-    elif spec.kind == "block_exposure":
-        # ``delta`` reuses the tau constructor (role causal), but it is the
-        # block-active exposure shift in the block-2 taught-vocabulary logit — a
-        # parallel-trends association, not a randomised treatment effect. Plain
-        # assignment (not setdefault) so the distal `is_distal` block below keeps its
-        # tau_distal *panel* for bx-003/004 while the role stays association.
-        role["delta"] = "association"
-        rationale["delta"] = (
-            "Block-active exposure shift in the block-2 taught-vocabulary logit; a "
-            "parallel-trends association ('block-2-active vs block-1-active'), not a "
-            "randomised treatment effect."
-        )
-    elif spec.kind == "pooled_levels":
-        # Nothing in the wave-pooled level model is causal. ``beta_G`` reuses the tau
-        # constructor (Normal(0, 0.5)) but is the arm main effect across all four
-        # waves — pooling post-crossover waves and conditioning on a same-wave skill
-        # the intervention itself changes — so it is neither the randomised t2
-        # contrast nor a treatment effect. The exposure slopes reuse the beta_mech
-        # constructor (Normal(0, 1)) under names the name-based lookup does not know,
-        # and every ``gamma_{c}`` is a same-wave (hearing, speech) or t1-broadcast
-        # (block-design ability) adjuster, not a cross-baseline coupling.
-        role["beta_G"] = "association"
-        rationale["beta_G"] = (
-            "Intervention-arm main effect pooled over every fitted wave (reuses the "
-            "tau Normal(0, 0.5) scale); a backdoor adjustment that pools post-crossover "
-            "waves and conditions on a same-wave treated skill — an adjusted "
-            "association, not the randomised treatment effect."
-        )
-        # #553: a raw-score covariate exposure is per SD of the raw score, not of a
-        # logit; same-wave skill adjusters are standardised logits of other measures.
-        _pl_plan = getattr(context, "resolved_plan", None)
-        _pl_covariate = bool(getattr(_pl_plan, "mechanism_is_covariate", False))
-        _pl_skills = tuple(getattr(_pl_plan, "skill_symbols", ()) or ())
-        _unit = "raw score" if _pl_covariate else "logit"
-        for _name, _what in (
-            (
-                "beta_between",
-                "Between-child association: the outcome logit per 1 SD (pooled "
-                f"row-level SD) of a child's study-average exposure {_unit}; "
-                "Normal(0, 1), the beta_mech scale.",
-            ),
-            (
-                "beta_within",
-                "Within-child association: the outcome logit per 1 SD (pooled "
-                "row-level SD) of a wave's deviation from the child's own average "
-                f"exposure {_unit}; Normal(0, 1), the beta_mech scale.",
-            ),
-            (
-                "beta_mech",
-                "Blended pooled association (comparator without the between/within "
-                f"split): outcome logit per 1 SD of the same-wave exposure {_unit}; "
-                "Normal(0, 1).",
-            ),
-        ):
-            ctor[_name] = "beta_mech"
-            role[_name] = "association"
-            rationale[_name] = _what
-        for _sym in _pl_skills:
-            ctor[f"gamma_{_sym}"] = "gamma_cross"
-            role[f"gamma_{_sym}"] = "association"
-            rationale[f"gamma_{_sym}"] = (
-                f"Same-wave skill adjuster: the outcome logit per 1 SD of the "
-                f"standardised same-wave logit of {_sym} (Normal(0, 0.3), the "
-                "cross-coupling scale); a contemporaneous, possibly post-treatment "
-                "level, so an adjusted association — never an effect."
-            )
-        role["alpha_wave"] = "nuisance"
-        rationale["alpha_wave"] = (
-            "Per-wave intercept alpha_wave[t] ~ Normal(0, 1.5); absorbs the secular "
-            "rise of the outcome across waves so the exposure slopes are within-wave "
-            "quantities."
-        )
-        if context.model is not None:
-            for rv in context.model.free_RVs:
-                if rv.name in rationale:
-                    continue  # skill adjusters documented above
-                if rv.name.startswith("gamma_") and rv.name != "gamma_A" and not (
-                    rv.name.endswith("_missing")
-                ):
-                    ctor[rv.name] = "predictor_slope"
-                    role[rv.name] = "association"
-                    rationale[rv.name] = (
-                        "Adjuster slope (same-wave hearing / speech, or the t1 "
-                        "block-design ability baseline broadcast across waves; "
-                        "Normal(0, 0.3)); a regularised adjusted association, not a "
-                        "between-skill cross-baseline coupling."
-                    )
-    elif spec.kind == "survival":
-        # The survival family releases no causal headline, but tau under the
-        # default randomised window is more than prognostic: it is an
-        # available-case modified-ITT assignment contrast in the randomised first
-        # interval within the baseline at-floor subgroup (#631 finding 11).
-        role["tau"] = "association"
-        rationale["tau"] = (
-            "Intervention-aligned treatment hazard shift; a model-based, "
-            "available-case modified-ITT assignment contrast in the randomised "
-            "first interval within the baseline at-floor subgroup, qualified by "
-            "the availability restriction and the hazard-model form; no causal "
-            "headline is released."
-        )
-
-    # Distal outcomes take the tighter tau prior (issue #141): the factory built
-    # the single-outcome causal treatment term at Normal(0, 0.3), so route it to
-    # the ``tau_distal`` panel + distribution here so the report panel matches the
-    # fitted scale. Only the randomised treatment terms are listed (never the
-    # adjusted-association ``beta_G`` / ``beta_cohort``).
-    if is_distal(getattr(spec, "outcome_symbol", None)):
-        for _name in (
-            "tau",
-            "beta_trt",
-            "b_grp_time",
-            "d_grp_time",
-            "beta_grp",
-            "delta",
-            "tau_t2",
-            "arm_gap_t3",
-            "theta_treated",
-        ):
-            ctor.setdefault(_name, "tau_distal")
-            role.setdefault(_name, "causal")
-        # The ANCOVA intercept is likewise tiered for distal outcomes (Normal(0,
-        # 1.0); prior-critical-review 2026-07-07, Finding 1). Route it to the
-        # ``alpha_distal`` panel so the report rationale matches the fitted scale
-        # (the distribution column already reads the true 1.0 off the built RV).
-        ctor.setdefault("alpha", "alpha_distal")
-        ctor.setdefault("alpha_offset", "alpha_distal")
-
-    # Missing-data-indicator coefficients (beta_{cov}_missing or
-    # gamma_{cov}_missing) are subgroup
-    # mean-offsets under the missing-indicator method — confounded with the constant
-    # fill value and well known to be uninterpretable as an effect (Greenland &
-    # Finkle 1995, Am J Epidemiol 142(12):1255-64; Groenwold et al. 2012, CMAJ
-    # 184(11):1265-9) — so they are nuisance, not predictor-slope associations, in
-    # every family that carries them. Swept once here rather than per kind (#384
-    # review, Frank). The distribution column, read off the RV, still shows the true
-    # predictor_slope Normal(0, 0.3). See also the predictor_associations.csv filter
-    # in the adjusted/RLM writers, which keeps the reported-associations table from
-    # contradicting this nuisance label.
-    if context.model is not None:
-        for rv in context.model.free_RVs:
-            missing_prefix = next(
-                (
-                    prefix
-                    for prefix in ("beta_", "gamma_")
-                    if rv.name.startswith(prefix) and rv.name.endswith("_missing")
-                ),
-                None,
-            )
-            if missing_prefix is not None:
-                ctor.setdefault(rv.name, "predictor_slope")
-                role[rv.name] = "nuisance"
-                rationale[rv.name] = (
-                    f"Missing-data indicator ({rv.name[len(missing_prefix) :]} = 1 "
-                    "when the "
-                    "value is unknown/imputed); a subgroup mean-offset under the "
-                    "missing-indicator method, confounded with the fill value and not "
-                    "interpretable as a substantive standardised-trait association."
-                )
-
-    return ctor, role, rationale
 
 
 def growth_contrast_pushforward_rows(
@@ -904,7 +65,7 @@ def growth_contrast_pushforward_rows(
         )
     except PriorEvidenceUnavailable as exc:
         return [
-            _report.unavailable_pushforward(
+            _predictive.unavailable_pushforward(
                 estimand=f"{prefix}total_growth",
                 estimand_label="the between-group total-growth contrasts",
                 role="descriptive",
@@ -913,16 +74,12 @@ def growth_contrast_pushforward_rows(
         ]
     # Narrow by design (#637 stage 1): past the availability check a failure in
     # ``growth_summary`` is a defect in the summary, not absent prior evidence.
-    prior_growth = _hist.growth_summary(
-        source, panel, measure, fitted_var=fitted_var, group="prior"
-    )
-    contrasts = prior_growth[
-        prior_growth["quantity"].astype(str).str.startswith("total_growth")
-    ]
+    prior_growth = _hist.growth_summary(source, panel, measure, fitted_var=fitted_var, group="prior")
+    contrasts = prior_growth[prior_growth["quantity"].astype(str).str.startswith("total_growth")]
     rows: list[dict[str, object]] = []
     for _, r in contrasts.iterrows():
         rows.append(
-            _report.labelled_pushforward(
+            _predictive.labelled_pushforward(
                 {
                     # The growth summary is already in items; there is no separate
                     # linear-predictor contrast to report, since the quantity is a
@@ -945,9 +102,7 @@ def growth_contrast_pushforward_rows(
     return rows
 
 
-def write_indicator_prior_check(
-    ctx: StatisticalFitContext, nodes: Sequence[str]
-) -> None:
+def write_indicator_prior_check(ctx: StatisticalFitContext, nodes: Sequence[str]) -> None:
     """Write ``indicator_prior_check.csv`` for a measurement family (#381).
 
     The CFA families have no outcome-scale estimand to push a prior through —
@@ -957,9 +112,7 @@ def write_indicator_prior_check(
     guarantee by construction rather than by argument.
     """
     try:
-        df = _report.indicator_prior_check(
-            ctx.trace, nodes=list(nodes), ci_prob=ctx.reporting.ci_prob
-        )
+        df = _predictive.indicator_prior_check(ctx.trace, nodes=list(nodes), ci_prob=ctx.reporting.ci_prob)
     except Exception as exc:  # noqa: BLE001 - a report extra must not fail a fit
         rprint(f"[yellow]indicator prior check skipped: {exc}[/yellow]")
         return
@@ -994,9 +147,7 @@ class PriorEvidenceUnavailable(LookupError):
     """
 
 
-def require_prior_evidence(
-    source: Any, *, terms: Sequence[str] = (), what: str = "this prior check"
-) -> Any:
+def require_prior_evidence(source: Any, *, terms: Sequence[str] = (), what: str = "this prior check") -> Any:
     """Return the ``prior`` group, or raise :class:`PriorEvidenceUnavailable`.
 
     ``source`` is a fit's ``prior_samples`` or its trace. ``terms`` names the
@@ -1007,14 +158,11 @@ def require_prior_evidence(
 
     group = getattr(source, "prior", None) if source is not None else None
     if group is None:
-        raise PriorEvidenceUnavailable(
-            f"{what} needs this fit's prior group, which was not sampled or persisted"
-        )
+        raise PriorEvidenceUnavailable(f"{what} needs this fit's prior group, which was not sampled or persisted")
     missing = [name for name in terms if name not in group]
     if missing:
         raise PriorEvidenceUnavailable(
-            f"{what} needs {', '.join(missing)} in the prior group, "
-            "which this fit does not carry"
+            f"{what} needs {', '.join(missing)} in the prior group, which this fit does not carry"
         )
     return group
 
@@ -1055,7 +203,7 @@ def at_mean_pushforward_rows(
         )
     except PriorEvidenceUnavailable as exc:
         return [
-            _report.unavailable_pushforward(
+            _predictive.unavailable_pushforward(
                 estimand=term,
                 estimand_label=label,
                 role=role,
@@ -1071,32 +219,20 @@ def at_mean_pushforward_rows(
     base_items = float(n_trials) * expit(base_eta)
     for term, label in terms:
         try:
-            require_prior_evidence(
-                source, terms=(term,), what=f"the prior check on {term}"
-            )
+            require_prior_evidence(source, terms=(term,), what=f"the prior check on {term}")
             beta = draws(term)
             items = float(n_trials) * expit(base_eta + beta) - base_items
-            values = _report.pushforward_values(
-                beta, items, n_trials=n_trials, ci_prob=ctx.reporting.ci_prob
-            )
+            values = _predictive.pushforward_values(beta, items, n_trials=n_trials, ci_prob=ctx.reporting.ci_prob)
         except PriorEvidenceUnavailable as exc:
             rows.append(
-                _report.unavailable_pushforward(
-                    estimand=term, estimand_label=label, role=role, reason=str(exc)
-                )
+                _predictive.unavailable_pushforward(estimand=term, estimand_label=label, role=role, reason=str(exc))
             )
         else:
-            rows.append(
-                _report.labelled_pushforward(
-                    values, estimand=term, estimand_label=label, role=role
-                )
-            )
+            rows.append(_predictive.labelled_pushforward(values, estimand=term, estimand_label=label, role=role))
     return rows
 
 
-def write_prior_pushforward(
-    ctx: StatisticalFitContext, rows: Sequence[Mapping[str, object]]
-) -> None:
+def write_prior_pushforward(ctx: StatisticalFitContext, rows: Sequence[Mapping[str, object]]) -> None:
     """Write ``prior_pushforward.csv`` — including when the check is unavailable (#381).
 
     The meta-finding behind #381 is that a *missing* artefact reads as a clean
@@ -1173,7 +309,7 @@ def pushforward_n_trials(ctx: StatisticalFitContext, outcome: str) -> int:
     trials = getattr(ctx.prepared, "n_trials", None) or {}
     try:
         return int(trials[outcome])
-    except (KeyError, TypeError, ValueError):
+    except KeyError, TypeError, ValueError:
         return 1
 
 
@@ -1216,7 +352,7 @@ def marginal_pushforward_rows(
                 terms=(term, eta_name),
                 what=f"the prior check on {named}",
             )
-            values = _report.marginal_prior_pushforward(
+            values = _predictive.marginal_prior_pushforward(
                 source,
                 term=term,
                 n_trials=n_trials,
@@ -1229,7 +365,7 @@ def marginal_pushforward_rows(
             )
         except PriorEvidenceUnavailable as exc:
             rows.append(
-                _report.unavailable_pushforward(
+                _predictive.unavailable_pushforward(
                     estimand=named,
                     estimand_label=label,
                     role=role,
@@ -1239,7 +375,7 @@ def marginal_pushforward_rows(
             )
         else:
             rows.append(
-                _report.labelled_pushforward(
+                _predictive.labelled_pushforward(
                     values,
                     estimand=named,
                     estimand_label=label,

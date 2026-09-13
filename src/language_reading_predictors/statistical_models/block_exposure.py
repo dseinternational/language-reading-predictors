@@ -98,10 +98,7 @@ class BlockExposureModelSettings:
             ),
         )
         if self.likelihood not in _LIKELIHOODS:
-            raise ValueError(
-                f"likelihood must be one of {sorted(_LIKELIHOODS)}, "
-                f"got {self.likelihood!r}"
-            )
+            raise ValueError(f"likelihood must be one of {sorted(_LIKELIHOODS)}, got {self.likelihood!r}")
         sigma = self.delta_prior_sigma
         if sigma is not None:
             if isinstance(sigma, bool) or not isinstance(sigma, (int, float)):
@@ -111,9 +108,7 @@ class BlockExposureModelSettings:
             object.__setattr__(self, "delta_prior_sigma", float(sigma))
 
     @classmethod
-    def from_legacy_extra(
-        cls, extra: Mapping[str, Any], *, model_id: str
-    ) -> BlockExposureModelSettings:
+    def from_legacy_extra(cls, extra: Mapping[str, Any], *, model_id: str) -> BlockExposureModelSettings:
         """Strictly translate the former ``spec.extra`` declaration."""
         unknown = sorted(set(extra) - _LEGACY_KEYS)
         if unknown:
@@ -176,39 +171,27 @@ class BlockExposureRunPlan:
             "drop_ceiling_violations": self.drop_ceiling_violations,
         }
 
-    def factory_kwargs(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> dict[str, Any]:
+    def factory_kwargs(self, *, effective_adjustment: tuple[str, ...] | None = None) -> dict[str, Any]:
         """Arguments for ``build_block_exposure_model``."""
         return {
             "outcome_symbol": self.outcome_symbol,
             "ability_covariate": self.ability_covariate,
-            "adjust_for": self.adjust_for
-            if effective_adjustment is None
-            else effective_adjustment,
+            "adjust_for": self.adjust_for if effective_adjustment is None else effective_adjustment,
             "use_child_re": self.use_child_re,
             "likelihood": self.likelihood,
             "delta_prior_sigma": self.delta_prior_sigma,
         }
 
-    def coefficient_names(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> list[str]:
+    def coefficient_names(self, *, effective_adjustment: tuple[str, ...] | None = None) -> list[str]:
         """Reported structural coefficients in stable display order."""
-        adjustment = (
-            self.adjust_for
-            if effective_adjustment is None
-            else effective_adjustment
-        )
+        adjustment = self.adjust_for if effective_adjustment is None else effective_adjustment
         names = ["delta", "gamma_A"]
         if self.ability_covariate:
             names.append("gamma_ability")
         names.extend(f"gamma_{name}" for name in adjustment)
         return names
 
-    def diagnostic_vars(
-        self, *, effective_adjustment: tuple[str, ...] | None = None
-    ) -> list[str]:
+    def diagnostic_vars(self, *, effective_adjustment: tuple[str, ...] | None = None) -> list[str]:
         """Variables scanned by summaries and the convergence gate."""
         tail: list[str] = [] if self.off_floor else ["kappa"]
         if self.use_child_re:
@@ -223,15 +206,9 @@ class BlockExposureRunPlan:
     def recipe_markdown(self, *, title: str) -> str:
         """Plain-language recipe generated from the validated plan."""
         adjusters = ", ".join(self.adjust_for) if self.adjust_for else "none"
-        drops = (
-            ", ".join(self.drop_ceiling_violations)
-            if self.drop_ceiling_violations
-            else "none"
-        )
+        drops = ", ".join(self.drop_ceiling_violations) if self.drop_ceiling_violations else "none"
         delta_sigma = (
-            "outcome-tier factory default"
-            if self.delta_prior_sigma is None
-            else f"{self.delta_prior_sigma:g}"
+            "outcome-tier factory default" if self.delta_prior_sigma is None else f"{self.delta_prior_sigma:g}"
         )
         return (
             "Note: Generated from the validated block-exposure run plan; template "
@@ -266,8 +243,7 @@ def declared_block_exposure_settings(
     if settings is not None:
         if spec.extra:
             raise ValueError(
-                f"{spec.model_id}: block-exposure settings cannot be split between "
-                "model_settings and extra"
+                f"{spec.model_id}: block-exposure settings cannot be split between model_settings and extra"
             )
         if not isinstance(settings, BlockExposureModelSettings):
             raise TypeError(
@@ -287,14 +263,9 @@ def declared_block_exposure_settings(
 def resolve_block_exposure_run_plan(spec: ModelSpec) -> BlockExposureRunPlan:
     """Resolve and validate the family contract before context or data I/O."""
     if spec.kind != "block_exposure":
-        raise ValueError(
-            f"{spec.model_id}: expected kind 'block_exposure', got {spec.kind!r}"
-        )
+        raise ValueError(f"{spec.model_id}: expected kind 'block_exposure', got {spec.kind!r}")
     if spec.study_id != "rli":
-        raise ValueError(
-            f"{spec.model_id}: block_exposure requires study_id='rli', got "
-            f"{spec.study_id!r}"
-        )
+        raise ValueError(f"{spec.model_id}: block_exposure requires study_id='rli', got {spec.study_id!r}")
     if spec.outcome_symbol not in _OUTCOMES:
         raise ValueError(
             f"{spec.model_id}: block_exposure outcome_symbol must be one of "
@@ -305,8 +276,7 @@ def resolve_block_exposure_run_plan(spec: ModelSpec) -> BlockExposureRunPlan:
     own = spec.outcome_symbol
     if settings.ability_covariate in settings.adjust_for:
         raise ValueError(
-            f"{spec.model_id}: ability_covariate {settings.ability_covariate!r} "
-            "must not also appear in adjust_for"
+            f"{spec.model_id}: ability_covariate {settings.ability_covariate!r} must not also appear in adjust_for"
         )
     unexpected_drops = sorted(set(settings.drop_ceiling_violations) - {own})
     if unexpected_drops:
@@ -317,9 +287,7 @@ def resolve_block_exposure_run_plan(spec: ModelSpec) -> BlockExposureRunPlan:
 
     pre_adj, post_adj = split_covariates_by_wave(settings.adjust_for)
     baseline_adj, post_adj = split_confounders_by_timing(post_adj)
-    baseline_covariates = (
-        (settings.ability_covariate,) if settings.ability_covariate else ()
-    ) + baseline_adj
+    baseline_covariates = ((settings.ability_covariate,) if settings.ability_covariate else ()) + baseline_adj
     off_floor = settings.likelihood == "bernoulli_offfloor"
 
     return BlockExposureRunPlan(

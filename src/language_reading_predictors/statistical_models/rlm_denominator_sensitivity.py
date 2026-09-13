@@ -24,10 +24,8 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 
-from language_reading_predictors.statistical_models.factories import (
-    BuiltModel,
-    build_historical_growth_model,
-)
+from language_reading_predictors.statistical_models.factories.base import BuiltModel
+from language_reading_predictors.statistical_models.factories.historical import build_historical_growth_model
 from language_reading_predictors.statistical_models.fitted_payloads import EmptyPayload
 from language_reading_predictors.statistical_models.preprocessing import LongitudinalPanel
 from language_reading_predictors.statistical_models.rlm_sensitivity_contract import (
@@ -109,10 +107,7 @@ def panel_with_denominator(
     observed = pd.to_numeric(panel.long[measure], errors="coerce").dropna()
     observed_maximum = int(observed.max())
     if denominator < observed_maximum:
-        raise ValueError(
-            f"denominator {denominator} is below observed {measure} maximum "
-            f"{observed_maximum}"
-        )
+        raise ValueError(f"denominator {denominator} is below observed {measure} maximum {observed_maximum}")
     return replace(panel, n_trials={**panel.n_trials, measure: int(denominator)})
 
 
@@ -128,17 +123,12 @@ def _historical_indices(
     wave_col = dataset.wave_col
     group_col = dataset.group_col
     group_index = {code: index for index, code in enumerate(panel.group_codes)}
-    subject_index = {
-        subject: index for index, subject in enumerate(panel.subject_ids)
-    }
+    subject_index = {subject: index for index, subject in enumerate(panel.subject_ids)}
     cells = panel.cells(measure)
     cell_index = {cell: index for index, cell in enumerate(cells)}
     group_idx = df[group_col].map(group_index).to_numpy(dtype=int)
     obs_cell_idx = np.asarray(
-        [
-            cell_index[(int(group), int(wave))]
-            for group, wave in zip(df[group_col], df[wave_col], strict=True)
-        ],
+        [cell_index[(int(group), int(wave))] for group, wave in zip(df[group_col], df[wave_col], strict=True)],
         dtype=int,
     )
     subject_idx = df[subject_col].map(subject_index).to_numpy(dtype=int)
@@ -157,10 +147,7 @@ def _historical_indices(
     return {
         "cells": cells,
         "cell_index": cell_index,
-        "cell_labels": [
-            f"{panel.group_labels[group_index[group]]} | wave {wave}"
-            for group, wave in cells
-        ],
+        "cell_labels": [f"{panel.group_labels[group_index[group]]} | wave {wave}" for group, wave in cells],
         "group_idx": group_idx,
         "obs_cell_idx": obs_cell_idx,
         "subject_idx": subject_idx,
@@ -212,68 +199,54 @@ def build_negative_binomial_historical_growth_model(
     }
 
     def cell_positions(wave: int) -> list[int]:
-        return [
-            index["cell_index"][(group, wave)] for group in panel.group_codes
-        ]
+        return [index["cell_index"][(group, wave)] for group in panel.group_codes]
 
     with pm.Model(coords=coords) as model:
         eta_cell = _priors.declare(
-                       pm.Normal(
-                                   "eta_cell",
-                                   mu=eta_prior_mu,
-                                   sigma=eta_prior_sigma,
-                                   dims="cell",
-                               ),
-                       role="nuisance",
-                       rationale=(
-                           "Group-by-wave population level per cell/measure on the logit scale "
-                           "(Normal(0, 1.5)); the fitted cells (mean_items) and growth "
-                           "intervals are deterministics of it — descriptive, not a treatment "
-                           "effect."
-                       ),
-                   )
-        sigma_subject = _priors.declare(
-                            pm.HalfNormal(
-                                        "sigma_subject",
-                                        sigma=sigma_subject_prior_sigma,
-                                        dims="group",
-                                    ),
-                            role="nuisance",
-                            rationale=(
-                                "Group-indexed between-subject random-intercept SD (HalfNormal(1)); "
-                                "between-child heterogeneity that differs by cohort group."
-                            ),
-                        )
-        z_subject = _priors.declare(
-                        pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject"),
-                        role="nuisance",
-                        rationale=(
-                            "Non-centred standard-normal per-subject offsets (Normal(0, 1)); "
-                            "group-centred and scaled by sigma_subject to form the subject "
-                            "random effects."
-                        ),
-                    )
-        z_group_mean = pm.math.stack(
-            [
-                z_subject[index["subject_group"] == group].mean()
-                for group in range(n_groups)
-            ]
+            pm.Normal(
+                "eta_cell",
+                mu=eta_prior_mu,
+                sigma=eta_prior_sigma,
+                dims="cell",
+            ),
+            role="nuisance",
+            rationale=(
+                "Group-by-wave population level per cell/measure on the logit scale "
+                "(Normal(0, 1.5)); the fitted cells (mean_items) and growth "
+                "intervals are deterministics of it — descriptive, not a treatment "
+                "effect."
+            ),
         )
+        sigma_subject = _priors.declare(
+            pm.HalfNormal(
+                "sigma_subject",
+                sigma=sigma_subject_prior_sigma,
+                dims="group",
+            ),
+            role="nuisance",
+            rationale=(
+                "Group-indexed between-subject random-intercept SD (HalfNormal(1)); "
+                "between-child heterogeneity that differs by cohort group."
+            ),
+        )
+        z_subject = _priors.declare(
+            pm.Normal("z_subject", mu=0.0, sigma=1.0, dims="subject"),
+            role="nuisance",
+            rationale=(
+                "Non-centred standard-normal per-subject offsets (Normal(0, 1)); "
+                "group-centred and scaled by sigma_subject to form the subject "
+                "random effects."
+            ),
+        )
+        z_group_mean = pm.math.stack([z_subject[index["subject_group"] == group].mean() for group in range(n_groups)])
         subject_offset = pm.Deterministic(
             "subject_offset",
-            (
-                z_subject
-                - z_group_mean[index["subject_group"]]
-            )
-            * sigma_subject[index["subject_group"]],
+            (z_subject - z_group_mean[index["subject_group"]]) * sigma_subject[index["subject_group"]],
             dims="subject",
         )
         alpha = pm.HalfNormal("alpha", sigma=alpha_prior_sigma, dims="group")
 
-        eta_obs = (
-            eta_cell[index["obs_cell_idx"]]
-            + subject_offset[index["subject_idx"]]
-        )
+        eta_obs = eta_cell[index["obs_cell_idx"]] + subject_offset[index["subject_idx"]]
         fitted_mean = pm.math.exp(eta_obs)
         pm.NegativeBinomial(
             "score",
@@ -283,29 +256,24 @@ def build_negative_binomial_historical_growth_model(
             dims="obs",
         )
         pm.Deterministic("fitted_mean_items_obs", fitted_mean, dims="obs")
-        mean_items = pm.Deterministic(
-            "mean_items", pm.math.exp(eta_cell), dims="cell"
-        )
+        mean_items = pm.Deterministic("mean_items", pm.math.exp(eta_cell), dims="cell")
 
         common_waves = index["common_waves"]
         if len(common_waves) >= 2:
             pm.Deterministic(
                 "growth_first_next_items",
-                mean_items[cell_positions(common_waves[1])]
-                - mean_items[cell_positions(common_waves[0])],
+                mean_items[cell_positions(common_waves[1])] - mean_items[cell_positions(common_waves[0])],
                 dims="group",
             )
             pm.Deterministic(
                 "growth_first_last_items",
-                mean_items[cell_positions(common_waves[-1])]
-                - mean_items[cell_positions(common_waves[0])],
+                mean_items[cell_positions(common_waves[-1])] - mean_items[cell_positions(common_waves[0])],
                 dims="group",
             )
         if len(common_waves) >= 3:
             pm.Deterministic(
                 "growth_next_last_items",
-                mean_items[cell_positions(common_waves[-1])]
-                - mean_items[cell_positions(common_waves[1])],
+                mean_items[cell_positions(common_waves[-1])] - mean_items[cell_positions(common_waves[1])],
                 dims="group",
             )
 
@@ -389,27 +357,18 @@ def aggregate_sensitivity(
                 "median_min": float(np.min(medians)),
                 "median_max": float(np.max(medians)),
                 "median_range": median_range,
-                "median_range_fraction_observed_max": (
-                    median_range / observed_maximum
-                ),
+                "median_range_fraction_observed_max": (median_range / observed_maximum),
                 "median_direction_stable": all_nonnegative or all_nonpositive,
-                "joint_89_interval_overlap": bool(
-                    float(np.max(lower)) <= float(np.min(upper))
-                ),
+                "joint_89_interval_overlap": bool(float(np.max(lower)) <= float(np.min(upper))),
             }
         )
     comparison = pd.DataFrame(rows)
     all_converged = bool(diagnostics["converged"].eq(True).all())  # noqa: E712
     direction_stable = bool(comparison["median_direction_stable"].all())
     intervals_overlap = bool(comparison["joint_89_interval_overlap"].all())
-    maximum_fraction = float(
-        comparison["median_range_fraction_observed_max"].max()
-    )
+    maximum_fraction = float(comparison["median_range_fraction_observed_max"].max())
     passed = bool(
-        all_converged
-        and direction_stable
-        and intervals_overlap
-        and maximum_fraction <= MAX_MEDIAN_RANGE_FRACTION
+        all_converged and direction_stable and intervals_overlap and maximum_fraction <= MAX_MEDIAN_RANGE_FRACTION
     )
     decision = {
         "status": "pass" if passed else "no_go",
@@ -417,9 +376,7 @@ def aggregate_sensitivity(
         "all_median_directions_stable": direction_stable,
         "all_joint_89_intervals_overlap": intervals_overlap,
         "maximum_median_range_fraction_observed_max": maximum_fraction,
-        "maximum_allowed_median_range_fraction_observed_max": (
-            MAX_MEDIAN_RANGE_FRACTION
-        ),
+        "maximum_allowed_median_range_fraction_observed_max": (MAX_MEDIAN_RANGE_FRACTION),
         "interpretation": (
             "Empirical likelihood robustness only. A pass does not identify an "
             "instrument ceiling and does not clear the publication gate."

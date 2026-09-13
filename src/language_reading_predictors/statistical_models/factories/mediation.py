@@ -1,24 +1,16 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""g-formula mediation model construction (single, two-mediator, period-stacked).
-
-Carved out of the 8,506-line ``factories.py`` by #637 stage 3, which is why
-every name here is still re-exported from ``factories``. Every family module
-depends only on :mod:`factories.base`; nothing crosses between families.
-"""
+"""g-formula mediation model construction (single, two-mediator, period-stacked)."""
 
 from __future__ import annotations
 
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Iterable
+from typing import Iterable
 
 import numpy as np
 import pymc as pm
-
-if TYPE_CHECKING:
-    pass
 
 
 from language_reading_predictors.statistical_models import priors as _priors
@@ -42,20 +34,21 @@ from language_reading_predictors.statistical_models.factories.base import (
     BuiltModel,
 )
 
+
 @dataclass
 class MediationData:
     """Row-aligned phase-0 arrays + mediator metadata for the g-formula.
 
     Carried alongside the BuiltModel so :func:`mediation.decompose` can
-    re-simulate counterfactuals from the posterior using the exact inputs the
-    model saw. ``mediator_kind`` selects which mediator sub-model to simulate:
+    integrate counterfactual outcome means using the exact inputs the model saw.
+    ``mediator_kind`` selects exact count summation or checked normal quadrature:
 
     - ``"beta_binomial"`` (LRP59): a single count mediator (``L_t2`` out of
       ``n_trials_L``) conditioned on ``logit(L_t1)``; ``med_mean`` / ``med_sd``
       standardise its logit for the outcome model.
     - ``"gaussian_composite"`` (LRP62): a continuous standardised code-based-route
       composite; the baseline composite is ``M_pre_std`` and the mediator is
-      drawn from a Normal, so the count-specific fields are unused.
+      integrated over a Normal distribution, so the count-specific fields are unused.
 
     Confounders are carried generically in ``conf_logit`` (baseline t1 logits
     keyed by symbol), with ``confounder_symbols`` recording the fitted set, so
@@ -126,12 +119,8 @@ def _cross_baseline_arrays(prepared: PreparedData, terms) -> dict[str, np.ndarra
     for term in terms:
         if term.form == "offfloor":
             if term.symbol not in prepared.pre_counts:
-                raise KeyError(
-                    f"Off-floor baseline {term.symbol!r} has no pre-count column"
-                )
-            values[term.coefficient] = (
-                np.asarray(prepared.pre_counts[term.symbol]) > 0
-            ).astype(float)
+                raise KeyError(f"Off-floor baseline {term.symbol!r} has no pre-count column")
+            values[term.coefficient] = (np.asarray(prepared.pre_counts[term.symbol]) > 0).astype(float)
         else:
             values[term.coefficient] = _baseline_confounder_value(prepared, term.symbol)
     return values
@@ -147,12 +136,16 @@ def _add_cross_baselines(eta, terms, values: dict[str, np.ndarray]):
     """
     for term in terms:
         data = pm.Data(f"{term.coefficient}_x", values[term.coefficient], dims="obs_id")
-        prior = (
-            _priors.gamma_own_offfloor_prior()
-            if term.form == "offfloor"
-            else _priors.gamma_cross_prior()
+        prior = _priors.gamma_own_offfloor_prior() if term.form == "offfloor" else _priors.gamma_cross_prior()
+        eta = (
+            eta
+            + prior.to_pymc(
+                term.coefficient,
+                role="association",
+                rationale=f"Pre-exposure baseline adjustment for {term.symbol}, represented as {term.form}. Part of the common covariate vector across mediation legs.",
+            )
+            * data
         )
-        eta = eta + prior.to_pymc(term.coefficient) * data
     return eta
 
 
@@ -198,20 +191,23 @@ def _build_outcome_leg(
     b_G = _priors.tau_prior().to_pymc(
         "b_G",
         role="association",
-        rationale=(
-            "Randomised-arm coefficient in one g-formula leg, carried on the "
-            "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
-            "this family's causal deliverables are the NDE/NIE decomposition "
-            "the legs compose, not a single leg's coefficient."
-        ),
+        rationale="Group->outcome direct-path (c') coefficient; a structural g-formula building block, an adjusted association, not an identified natural effect and not the reported estimand.",
     )
     b_M = _priors.b_path_prior().to_pymc("b_M")
-    b_GM = _priors.gamma_cross_prior().to_pymc("b_GM")
+    b_GM = _priors.gamma_cross_prior().to_pymc(
+        "b_GM",
+        role="association",
+        rationale="Treatment by mediator interaction in the outcome leg; a structural g-formula coefficient, not a cross-baseline confounder coupling.",
+    )
     if not off_floor:
         # Own-baseline coefficient — created before b_A so the graded path's free-RV
         # order (and therefore its sampling) is byte-identical to the original.
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
-    b_A = _priors.gamma_age_prior().to_pymc("b_A")
+    b_A = _priors.gamma_age_prior().to_pymc(
+        "b_A",
+        role="association",
+        rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+    )
     if off_floor:
         # #585 finding 4: the off-floor outcome leg no longer drops its own
         # baseline outright. The graded Normal(1, 0.25) autoregressive prior still
@@ -221,26 +217,14 @@ def _build_outcome_leg(
         # The sample rule and the likelihood now require the same measurement.
         b_own_ff = _priors.gamma_own_offfloor_prior().to_pymc("b_own_offfloor")
         own_off_d = pm.Data("own_pre_offfloor", own_offfloor, dims="obs_id")
-        eta_Y = (
-            b0
-            + b_G * G_d
-            + b_M * mediator_node
-            + b_GM * (G_d * mediator_node)
-            + b_own_ff * own_off_d
-            + b_A * A_d
-        )
+        eta_Y = b0 + b_G * G_d + b_M * mediator_node + b_GM * (G_d * mediator_node) + b_own_ff * own_off_d + b_A * A_d
     else:
-        eta_Y = (
-            b0
-            + b_G * G_d
-            + b_M * mediator_node
-            + b_GM * (G_d * mediator_node)
-            + b_W * W1_d
-            + b_A * A_d
-        )
+        eta_Y = b0 + b_G * G_d + b_M * mediator_node + b_GM * (G_d * mediator_node) + b_W * W1_d + b_A * A_d
     for s in confounder_symbols:
         b_c = _priors.gamma_cross_prior().to_pymc(
-            outcome_confounder_coefficient(s)
+            outcome_confounder_coefficient(s),
+            role="association",
+            rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
         )
         eta_Y = eta_Y + b_c * conf_d[s]
     eta_Y = _add_cross_baselines(eta_Y, cross_baselines, cross_values)
@@ -250,9 +234,13 @@ def _build_outcome_leg(
         return pm.Bernoulli("y_offfloor", logit_p=eta_Y, observed=off, dims="obs_id")
     kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
     return beta_binomial_from_score_mean_link(
-        "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
+        "y_post",
+        eta_Y,
+        n_trials=N_out,
+        kappa=kappa_Y,
         score_mean_link=score_mean_link,
-        observed=W2_count, dims="obs_id",
+        observed=W2_count,
+        dims="obs_id",
     )
 
 
@@ -375,14 +363,8 @@ def build_mediation_model(
     # never-referenced placeholder there and the baseline enters through
     # ``own_offfloor`` instead (#585 finding 4).
     W1 = np.zeros(prepared.n_obs) if off_floor else prepared.pre_logit[outcome_symbol]
-    own_offfloor = (
-        (np.asarray(prepared.pre_counts[outcome_symbol]) > 0).astype(float)
-        if off_floor
-        else None
-    )
-    conf_logit = {
-        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
-    }
+    own_offfloor = (np.asarray(prepared.pre_counts[outcome_symbol]) > 0).astype(float) if off_floor else None
+    conf_logit = {s: _baseline_confounder_value(prepared, s) for s in confounder_symbols}
     mediator_cross_baselines = tuple(mediator_cross_baselines)
     outcome_cross_baselines = tuple(outcome_cross_baselines)
     med_cross_values = _cross_baseline_arrays(prepared, mediator_cross_baselines)
@@ -406,10 +388,7 @@ def build_mediation_model(
         # which the hardcoded name collided with.
         W1_d = None if off_floor else pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
-        conf_d = {
-            s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
-            for s in confounder_symbols
-        }
+        conf_d = {s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id") for s in confounder_symbols}
         z_med_d = pm.Data("z_med", z_med, dims="obs_id")
 
         # --- Mediator model: logit(mediator_t2) ---
@@ -417,25 +396,32 @@ def build_mediation_model(
         a_G = _priors.tau_prior().to_pymc(
             "a_G",
             role="association",
-            rationale=(
-                "Randomised-arm coefficient in one g-formula leg, carried on the "
-                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
-                "this family's causal deliverables are the NDE/NIE decomposition "
-                "the legs compose, not a single leg's coefficient."
-            ),
+            rationale="Group->mediator (a-path) coefficient; a structural g-formula building block, an adjusted association, not the reported estimand.",
         )
         a_L = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
-        a_A = _priors.gamma_age_prior().to_pymc("a_A")
+        a_A = _priors.gamma_age_prior().to_pymc(
+            "a_A",
+            role="association",
+            rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+        )
         mu_M = a0 + a_G * G_d + a_L * L1_d + a_A * A_d
         for s in confounder_symbols:
-            a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
+            a_c = _priors.gamma_cross_prior().to_pymc(
+                f"a_{s}",
+                role="association",
+                rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
+            )
             mu_M = mu_M + a_c * conf_d[s]
         mu_M = _add_cross_baselines(mu_M, mediator_cross_baselines, med_cross_values)
         mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
         kappa_M = _priors.kappa_prior().to_pymc("kappa_M")
         beta_binomial_from_logit(
-            f"{mediator_symbol}_post", mu_M, n_trials=N_med, kappa=kappa_M,
-            observed=L2_count, dims="obs_id",
+            f"{mediator_symbol}_post",
+            mu_M,
+            n_trials=N_med,
+            kappa=kappa_M,
+            observed=L2_count,
+            dims="obs_id",
         )
 
         # --- Outcome model: logit(W_t2) (graded) or logit P(off-floor) (Bernoulli) ---
@@ -485,9 +471,7 @@ def build_mediation_model(
     return built, med_data
 
 
-def _build_route_composite(
-    prepared: PreparedData, route_symbols: tuple[str, ...]
-) -> tuple[np.ndarray, np.ndarray]:
+def _build_route_composite(prepared: PreparedData, route_symbols: tuple[str, ...]) -> tuple[np.ndarray, np.ndarray]:
     """Equal-weight standardised-logit code-based-route composite.
 
     For each route symbol, the Haldane-logit of the count is standardised on its
@@ -541,10 +525,7 @@ def _build_route_composite_model(
         # The composite route's outcome is word reading, never phoneme blending,
         # and its outcome mean is built with the plain inverse logit below — a
         # non-logit link would be silently ignored, so it is rejected instead.
-        raise ValueError(
-            "gaussian_composite supports only the ordinary logit score mean, "
-            f"got {score_mean_link!r}"
-        )
+        raise ValueError(f"gaussian_composite supports only the ordinary logit score mean, got {score_mean_link!r}")
     for s in (outcome_symbol, *route_symbols):
         if s not in prepared.pre_logit:
             raise KeyError(f"Symbol {s!r} missing from prepared data")
@@ -564,9 +545,7 @@ def _build_route_composite_model(
     c_pre_std, c_post_std = _build_route_composite(prepared, route_symbols)
 
     W1 = prepared.pre_logit[outcome_symbol]
-    conf_logit = {
-        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
-    }
+    conf_logit = {s: _baseline_confounder_value(prepared, s) for s in confounder_symbols}
     mediator_cross_baselines = tuple(mediator_cross_baselines)
     outcome_cross_baselines = tuple(outcome_cross_baselines)
     med_cross_values = _cross_baseline_arrays(prepared, mediator_cross_baselines)
@@ -575,9 +554,7 @@ def _build_route_composite_model(
     # entered separately. The resolver emits a single synthetic ``b_base_M`` term.
     out_cross_values = {
         term.coefficient: (
-            c_pre_std
-            if term.symbol == "M"
-            else _cross_baseline_arrays(prepared, (term,))[term.coefficient]
+            c_pre_std if term.symbol == "M" else _cross_baseline_arrays(prepared, (term,))[term.coefficient]
         )
         for term in outcome_cross_baselines
     }
@@ -591,28 +568,28 @@ def _build_route_composite_model(
         Mpost_d = pm.Data("M_post_std", c_post_std, dims="obs_id")
         W1_d = pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
-        conf_d = {
-            s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
-            for s in confounder_symbols
-        }
+        conf_d = {s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id") for s in confounder_symbols}
 
         # --- Mediator model: standardised route composite ~ Normal ---
         a0 = _priors.alpha_prior().to_pymc("a0")
         a_G = _priors.tau_prior().to_pymc(
             "a_G",
             role="association",
-            rationale=(
-                "Randomised-arm coefficient in one g-formula leg, carried on the "
-                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
-                "this family's causal deliverables are the NDE/NIE decomposition "
-                "the legs compose, not a single leg's coefficient."
-            ),
+            rationale="Group->mediator (a-path) coefficient; a structural g-formula building block, an adjusted association, not the reported estimand.",
         )
         a_comp = _priors.gamma_own_prior().to_pymc("a_comp")
-        a_A = _priors.gamma_age_prior().to_pymc("a_A")
+        a_A = _priors.gamma_age_prior().to_pymc(
+            "a_A",
+            role="association",
+            rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+        )
         mu_M = a0 + a_G * G_d + a_comp * Mpre_d + a_A * A_d
         for s in confounder_symbols:
-            a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
+            a_c = _priors.gamma_cross_prior().to_pymc(
+                f"a_{s}",
+                role="association",
+                rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
+            )
             mu_M = mu_M + a_c * conf_d[s]
         mu_M = _add_cross_baselines(mu_M, mediator_cross_baselines, med_cross_values)
         mu_M = pm.Deterministic("mu_M", mu_M, dims="obs_id")
@@ -697,9 +674,7 @@ class TwoMediatorData:
     second_mediator_offfloor: bool = False
     #: Per-leg cross baseline regressors restored by #585, keyed by mediator
     #: symbol then coefficient name (the outcome leg's are flat).
-    mediator_cross_values: dict[str, dict[str, np.ndarray]] = field(
-        default_factory=dict
-    )
+    mediator_cross_values: dict[str, dict[str, np.ndarray]] = field(default_factory=dict)
     outcome_cross_values: dict[str, np.ndarray] = field(default_factory=dict)
     #: Binary off-floor-at-baseline indicator for an off-floor second mediator.
     second_mediator_offfloor_pre: np.ndarray | None = None
@@ -801,29 +776,18 @@ def build_two_mediator_model(
         zE_mean, zE_sd = float(zE_scaler.mean), float(zE_scaler.sd)
 
     L1 = prepared.pre_logit[mL]
-    E1 = (
-        np.zeros(prepared.n_obs, dtype=float)
-        if second_mediator_offfloor
-        else prepared.pre_logit[mE]
-    )
+    E1 = np.zeros(prepared.n_obs, dtype=float) if second_mediator_offfloor else prepared.pre_logit[mE]
     W1 = prepared.pre_logit[outcome_symbol]
-    conf_logit = {
-        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
-    }
+    conf_logit = {s: _baseline_confounder_value(prepared, s) for s in confounder_symbols}
     mediator_cross_baselines = dict(mediator_cross_baselines or {})
     outcome_cross_baselines = tuple(outcome_cross_baselines)
     med_cross_values = {
-        symbol: _cross_baseline_arrays(prepared, terms)
-        for symbol, terms in mediator_cross_baselines.items()
+        symbol: _cross_baseline_arrays(prepared, terms) for symbol, terms in mediator_cross_baselines.items()
     }
     out_cross_values = _cross_baseline_arrays(prepared, outcome_cross_baselines)
     # Binary off-floor-at-baseline indicator restoring the second mediator's own
     # baseline term (#585 finding 4).
-    E1_off = (
-        (np.asarray(prepared.pre_counts[mE]) > 0).astype(float)
-        if second_mediator_offfloor
-        else None
-    )
+    E1_off = (np.asarray(prepared.pre_counts[mE]) > 0).astype(float) if second_mediator_offfloor else None
 
     coords = {"obs_id": np.arange(prepared.n_obs)}
     G_f = prepared.G.astype(float)
@@ -835,10 +799,7 @@ def build_two_mediator_model(
         if not second_mediator_offfloor:
             E1_d = pm.Data(f"{mE}_pre_logit", E1, dims="obs_id")
         W1_d = pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
-        conf_d = {
-            s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id")
-            for s in confounder_symbols
-        }
+        conf_d = {s: pm.Data(f"{s}_pre_logit", conf_logit[s], dims="obs_id") for s in confounder_symbols}
         zL_d = pm.Data("z_L", zL, dims="obs_id")
         zE_d = pm.Data(f"z_{mE}", zE, dims="obs_id")
 
@@ -847,18 +808,21 @@ def build_two_mediator_model(
         aL_G = _priors.tau_prior().to_pymc(
             "aL_G",
             role="association",
-            rationale=(
-                "Randomised-arm coefficient in one g-formula leg, carried on the "
-                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
-                "this family's causal deliverables are the NDE/NIE decomposition "
-                "the legs compose, not a single leg's coefficient."
-            ),
+            rationale="Group-to-mediator coefficient in this leg; a structural g-formula building block, an adjusted association, not the reported estimand.",
         )
         aL_L = _priors.gamma_own_prior().to_pymc("aL_L")
-        aL_A = _priors.gamma_age_prior().to_pymc("aL_A")
+        aL_A = _priors.gamma_age_prior().to_pymc(
+            "aL_A",
+            role="association",
+            rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+        )
         mu_L = aL0 + aL_G * G_d + aL_L * L1_d + aL_A * A_d
         for s in confounder_symbols:
-            aL_c = _priors.gamma_cross_prior().to_pymc(f"aL_{s}")
+            aL_c = _priors.gamma_cross_prior().to_pymc(
+                f"aL_{s}",
+                role="association",
+                rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
+            )
             mu_L = mu_L + aL_c * conf_d[s]
         mu_L = _add_cross_baselines(
             mu_L,
@@ -867,9 +831,7 @@ def build_two_mediator_model(
         )
         mu_L = pm.Deterministic("mu_L", mu_L, dims="obs_id")
         kappa_L = _priors.kappa_prior().to_pymc("kappa_L")
-        beta_binomial_from_logit(
-            "L_post", mu_L, n_trials=N_L, kappa=kappa_L, observed=L2, dims="obs_id"
-        )
+        beta_binomial_from_logit("L_post", mu_L, n_trials=N_L, kappa=kappa_L, observed=L2, dims="obs_id")
 
         # --- Mediator 2 (``mE``; expressive vocabulary in LRP64, blending in LRP66;
         #     off-floor nonword decoding N in med-081) ---
@@ -877,12 +839,7 @@ def build_two_mediator_model(
         aE_G = _priors.tau_prior().to_pymc(
             f"a{mE}_G",
             role="association",
-            rationale=(
-                "Randomised-arm coefficient in one g-formula leg, carried on the "
-                "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
-                "this family's causal deliverables are the NDE/NIE decomposition "
-                "the legs compose, not a single leg's coefficient."
-            ),
+            rationale="Group-to-mediator coefficient in this leg; a structural g-formula building block, an adjusted association, not the reported estimand.",
         )
         if second_mediator_offfloor:
             # Off-floor mediator: the graded Normal(1, 0.25) autoregressive prior does
@@ -891,21 +848,37 @@ def build_two_mediator_model(
             # contrast, so the complete-case rule and the likelihood agree.
             aE_off = _priors.gamma_own_offfloor_prior().to_pymc(f"a{mE}_own_offfloor")
             aE_off_d = pm.Data(f"{mE}_pre_offfloor", E1_off, dims="obs_id")
-            aE_A = _priors.gamma_age_prior().to_pymc(f"a{mE}_A")
+            aE_A = _priors.gamma_age_prior().to_pymc(
+                f"a{mE}_A",
+                role="association",
+                rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+            )
             mu_E = aE0 + aE_G * G_d + aE_off * aE_off_d + aE_A * A_d
         else:
             aE_E = _priors.gamma_own_prior().to_pymc(f"a{mE}_{mE}")
-            aE_A = _priors.gamma_age_prior().to_pymc(f"a{mE}_A")
+            aE_A = _priors.gamma_age_prior().to_pymc(
+                f"a{mE}_A",
+                role="association",
+                rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+            )
             mu_E = aE0 + aE_G * G_d + aE_E * E1_d + aE_A * A_d
         for s in confounder_symbols:
-            aE_c = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{s}")
+            aE_c = _priors.gamma_cross_prior().to_pymc(
+                f"a{mE}_{s}",
+                role="association",
+                rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
+            )
             mu_E = mu_E + aE_c * conf_d[s]
         if chain:
             # Sequential code route (LRP75 / med-081): the second mediator is downstream
             # of the first (L -> B, or L -> N), so post-L (``z_L``) enters the mE leg. The
             # coefficient a{mE}_L is the L->mE coupling; the g-formula then draws the
             # second mediator conditional on the *simulated* L.
-            aE_L = _priors.gamma_cross_prior().to_pymc(f"a{mE}_{mL}")
+            aE_L = _priors.gamma_cross_prior().to_pymc(
+                f"a{mE}_{mL}",
+                role="association",
+                rationale="Association between the first and second mediators in the declared sequential mediator model.",
+            )
             mu_E = mu_E + aE_L * zL_d
         mu_E = _add_cross_baselines(
             mu_E,
@@ -924,28 +897,33 @@ def build_two_mediator_model(
             )
         else:
             kappa_E = _priors.kappa_prior().to_pymc(f"kappa_{mE}")
-            beta_binomial_from_logit(
-                f"{mE}_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id"
-            )
+            beta_binomial_from_logit(f"{mE}_post", mu_E, n_trials=N_E, kappa=kappa_E, observed=E2, dims="obs_id")
 
         # --- Outcome W ---
         b0 = _priors.alpha_prior().to_pymc("b0")
         b_G = _priors.tau_prior().to_pymc(
-        "b_G",
-        role="association",
-        rationale=(
-            "Randomised-arm coefficient in one g-formula leg, carried on the "
-            "treatment prior tau ~ Normal(0, 0.5). Reported as an association: "
-            "this family's causal deliverables are the NDE/NIE decomposition "
-            "the legs compose, not a single leg's coefficient."
-        ),
-    )
+            "b_G",
+            role="association",
+            rationale="Group->outcome direct-path (c') coefficient; a structural g-formula building block, an adjusted association, not an identified natural effect and not the reported estimand.",
+        )
         b_L = _priors.b_path_prior().to_pymc("b_L")
         b_E = _priors.b_path_prior().to_pymc(f"b_{mE}")
-        b_GL = _priors.gamma_cross_prior().to_pymc("b_GL")
-        b_GE = _priors.gamma_cross_prior().to_pymc(f"b_G{mE}")
+        b_GL = _priors.gamma_cross_prior().to_pymc(
+            "b_GL",
+            role="association",
+            rationale="Treatment by mediator interaction in the outcome leg; a structural g-formula coefficient, not a cross-baseline confounder coupling.",
+        )
+        b_GE = _priors.gamma_cross_prior().to_pymc(
+            f"b_G{mE}",
+            role="association",
+            rationale="Treatment by mediator interaction in the outcome leg; a structural g-formula coefficient, not a cross-baseline confounder coupling.",
+        )
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
-        b_A = _priors.gamma_age_prior().to_pymc("b_A")
+        b_A = _priors.gamma_age_prior().to_pymc(
+            "b_A",
+            role="association",
+            rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+        )
         eta_Y = (
             b0
             + b_G * G_d
@@ -957,14 +935,16 @@ def build_two_mediator_model(
             + b_A * A_d
         )
         for s in confounder_symbols:
-            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+            b_c = _priors.gamma_cross_prior().to_pymc(
+                f"b_{s}",
+                role="association",
+                rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
+            )
             eta_Y = eta_Y + b_c * conf_d[s]
         eta_Y = _add_cross_baselines(eta_Y, outcome_cross_baselines, out_cross_values)
         eta_Y = pm.Deterministic("eta", eta_Y, dims="obs_id")
         kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
-        beta_binomial_from_logit(
-            "y_post", eta_Y, n_trials=N_W, kappa=kappa_Y, observed=W2, dims="obs_id"
-        )
+        beta_binomial_from_logit("y_post", eta_Y, n_trials=N_W, kappa=kappa_Y, observed=W2, dims="obs_id")
 
     med_data = TwoMediatorData(
         G=prepared.G.astype(float),
@@ -1082,9 +1062,7 @@ def build_period_stacked_mediation_model(
     graded Beta-Binomial legs only (no off-floor branch — W and L are graded).
     """
     if prepared.phase_mode != "all":
-        raise ValueError(
-            "build_period_stacked_mediation_model requires phase_mode='all'"
-        )
+        raise ValueError("build_period_stacked_mediation_model requires phase_mode='all'")
     confounder_symbols = tuple(confounder_symbols)
     for s in (mediator_symbol, outcome_symbol):
         if s not in prepared.pre_logit or s not in prepared.post_counts:
@@ -1133,9 +1111,7 @@ def build_period_stacked_mediation_model(
 
     L1 = prepared.pre_logit[mediator_symbol]
     W1 = prepared.pre_logit[outcome_symbol]
-    conf_values = {
-        s: _baseline_confounder_value(prepared, s) for s in confounder_symbols
-    }
+    conf_values = {s: _baseline_confounder_value(prepared, s) for s in confounder_symbols}
 
     mediator_cross_baselines = tuple(mediator_cross_baselines)
     outcome_cross_baselines = tuple(outcome_cross_baselines)
@@ -1154,10 +1130,7 @@ def build_period_stacked_mediation_model(
         L1_d = pm.Data(f"{mediator_symbol}_pre_logit", L1, dims="obs_id")
         W1_d = pm.Data(f"{outcome_symbol}_pre_logit", W1, dims="obs_id")
         A_d = pm.Data("A_std", prepared.A_std, dims="obs_id")
-        conf_d = {
-            s: pm.Data(f"{s}_conf", conf_values[s], dims="obs_id")
-            for s in confounder_symbols
-        }
+        conf_d = {s: pm.Data(f"{s}_conf", conf_values[s], dims="obs_id") for s in confounder_symbols}
         z_med_d = pm.Data("z_med", z_med, dims="obs_id")
 
         # --- Mediator leg: logit(M_post) over all stacked periods ---
@@ -1166,17 +1139,27 @@ def build_period_stacked_mediation_model(
             pm.Normal("a_phase", mu=0.0, sigma=0.5, dims="phase"),
             role="association",
             rationale=(
-                "Per-phase intercept/period offset on the mediator leg "
-                "(Normal(0, 0.5)); an age/maturation/period association, not a "
-                "cross-baseline skill coupling and not a mediator a-path."
+                "Per-phase intercept/period offset on the mediator leg; an age/maturation/period association, not a cross-baseline skill coupling and not a mediator a-path."
             ),
         )
-        a_trt = _priors.tau_prior().to_pymc("a_trt")
+        a_trt = _priors.tau_prior().to_pymc(
+            "a_trt",
+            role="association",
+            rationale="Group-to-mediator coefficient in this leg; a structural g-formula building block, an adjusted association, not the reported estimand.",
+        )
         a_M = _priors.gamma_own_prior().to_pymc(f"a_{mediator_symbol}")
-        a_A = _priors.gamma_age_prior().to_pymc("a_A")
+        a_A = _priors.gamma_age_prior().to_pymc(
+            "a_A",
+            role="association",
+            rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+        )
         mu_M = a0 + a_phase[phase_d] + a_trt * trt_d + a_M * L1_d + a_A * A_d
         for s in confounder_symbols:
-            a_c = _priors.gamma_cross_prior().to_pymc(f"a_{s}")
+            a_c = _priors.gamma_cross_prior().to_pymc(
+                f"a_{s}",
+                role="association",
+                rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
+            )
             mu_M = mu_M + a_c * conf_d[s]
         mu_M = _add_cross_baselines(mu_M, mediator_cross_baselines, med_cross_values)
         sigma_child_M = _priors.declare(
@@ -1192,19 +1175,19 @@ def build_period_stacked_mediation_model(
             pm.Normal("u_child_M_raw", mu=0.0, sigma=1.0, dims="child"),
             role="nuisance",
             rationale=(
-                "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
-                "scaled by sigma_child_M to form the mediator leg's child random "
-                "intercept u_child_M."
+                "Non-centred standard-normal per-child offsets; scaled by sigma_child_M to form the mediator leg's child random intercept u_child_M."
             ),
         )
-        u_child_M = pm.Deterministic(
-            "u_child_M", sigma_child_M * u_child_M_raw, dims="child"
-        )
+        u_child_M = pm.Deterministic("u_child_M", sigma_child_M * u_child_M_raw, dims="child")
         mu_M = pm.Deterministic("mu_M", mu_M + u_child_M[child_d], dims="obs_id")
         kappa_M = _priors.kappa_prior().to_pymc("kappa_M")
         beta_binomial_from_logit(
-            f"{mediator_symbol}_post", mu_M, n_trials=N_med, kappa=kappa_M,
-            observed=L2_count, dims="obs_id",
+            f"{mediator_symbol}_post",
+            mu_M,
+            n_trials=N_med,
+            kappa=kappa_M,
+            observed=L2_count,
+            dims="obs_id",
         )
 
         # --- Outcome leg: logit(W_post) over all stacked periods ---
@@ -1212,28 +1195,33 @@ def build_period_stacked_mediation_model(
         b_phase = _priors.declare(
             pm.Normal("b_phase", mu=0.0, sigma=0.5, dims="phase"),
             role="association",
-            rationale=(
-                "Per-phase intercept/period offset on the outcome leg "
-                "(Normal(0, 0.5)); an age/maturation/period association, not a "
-                "cross-baseline skill coupling."
-            ),
+            rationale="Per-phase intercept/period offset; an age/maturation/period association, not a cross-baseline skill coupling.",
         )
-        b_trt = _priors.tau_prior().to_pymc("b_trt")
+        b_trt = _priors.tau_prior().to_pymc(
+            "b_trt",
+            role="association",
+            rationale="Per-period on-intervention direct-path coefficient; an adjusted association in the g-formula, not an identified natural effect.",
+        )
         b_M = _priors.b_path_prior().to_pymc("b_M")
-        b_trtM = _priors.gamma_cross_prior().to_pymc("b_trtM")
+        b_trtM = _priors.gamma_cross_prior().to_pymc(
+            "b_trtM",
+            rationale="Exposure by mediator interaction, using on-intervention status and the standardised mediator. Allows the mediator-outcome association to differ by exposure in the g-formula.",
+        )
         b_W = _priors.gamma_own_prior().to_pymc("b_W")
-        b_A = _priors.gamma_age_prior().to_pymc("b_A")
+        b_A = _priors.gamma_age_prior().to_pymc(
+            "b_A",
+            role="association",
+            rationale="Pre-exposure age adjustment in this mediation leg; an adjusted association.",
+        )
         eta_Y = (
-            b0
-            + b_phase[phase_d]
-            + b_trt * trt_d
-            + b_M * z_med_d
-            + b_trtM * (trt_d * z_med_d)
-            + b_W * W1_d
-            + b_A * A_d
+            b0 + b_phase[phase_d] + b_trt * trt_d + b_M * z_med_d + b_trtM * (trt_d * z_med_d) + b_W * W1_d + b_A * A_d
         )
         for s in confounder_symbols:
-            b_c = _priors.gamma_cross_prior().to_pymc(f"b_{s}")
+            b_c = _priors.gamma_cross_prior().to_pymc(
+                f"b_{s}",
+                role="association",
+                rationale="Cross-baseline confounder coupling in the mediation leg; an adjusted association, not a mediator path.",
+            )
             eta_Y = eta_Y + b_c * conf_d[s]
         eta_Y = _add_cross_baselines(eta_Y, outcome_cross_baselines, out_cross_values)
         sigma_child_Y = _priors.declare(
@@ -1249,19 +1237,19 @@ def build_period_stacked_mediation_model(
             pm.Normal("u_child_Y_raw", mu=0.0, sigma=1.0, dims="child"),
             role="nuisance",
             rationale=(
-                "Non-centred standard-normal per-child offsets (Normal(0, 1)); "
-                "scaled by sigma_child_Y to form the outcome leg's child random "
-                "intercept u_child_Y."
+                "Non-centred standard-normal per-child offsets; scaled by sigma_child_Y to form the outcome leg's child random intercept u_child_Y."
             ),
         )
-        u_child_Y = pm.Deterministic(
-            "u_child_Y", sigma_child_Y * u_child_Y_raw, dims="child"
-        )
+        u_child_Y = pm.Deterministic("u_child_Y", sigma_child_Y * u_child_Y_raw, dims="child")
         eta_Y = pm.Deterministic("eta", eta_Y + u_child_Y[child_d], dims="obs_id")
         kappa_Y = _priors.kappa_prior().to_pymc("kappa_Y")
         beta_binomial_from_logit(
-            "y_post", eta_Y, n_trials=N_out, kappa=kappa_Y,
-            observed=W2_count, dims="obs_id",
+            "y_post",
+            eta_Y,
+            n_trials=N_out,
+            kappa=kappa_Y,
+            observed=W2_count,
+            dims="obs_id",
         )
 
     med_data = PeriodStackedMediationData(

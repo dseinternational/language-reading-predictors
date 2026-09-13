@@ -61,8 +61,15 @@ SPEC = ModelSpec(
     # settings key, so a reader can verify by eye that the pair differs only in the
     # outcome's response link.
     adjustment=[
-        "G", "A", "W_pre", "L_t1", "W",
-        "hs", "hs_missing", "deapp_c", "deapp_c_missing",
+        "G",
+        "A",
+        "W_pre",
+        "L_t1",
+        "W",
+        "hs",
+        "hs_missing",
+        "deapp_c",
+        "deapp_c_missing",
     ],
     model_settings=MediationModelSettings(
         outcomes=("B", "L", "W"),

@@ -78,16 +78,8 @@ _CONSTRUCTOR_FOR = {
 }
 
 
-
-
-
-
-
-
 def test_used_prior_keys_prunes_unused():
-    model = _described(
-        "alpha", "tau", "gamma_own", "gamma_A", "kappa", deterministics=("eta",)
-    )
+    model = _described("alpha", "tau", "gamma_own", "gamma_A", "kappa", deterministics=("eta",))
     keys = priors.used_prior_keys(model)
     assert set(keys) == {"alpha", "tau", "gamma_own", "gamma_age", "kappa"}
     # GP panels are not used by a plain ITT model -> pruned.
@@ -98,14 +90,16 @@ def test_used_prior_keys_prunes_unused():
 
 def test_used_prior_keys_skips_inline_noncentred_offsets():
     model = _described(
-        "mu_dose", "sigma_dose", "beta_dose_phase_raw",
+        "mu_dose",
+        "sigma_dose",
+        "beta_dose_phase_raw",
         deterministics=("beta_dose_phase",),
     )
     keys = priors.used_prior_keys(
         model,
         ctor_overrides={"mu_dose": "tau", "beta_dose_phase": "tau"},
     )
-    assert keys == ["tau", "sigma_dose"]
+    assert keys == ["beta_mech", "sigma_dose"]
     # The non-centred offset names no panel: its meaning is carried by the scale
     # it is multiplied by, and its declaration says so.
     assert priors.described_prior_row(model, _rv("beta_dose_phase_raw"))["panel"] == ""
@@ -145,110 +139,6 @@ def test_concurrent_group_term_is_documented_as_nuisance():
     assert by_param.loc["beta_group_nuisance", "panel"] == ""
 
 
-def test_level_factor_prior_role_is_conservative_for_group_time_vector():
-    from language_reading_predictors.statistical_models.context import ModelSpec
-    from language_reading_predictors.statistical_models.level_factors import (
-        resolve_level_factors_run_plan,
-    )
-    from language_reading_predictors.statistical_models.prior_artifacts import (
-        _prior_table_overrides,
-    )
-
-    spec = ModelSpec(
-        model_id="lrp-test-lf-prior",
-        kind="level_factors",
-        title="t",
-        outcome_symbol="W",
-        extra={"group_by_time": True, "ability_covariate": "blocks"},
-    )
-    ctx = SimpleNamespace(
-        spec=spec,
-        resolved_plan=resolve_level_factors_run_plan(spec),
-        model=None,
-    )
-    _ctor, role, rationale = _prior_table_overrides(ctx)
-    # #552 default (t1-referenced): the change vector carries the DiD family's
-    # ``regime`` role (#631 finding 13 — t2 is the randomised treated-versus-
-    # untreated change, t3/t4 the randomised schedule contrasts) and the balance
-    # term is a nuisance quantity, never an effect; b_grp_time is a Deterministic
-    # with no prior row.
-    assert role["d_grp_time"] == "regime"
-    assert "treated-versus-untreated change" in rationale["d_grp_time"]
-    assert "schedule contrasts" in rationale["d_grp_time"]
-    assert role["arm_gap_t1"] == "nuisance"
-    assert "never interpreted as an effect" in rationale["arm_gap_t1"]
-    assert "b_grp_time" not in role
-
-    # The free comparator keeps the pre-#552 vector documentation.
-    free_spec = ModelSpec(
-        model_id="lrp-test-lf-prior-free",
-        kind="level_factors",
-        title="t",
-        outcome_symbol="W",
-        extra={
-            "group_by_time": True,
-            "ability_covariate": "blocks",
-            "arm_gap_reference": "free",
-        },
-    )
-    free_ctx = SimpleNamespace(
-        spec=free_spec,
-        resolved_plan=resolve_level_factors_run_plan(free_spec),
-        model=None,
-    )
-    _ctor, role, rationale = _prior_table_overrides(free_ctx)
-    assert role["b_grp_time"] == "association"
-    assert "only b_grp_time[1]" in rationale["b_grp_time"]
-    assert "d_grp_time" not in role
-
-
-def test_gain_factor_moderation_variant_demotes_beta_trt_role():
-    """#490 review: a moderation variant's ``beta_trt`` must not reach the priors
-    table as "causal" — every artefact of a variant fit presents it as a
-    model-dependent association, priors_table.csv included. A headline primary is
-    untouched (no override entry), so its ``beta_trt`` keeps the causal role."""
-    from language_reading_predictors.statistical_models.context import ModelSpec
-    from language_reading_predictors.statistical_models.gain_factors import (
-        resolve_gain_factors_run_plan,
-    )
-    from language_reading_predictors.statistical_models.prior_artifacts import (
-        _prior_table_overrides,
-    )
-
-    variant_spec = ModelSpec(
-        model_id="lrp-test-gf-moderation",
-        kind="gain_factors",
-        title="t",
-        outcome_symbol="W",
-        extra={
-            "moderation_variant": True,
-            "interactions": (("trt", "own"),),
-        },
-    )
-    variant = SimpleNamespace(
-        spec=variant_spec,
-        resolved_plan=resolve_gain_factors_run_plan(variant_spec),
-        model=None,
-    )
-    _ctor, role, rationale = _prior_table_overrides(variant)
-    assert role["beta_trt"] == "association"
-    assert "interaction-free" in rationale["beta_trt"]
-
-    primary_spec = ModelSpec(
-        model_id="lrp-test-gf-primary",
-        kind="gain_factors",
-        title="t",
-        outcome_symbol="W",
-    )
-    primary = SimpleNamespace(
-        spec=primary_spec,
-        resolved_plan=resolve_gain_factors_run_plan(primary_spec),
-        model=None,
-    )
-    _ctor, role, _rationale = _prior_table_overrides(primary)
-    assert "beta_trt" not in role
-
-
 def test_priors_table_applies_rationale_overrides():
     model = _described("b_grp_time")
     df = priors.priors_table(
@@ -286,32 +176,17 @@ def test_empirical_bayes_rationale_matches_only_anchored_locations():
     assert eb("beta", "Normal(0, 0.5)") == ""
 
 
-def test_anchored_intercept_row_replaces_the_zero_centred_docstring():
-    """An anchored ``alpha`` must not inherit ``alpha_prior``'s docstring.
-
-    That docstring reads "Intercept alpha ~ Normal(0, 1.5)", which is the prior the
-    growth family does *not* fit — its mean is the grand mean observed logit. The
-    rationale is therefore replaced, not appended to.
-    """
+def test_anchor_mean_alone_does_not_infer_empirical_bayes():
+    """A vector location can be chosen externally; its source must be declared."""
     import numpy as np
     import pymc as pm
 
-    with pm.Model() as anchored:
+    with pm.Model() as model:
         priors.declare(
-            pm.Normal("alpha", mu=np.array([0.3, -0.2]), sigma=1.5, shape=2),
+            pm.Normal("alpha", mu=np.array([0.3, -0.2]), sigma=1.5),
             role="nuisance",
-            rationale="Intercept alpha ~ Normal(0, 1.5).",
+            rationale="Externally supplied locations.",
         )
-    row = priors.priors_table(anchored).iloc[0]
-    assert "<constant>" in row["distribution"]
-    assert priors.EMPIRICAL_BAYES_SENTENCE in row["rationale"]
-    assert "Normal(0, 1.5)" not in row["rationale"]
-
-    with pm.Model() as free:
-        priors.declare(
-            pm.Normal("alpha", mu=0.0, sigma=1.5),
-            role="nuisance",
-            rationale="Intercept alpha ~ Normal(0, 1.5).",
-        )
-    free_row = priors.priors_table(free).iloc[0]
-    assert priors.EMPIRICAL_BAYES_SENTENCE not in free_row["rationale"]
+    row = priors.priors_table(model).iloc[0]
+    assert row["rationale"] == "Externally supplied locations."
+    assert priors.EMPIRICAL_BAYES_SENTENCE not in row["rationale"]

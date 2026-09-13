@@ -83,7 +83,7 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="attend",
     adjustment=["G", "A", "W_pre"],
-        # target_accept 0.999 per LRP58 (the setting that stabilises the L->W curve).
+    # target_accept 0.999 per LRP58 (the setting that stabilises the L->W curve).
     target_accept=0.999,
     model_settings=MechanismModelSettings(
         # Only the outcome (W) is a bounded-count measure; the exposure is the

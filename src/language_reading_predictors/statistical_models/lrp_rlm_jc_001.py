@@ -45,10 +45,7 @@ from language_reading_predictors.statistical_models.pipelines.historical_joint i
 SPEC = ModelSpec(
     model_id="lrp-rlm-jc-001",
     kind="historical_joint",
-    title=(
-        "Byrne joint correlated growth: word reading, receptive vocabulary "
-        "and digit recall, waves 1-4 + DS wave 5"
-    ),
+    title=("Byrne joint correlated growth: word reading, receptive vocabulary and digit recall, waves 1-4 + DS wave 5"),
     outcome_symbol=None,
     study_id="rlm",
     family="historical_joint",
