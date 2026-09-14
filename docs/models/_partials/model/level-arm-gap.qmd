@@ -1,0 +1,11 @@
+**Arm-gap parameterisation.** The group coefficient is the baseline arm gap plus a change at each later wave:
+
+$$
+b_{\text{grp}[t1]} = a_{t1}, \qquad
+b_{\text{grp}[t]} = a_{t1} + d_{\text{grp}[t]},
+\quad t \in \{t2,t3,t4\}.
+$$
+
+`arm_gap_t1` ($a_{t1}$) is the covariate-adjusted immediate-minus-waitlist gap before treatment. It measures chance imbalance and uses the cross-coupling prior. `d_grp_time[t]` measures change from that gap and uses the outcome-tier treatment prior. The model adjusts for age and ability at each wave without an own-baseline covariate.
+
+The t2 change is the randomised treated-versus-untreated contrast, expressed as a difference-in-differences of adjusted levels. The t3/t4 changes compare randomised early-start and delayed-start treatment schedules; they do not isolate treatment presence or its mechanism. `b_grp_time` retains the per-wave gaps as a derived view. The `arm_gap_reference="free"` comparator instead estimates each wave's gap directly, so its t2 contrast includes baseline imbalance (#552).

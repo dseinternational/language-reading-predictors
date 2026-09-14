@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
+> Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
+>
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
 > Substantially edited in the ITT, concurrent, longitudinal-factor and waitlist-crossover sections by a LLM-based AI tool (Codex/GPT-5).
@@ -23,32 +25,14 @@
 
 # Model inventory
 
-A catalogue of every model in this study — what it is, what outcome it targets, and
-what question it answers. It is a map, not a results document: read the per-model
-report (`docs/models/{model_id}/index.qmd`) and `METHODS.md` for findings, diagnostics,
-and the full methodology.
+This catalogue lists each model's outcome and question. Read its report at `docs/models/{model_id}/index.qmd` for findings and diagnostics, and [METHODS.md](../../METHODS.md) for the methodology.
 
-The project uses a deliberate **two-step methodology** (see `METHODS.md`):
+The project has two stages:
 
-1. **Layer 1 — gradient-boosting discovery** (`src/language_reading_predictors/models/`,
-   ids `lrp-rli-gbg-NNN` / `lrp-rli-gbl-NNN`). LightGBM models that _rank_ which predictors help out-of-sample
-   prediction of each outcome, read with permutation importance and SHAP. Associational
-   and exploratory — never causal.
-2. **Layer 2 — Bayesian statistical models**
-   (`src/language_reading_predictors/statistical_models/`, family-prefixed ids). PyMC
-   models that estimate interpretable estimands with quantified uncertainty and, where
-   the DAG supports it, a causal effect. Most bounded-score families use a Beta-Binomial
-   working likelihood via a logit linear predictor: this respects score bounds and
-   overdispersion but is not a literal claim that heterogeneous test items or stopping-rule
-   scores are exchangeable Bernoulli trials.
+1. LightGBM models (`models/`, IDs `lrp-rli-gbg-NNN` / `lrp-rli-gbl-NNN`) rank predictors of gains and levels using permutation importance and SHAP. These rankings are exploratory associations.
+2. PyMC models (`statistical_models/`, family-prefixed IDs) estimate quantities with uncertainty. Most bounded-score families use a Beta-Binomial working likelihood. It respects score bounds and permits overdispersion; it does not assume literally exchangeable test items or stopping-rule scores.
 
-Both layers are built against the **revised causal DAG**
-(`dag/dag-language-reading.dagitty`, revised 2026-07-10). The single most important reading
-rule across the whole collection: **only a contrast licensed by randomisation can be causal.** In Layer 2
-that is `tau` in the randomised-window ITT family, `tau_t2` in the arm-by-wave crossover family and `beta_trt` in the gain-factor family, subject to each analysis's stated available-case missingness assumption. Every
-skill→skill coupling, mechanism slope, mediator→outcome path, and dose–response is a
-latent-ability-confounded **adjusted association**, never "X drives Y". Positive `τ` =
-intervention benefit (`G = 2 − group`).
+Both stages use the revised [causal DAG](../../dag/dag-language-reading.dagitty). Causal interpretation is limited to contrasts supported by randomisation and each analysis's stated available-case assumptions. Skill couplings, mechanism slopes, mediator-to-outcome paths and dose associations remain subject to confounding by latent ability. Positive τ means the intervention arm scores higher (`G = 2 − group`).
 
 ## At a glance
 
@@ -75,7 +59,7 @@ intervention benefit (`G = 2 − group`).
 | 2     | Historical growth, Byrne cohort (`lrp-rlm-hg`)                | Descriptive group-by-wave natural-history growth per measure in the Byrne reading-language-memory study (`study_id="rlm"`)       |
 | 2     | Byrne Phase B/D (`lrp-rlm-jc/mm/adj/hs/ca`)                   | Joint trajectories, measurement, baseline-predictor and confirmed-measure concurrent views                                       |
 
-Layer-2 totals are generated from the code rather than maintained in prose: `definitions.MODEL_REGISTRY` is the RLI catalogue, while module auto-discovery adds the Byrne `lrp-rlm-*` models. The current checked snapshot is `docs/models/registry-counts.json`; CI runs `python scripts/check_statistical_documentation.py`, which fails if that snapshot differs from `definitions.KINDS`, `definitions.MODEL_REGISTRY`, or `registry.discover_models()`. Regenerate it with the same command plus `--write` after an intentional registry change. Layer-2 selection variants (`…b` / `…base` / `…d`) are included in the per-family tables below.
+`definitions.MODEL_REGISTRY` lists RLI models; auto-discovery adds Byrne `lrp-rlm-*` models. CI checks `docs/models/registry-counts.json` against those registries and `definitions.KINDS` with `python scripts/check_statistical_documentation.py`. After an intentional registry change, refresh the snapshot with `--write`. Per-family tables include selection variants.
 
 ## Outcome symbols (Layer 2)
 
@@ -100,12 +84,7 @@ Beta-Binomial trial ceiling.
 
 ## Layer 1 — Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)
 
-**Purpose.** For each outcome, fit a tuned LightGBM (GroupKFold by `subject_id`) and rank
-predictors by out-of-fold permutation importance + mean |SHAP|, reading direction and
-consistency from the SHAP beeswarm. This is the discovery layer that tells the Bayesian
-work _which_ predictors are worth modelling. Two model families per outcome: **gain**
-(predicting a `_GAIN` change score) and **level** (predicting a concurrent same-wave
-level).
+**Purpose.** Fit LightGBM with `GroupKFold` by `subject_id`, rank predictors by out-of-fold permutation importance and mean |SHAP|, and read direction from the SHAP beeswarm. Gain models predict `_GAIN` change scores; level models predict concurrent levels.
 
 Gain-model rankings are near-noise (baseline-driven regression to the mean); level-model
 rankings are largely concurrent same-construct correlation — read both under those
@@ -627,7 +606,7 @@ assumption and pooled-loadings (invariance) assumption up front. The pooled Phas
 ## Conventions and pointers
 
 - **Fit a model:** `python scripts/fit_statistical_model.py {model_id|all} --config dev|test|reporting [--render]` (Layer 2); `python scripts/fit_model.py {model_id|all} --config dev [--render]` (Layer 1).
-- **Reports:** one per model at `docs/models/{model_id}/index.qmd`; thin templates that include shared partials from `docs/models/_partials/`. Statistical reports use the findings-first order `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → family results → `_priors` → `_prior_predictive` → collapsed `_technical` (the full convergence banner, sampling diagnostics and posterior-predictive checks) → `_footer`. A failed gate is a prominent red badge; the key-findings interlock withholds result sentences, and the shared setup suppresses scientific result tables and figures while retaining diagnostic material. Selection variants fall back to their parent's template.
+- **Reports:** `docs/models/{model_id}/index.qmd` includes shared partials from `docs/models/_partials/`; variants can use their parent's template. Keep priors and prior prediction before family results, following [the shared order](../../AGENTS.md#statistical-models-statistical_models) validated by `scripts/restructure_statistical_reports.py`. Failed gates show a red badge and suppress scientific findings, tables and figures while retaining diagnostics.
 - **Cross-model comparisons:** `scripts/compare_statistical_models.py` (ITT-vs-joint `τ` consistency, `τ` and mechanism-slope forests, nested PSIS-LOO).
 - **Interpreting results:** read the visible sampling-quality badge before interpreting; expand Technical checks for R-hat, ESS, divergences, BFMI and the full predictive diagnostics. Zero divergences is the only automatic clean pass; a future trace-bound divergence qualification is amber and explicitly **not passed**, under the narrow policy in `METHODS.md`. Report the posterior (median + inner 50 % and outer equal-tailed 89 % credible intervals + tail probability, with an 89 % HPDI sensitivity interval alongside); positive `τ` = intervention helps; only a contrast explicitly licensed by randomisation is causal.
 - **Source of truth:** Layer-1 ids/outcomes live in each module + `models/registry.py`; Layer-2 in each module's `SPEC` (`statistical_models/`). Keep this inventory in step with those when models are added, renamed, or retired.

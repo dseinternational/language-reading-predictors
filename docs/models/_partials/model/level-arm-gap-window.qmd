@@ -1,0 +1,10 @@
+**Arm-gap parameterisation.** This comparator models only t1 and t2:
+
+$$
+b_{\text{grp}[t1]} = a_{t1}, \qquad
+b_{\text{grp}[t2]} = a_{t1} + d_{\text{grp}[t2]}.
+$$
+
+`arm_gap_t1` ($a_{t1}$) is the covariate-adjusted immediate-minus-waitlist gap before treatment. It measures chance imbalance and uses the cross-coupling prior. `d_grp_time[t2]` uses the outcome-tier treatment prior and is the randomised treated-versus-untreated contrast, expressed as a difference-in-differences of adjusted levels. The model adjusts for age and ability without an own-baseline covariate.
+
+This fit has no post-crossover waves or schedule contrasts. `b_grp_time` retains its two per-wave gaps as a derived view. The `arm_gap_reference="free"` comparator instead estimates each wave's gap directly, so its t2 contrast includes baseline imbalance (#552).

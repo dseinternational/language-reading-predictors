@@ -1,6 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
+> Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
+>
 > Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 >
 > Substantially edited in the waitlist-crossover, ITT direction-field and release-run workflow guidance by a LLM-based AI tool (Codex/GPT-5).
@@ -9,19 +11,19 @@
 >
 > Phoneme-blending link-sensitivity release workflow updated by a LLM-based AI tool (Codex/GPT-5).
 
-# Runbook — full statistical-model refit, render, publish and record
+# Full statistical-model refit and publication
 
-A start-to-finish checklist for refitting **every registered Bayesian statistical model** (the Layer-2 PyMC families) at reporting quality, rendering the reports, publishing them to the public research site, and recording the run. Follow it top to bottom; each step says how to check it worked before moving on.
+Follow this checklist to refit every registered Bayesian model at reporting quality, render and publish the reports, and record the run. Check each step before continuing.
 
-This runbook is the operational companion to the [`lrp-fit-statistical`](../../.claude/skills/lrp-fit-statistical/SKILL.md) skill (which covers the _science_ — estimands, the convergence gate, how to read each family) and to `METHODS.md`. It captures the **workflow and the gotchas** — the things that are not obvious from the scripts and that cost time the first time round. A worked example of its output is `notes/202607131300-full-statistical-refit-reporting.md`.
+Use this runbook with the [`lrp-fit-statistical` skill](../../.claude/skills/lrp-fit-statistical/SKILL.md) and [METHODS.md](../../METHODS.md), which explain the estimands and interpretation rules. See `notes/202607131300-full-statistical-refit-reporting.md` for a worked run record.
 
-**Time budget:** the full `reporting` sweep auto-discovers every registered RLI and historical-cohort model and should be treated as a several-hour background job on 16 cores. Most fits are fast (a typical ITT fit is ~40 s under `nutpie`); the slow tail is the growth / mediation / HSGP / LCSM / factor models. Recompute the registry count before each sweep rather than relying on a prose snapshot.
+**Time budget:** allow several hours on 16 cores for a full `reporting` sweep. Growth, mediation, HSGP, LCSM and factor models tend to take longest. The sweep discovers registered RLI and historical-cohort models; recompute their count before each run.
 
 ---
 
 ## Step 0 — Prerequisites
 
-Do all of these once, before you start. A failure here is the most common reason a later step dies halfway.
+Complete these prerequisites before starting:
 
 ```bash
 # 1. Create and activate the environment (the Bash-tool shell has NO environment
@@ -78,7 +80,7 @@ export REPORT_INPUT_SUFFIXES=".qmd .md .json .csv .txt .nc .png .svg .jpg .jpeg 
 mkdir -p "$RUN_METADATA_DIR"
 ```
 
-Record the immutable inputs before fitting. This manifest captures the exact commit, SHA-256 hash of every file under `data/`, and the shared report-input suffix list used by both freshness checks; it is uploaded with the reports in Step 5:
+Before fitting, record the commit, SHA-256 hashes of every file under `data/`, and the shared report-input suffixes. Step 5 uploads this manifest and uses it to check freshness:
 
 ```bash
 python - <<'PY'
@@ -216,8 +218,6 @@ Then fit just those, by id:
 ```bash
 python scripts/fit_statistical_model.py lrp-rli-mm-001 --config reporting --render
 ```
-
-(In the worked example, the first sweep was killed at 112/115; only `lrp-rli-mm-001`, `lrp-rli-mm-101`, `lrp-rlm-hg-001` were re-fitted.)
 
 ---
 
@@ -983,7 +983,7 @@ if fail:
     raise SystemExit(1)
 ```
 
-The standard, floor, influential-child and phoneme-blending link-sensitivity targets upload their content-addressed NetCDF traces because their validated summaries or manifests and report-local comparisons point to that evidence. The phoneme-blending archive also includes content-addressed child row maps so its fitted-child identity and Pareto-k alignment remain independently checkable. The much larger primary per-model `trace.nc` files remain excluded. All four central sensitivity directories are required targets, so a missing archive stops the release rather than producing unverifiable report claims.
+Upload content-addressed NetCDF traces for the standard, floor, influential-child and blending sensitivity archives: their summaries and report comparisons depend on those traces. Include the blending archive's child row maps to preserve fitted-child identity and Pareto-k alignment. Exclude the larger primary `trace.nc` files. All four central sensitivity directories are required; a missing archive stops release.
 
 Run it with the MI de-selected:
 
@@ -1007,9 +1007,9 @@ The report root is `https://dseresearch.blob.core.windows.net/public/projects/la
 
 ## Step 6 — Record the run in a dated note
 
-Every full refit gets a dated `notes/` note. Follow `METHODS.md` "Interpret / Reporting results" and the #179 evidence ladder. Use the AI-authorship label if the note was AI-drafted.
+Record every full refit in a dated `notes/` entry. Follow the interpretation rules in `METHODS.md`, the #179 evidence ladder and the AI-authorship rule.
 
-**Pull the headline numbers programmatically** rather than by eye — one script that reads each family's result CSV (per the file→column map in the `lrp-fit-statistical` skill) keeps the note accurate. A reusable extractor lives in the worked-example session; the essentials per family:
+**Extract headline numbers programmatically** from each family's result CSV, using the file-to-column map in the `lrp-fit-statistical` skill and the table below:
 
 | Family                 | File                                                        | Read                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1029,7 +1029,7 @@ Every full refit gets a dated `notes/` note. Follow `METHODS.md` "Interpret / Re
 | `corr_factor`          | `factor_correlation_summary.csv` / `structural_summary.csv` | descriptive correlations / structural association; withhold both after any gate failure                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `historical_growth`    | `posterior_growth_summary.csv`                              | per-group growth (separate historical study)                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
-Record: the local `RUN_NAME`, `run_manifest.json` commit and data hashes, config, N fitted / failed, clean-pass count and any separately reviewed divergence qualifications, the key available-case modified ITT estimates and `tau_t2` contrasts, `arm_gap_t1` and the post-crossover `arm_gap_t3`/`delta_crossover` quantities separately, the comparison artefacts, and the publish `run_id` + report root. Never collapse the waitlist-crossover quantities into one “DiD treatment effect”. Use the **canonical DAG single-letter outcome codes** (`OUTCOME_LABELS` in `statistical_models/definitions.py`) consistently — do not invent labels.
+Record `RUN_NAME`, the manifest's commit and data hashes, config, fitted/failed counts, clean passes, any reviewed divergence qualifications, comparisons, and the publication `run_id` and report root. Report available-case modified ITT estimates, `tau_t2`, baseline `arm_gap_t1`, and post-crossover `arm_gap_t3` / `delta_crossover` separately; they are distinct quantities. Use the canonical outcome codes in `statistical_models.definitions.OUTCOME_LABELS`.
 
 ---
 

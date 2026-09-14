@@ -1,13 +1,15 @@
 > [!NOTE]
+> Conciseness edits by a LLM-based AI tool (Codex/GPT-6).
+>
 > Drafted by a LLM-based AI tool (Codex/GPT-6).
 
 # Statistical review fixes
 
-This implements the remaining proposals accepted after the review of `17733d30` (#671). It changes model construction, input validation, child-fold assignment and fitted-model descriptions. It also removes repeated gain-factor calculations and outdated comments.
+This implements the remaining proposals accepted after the review of `17733d30` (#671): model construction, input validation, child-fold assignment, fitted-model descriptions and removal of repeated gain-factor calculations and outdated comments.
 
 ## Correctness changes
 
-The DiD dose factory now uses the declared `sigma_child_prior_sigma`, including the model with a separate dose slope for each period. The default remains 0.5. Regression checks resolve the settings and inspect the actual PyMC distributions for default, narrower and wider priors.
+The DiD dose factory uses the declared `sigma_child_prior_sigma`, including in the period-specific slope model. The default remains 0.5. Regression checks inspect the built PyMC distributions for default, narrower and wider priors.
 
 Child K-fold validation now recovers each child's group from the fitted row mapping. Repeated rows must agree. Historical panels use group labels from their longitudinal rows, in fitted-child order; their list of group categories is not a child mapping. A stratified split now requires valid labels for every child. A caller that wants an unstratified split must request it explicitly. Tests cover unequal numbers of rows, shuffled rows, conflicting or missing labels, and the case where the number of group categories happens to equal the number of children. The final review also caught and corrected infinite numeric labels stored in an `object` array. Valid numeric and text labels remain supported without coercion.
 
@@ -19,11 +21,11 @@ The fit context now retains an `effective_plan` separately from `resolved_plan`.
 
 Gain-factor factories now carry the fitted term vectors, main-effect scales, active interaction pairs and binary-baseline flag in `GainFactorsPayload`. Association summaries read these records. They no longer calculate the same standardisation or reconstruct treatment-interaction partners. The raw-logit scales for graded baseline main effects, the shared age scale, and the binary baseline contrast in floor models are preserved. Missingness indicators remain nuisance terms rather than reported associations.
 
-The comment edits remove migration history from the Boolean validator, correct the conditions for absent prior evidence, describe the historical-joint prediction target, and distinguish posterior sampling error from numerical error in mediator integration. Comments about the data-filtered recipes now describe their persistence. Constructor docstrings that supply prior-report text, scientific explanations and licence headers are retained.
+Comments now describe current Boolean validation, prior-evidence requirements, historical-joint prediction and persistence of filtered recipes. They distinguish posterior sampling error from mediator-integration error. Prior-report docstrings, scientific explanations and licence headers remain.
 
 ## Compatibility and verification
 
-The corrected recipe and effective settings can make older saved fits fail trace-reuse checks. The checks remain in place. This work does not rewrite saved study outputs or treat an old fit as compatible by dropping a comparison field. It does not rerun the study's reporting fits.
+Corrected recipes and effective settings can make older fits fail trace-reuse checks. Those checks remain intact. This work neither rewrites saved study outputs nor reruns reporting fits.
 
 Before and after the gain-factor refactor, all 33 registered gain models were built from the current study inputs. Their computational-graph and data-design fingerprints, fitted row and child counts, and complete association-summary inputs were identical. This comparison concerns model construction and summary inputs; it does not establish posterior convergence or validate the scientific identification assumptions.
 

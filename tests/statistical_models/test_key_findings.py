@@ -3114,14 +3114,16 @@ def test_reading_guide_is_a_collapsed_callout():
     for term in (
         "Posterior distribution",
         "Credible interval",
-        "prediction interval",
+        "Prediction interval",
         "ROPE",
-        "Causal vs association",
-        "logit",
+        "Causal and association labels",
+        "Logits and items",
         "Beta-Binomial",
-        "convergence gate",
+        "Convergence and release",
     ):
         assert term in text, term
+    assert "A failed computation gate withholds findings" in text
+    assert "Passing it does not establish model fit or causal identification" in text
     assert "METHODS.md" in text
 
 
