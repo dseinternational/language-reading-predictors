@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -61,9 +62,7 @@ def test_concurrent_specs_share_family_design_and_core_conditionals():
         assert spec.design == "per-wave cross-sectional conditional associations"
         assert spec.estimand_type == "association"
         assert spec.causal_status == "none"
-        assert set(resolve_concurrent_run_plan(spec).predictor_symbols) == core - {
-            spec.outcome_symbol
-        }
+        assert set(resolve_concurrent_run_plan(spec).predictor_symbols) == core - {spec.outcome_symbol}
 
 
 @pytest.mark.parametrize(
@@ -73,9 +72,7 @@ def test_concurrent_specs_share_family_design_and_core_conditionals():
         (CA002, (54, 54, 54, 52), {4}),
     ),
 )
-def test_live_wave_masks_drop_only_informative_missingness_offsets(
-    spec, expected_n, dropped_waves
-):
+def test_live_wave_masks_drop_only_informative_missingness_offsets(spec, expected_n, dropped_waves):
     """Regression guard for the globally-varying, fitted-row-constant defect."""
     plan = resolve_concurrent_run_plan(spec)
     prepared = load_and_prepare(**plan.prepare_kwargs())
@@ -83,12 +80,8 @@ def test_live_wave_masks_drop_only_informative_missingness_offsets(
     dropped = set()
     for wave in range(4):
         subset = _subset_prepared(prepared, prepared.phase == wave)
-        subset = _subset_prepared(
-            subset, ~np.isnan(subset.post_counts[plan.outcome_symbol])
-        )
-        _, effective, omitted = filter_informative_covariates(
-            subset, plan.covariates
-        )
+        subset = _subset_prepared(subset, ~np.isnan(subset.post_counts[plan.outcome_symbol]))
+        _, effective, omitted = filter_informative_covariates(subset, plan.covariates)
         observed_n.append(subset.n_obs)
         if "erbto_missing" in omitted:
             dropped.add(wave + 1)
@@ -299,16 +292,34 @@ def test_concurrent_spec_docs_avoid_unqualified_attenuation_claims():
         assert "gap is itself informative" not in text
 
 
-def test_concurrent_reports_name_comparator_and_missingness_policy_accurately():
+@pytest.mark.parametrize("number", range(1, 12))
+def test_concurrent_reports_name_comparator_and_missingness_policy_accurately(number):
     repo = Path(__file__).resolve().parents[2]
-    for number in range(1, 12):
-        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text(encoding="utf-8")
-        assert "Every adjusted and bivariate fit" not in text
-        assert "adjusted-versus-bivariate" not in text
-        assert "Drafted by a LLM-based AI tool (Codex/GPT-5)." in text
+    model_dir = repo / "docs/models"
+    text = (model_dir / f"lrp-rli-ca-{number:03d}/index.qmd").read_text(encoding="utf-8")
+    # Check the report's included model prose as well as its inline explanation.
+    text = re.sub(
+        r"\{\{< include (_partials/model/[^ ]+\.qmd) >\}\}",
+        lambda match: (model_dir / match[1]).read_text(encoding="utf-8"),
+        text,
+    )
+    assert "Every adjusted and bivariate fit" not in text
+    assert "adjusted-versus-bivariate" not in text
+    assert "Drafted by a LLM-based AI tool (Codex/GPT-5)." in text
 
-    for number in range(1, 10):
-        text = (repo / f"docs/models/lrp-rli-ca-{number:03d}/index.qmd").read_text(encoding="utf-8")
+    if number <= 9:
         assert "single-skill, trait-adjusted comparator" in text
-        assert "informative flags are nuisance subgroup offsets" in text
-        assert "flags that are constant" in text
+        assert any(
+            wording in text
+            for wording in (
+                "informative flags are nuisance subgroup offsets rather than skill effects",
+                "treat the others as nuisance offsets",
+            )
+        )
+        assert any(
+            wording in text
+            for wording in (
+                "flags that are constant after selecting the wave and observed focal outcome are omitted",
+                "omit indicators constant among that wave's observed-outcome rows",
+            )
+        )
