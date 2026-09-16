@@ -80,6 +80,23 @@ def test_model_default_outranks_sampling_preset_without_cli_override(
     assert fit_context.sampling.target_accept == 0.97
 
 
+def test_sampling_can_be_resolved_without_creating_outputs(monkeypatch):
+    spec = ModelSpec(model_id="review", kind="example", title="Review", target_accept=0.97)
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("resolving sampling must not initialise a fit")
+
+    monkeypatch.setattr(context._env, "init_plotting", forbidden)
+    monkeypatch.setattr(context.OutputTransaction, "create", forbidden)
+    resolved = context.resolve_sampling_configuration(spec, "dev")
+    assert resolved.target_accept == 0.97
+    overridden = context.resolve_sampling_configuration(
+        spec, "dev", run_options=StatisticalRunOptions(target_accept=0.93), random_seed=12,
+    )
+    assert overridden.target_accept == 0.93
+    assert overridden.random_seed == 12
+
+
 def test_spec_target_accept_is_honoured_for_every_family(tmp_path, monkeypatch):
     """A spec declaration must bind regardless of which fit function runs.
 

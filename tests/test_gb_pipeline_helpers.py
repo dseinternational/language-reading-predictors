@@ -136,3 +136,165 @@ def test_summed_symmetric_interactions_table_matches_heatmap():
     # Ranked descending.
     vals = inter_df["mean_abs_interaction"].to_numpy()
     assert np.all(np.diff(vals) <= 0)
+
+
+def _small_pipeline(tmp_path):
+    from language_reading_predictors.models.common import ModelConfig, RunConfig
+
+    pipe = EstimatorPipeline(
+        ModelConfig(
+            model_id="review", description="Review test", target_var="y",
+            predictor_vars=["signal", "wave"], model_params={},
+        ),
+        RunConfig.from_name("dev"),
+    )
+    pipe.context.output_dir = tmp_path
+    return pipe
+
+
+@pytest.mark.parametrize("fail_at", ["permutation_importance_analysis", "report", None])
+def test_metrics_mark_only_a_completed_fit(tmp_path, monkeypatch, fail_at):
+    pipe = _small_pipeline(tmp_path)
+    # An earlier successful run must not leave its completion marker behind.
+    marker = tmp_path / "metrics.json"
+    marker.write_text("old metrics")
+
+    def stage(name):
+        def run():
+            if name == fail_at:
+                raise RuntimeError("stage failed")
+        return run
+
+    for name in (
+        "prepare_data", "configure_model", "cross_validate", "fit_model", "evaluate",
+        "permutation_importance_analysis", "construct_importance", "cluster_ranking_analysis", "report",
+    ):
+        monkeypatch.setattr(pipe, name, stage(name))
+    def save_metrics(*, fit_complete=False):
+        assert fit_complete is True
+        marker.write_text("new metrics")
+    monkeypatch.setattr(pipe, "save_metrics", save_metrics)
+    if fail_at is None:
+        pipe.fit()
+        assert marker.read_text() == "new metrics"
+    else:
+        with pytest.raises(RuntimeError, match="stage failed"):
+            pipe.fit()
+        assert not marker.exists()
+
+
+def test_bootstrap_importance_preserves_child_trajectories(tmp_path):
+    from sklearn.linear_model import LinearRegression
+
+    pipe = _small_pipeline(tmp_path)
+    groups = np.repeat(np.arange(24), 3)
+    # Every child has the same wave profile. A whole-child permutation cannot
+    # change it; a row shuffle invents trajectories and falsely assigns importance.
+    wave = np.tile([0.0, 1.0, 2.0], 24)
+    signal = np.repeat(np.linspace(-1.0, 1.0, 24), 3)
+    pipe.context.X = pd.DataFrame({"signal": signal, "wave": wave})
+    pipe.context.y = pd.Series(3.0 * signal + 10.0 * wave)
+    pipe.context.groups = pd.Series(groups)
+    pipe.context.pipeline = LinearRegression()
+
+    pipe.stability_selection(n_bootstraps=4, n_repeats=5, top_k=1)
+
+    result = pipe.context.dataframes["stability_selection"].set_index("feature")
+    assert result.loc["wave", "importance_mean"] == pytest.approx(0.0, abs=1e-12)
+    assert result.loc["signal", "importance_mean"] > 1.0
+    assert result.loc["signal", "appearance_rate_top_k"] == 1.0
+
+
+def test_bootstrap_requires_two_out_of_bag_children(tmp_path):
+    from sklearn.linear_model import LinearRegression
+
+    pipe = _small_pipeline(tmp_path)
+    pipe.context.X = pd.DataFrame({"signal": [0.0, 0.0, 1.0, 1.0], "wave": [0.0, 1.0, 0.0, 1.0]})
+    pipe.context.y = pd.Series([1.0, 2.0, 3.0, 4.0])
+    pipe.context.groups = pd.Series(["a", "a", "b", "b"])
+    pipe.context.pipeline = LinearRegression()
+
+    with pytest.raises(RuntimeError, match="at least two out-of-bag subjects"):
+        pipe.stability_selection(n_bootstraps=3, n_repeats=2)
+    assert not (tmp_path / "stability_selection.csv").exists()
+
+
+def test_locked_completion_record_preserves_the_previous_fit(tmp_path, monkeypatch):
+    pipe = _small_pipeline(tmp_path)
+    marker = tmp_path / "metrics.json"
+    marker.write_text("completed")
+    report = tmp_path / "index.qmd"
+    report.write_text("previous report")
+    unlink = Path.unlink
+
+    def refuse_marker(path, *args, **kwargs):
+        if path == marker:
+            raise PermissionError("locked completion record")
+        return unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "unlink", refuse_marker)
+    with pytest.raises(PermissionError, match="locked completion record"):
+        pipe.fit()
+    assert marker.read_text() == "completed"
+    assert report.read_text() == "previous report"
+
+
+def test_config_records_loaded_data_identity_without_rehashing_it(tmp_path):
+    import hashlib
+    import json
+
+    pipe = _small_pipeline(tmp_path)
+    source = tmp_path / "source.csv"
+    source.write_bytes(b"score\n1\n")
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    pipe.context.df = pd.DataFrame({"score": [1]})
+    pipe.context.df.attrs.update(data_path=str(source), data_sha256=digest)
+    # If the source changes after loading, metadata must still identify what was fitted.
+    source.write_bytes(b"score\n2\n")
+    pipe.save_config()
+
+    config = json.loads((tmp_path / "config.json").read_text())
+    assert config["data_path"] == str(source)
+    assert config["data_sha256"] == digest
+    assert config["provenance"]["source"]["commit"]
+    lock = tmp_path / config["environment_lock_file"]
+    assert hashlib.sha256(lock.read_bytes()).hexdigest() == config["environment_lock_sha256"]
+
+
+@pytest.fixture(params=["fit", "tune"])
+def clear_outputs(request):
+    if request.param == "fit":
+        from language_reading_predictors.models.base_pipeline import _clear_directory
+        return _clear_directory
+    script = _RANK_SCRIPT.with_name("tune_model.py")
+    spec = importlib.util.spec_from_file_location("tune_model_cleanup", script)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module._clear_directory
+
+
+def test_output_cleanup_does_not_suppress_deletion_failure(tmp_path, monkeypatch, clear_outputs):
+    (tmp_path / "old.csv").write_text("old result")
+
+    def locked(*args, **kwargs):
+        raise PermissionError("locked output")
+
+    monkeypatch.setattr(Path, "unlink", locked)
+    with pytest.raises(PermissionError, match="locked output"):
+        clear_outputs(tmp_path)
+
+
+def test_output_cleanup_unlinks_directory_symlinks(tmp_path, clear_outputs):
+    output = tmp_path / "output"
+    output.mkdir()
+    target = tmp_path / "target"
+    target.mkdir()
+    sentinel = target / "keep.txt"
+    sentinel.write_text("keep")
+    try:
+        (output / "linked").symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks unavailable on this platform")
+    clear_outputs(output)
+    assert list(output.iterdir()) == []
+    assert sentinel.read_text() == "keep"

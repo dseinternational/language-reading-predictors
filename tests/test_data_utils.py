@@ -35,6 +35,19 @@ def test_period_and_on_intervention_columns_exist():
     assert V.ON_INTERVENTION in df.columns
 
 
+def test_source_identity_survives_gain_filtering():
+    import hashlib
+    from pathlib import Path
+    from language_reading_predictors.data_utils import load_and_filter
+
+    frame, _, _, _ = load_and_filter(V.EWRSWR_GAIN, [V.AGE], outlier_threshold=10)
+    source = Path(frame.attrs["data_path"])
+    assert source.is_absolute()
+    assert source.name == "rli_data_long.csv"
+    assert frame.attrs["data_sha256"] == hashlib.sha256(source.read_bytes()).hexdigest()
+    assert frame[V.EWRSWR_GAIN].max() < 10
+
+
 def test_period_equals_time():
     df = _df()
     assert bool((df[V.PERIOD] == df[V.TIME]).all())

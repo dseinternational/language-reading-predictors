@@ -15,8 +15,10 @@ This driver is the checked-in replacement. It runs **one subprocess per model**
 (fit and render together), streams that model's output to its own log file,
 appends a JSON-lines journal record for every model, and — on resume — reuses a
 stored fit only when its recorded identity still matches the current run:
-sampling preset, source commit and dirty flag, the data file digest recorded in
-the fit, and the environment lock digest.
+sampling settings, clean source commit, the data file digest recorded in the
+fit, and the environment lock digest. Statistical fits compare resolved sampler
+settings. Gradient-boosting fits require their preset and an explicit completion
+flag written after every pipeline stage succeeds.
 
 Usage::
 
@@ -139,6 +141,8 @@ def _reuse_reason(
     identity: SweepIdentity,
     *,
     require_render: bool,
+    target_accept: float | None = None,
+    rli_randomised_archive: str | None = None,
 ) -> str | None:
     """Return ``None`` when the stored fit is reusable, else why it is not.
 
@@ -160,32 +164,81 @@ def _reuse_reason(
             stored = json.load(handle)
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return "config.json unreadable"
+    if not isinstance(stored, dict):
+        return "config.json must contain an object"
+
+    model_id = stored.get("model_id")
+    if not isinstance(model_id, str) or directory.name != (
+        f"{model_id}-{config}" if kind == "statistical" else model_id
+    ):
+        return "stored model identity does not match its directory"
 
     stored_config = stored.get("config_name") or stored.get("run_config")
     if stored_config != config:
         return f"sampling preset {stored_config!r} != {config!r}"
 
     if kind != "statistical":
-        # GB fits record no source provenance, so preset plus markers is all the
-        # identity there is; the fits are minutes long, so --force is cheap.
-        return None
+        # Earlier pipelines wrote metrics before explanation/report stages. Those
+        # files alone cannot certify completion, including for archived fits.
+        try:
+            metrics = json.loads((directory / marker).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return "metrics.json unreadable"
+        if not isinstance(metrics, dict) or metrics.get("fit_complete") is not True:
+            return "gradient-boosting fit completion is not recorded"
+        if metrics.get("model_id") != model_id:
+            return "metrics model identity does not match config.json"
 
-    source = (stored.get("provenance") or {}).get("source") or {}
+    provenance = stored.get("provenance")
+    source = provenance.get("source") if isinstance(provenance, dict) else None
+    if not isinstance(source, dict) or not source.get("commit") or not identity.commit:
+        return "source commit unavailable"
     if source.get("commit") != identity.commit:
         return f"commit {source.get('commit')!r} != {identity.commit!r}"
-    if bool(source.get("dirty")) != bool(identity.dirty):
-        return f"dirty flag {source.get('dirty')!r} != {identity.dirty!r}"
-    if stored.get("environment_lock_sha256") != identity.environment_sha256:
+    # Two dirty checkouts at one commit can contain different changes. A Boolean
+    # dirty flag cannot prove that their source matches. Unknown is not clean.
+    if source.get("dirty") is not False or identity.dirty is not False:
+        return "source is dirty or its clean status is unknown"
+    if not identity.environment_sha256 or stored.get("environment_lock_sha256") != identity.environment_sha256:
         return "environment lock digest changed"
 
     data_path = stored.get("data_path")
     recorded_data_sha = stored.get("data_sha256")
-    if data_path and recorded_data_sha:
-        candidate = Path(data_path)
-        if not candidate.is_absolute():
-            candidate = REPO_ROOT / candidate
-        if _sha256_file(candidate) != recorded_data_sha:
-            return "data digest changed"
+    if not isinstance(data_path, str) or not data_path or not isinstance(recorded_data_sha, str) or not recorded_data_sha:
+        return "data identity unavailable"
+    candidate = Path(data_path)
+    if not candidate.is_absolute():
+        candidate = REPO_ROOT / candidate
+    if _sha256_file(candidate) != recorded_data_sha:
+        return "data digest changed"
+
+    if kind != "statistical":
+        return None
+
+    if rli_randomised_archive is not None:
+        # The sweep identity does not bind this optional audit input. Rerun to
+        # honour an explicit request rather than silently skip the new archive.
+        return "randomised archive requested; its identity is not bound by the stored sweep metadata"
+
+    from language_reading_predictors.statistical_models.context import resolve_sampling_configuration
+    from language_reading_predictors.statistical_models.registry import discover_models
+    from language_reading_predictors.statistical_models.run_options import StatisticalRunOptions
+
+    entry = discover_models().get(model_id)
+    if entry is None:
+        return "stored model is not registered"
+    module = entry.load()
+    spec = module.get_spec() if hasattr(module, "get_spec") else module.SPEC
+    expected = resolve_sampling_configuration(
+        spec, config, run_options=StatisticalRunOptions(target_accept=target_accept)
+    )
+    sampling = stored.get("sampling")
+    if not isinstance(sampling, dict):
+        return "sampling settings unavailable"
+    for name in ("draws", "tune", "chains", "target_accept", "random_seed"):
+        value = sampling.get(name)
+        if isinstance(value, bool) or value != getattr(expected, name):
+            return f"sampling setting {name} {value!r} != {getattr(expected, name)!r}"
 
     return None
 
@@ -278,6 +331,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="List what would run, then exit")
     args = parser.parse_args(argv)
 
+    from language_reading_predictors.statistical_models.run_options import StatisticalRunOptions
+
+    try:
+        options = StatisticalRunOptions(
+            target_accept=args.target_accept, rli_randomised_archive=args.rli_randomised_archive
+        )
+    except ValueError as exc:
+        parser.error(str(exc))
+    if args.kind != "statistical" and (options.target_accept is not None or options.rli_randomised_archive is not None):
+        parser.error("--target-accept and --rli-randomised-archive apply only to statistical fits")
+
     paths.set_output_root(args.output_dir)
     identity = SweepIdentity.current()
     models = _selected_models(args)
@@ -301,6 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.config,
             identity,
             require_render=args.render,
+            target_accept=options.target_accept,
+            rli_randomised_archive=options.rli_randomised_archive,
         )
         plan.append((model_id, reason))
 
@@ -315,12 +381,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
 
     failures: list[str] = []
+    attempted: list[str] = []
     sweep_started = time.monotonic()
     for index, model_id in enumerate(to_run, start=1):
         log_path = log_dir / f"{args.kind}-{model_id}-{args.config}.log"
         _print(f"[{index}/{len(to_run)}] {model_id} ...")
         started_at = datetime.now(UTC).isoformat()
         returncode, seconds = _run_one(args.kind, model_id, args, log_path=log_path)
+        attempted.append(model_id)
         status = "ok" if returncode == 0 else "failed"
         if returncode != 0:
             failures.append(model_id)
@@ -350,8 +418,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     _print("")
     _print(f"Sweep finished in {_format_duration(time.monotonic() - sweep_started)}: "
-           f"{len(to_run) - len(failures)} ok, {len(failures)} failed.")
-    for line in _stale_by_ordering(args.kind, to_run, args.config):
+           f"{len(attempted) - len(failures)} ok, {len(failures)} failed, "
+           f"{len(to_run) - len(attempted)} not run.")
+    for line in _stale_by_ordering(args.kind, attempted, args.config):
         _print(line)
     if failures:
         _print("Failed: " + ", ".join(failures))

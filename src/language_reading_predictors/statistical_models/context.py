@@ -288,7 +288,11 @@ def spec_target_accept(spec: ModelSpec) -> float | None:
     return target_accept
 
 
-def _resolve_target_accept(spec: ModelSpec, sampling, run_options):
+def _resolve_target_accept(
+    spec: ModelSpec,
+    sampling: _sampling.SamplingConfiguration,
+    run_options: StatisticalRunOptions,
+) -> _sampling.SamplingConfiguration:
     """Resolve NUTS ``target_accept`` with explicit precedence, for **every** family.
 
     Precedence is **CLI override > model-specific default > config preset**.
@@ -322,6 +326,22 @@ def _resolve_target_accept(spec: ModelSpec, sampling, run_options):
     return sampling
 
 
+def resolve_sampling_configuration(
+    spec: ModelSpec,
+    config: str,
+    *,
+    run_options: StatisticalRunOptions | None = None,
+    random_seed: int = 47,
+) -> _sampling.SamplingConfiguration:
+    """Resolve sampler settings without creating outputs or a fit context.
+
+    Fits and sweep resumption use this same resolver so a requested override,
+    model default or preset cannot be ignored when deciding to reuse a fit.
+    """
+    sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)
+    return _resolve_target_accept(spec, sampling, run_options or current_run_options())
+
+
 def make_context(
     spec: ModelSpec,
     config: str = "dev",
@@ -340,8 +360,7 @@ def make_context(
         interval_kind="eti",
     )
     run_options = current_run_options()
-    sampling = _sampling.get_sampling_configuration(config, random_seed=random_seed)
-    sampling = _resolve_target_accept(spec, sampling, run_options)
+    sampling = resolve_sampling_configuration(spec, config, run_options=run_options, random_seed=random_seed)
     ctx = StatisticalFitContext(
         spec=spec,
         reporting=reporting,

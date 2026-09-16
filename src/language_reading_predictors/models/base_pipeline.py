@@ -32,7 +32,7 @@ import pandas as pd
 import shap
 from rich import print
 from scipy.cluster import hierarchy
-from sklearn.inspection import partial_dependence, permutation_importance
+from sklearn.inspection import partial_dependence
 from sklearn.model_selection import GroupKFold, cross_validate
 
 import language_reading_predictors.data_utils as data_utils
@@ -704,6 +704,11 @@ class EstimatorPipeline:
         of the unique subjects, sampled with replacement), refits the
         estimator on each subsample, and recomputes permutation
         importance on the out-of-bag subjects with ``n_repeats`` repeats.
+        Each permutation moves whole subject trajectories, using the same
+        donor scheme as :meth:`permutation_importance_analysis`. A row shuffle
+        would measure a different change by also breaking within-child order.
+        Draws with fewer than two out-of-bag subjects are skipped because
+        between-subject permutation cannot change a single subject's values.
         Records:
 
         - ``appearance_rate_top_k`` — fraction of bootstraps where the
@@ -725,6 +730,7 @@ class EstimatorPipeline:
         """
         from sklearn.base import clone
         from sklearn.utils import resample
+        from language_reading_predictors.models.permutation import pooled_permutation_deltas
 
         section_header("Stability selection")
 
@@ -765,7 +771,7 @@ class EstimatorPipeline:
             X_b = context.X.iloc[row_idx]
             y_b = context.y.iloc[row_idx]
             oob_subjects = np.setdiff1d(unique_subjects, np.unique(drawn))
-            if oob_subjects.size == 0:
+            if oob_subjects.size < 2:
                 continue
             eval_idx = np.flatnonzero(context.groups.isin(oob_subjects).to_numpy())
             if eval_idx.size == 0:
@@ -775,32 +781,35 @@ class EstimatorPipeline:
 
             est = clone(context.pipeline)
             est.fit(X_b, y_b)
-            result = permutation_importance(
-                est,
+            deltas = pooled_permutation_deltas(
+                [est],
                 X_eval,
-                y_eval,
+                y_eval.to_numpy(dtype=float),
+                [np.arange(len(X_eval))],
+                context.groups.iloc[eval_idx],
+                {i: [i] for i in range(X_eval.shape[1])},
                 n_repeats=n_repeats,
-                random_state=seed,
-                scoring="neg_root_mean_squared_error",
+                seed=seed,
             )
+            importance_means = np.asarray([deltas[i].mean() for i in range(X_eval.shape[1])])
             completed_bootstraps += 1
 
             # Rank features in this bootstrap (highest importance = rank 1).
             # ``kind="stable"`` keeps tie-breaking deterministic across
             # numpy versions so bootstrap rank IQRs are reproducible
             # under the project's fixed seed.
-            order = np.argsort(-result.importances_mean, kind="stable")
+            order = np.argsort(-importance_means, kind="stable")
             ranks = np.empty_like(order)
             ranks[order] = np.arange(1, len(order) + 1)
             for i, feat in enumerate(context.X.columns):
                 rank_records[feat].append(int(ranks[i]))
-                imp_records[feat].append(float(result.importances_mean[i]))
+                imp_records[feat].append(float(importance_means[i]))
                 if ranks[i] <= top_k:
                     appearance_top[feat] += 1
 
         if completed_bootstraps == 0:
             raise RuntimeError(
-                "No out-of-bag subjects were available for stability selection."
+                "No bootstrap had at least two out-of-bag subjects for stability selection."
             )
 
         rows = []
@@ -1257,9 +1266,15 @@ class EstimatorPipeline:
 
     def save_config(self) -> None:
         """Save model configuration as JSON for the report template."""
+        # These helpers record source/runtime facts without constructing a
+        # statistical model. Both analysis layers use the same provenance schema.
+        from language_reading_predictors.statistical_models.provenance import run_provenance, write_environment_lock
+
         context = self.context
         cfg = context.config
         run = context.run_config
+        environment_path, environment_sha256 = write_environment_lock(context.output_dir)
+        data_identity = context.df.attrs if context.df is not None else {}
 
         effective_model_params = _cap_n_estimators(cfg.model_params, run)
         effective_cv_splits = (
@@ -1288,6 +1303,11 @@ class EstimatorPipeline:
             "random_seed": cfg.random_seed,
             "run_config": run.name,
             "output_root": str(_paths.output_root()),
+            "data_path": data_identity.get("data_path"),
+            "data_sha256": data_identity.get("data_sha256"),
+            "provenance": run_provenance(),
+            "environment_lock_file": environment_path.name,
+            "environment_lock_sha256": environment_sha256,
         }
 
         overrides = {}
@@ -1309,8 +1329,8 @@ class EstimatorPipeline:
         config_path = context.output_dir / "config.json"
         config_path.write_text(json.dumps(config_dict, indent=2), encoding="utf-8")
 
-    def save_metrics(self) -> None:
-        """Save aggregated diagnostic metrics for cross-variant comparison."""
+    def save_metrics(self, *, fit_complete: bool = False) -> None:
+        """Save metrics; only the finished orchestrator may certify completion."""
         context = self.context
         cfg = context.config
         run = context.run_config
@@ -1355,6 +1375,7 @@ class EstimatorPipeline:
 
         metrics = {
             "model_id": cfg.model_id,
+            "fit_complete": fit_complete,
             "pipeline_cls": type(self).__name__,
             "variant_of": cfg.variant_of,
             "target_var": cfg.target_var,
@@ -1472,6 +1493,9 @@ class EstimatorPipeline:
 
         output_dir = context.output_dir
         output_dir.mkdir(parents=True, exist_ok=True)
+        # Invalidate the previous completion record before touching its outputs.
+        # If this fails, leave the earlier fit intact and stop the new attempt.
+        (output_dir / "metrics.json").unlink(missing_ok=True)
         _clear_directory(output_dir)
 
         # Write config.json FIRST, before any long stage. The GB output dir has no
@@ -1490,7 +1514,6 @@ class EstimatorPipeline:
         self.cross_validate()
         self.fit_model()
         self.evaluate()
-        self.save_metrics()
         self.permutation_importance_analysis()
         self.construct_importance()
 
@@ -1531,6 +1554,9 @@ class EstimatorPipeline:
 
         self.save_config()
         self.report()
+        # Sweep resumption must distinguish a finished fit from one that failed
+        # during permutation importance, SHAP, ranking or report preparation.
+        self.save_metrics(fit_complete=True)
 
         print()
         print_panel(run_summary_panel(output_dir=output_dir))
@@ -1595,20 +1621,14 @@ def _in_sample_metrics(eval_df: pd.DataFrame, y_true: pd.Series) -> dict[str, fl
 
 def _clear_directory(path: Path) -> None:
     """Remove all files and subdirectories inside ``path`` without removing
-    ``path`` itself. More robust on Windows than ``rmtree`` + ``mkdir`` when
-    another process (editor, file explorer, watcher) holds a handle on the
-    directory.
+    ``path`` itself. Stop on failure so a fit cannot mix old and new outputs.
+    Directory symlinks are unlinked without touching their targets.
     """
     for entry in path.iterdir():
-        if entry.is_dir():
-            shutil.rmtree(entry, ignore_errors=True)
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
         else:
-            try:
-                entry.unlink()
-            except PermissionError:
-                print(
-                    f"[yellow]Warning: could not delete {entry} (PermissionError)[/yellow]"
-                )
+            entry.unlink()
 
 
 def _cap_n_estimators(model_params: dict, run_config: RunConfig) -> dict:
