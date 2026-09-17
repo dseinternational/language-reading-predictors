@@ -91,14 +91,12 @@ def _load_frame(cfg: ModelConfig) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
 
 
 def _clear_directory(path: Path) -> None:
+    """Stop if old outputs cannot be removed; never follow directory symlinks."""
     for entry in path.iterdir():
-        if entry.is_dir():
-            shutil.rmtree(entry, ignore_errors=True)
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
         else:
-            try:
-                entry.unlink()
-            except PermissionError:
-                print(f"[yellow]Warning: could not delete {entry} (PermissionError)[/yellow]")
+            entry.unlink()
 
 
 # ── search spaces ───────────────────────────────────────────────────────

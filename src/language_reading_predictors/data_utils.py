@@ -2,6 +2,8 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 
+import hashlib
+import io
 import warnings
 
 import numpy as np
@@ -122,7 +124,9 @@ def load_data() -> pd.DataFrame:
     data_path = (
         Path(__file__).resolve().parent.parent.parent / "data" / "rli_data_long.csv"
     )
-    df = pd.read_csv(data_path).convert_dtypes()
+    # Hash the exact bytes parsed, then carry their identity through filtering.
+    source = data_path.read_bytes()
+    df = pd.read_csv(io.BytesIO(source)).convert_dtypes()
     # Known-corrupt cells go to missing before any dtype/derivation step, and the
     # ERB integrity check then guards against any new violation slipping in
     # (#631 finding 3; notes/202608262120-erb-word-repetition-quarantine-631.md).
@@ -131,6 +135,7 @@ def load_data() -> pd.DataFrame:
     configure_data_types(df)
     add_intervention_schema(df)
     _broadcast_t1_only_baselines(df)
+    df.attrs.update(data_path=str(data_path), data_sha256=hashlib.sha256(source).hexdigest())
     return df
 
 
