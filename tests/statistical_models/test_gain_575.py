@@ -388,11 +388,6 @@ def test_gf_005_delta_is_not_called_provisional():
     assert "provisional δ" not in text and "provisional delta" not in text.lower()
 
 
-def test_old_gain_findings_note_is_marked_superseded():
-    text = (REPO / "notes" / "202607161800-findings-gain_factors.md").read_text(encoding="utf-8")
-    assert "Superseded" in text.split("\n\n")[0] or "Superseded (2026-08-26)" in text
-
-
 # ---------------------------------------------------------------------------
 # Finding 7 — the shared partials fail closed
 # ---------------------------------------------------------------------------

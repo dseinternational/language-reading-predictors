@@ -36,20 +36,9 @@ _Between-child association — match the design to the estimand._ The estimand i
 baseline skill with subsequent word-reading gain, holding the other measured baselines
 and $W_{\text{pre}}$ constant, *across children*.
 
-Design: **one row per child** — $x$ = each child's wave-1 (T1) baseline level, $y$ =
-word reading at the last wave conditioned on $W_{\text{T1}}$ (the gain framing). There
-is deliberately **no** child random intercept: with one row per child the coefficients
-are genuinely between-child. A pooled all-phase design with a child random intercept
-would instead estimate the *within-child* association — a different question (handled by
-the deferred cross-lagged model), so it is **not** used here. The trade-off is explicit:
-dropping the intercept also **forgoes the partial latent-ability repair** it provides in
-the `gain_factors`/`level_factors` and DiD families (revised DAG ID-2; DiD design note
-Decision 4). With general ability `GA` latent, this pure between-child contrast is fully
-exposed to time-invariant ability confounding with **no repair available** — so the
-no-intercept design is the cleaner *match to the between-child estimand*, not a cleaner
-causal contrast. (This is also why it stays a standalone `lrp-rli-adj-065` rather than folding into
-the `lrpgf` family: those pool the three period transitions with a child intercept — a
-within+between blend — whereas this is the one-row-per-child between-child estimand.)
+The model uses one row per child. Predictors are measured at t1, and the outcome is word reading at the last wave, adjusted for word reading at t1. It therefore estimates between-child associations and has no child random intercept.
+
+A repeated-period model with a random intercept would generally combine between-child and within-child associations unless it separated them explicitly. The intercept would not remove confounding by unmeasured general ability. Both designs remain associational; the choice here follows the one-row-per-child question.
 
 These are **associations, not causal effects** (n ≈ 51). The corresponding randomised-arm
 result is the available-case modified ITT estimate in `lrp-rli-itt-010` (which supersedes

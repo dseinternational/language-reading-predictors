@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Exploratory analysis scripts
 
 > [!NOTE]
@@ -11,12 +14,10 @@ Exploratory passes that inform the gated modelling decisions. These are descript
 ## `rlm_associations.py` — Byrne reading-language-memory descriptive pass (#409 item A)
 
 Mirrors the RLI descriptive work for the observational Byrne, MacDonald & Buckley
-(2002) cohort (`study_id="rlm"`). It answers the two associational questions the
-Byrne suite is currently thin on, before any of the gated Beta-Binomial or
-group-contrastive models are fitted. Run:
+(2002) cohort (`study_id="rlm"`). It describes associations alongside the registered Byrne models. Run:
 
 ```bash
-python scripts/exploratory/rlm_associations.py
+uv run python scripts/exploratory/rlm_associations.py
 ```
 
 Writes to `output/exploratory/rlm/`:
@@ -35,13 +36,10 @@ Writes to `output/exploratory/rlm/`:
   as a descriptive decomposition, not a balanced variance partition. Word reading
   couples with age much more strongly within-child (developmental growth) than
   between-child (where cohort composition flattens it).
-- **RTM-corrected baseline → gain partials** (`rtm_partial_{pooled,group1,group2,group3}`,
+- **Baseline-adjusted gain correlations** (`rtm_partial_{pooled,group1,group2,group3}`,
   with the uncorrected `raw_baseline_gain_*` alongside): for every predictor–outcome
   pair, the correlation of the predictor's wave-1 level with the outcome's w1→w3 gain,
-  **conditioning on the outcome's own wave-1 level**. Raw baseline→gain correlations
-  are regression-to-the-mean-confounded by construction; the partial is the honest
-  descriptive analogue (the correction that flipped the taught-vocabulary reading in
-  the RLI strand, #405). The predictor-equals-outcome diagonal is undefined after
+  **conditioning on the outcome's own wave-1 level**. Conditioning on the starting outcome separates its linear association from the predictor's association. It does not eliminate measurement error, regression to the mean or unmeasured confounding. The predictor-equals-outcome diagonal is undefined after
   conditioning and is left blank.
 - **Within-group age check** (`age_within_group_check`): a crude age → word-reading-gain
   diagnostic, conditioning only on baseline word reading, pooled and within each
@@ -57,7 +55,7 @@ Writes to `output/exploratory/rlm/`:
 Groups follow the catalogue labels (1 = Down syndrome, 2 = Average readers,
 3 = Reading-matched). Correlations use Pearson's r throughout, for coherence with
 the between/within variance decomposition and the linear RTM residualisation;
-Spearman gives the same qualitative pattern and is a cheap robustness check.
+A rank-correlation sensitivity can check whether extreme values determine the pattern.
 
 **Not causal.** `readgrp` is an observational cohort factor and every number here is
 a descriptive correlate carrying the usual residual-confounding caveat. These figures
@@ -69,7 +67,7 @@ group scope, the reading-matched selection collider), not publication estimates.
 Runs the same deliberately simple estimator in both cohorts for three exploratory questions: baseline age and verbal memory as predictors of baseline-adjusted later word reading, and the stable child-level receptive-vocabulary–word-reading correlation after removing group-by-wave means. It re-estimates each association rather than combining coefficients from cohort-specific Bayesian models with different adjustment sets and scales.
 
 ```bash
-python scripts/exploratory/cross_cohort_replication.py
+uv run python scripts/exploratory/cross_cohort_replication.py
 ```
 
 Writes a tidy audit table plus separate PNG, SVG and CSV forest artefacts under `output/exploratory/cross_cohort/`. Regression variables are standardised within cohort; bounded scores receive a Haldane–Anscombe corrected logit; uncertainty is an 89% equal-tailed percentile interval from 2,000 child bootstraps stratified by study group. The stable-correlation analysis uses balanced waves 1–3 in each cohort.

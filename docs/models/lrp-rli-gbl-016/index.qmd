@@ -11,6 +11,10 @@ format:
 ---
 
 ::: {.callout-note}
+Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
+::: {.callout-note}
 Drafted by a LLM-based AI tool (Claude Code/Opus 4.8).
 :::
 
@@ -54,10 +58,10 @@ documented starting point for comparison.
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
 prevent data leakage across timepoints for the same child.
 
-This model sits in the discovery stage of the two-step workflow: gradient-boosting models surface candidate predictors and interactions, which the Bayesian intervention models (the LRPITT / LRPDID suites) then estimate causally.
+This model identifies predictive associations and possible interactions. The Bayesian models examine specific questions with uncertainty. Only contrasts supported by the study design and stated assumptions receive a causal interpretation.
 
 ::: {.callout-important title="Exploratory — associational, not causal"}
-The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a lever to act on, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. Causal questions are answered by the Bayesian intervention models, not here.
+The importance rankings and SHAP directions below describe associations in these data, not causal effects: a high-ranking predictor is not necessarily a useful target for intervention, and `same_skill_of_outcome` flags any predictor that concurrently restates the outcome. A Bayesian model also needs a suitable design and assumptions before a contrast can be interpreted causally.
 :::
 
 ## What this model found
@@ -143,9 +147,9 @@ target_desc
 
 ### Cross-validation
 
-Group-aware (`GroupKFold`, grouped by `subject_id`) cross-validation. These are **post-selection internal cross-validation** metrics: the hyperparameters were selected with Optuna on the same grouped folds (`scripts/tune_model.py`), so the numbers below describe fit under the project's internal evaluation protocol — they are not independent out-of-sample generalisation estimates.
+Cross-validation holds out whole children, so one child's timepoints cannot appear in both training and validation data. Hyperparameters were selected using these same grouped folds. The results therefore describe performance after tuning within this dataset; they are not an independent estimate of performance in new data.
 
-The headline numbers are the **pooled out-of-fold (OOF)** metrics: held-out predictions from every fold are stacked and scored once, with R² computed against each fold's *training-mean* baseline (a constant predictor that never saw the held-out subject's values).
+The headline metrics combine the held-out predictions from all folds. R² compares their squared errors with a baseline that predicts each fold's training-set mean. Neither prediction uses the held-out child's outcomes for fitting.
 
 ```{python}
 #| output: asis
@@ -219,14 +223,13 @@ print(f"In-sample MedAE: {medae:.4f}")
 
 ### Permutation importance
 
-Permutation importance measures the increase in **pooled out-of-fold RMSE** when a predictor's association with the outcome is broken by permutation. Because almost every `GroupKFold` fold holds out a single child, permutation is applied globally across all rows as a **subject-block permutation**: per repeat, the children are permuted and each child's rows are remapped to a donor child's values, preserving the longitudinal within-child structure while genuinely mixing values between children — so predictors that are constant within a child are informatively permuted rather than mechanically zeroed (#631). Each fold's already-fitted estimator predicts its own held-out rows, and the predictions are pooled into one out-of-fold RMSE per repeat. Note that importance is measured in held-out RMSE units although the models are MAE-tuned (#169).
+Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units, although the models are tuned using mean absolute error (MAE).
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
-
-The box plot summarises the per-repeat increase in pooled out-of-fold RMSE for each predictor (the distribution is over permutation repeats). A positive value means permuting the predictor made held-out predictions worse; a value near zero means the model was insensitive to it.
+The box plot shows the variation across shuffles. Positive importance means shuffling increased prediction error; a value near zero means the model changed little. This spread is not a credible interval for a causal effect.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
@@ -335,13 +338,7 @@ permutation importance.
 
 ## Predictor ranking and clustering
 
-Cluster-first predictor ranking (#116): predictors are clustered by
-distance-correlation, and clusters are ranked by their aggregated out-of-fold
-permutation importance. The per-feature table is ordered cluster-first, then by
-within-cluster importance; `same_skill_of_outcome` flags a concurrent restatement
-of the outcome. (Produced at the `reporting` / `test` tiers; the dedicated
-`scripts/rank_predictors.py` run gives a more rigorous grouped-permutation
-version.)
+The ranking groups predictors with similar variation, using distance correlation. Groups are ordered by their combined held-out permutation importance, then predictors are ordered within each group. `same_skill_of_outcome` marks measures that restate the outcome at the same wave. These tables are produced at the `test` and `reporting` tiers.
 
 ```{python}
 #| echo: false
@@ -376,7 +373,7 @@ if Path("distance_corr_dendrogram.png").exists():
 
 ## SHAP interactions
 
-Summed symmetric |SHAP interaction| per feature pair — the mean |interaction| with the `[i, j]` and `[j, i]` halves summed — showing how much each pair's joint effect departs from additivity (#116). The heatmap shows the same summed symmetric off-diagonal matrix as the table, so a pair's cell equals its table value; the strongest pairs' interaction-dependence plots follow.
+The table and heatmap show how much each predictor pair's joint contribution to the prediction differs from the sum of its separate contributions. Each value sums the mean absolute SHAP interactions in the `[i, j]` and `[j, i]` entries. A larger value indicates more interaction in the fitted prediction model, not a causal interaction.
 
 ```{python}
 #| echo: false

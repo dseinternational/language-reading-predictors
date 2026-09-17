@@ -1,3 +1,6 @@
+> [!NOTE]
+> Historical references updated by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
@@ -8,7 +11,7 @@
 - **Date:** 2026-08-24
 - **Status:** implementation decision
 - **Issue:** #607
-- **Supersedes:** the ordering half of [202607152000-findings-first-report-order.md](202607152000-findings-first-report-order.md)
+- **Supersedes:** the ordering half of [202607152000-findings-first-report-order.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607152000-findings-first-report-order.md)
 
 ## Decision
 

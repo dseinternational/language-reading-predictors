@@ -1,4 +1,7 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
 # Pooled-levels between/within split extended to the other predictors of word reading (#553)
@@ -22,9 +25,9 @@ The `docs/models/lrp-rli-pl-001`, `-002` and `-101` templates carried doubled ba
 
 ## Left to the refit batch (#554)
 
-Fit `pl-003` to `-006` at `reporting` (declare any model-specific `target_accept` in the module, never a uniform escalation); report `beta_between` and `beta_within` with 89% intervals and direction probabilities, the within-child term labelled as the one a direct-influence account would put weight on, every coefficient an adjusted association; re-read questions 6 and 7 and `notes/202608181930-findings-21-pooled-levels.md` from the new artefacts only, and add the fits to the August run record.
+Fit `pl-003` to `-006` at `reporting` (declare any model-specific `target_accept` in the module, never a uniform escalation); report `beta_between` and `beta_within` with 89% intervals and direction probabilities, the within-child term labelled as the one a direct-influence account would put weight on, every coefficient an adjusted association; re-read questions 6 and 7 and [202608181930-findings-21-pooled-levels.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608181930-findings-21-pooled-levels.md) from the new artefacts only, and add the fits to the August run record.
 
 ## Related
 
-- #553, #554; `notes/202608181930-findings-21-pooled-levels.md`; `lrp_rli_mech_090.py` (covariate-exposure reasoning), `lrp_rli_mech_056.py` / `_057.py` (the vocabulary adjustment sets), `pipelines/concurrent.py` (same-wave skill adjusters).
+- #553, #554; [202608181930-findings-21-pooled-levels.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608181930-findings-21-pooled-levels.md); `lrp_rli_mech_090.py` (covariate-exposure reasoning), `lrp_rli_mech_056.py` / `_057.py` (the vocabulary adjustment sets), `pipelines/concurrent.py` (same-wave skill adjusters).
 - `src/language_reading_predictors/statistical_models/pooled_levels.py`, `pipelines/pooled_levels.py`, `lrp_rli_pl_003.py` … `_006.py`, `docs/models/_partials/_results_pooled_levels.qmd`.

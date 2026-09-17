@@ -1,9 +1,14 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Gradient-boosting findings review, 2026-09-01
 
-**Date:** 2026-09-01. **Status:** review of the fitted Step-1 layer; no fit, setting or release decision is changed by this note. It supersedes the July review (`notes/202607011900-gb-reporting-fit-review.md`) as the current reading of the gradient-boosting layer, and it complements rather than repeats the flagship word-reading note (`notes/202607021100-word-reading-reporting-tier-ranking.md`) and the Step-1/Step-2 reconciliation (`notes/202608201400-gb-statistical-reconciliation-and-ceiling-check.md`).
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
+
+**Date:** 2026-09-01. **Status:** review of the fitted Step-1 layer; no fit, setting or release decision is changed by this note. It supersedes the July review ([202607011900-gb-reporting-fit-review.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607011900-gb-reporting-fit-review.md)) as the current reading of the gradient-boosting layer, and it complements rather than repeats the flagship word-reading note (`notes/202607021100-word-reading-reporting-tier-ranking.md`) and the Step-1/Step-2 reconciliation (`notes/202608201400-gb-statistical-reconciliation-and-ceiling-check.md`).
 
 Everything below is an **association ranking from an exploratory prediction model**, read from held-out accuracy and SHAP direction. None of it is a causal claim, and the project's evidence ladder (inconclusive to very strong) is reserved for the Bayesian layer and is not applied to any importance score or R² here. Where the Bayesian layer has already estimated a quantity, that estimate takes precedence over anything a tree ensemble ranks.
 

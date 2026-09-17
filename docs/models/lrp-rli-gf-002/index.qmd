@@ -24,7 +24,7 @@ LRPGF02 is a **gain-factors** model for receptive vocabulary (`rowpvt`): what is
 
 _Causal labelling (DAG guardrails)._
 
-**Only the randomised on-intervention term is causal.** Under the revised DAG (`dag/dag-language-reading.dagitty`, revised 2026-07-10) the **period-1 average marginal effect** — the genuinely randomised, all-untreated-baseline transition — is an available-case modified ITT estimate; `beta_trt` itself is only the on-intervention log-odds contrast, not that marginal estimate. Every other coefficient is an **adjusted association**: the child random intercept is a partial, shrunken stand-in for between-child heterogeneity and does **not** control latent general ability, so these internal slopes stay **descriptive associations** - report as "associated with", never "drives". Intervention sessions/dose are never conditioned on (a DAG collider). SES is excluded (not a DAG node; statistically redundant).
+**The treatment headline is the period-1 average marginal effect**, an available-case modified ITT estimate under the model's stated assumptions. `beta_trt` is its log-odds coefficient, not the score-scale estimate. All other coefficients describe adjusted associations. A child random intercept models stable residual differences but does not control unmeasured general ability. The model excludes session dose because it is a collider in the DAG; it also excludes SES under the recorded adjustment-set decision.
 
 ## Model
 

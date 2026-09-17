@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `mechanism` family — which skills track which
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 46 models in the `mechanism` family, the largest in the project. **Nothing in this family is causal.** Every number is an adjusted association. All 46 pass the convergence gate with zero divergences and all are publishable (2026-09-01 rebuild); the five Batch C variants (`mech-301`–`305`) are reported here for the first time at reporting tier.
 

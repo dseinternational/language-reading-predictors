@@ -1,4 +1,7 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
 # Moderation on the items scale: the two-dimensional letter-sound × decoding surface dropped
@@ -43,4 +46,4 @@ Every moderated letter-sound → word-reading fit returns a negative `gamma_int`
 - `scripts/regenerate_mechanism_moderation_items.py` backfilled the nine stored reporting fits from their posteriors and fitted rows (the model is rebuilt through the family's plan, without sampling, to recover exactly the factory's row subset).
 - `reporting.py`: the moderated key-findings box now names the fitted exposure, outcome and moderator (it said "letter-sound to word-reading slope" on `mech-072`, whose outcome is nonword reading); the direction sentence loses the "not additivity in word counts" clause, which read as a finding against word-count additivity the fits never tested; an items-scale sentence reads `moderation_items.csv` with a verdict on the house evidence ladder (at least moderate evidence in the same direction as `gamma_int` → not an artefact of the bounded scale; the other way → the scale at work; weaker → unsettled; inconclusive on both → said so); and the unmoderated curve folds into one context sentence, marked droppable, so the causal sentence stays inside the five-sentence cap (#464). Non-moderated mechanism fits are untouched — their regenerated boxes are byte-identical.
 - `docs/models/_partials/_results_mechanism.qmd` renders the table with a reading guide; the nine fit directories' partials were synced, key findings regenerated and reports re-rendered.
-- `notes/202608182200-findings-by-question.md` (question 5; section 8), `notes/202608180939-findings-06-mechanism.md` and the August run record updated.
+- `notes/202608182200-findings-by-question.md` (question 5; section 8), [202608180939-findings-06-mechanism.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608180939-findings-06-mechanism.md) and the August run record updated.

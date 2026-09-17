@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
@@ -47,7 +50,7 @@ Neither route works for the age-moderation pair. At the defaults its leave-one-o
 
 `lrp-rli-mech-073` stays. Its `gamma_int` is a real estimand (−0.058, 89 % −0.119 to +0.006, P(>0) = 0.07 — no credible age moderation of the letter-sound → word-reading effect) and it completes the interaction family's recurring pattern, alongside `mech-071` (vocabulary) and `mech-072` (blending), of apparent moderations collapsing once subject random effects and adjustment are in. It is now read from its own posterior with no predictive-comparison companion, which is the reporting standard the restated criterion points to anyway.
 
-`mech-173`'s canonical number is **reserved, not freed**: `model_ids._RETIRED_VARIANT_NUMBERS` keeps `lrp73base → ("mech", 173)` so a future model cannot silently reuse it. Earlier dated findings notes that quote `mech-173` results (e.g. `notes/202607161800-findings-mechanism.md`) are left as they stand — they are historical records of what was fitted at the time, not live claims.
+`mech-173`'s canonical number is **reserved, not freed**: `model_ids._RETIRED_VARIANT_NUMBERS` keeps `lrp73base → ("mech", 173)` so a future model cannot silently reuse it. Earlier dated findings notes that quote `mech-173` results (e.g. [202607161800-findings-mechanism.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607161800-findings-mechanism.md)) are left as they stand — they are historical records of what was fitted at the time, not live claims.
 
 ## Why the defaults stay
 

@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Correlated-domain-factor measurement model (LRPMM01)
 
 > [!NOTE]
@@ -82,7 +85,7 @@ worth-keeping contribution salvaged from LRP66.
 - `notes/202606231600-dag-revision-consolidated.md` - locked DAG (the deferred
   "correlated domain factors / bifactor" measurement option; `GA` diagnostic-only;
   ID-2).
-- `notes/202606231100-gb-selected-features-tables.md` - the same-construct
+- [202606231100-gb-selected-features-tables.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202606231100-gb-selected-features-tables.md) - the same-construct
   clustering motivating the move.
 - `notes/202606261230-gain-level-factors-design.md` - the merged `gain_factors`
   family this complements.

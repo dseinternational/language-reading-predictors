@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
@@ -86,7 +89,7 @@ The **order is the point**: spending money on (3) to attack a wall that is reall
 - RI-CLPM power wall + the feasibility harness: `notes/202607172230-riclpm-direction-plan.md`.
 - The identification walls (teaching-dose witness, `GA`, mediation ID-2) in full: `notes/202607172000-adjustment-set-review-full-suite.md`, `notes/202607142340-lrp264-mediation-adjustment-dsep.md`, and the DAG revision record `notes/202607101100-dag-revision-team-decisions.md`.
 - The specificity designs that partly work around the measurement wall: `notes/202607172330-tier1-decoding-specificity-spec.md`.
-- Direction contrast reads that stand in for the un-fittable cross-lag: `notes/202607161800-findings-mediation.md`.
+- Direction contrast reads that stand in for the un-fittable cross-lag: [202607161800-findings-mediation.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607161800-findings-mediation.md).
 
 ## 11. References (verified 2026-07-17)
 

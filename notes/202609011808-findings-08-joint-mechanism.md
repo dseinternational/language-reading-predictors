@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `joint_mechanism` family — is the letter-sound route specific to decoding?
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first**, and ideally the `mechanism` note, which this family refines. Nothing here is causal. Both models pass the convergence gate with zero divergences and are publishable. Both were refitted late on 2026-09-01 by the #653 K-fold work at commit `30be4c0a`, from a working tree with uncommitted changes (`dirty: true` in their provenance) — the only two fits in the batch carrying that flag. Their slopes, contrasts and key-findings sentences are identical to the `b18ea944` fits kept beside them (`.pre-jm-kfold-20260901`); what the refit added is the K-fold estimate below.
 

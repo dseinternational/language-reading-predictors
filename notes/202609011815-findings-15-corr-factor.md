@@ -1,9 +1,14 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 <!-- cspell:ignore basnum basspel woco -->
 
 # Findings: the `corr_factor` and `long_corr_factor` families — skill domains behind the tests
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 5 `corr_factor` models and the single `long_corr_factor` model. **Nothing here is causal.** All 6 pass the convergence gate with zero divergences; 5 are publishable and one, the historical-cohort measurement model, is withheld at the inputs stage (2026-09-01 rebuild).
 

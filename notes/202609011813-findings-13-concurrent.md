@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `concurrent` family — which skills go together at each timepoint
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 14 models in the `concurrent` family. **Nothing here is causal**, and the reason is unusually stark: everything is measured at the same moment. All 14 pass the convergence gate with zero divergences and all are publishable (2026-09-01 rebuild). Ten of the twelve RLI fits (`ca-001`–`009` and `ca-307`) read the quarantined ERB cell, so their coefficients moved slightly from the August values; the blending pair `ca-007`/`ca-307` is complete.
 

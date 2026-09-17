@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `historical_joint` family — do skills travel together in the historical cohort?
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 3 models in the `historical_joint` family. **Nothing here is causal.** All 3 pass the convergence gate with zero divergences and are publishable (2026-09-01 rebuild, refitted at the #626 branch commit `b18ea944`). The within-scale prior sensitivity `rlm-jc-102`, registered by the #588 review, is reported here for the first time.
 

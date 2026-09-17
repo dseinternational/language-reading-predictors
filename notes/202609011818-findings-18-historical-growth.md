@@ -1,9 +1,14 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 <!-- cspell:ignore basnum basspel woco -->
 
 # Findings: the `historical_growth` family — how three groups of children progressed
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 9 models in the `historical_growth` family. **Nothing here is causal**: there was no intervention and no randomisation. All 9 pass the convergence gate with zero divergences; 6 are publishable and 3 are withheld at the inputs stage (2026-09-01 rebuild).
 

@@ -155,6 +155,7 @@ earinf
 econlet
 Econometrica
 ecresq
+Eisinga
 elementwise
 elif
 ELPD

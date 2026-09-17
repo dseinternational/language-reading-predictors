@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
@@ -59,7 +62,7 @@ Their traces predate the `log_prior` / `log_likelihood` wiring, so power-scaling
 
 ### The refits changed no published result
 
-Nineteen mediation and measurement fits were overwritten, so the first thing checked was whether anything moved. Nothing did. The mediation headlines reproduce the values already quoted in #404 and the findings notes — `med-066` NIE_B −0.030 words, `med-075` −0.033, `med-074` proportion mediated 0.7 % — and the three `rli-mm` models reproduce their **gate failures to the digit** against `notes/202607210914-findings-measurement.md`: `mm-001` R-hat 1.0195 / ESS 354 / 1 divergence, `mm-002` 1.0478 / 64 / 0, `mm-101` 1.0213 / 260 / 57. Those failures are pre-existing and documented, their structural legs already on HOLD; the exact reproduction across a two-week gap and a `dse-research-utils` v0.8.0 bump is itself a reproducibility check the suite had not previously run.
+Nineteen mediation and measurement fits were overwritten, so the first thing checked was whether anything moved. Nothing did. The mediation headlines reproduce the values already quoted in #404 and the findings notes — `med-066` NIE_B −0.030 words, `med-075` −0.033, `med-074` proportion mediated 0.7 % — and the three `rli-mm` models reproduce their **gate failures to the digit** against [202607210914-findings-measurement.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607210914-findings-measurement.md): `mm-001` R-hat 1.0195 / ESS 354 / 1 divergence, `mm-002` 1.0478 / 64 / 0, `mm-101` 1.0213 / 260 / 57. Those failures are pre-existing and documented, their structural legs already on HOLD; the exact reproduction across a two-week gap and a `dse-research-utils` v0.8.0 bump is itself a reproducibility check the suite had not previously run.
 
 One consequence for reading the new numbers: the three `rli-mm` fits flag ~96 % of their parameters (168/176, 170/179, 169/176), which corroborates #383's diagnosis that `HalfNormal(1)` on loadings-and-residuals puts ~32 % of prior mass on loadings > 1. But those posteriors **fail the gate**, so the same reasoning that exempts `rlm-mm-001` applies: treat this as corroboration of #383, not as an independent measurement.
 

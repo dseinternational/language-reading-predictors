@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `aligned` family — a per-protocol view aligned by when the intervention started
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 10 models in the `aligned` family. **No quantity in this family is causal**, including the group contrast — this is the only family that reports an immediate-versus-waiting-list contrast and declines to call it causal. All 10 pass the convergence gate with zero divergences and all are publishable (2026-09-01 rebuild); the phoneme-blending link pair `al-006`/`al-306` is complete.
 

@@ -3,7 +3,7 @@
 
 # Documentation conciseness review
 
-**Status: proposed edits for review, 13 September 2026.** Two passes shorten guidance and notes, share repeated report explanations and correct selected scientific wording. Prepared for pull request review.
+**Completed review, 13 September 2026.** The two passes below were merged in PR #673 (`95955b92`). This note records that change and its checks; it is not a pending editing plan. The [17 September review](20260917-documentation-review.md) covers the later cleanup.
 
 ## Scope and approach
 

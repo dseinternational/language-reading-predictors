@@ -1,9 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 
 # Decision: the Action Picture Test practical-difference thresholds are ratified
 
-**Status: approved 2026-08-18 by the education lead.** This closes the open item flagged in `notes/202608180933-findings-01-itt.md` and the findings overview, and discharges the outstanding half of issue #144 for these two outcomes.
+**Status: approved 2026-08-18 by the education lead.** This closes the open item flagged in [202608180933-findings-01-itt.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608180933-findings-01-itt.md) and the findings overview, and discharges the outstanding half of issue #144 for these two outcomes.
 
 ## What was approved
 
@@ -36,5 +39,5 @@ It does not make δ prospective. Like the rest of the suite's thresholds, these 
 ## Related
 
 - `notes/202606251321-lrpitt-suite-design.md` — the deferral these models close.
-- `notes/202608180933-findings-01-itt.md` — the ITT findings note carrying the δ reporting.
-- `notes/202608180929-full-statistical-refit-2026-08.md` — the run record for the fits.
+- [202608180933-findings-01-itt.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608180933-findings-01-itt.md) — the ITT findings note carrying the δ reporting.
+- [202608180929-full-statistical-refit-2026-08.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608180929-full-statistical-refit-2026-08.md) — the run record for the fits.

@@ -29,11 +29,7 @@ reading-matched), on a waves-1-3 complete-case core that
 reproduces the paper's Table 2, extended by the later waves where children in
 that core were observed.
 
-_Descriptive natural-history, NOT an intervention effect._ `readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
-model carries no treatment, baseline-as-precision, or adjustment-set structure.
-Every quantity here is a **descriptive** group-by-wave expected score or growth
-rate — natural-history evidence, not a causal effect. The intervention-effect
-estimands live in the RLI (`lrp-rli-...`) suite.
+These estimates describe scores and growth in historical cohorts. `readgrp` was not randomly assigned, so between-group differences are not intervention effects. The randomised intervention analyses belong to the separate RLI trial.
 
 _Confirmed Beta-Binomial ceiling (#338)._ The Beta-Binomial denominator ($N = 32$) is the instrument's confirmed
 maximum (`n_trials_confirmed=True`): the BPVS Short Form has 32 items (Ripley & Yuill, 2005); the

@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
@@ -76,7 +79,7 @@ The comparison column is now a **single-skill comparator**. It retains the same 
 
 ## Substantive readout
 
-The detailed values and intervals are in `notes/202608051411-findings-11-concurrent.md`. The broad result is descriptive clustering: word reading, letter sounds and blending are each other's strongest reading-side partners, while vocabulary and grammar outcomes usually pair most strongly with another language measure. The strongest adjusted letter-sound/word-reading summaries remain positive in both directions: median-across-wave logit slopes are +0.461 for letter sounds in `ca-001` and +0.474 for word reading in `ca-002`.
+The detailed values and intervals are in [202608051411-findings-11-concurrent.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608051411-findings-11-concurrent.md). The broad result is descriptive clustering: word reading, letter sounds and blending are each other's strongest reading-side partners, while vocabulary and grammar outcomes usually pair most strongly with another language measure. The strongest adjusted letter-sound/word-reading summaries remain positive in both directions: median-across-wave logit slopes are +0.461 for letter sounds in `ca-001` and +0.474 for word reading in `ca-002`.
 
 The registered minimal models give the clearer Q1/Q2 readout. In `ca-010`, adjusted letter-sound slopes are +0.643, +1.070, +0.717 and +0.813 at t1–t4. In `ca-011`, the corresponding slopes after holding measured nonword decoding are +0.615, +0.792, +0.578 and +0.527; the nonword slopes are +0.378, +0.358, +0.418 and +0.515. All directions have posterior probability above 0.991. These are same-wave adjusted associations, not effects. The severe floor and six-item resolution of the nonword measure mean that `ca-011` only partially holds decoding ability fixed, while conditioning on this post-treatment mediator may open collider paths.
 

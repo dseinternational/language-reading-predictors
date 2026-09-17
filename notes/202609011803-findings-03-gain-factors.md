@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `gain_factors` family — change from each child's own starting point
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 33 models in the `gain_factors` family: a third model-based specification of the intervention contrast using the same trial, plus the family's covariate associations, which are the project's main source of _predictor_ evidence on the gains scale. All 33 pass the convergence gate with zero divergences and all are publishable (2026-09-01 rebuild).
 

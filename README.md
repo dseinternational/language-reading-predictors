@@ -16,6 +16,10 @@ We analyse language, reading and related measures from the [Reading and Language
 
 We first use gradient boosting, which combines decision trees, to identify variables that help predict gains and achievement levels. Bayesian models then estimate treatment contrasts and adjusted associations, with probability distributions that describe their uncertainty. [METHODS.md](METHODS.md) explains the methods and limits on causal interpretation.
 
+## Documentation
+
+Start with the [documentation guide](docs/README.md). It links the methods, model catalogue, worked example and refit instructions. The [notes guide](notes/README.md) separates dated findings from decisions that still govern the analysis. The integrated report is a draft.
+
 ## Contributing
 
 We share source code and anonymised data under open licences. We welcome partners to develop models, interpret findings, contribute data and explore further datasets or methods.
@@ -61,12 +65,6 @@ npm install
 
 ## License
 
-All source code in this repository is licensed under the GNU Affero General Public License v3.0 **(AGPL-3.0-only)**. See `LICENSE`.
-
-Licences by content type:
-
-- **Code**: GNU Affero General Public License v3.0 (AGPL-3.0) — see `LICENSE`.
-- **Documentation, reports and papers**: Creative Commons Attribution 4.0 International (CC BY 4.0) — see `docs/LICENSE`.
-- **Data**: Creative Commons Attribution 4.0 International (CC BY 4.0) — see `data/LICENSE` for details.
-
-AGPL-3.0 requires that if you modify and run this software to provide a network service, you must offer the corresponding source code to users of that service.
+- Code uses the GNU Affero General Public License, version 3 or later (`AGPL-3.0-or-later`). See the [package metadata](pyproject.toml) and source-file headers.
+- Documentation, reports and papers use Creative Commons Attribution 4.0 International (`CC BY 4.0`). See [docs/LICENSE](docs/LICENSE).
+- Data use Creative Commons Attribution 4.0 International (`CC BY 4.0`). See [data/LICENSE](data/LICENSE).

@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Mediation adjustment sets settled by time-indexed d-separation (#264)
@@ -13,7 +16,7 @@
 
 ## Decision
 
-**Baseline expressive and receptive vocabulary (`E`/`R`, the models' t1 values of `EV`/`RV`) stay in the mediation-family adjustment sets.** The wave-unrolled derivation below confirms the 2026-07-12 interim decision and closes the question #259 opened: with measurement occasions explicit, `E_t1`/`R_t1` are **not** descendants of the randomised treatment, dropping them changes **no** model's backdoor-blocking status, and in five of the thirteen models they do real work (one is a member of the strictly-valid parent set; four are the admissible pre-treatment proxies of treatment-affected contemporaneous confounders). **No adjustment set changes, so no model is refitted and no headline number moves** — the `rep-lite` sweep note (`notes/202607111100-replite-full-statistical-fit.md`) and the reporting sweep note (`notes/202607131300-full-statistical-refit-reporting.md`) stand as written.
+**Baseline expressive and receptive vocabulary (`E`/`R`, the models' t1 values of `EV`/`RV`) stay in the mediation-family adjustment sets.** The wave-unrolled derivation below confirms the 2026-07-12 interim decision and closes the question #259 opened: with measurement occasions explicit, `E_t1`/`R_t1` are **not** descendants of the randomised treatment, dropping them changes **no** model's backdoor-blocking status, and in five of the thirteen models they do real work (one is a member of the strictly-valid parent set; four are the admissible pre-treatment proxies of treatment-affected contemporaneous confounders). **No adjustment set changes, so no model is refitted and no headline number moves** — the `rep-lite` sweep note ([202607111100-replite-full-statistical-fit.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607111100-replite-full-statistical-fit.md)) and the reporting sweep note ([202607131300-full-statistical-refit-reporting.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607131300-full-statistical-refit-reporting.md)) stand as written.
 
 Every historical claim below was checked mechanically with networkx d-separation runs; the static 13-model script is preserved at [`assets/202607142340-med-adjustment-dsep.py`](assets/202607142340-med-adjustment-dsep.py). The load-bearing checks are promoted to CI in `tests/test_lagged_dag_adjustment_sets.py`, which is separately parametrised over the expanded live `SPEC.adjustment` lists so an edit to either the `.dagitty` or a covered MED model's set re-triggers the derivation.
 
@@ -95,7 +98,7 @@ The revision moved the **direct** path, not the indirect one: the letter-sound (
 ## Consequences
 
 - **No model refits.** The scope item "if they come out, re-derive and refit at rep-lite" is moot: nothing comes out.
-- **`notes/202607111100-replite-full-statistical-fit.md` needs no update** — no headline mediation number moves.
+- **[202607111100-replite-full-statistical-fit.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607111100-replite-full-statistical-fit.md) needs no update** — no headline mediation number moves.
 - The MED module comments that read "retained pending the time-indexed d-separation (#264)" now cite this note; the MED-086/087 "provisional pending" caveats are discharged.
 - The derivation is CI-guarded: `tests/test_lagged_dag_adjustment_sets.py` re-runs it against the live `.dagitty` and the live `SPEC.adjustment` lists.
 
