@@ -1,9 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5).
 
 # Dependence-aware companions of the joint taught-versus-not-taught contrasts (#551)
 
-**Date:** 2026-08-19. **Decision (issue #551, confirmed by the author on 2026-08-19):** the three two-outcome `joint` contrasts — `lrp-rli-itt-015` (`TE − UE`), `lrp-rli-itt-115` (`TR − UR`) and `lrp-rli-itt-016` (`TE − TR`) — get registered sensitivity companions with the per-child LKJ residual-correlation block **on**, so that each contrast interval is dependence-aware. This note records the implementation choices; the scientific rationale (the parents factorise, so each contrast's interval is the independent sum of two AME variances and omits the within-child covariance the same 54 children induce — too wide under a positive residual correlation, too narrow under a negative one, point estimate unaffected) is in the issue and in `notes/202608181002-findings-07-joint.md`. The three `reporting` fits are part of the post-review batch (#554) and had not been run when this note was written; nothing here is a result.
+**Date:** 2026-08-19. **Decision (issue #551, confirmed by the author on 2026-08-19):** the three two-outcome `joint` contrasts — `lrp-rli-itt-015` (`TE − UE`), `lrp-rli-itt-115` (`TR − UR`) and `lrp-rli-itt-016` (`TE − TR`) — get registered sensitivity companions with the per-child LKJ residual-correlation block **on**, so that each contrast interval is dependence-aware. This note records the implementation choices; the scientific rationale (the parents factorise, so each contrast's interval is the independent sum of two AME variances and omits the within-child covariance the same 54 children induce — too wide under a positive residual correlation, too narrow under a negative one, point estimate unaffected) is in the issue and in [202608181002-findings-07-joint.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608181002-findings-07-joint.md). The three `reporting` fits are part of the post-review batch (#554) and had not been run when this note was written; nothing here is a result.
 
 ## What was registered
 

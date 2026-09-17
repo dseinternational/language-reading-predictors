@@ -7,7 +7,7 @@
 every model in one process and batch all Quarto renders until after the last
 fit, so an interrupted sweep leaves fitted-but-unrendered directories and no
 per-model record of what was run. The August 2026 refit
-(``notes/202608180929-full-statistical-refit-2026-08.md``) was therefore driven
+(retained in Git history; see ``notes/README.md``) was therefore driven
 by an untracked scratchpad script whose logic could not be reconstructed from
 the artefacts, and whose skip rule checked completion markers only.
 

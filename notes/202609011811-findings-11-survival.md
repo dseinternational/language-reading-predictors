@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `survival` family — how quickly children first move off the floor
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 2 models in the `survival` family. Both pass the convergence gate with zero divergences and are publishable (2026-09-01 rebuild). Since the #631 review the treatment term is described as a model-based, available-case modified-ITT assignment contrast in the randomised first interval among children at the floor at baseline, and the predictive check leaves out children rather than person-period rows.
 

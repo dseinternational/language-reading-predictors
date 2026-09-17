@@ -15,9 +15,9 @@
 
 Follow this checklist to refit every registered Bayesian model at reporting quality, render and publish the reports, and record the run. Check each step before continuing.
 
-Use this runbook with the [`lrp-fit-statistical` skill](../../.claude/skills/lrp-fit-statistical/SKILL.md) and [METHODS.md](../../METHODS.md), which explain the estimands and interpretation rules. See `notes/202607131300-full-statistical-refit-reporting.md` for a worked run record.
+Use this runbook with the [`lrp-fit-statistical` skill](../../.claude/skills/lrp-fit-statistical/SKILL.md) and [METHODS.md](../../METHODS.md), which explain the estimands and interpretation rules. See the [8 September rebuild record](../../notes/202609080119-full-rebuild-both-layers.md) for a dated example.
 
-**Time budget:** allow several hours on 16 cores for a full `reporting` sweep. Growth, mediation, HSGP, LCSM and factor models tend to take longest. The sweep discovers registered RLI and historical-cohort models; recompute their count before each run.
+**Time budget.** allow several hours on 16 cores for a full `reporting` sweep. Growth, mediation, HSGP, LCSM and factor models tend to take longest. The sweep discovers registered RLI and historical-cohort models; recompute their count before each run.
 
 ---
 
@@ -45,7 +45,7 @@ export QUARTO_PYTHON="$(python -c 'import sys; print(sys.executable)')"
 quarto --version
 ```
 
-Every new publication run must use a **fresh, versioned output root**. Do not refit into bare `output/` or reuse a previous run directory: the fit pipeline writes in place, so old diagnostics, sensitivity files or HTML could otherwise be mistaken for artefacts from the new run. Start from a committed, clean checkout, choose an optional run base, create a unique child directory, and resolve the paths once for every later command:
+Every new publication run must use a **fresh, versioned output root**. Do not refit into bare `output/` or reuse a previous run directory: individual statistical fits replace their directories only after successful staged execution, but a sweep also produces shared comparisons and sensitivity files. A fresh root keeps the whole batch separate from earlier runs. Start from a committed, clean checkout, choose an optional run base, create a unique child directory, and resolve the paths once for every later command:
 
 ```bash
 export REPO_ROOT="$(git rev-parse --show-toplevel)"
@@ -143,81 +143,18 @@ tail -f "$RUN_METADATA_DIR/refit.log"
 > [!IMPORTANT]
 > **Gotcha — `--render` is batched, not per-model.** `fit_statistical_model.py all --render` runs its Quarto render loop **once, at the very end**, after every model has fitted, iterating an in-memory list built during that process's fit loop. Because this workflow requires a fresh run root, an interrupted sweep leaves completed model directories with `trace.nc`, CSVs and `config.json` but no current `index.html`. See Step 3 for how to render already-fitted directories without re-fitting.
 
-### If the sweep was interrupted: resume, don't restart
+### Resume an interrupted sweep
 
-Resume only **within the exact same fresh run root and manifest**. In a new shell, re-export the recorded `DSE_LRP_OUTPUT_DIR`, resolve `OUTPUT_ROOT`, `STAT_ROOT`, `STAT_MODELS_DIR`, `COMPARISON_DIR` and `RUN_METADATA_DIR`, and restore `REPORT_INPUT_SUFFIXES` exactly as in Step 0. Confirm that `run_manifest.json` names the current commit, data hashes and suffix list. Do not generate a new `RUN_NAME`, point at an older publication run, or combine artefacts across roots to save time.
-
-Validate that identity before resuming:
+Resume within the same output root and recorded run manifest. Restore `DSE_LRP_OUTPUT_DIR` and the path variables from Step 0. Use the checked-in driver:
 
 ```bash
-python - <<'PY'
-import hashlib
-import json
-import os
-import subprocess
-from pathlib import Path
-
-from language_reading_predictors.paths import DATA_DIR
-
-manifest_path = Path(os.environ["RUN_METADATA_DIR"]) / "run_manifest.json"
-manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-current_sha = subprocess.check_output(
-    ["git", "-C", os.environ["REPO_ROOT"], "rev-parse", "HEAD"], text=True
-).strip()
-current_data = {}
-for path in sorted(DATA_DIR.rglob("*")):
-    if path.is_file():
-        with path.open("rb") as source:
-            current_data[path.relative_to(DATA_DIR).as_posix()] = hashlib.file_digest(
-                source, "sha256"
-            ).hexdigest()
-clean = not subprocess.check_output(
-    ["git", "-C", os.environ["REPO_ROOT"], "status", "--porcelain"], text=True
-).strip()
-valid = (
-    clean
-    and manifest["git_sha"] == current_sha
-    and manifest["data_sha256"] == current_data
-    and manifest["report_input_suffixes"]
-    == os.environ["REPORT_INPUT_SUFFIXES"].split()
-    and Path(manifest["output_root"]).resolve() == Path(os.environ["OUTPUT_ROOT"]).resolve()
-)
-if not valid:
-    raise SystemExit(
-        "Current checkout, data, report-input suffixes or output root do not match "
-        "the run manifest"
-    )
-print(f"Validated {manifest_path}")
-PY
+python scripts/run_refit_sweep.py statistical --config reporting --render --dry-run
+python scripts/run_refit_sweep.py statistical --config reporting --render
 ```
 
-After that check, do **not** re-run `all` from scratch — completed fits in this run are intact and expensive. Re-fit only the models in the current manifest's root that lack the sampling artefacts (`diagnostics_summary.json` and `trace.nc`) or finalisation artefacts (`config.json` and the copied `index.qmd`). Requiring all four prevents a pipeline failure after sampling from being mistaken for a completed fit:
+The driver checks the clean source commit, data digest, environment digest and resolved sampling settings before reusing a fit. It runs fitting and rendering in a separate process for each model and records per-model logs and a journal. A stored fit that lacks a required render is refitted by this command; use Step 3 first if only rendering is missing.
 
-```bash
-python - <<'PY'
-import os
-from pathlib import Path
-
-from language_reading_predictors.statistical_models.registry import discover_models
-
-models_dir = Path(os.environ["STAT_MODELS_DIR"])
-for model_id in discover_models():
-    model_dir = models_dir / f"{model_id}-reporting"
-    missing = [
-        name
-        for name in ("diagnostics_summary.json", "trace.nc", "config.json", "index.qmd")
-        if not (model_dir / name).is_file()
-    ]
-    if missing:
-        print(f"MISSING {model_id}: {', '.join(missing)}")
-PY
-```
-
-Then fit just those, by id:
-
-```bash
-python scripts/fit_statistical_model.py lrp-rli-mm-001 --config reporting --render
-```
+An explicit `--rli-randomised-archive` request forces a refit because the driver does not yet bind that optional archive's identity. Older fits without the required provenance also refit. Do not replace these checks with a file-existence test. After resuming, perform the convergence, sensitivity and publication checks below; a completed process can still have a withheld result.
 
 ---
 

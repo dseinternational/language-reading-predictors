@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Findings — is there a minimum word-reading level before letter sounds, blending or nonword reading can progress?
@@ -140,6 +143,6 @@ Applying the project's descriptive-claims discipline:
 - [Word-reading bands](202607241600-findings-word-reading-bands.md) — the companion, where the descriptive floor-exit contrast first appeared.
 - [Letter sounds and word reading](202607241000-findings-letter-sounds-word-reading-association.md) — the forward-direction associational review.
 - [Time-lagged DAG](202607131200-time-lagged-dag.md) and `dag/dag-language-reading-lagged.dagitty` — the graph the identification statements are read off.
-- [Skill thresholds](202607171215-findings-skill-thresholds.md) — the earlier knee sweep, which found only letter sounds have a resolved knee and is the closest prior work to this note.
+- [Skill thresholds](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607171215-findings-skill-thresholds.md) — the earlier knee sweep, which found only letter sounds have a resolved knee and is the closest prior work to this note.
 - [Evidence strength](202606261304-evidence-strength-and-rope-reporting.md), [credible-interval standard](202607172359-credible-interval-standard.md) — reporting conventions.
 - Issues: #428 (the adopted `WR → NW` DAG decision), #433 (registering the nonword model as descriptive), #429 (the reverse-coupling LCSM decision not to build now).

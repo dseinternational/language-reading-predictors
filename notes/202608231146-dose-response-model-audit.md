@@ -37,7 +37,7 @@ The passing tests are mainly structural. They do not exercise the temporal meani
 
 ### 1. `dose-177` uses treatment-affected skills — high
 
-`phase_mode="all"` constructs the transitions t1→t2, t2→t3 and t3→t4, and defines each `pre_logit` from that transition's starting wave ([preprocessing.py](../src/language_reading_predictors/statistical_models/preprocessing.py#L599-L632)). The factory then enters row-specific L/E/B `pre_logit` values ([factories.py](../src/language_reading_predictors/statistical_models/factories.py#L2003-L2007), [factories.py](../src/language_reading_predictors/statistical_models/factories.py#L2050-L2053)).
+`phase_mode="all"` constructs the transitions t1→t2, t2→t3 and t3→t4, and defines each `pre_logit` from that transition's starting wave ([preprocessing.py](../src/language_reading_predictors/statistical_models/preprocessing.py#L599-L632)). The factory then enters row-specific L/E/B `pre_logit` values ([factories.py](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/factories.py#L2003-L2007), [factories.py](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/factories.py#L2050-L2053)).
 
 Consequently, `dose-177` uses t1 L/E/B in period 1, t2 L/E/B in period 2 and t3 L/E/B in period 3. The last two sets can already have been affected by earlier intervention and attendance. This contradicts the specification and report, which say that only baseline, pre-dose skills are conditioned on and never anything downstream of dose ([lrp_rli_dose_177.py](../src/language_reading_predictors/statistical_models/lrp_rli_dose_177.py#L22-L24), [report](../docs/models/lrp-rli-dose-177/index.qmd#L23-L37)).
 
@@ -49,7 +49,7 @@ Consequently, `dose-177` uses t1 L/E/B in period 1, t2 L/E/B in period 2 and t3 
 
 In period 1, all 25 waitlist rows have zero sessions while all 28 immediate-arm rows have 45–91 sessions; the arm–dose correlation is 0.970. Period 1 therefore mixes treatment presence with attendance intensity. In periods 2 and 3 both arms have received treatment, so assigned arm instead represents intervention order and treatment history.
 
-The factory nevertheless fits one common arm coefficient, no current-treatment indicator and no arm×phase term ([factories.py](../src/language_reading_predictors/statistical_models/factories.py#L2017-L2042)). Unmodelled arm/history differences can therefore load onto the period dose slopes. The DiD dose implementation already contains a cleaner separation of current treatment from treated-centred session intensity ([factories.py](../src/language_reading_predictors/statistical_models/factories.py#L2186-L2200)).
+The factory nevertheless fits one common arm coefficient, no current-treatment indicator and no arm×phase term ([factories.py](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/factories.py#L2017-L2042)). Unmodelled arm/history differences can therefore load onto the period dose slopes. The DiD dose implementation already contains a cleaner separation of current treatment from treated-centred session intensity ([factories.py](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/factories.py#L2186-L2200)).
 
 The catalogue also calls this an “adjusted within-child association” ([model catalogue](../docs/models/README.md#L390-L394)), but the model contains one dose covariate plus a standard child random intercept. It does not separate each child's mean dose from deviations around that mean. The coefficient therefore combines between-child and within-child associations; the random intercept does not, by itself, control stable attendance–prognosis confounding.
 
@@ -87,7 +87,7 @@ A 1,000-draw word-reading check found a mean absolute discrepancy of about 1.31 
 
 ### 7. The identification prose contradicts the authoritative DAG — medium
 
-The DAG contains `A -> IS`, `GA -> IS` and `IG -> IS`, with the same variables also affecting outcomes ([DAG](../dag/dag-language-reading.dagitty#L52-L56)). The dose documentation instead says that group is the sole confounder, age has no path to dose and the ability-to-dose edge is absent ([factory rationale](../src/language_reading_predictors/statistical_models/factories.py#L1933-L1939)).
+The DAG contains `A -> IS`, `GA -> IS` and `IG -> IS`, with the same variables also affecting outcomes ([DAG](../dag/dag-language-reading.dagitty#L52-L56)). The dose documentation instead says that group is the sole confounder, age has no path to dose and the ability-to-dose edge is absent ([factory rationale](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/factories.py#L1933-L1939)).
 
 Age happens to be fitted, but latent general ability remains unresolved. Baseline skill proxies are sensitivity variables, not proof that the latent path has been blocked. The machine-readable observational label is correct and should remain.
 
@@ -95,7 +95,7 @@ Age happens to be fitted, but latent general ability remains unresolved. Baselin
 
 The comparison script writes shared `dose_response_loo_compare.csv` but does not copy it beside either model ([comparison script](../scripts/compare_statistical_models.py#L1674-L1676)). The report looks locally for a differently named `dose_loo_compare.csv` ([report partial](../docs/models/_partials/_results_dose_response.qmd#L55-L60)). The report therefore omits the formal answer to whether the slope varies by period even after the comparison script succeeds.
 
-The release decision also does not require this comparison, `dose-177`, the B link companion or successful power scaling, although the model recipe/report describes such checks as prerequisites ([release.py](../src/language_reading_predictors/statistical_models/release.py#L144-L149)).
+The release decision also does not require this comparison, `dose-177`, the B link companion or successful power scaling, although the model recipe/report describes such checks as prerequisites ([release.py](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/release.py#L144-L149)).
 
 ### 9. Metadata and settings validation are incomplete — medium-low
 
@@ -107,7 +107,7 @@ These issues do not corrupt the five current likelihoods, but undermine provenan
 
 ### 10. Intercept parameterisation is rank-deficient but the posterior is proper — low-medium
 
-The model fits a grand `alpha` plus all three unconstrained `alpha_phase` indicators ([factories.py](../src/language_reading_predictors/statistical_models/factories.py#L2009-L2015)). The four-column intercept design therefore has rank three. Proper Normal priors make the posterior and predictions proper, so this is not an invalid Bayesian model. The global/phase split is nevertheless prior-identified and can add posterior correlation and sampling cost.
+The model fits a grand `alpha` plus all three unconstrained `alpha_phase` indicators ([factories.py](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/factories.py#L2009-L2015)). The four-column intercept design therefore has rank three. Proper Normal priors make the posterior and predictions proper, so this is not an invalid Bayesian model. The global/phase split is nevertheless prior-identified and can add posterior correlation and sampling cost.
 
 **Required repair.** Use reference coding or zero-sum phase deviations and recalibrate the priors so the implied phase-intercept prior remains intentional.
 
@@ -121,7 +121,7 @@ The model fits a grand `alpha` plus all three unconstrained `alpha_phase` indica
 
 ### 12. Dose scaling can precede the final outcome mask — low
 
-For `dose-177`, 157 rows define the loader scaler before the factory retains the 156 rows with observed W. `dose-077` scales over its final 156 rows. The maximum current discrepancy is 0.0064 SD, so the numerical effect is negligible, but it contradicts the claim that dose is standardised over final fitted rows ([factory subsetting](../src/language_reading_predictors/statistical_models/factories.py#L4384-L4393)).
+For `dose-177`, 157 rows define the loader scaler before the factory retains the 156 rows with observed W. `dose-077` scales over its final 156 rows. The maximum current discrepancy is 0.0064 SD, so the numerical effect is negligible, but it contradicts the claim that dose is standardised over final fitted rows ([factory subsetting](https://github.com/dseinternational/language-reading-predictors/blob/3f93b74d5ec60025b5d8f93ffd19bbde8dcc722e/src/language_reading_predictors/statistical_models/factories.py#L4384-L4393)).
 
 ## Aspects that checked out
 

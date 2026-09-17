@@ -49,14 +49,7 @@ because `N` is a common effect of `L` and other reading inputs, conditioning on 
 also **open a collider path**. Read this fit
 alongside `ca-010`, never instead of it.
 
-_Estimand: descriptive association (no causal warrant)._ As `ca-010`, every coefficient
-is a latent-GA-confounded **adjusted association**, never causal. The single-posterior
-"share retained" quantity is now implemented in the #421 Tier-3 joint model
-[`lrp-rli-jm-001`](https://github.com/dseinternational/language-reading-predictors/tree/main/docs/models/lrp-rli-jm-001). This pair of separate fits remains a different,
-observed-count sensitivity: its ratio is not a posterior estimand because the two slopes
-come from separate fits, so pairing their draws assumes working independence. The joint
-model conditions on a latent nonword outcome and is therefore complementary rather than
-an interchangeable correction; neither specification identifies a causal pathway.
+Every coefficient is an adjusted association between measures at the same wave. Conditioning on other post-treatment skills does not identify a causal effect. Interpret the results with the measurement-error, correlated-predictor and prior-sensitivity checks in the results section.
 
 ## Design
 

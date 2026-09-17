@@ -1,11 +1,14 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Opus 5).
 
 <!-- cspell:ignore erbto deapp gbg gbl -->
 
 # Closing issue #554: the step-1/step-2 reconciliation, and the letter-sound ceiling check
 
-**Date:** 2026-08-20. Two items completed after the full refit (`notes/202608200800-full-refit-both-layers-2026-08.md`): the part of item 5 that compares the gradient-boosting rankings against the `gain_factors` and `pooled_levels` coefficients rather than only against the `horseshoe` ranking, and item 6, the optional one-dimensional ceiling check. Both are diagnostic; neither changes a release decision, a stored fit or a finding.
+**Date:** 2026-08-20. Two items completed after the full refit ([202608200800-full-refit-both-layers-2026-08.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608200800-full-refit-both-layers-2026-08.md)): the part of item 5 that compares the gradient-boosting rankings against the `gain_factors` and `pooled_levels` coefficients rather than only against the `horseshoe` ranking, and item 6, the optional one-dimensional ceiling check. Both are diagnostic; neither changes a release decision, a stored fit or a finding.
 
 ## Item 5, completed: gradient boosting against the structural families
 

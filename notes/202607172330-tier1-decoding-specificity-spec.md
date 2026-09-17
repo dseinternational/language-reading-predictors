@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Spec (proposal): Tier-1 "decoding-specificity" mini-suite — are letter-sound gains _used for decoding_, or merely _associated_ with reading?
@@ -116,7 +119,7 @@ Read together, a positive `LS→N` NIE (`med-086`) **and** a positive `N→WR` N
 3. **Models:** write the six modules (`SPEC` + `fit()`); they auto-register via `discover_models()`. Add `_d(...)` rows to `definitions.py`. Add thin `docs/models/{id}/index.qmd` mirroring `mech-058` (1A/1B) and `med-075` (1C); they fall back to `_results_mechanism` / `_results_mediation`.
 4. **Fit:** `dev` smoke → `rep-lite` → read convergence gate _before_ interpreting.
 5. **Contrast + panel:** extend `compare_statistical_models.py` (1A Δ slope; 1B negative-control forest).
-6. **Write-up:** extend `notes/202607161800-findings-mediation.md` (or a new decoding-specificity findings note) with the triangulation table; **lint gate** (`ruff check src/`, `npm run format:check`, `npm run spellcheck`) before commit.
+6. **Write-up:** extend [202607161800-findings-mediation.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607161800-findings-mediation.md) (or a new decoding-specificity findings note) with the triangulation table; **lint gate** (`ruff check src/`, `npm run format:check`, `npm run spellcheck`) before commit.
 
 ## 10. Repo citation-error flag (separate fix, not part of this build)
 

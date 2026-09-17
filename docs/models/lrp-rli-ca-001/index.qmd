@@ -41,7 +41,7 @@ of its group×time contrast, but that objection does not apply to a family that 
 describe the conditional joint distribution of the skill measures within a treated
 system.
 
-_Estimand: descriptive association (no causal warrant)._ Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
+Every coefficient is an adjusted association between measures at the same wave. Conditioning on other post-treatment skills does not identify a causal effect. Interpret the results with the measurement-error, correlated-predictor and prior-sensitivity checks in the results section.
 
 ## Design
 

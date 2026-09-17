@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `dose_response` family — does more intervention mean more progress?
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 6 models in the `dose_response` family. **Nothing here is causal**, and the family was substantially re-specified by the #587 review, so the numbers are not comparable with the August series. All 6 pass the convergence gate with zero divergences and all are publishable (2026-09-01 rebuild).
 

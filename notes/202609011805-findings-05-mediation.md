@@ -1,7 +1,12 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings: the `mediation` and `mediation_multi` families — how the reading gain happened
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers 16 `mediation` models and 4 `mediation_multi` models, which ask _through what route_ the intervention improved word reading (and, in three fits, nonword decoding and phoneme blending). All 20 pass the convergence gate with zero divergences and all are publishable (2026-09-01 rebuild). `med-059`'s total effect of 2.3195 words is the batch's reproduction check: it matches the 2026-08-27 value exactly.
 

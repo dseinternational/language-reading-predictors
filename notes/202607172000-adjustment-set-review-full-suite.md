@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Full-suite adjustment-set review against the revised DAG
@@ -58,7 +61,7 @@ Reconcile the six sibling sets by **adding** the missing exogenous confounders (
 - med-074: `[G, A, E, R, W_pre, N_t1, deapp_c, deapp_c_missing, erbto, erbto_missing]`
 - med-076: `[G, A, E, R, W_pre, L_t1, hs, hs_missing, deapp_c, deapp_c_missing]` (now genuinely identical to MED-059)
 
-Following #264's own comparison, the substantive expectation is that the **direct** path shrinks toward zero and the mediated proportion rises, while the indirect (letter-sound / code-route) share is largely unchanged. New numbers will be recorded in `notes/202607161800-findings-mediation.md` after the re-fit, and #264's per-model table gets a dated addendum noting the extension.
+Following #264's own comparison, the substantive expectation is that the **direct** path shrinks toward zero and the mediated proportion rises, while the indirect (letter-sound / code-route) share is largely unchanged. New numbers will be recorded in [202607161800-findings-mediation.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607161800-findings-mediation.md) after the re-fit, and #264's per-model table gets a dated addendum noting the extension.
 
 ## Finding 2 — mech-072 / mech-172: the moderator is a DAG-descendant of the exposure (LOW / interpretation)
 

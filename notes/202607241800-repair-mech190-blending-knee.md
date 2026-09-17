@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Repair: `mech-190` blending → word-reading knee-test (issue #430)
@@ -57,4 +60,4 @@ This satisfies the issue's decision tree: the linear-fallback route (`linear_mec
 
 - #265 — HSGP reparameterisation precedent (`mech-058`/`071`/`158`).
 - `notes/202607241600-findings-word-reading-bands.md` — pass 4 (raised the repair; updated with this result).
-- `notes/202607171215-findings-skill-thresholds.md` — the letter-sound knee the blending curve was to be compared against; six exposures swept, only `LS` has a resolved knee.
+- [202607171215-findings-skill-thresholds.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607171215-findings-skill-thresholds.md) — the letter-sound knee the blending curve was to be compared against; six exposures swept, only `LS` has a resolved knee.

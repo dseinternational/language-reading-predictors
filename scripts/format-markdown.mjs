@@ -25,7 +25,7 @@ if (trackedMarkdown.status !== 0) {
   process.exit(trackedMarkdown.status ?? 1);
 }
 
-const files = trackedMarkdown.stdout.split(/\r?\n/u).filter(Boolean);
+const files = trackedMarkdown.stdout.split(/\r?\n/u).filter((file) => file && existsSync(file));
 
 if (files.length === 0) {
   process.exit(0);

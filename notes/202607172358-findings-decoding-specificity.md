@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Findings: is letter-sound knowledge _used for decoding_? (Tier-1 decoding-specificity mini-suite)
@@ -57,7 +60,7 @@ The DAG designates nonword reading the **"code route (mediator)"** between phoni
 - **`med-074`** — arm → `N` → `WR`: does it raise word reading _via nonword decoding_? (decoding feeds reading)
 - **`med-059`** — arm → `LS` → `WR`: the total letter-sound route (the cascade's endpoints).
 
-Read together these are the two links of `LS → N → WR`; numbers and their floor/`GA` caveats are in the mediation findings note (`notes/202607161800-findings-mediation.md`). The `N`-floor keeps both links wide, so 1C corroborates rather than clinches. The genuinely missing piece — the single within-model joint `{LS, N}` decomposition + the `LS→N` coupling coefficient — needs a floor-tolerant second-mediator leg in `build_two_mediator_model`, deferred.
+Read together these are the two links of `LS → N → WR`; numbers and their floor/`GA` caveats are in the mediation findings note ([202607161800-findings-mediation.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607161800-findings-mediation.md)). The `N`-floor keeps both links wide, so 1C corroborates rather than clinches. The genuinely missing piece — the single within-model joint `{LS, N}` decomposition + the `LS→N` coupling coefficient — needs a floor-tolerant second-mediator leg in `build_two_mediator_model`, deferred.
 
 ## Overall verdict
 

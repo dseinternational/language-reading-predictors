@@ -1,10 +1,13 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 <!-- Copyright (c) 2026 Down Syndrome Education International and contributors -->
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
-# Reading, Language, And Memory Data
+# Reading, language and memory data
 
 Prepared participant-level data for the Byrne, MacDonald, and Buckley longitudinal reading, language, and memory study.
 
@@ -39,9 +42,9 @@ Prepared participant-level data for the Byrne, MacDonald, and Buckley longitudin
 
 The prepared long file also includes `_next` and `_gain` columns computed within participant from each wave to the next wave.
 
-## Initial Audit Notes
+## Provenance and limits
 
 - The prepared files contain 24 Down syndrome, 42 average-reader, and 31 reading-matched children, matching the starting sample reported in Byrne, MacDonald, and Buckley (2002).
 - The first three waves reproduce the paper's Table 2 complete-case means when complete cases are selected separately per measure.
-- Source provenance was reconciled on 2026-08-16. The prepared 97-participant wide file matches every case and all 52 shared non-identifying fields in the checksum-pinned 97-case SPSS source retained in the `dsegroup/research-data-analysis` Git history. The historical 96-row CSV was a strict subset that omitted one Down-syndrome participant; source-repository PR #13 repaired it to 97 rows, and the repaired derivative now matches all source assessment fields. See `source_provenance.json` and `notes/202608161340-byrne-source-provenance-reconciliation.md`.
-- The checksum-pinned SPSS source and prepared files contain no immediate or delayed visual-recall fields, although both measures are reported in the paper. Their absence from the retained archive is accepted as an explicit limit: the paper's full memory battery and correlation tables cannot be reproduced unless a different original archive is recovered. See `notes/202608161554-byrne-basmat-and-visual-recall-audit.md`.
+- Source provenance was reconciled on 2026-08-16. The prepared 97-participant wide file matches every case and all 52 shared non-identifying fields in the checksum-pinned 97-case SPSS source retained in the `dsegroup/research-data-analysis` Git history. The historical 96-row CSV was a strict subset that omitted one Down-syndrome participant; source-repository PR #13 repaired it to 97 rows, and the repaired derivative now matches all source assessment fields. See `source_provenance.json` and [source reconciliation](../../notes/202608161340-byrne-source-provenance-reconciliation.md).
+- The checksum-pinned SPSS source and prepared files contain no immediate or delayed visual-recall fields, although both measures are reported in the paper. Their absence from the retained archive is accepted as an explicit limit: the paper's full memory battery and correlation tables cannot be reproduced unless a different original archive is recovered. See [measure audit](../../notes/202608161554-byrne-basmat-and-visual-recall-audit.md).

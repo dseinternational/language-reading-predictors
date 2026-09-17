@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 # mm-001 convergence fix: marginalising the factor scores out of the measurement likelihood
 
 > [!NOTE]
@@ -91,6 +94,6 @@ The pipeline draws both observed nodes (`Z_obs`, the indicators; `y_post`, the s
 
 ## Reconciled documents
 
-Two notes had cited the failed fit's correlations as interpretable and were corrected to disclose the failed gate and point here: `notes/202607082140-statistical-models-full-reporting-fit.md` (§ convergence table and the measurement/summary bullets) and `notes/202607091430-dag-critical-review-td-atypical-literature.md` (the single-`GA`-vs-correlated-factors rows). The DAG review-draft note `notes/202607101444-dag-explanation-review-draft.md` had already been corrected to disclose the failure; its disclosure now reads against a fit that has since been fixed.
+Two notes had cited the failed fit's correlations as interpretable and were corrected to disclose the failed gate and point here: [202607082140-statistical-models-full-reporting-fit.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607082140-statistical-models-full-reporting-fit.md) (§ convergence table and the measurement/summary bullets) and `notes/202607091430-dag-critical-review-td-atypical-literature.md` (the single-`GA`-vs-correlated-factors rows). The DAG review-draft note `notes/202607101444-dag-explanation-review-draft.md` had already been corrected to disclose the failure; its disclosure now reads against a fit that has since been fixed.
 
 Any document repeating the withdrawn "the domains are distinguishable" reading should be narrowed to the boxed claim above.

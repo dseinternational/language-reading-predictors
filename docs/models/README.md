@@ -45,7 +45,7 @@ Both stages use the revised [causal DAG](../../dag/dag-language-reading.dagitty)
 | 2     | Waitlist-crossover arm-by-wave (`lrp-rli-did`)                | Randomised t2 arm gap plus separate baseline/post-crossover gaps; observational dose and exploratory catch-up heterogeneity      |
 | 2     | Aligned per-protocol (`lrp-rli-al`)                           | Onset-aligned single 40-week gain per child (associational)                                                                      |
 | 2     | Mechanism (`lrp-rli-mech`)                                    | Adjusted dose-response of one skill on another                                                                                   |
-| 2     | Joint bivariate mechanism (`lrp-rli-jm`)                      | One exposure → two outcomes jointly (LKJ cross-outcome dependence block); identified decoding-specificity contrast               |
+| 2     | Joint bivariate mechanism (`lrp-rli-jm`)                      | One exposure → two outcomes jointly (LKJ cross-outcome dependence block); contrast between adjusted decoding associations        |
 | 2     | Mediation (`lrp-rli-med`; natural + interventional g-formula) | How much of an intervention-outcome contrast runs through a given skill                                                          |
 | 2     | Predictor / dynamics (`lrp-rli-adj`, `lcsm`, `dose`)          | Baseline predictors, within-child change, lagged reverse couplings, change-on-change, and dose–response of word reading          |
 | 2     | Horseshoe ranking cross-check (`lrp-rli-hs`)                  | Regularised-horseshoe predictor ranking vs the gradient-boosting layer                                                           |
@@ -86,9 +86,7 @@ Beta-Binomial trial ceiling.
 
 **Purpose.** Fit LightGBM with `GroupKFold` by `subject_id`, rank predictors by out-of-fold permutation importance and mean |SHAP|, and read direction from the SHAP beeswarm. Gain models predict `_GAIN` change scores; level models predict concurrent levels.
 
-Gain-model rankings are near-noise (baseline-driven regression to the mean); level-model
-rankings are largely concurrent same-construct correlation — read both under those
-caveats (`notes/202606231100-gb-selected-features-tables.md`). This layer uses full-set
+Gain prediction can be weak, while level prediction can be inflated by measures of the same skill. Check held-out performance, SHAP direction and same-skill flags in each fit. The [September boosting review](../../notes/202609012030-gb-findings-review.md) is a dated summary, not a substitute for those checks. This layer uses full-set
 _ranking_ (`scripts/rank_predictors.py`, issue `#116`): hard feature selection was retired
 in Phase D. The same-skill sibling contrast is exposed via the ranking's
 `ranking_excluding_same_skill.csv` rather than per-model variants.
@@ -114,11 +112,7 @@ in Phase D. The same-skill sibling contrast is exposed via the ranking's
 | `lrp-rli-gbg-004` | `lrp-rli-gbl-004` | Not-taught expressive vocabulary (`b1exnt`) |
 | `lrp-rli-gbg-011` | `lrp-rli-gbl-011` | Phonetic spelling (`spphon`)                |
 
-The last four rows are the #116 Phase-B additions completing the 13 priority
-outcomes; their hyperparameters were MAE-tuned by Optuna on the full predictor
-set (150 trials, seed 47; #169), and they do not yet have bespoke report
-templates (Phase C).
-`spphon` is heavily floored, so its gain ranking is expected to be near-noise.
+Each registered model has a report template. Phonetic spelling (`spphon`) has many zero scores; read its gain ranking with its prediction error and score distribution.
 
 ### Speech, verbal-memory and language-sample measures (`lrp-rli-gbg`/`lrp-rli-gbl` 017–028)
 
@@ -145,10 +139,9 @@ LSAM and `deapp_c` are level-only.
 
 ## Layer 2 — Bayesian statistical models
 
-Converted families use immutable typed settings, resolved and validated before data loading as one run plan — `itt`, `gain_factors`, `level_factors`, `did`, `concurrent`, `aligned` and `growth` so far. The pipeline records the full plan in `config.json` and writes `model_recipe.md`, a plain-language description that students can read beside the fitted report; the recipe and executable paths are generated from the same plan so they cannot quietly disagree. Where a family drops a declared term at fit time — a treated-only gain-factor fit drops its treatment interactions, the indicator being constant — the plan records the declared and the fitted set separately, so the recipe never names a coefficient the posterior lacks.
+Every registered family uses immutable typed settings, resolved and validated as one run plan before data loading. The pipeline records the full plan in `config.json` and writes `model_recipe.md`, a plain-language description that students can read beside the fitted report; the recipe and executable paths are generated from the same plan so they cannot quietly disagree. Where a family drops a declared term at fit time — a treated-only gain-factor fit drops its treatment interactions, the indicator being constant — the plan records the declared and the fitted set separately, so the recipe never names a coefficient the posterior lacks.
 
-One module per model, each defining a `SPEC = ModelSpec(...)` and a `fit(config)`. Eight
-factory/pipeline families keyed by `ModelSpec.kind`. Shared priors, HSGP helpers, the
+One module per model, each defining a `SPEC = ModelSpec(...)` and a `fit(config)`. The family registry maps each `ModelSpec.kind` to its settings, resolver, factory and pipeline. Shared priors, HSGP helpers, the
 g-formula, and the floor rule live in the package; each fit writes `trace.nc`,
 `diagnostics_summary.json` (the convergence gate), per-family CSVs, and diagnostic plots
 to `output/statistical_models/models/{model_id}-{config}/`.

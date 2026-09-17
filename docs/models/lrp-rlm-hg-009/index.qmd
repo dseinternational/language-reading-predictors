@@ -33,11 +33,7 @@ readers, reading-matched). Unlike its siblings, `basmat` was introduced at
 later-wave window: a waves-3-4 complete-case core, extended by wave 5 where
 children in that core were observed.
 
-_Descriptive natural-history, NOT an intervention effect._ `readgrp` is a **cohort factor**, not a randomised or assigned condition, and this
-model carries no treatment, baseline-as-precision, or adjustment-set structure.
-Every quantity here is a **descriptive** group-by-wave expected score or growth
-rate — natural-history evidence, not a causal effect. The intervention-effect
-estimands live in the RLI (`lrp-rli-...`) suite.
+These estimates describe scores and growth in historical cohorts. `readgrp` was not randomly assigned, so between-group differences are not intervention effects. The randomised intervention analyses belong to the separate RLI trial.
 
 _Confirmed identity and Beta-Binomial ceiling (#338)._ The retained cohort source names these fields `BASMAT3`-`BASMAT5`, and its source definition identifies BAS Matrices/non-verbal reasoning. The previous Raven CPM caveat came from a separate 14-child memory-training cohort, not this 97-child study, so `instrument_identity_confirmed=True`. The Beta-Binomial denominator ($N = 28$) is also confirmed (`n_trials_confirmed=True`): first-edition BAS Matrices has 28 items (CLOSER cognitive-measures guide; Parsons, 2014). The 2002 paper does not report this later-wave measure. The shared prior scales are reused from `lrp-rlm-hg-001`; the prior-predictive check below flags any miscalibration.
 

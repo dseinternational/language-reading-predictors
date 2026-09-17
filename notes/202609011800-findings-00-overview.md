@@ -1,9 +1,14 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 # Findings overview, 2026-09-01: what the statistical models found, across all families
 
-**This is the summary note for the 2026-09-01 findings series.** Twenty-one companion notes (`findings-01` to `findings-21`, same date) each report one model family — every model's result, the family's pattern, and what the family cannot support. This note does three things: it records the state of the evidence base the series is read from, it summarises each family in a paragraph, and it draws out the patterns that run across families and what they suggest about the predictors of language and reading development in this cohort. For the extended primer on the two studies, the bounded-count likelihood, credible intervals, the evidence ladder and the cause-versus-association rule, read the August overview (`notes/202608180931-findings-00-overview.md`); its reading guidance is unchanged and is not repeated in full here.
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
+
+This note summarises the 1 September rebuild across 21 model families. The family notes report their results and limits. Use the [methods guide](../METHODS.md) and [glossary](../docs/report/glossary.qmd) for explanations of the models, intervals, evidence labels and causal assumptions.
 
 All results are preliminary and exploratory. This is work in progress, not a published trial report.
 

@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Descriptive plot scripts
 
 Standalone, archivable descriptive figures for the reading-and-language battery.
@@ -9,17 +12,9 @@ point, plus a developmental-profile trajectory grid across the battery.
 
 ## Standalone by design
 
-Each script is **fully self-contained**: it loads the data directly, hardcodes
-its own columns, labels and output path, makes exactly one figure, and saves one
-image. No script imports any project code or a shared plotting helper.
+Each script defines its own columns, labels and plotting recipe so that a figure can be reviewed and changed on its own. Keep that deliberate separation. The scripts use the shared path resolver to read `data/rli_data_long.csv` and write to the `descriptive/` directory under the selected output root.
 
-**Duplication across these scripts is intentional.** Every figure can be archived
-and bespoke-edited on its own without affecting the others. Do not refactor the
-shared logic into a helper — if you change the recipe, change it in each file.
-
-Every script reads `data/rli_data_long.csv` (relative to the repo root) and
-writes its image to `output/descriptive/`. The `output/` directory is gitignored,
-so commit the scripts, this README and the runner — not the generated images.
+The default root is `output/`. Use `--output-dir` or `DSE_LRP_OUTPUT_DIR` to redirect it. Generated figures are not committed.
 
 ## Canonical recipe (predictor vs gain, scripts 01–22)
 
@@ -55,7 +50,7 @@ about 53 children — use it as the visual target for the others.
 `plot00_progress_over_time.py` draws a 2-by-4 small-multiples grid, one panel per
 measure, of level against timepoint (waves 1–4): faint per-child lines plus a bold
 mean-per-wave line. It covers the eight measures that have repeated waves. Block
-design (non-verbal mental age) is excluded because it is measured at baseline only
+design (a non-verbal ability subtest) is excluded because it is measured at baseline only
 and so has no trajectory.
 
 ## Measure → column map
@@ -81,7 +76,7 @@ The trajectory grid (script 00) also uses receptive vocabulary and grammar above
 Each script runs standalone:
 
 ```bash
-python scripts/descriptive/plot06_lettersounds_vs_wordreading_gain.py
+uv run python scripts/descriptive/plot06_lettersounds_vs_wordreading_gain.py
 ```
 
 Or run them all (convenience only):

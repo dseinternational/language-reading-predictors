@@ -39,7 +39,7 @@ def test_undergraduate_itt_route_covers_the_phase_4_contract():
         "lrp-rli-itt-001",
         "Map the symbols to rows, columns, and code",
         "Synthetic example",
-        "What partial pooling is—and why it is not in this model",
+        "What partial pooling means in repeated-measures models",
         "Common misinterpretation checks",
         "Adjusted associations unless",
         "environment-lock.json",

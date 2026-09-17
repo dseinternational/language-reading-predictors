@@ -1,5 +1,8 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
+> [!NOTE]
+> Clarity and measurement-assumption corrections by a LLM-based AI tool (Codex/GPT-6), 2026-09-17. The author-approved companion-model decision remains in force. Numerical results below describe the September 7 checks.
+
 # A second non-verbal ability indicator: what it buys, and what it does not
 
 > [!NOTE]
@@ -15,11 +18,11 @@ Committing the deposited trial archive (#664) brought in **WPPSI-III Object Asse
 
 Object Assembly is complete for all 54 analysed children, exactly as Block Design is, with no floor or ceiling pile-up (4 children at zero, none at the 37 maximum, mean 9.48, SD 6.77 against Block Design's 12.59 and 6.26).
 
-**The two subtests correlate at 0.664** (Spearman 0.680). Treating them as two indicators of what they share, that correlation _is_ the reliability of a single subtest as a measure of the common factor, and the Spearman-Brown reliability of their sum is **0.798**. So a single-subtest adjustment leaves about a third of the shared factor's variance unadjusted, and the composite about a fifth.
+**The two subtests correlate at 0.664** (Spearman 0.680). This does not identify their reliabilities or the amount of confounding removed by adjustment. Under a parallel-test approximation, which assumes the same true score and equal error variance with uncorrelated errors, the Spearman-Brown formula gives `2r/(1+r) = 0.798` for the composite. The approximation has not been established here. The earlier claims that one third or one fifth of a shared factor remained unadjusted were too definite and are withdrawn. See Eisinga et al. (2013), DOI [10.1007/s00038-012-0416-3](https://doi.org/10.1007/s00038-012-0416-3).
 
 Note what the published subtest alphas (0.84 Block Design, 0.85 Object Assembly) are and are not: they are internal consistency _of each subtest_, which includes subtest-specific variance that is not the common factor. Quoting them as the reliability of the ability adjustment overstates it, and this note is partly here so that mistake is not made in the report.
 
-## What it would change: nothing material
+## What the screening comparison showed
 
 A screening regression over the fitted mechanism rows (clustered least squares on the logit scale, ability broadcast from t1 as the models do it) put the letter-sound → word-reading slope at:
 
@@ -35,11 +38,11 @@ A screening regression over the fitted mechanism rows (clustered least squares o
 
 The registered fit confirms the screen: `lrp-rli-mech-311` at `dev` tier returns `beta_mech` = 0.242 against its parent's recorded +0.245.
 
-Extrapolating matters here. Moving reliability from 0.66 to 0.80 moved the slope by 0.007 logits, so there is no reason to expect perfect reliability to move it materially either. That is an argument against spending a full sweep on an errors-in-variables upgrade.
+Changing from Block Design to the composite moved this screening slope by 0.007 logits. This supports a limited sensitivity claim about these two observed adjustment choices. It does not estimate what perfect measurement or control of latent general ability would do. The decision below did not commission an errors-in-variables model; this screening result does not rule one out scientifically.
 
-## The deeper point, which cuts against doing more
+## Scope of the ability adjustment
 
-**Block Design and Object Assembly are both perceptual-organisation subtests.** What they share is a _narrow visuospatial factor_, and visuospatial processing is the relative strength in the Down syndrome profile. Measuring that better does not bring the adjustment closer to the DAG's latent general ability `GA`, which stays unmeasured and structurally unblockable. A composite-adjusted association is better adjusted for one domain; it is not closer to a causal quantity.
+**Block Design and Object Assembly are both perceptual-organisation subtests.** Their overlap cannot establish adequate measurement of general ability across domains. The composite may improve measurement within that domain, but it does not demonstrate that the DAG's latent general ability `GA` has been controlled. The adjusted skill relationship remains an association.
 
 This is why the design-lessons note's request stands unmet: two subtests from one domain is not a general-ability battery, and nothing in the archive changes that.
 
@@ -47,7 +50,7 @@ This is why the design-lessons note's request stands unmet: two subtests from on
 
 Two of the four options considered, as agreed:
 
-1. **Take the reporting gain.** `METHODS.md` now states the 0.664 correlation and what it implies about the reach of a single-subtest adjustment, warns against quoting the subtest alphas for that purpose, and records the visuospatial-factor ceiling. This costs nothing and improves the report immediately.
+1. **Take the reporting gain.** `METHODS.md` now states the 0.664 correlation and the assumptions needed to interpret it as reliability, warns against quoting the subtest alphas for that purpose, and records the visuospatial-factor ceiling. This costs nothing and improves the report immediately.
 2. **Register targeted companions**, so the anticipated criticism — that the ability adjustment rests on one noisy subtest — has a fitted answer rather than an argument. Seven models, `LRP306`–`LRP312`, one per ability-adjusted parent, each differing from its parent in exactly one declared setting.
 
 Rejected, and why:
@@ -83,9 +86,9 @@ That the test compares everything rather than a named list is not incidental. Th
 - **`objass_c` added to `SUPPORTED_ABILITY_COVARIATES`**; registry counts and the catalogue updated (mechanism family 46 → 53, registry 269 → 276).
 - **Thirteen tests** in `tests/test_nonverbal_ability_composite.py`, including that the composite is complete wherever Block Design is — otherwise a companion would silently analyse fewer children than its parent and the comparison would not be like-for-like.
 
-## Not fitted here
+## Fit status at the time
 
-These seven need a `reporting`-tier fit, which will happen in the next sweep on the machine that holds the artefacts. Until then they are registered and their reports are templates.
+The September 7 work registered the seven companions and checked one at `dev` tier. It did not produce reporting-tier fits for the panel. The [September 8 rebuild](202609080119-full-rebuild-both-layers.md) is a later execution record; consult stored fit provenance and the publication decision for current status.
 
 **No posterior changes**, because the composite is only named by the new companions. But **every stored fit's recorded data digest is now stale**, and the durable record should say so: `data_sha256` is a whole-file digest of `rli_data_long.csv`, and appending the `objass` column changes it. So a stored trace can no longer be reused against the current data, and a resumed sweep will refit rather than skip. No stored fit becomes internally inconsistent and no published number moves; the blending pair gates compare their two halves to each other rather than to the live file, so those still hold. The practical cost is nil here because the next sweep is a full refit on a machine with no stored artefacts — but it is a consequence of this change, not an absence of one.
 

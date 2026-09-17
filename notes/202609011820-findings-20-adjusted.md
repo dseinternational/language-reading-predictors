@@ -1,9 +1,14 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
 <!-- cspell:ignore bassim basdig -->
 
 # Findings: the `adjusted` family — which baseline measures track later progress?
+
+**Historical findings, 1 September 2026.** Later rebuilds and code changes may alter these results or their release status. See the [notes guide](README.md#findings-and-rebuilds) before reusing them.
 
 **Read `findings-00-overview` first.** This note covers the 7 models in the `adjusted` family. **Nothing here is causal.** All 7 pass the convergence gate with zero divergences; 6 are publishable and one historical model is withheld at the inputs stage (2026-09-01 rebuild).
 

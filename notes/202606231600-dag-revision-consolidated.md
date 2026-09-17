@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Language & reading causal DAG — locked revision and deliberation record
@@ -109,7 +112,7 @@ and the caution it carries.
   conditional independence **untestable** (every separating set contains `GA`), so the
   internal edges are imported from theory, not checkable in these data. A single `g`
   is also the wrong granularity for the observed same-construct clustering
-  (`notes/202606231100-gb-selected-features-tables.md`); replacing it with correlated
+  ([202606231100-gb-selected-features-tables.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202606231100-gb-selected-features-tables.md)); replacing it with correlated
   domain factors (vocabulary / code / speech / grammar) is identification-neutral but
   a better measurement match — deferred (§ open decisions).
 
@@ -310,7 +313,7 @@ networkx). Structural facts in this note were re-verified with
 
 ## Related notes
 
-- `notes/202606231100-gb-selected-features-tables.md` — same-construct clustering motivating domain factors.
+- [202606231100-gb-selected-features-tables.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202606231100-gb-selected-features-tables.md) — same-construct clustering motivating domain factors.
 
 ## References (verify exact citations + DOIs before use in the report)
 

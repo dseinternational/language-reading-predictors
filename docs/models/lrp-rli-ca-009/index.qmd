@@ -28,7 +28,7 @@ LRP-CA-009 extends the **concurrent conditional-associations** family (#312, des
 
 The estimand is the mutually-adjusted association at each wave: *"at wave t, among children alike on age and the other skills, +n of a predictor skill is associated with +m more receptive-grammar items"*. `T` sits outside the family's original core predictor set, so it enters as a focal outcome without any core measure being removed; it is an asymmetric, focal-only scope extension — `T` is not itself added to the sibling models' predictor sets. It is not floored, so it enters on the same footing as the core-set measures. All children are on the intervention from t2, so these associations describe the conditional joint distribution of the skill measures within a treated system.
 
-_Estimand: descriptive association (no causal warrant)._ Every coefficient is an **adjusted association**. Conditioning on contemporaneous (post-treatment) skill levels is intentional and licensed *because nothing here is read causally*. Read the results with the Table-2-fallacy, measurement-error and collinearity/regularisation caveats set out in the Results section.
+Every coefficient is an adjusted association between measures at the same wave. Conditioning on other post-treatment skills does not identify a causal effect. Interpret the results with the measurement-error, correlated-predictor and prior-sensitivity checks in the results section.
 
 ## Design
 

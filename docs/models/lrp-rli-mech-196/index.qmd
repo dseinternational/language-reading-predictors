@@ -29,12 +29,7 @@ Tier-1 mechanism model — same exposure, outcome, own-baseline term, subject ra
 intercept and linear parameterisation — with `blocks` (WPPSI Block Design) added to the
 matched conditioning set.
 
-The Tier-1 negative-control panel found the letter-sound slope clearly positive on the
-oral-language controls as well as the written-code outcomes, and named shared general
-ability as the leading explanation for that non-specific component. Ability is latent and
-structurally unblockable in the project's diagram, but a measured proxy exists: `blocks`
-is complete, pre-treatment, and constant within child across all four waves. This variant
-partials it out so the panel can be re-read with measured ability removed.
+This variant adjusts for baseline block design to assess whether measured non-verbal ability accounts for the letter-sound association. Block design is available for all archived children and is held fixed across waves. It is a proxy for general ability; adjusting for it cannot establish that all ability-related confounding has been removed.
 
 Role in the panel: **positive control** — the pure-decoding channel.
 

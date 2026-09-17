@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 # Findings — letter-sound knowledge and word reading: levels, counter-cases, and vocabulary in word learning
@@ -32,7 +35,7 @@ Q1–Q3 are _levels_ questions. Per wave (t1–t4), a between-child Beta-Binomia
 
 ### Registered `ca-010/011` production readout (2026-08-09)
 
-The registered production fits now provide the artifact-backed Q1/Q2 estimates. Each cell is the posterior median with its 89% credible interval and `P(>0)`; the [concurrent-family synthesis](202608051411-findings-11-concurrent.md) also gives the 50% intervals, items-scale marginals, full provenance and predictive qualifications. The scratch tables below are retained as the dated exploratory record and should not be mixed draw-for-draw with these posteriors.
+The registered production fits now provide the artifact-backed Q1/Q2 estimates. Each cell is the posterior median with its 89% credible interval and `P(>0)`; the [concurrent-family synthesis](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608051411-findings-11-concurrent.md) also gives the 50% intervals, items-scale marginals, full provenance and predictive qualifications. The scratch tables below are retained as the dated exploratory record and should not be mixed draw-for-draw with these posteriors.
 
 | Wave | `ca-010`: `LS → WR`             | `ca-011`: `LS → WR` with `NW` held | `ca-011`: `NW → WR` with `LS` held |
 | ---- | ------------------------------- | ---------------------------------- | ---------------------------------- |
@@ -64,7 +67,7 @@ The adjusters' own coefficients say why:
 
 **The plain-English answer.** Among children of the same age, hearing status and non-verbal ability, those who know more letter sounds read markedly more words at the same point in time — around **+9 to +11 more words** for a step of roughly six to nine letter sounds at the mean, at every wave from t2 onward, with the direction certain to three decimal places. And the "controlling for" does no work: this is not a general-ability effect wearing a letter-sound costume, at least not one that block design can detect. What it emphatically is **not** is evidence that teaching letter sounds _causes_ word reading — the sharpest confound (latent general ability) has no observed handle beyond block design, and block design turns out to be a weak one.
 
-Two shape results already in the suite belong with this: the association **accelerates near mastery** — `mech-058`'s flexible curve puts the knee at ~29.5 of 32 with the slope roughly twice as steep above it, though the knee's credible range (20–29.5) is wide and pressed against the top of the data, and a bounded score on a logit link manufactures some of that bend mechanically ([skill-thresholds note](202607171215-findings-skill-thresholds.md)). And letter sounds and vocabulary do **not** need to be high together — every `L × vocabulary` interaction is mildly _negative_, i.e. additive with a hint of substitution, not synergy.
+Two shape results already in the suite belong with this: the association **accelerates near mastery** — `mech-058`'s flexible curve puts the knee at ~29.5 of 32 with the slope roughly twice as steep above it, though the knee's credible range (20–29.5) is wide and pressed against the top of the data, and a bounded score on a logit link manufactures some of that bend mechanically ([skill-thresholds note](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607171215-findings-skill-thresholds.md)). And letter sounds and vocabulary do **not** need to be high together — every `L × vocabulary` interaction is mildly _negative_, i.e. additive with a hint of substitution, not synergy.
 
 ## Q2 — the same association, additionally holding nonword reading fixed (exploratory probe)
 
@@ -264,7 +267,7 @@ The same vocabulary measures behave completely differently depending on whether 
 | **Gain**, given `LS` (Q4)                | `RV` +0.17; `EV` +0.13                   | P 0.87 / 0.81, suggestive   |
 | **Gain**, full DAG-parent set (`gf-001`) | `RV` +0.05; `EV` +0.02                   | P 0.64 / 0.56, inconclusive |
 
-Vocabulary **tracks** where a child's word reading has got to, but adds little to **how fast it moves** once the child's own reading baseline is in the model — and once the taught-vocabulary and code measures are added too (`gf-001`), it goes to nothing. This is the cross-sectional-versus-longitudinal gap that the levels-only reading of Q1–Q3 would hide, and it matters for interpretation: a strong concurrent correlation with vocabulary is not evidence that vocabulary is driving reading progress. It is consistent with the mechanism family's independent verdict — `mech-056` (`RV → WR`) +2.9 items over the full exposure range (89% −2.6 to +8.2, P = 0.80) and `mech-057` (`EV → WR`) +5.3 items (−0.5 to +10.9, P = 0.93), neither resolved — and with the GP knee tests, where the two standardised vocabulary curves are essentially flat (`increasing_frac` ≈ 0.57–0.59; [skill-thresholds note](202607171215-findings-skill-thresholds.md)).
+Vocabulary **tracks** where a child's word reading has got to, but adds little to **how fast it moves** once the child's own reading baseline is in the model — and once the taught-vocabulary and code measures are added too (`gf-001`), it goes to nothing. This is the cross-sectional-versus-longitudinal gap that the levels-only reading of Q1–Q3 would hide, and it matters for interpretation: a strong concurrent correlation with vocabulary is not evidence that vocabulary is driving reading progress. It is consistent with the mechanism family's independent verdict — `mech-056` (`RV → WR`) +2.9 items over the full exposure range (89% −2.6 to +8.2, P = 0.80) and `mech-057` (`EV → WR`) +5.3 items (−0.5 to +10.9, P = 0.93), neither resolved — and with the GP knee tests, where the two standardised vocabulary curves are essentially flat (`increasing_frac` ≈ 0.57–0.59; [skill-thresholds note](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607171215-findings-skill-thresholds.md)).
 
 ### Two more things the same fits say
 
@@ -314,7 +317,7 @@ Note `gf-1NN` is already the treated-only-companion convention (`gf-101` is `gf-
 
 - **A mixture / latent-class model for the sight-word subgroup.** By the continuous residual there are about **two** such children; mixture models need orders of magnitude more.
 - **An item-level LSK measurement model** to separate a real readiness threshold from the 32-item ceiling (the Q3b ambiguity). **Blocked by data, not modelling** — there is no item-level data, as [design-lessons](202607172345-design-lessons-for-future-studies.md) already records.
-- **More GP knee models.** The [skill-thresholds note](202607171215-findings-skill-thresholds.md) already swept six exposures and found only `LS` has a resolved knee, and Q3b shows even that one is confounded with the instrument ceiling. Another knee model cannot break that tie.
+- **More GP knee models.** The [skill-thresholds note](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607171215-findings-skill-thresholds.md) already swept six exposures and found only `LS` has a resolved knee, and Q3b shows even that one is confounded with the instrument ceiling. Another knee model cannot break that tie.
 
 ### Probe timing and missingness closeout (completed 2026-08-08)
 
@@ -325,9 +328,9 @@ Note `gf-1NN` is already the treated-only-companion convention (`gf-101` is `gf-
 ## Cross-references
 
 - Probe script (all fits and CSVs): [`notes/assets/202607241000-ls-wr-association-probe.py`](assets/202607241000-ls-wr-association-probe.py).
-- Current concurrent-family synthesis and registered `ca-010/011` production readout: [`notes/202608051411-findings-11-concurrent.md`](202608051411-findings-11-concurrent.md); audited refit record: [`notes/202608091330-ca-missingness-reporting-refit.md`](202608091330-ca-missingness-reporting-refit.md).
-- Earlier concurrent (levels) snapshot: [`notes/202607210911-findings-concurrent.md`](202607210911-findings-concurrent.md); models `docs/models/lrp-rli-ca-001/`, `lrp-rli-ca-002/`.
-- Letter-sound curve shape and the knee: [`notes/202607171215-findings-skill-thresholds.md`](202607171215-findings-skill-thresholds.md); models `docs/models/lrp-rli-mech-058/`, `lrp-rli-mech-101/`.
+- Current concurrent-family synthesis and registered `ca-010/011` production readout: [[202608051411-findings-11-concurrent.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608051411-findings-11-concurrent.md)](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608051411-findings-11-concurrent.md); audited refit record: [`notes/202608091330-ca-missingness-reporting-refit.md`](202608091330-ca-missingness-reporting-refit.md).
+- Earlier concurrent (levels) snapshot: [[202607210911-findings-concurrent.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607210911-findings-concurrent.md)](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607210911-findings-concurrent.md); models `docs/models/lrp-rli-ca-001/`, `lrp-rli-ca-002/`.
+- Letter-sound curve shape and the knee: [[202607171215-findings-skill-thresholds.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607171215-findings-skill-thresholds.md)](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607171215-findings-skill-thresholds.md); models `docs/models/lrp-rli-mech-058/`, `lrp-rli-mech-101/`.
 - Is letter-sound knowledge used for decoding: [`notes/202607172358-findings-decoding-specificity.md`](202607172358-findings-decoding-specificity.md).
 - Causal direction workstream: [`notes/202607172100-reverse-mediation-wr-ls-direction-spec.md`](202607172100-reverse-mediation-wr-ls-direction-spec.md), [`notes/202607172230-riclpm-direction-plan.md`](202607172230-riclpm-direction-plan.md).
 - Base DAG: [`dag/dag-language-reading.dagitty`](../dag/dag-language-reading.dagitty).

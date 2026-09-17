@@ -22,7 +22,7 @@ format:
 
 **This is a comparator, not the model of record.** It is [LRPLF01](../lrp-rli-lf-001/index.qmd) restricted to the two waves at which randomisation alone separates the arms — the pre-randomisation baseline t1 and the end of the randomised period t2 (#584 decision 3). Same model, same adjustment set, same estimand.
 
-In the four-wave fit the post-crossover t3/t4 likelihood reaches the reported t2 change through parameters the waves share: the balance term `arm_gap_t1` the changes are measured from, the child random intercept, the dispersion, and the single time-invariant `group × ability` term. Across the level suite the posterior correlation between `arm_gap_t1` and `d_grp_time[t2]` runs from −0.07 to −0.44, so the contrast is randomisation-anchored but also longitudinal-model-dependent. Here there is nothing to borrow, and the difference between the two fits is the size of that dependence.
+The four-wave model shares its baseline arm gap, child effects, dispersion and group-by-ability term across waves. Later observations can therefore affect the t2 estimate. This two-wave fit measures sensitivity to that use of later data. It uses the same randomised comparison and is not an independent replication.
 
 Read the four-wave report for the levels view across all four timepoints — showing them on one scale is that model's purpose, and this restriction gives it up.
 

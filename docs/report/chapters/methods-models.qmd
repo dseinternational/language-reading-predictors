@@ -4,6 +4,10 @@ abstract: "An undergraduate route through the canonical taught-receptive-vocabul
 ---
 
 ::: {.callout-note}
+Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+:::
+
+::: {.callout-note}
 Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 Divergent-transition qualification policy updated by a LLM-based AI tool (Codex/GPT-5).
@@ -54,7 +58,7 @@ The distinction carries through the outputs:
 | $A_i$ | Age in months at time 1 | `age` | `prepared.A_months` |
 | $A_{i,\mathrm{std}}$ | Age centred and divided by its fitted-sample standard deviation | Derived from `age` | `prepared.A_std` via `standardise()` |
 
-The declaration is [`lrp_rli_itt_001.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/lrp_rli_itt_001.py). Its immutable `IttModelSettings()` is resolved and validated in [`itt.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/itt.py) before data loading. The same resolved plan supplies the loader arguments, factory arguments, diagnostic variables, `config.json`, and `model_recipe.md`. The equation is built in [`factories.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/factories.py), while [`stages.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/stages.py) owns the common sampling-to-publication order.
+The declaration is [`lrp_rli_itt_001.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/lrp_rli_itt_001.py). Its immutable `IttModelSettings()` is resolved and validated in [`itt.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/itt.py) before data loading. The same resolved plan supplies the loader arguments, factory arguments, diagnostic variables, `config.json`, and `model_recipe.md`. The equation is built in [`factories/itt.py`](../../../src/language_reading_predictors/statistical_models/factories/itt.py), while [`stages.py`](https://github.com/dseinternational/language-reading-predictors/blob/main/src/language_reading_predictors/statistical_models/stages.py) owns the common sampling-to-publication order.
 
 ## 4. Build the linear predictor one term at a time
 
@@ -125,7 +129,7 @@ $$
 
 The priors are weakly informative, not information-free. They reduce support for implausibly large logit-scale changes. The baseline prior is centred at 1 because the post-score is expected to track its own baseline, but sensitivity to a wider prior is required. Prior-predictive simulation checks what score distributions these assumptions imply before the observed outcome is used.
 
-## 7. What partial pooling is—and why it is not in this model
+## 7. What partial pooling means in repeated-measures models
 
 Repeated-measures families give one child several rows and may include a child-specific intercept:
 
@@ -169,7 +173,7 @@ For posterior draw $s$, $\eta_{0i}^{(s)}$ is child $i$'s untreated linear predic
 
 The automatic clean-pass gate requires zero divergences, R-hat no greater than 1.01, bulk and tail effective sample sizes of at least 400, and Bayesian fraction of missing information (BFMI) of at least 0.3. These checks ask whether the sampler explored the specified posterior adequately. Passing them does not establish that the likelihood, DAG, or missingness assumptions are correct.
 
-A divergence means the numerical trajectory could not reliably follow some posterior geometry, so even a small percentage cannot simply be ignored. Zero remains the only clean pass. In exceptional non-causal exploratory work, a genuinely small absolute number may be reported as **qualified, not passed** only after an independent, trace-bound review shows that all other diagnostics pass, reasonable reparametrisations were tried, the result is stable across seeds, and the named reported quantity does not share the divergent geometry. Causal treatment effects and tail-, curve-, ranking-, covariance- or latent-structure-sensitive quantities always require zero. No current fit has such a qualification; until the reviewed verifier exists, any divergence stops interpretation.
+A divergence means the numerical trajectory could not reliably follow some posterior geometry, so even a small percentage cannot simply be ignored. Zero remains the only clean pass. In exceptional non-causal exploratory work, a genuinely small absolute number may be reported as **qualified, not passed** only after an independent, trace-bound review shows that all other diagnostics pass, reasonable reparametrisations were tried, the result is stable across seeds, and the named reported quantity does not share the divergent geometry. Causal treatment effects and tail-, curve-, ranking-, covariance- or latent-structure-sensitive quantities always require zero. A fit may use a qualification only when the required reviewed evidence is present and the publication decision accepts it. This ITT example requires zero divergences.
 
 Posterior-predictive checking asks a different question. For each posterior draw, generate a replicated score $Y_i^{\mathrm{rep}}$ from the fitted model and compare the replicated distribution with the observations.
 
@@ -180,7 +184,7 @@ PSIS-LOO assesses predictive performance when one observation is left out approx
 ## 11. Read the generated report in a fixed order
 
 1. Confirm the model ID, outcome, analysis rows, assignment coding, and available-case modified ITT qualification in `config.json`, `analysis_set.csv`, and `model_recipe.md`.
-2. Read the convergence gate. Stop if it fails; a future amber qualification must be a separate trace-bound reviewed artefact and is never a clean pass.
+2. Read `release_decision.json` and the convergence diagnostics. Stop if publication is withheld. Passing the sampling checks does not replace the input, artefact and robustness checks.
 3. Read posterior-predictive coverage and distribution checks. Qualify or revise the working likelihood if discrepancies are material.
 4. Read the item-scale average marginal effect with its inner 50% and outer 89% intervals and $P(\mathrm{AME}>0)$.
 5. Read the post-hoc practical-threshold result only beside its $\delta$-sensitivity sweep.

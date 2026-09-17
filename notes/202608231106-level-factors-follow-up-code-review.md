@@ -1,4 +1,7 @@
 > [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
+> [!NOTE]
 > Drafted by a LLM-based AI tool (Codex/GPT-5).
 
 # Level-factors follow-up code review (functional + statistical), 2026-08-23
@@ -126,7 +129,7 @@ the 2026-08-20 refit and incorporates the #552 level-factor reparameterisation. 
 line 167 still gives the pre-#552 reading: t1 arm gap -0.17, t2 arm gap +0.25 called
 the randomised contrast, and +1.7 words.
 
-The current family note (`notes/202608180936-findings-04-level-factors.md`, lines
+The current family note ([202608180936-findings-04-level-factors.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202608180936-findings-04-level-factors.md), lines
 28–58) gives:
 
 - `arm_gap_t1` about +0.033;

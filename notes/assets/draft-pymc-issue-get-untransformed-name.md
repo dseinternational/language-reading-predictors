@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 <!--
-DRAFT ONLY — not posted. Intended for pymc-devs/pymc as a bug report.
-Reviewed and posted by a human; see language-reading-predictors#453.
+Historical bug-report draft, reviewed and posted by a human.
+See language-reading-predictors#453. Version details below describe the original reproduction.
 -->
 
 **Title:** `compute_log_prior` / `compute_log_likelihood` fail for any transform whose name contains an underscore (`LKJCorr`, `LogExpM1`)

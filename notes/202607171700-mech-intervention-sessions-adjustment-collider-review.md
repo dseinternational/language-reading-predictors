@@ -1,3 +1,6 @@
+> [!NOTE]
+> Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+
 # Adjusting for intervention sessions (IS) in the skill → word-reading mechanism models — collider review and #309 reversal
 
 > [!NOTE]
@@ -61,5 +64,5 @@ The check is a `networkx` d-separation script over the base DAG's edge list (bac
 
 - Base DAG: `dag/dag-language-reading.dagitty` (revised 2026-07-10).
 - Prior handling being reversed: the #309 taught-vocabulary mechanism decision; see `notes/202607142100-lrp311-taught-vocab-mechanism.md`.
-- The dose-response collider rule that remains in force: #269; see `notes/202606291600-period-resolved-lettersound-dose.md` and `notes/202607161800-findings-dose_response.md`.
-- Models touched: `lrp-rli-mech-088`, `lrp-rli-mech-089` (re-fit at reporting); findings updated in `notes/202607161800-findings-mechanism.md`.
+- The dose-response collider rule that remains in force: #269; see `notes/202606291600-period-resolved-lettersound-dose.md` and [202607161800-findings-dose_response.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607161800-findings-dose_response.md).
+- Models touched: `lrp-rli-mech-088`, `lrp-rli-mech-089` (re-fit at reporting); findings updated in [202607161800-findings-mechanism.md](https://github.com/dseinternational/language-reading-predictors/blob/b62fd6ce093c2cb81e5c842cf96ff11ffa6e4d95/notes/202607161800-findings-mechanism.md).
