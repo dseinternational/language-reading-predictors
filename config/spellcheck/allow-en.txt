@@ -516,6 +516,7 @@ probs
 proc
 psense
 pytensor
+PYTENSORRC
 Psychometrika
 Psychonomic
 Puhani
