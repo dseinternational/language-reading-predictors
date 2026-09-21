@@ -9,7 +9,7 @@ Notes record what was known or decided on their stated date. They are not all cu
 
 The [1 September statistical findings](202609011800-findings-00-overview.md) link to 21 family summaries. The [boosting review](202609012030-gb-findings-review.md) covers the same date. These are the most recent full narrative findings series retained here, but they are **dated snapshots**, not a fresh evaluation of the present code.
 
-The [8 September rebuild](202609080119-full-rebuild-both-layers.md) is a later execution record. The [16 September integrity fixes](20260916-codebase-review-and-run-integrity.md) changed fit provenance, resumption and bootstrap importance. Check a stored fit's configuration and current publication decision before reusing a numerical finding. This documentation review did not refit models or revalidate historical numbers.
+The [8 September rebuild](202609080119-full-rebuild-both-layers.md) is a later execution record. The [21 September refit](20260921-full-statistical-refit.md) repeats the statistical layer only and records three declared acceptance-target remediations. The [16 September integrity fixes](20260916-codebase-review-and-run-integrity.md) changed fit provenance, resumption and bootstrap importance. Check a stored fit's configuration and current publication decision before reusing a numerical finding. This documentation review did not refit models or revalidate historical numbers.
 
 The [August findings by question](202608182200-findings-by-question.md) retains cross-model questions and author decisions. Its numerical evidence is historical. The [September report plan](202609071300-technical-report-plan-v2.md) remains a proposal; its pending author decisions have not been approved by this cleanup.
 

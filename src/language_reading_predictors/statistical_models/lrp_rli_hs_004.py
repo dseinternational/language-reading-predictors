@@ -46,7 +46,12 @@ SPEC = ModelSpec(
         delta=0.1,
         gb_reference="lrp-rli-gbl-009",
     ),
-    target_accept=0.99,
+    # Lifted from the family's 0.99 to 0.999, as hs-001 was: the 2026-09-21
+    # reporting rebuild held a single divergence in 36,000 draws at 0.99, in the
+    # upper tail where the regularised slab binds (hs_c2 near its 99th
+    # percentile), and a horseshoe ranking is zero-divergence-only under
+    # notes/202608021625-divergence-qualification-policy.md.
+    target_accept=0.999,
 )
 
 
