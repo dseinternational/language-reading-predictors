@@ -39,8 +39,11 @@ import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.figure_io import save_styled_figure
 from language_reading_predictors.plot_utils import (
+    SHAP_SCATTER_ALPHA,
+    SHAP_SCATTER_X_JITTER,
     plot_heatmap,
     save_shap_scatter_plots,
+    seeded_shap_jitter,
 )
 from language_reading_predictors.models.common import (
     ModelConfig,
@@ -612,7 +615,17 @@ class EstimatorPipeline:
         for _, r in inter_df.head(top_pairs).iterrows():
             a, b = r["feature_a"], r["feature_b"]
             try:
-                shap.dependence_plot((a, b), inter, X, show=False)
+                # Same treatment as the per-predictor scatters: stacked
+                # observations stay visible (see draw_shap_scatter).
+                with seeded_shap_jitter():
+                    shap.dependence_plot(
+                        (a, b),
+                        inter,
+                        X,
+                        alpha=SHAP_SCATTER_ALPHA,
+                        x_jitter=SHAP_SCATTER_X_JITTER,
+                        show=False,
+                    )
                 fig = plt.gcf()
                 save_styled_figure(
                     context.output_dir,
