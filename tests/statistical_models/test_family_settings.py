@@ -94,7 +94,9 @@ def test_the_sampler_knob_survived_the_move_to_its_own_field():
     # parent: the composite-ability companion has to match the parent's HSGP
     # basis, length-scale prior and acceptance target, or a difference between
     # the two fits would not be attributable to the ability measure.
-    assert len(declared) == 39
+    # + lrp-rli-mech-104, whose 0.98 remediation was declared in its module after
+    # the 2026-09-21 rebuild re-ran the preset (notes/20260921-full-statistical-refit.md).
+    assert len(declared) == 40
     assert all(0.0 < value < 1.0 for value in declared.values())
     # Every one of them now reads from the first-class field.
     assert all(
