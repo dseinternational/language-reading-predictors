@@ -66,6 +66,13 @@ SPEC = ModelSpec(
         phase_specific_mechanism=False,
         use_subject_random_intercept=True,
     ),
+    # Above the reporting preset's 0.95: at 0.95 this fit holds a single
+    # divergence in 36,000 draws, reproduced exactly in the 2026-09-08 and
+    # 2026-09-21 rebuilds. The 2026-09-08 remediation refitted at 0.98 by command
+    # line (0 divergences, R-hat 1.00088, ESS 4,841; mechanism_curve moved by at
+    # most 0.019) but was never declared here, so a registry rebuild re-ran the
+    # failing contract.
+    target_accept=0.98,
 )
 
 
