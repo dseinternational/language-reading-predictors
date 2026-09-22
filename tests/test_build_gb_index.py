@@ -172,7 +172,7 @@ def test_links_are_relative_to_the_page(mod, tmp_path):
 def test_main_writes_index_under_output_root(mod, tmp_path, monkeypatch):
     _fit(tmp_path / "models", "lrp-rli-gbg-001", r2=0.2, ranking=[_row("age", 0.1, "+")])
     catalogue = tmp_path / "README.md"
-    catalogue.write_text(_CATALOGUE)
+    catalogue.write_text(_CATALOGUE, encoding="utf-8")
     monkeypatch.setattr(mod, "_registered_model_ids", lambda: ["lrp-rli-gbg-001"])
     try:
         assert mod.main(["--output-dir", str(tmp_path), "--catalogue", str(catalogue)]) == 0
