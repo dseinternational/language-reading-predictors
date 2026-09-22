@@ -260,6 +260,7 @@ idxmax
 idxmin
 ignorability
 iloc
+Imai
 importorskip
 incl
 invlogit
@@ -657,6 +658,7 @@ tertile
 tiering
 timepoint
 timepoints
+Tingley
 TNIE
 Toffalini
 tolist
