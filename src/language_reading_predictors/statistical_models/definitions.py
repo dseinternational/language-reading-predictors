@@ -1224,6 +1224,16 @@ _STRUCT = [
         "W",
         "coupled letter-sounds and vocabulary predicting reading change",
     ),
+    # Unequal transition lengths (notes/202609212100-assessment-interval-lengths.md).
+    _d(
+        "lrp167",
+        "lcsm",
+        "Latent change score",
+        Status.COMPANION,
+        "W",
+        "LRP67 with arm x window change intercepts (unequal transition lengths)",
+        base="lrp67",
+    ),
     # Lagged reverse-coupling suite on the time-lagged DAG (#250; design
     # notes/202607141030-time-lagged-model-designs.md).
     _d(

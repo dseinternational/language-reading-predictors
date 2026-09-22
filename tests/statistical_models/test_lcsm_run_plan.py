@@ -323,7 +323,7 @@ def test_pipeline_has_no_direct_lcsm_setting_reads():
 
 def test_registered_models_are_typed_and_preserve_the_legacy_contract():
     specs = _registered_specs()
-    assert len(specs) == 5
+    assert len(specs) == 6
 
     for registered in specs:
         settings = registered.model_settings
