@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 
 import numpy as np
+import numpy.typing as npt
 
 HUBER_TUNING_CONSTANT = 1.345
 """Huber's ``k`` giving 95% efficiency at the normal distribution."""
@@ -54,7 +55,7 @@ class HuberDelta:
         return dict(asdict(self))
 
 
-def robust_huber_delta(y: np.ndarray | list[float]) -> HuberDelta:
+def robust_huber_delta(y: npt.ArrayLike) -> HuberDelta:
     """Derive the Huber threshold ``1.345 * 1.4826 * MAD(y)`` with a floor fallback.
 
     Parameters
@@ -69,7 +70,7 @@ def robust_huber_delta(y: np.ndarray | list[float]) -> HuberDelta:
         When ``y`` is empty, contains non-finite values or does not vary, so
         no positive threshold exists.
     """
-    arr = np.asarray(y, dtype=float).ravel()
+    arr: npt.NDArray[np.float64] = np.asarray(y, dtype=np.float64).ravel()
     if arr.size == 0:
         raise ValueError("Huber threshold needs at least one target value")
     if not np.all(np.isfinite(arr)):
