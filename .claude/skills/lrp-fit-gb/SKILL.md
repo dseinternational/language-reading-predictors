@@ -5,6 +5,8 @@ description: Fit, check and render LightGBM models for gains and levels. Use the
 
 > [!NOTE]
 > Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
+>
+> Report-index step added by a LLM-based AI tool (Claude Code/Opus 5).
 
 # Fit gradient-boosting models
 
@@ -26,6 +28,8 @@ uv run python scripts/fit_model.py all --config reporting --render
 Redirect output with `--output-dir` or `DSE_LRP_OUTPUT_DIR`; the command option takes precedence. Results normally go to `output/models/<model_id>/`. The fit records source, data and environment identities and writes `fit_complete=true` only after the analysis and report preparation finish. `metrics.json` alone is not a completion guarantee.
 
 Use `scripts/run_refit_sweep.py --help` for resumable batches. Estimate run time from a comparable recent run on the same host. A full reporting sweep can take much longer than a development fit.
+
+After a sweep, run `uv run python scripts/build_gb_index.py` (with the same `--output-dir`, if any) to write `output/models/index.html`. It links every rendered report, grouped as in the catalogue, with each model's held-out R² and leading predictors. It flags fits that lack a completion record or a clean source commit. It reads stored artefacts only and refits nothing.
 
 ## Read the outputs
 
