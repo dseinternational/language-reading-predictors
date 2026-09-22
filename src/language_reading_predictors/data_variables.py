@@ -340,8 +340,11 @@ class Variables:
 
     YARCSI = "yarcsi"
     """
-    Comprehension skills inventory from the York Assessment of Reading (YARC) 
-    Early Reading battery (Hulme et al., 2009).
+    Sound Isolation test of phoneme awareness from the York Assessment of Reading
+    (YARC) Early Reading battery (Hulme et al., 2009). Scores are heavily floored
+    (median 0 at every wave). Burgoyne et al. (2012) report the test as given at t1
+    and then discontinued because of floor effects; this file holds scores at all
+    four waves.
     """
 
     DEAPPIN = "deappin"
@@ -1192,7 +1195,7 @@ class Variables:
         SPRAW: "Word spelling score",
         YARCEWR: "Early word recognition score",
         YARCLET: "Letter sounds score",
-        YARCSI: "Comprehension skills score",
+        YARCSI: "Sound isolation score",
         EWRSWR: "Early word reading composite score",
         BEHAV: "Behaviour rating",
         ATTEND: "Intervention sessions attended",
