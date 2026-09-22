@@ -106,3 +106,18 @@ def test_missing_n_trials_is_incomplete(batch, tuning_root):
 def test_more_trials_than_requested_is_complete(batch, tuning_root):
     _write_best_params(tuning_root, n_trials=200)
     assert batch._is_complete(_MODEL_ID, "mae", "mae", 47, 150) is True
+
+
+def test_alpha_rule_must_match_when_requested(batch, tuning_root):
+    _write_best_params(tuning_root, scoring="rmse", params={"objective": "huber", "alpha": 3.9})
+    # A hand-set alpha (no rule recorded) is not a rule-derived study.
+    assert batch._is_complete(_MODEL_ID, "rmse", "huber", 47, 150, alpha_rule="robust-mad") is False
+    _write_best_params(
+        tuning_root,
+        scoring="rmse",
+        params={"objective": "huber", "alpha": 3.9},
+        alpha_rule="robust-mad",
+    )
+    assert batch._is_complete(_MODEL_ID, "rmse", "huber", 47, 150, alpha_rule="robust-mad") is True
+    # Without a requested rule the recorded rule is not checked.
+    assert batch._is_complete(_MODEL_ID, "rmse", "huber", 47, 150) is True

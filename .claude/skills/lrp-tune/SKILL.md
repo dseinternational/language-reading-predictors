@@ -13,17 +13,17 @@ Step 0 of the workflow: retune the LightGBM hyperparameters, then **review** bef
 ## Prerequisites
 
 - `uv sync`, then either `source .venv/bin/activate` or prefix each command with `uv run`.
-- All 50 GB models (`lrp-rli-gbg-001…022` gain, `lrp-rli-gbl-001…028` level) use `LGBMPipeline` (target transform `none`) + the MAE objective, so one uniform policy applies.
+- All 50 GB models (`lrp-rli-gbg-001…022` gain, `lrp-rli-gbl-001…028` level) use `LGBMPipeline` (target transform `none`) + the Huber objective, so one uniform policy applies.
 
-## The reviewed policy (#169)
+## The reviewed policy (Huber, 2026-09-22)
 
-Tune with MAE scoring and the MAE objective, `GroupKFold` by `subject_id` at each model's own `cv_splits`, an inner `GroupShuffleSplit` early-stopping slice (the outer val fold is never shown to early stopping), seed 47:
+Tune with RMSE scoring and the Huber objective, `GroupKFold` by `subject_id` at each model's own `cv_splits`, an inner `GroupShuffleSplit` early-stopping slice (the outer val fold is never shown to early stopping), seed 47. The Huber threshold (`alpha`) is derived per model by `--alpha-rule robust-mad`: 1.345 × 1.4826 × MAD of the tuned target, falling back to 1.345 × the mean absolute deviation from the median when the MAD is zero (`models/objective.py`). It is recorded in `best_params.json` under `alpha_derivation` and promoted with the other parameters:
 
 ```bash
-uv run python scripts/tune_model.py <model_id> --n-trials 150 --scoring mae --lgbm-objective mae --seed 47
+uv run python scripts/tune_model.py <model_id> --n-trials 150 --scoring rmse --lgbm-objective huber --alpha-rule robust-mad --seed 47
 ```
 
-The mean best iteration across folds becomes the tuned `n_estimators`. Keep this policy uniform unless you have a specific reason to change it (record the reason in a `notes/` note).
+These are the script defaults. The policy replaced the #169 MAE policy after the [objective-sensitivity check](../../../notes/202609221700-gb-objective-sensitivity.md). The mean best iteration across folds becomes the tuned `n_estimators`. Keep this policy uniform unless you have a specific reason to change it (record the reason in a `notes/` note).
 
 ## Single model vs batch
 
@@ -44,7 +44,7 @@ A model whose `best_params.json` matches the requested policy is skipped unless 
 - `output/tuning/<model_id>/best_params.json` — tuned params + CV metrics.
 - `output/tuning/retune169_manifest.json` — per-model command, git commit, wall-clock, status, headline CV metric (rewritten after every model, so a killed run resumes cleanly).
 - `output/tuning/_logs/<model_id>.log` — per-model tuning log.
-- Build a review table (`output/tuning/review_*.csv`): old-vs-new CV MAE ± fold-std, `n_estimators`, boundary/pathology flags, verdict.
+- Build a review table (`output/tuning/review_*.csv`): old-vs-new CV RMSE ± fold-std, `n_estimators`, boundary/pathology flags, verdict.
 
 ## Review before promoting
 
@@ -54,7 +54,7 @@ Check whether the search reached the iteration limit or a parameter boundary. Ex
 
 ## Promotion (manual)
 
-Only after review: copy the tuned values into `_LGBM_MAE_PARAMS` in each `models/lrp_rli_gbg_*.py` / `models/lrp_rli_gbl_*.py` module. **Preserve each module's existing key schema** (some carry `random_state`, some don't) — edit values only, to keep the diff to parameter values. Remove any stale `retune-pending`/borrowed prose. Guard retired borrowing with `tests/test_borrowed_params.py`.
+Only after review: copy the tuned values (including `alpha`) into `_LGBM_HUBER_PARAMS` in each `models/lrp_rli_gbg_*.py` / `models/lrp_rli_gbl_*.py` module. **Preserve each module's existing key schema** (some carry `random_state`, some don't) — edit values only, to keep the diff to parameter values. Remove any stale `retune-pending`/borrowed prose. Guard retired borrowing with `tests/test_borrowed_params.py`.
 
 ## After promoting
 

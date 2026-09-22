@@ -43,8 +43,8 @@ between consecutive assessments. All observations are included (no outlier
 exclusion) so that the full range of outcomes informs the model.
 
 This is an **exploratory model** designed to identify which predictors most
-influence word-reading gains. It uses LightGBM with MAE-tuned hyperparameters
-(LightGBM `objective=mae`) so that importance rankings are not dominated by a
+influence word-reading gains. It uses LightGBM with Huber-tuned hyperparameters
+(LightGBM `objective=huber`) so that importance rankings are not dominated by a
 small number of extreme gains. Cross-validation is group-aware (`GroupKFold`,
 grouped by `subject_id`) to prevent data leakage across timepoints for the same
 child.
@@ -213,7 +213,7 @@ print(f"In-sample MedAE: {medae:.4f}")
 
 ### Permutation importance
 
-Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units, although the models are tuned using mean absolute error (MAE).
+Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units. The models are tuned with a Huber objective (squared error within a robust threshold, absolute error beyond it) and RMSE scoring, so the ranking metric and the objective both target the conditional mean while the few most extreme scorers carry reduced weight. The table lists every predictor; the box plot shows the ten with the largest mean importance.
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
@@ -267,6 +267,8 @@ global and local interpretability.
 Mean absolute SHAP values across all observations, showing the average magnitude
 of each feature's contribution to predictions.
 
+The bar plots show the ten predictors with the largest mean |SHAP| and collapse the rest into one "other features" row.
+
 ![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
 
 #### Clustered feature importance
@@ -292,25 +294,49 @@ pushes the prediction from the base value.
 
 ![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
 
+#### Waterfall plots at the 25th, 50th and 75th percentiles of the outcome
+
+One waterfall for each of the three observations whose observed outcome lies nearest the 25th, 50th and 75th percentiles of the fitted target (ties go to the observation the model fits best), showing how the leading predictors move the prediction from the base value for a low, a typical and a high scorer. Each waterfall names its ten largest contributions and pools the rest. The table records which child-wave each plot explains, with the observed and predicted values.
+
+```{python}
+pd.read_csv("shap_waterfall_observations.csv")
+```
+
+::: {layout-ncol=3}
+![25th percentile](shap_waterfall_p25.png){.lightbox}
+
+![50th percentile](shap_waterfall_p50.png){.lightbox}
+
+![75th percentile](shap_waterfall_p75.png){.lightbox}
+:::
+
+
 #### SHAP scatter plots by predictor
 
-One scatter per predictor: feature value on the x-axis, SHAP contribution on
+One scatter for each of the ten predictors with the largest permutation importance: feature value on the x-axis, SHAP contribution on
 the y-axis, coloured by baseline word-reading score (`ewrswr`) so dependencies
 with starting reading level are visible.
 
 ##### Coloured by baseline word-reading score (`ewrswr`)
 
-::: {layout-ncol=2}
-![age](shap_scatter_age_by_ewrswr.png){.lightbox}
+```{python}
+#| output: asis
+from pathlib import Path
 
-![yarclet](shap_scatter_yarclet_by_ewrswr.png){.lightbox}
+# Order scatters by permutation importance so the strongest signals appear
+# first. Fall back to config order if the file is missing.
+try:
+    order = perm_imp.sort_values("importance_mean", ascending=False)["feature"].tolist()
+except Exception:
+    order = list(config["predictor_vars"])
 
-![celf](shap_scatter_celf_by_ewrswr.png){.lightbox}
+available = [f for f in order if Path(f"shap_scatter_{f}_by_ewrswr.png").exists()]
 
-![b1exto](shap_scatter_b1exto_by_ewrswr.png){.lightbox}
-
-![blending](shap_scatter_blending_by_ewrswr.png){.lightbox}
-:::
+print("::: {layout-ncol=2}")
+for feat in available:
+    print(f"![{feat}](shap_scatter_{feat}_by_ewrswr.png){{.lightbox}}\n")
+print(":::")
+```
 
 ##### Selected dependence pairs
 

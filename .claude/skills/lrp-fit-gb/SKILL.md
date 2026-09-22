@@ -36,8 +36,9 @@ After a sweep, run `uv run python scripts/build_gb_index.py` (with the same `--o
 Read `config.json`, `metrics.json`, `predictor_ranking.csv`, `cluster_ranking.csv` and the SHAP beeswarm together.
 
 - `cv_pooled_r2` uses held-out predictions pooled across child-grouped folds. Hyperparameters were selected on the same grouped folds, so this is internal performance after tuning, not independent validation.
-- Permutation importance measures the change in held-out RMSE after predictor values are shuffled between children as whole blocks. Its scale differs from the MAE tuning objective.
+- Permutation importance measures the change in held-out RMSE after predictor values are shuffled between children as whole blocks. The models are tuned with a Huber objective and RMSE scoring, so the ranking metric and the objective both target the conditional mean.
 - SHAP values show the direction of a predictor's contribution to the fitted prediction. Importance alone has no direction.
+- The permutation, SHAP bar and SHAP scatter figures show the ten leading predictors; the CSV tables keep every predictor. Three extra waterfalls explain the observations nearest the 25th, 50th and 75th percentiles of the outcome (`shap_waterfall_observations.csv` names them).
 - Same-skill predictors can restate a concurrent level outcome. Gain models include baseline scores, so negative baseline associations can reflect score limits or regression to the mean.
 
 Check these features in the actual fit. Do not copy an earlier run's R², rankings or directions into a new summary. Predictive importance does not identify what would happen if someone changed the predictor. The Bayesian models also need a suitable design and assumptions for causal interpretation.

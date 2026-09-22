@@ -48,8 +48,7 @@ The target is **mildly right-skewed** (skew 0.25) with ~29% negative and ~4%
 zero observations (n ≈ 160) — unusually low zero-mass for a gain target.
 Pair partner to LRPGBG08 (`aptgram_gain`, expressive grammar).
 
-This is a **baseline exploratory model** for the gain-prediction task. It was MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
-#169), running on the full
+This is a **baseline exploratory model** for the gain-prediction task. It was Huber-tuned by Optuna on the full predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full
 `Predictors.DEFAULT_GAIN` set (`aptinfo` is already a level predictor in that
 set). Later variants will have a documented starting point for comparison.
 
@@ -221,7 +220,7 @@ print(f"In-sample MedAE: {medae:.4f}")
 
 ### Permutation importance
 
-Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units, although the models are tuned using mean absolute error (MAE).
+Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units. The models are tuned with a Huber objective (squared error within a robust threshold, absolute error beyond it) and RMSE scoring, so the ranking metric and the objective both target the conditional mean while the few most extreme scorers carry reduced weight. The table lists every predictor; the box plot shows the ten with the largest mean importance.
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
@@ -276,6 +275,8 @@ global and local interpretability.
 Mean absolute SHAP values across all observations, showing the average magnitude
 of each feature's contribution to predictions.
 
+The bar plots show the ten predictors with the largest mean |SHAP| and collapse the rest into one "other features" row.
+
 ![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
 
 #### Clustered feature importance
@@ -301,9 +302,26 @@ pushes the prediction from the base value.
 
 ![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
 
+#### Waterfall plots at the 25th, 50th and 75th percentiles of the outcome
+
+One waterfall for each of the three observations whose observed outcome lies nearest the 25th, 50th and 75th percentiles of the fitted target (ties go to the observation the model fits best), showing how the leading predictors move the prediction from the base value for a low, a typical and a high scorer. Each waterfall names its ten largest contributions and pools the rest. The table records which child-wave each plot explains, with the observed and predicted values.
+
+```{python}
+pd.read_csv("shap_waterfall_observations.csv")
+```
+
+::: {layout-ncol=3}
+![25th percentile](shap_waterfall_p25.png){.lightbox}
+
+![50th percentile](shap_waterfall_p50.png){.lightbox}
+
+![75th percentile](shap_waterfall_p75.png){.lightbox}
+:::
+
+
 #### SHAP scatter plots by predictor
 
-One scatter per predictor: feature value on the x-axis, SHAP contribution on
+One scatter for each of the ten predictors with the largest permutation importance: feature value on the x-axis, SHAP contribution on
 the y-axis. Colouring uses SHAP's auto-interaction picker (the strongest
 interacting feature is chosen automatically for each plot).
 

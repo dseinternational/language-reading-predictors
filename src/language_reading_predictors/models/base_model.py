@@ -117,6 +117,10 @@ class ModelDefinition:
     pdp_top_n: ClassVar[int] = 15
     """Number of top features for auto-selected PDP."""
 
+    plot_top_n: ClassVar[int] = 10
+    """Number of leading predictors shown in the permutation-importance,
+    SHAP bar and SHAP scatter figures (tables keep every predictor)."""
+
     shap_scatter_specs: ClassVar[Sequence[ShapScatterSpec]] = ()
     """Ordered list of SHAP scatter/dependence plot sets to generate for
     this model. Empty by default — set on concrete subclasses to declare
@@ -183,6 +187,7 @@ class ModelDefinition:
             perm_importance_repeats=cls.perm_importance_repeats,
             pdp_features=cls.pdp_features,
             pdp_top_n=cls.pdp_top_n,
+            plot_top_n=cls.plot_top_n,
             shap_scatter_specs=list(cls.shap_scatter_specs),
             random_seed=cls.random_seed,
             variant_of=cls.variant_of,

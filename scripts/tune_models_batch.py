@@ -1,14 +1,18 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Batch orchestrator for the GB-model hyperparameter retune (issue #169).
+"""Batch orchestrator for the GB-model hyperparameter retune.
 
 ``scripts/tune_model.py`` tunes one model at a time. This wraps it so the full
 50-model retune can be launched, resumed, and audited as a single job. Each
 model is tuned in its **own subprocess** (clean memory, isolated failure), using
-the reviewed tuning policy from issue #169::
+the reviewed tuning policy (Huber objective with a per-model robust-MAD
+threshold and RMSE scoring, adopted 2026-09-22; it replaced the #169 MAE
+policy, whose protocol of 150 trials, seed 47 and child-grouped folds it
+keeps)::
 
-    python scripts/tune_model.py {model_id} --n-trials 150 --scoring mae --lgbm-objective mae
+    python scripts/tune_model.py {model_id} --n-trials 150 --scoring rmse \
+        --lgbm-objective huber --alpha-rule robust-mad --seed 47
 
 Design decisions
 ----------------
@@ -58,6 +62,8 @@ from language_reading_predictors.models.registry import MODELS
 _GB_RE = re.compile(r"^lrp-rli-gb([gl])-(\d+)$")
 
 MANIFEST_NAME = "retune169_manifest.json"
+# Kept under its historical name so resumed batches and review tooling read one
+# file; the recorded ``policy`` block says which objective a batch used.
 
 
 def _all_gb_models() -> list[str]:
@@ -106,7 +112,12 @@ def _git_commit() -> str:
 
 
 def _is_complete(
-    model_id: str, scoring: str, objective: str, seed: int, n_trials: int
+    model_id: str,
+    scoring: str,
+    objective: str,
+    seed: int,
+    n_trials: int,
+    alpha_rule: str | None = None,
 ) -> bool:
     """A model is complete if its best_params.json exists and matches the policy.
 
@@ -117,7 +128,9 @@ def _is_complete(
     trials is tolerated only when it recorded a study ``timeout`` — i.e. it was
     deliberately time-capped, not tuned under a smaller trial budget (#631
     finding 20b). Older ``best_params.json`` files predate the persisted
-    ``timeout`` key, so a short study without one re-tunes.
+    ``timeout`` key, so a short study without one re-tunes. When the batch
+    derives the Huber threshold by rule, the stored study must record the same
+    rule; a study tuned with a hand-set ``--alpha`` does not count.
     """
     bp = _paths.gb_tuning_dir() / model_id / "best_params.json"
     if not bp.is_file():
@@ -132,12 +145,19 @@ def _is_complete(
         return False
     if data.get("seed") != seed:
         return False
+    if alpha_rule is not None and data.get("alpha_rule") != alpha_rule:
+        return False
     recorded_trials = data.get("n_trials")
     if not isinstance(recorded_trials, int):
         return False
     if recorded_trials < n_trials and data.get("timeout") is None:
         return False
     return True
+
+
+def _rule(args: argparse.Namespace) -> str | None:
+    """The alpha rule the stored study must record, or None when hand-set."""
+    return None if args.alpha_rule == "none" else args.alpha_rule
 
 
 def _tune_command(model_id: str, args: argparse.Namespace) -> list[str]:
@@ -153,6 +173,8 @@ def _tune_command(model_id: str, args: argparse.Namespace) -> list[str]:
         args.lgbm_objective,
         "--seed",
         str(args.seed),
+        "--alpha-rule",
+        args.alpha_rule,
     ]
     if args.timeout is not None:
         cmd += ["--timeout", str(args.timeout)]
@@ -183,8 +205,14 @@ def main() -> None:
         help="Explicit model ids (overrides --family).",
     )
     parser.add_argument("--n-trials", type=int, default=150)
-    parser.add_argument("--scoring", default="mae", choices=["rmse", "mae", "medae"])
-    parser.add_argument("--lgbm-objective", default="mae")
+    parser.add_argument("--scoring", default="rmse", choices=["rmse", "mae", "medae"])
+    parser.add_argument("--lgbm-objective", default="huber")
+    parser.add_argument(
+        "--alpha-rule",
+        default="robust-mad",
+        choices=["robust-mad", "none"],
+        help="Huber threshold rule passed to tune_model.py (default: robust-mad).",
+    )
     parser.add_argument("--seed", type=int, default=47)
     parser.add_argument("--timeout", type=float, default=None, help="Per-model study timeout (s).")
     parser.add_argument(
@@ -206,7 +234,8 @@ def main() -> None:
     print(f"Output root : {_paths.describe_output_root()}")
     print(f"Git commit  : {commit}")
     print(f"Policy      : --n-trials {args.n_trials} --scoring {args.scoring} "
-          f"--lgbm-objective {args.lgbm_objective} --seed {args.seed}")
+          f"--lgbm-objective {args.lgbm_objective} --alpha-rule {args.alpha_rule} "
+          f"--seed {args.seed}")
     print(f"Manifest    : {manifest_path}")
     print(f"Models ({len(models)}): {', '.join(models)}")
     print()
@@ -215,7 +244,8 @@ def main() -> None:
         print("DRY RUN — planned actions:")
         for m in models:
             done = _is_complete(
-                m, args.scoring, args.lgbm_objective, args.seed, args.n_trials
+                m, args.scoring, args.lgbm_objective, args.seed, args.n_trials,
+                alpha_rule=_rule(args),
             )
             action = "SKIP (complete)" if (done and not args.force) else "TUNE"
             print(f"  [{action:15s}] {m}")
@@ -231,6 +261,7 @@ def main() -> None:
             "n_trials": args.n_trials,
             "scoring": args.scoring,
             "lgbm_objective": args.lgbm_objective,
+            "alpha_rule": args.alpha_rule,
             "seed": args.seed,
             "timeout": args.timeout,
         },
@@ -253,7 +284,8 @@ def main() -> None:
 
     for i, model_id in enumerate(models, 1):
         if not args.force and _is_complete(
-            model_id, args.scoring, args.lgbm_objective, args.seed, args.n_trials
+            model_id, args.scoring, args.lgbm_objective, args.seed, args.n_trials,
+            alpha_rule=_rule(args),
         ):
             print(f"[{i}/{len(models)}] {model_id}: SKIP (already complete)")
             skipped.append(model_id)
@@ -296,6 +328,7 @@ def main() -> None:
                 entry["cv_mean"] = bp.get(f"cv_{args.scoring}_mean")
                 entry["cv_std"] = bp.get(f"cv_{args.scoring}_std")
                 entry["n_estimators"] = bp.get("params", {}).get("n_estimators")
+                entry["alpha"] = bp.get("params", {}).get("alpha")
             except (json.JSONDecodeError, OSError, KeyError):
                 pass
             print(f"      done in {wall / 60:.1f} min  "
