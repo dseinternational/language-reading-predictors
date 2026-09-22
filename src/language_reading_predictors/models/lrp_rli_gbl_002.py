@@ -12,7 +12,7 @@ vocabulary.
 
 The target is mildly right-skewed (``b1extau`` min 0, max 19, median 8, mean
 8.16, skewness 0.35, n ≈ 215) — comparable to ``eowpvt`` (skew 0.63), so the
-plain MAE LightGBM pipeline with no outlier exclusion used by LRPGBL06 carries over.
+plain Huber LightGBM pipeline with no outlier exclusion used by LRPGBL06 carries over.
 
 Predictor set: :attr:`Predictors.DEFAULT_LEVEL` (target ``b1extau`` is already
 excluded — it is in ``DEFAULT_EXCLUDED``) **minus** ``b1exto``. The Block 1
@@ -24,8 +24,8 @@ only deviation from the LRPGBL06 predictor set. (LRPGBL06 additionally dropped
 signal.)
 
 Status: fits the full ``Predictors.DEFAULT_LEVEL`` set (minus the leakage
-exclusions above). Hyperparameters MAE-tuned by Optuna on the full predictor set
-(150 trials, seed 47; #169), superseding the earlier parameters seeded from the
+exclusions above). Hyperparameters Huber-tuned by Optuna on the full predictor set
+(150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), superseding the earlier parameters seeded from the
 LRPGBL06 standardised analogue.
 """
 
@@ -35,28 +35,31 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# ── hyperparameter set ───────────────────────────────────────────────────
-# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47; #169),
-# superseding the earlier parameters seeded from LRPGBL06.
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "n_estimators": 173,
-    "learning_rate": 0.03762847988331536,
-    "num_leaves": 42,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 2.29.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 7.976387999999999,
+    "n_estimators": 51,
+    "learning_rate": 0.05705177186896444,
+    "num_leaves": 25,
     "max_depth": 4,
-    "min_child_samples": 7,
-    "subsample": 0.7429786111553779,
+    "min_child_samples": 19,
+    "subsample": 0.85060284227013,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6023641005550106,
-    "reg_alpha": 0.013509655302654636,
-    "reg_lambda": 0.029922670006675835,
+    "colsample_bytree": 0.8062502202484906,
+    "reg_alpha": 0.235340900782307,
+    "reg_lambda": 0.013436958221255995,
     "n_jobs": -1,
     "verbosity": -1,
 }
 
 
 class LRPGBL02(LevelModel):
-    """Taught expressive-vocabulary level predictors — exploratory (MAE, all data).
+    """Taught expressive-vocabulary level predictors — exploratory (Huber, all data).
 
     Uses :attr:`Predictors.DEFAULT_LEVEL` (minus the target ``b1extau`` and the
     tautological total ``b1exto``) with no outlier exclusion.
@@ -66,10 +69,10 @@ class LRPGBL02(LevelModel):
     target_var = V.B1EXTAU
     description = (
         "LightGBM — taught expressive-vocabulary level predictors "
-        "(DEFAULT_LEVEL minus b1exto, MAE, no outlier exclusion)"
+        "(DEFAULT_LEVEL minus b1exto, Huber, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     exclude = (V.B1EXTO,)
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
@@ -77,6 +80,6 @@ class LRPGBL02(LevelModel):
         "(b1extau), the taught-vocabulary analogue of lrpgbl06. Fits the full "
         "DEFAULT_LEVEL predictor set (b1exto, the Block 1 expressive total = "
         "taught + not-taught, is excluded to avoid target leakage). "
-        "Hyperparameters MAE-tuned by Optuna on the full set (150 trials, seed 47; "
+        "Hyperparameters Huber-tuned by Optuna on the full set (150 trials, seed 47; "
         "#169)."
     )

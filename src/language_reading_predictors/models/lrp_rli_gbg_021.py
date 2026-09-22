@@ -28,42 +28,48 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 # ── hyperparameters ──────────────────────────────────────────────────────
-# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
+# Huber-tuned by Optuna on the full predictor set (150 trials, seed 47;
 # #169 retune, superseding the earlier pruned-set tune).
 
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "learning_rate": 0.041272150647050684,
-    "num_leaves": 38,
-    "max_depth": 7,
-    "min_child_samples": 28,
-    "subsample": 0.9386885187525864,
-    "colsample_bytree": 0.632624327638653,
-    "reg_alpha": 0.07355977005015595,
-    "reg_lambda": 0.0077027070740037975,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 3.66.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 4.107839820000004,
+    "learning_rate": 0.12251125718120537,
+    "num_leaves": 55,
+    "max_depth": 3,
+    "min_child_samples": 13,
+    "subsample": 0.7693450189299881,
+    "colsample_bytree": 0.9258184360556404,
+    "reg_alpha": 0.34310199295854016,
+    "reg_lambda": 0.014315316291876488,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 382,
+    "n_estimators": 41,
 }
 
 
 class LRPGBG21(GainModel):
-    """DEAP vowel articulation gains predictors — baseline (MAE-tuned)."""
+    """DEAP vowel articulation gains predictors — baseline (Huber-tuned)."""
 
     model_id = "lrp-rli-gbg-021"
     target_var = V.DEAPPVO_GAIN
     description = (
-        "LightGBM — DEAP vowel articulation gains predictors (full predictor set, MAE-tuned, no outlier exclusion)"
+        "LightGBM — DEAP vowel articulation gains predictors (full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     cv_splits = 51
     outlier_threshold = None
     shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for deappvo_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
+        "Exploratory model for deappvo_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) — treat the ranking as exploratory."
     )

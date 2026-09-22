@@ -29,41 +29,47 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 
-# ── hyperparameters (MAE-tuned) ──────────────────────────────────────────
+# ── hyperparameters (Huber-tuned) ──────────────────────────────────────────
 
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "learning_rate": 0.04348455773804104,
-    "num_leaves": 26,
-    "max_depth": 6,
-    "min_child_samples": 5,
-    "subsample": 0.8101790010668862,
-    "colsample_bytree": 0.949574322386937,
-    "reg_alpha": 0.18768366050777852,
-    "reg_lambda": 0.0027289465807499203,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 13.22.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 29.911454999999997,
+    "learning_rate": 0.04641005068519118,
+    "num_leaves": 10,
+    "max_depth": 8,
+    "min_child_samples": 25,
+    "subsample": 0.8848970731510472,
+    "colsample_bytree": 0.7215828658590007,
+    "reg_alpha": 7.727947336883153,
+    "reg_lambda": 0.003059154522478216,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 184,
+    "n_estimators": 117,
 }
 
 
 class LRPGBL27(LevelModel):
-    """language sample unique words level predictors — baseline (MAE-tuned)."""
+    """language sample unique words level predictors — baseline (Huber-tuned)."""
 
     model_id = "lrp-rli-gbl-027"
     target_var = V.LSAMUN
     description = (
-        "LightGBM — language sample unique words level predictors (full predictor set, MAE-tuned, no outlier exclusion)"
+        "LightGBM — language sample unique words level predictors (full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     cv_splits = 51
     outlier_threshold = None
     shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for lsamun (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
+        "Exploratory model for lsamun (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Treat the ranking as exploratory."
     )

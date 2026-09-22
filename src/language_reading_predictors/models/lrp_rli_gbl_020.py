@@ -25,41 +25,47 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 
-# ── hyperparameters (MAE-tuned) ──────────────────────────────────────────
+# ── hyperparameters (Huber-tuned) ──────────────────────────────────────────
 
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "learning_rate": 0.020192620279150416,
-    "num_leaves": 59,
-    "max_depth": 6,
-    "min_child_samples": 21,
-    "subsample": 0.8145188411849295,
-    "colsample_bytree": 0.7524136367524303,
-    "reg_alpha": 0.047432982905265264,
-    "reg_lambda": 0.16631104170004232,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 6.78.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 16.09236279,
+    "learning_rate": 0.02065113228392174,
+    "num_leaves": 42,
+    "max_depth": 4,
+    "min_child_samples": 20,
+    "subsample": 0.6650908587261527,
+    "colsample_bytree": 0.8842206467748034,
+    "reg_alpha": 0.001800473242750035,
+    "reg_lambda": 0.007893680075102516,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 149,
+    "n_estimators": 148,
 }
 
 
 class LRPGBL20(LevelModel):
-    """DEAP initial-consonant articulation level predictors — baseline (MAE-tuned)."""
+    """DEAP initial-consonant articulation level predictors — baseline (Huber-tuned)."""
 
     model_id = "lrp-rli-gbl-020"
     target_var = V.DEAPPIN
     description = (
-        "LightGBM — DEAP initial-consonant articulation level predictors (full predictor set, MAE-tuned, no outlier exclusion)"
+        "LightGBM — DEAP initial-consonant articulation level predictors (full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     cv_splits = 51
     outlier_threshold = None
     shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for deappin (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
+        "Exploratory model for deappin (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Treat the ranking as exploratory."
     )

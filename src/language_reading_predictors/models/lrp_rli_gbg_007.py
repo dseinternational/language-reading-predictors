@@ -21,7 +21,7 @@ LRPGBG08 `aptgram_gain` ~11% zero, LRPGBG13 `nonword_gain` ~48%
 zero).
 
 Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-re-tuned by Optuna on the full set (150 trials, seed 47; #169).
+re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -32,32 +32,36 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
-# #169 retune, superseding the earlier pruned-set tune).
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "n_estimators": 164,
-    "learning_rate": 0.10221151099025785,
-    "num_leaves": 14,
-    "max_depth": 4,
-    "min_child_samples": 22,
-    "subsample": 0.7542877427795159,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 3.87.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 6.979339499999999,
+    "n_estimators": 251,
+    "learning_rate": 0.03147277019144279,
+    "num_leaves": 10,
+    "max_depth": 6,
+    "min_child_samples": 33,
+    "subsample": 0.8264195586859768,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6451608750648088,
-    "reg_alpha": 0.6374208464150695,
-    "reg_lambda": 0.002479904801728381,
+    "colsample_bytree": 0.9965282286339251,
+    "reg_alpha": 1.1546392206152165,
+    "reg_lambda": 0.01006119066142894,
     "n_jobs": -1,
     "verbosity": -1,
 }
 
 
-# ── primary model (baseline, MAE-tuned) ─────────────────────────────────
+# ── primary model (baseline, Huber-tuned) ─────────────────────────────────
 
 
 class LRPGBG07(GainModel):
-    """APT expressive-information gain predictors — baseline (all data, MAE-tuned).
+    """APT expressive-information gain predictors — baseline (all data, Huber-tuned).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full
+    Full ``Predictors.DEFAULT_GAIN`` set, Huber-tuned on the full
     set (#169). ``aptinfo`` is already a member, so the GainModel
     auto-include is a no-op; no outlier exclusion.
     """
@@ -66,11 +70,11 @@ class LRPGBG07(GainModel):
     target_var = V.APTINFO_GAIN
     description = (
         "LightGBM — APT expressive-information gain predictors "
-        "(full predictor set, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for aptinfo_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for aptinfo_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

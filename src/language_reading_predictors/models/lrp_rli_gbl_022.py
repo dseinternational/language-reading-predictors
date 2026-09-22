@@ -28,41 +28,47 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 
-# ── hyperparameters (MAE-tuned) ──────────────────────────────────────────
+# ── hyperparameters (Huber-tuned) ──────────────────────────────────────────
 
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "learning_rate": 0.013487243376785122,
-    "num_leaves": 24,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 2.07.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 14.138147730000005,
+    "learning_rate": 0.012391758512208563,
+    "num_leaves": 22,
     "max_depth": 3,
-    "min_child_samples": 7,
-    "subsample": 0.8253866415539703,
-    "colsample_bytree": 0.9736349690039647,
-    "reg_alpha": 1.5248303271853938,
-    "reg_lambda": 2.653887705814038,
+    "min_child_samples": 4,
+    "subsample": 0.6058244943060731,
+    "colsample_bytree": 0.9856747093586458,
+    "reg_alpha": 0.04159953829504738,
+    "reg_lambda": 0.04635818383697132,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 974,
+    "n_estimators": 448,
 }
 
 
 class LRPGBL22(LevelModel):
-    """DEAP average articulation level predictors — baseline (MAE-tuned)."""
+    """DEAP average articulation level predictors — baseline (Huber-tuned)."""
 
     model_id = "lrp-rli-gbl-022"
     target_var = V.DEAPPAV
     description = (
-        "LightGBM — DEAP average articulation level predictors (full predictor set, MAE-tuned, no outlier exclusion)"
+        "LightGBM — DEAP average articulation level predictors (full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     cv_splits = 51
     outlier_threshold = None
     shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for deappav (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
+        "Exploratory model for deappav (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Treat the ranking as exploratory."
     )

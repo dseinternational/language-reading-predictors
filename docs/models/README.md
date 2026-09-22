@@ -84,7 +84,7 @@ Beta-Binomial trial ceiling.
 
 ## Layer 1 — Gradient-boosting discovery (`lrp-rli-gbg` / `lrp-rli-gbl`)
 
-**Purpose.** Fit LightGBM with `GroupKFold` by `subject_id`, rank predictors by out-of-fold permutation importance and mean |SHAP|, and read direction from the SHAP beeswarm. Gain models predict `_GAIN` change scores; level models predict concurrent levels.
+**Purpose.** Fit LightGBM (Huber objective with a per-model robust threshold; see `METHODS.md`) with `GroupKFold` by `subject_id`, rank predictors by out-of-fold permutation importance and mean |SHAP|, and read direction from the SHAP beeswarm. Gain models predict `_GAIN` change scores; level models predict concurrent levels.
 
 Gain prediction can be weak, while level prediction can be inflated by measures of the same skill. Check held-out performance, SHAP direction and same-skill flags in each fit. The [September boosting review](../../notes/202609012030-gb-findings-review.md) is a dated summary, not a substitute for those checks. This layer uses full-set
 _ranking_ (`scripts/rank_predictors.py`, issue `#116`): hard feature selection was retired
