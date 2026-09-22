@@ -59,6 +59,30 @@ class LRPGBG12(GainModel):
             color_by=V.EWRSWR,
             description="All predictors, coloured by baseline word-reading (ewrswr)",
         ),
+        # Classical dependence pairs shown under "Selected dependence pairs"
+        # in the report template. They were dropped when uniform feature
+        # selection cut the model to three predictors (#102) and not restored
+        # when #116 Phase D brought the full predictor set back.
+        ShapScatterSpec(
+            predictors=[V.AGE],
+            color_by=V.YARCLET,
+            description="age vs yarclet (letter-sound knowledge)",
+        ),
+        ShapScatterSpec(
+            predictors=[V.AGE],
+            color_by=V.CELF,
+            description="age vs celf (receptive language)",
+        ),
+        ShapScatterSpec(
+            predictors=[V.YARCLET],
+            color_by=V.BLENDING,
+            description="yarclet vs blending (phonological prerequisites)",
+        ),
+        ShapScatterSpec(
+            predictors=[V.CELF],
+            color_by=V.B1EXTO,
+            description="celf vs b1exto (receptive vs expressive language)",
+        ),
     )
     notes = (
         "Exploratory model for word-reading gains (ewrswr_gain). Fits the "
