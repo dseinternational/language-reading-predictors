@@ -1,6 +1,9 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
+import contextlib
+from collections.abc import Iterator
+
 import numpy as np
 import pandas as pd
 import matplotlib.axes as mpaxes
@@ -170,6 +173,67 @@ def plot_violinplot_t1_to_t4(data: pd.DataFrame, variable: str):
 # re-exported here for backwards compatibility.
 
 
+SHAP_SCATTER_ALPHA = 0.5
+"""Marker opacity for the SHAP scatters, so stacked observations show as darker."""
+
+SHAP_SCATTER_X_JITTER = 0.6
+"""
+Horizontal jitter for the SHAP scatters, as SHAP defines it: a fraction of the
+smallest gap between distinct feature values. 0.6 spreads each point uniformly
+within ±0.3 of that gap, so points never reach a neighbouring value.
+"""
+
+SHAP_SCATTER_JITTER_SEED = 47
+
+
+@contextlib.contextmanager
+def seeded_shap_jitter(seed: int = SHAP_SCATTER_JITTER_SEED) -> Iterator[None]:
+    """Make SHAP's jitter reproducible without disturbing the caller's generator.
+
+    SHAP draws its jitter from NumPy's global generator. This seeds it for the
+    duration of the block and restores the previous state afterwards.
+    """
+    state = np.random.get_state()
+    np.random.seed(seed)
+    try:
+        yield
+    finally:
+        np.random.set_state(state)
+
+
+def draw_shap_scatter(
+    explanation_slice,
+    ax: mpaxes.Axes,
+    *,
+    color=None,
+    alpha: float = SHAP_SCATTER_ALPHA,
+    x_jitter: float = SHAP_SCATTER_X_JITTER,
+    seed: int = SHAP_SCATTER_JITTER_SEED,
+) -> None:
+    """Draw one ``shap.plots.scatter`` with overplotting made visible.
+
+    Scores are whole numbers and a coarse tree ensemble gives a feature only a
+    few distinct SHAP values, so many observations land on exactly the same
+    point. SHAP's defaults (opaque markers; automatic jitter only from ten
+    points per distinct value) then draw them as one dot: the 157 rows of
+    ``lrp-rli-gbg-012`` showed as 57. Semi-transparent markers and a small
+    horizontal jitter keep every observation visible. SHAP values are never
+    jittered, and the jitter is seeded so the figure is reproducible.
+    """
+    import shap
+
+    kwargs = {"color": color} if color is not None else {}
+    with seeded_shap_jitter(seed):
+        shap.plots.scatter(
+            explanation_slice,
+            ax=ax,
+            alpha=alpha,
+            x_jitter=x_jitter,
+            show=False,
+            **kwargs,
+        )
+
+
 def save_shap_scatter_plots(
     explanation,
     predictors: list[str],
@@ -180,8 +244,14 @@ def save_shap_scatter_plots(
     filename_prefix: str = "shap_scatter",
     filename_suffix: str | None = None,
     dpi: int = 300,
+    alpha: float = SHAP_SCATTER_ALPHA,
+    x_jitter: float = SHAP_SCATTER_X_JITTER,
 ) -> list[Path]:
     """Save one ``shap.plots.scatter`` per predictor as PNG and SVG.
+
+    Points are semi-transparent and jittered horizontally so that observations
+    sharing a feature value and a SHAP value stay visible; see
+    :func:`draw_shap_scatter`.
 
     The saved filenames follow the pattern::
 
@@ -222,6 +292,11 @@ def save_shap_scatter_plots(
         ``color`` values.
     dpi : int
         Resolution of the PNG (SVG is vector and ignores this).
+    alpha : float
+        Marker opacity. Pass 1.0 for SHAP's opaque default.
+    x_jitter : float
+        Horizontal jitter as a fraction of the smallest gap between distinct
+        feature values. Pass 0.0 for none.
 
     Returns
     -------
@@ -252,15 +327,13 @@ def save_shap_scatter_plots(
     for feature in predictors:
         fig = plt.figure()
         ax = fig.gca()
-        if resolved_color is not None:
-            shap.plots.scatter(
-                explanation[:, feature],
-                color=resolved_color,
-                ax=ax,
-                show=False,
-            )
-        else:
-            shap.plots.scatter(explanation[:, feature], ax=ax, show=False)
+        draw_shap_scatter(
+            explanation[:, feature],
+            ax,
+            color=resolved_color,
+            alpha=alpha,
+            x_jitter=x_jitter,
+        )
         base = output_dir / f"{filename_prefix}_{feature}{suffix}"
         png_path = Path(f"{base}.png")
         fig.savefig(png_path, dpi=dpi, bbox_inches="tight")
