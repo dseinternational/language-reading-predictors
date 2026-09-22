@@ -1,0 +1,65 @@
+---
+title: "LCSM-167: LRP67 with arm × window change intercepts"
+
+format:
+  html:
+    code-fold: true
+    theme: cosmo
+    number-sections: true
+    toc: true
+    toc-depth: 3
+    code-links:
+      - repo
+---
+
+::: {.callout-note}
+Drafted by a LLM-based AI tool (Claude Code/Opus 5).
+:::
+
+{{< include _partials/_header.qmd >}}
+{{< include _partials/_setup.qmd >}}
+{{< include _partials/_gate_badge.qmd >}}
+{{< include _partials/_key_findings.qmd >}}
+{{< include _partials/_reading_guide.qmd >}}
+
+## Overview
+
+LCSM-167 repeats [LRP67](../lrp-rli-lcsm-067/index.qmd) with one change. LRP67 asks whether a child's prior-wave **letter-sound** ($L$) and **expressive vocabulary** ($E$) standing predicts their subsequent **word-reading** ($W$) change, pooling the answer over the study's three wave-to-wave transitions. It gives each measure a single change intercept for all three transitions. This model gives each measure one intercept per arm and transition.
+
+The change matters because the transitions differ in length and treatment status:
+
+| Transition | Mean interval (months) | Immediate arm | Wait-list arm |
+| --- | --- | --- | --- |
+| t1 → t2 | 7.1 | taught | not yet taught |
+| t2 → t3 | 8.4 | taught | taught |
+| t3 → t4 | 5.4 | taught | taught |
+
+Within a transition every child's interval is the same to within whole-month rounding. The last transition is the shortest and starts from the highest levels of every measure. With one pooled intercept, the smaller change it delivers can load onto the couplings from prior levels, the reading self-feedback and the age term. The arm × window intercepts absorb each transition's mean change and each arm's treatment schedule, as in LCSM-081, 082, 091 and 181. The [interval-length note](../../../notes/202609212100-assessment-interval-lengths.md) records the measured intervals and the decision.
+
+## Model structure
+
+For each measure $m \in \{W, L, E\}$, child $i$ and wave $t$, a latent logit true-score accumulates change scores with process noise:
+
+$$
+x_m[i,t] = x_m[i,t-1] + \Delta_m[i,t],
+\qquad
+\Delta_m[i,t] = \overline{\Delta}_m[i,t] + \sigma^{\text{proc}}_m \, z_m[i,t].
+$$
+
+The reading change is coupled to prior-wave levels, with an intercept for the child's arm and transition $w$:
+
+$$
+\overline{\Delta}_W = a_W[\text{arm}, w] + b_W\,x_W[t-1] + g_L\,x_L[t-1] + g_E\,x_E[t-1]
+                    + d^{\text{age}}_W\,\text{age}[t-1].
+$$
+
+Letter-sound and vocabulary changes follow a self-proportional form plus age, again with arm × window intercepts. Everything else — couplings, priors, process noise, the masked Beta-Binomial measurement model and the omission of intervention dose — matches LRP67.
+
+## How to read it
+
+Compare $g_L$, $g_E$ and $d^{\text{age}}_W$ with LRP67's. If they agree, LRP67's pooled intercept was not driving them; if they differ, the difference measures how much it was. Both couplings remain **adjusted associations**: latent general ability is not blocked, and the intercepts only remove differences between transitions and arms. The window-1 cell contrast (`itt_window1_contrast.csv`) compares the arms over the randomised first transition on the latent change scale; it is a consistency check against the available-case modified ITT estimates, not an independent estimate.
+{{< include _partials/_priors.qmd >}}
+{{< include _partials/_prior_predictive.qmd >}}
+{{< include _partials/_results_lcsm.qmd >}}
+{{< include _partials/_technical.qmd >}}
+{{< include _partials/_footer.qmd >}}
