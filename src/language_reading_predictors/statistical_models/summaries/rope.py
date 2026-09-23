@@ -128,7 +128,7 @@ def rope_summary(
     eta_name: str = "eta",
     moderators: Sequence[tuple[str, np.ndarray]] | None = None,
     row_mask: np.ndarray | None = None,
-    direction_from_ame: bool = False,
+    direction_from_ame: bool = True,
     score_mean_link: ScoreMeanLink = "logit",
 ) -> dict[str, float | str]:
     """ROPE-anchored continuous report card for a randomised treatment effect.
@@ -154,11 +154,11 @@ def rope_summary(
     ``notes/202606261304-evidence-strength-and-rope-reporting.md`` for the rationale
     (sign-vs-size, the median convention, the δ choice).
 
-    ``direction_from_ame`` (default False → ITT behaviour unchanged): when True the
+    ``direction_from_ame`` defaults to True: the
     direction fields (``pd`` / ``direction_label`` / ``favoured_direction*``) are taken
     from the probability-scale AME rather than the coefficient, and ``pd_coef`` records
-    the coefficient direction. The gain-factor family sets this because its treatment
-    interactions make the coefficient and the marginal effect diverge in sign (#391).
+    the coefficient direction. Moderation can make these quantities differ in sign.
+    Set False only for an explicitly coefficient-based direction claim.
     """
     effect_draws, ame_prob = _itt_ame_draws(
         trace,

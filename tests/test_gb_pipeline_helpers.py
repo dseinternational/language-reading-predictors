@@ -25,6 +25,7 @@ import pytest
 from dse_research_utils.ml.feature_groups import linkage_from_dissimilarity
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
+from language_reading_predictors.data_variables import Variables
 
 from language_reading_predictors.models.base_pipeline import (
     EstimatorPipeline,
@@ -195,14 +196,22 @@ def test_bootstrap_importance_preserves_child_trajectories(tmp_path):
     pipe.context.X = pd.DataFrame({"signal": signal, "wave": wave})
     pipe.context.y = pd.Series(3.0 * signal + 10.0 * wave)
     pipe.context.groups = pd.Series(groups)
+    pipe.context.df = pd.DataFrame({Variables.TIME: wave})
     pipe.context.pipeline = LinearRegression()
 
     pipe.stability_selection(n_bootstraps=4, n_repeats=5, top_k=1)
 
     result = pipe.context.dataframes["stability_selection"].set_index("feature")
-    assert result.loc["wave", "importance_mean"] == pytest.approx(0.0, abs=1e-12)
+    assert pd.isna(result.loc["wave", "importance_mean"])
+    assert pd.isna(result.loc["wave", "rank_median"])
+    assert pd.isna(result.loc["wave", "appearance_rate_top_k"])
+    assert result.loc["wave", "n_assessable_bootstraps"] == 0
+    assert result.loc["wave", "permutation_status"] == "not assessable under this design"
     assert result.loc["signal", "importance_mean"] > 1.0
     assert result.loc["signal", "appearance_rate_top_k"] == 1.0
+    support = pd.read_csv(tmp_path / "stability_permutation_support.csv")
+    assert support["used"].all()
+    assert (support["n_movable_subjects"] == support["n_oob_subjects"]).all()
 
 
 def test_bootstrap_requires_two_out_of_bag_children(tmp_path):
@@ -214,9 +223,51 @@ def test_bootstrap_requires_two_out_of_bag_children(tmp_path):
     pipe.context.groups = pd.Series(["a", "a", "b", "b"])
     pipe.context.pipeline = LinearRegression()
 
-    with pytest.raises(RuntimeError, match="at least two out-of-bag subjects"):
+    with pytest.raises(RuntimeError, match="out-of-bag subjects sharing an assessment schedule"):
         pipe.stability_selection(n_bootstraps=3, n_repeats=2)
     assert not (tmp_path / "stability_selection.csv").exists()
+
+
+def test_bootstrap_without_alternative_donors_records_exclusions(tmp_path):
+    from sklearn.linear_model import LinearRegression
+
+    pipe = _small_pipeline(tmp_path)
+    pipe.context.X = pd.DataFrame({"signal": np.arange(12)})
+    pipe.context.y = pd.Series(np.arange(12))
+    pipe.context.groups = pd.Series(np.arange(12))
+    pipe.context.df = pd.DataFrame({Variables.TIME: np.arange(12)})
+    pipe.context.pipeline = LinearRegression()
+    with pytest.raises(RuntimeError, match="sharing an assessment schedule"):
+        pipe.stability_selection(n_bootstraps=4, n_repeats=2)
+    support = pd.read_csv(tmp_path / "stability_permutation_support.csv")
+    assert len(support) == 4
+    assert not support["used"].any()
+    assert support["n_movable_subjects"].sum() == 0
+    assert not (tmp_path / "stability_selection.csv").exists()
+
+
+def test_unassessable_construct_does_not_become_zero_importance(tmp_path):
+    pipe = _small_pipeline(tmp_path)
+    pipe.context.perm_importance_df = pd.DataFrame({
+        "feature": [Variables.TIME], "importance_mean": [np.nan], "importance_std": [np.nan],
+    })
+    pipe.construct_importance()
+    row = pd.read_csv(tmp_path / "construct_importance.csv").iloc[0]
+    assert pd.isna(row["total_importance"])
+    assert pd.isna(row["top_feature"])
+    assert row["n_assessable_members"] == 0
+    assert row["permutation_status"] == "not assessable under this design"
+    pipe.partial_dependence_plots()
+
+
+def test_unassessable_clusters_do_not_trigger_a_dropout_refit(rank_predictors):
+    from types import SimpleNamespace
+
+    pipe = SimpleNamespace(context=SimpleNamespace(X=pd.DataFrame({"time": [1, 2]}), pooled_cv_metrics={"pooled_r2": .2}))
+    clusters = pd.DataFrame({"cluster_id": [1], "cluster_perm_imp_mean": [np.nan]})
+    result = rank_predictors.conditional_dropout_check("unused", None, clusters, {"time": 1}, pipe)
+    assert result["status"] == "not assessable under this design"
+    assert result["r2_drop_top_cluster"] is None
 
 
 def test_locked_completion_record_preserves_the_previous_fit(tmp_path, monkeypatch):
@@ -254,6 +305,9 @@ def test_config_records_loaded_data_identity_without_rehashing_it(tmp_path):
     pipe.save_config()
 
     config = json.loads((tmp_path / "config.json").read_text())
+    from language_reading_predictors.models.permutation import PERMUTATION_DESIGN_VERSION
+
+    assert config["permutation_design"] == PERMUTATION_DESIGN_VERSION
     assert config["data_path"] == str(source)
     assert config["data_sha256"] == digest
     assert config["provenance"]["source"]["commit"]

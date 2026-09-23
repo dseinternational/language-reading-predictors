@@ -293,14 +293,15 @@ class EstimatorPipeline:
 
         Note on units: deltas are in held-out **RMSE** units. The models
         are tuned under a Huber objective with RMSE scoring (2026-09-22
-        adoption, superseding the #169 MAE policy), so the ranking metric and
-        the objective both target the conditional mean; the ranking is what
-        the report reads.
+        adoption, superseding the #169 MAE policy). RMSE assesses squared-error
+        performance; fixed-threshold Huber predictions need not be conditional
+        means. The ranking measures this fitted predictor's RMSE sensitivity.
 
         The CSV tables keep every predictor. The box plot shows only the
         leading ``plot_top_n`` predictors so the figure stays legible.
         """
         from language_reading_predictors.models.permutation import (
+            SubjectPermutationDesign,
             pooled_permutation_deltas,
         )
 
@@ -324,6 +325,10 @@ class EstimatorPipeline:
             raise RuntimeError(msg)
 
         n_features = len(context.X.columns)
+        design = SubjectPermutationDesign.from_labels(context.groups, context.df[V.TIME])
+        support = design.support()
+        support.to_csv(context.output_dir / "permutation_schedule_support.csv", index=False)
+        context.dataframes["permutation_schedule_support"] = support
         deltas = pooled_permutation_deltas(
             cv_results["estimator"],
             context.X,
@@ -333,6 +338,8 @@ class EstimatorPipeline:
             {i: [i] for i in range(n_features)},
             n_repeats=n_repeats,
             seed=cfg.random_seed,
+            waves=context.df[V.TIME],
+            design=design,
         )
 
         # A positive delta means the pooled out-of-fold RMSE rose when the
@@ -346,6 +353,7 @@ class EstimatorPipeline:
                 "feature": context.X.columns,
                 "importance_mean": importances_mean,
                 "importance_std": importances_std,
+                "permutation_status": np.where(np.isfinite(importances_mean), "assessable", "not assessable under this design"),
             }
         ).sort_values("importance_mean", ascending=False)
 
@@ -369,13 +377,16 @@ class EstimatorPipeline:
             ranked_dataframe_table(
                 perm_df,
                 title="Permutation importance",
-                columns=["feature", "importance_mean", "importance_std"],
+                columns=["feature", "importance_mean", "importance_std", "permutation_status"],
             )
         )
 
         # Figure only: the leading predictors by mean importance. The CSVs
         # written above keep every predictor.
-        ordered = perm_df["feature"].head(cfg.plot_top_n).tolist()
+        ordered = perm_df.dropna(subset=["importance_mean"])["feature"].head(cfg.plot_top_n).tolist()
+        if not ordered:
+            print("  No predictors are assessable under this permutation design; box plot omitted.")
+            return
         n_shown, n_all = len(ordered), len(perm_df)
         col_index = {f: i for i, f in enumerate(context.X.columns)}
         data = [all_importances[col_index[f]] for f in ordered]
@@ -456,16 +467,19 @@ class EstimatorPipeline:
         grouped = (
             perm_df.groupby("construct")
             .agg(
-                total_importance=("importance_positive", "sum"),
+                total_importance=("importance_positive", lambda values: values.sum(min_count=1)),
                 mean_importance=("importance_mean", "mean"),
                 max_importance=("importance_mean", "max"),
                 n_members=("feature", "count"),
+                n_assessable_members=("importance_mean", "count"),
                 top_feature=("feature", "first"),
             )
             .sort_values("total_importance", ascending=False)
             .reset_index()
         )
 
+        grouped["permutation_status"] = np.where(grouped["n_assessable_members"] > 0, "assessable", "not assessable under this design")
+        grouped.loc[grouped["n_assessable_members"] == 0, "top_feature"] = None
         context.dataframes["construct_importance"] = grouped
         grouped.to_csv(context.output_dir / "construct_importance.csv", index=False)
 
@@ -735,8 +749,10 @@ class EstimatorPipeline:
         between-subject permutation cannot change a single subject's values.
         Records:
 
-        - ``appearance_rate_top_k`` — fraction of bootstraps where the
-          feature placed in the top *top_k* by importance;
+        - ``appearance_rate_top_k`` — fraction of assessable bootstraps where
+          the feature placed in the top *top_k* by importance;
+        - ``n_assessable_bootstraps`` — samples in which a permitted donor
+          could change the predictor, the denominator for that frequency;
         - ``importance_mean`` / ``importance_std`` — bootstrap distribution
           of per-feature importance;
         - ``rank_median`` / ``rank_q25`` / ``rank_q75`` / ``rank_iqr`` —
@@ -754,7 +770,7 @@ class EstimatorPipeline:
         """
         from sklearn.base import clone
         from sklearn.utils import resample
-        from language_reading_predictors.models.permutation import pooled_permutation_deltas
+        from language_reading_predictors.models.permutation import SubjectPermutationDesign, pooled_permutation_deltas
 
         section_header("Stability selection")
 
@@ -783,6 +799,7 @@ class EstimatorPipeline:
         }
 
         completed_bootstraps = 0
+        support_records = []
         for b in range(n_bootstraps):
             seed = int(rng.integers(0, 2**31 - 1))
             drawn = resample(
@@ -795,11 +812,19 @@ class EstimatorPipeline:
             X_b = context.X.iloc[row_idx]
             y_b = context.y.iloc[row_idx]
             oob_subjects = np.setdiff1d(unique_subjects, np.unique(drawn))
+            record = {"bootstrap": b, "n_oob_subjects": len(oob_subjects), "n_movable_subjects": 0, "used": False}
+            support_records.append(record)
             if oob_subjects.size < 2:
                 continue
             eval_idx = np.flatnonzero(context.groups.isin(oob_subjects).to_numpy())
             if eval_idx.size == 0:
                 continue
+            design = SubjectPermutationDesign.from_labels(context.groups.iloc[eval_idx], context.df[V.TIME].iloc[eval_idx])
+            support = design.support()
+            record["n_movable_subjects"] = int(support["n_movable_subjects"].sum())
+            if not record["n_movable_subjects"]:
+                continue
+            record["used"] = True
             X_eval = context.X.iloc[eval_idx]
             y_eval = context.y.iloc[eval_idx]
 
@@ -814,6 +839,8 @@ class EstimatorPipeline:
                 {i: [i] for i in range(X_eval.shape[1])},
                 n_repeats=n_repeats,
                 seed=seed,
+                waves=context.df[V.TIME].iloc[eval_idx],
+                design=design,
             )
             importance_means = np.asarray([deltas[i].mean() for i in range(X_eval.shape[1])])
             completed_bootstraps += 1
@@ -822,18 +849,24 @@ class EstimatorPipeline:
             # ``kind="stable"`` keeps tie-breaking deterministic across
             # numpy versions so bootstrap rank IQRs are reproducible
             # under the project's fixed seed.
-            order = np.argsort(-importance_means, kind="stable")
-            ranks = np.empty_like(order)
+            eligible = np.flatnonzero(np.isfinite(importance_means))
+            order = eligible[np.argsort(-importance_means[eligible], kind="stable")]
+            ranks = np.full(len(importance_means), np.nan)
             ranks[order] = np.arange(1, len(order) + 1)
             for i, feat in enumerate(context.X.columns):
+                if not np.isfinite(ranks[i]):
+                    continue
                 rank_records[feat].append(int(ranks[i]))
                 imp_records[feat].append(float(importance_means[i]))
                 if ranks[i] <= top_k:
                     appearance_top[feat] += 1
 
+        support_frame = pd.DataFrame(support_records)
+        support_frame.to_csv(context.output_dir / "stability_permutation_support.csv", index=False)
+        context.dataframes["stability_permutation_support"] = support_frame
         if completed_bootstraps == 0:
             raise RuntimeError(
-                "No bootstrap had at least two out-of-bag subjects for stability selection."
+                "No bootstrap had out-of-bag subjects sharing an assessment schedule for stability selection."
             )
 
         rows = []
@@ -843,15 +876,17 @@ class EstimatorPipeline:
             rows.append(
                 {
                     "feature": feat,
-                    "appearance_rate_top_k": appearance_top[feat] / completed_bootstraps,
-                    "importance_mean": float(np.mean(imps_arr)),
-                    "importance_std": float(np.std(imps_arr)),
-                    "rank_median": float(np.median(ranks_arr)),
-                    "rank_q25": float(np.quantile(ranks_arr, 0.25)),
-                    "rank_q75": float(np.quantile(ranks_arr, 0.75)),
+                    "n_assessable_bootstraps": len(imps_arr),
+                    "permutation_status": "assessable" if len(imps_arr) else "not assessable under this design",
+                    "appearance_rate_top_k": appearance_top[feat] / len(imps_arr) if len(imps_arr) else np.nan,
+                    "importance_mean": float(np.mean(imps_arr)) if len(imps_arr) else np.nan,
+                    "importance_std": float(np.std(imps_arr)) if len(imps_arr) else np.nan,
+                    "rank_median": float(np.median(ranks_arr)) if len(ranks_arr) else np.nan,
+                    "rank_q25": float(np.quantile(ranks_arr, 0.25)) if len(ranks_arr) else np.nan,
+                    "rank_q75": float(np.quantile(ranks_arr, 0.75)) if len(ranks_arr) else np.nan,
                     "rank_iqr": float(
                         np.quantile(ranks_arr, 0.75) - np.quantile(ranks_arr, 0.25)
-                    ),
+                    ) if len(ranks_arr) else np.nan,
                 }
             )
 
@@ -1271,7 +1306,7 @@ class EstimatorPipeline:
         if perm_df is None or perm_df.empty:
             return list(all_predictors)
         top_n = context.config.plot_top_n
-        ranked = perm_df.sort_values("importance_mean", ascending=False)
+        ranked = perm_df.dropna(subset=["importance_mean"]).sort_values("importance_mean", ascending=False)
         leading = [f for f in ranked["feature"].tolist() if f in all_predictors]
         return leading[:top_n]
 
@@ -1311,9 +1346,12 @@ class EstimatorPipeline:
         if cfg.pdp_features:
             pdp_features = cfg.pdp_features
         else:
-            pdp_features = context.perm_importance_df.head(cfg.pdp_top_n)[
+            pdp_features = context.perm_importance_df.dropna(subset=["importance_mean"]).head(cfg.pdp_top_n)[
                 "feature"
             ].tolist()
+        if not pdp_features:
+            print("  No assessable predictors available for automatic partial-dependence selection.")
+            return
 
         x_cols = set(context.X.columns)
         missing = [f for f in pdp_features if f not in x_cols]
@@ -1389,6 +1427,7 @@ class EstimatorPipeline:
         # These helpers record source/runtime facts without constructing a
         # statistical model. Both analysis layers use the same provenance schema.
         from language_reading_predictors.statistical_models.provenance import run_provenance, write_environment_lock
+        from language_reading_predictors.models.permutation import PERMUTATION_DESIGN_VERSION
 
         context = self.context
         cfg = context.config
@@ -1420,6 +1459,7 @@ class EstimatorPipeline:
             "cv_splits": effective_cv_splits,
             "outlier_threshold": cfg.outlier_threshold,
             "perm_importance_repeats": effective_perm_importance_repeats,
+            "permutation_design": PERMUTATION_DESIGN_VERSION,
             "pdp_top_n": cfg.pdp_top_n,
             "plot_top_n": cfg.plot_top_n,
             "random_seed": cfg.random_seed,

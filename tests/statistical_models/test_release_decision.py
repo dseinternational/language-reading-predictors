@@ -1575,7 +1575,7 @@ def _ready_grid(monkeypatch) -> None:
     monkeypatch.setattr(release_robustness, "evaluate_floor_sensitivity", lambda *a, **k: {"ready": True})
 
 
-def test_floored_conflict_release_carries_the_attenuation_note(tmp_path, monkeypatch):
+def test_floored_conflict_release_carries_the_sensitivity_note(tmp_path, monkeypatch):
     """A released floored ``prior_data_conflict`` must carry the lower-bound note
     the module policy promises, exactly as the graded branch does."""
     d = _floor_fit_dir(
@@ -1590,8 +1590,9 @@ def test_floored_conflict_release_carries_the_attenuation_note(tmp_path, monkeyp
     assert decision.tau_class == "prior_data_conflict"
     assert decision.floor_grid_required is True
     assert decision.floor_grid_ready is True
-    assert "lower bound" in decision.note
-    assert "attenuates" in decision.reason
+    assert "does not establish" in decision.note
+    assert "best read as a lower bound" not in decision.note
+    assert "sensitivity to both prior and likelihood" in decision.reason
 
 
 def test_floored_prior_dominant_qualifies_on_grid_evidence(tmp_path, monkeypatch):
@@ -2043,66 +2044,45 @@ def test_a_dependence_model_that_flips_the_contrast_sign_qualifies(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# 2026-08-24 review of the joint audit: the reason three report templates give for
-# running a dependence companion is that a factorised interval omits within-child
-# cross-outcome covariance, so its width is wrong in a known direction. On the
-# three registered pairs that is not what separates the two intervals -- the
-# companion's extra logistic-normal layer widens both marginals while the implied
-# cross-outcome correlation stays indistinguishable from zero. The pairing now
-# measures which channel the width change came through instead of assuming one.
+# Interval widths alone cannot identify covariance.
 # ---------------------------------------------------------------------------
 
-#: Per-outcome AME widths and the contrast width they imply at zero cross-outcome
-#: correlation, taken from the stored ``lrp-rli-itt-015`` / ``-215`` pair.
-_PARENT_MARGINALS = (0.094, 0.121)
-_COMPANION_MARGINALS = (0.0976, 0.1235)
-_PARENT_CONTRAST_WIDTH = 0.1532220610747682
-_COMPANION_CONTRAST_WIDTH = 0.15741032367668903
+
+def test_legacy_interval_widths_do_not_supply_covariance(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path, marginal_widths=(0.094, 0.121))
+    _joint_companion_dir(tmp_path, marginal_widths=(0.0976, 0.1235))
+    record = evaluate_publication(d).dependence_contrast
+    assert record["channel_status"] == "unavailable"
+    assert "interval widths cannot replace" in record["channel_reason"]
 
 
-def test_wider_companion_marginals_are_not_reported_as_a_covariance_correction(
-    tmp_path,
-):
-    """The registered pairs' actual shape: both marginals widen, the implied
-    cross-outcome correlation does not move, and the contrast interval grows."""
-    d = _joint_contrast_fit_dir(
-        tmp_path,
-        marginal_widths=_PARENT_MARGINALS,
-        contrast_half_width=_PARENT_CONTRAST_WIDTH / 2,
-    )
-    _joint_companion_dir(
-        tmp_path,
-        marginal_widths=_COMPANION_MARGINALS,
-        contrast_half_width=_COMPANION_CONTRAST_WIDTH / 2,
-    )
+def _save_paired_moments(directory, a, b):
+    path = directory / "tau_difference.csv"
+    frame = pd.read_csv(path)
+    frame["dependence_moments_method"] = "paired_ame_draws_v1"
+    frame["left_ame_prob_variance"] = np.var(a, ddof=1)
+    frame["right_ame_prob_variance"] = np.var(b, ddof=1)
+    frame["ame_prob_covariance"] = np.cov(a, b, ddof=1)[0, 1]
+    frame["diff_prob_variance"] = np.var(a - b, ddof=1)
+    frame.to_csv(path, index=False)
+
+
+def test_variance_change_uses_paired_draw_moments(tmp_path):
+    d = _joint_contrast_fit_dir(tmp_path)
+    companion = _joint_companion_dir(tmp_path)
+    # Independent uniform variables have triangular differences, not normal ones.
+    a, b = np.meshgrid(np.linspace(0, .1, 101), np.linspace(0, .1, 101))
+    a, b = a.ravel(), b.ravel()
+    _save_paired_moments(d, a, b)
+    _save_paired_moments(companion, a * 2, b + a)
     record = evaluate_publication(d).dependence_contrast
     assert record["channel_status"] == "measured"
-    assert record["parent_implied_ame_correlation"] == pytest.approx(0.0, abs=1e-9)
-    assert record["companion_implied_ame_correlation"] == pytest.approx(0.0, abs=1e-9)
-    assert record["covariance_width_channel"] == pytest.approx(0.0, abs=1e-9)
-    assert record["marginal_width_channel"] > 0
-    assert record["dominant_width_channel"] == "marginal_uncertainty"
+    assert record["channel_scale"] == "variance"
+    assert record["parent_ame_moments"]["covariance"] == pytest.approx(0, abs=1e-12)
+    assert record["contrast_variance_change"] == pytest.approx(0, abs=1e-12)
+    assert record["marginal_variance_channel"] > 0
+    assert record["covariance_variance_channel"] == pytest.approx(-record["marginal_variance_channel"])
 
-
-def test_a_genuine_covariance_correction_is_attributed_to_covariance(tmp_path):
-    """The complement: identical marginals, a materially narrower contrast. This is
-    the case the sign rule describes, and it must still be recognised."""
-    d = _joint_contrast_fit_dir(
-        tmp_path,
-        marginal_widths=_PARENT_MARGINALS,
-        contrast_half_width=_PARENT_CONTRAST_WIDTH / 2,
-    )
-    _joint_companion_dir(
-        tmp_path,
-        marginal_widths=_PARENT_MARGINALS,
-        contrast_half_width=0.11001363551851197 / 2,
-    )
-    record = evaluate_publication(d).dependence_contrast
-    assert record["companion_implied_ame_correlation"] == pytest.approx(0.5, abs=1e-9)
-    assert record["marginal_width_channel"] == pytest.approx(0.0, abs=1e-9)
-    assert record["covariance_width_channel"] < 0
-    assert record["dominant_width_channel"] == "cross_outcome_covariance"
-    assert record["covariance_channel_share"] == pytest.approx(1.0, abs=1e-9)
 
 
 def test_the_channel_split_is_descriptive_and_never_qualifies_on_its_own(tmp_path):
@@ -2607,14 +2587,14 @@ def _dependence_table(verdict: str) -> pd.DataFrame:
 
 
 def test_a_prior_dominated_dependence_block_attaches_a_qualifier(tmp_path):
-    """A companion whose block learned nothing must say so beside its interval."""
+    """A legacy spread label must not become a claim of identical distributions."""
     d = _fit_dir(tmp_path, kind="joint")
     _dependence_table("prior-dominated").to_csv(d / "dependence_identification.csv", index=False)
     note = release_module._dependence_identification_note(d)
-    assert "did not move off its prior" in note
+    assert "compares spread only" in note
     assert "u_corr_pair[UE|TE]" in note
     # A note, never a withhold: the fit is valid and its residual SDs are informed.
-    assert "prior-informed sensitivity" in note
+    assert "location or shape" in note
 
 
 def test_an_informed_dependence_block_attaches_nothing(tmp_path):

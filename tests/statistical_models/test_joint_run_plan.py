@@ -479,29 +479,46 @@ def _dependence_trace(*, post_sd: float, prior_sd: float = 1 / 3, seed: int = 0)
     return xr.DataTree.from_dict({"posterior": posterior, "prior": prior})
 
 
-def test_dependence_summary_flags_a_correlation_that_never_left_its_prior():
-    """The registered companions' correlation posterior *is* their prior.
-
-    Their prose invited the reader to treat the companion's interval as the
-    data's verdict on within-child covariance. Posterior-to-prior SD ratios of
-    1.002, 1.008 and 1.001 say otherwise, and the table has to make that legible
-    rather than leaving it to be reconstructed from a wide interval.
-    """
+def test_dependence_summary_describes_similar_spread():
+    """A near-unit SD ratio says nothing about equality of whole distributions."""
     frame = _dependence_summary.dependence_identification_summary(_dependence_trace(post_sd=1 / 3), ci_prob=0.89)
     correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
     assert correlation["prior_source"] == "fitted prior draws"
     assert correlation["posterior_prior_sd_ratio"] == pytest.approx(1.0, abs=0.05)
-    assert correlation["verdict"] == "prior-dominated"
+    assert correlation["verdict"] == "little or no contraction"
     # The residual SDs are a different story, and the table must say so per
     # parameter rather than with one verdict for the whole block.
-    assert (frame.loc[frame["role"] == "residual SD", "verdict"] == "informed").all()
+    assert (frame.loc[frame["role"] == "residual SD", "verdict"] == "substantial contraction").all()
 
 
 def test_dependence_summary_reports_an_informed_correlation_as_informed():
     frame = _dependence_summary.dependence_identification_summary(_dependence_trace(post_sd=0.05), ci_prob=0.89)
     correlation = frame.loc[frame["role"] == "residual correlation"].iloc[0]
     assert correlation["posterior_prior_sd_ratio"] < 0.75
-    assert correlation["verdict"] == "informed"
+    assert correlation["verdict"] == "substantial contraction"
+
+
+def test_equal_spread_does_not_hide_a_location_and_sign_shift():
+    import numpy as np
+    import xarray as xr
+    from scipy.stats import beta
+
+    quantiles = (np.arange(5000) + 0.5) / 5000
+    prior = 2 * beta.ppf(quantiles, 4, 4) - 1
+    posterior = 2 * beta.ppf(quantiles, 4.592, 1.968) - 1
+
+    def dataset(values):
+        return xr.Dataset({"u_corr_pair": (("chain", "draw", "outcome_pair"), values[None, :, None])},
+                          coords={"outcome_pair": ["A|B"]})
+
+    trace = xr.DataTree.from_dict({"prior": dataset(prior), "posterior": dataset(posterior)})
+    row = _dependence_summary.dependence_identification_summary(trace, ci_prob=0.89).iloc[0]
+    assert row["posterior_prior_sd_ratio"] == pytest.approx(1, abs=1e-4)
+    assert row["verdict"] == "little or no contraction"
+    assert row["prior_median"] == pytest.approx(0, abs=1e-10)
+    assert row["posterior_median"] > .44
+    assert row["prior_prob_positive"] == .5
+    assert row["posterior_prob_positive"] > .86
 
 
 def test_dependence_summary_is_none_without_the_block():

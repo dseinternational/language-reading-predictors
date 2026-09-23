@@ -12,11 +12,11 @@ is a difference of two whole-month ages. The script reports:
 2. Immediate-minus-wait-list interval gaps with child-bootstrap intervals, beside
    a standard error from the observed within-arm spread.
 3. Pooled gain per month per outcome and transition (total gain / total months).
-4. A first-order timing bound for the randomised t1->t2 contrast of each graded
-   outcome: the arm interval gap times a per-month growth rate, bracketed by the
+4. Constant-rate timing scenarios for the randomised t1->t2 contrast of each graded
+   outcome: the arm interval gap times a per-month growth rate, using the
    wait-list's untreated rate and the immediate arm's treated rate, beside the
    stored ITT average marginal effect in items where a fit is available.
-5. The same bound for the onset-aligned windows (immediate t1->t3, wait-list
+5. The same scenarios for the onset-aligned windows (immediate t1->t3, wait-list
    t2->t4), beside the stored aligned cohort contrast.
 
 Descriptive only: no model is refitted.
@@ -187,7 +187,8 @@ def main() -> None:
         )
     print(pd.DataFrame(slow_rows).to_string(index=False))
 
-    print("\n4. First-order timing bound for the randomised t1->t2 contrast (items)\n")
+    print("\n4. Constant-rate timing scenarios for the randomised t1->t2 contrast (items)\n")
+    print("Assumes whole-interval average rates apply during the extra time; these are not bounds or timing-adjusted effects.")
     itt_rows = []
     for sym, model_id in ITT_PRIMARY.items():
         measure = MEASURES[sym]
@@ -205,10 +206,10 @@ def main() -> None:
                 "gap_months": round(gap, 2),
                 "rate_waitlist": round(r_wl, 3),
                 "rate_immediate": round(r_imm, 3),
-                "bound_lo": round(lo, 2),
-                "bound_hi": round(hi, 2),
+                "scenario_min": round(lo, 2),
+                "scenario_max": round(hi, 2),
                 "stored_ame_items": round(ame, 2),
-                "bound_hi_share": round(hi / ame, 2) if np.isfinite(ame) and ame != 0 else np.nan,
+                "scenario_max_share": round(hi / ame, 2) if np.isfinite(ame) and ame != 0 else np.nan,
             }
         )
     print(pd.DataFrame(itt_rows).to_string(index=False))
@@ -231,8 +232,8 @@ def main() -> None:
                 "window_immediate": round(months[ok & imm].mean(), 2),
                 "window_waitlist": round(months[ok & ~imm].mean(), 2),
                 "gap_months": round(gap, 2),
-                "bound_lo": round(lo, 2),
-                "bound_hi": round(hi, 2),
+                "scenario_min": round(lo, 2),
+                "scenario_max": round(hi, 2),
                 "stored_contrast_items": round(contrast, 2),
             }
         )

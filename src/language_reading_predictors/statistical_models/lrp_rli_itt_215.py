@@ -3,6 +3,8 @@
 
 """LRPITT215 - dependence-aware companion of LRPITT15 (expressive taught versus not-taught).
 
+Statistical interpretation corrected by a LLM-based AI tool (Codex/GPT-6).
+
 The registered dependence-model sensitivity for LRPITT15 (#551): the same
 two-outcome joint Beta-Binomial available-case modified ITT fit — same outcomes,
 own-baseline and linear-age precision terms, same contrast — with the per-child
@@ -11,45 +13,25 @@ own-baseline and linear-age precision terms, same contrast — with the per-chil
 share no parameter, so the parent's likelihood and priors factorise and its
 contrast ``AME[TE] - AME[UE]`` is the difference of two a-posteriori
 independent quantities: its interval omits the within-child covariance that the
-same 54 children supplying both outcomes induce. Taken alone that omission has a
-known sign, since ``Var(A - B) = V_A + V_B - 2 Cov(A, B)``: a positive covariance
-leaves the factorised interval too wide and a negative one too narrow. This
-companion estimates that covariance — a per-child bivariate-normal offset ``u_i``
-with ``Sigma = diag(sigma) Corr diag(sigma)``, ``Corr ~ LKJ(eta = 4)``,
-``sigma_k ~ HalfNormal(0.5)``, non-centred through ``pm.LKJCholeskyCov`` — and
-publishes the contrast as a posterior difference under it. It is **not** a
-replacement for the parent: the parent remains the model of record.
+same 54 children supplying both outcomes induce. Holding marginal variances fixed, the identity
+``Var(A - B) = Var(A) + Var(B) - 2 Cov(A, B)`` relates covariance to the
+variance of a difference. It does not determine equal-tailed interval widths.
+The companion adds a bivariate-normal child offset with
+``Sigma = diag(sigma) Corr diag(sigma)``, ``Corr ~ LKJ(eta = 4)`` and
+``sigma_k ~ HalfNormal(0.5)``. Its residual correlation and posterior covariance
+between outcome effects are different quantities. Read the paired effect draws
+and marginal variances to assess the contrast. The parent remains the model
+of record.
 
-**That sign rule does not describe what separates the two intervals here**
-(2026-08-24 review of the joint audit). A child-level offset shared by both
-outcomes reaches the *between-arm* contrast only through
-``rho sigma_1 sigma_2 (1/n_1 + 1/n_0)``, and at these fitted values — ``rho``
-prior-dominated near zero, residual SDs of 0.10 to 0.17 logit, arms of 28 and 26 —
-that term is two orders of magnitude below the contrast's own posterior variance.
-Measured on all three registered pairs, the posterior correlation between the two
-outcomes' average marginal effects is indistinguishable from zero in the
-correlated fit as well as the factorised one (exact draw-level values -0.003 to
--0.006 factorised, +0.001 to +0.006 correlated), while every per-outcome marginal
-interval widens by 2 to 6 %. The companion's contrast interval is consequently 2
-to 4 % *wider* than the parent's despite a positive ``rho`` — the added
-logistic-normal layer's own parameter uncertainty, not a covariance correction.
-``release_decision.json`` records that split per fit under
-``dependence_contrast``. Read this companion as asking whether the contrast
-survives modelling within-child dependence — here it does — rather than as
-reporting how far the parent's interval was wrong.
+The earlier report of wider contrast intervals did not establish which model
+component caused the change. Interval widths cannot supply a covariance
+decomposition. Regenerate the paired-draw moments before making that comparison.
 
-Read it beside the parent, and read ``dependence_identification.csv`` first.
-**This fit's correlation posterior is its correlation prior**: posterior SD
-1.002 times the prior SD read from its own persisted prior group (2026-08-22 ITT
-audit, finding 3). At n = 53 the data say nothing about the within-child
-correlation, so the interval this companion publishes carries the LKJ prior's
-implied correction and not a measured covariance — ``release_decision.json`` and
-the findings box now attach that qualifier. The per-outcome residual SDs *are*
-informed (posterior SD roughly a third of the prior's), so the block is not
-uniformly uninformative; the table reports each parameter separately for that
-reason. The April 2026 ten-outcome fit found the same thing more severely for a
-10 x 10 block, which is why the block is off by default and why
-``lrp-rli-itt-012`` is out of scope here.
+Read ``dependence_identification.csv`` beside the prior and posterior overlays.
+The previously reported posterior-to-prior SD ratio of 1.002 describes similar
+spread only. It does not establish equal distributions or the absence of
+information about correlation. Location, shape and sign probabilities may change.
+Check the prior source and sensitivity of the named contrast as well as spread.
 
 Point estimates are *not* guaranteed to be invariant. Adding a logistic-normal
 per-child offset changes the marginal likelihood and re-estimates ``alpha``,

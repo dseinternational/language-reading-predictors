@@ -1,0 +1,91 @@
+{
+  "authorship": "Drafted by Codex/GPT-6",
+  "scope": "Synthetic counterexamples and archive-mask algebra; no production refits or revalidation.",
+  "prior_conflict_interpretation": {
+    "likelihood_centre_tau": 1.0,
+    "zero_centred_joint_prior_posterior_mean_tau": -0.5015673981191218,
+    "posterior_tau_mean_at_prior_powers": {
+      "0.99": -0.4971229090596702,
+      "1.00": -0.5015673981191218,
+      "1.01": -0.5059401291734229
+    },
+    "computed_power_sensitivity": {
+      "prior": 0.12666714,
+      "likelihood": 0.11631063,
+      "diagnosis": "potential prior-data conflict"
+    },
+    "release_decision": {
+      "status": "release",
+      "tau_class": "prior_data_conflict",
+      "reason": "power-scaling flags a prior-data conflict on `tau`, but the likelihood moves the posterior too, so the conservative prior attenuates the estimate rather than determining it",
+      "note": "The treatment-effect prior is deliberately cautious and pulls this estimate towards no effect, so the size is best read as a lower bound while the direction is the more reliable part.",
+      "tier": "primary",
+      "floor_rule": false,
+      "floor_grid_required": false,
+      "floor_grid_ready": false,
+      "prior_sensitivity": 0.12666714,
+      "likelihood_sensitivity": 0.11631063,
+      "diagnosis": "potential prior-data conflict"
+    },
+    "scalar_counterexample": {
+      "data_generating_theta": 0.0,
+      "observed_y": 2.0,
+      "posterior_mean": 1.0,
+      "posterior_probability_below_its_mean": 0.5,
+      "posterior_probability_positive": 0.9213503964748574
+    }
+  },
+  "interval_width_covariance": {
+    "true_correlation_both_pairs": 0.0,
+    "exact_uniform_difference_width": 0.133667504192892,
+    "channel_status": "measured",
+    "parent_marginal_widths": {
+      "A": 0.089,
+      "B": 0.089
+    },
+    "companion_marginal_widths": {
+      "A": 0.089,
+      "B": 0.089
+    },
+    "parent_implied_ame_correlation": -4.3800618002191824e-16,
+    "companion_implied_ame_correlation": -0.12782487546754207,
+    "implied_ame_correlation_change": -0.12782487546754162,
+    "marginal_width_channel": 0.0,
+    "covariance_width_channel": 0.007802497141686515,
+    "covariance_channel_share": 1.0,
+    "dominant_width_channel": "cross_outcome_covariance"
+  },
+  "dependence_sd_ratio": {
+    "exact_prior_mean": 0.0,
+    "exact_posterior_mean": 0.4,
+    "exact_variance_both_distributions": 0.1111111111111111,
+    "posterior_probability_positive": 0.8670952942885811,
+    "summary": {
+      "parameter": "u_corr_pair[A|B]",
+      "role": "residual correlation",
+      "posterior_median": 0.4425322930429548,
+      "lo": -0.19684560324169462,
+      "hi": 0.8616690804978361,
+      "posterior_sd": 0.3333368377272883,
+      "prior_sd": 0.33333706176637967,
+      "prior_source": "fitted prior draws",
+      "posterior_prior_sd_ratio": 0.9999993278902436,
+      "information_gain": 6.721097564055256e-07,
+      "verdict": "prior-dominated",
+      "ci_prob": 0.89
+    },
+    "generated_note": "The within-child residual correlation did not move off its prior (u_corr_pair[A|B]), so the dependence correction this fit applies to the contrast's interval is the prior's rather than the data's; read the interval as a prior-informed sensitivity, not as a measured within-child covariance."
+  },
+  "missingness_positive_checks": {
+    "observed_rows": 53,
+    "target_profiles": 57,
+    "missing_by_arm": [
+      1,
+      3
+    ],
+    "common_profile_effect_items": 7.9,
+    "factual_completion_effect_items": -4.161607142857137,
+    "delta_grid_max_absolute_algebra_error": 8.881784197001252e-15,
+    "checked_grid_cells": 25
+  }
+}

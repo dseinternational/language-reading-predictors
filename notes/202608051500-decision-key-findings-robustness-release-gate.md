@@ -1,3 +1,8 @@
+> [!NOTE]
+> Amendment drafted by a LLM-based AI tool (Codex/GPT-6), 23 September 2026.
+>
+> The later source review corrects the interpretation of prior-data conflict below. A power-scaling flag does not establish attenuation, a lower bound or a reliable direction. The recorded release categories are retained with a neutral sensitivity note. See [the correction record](20260923-statistical-review-corrections.md). The dated record below is preserved.
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]

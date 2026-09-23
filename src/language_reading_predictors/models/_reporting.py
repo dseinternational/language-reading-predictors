@@ -16,6 +16,7 @@ underneath.
 """
 
 from collections.abc import Mapping, Sequence
+import json
 from pathlib import Path
 from typing import Any
 
@@ -231,11 +232,56 @@ def params_table(
     return _params_table(params, title=title, precision=precision)
 
 
+def _gb_permutation_current(directory: Path) -> bool:
+    from language_reading_predictors.models.permutation import PERMUTATION_DESIGN_VERSION
+
+    found = False
+    for name in ("config.json", "ranking_meta.json"):
+        path = directory / name
+        if not path.exists():
+            continue
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if not isinstance(record, dict) or record.get("permutation_design") != PERMUTATION_DESIGN_VERSION:
+            return False
+        found = True
+    return found
+
+
+def gb_permutation_support_markdown(directory: Path | str) -> str:
+    """Explain versioned donor support at both the headline and detailed ranking."""
+    directory = Path(directory)
+    if not _gb_permutation_current(directory):
+        return (
+            "::: {.callout-warning}\nThese saved rankings lack the current permutation design metadata. "
+            "Recompute permutation importance and rankings before interpreting them under the corrected "
+            "wave-alignment rule. The headline ranking is withheld.\n:::"
+        )
+    path = directory / "permutation_schedule_support.csv"
+    try:
+        support = pd.read_csv(path)
+        total = pd.to_numeric(support["n_subjects"], errors="raise").sum()
+        movable = pd.to_numeric(support["n_movable_subjects"], errors="raise").sum()
+        detail = f"Alternative donors are available for {int(movable)} of {int(total)} children. "
+    except (OSError, ValueError, KeyError, OverflowError):
+        detail = "The saved donor-support table is unavailable. Check support before interpreting these rankings. "
+    return (
+        detail + "Children with unique schedules stay fixed. Importance is conditional on the observed schedule. "
+        "Predictors that cannot change among eligible donors at the same wave, including `time`, "
+        "are not assessable under this design. Missing importance is not evidence of zero importance. "
+        "Bootstrap frequencies use only the samples in which each predictor can change; "
+        "read `n_assessable_bootstraps` beside them."
+    )
+
+
 def gb_ranking_markdown(
     ranking: pd.DataFrame,
     *,
     target_label: str | None = None,
     top_n: int = 6,
+    artifact_dir: Path | str | None = None,
 ) -> str:
     """Narrate the cluster-first GB predictor ranking as Markdown (issue #208).
 
@@ -247,11 +293,24 @@ def gb_ranking_markdown(
     flags, and collinear clusters. Returns Markdown for an ``#| output: asis``
     chunk. Kept CSV-derived so it never drifts from the fitted model on re-fit.
     """
+    support = gb_permutation_support_markdown(artifact_dir) if artifact_dir is not None else ""
+    if artifact_dir is not None and not _gb_permutation_current(Path(artifact_dir)):
+        return support
     what = f" of {target_label}" if target_label else ""
     if ranking is None or getattr(ranking, "empty", True) or "member" not in ranking.columns:
         return f"_Findings summary{what} is produced at the reporting/test tiers._"
 
     df = ranking.copy()
+    unassessable: list[str] = []
+    if "perm_imp_mean" in df:
+        unassessable = df.loc[df["perm_imp_mean"].isna(), "member"].astype(str).tolist()
+        df = df.loc[df["perm_imp_mean"].notna()]
+    unavailable = (
+        "Not assessable under this permutation design: " + ", ".join(f"`{name}`" for name in unassessable) + "."
+        if unassessable else ""
+    )
+    if df.empty:
+        return "\n\n".join(value for value in (support, unavailable, "No assessable predictor ranking is available.") if value)
     sign_word = {
         "+": "higher values predict a larger",
         "-": "higher values predict a smaller",
@@ -319,12 +378,13 @@ def gb_ranking_markdown(
                 f"ranked as a group (importance is shared within a cluster): {grouped}.",
             ]
 
-    return "\n".join(lines)
+    return "\n\n".join(value for value in (support, unavailable, "\n".join(lines)) if value)
 
 
 __all__ = [
     "cv_fold_metrics_table",
     "gb_ranking_markdown",
+    "gb_permutation_support_markdown",
     "in_sample_metrics_table",
     "metrics_table",
     "model_header_panel",

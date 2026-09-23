@@ -1,3 +1,6 @@
+> [!NOTE]
+> Statistical wording corrected by a LLM-based AI tool (Codex/GPT-6), 23 September 2026. See [the correction record](20260923-statistical-review-corrections.md).
+
 <!-- SPDX-License-Identifier: CC-BY-4.0 -->
 
 > [!NOTE]
@@ -29,7 +32,7 @@ Both `rli_data_long.csv` and the deposited trial archive record age at each wave
 |            | Immediate |       27 | 4–6            | 5.26 |      5 | 4: 1, 5: 18, 6: 8        |
 |            | Wait-list |       26 | 5–7            | 5.46 |      5 | 5: 15, 6: 10, 7: 1       |
 
-Within a transition the standard deviation is about 0.6 months, and t1 → t4 spans 20–22 months for every child. Assessments followed a common calendar; the spread within a transition is mostly rounding. One immediate-arm child has no t4 age.
+Within a transition the standard deviation is about 0.6 months, and t1 → t4 spans 20–22 months for every child. Assessments followed a common calendar; the spread within a transition includes rounding, but whole-month ages do not identify the share due to rounding. One immediate-arm child has no t4 age.
 
 `attend` on a child's row at wave t counts the sessions between t and the next wave; it matches `attend_cumul` exactly. Both arms attended sessions during t3 → t4 (means 52 immediate, 56.5 wait-list). This fits the report plan's inference that t4 closes a third teaching block for the immediate arm and a second for the wait-list arm, which no document yet confirms (`notes/202609071300-technical-report-plan-v2.md`, item 5a).
 
@@ -58,9 +61,9 @@ Words per month is total words gained divided by total months. Fewer words were 
 | t2 contrasts: `itt`, `joint`, `did` `tau_t2`, `level_factors` `d_grp_time[t2]`, `gain_factors` period 1    | Single-window arm contrast                        | **Arm timing gap at t2** — decision 2            |
 | `aligned`                                                                                                  | One onset-aligned window per child                | **Windows differ in length by arm** — decision 3 |
 
-An intercept per transition absorbs the average length of that transition. Within a transition every child's interval is the same to within rounding, so apart from the small arm gaps in decision 2 nothing systematic is left for a per-child term to explain.
+An intercept per transition allows its mean gain to differ. It does not make a skill association comparable across unequal durations. If change per month depends on a skill, the raw-gain slope can grow with window length. A common slope across windows assumes away that difference and describes the observed mixture of intervals.
 
-**No per-child interval covariate or per-month outcome.** An interval covariate would carry mostly rounding error, so its coefficient would be biased towards zero and would correct little; it would also not remove a between-arm gap it measures badly. A words-per-month outcome would divide every gain by a rough whole number between 4 and 9. Neither is adopted.
+**No per-child interval covariate or per-month outcome is added in this correction.** Whole-month ages confound rounding with actual timing variation. An ordinary duration adjustment is not guaranteed to remove timing bias, while dividing gains by measured duration adds denominator error. A time-scale sensitivity needs a stated target and measurement assumptions.
 
 ## Decision 1: register `lcsm-167` (`lcsm-067` with arm × window intercepts)
 
@@ -88,7 +91,7 @@ The window-1 consistency contrast agrees with the ITT estimate: immediate minus 
 
 PSIS-LOO cannot choose between them. `167`'s expected log predictive density is 1.5 higher (−1786.0, standard error 23.6, against −1787.5, 22.3), inside the project's |difference| < 4 inconclusive band, and 5–7% of observations have Pareto k above 0.7, so the estimates are unreliable anyway. The case for `167` rests on design: the transitions are known to differ in length and treatment status, and `lcsm-081` already treats arm × window intercepts as mandatory because of the crossover. Recommendation: after a reporting-tier fit, make `lcsm-167` the model of record for this question and keep `lcsm-067` as the pooled-intercept comparator.
 
-## Decision 2: state a timing bound beside every t2 contrast
+## Decision 2: state constant-rate timing scenarios beside every t2 contrast
 
 Relative to the wait-list arm, the immediate arm's t2 assessment came about two weeks later:
 
@@ -99,43 +102,43 @@ Relative to the wait-list arm, the immediate arm's t2 assessment came about two 
 | t3 → t4  |                              −0.20 | −0.43 to +0.03         |                 −1.3 |
 | t1 → t3  |                              −0.08 | −0.34 to +0.18         |                 −0.5 |
 
-The standard error uses the observed within-arm spread. The gaps are too large to be rounding, and t1 → t3 is level, so the arms' t1 and t3 assessments were in step and only t2 moved. Every t2 contrast therefore includes slightly more elapsed time in the immediate arm; contrasts at t3 are unaffected.
+The standard error uses the observed within-arm spread. These results support an arm difference in t1 → t2 spacing. The much smaller t1 → t3 gap does not establish identical assessment dates or exclude other timing influences.
 
-A first-order bound multiplies the gap by a per-month gain rate. The two ends use the wait-list's untreated t1 → t2 rate and the immediate arm's treated rate; the extra weeks probably fell within teaching, which favours the upper end.
+Each scenario multiplies the gap by one arm's whole-interval per-month gain. It assumes that rate applies during the extra weeks and transfers to a common assessment time. Neither rate is known to bound the local rate; treatment timing, nonlinear learning and measurement rounding remain unresolved.
 
-| Outcome | ITT model | Gap (months) | Bound (items) | Stored effect (items) | Upper end ÷ effect |
-| ------- | --------- | -----------: | ------------- | --------------------: | -----------------: |
-| `W`     | `itt-010` |         0.48 | 0.14 to 0.31  |                  2.37 |               0.13 |
-| `L`     | `itt-007` |         0.44 | 0.20 to 0.41  |                  3.52 |               0.12 |
-| `B`     | `itt-008` |         0.44 | 0.00 to 0.07  |                  0.99 |               0.08 |
-| `TE`    | `itt-002` |         0.44 | 0.11 to 0.20  |                  1.55 |               0.13 |
-| `TR`    | `itt-001` |         0.44 | 0.13 to 0.21  |                  1.37 |               0.15 |
-| `UE`    | `itt-004` |         0.44 | 0.03 to 0.05  |                  0.31 |               0.16 |
-| `UR`    | `itt-003` |         0.44 | 0.02 to 0.08  |                  0.60 |               0.13 |
-| `F`     | `itt-025` |         0.44 | 0.00 to 0.09  |                  0.87 |               0.10 |
-| `T`     | `itt-026` |         0.44 | 0.06 to 0.10  |                  0.65 |               0.15 |
-| `R`     | `itt-005` |         0.44 | 0.19 to 0.19  |                  0.23 |               0.83 |
-| `E`     | `itt-006` |         0.44 | 0.26 to 0.27  |                  0.11 |               2.41 |
+| Outcome | ITT model | Gap (months) | Scenarios (items) | Stored effect (items) | Upper end ÷ effect |
+| ------- | --------- | -----------: | ----------------- | --------------------: | -----------------: |
+| `W`     | `itt-010` |         0.48 | 0.14 to 0.31      |                  2.37 |               0.13 |
+| `L`     | `itt-007` |         0.44 | 0.20 to 0.41      |                  3.52 |               0.12 |
+| `B`     | `itt-008` |         0.44 | 0.00 to 0.07      |                  0.99 |               0.08 |
+| `TE`    | `itt-002` |         0.44 | 0.11 to 0.20      |                  1.55 |               0.13 |
+| `TR`    | `itt-001` |         0.44 | 0.13 to 0.21      |                  1.37 |               0.15 |
+| `UE`    | `itt-004` |         0.44 | 0.03 to 0.05      |                  0.31 |               0.16 |
+| `UR`    | `itt-003` |         0.44 | 0.02 to 0.08      |                  0.60 |               0.13 |
+| `F`     | `itt-025` |         0.44 | 0.00 to 0.09      |                  0.87 |               0.10 |
+| `T`     | `itt-026` |         0.44 | 0.06 to 0.10      |                  0.65 |               0.15 |
+| `R`     | `itt-005` |         0.44 | 0.19 to 0.19      |                  0.23 |               0.83 |
+| `E`     | `itt-006` |         0.44 | 0.26 to 0.27      |                  0.11 |               2.41 |
 
-The gap is computed on each outcome's observed children, which is why word reading's is 0.48. Stored effects are probability-scale average marginal effects times the item count. For every graded outcome except receptive and expressive vocabulary, the upper end is 8–16% of the effect: a small bias in the intervention arm's favour, too small to change any conclusion. For receptive and expressive vocabulary the bound is as large as the effect. Both effects were already inconclusive (P(effect > 0) = 0.54 and 0.53), so no conclusion changes, but their point estimates should not be read as even small benefits.
+The gap is computed on each outcome's observed children, which is why word reading's is 0.48. Stored effects are probability-scale average marginal effects times the item count. The table compares point estimates and scenarios, without propagating uncertainty in rates, gaps and effects. It cannot show that credible intervals or direction probabilities would stay unchanged after a timing adjustment. Receptive and expressive vocabulary already had uncertain directions in the stored fits (P(effect > 0) = 0.54 and 0.53).
 
-The bound is reported, not modelled, for the reason given above: an interval covariate measured in whole months cannot remove a between-arm gap of half a month. Phonetic spelling and nonword reading use the floor rule's off-floor risk difference and are not bounded here.
+These are descriptive scenarios, not bounds or identified timing corrections. Phonetic spelling and nonword reading use the floor rule's off-floor risk difference and are not covered by the item-score calculation.
 
 ## Decision 3: name window length as an `aligned` confounder
 
 The onset-aligned windows differ by arm: the immediate arm's t1 → t3 window averages 15.5 months, the wait-list's t2 → t4 window 14.2 months.
 
-| Outcome | Aligned model | Gap (months) | Bound (items) | Stored cohort contrast (items) |
-| ------- | ------------- | -----------: | ------------- | -----------------------------: |
-| `W`     | `al-001`      |         1.33 | 0.67 to 0.77  |                          +2.12 |
-| `R`     | `al-002`      |         1.35 | 0.47 to 0.75  |                          +2.65 |
-| `E`     | `al-003`      |         1.35 | 0.67 to 0.85  |                          −3.10 |
-| `L`     | `al-004`      |         1.34 | 0.47 to 0.70  |                          +2.20 |
-| `B`     | `al-006`      |         1.35 | 0.08 to 0.12  |                          +0.29 |
-| `F`     | `al-007`      |         1.34 | 0.26 to 0.33  |                          −0.62 |
-| `T`     | `al-008`      |         1.35 | 0.19 to 0.24  |                          −1.43 |
+| Outcome | Aligned model | Gap (months) | Scenarios (items) | Stored cohort contrast (items) |
+| ------- | ------------- | -----------: | ----------------- | -----------------------------: |
+| `W`     | `al-001`      |         1.33 | 0.67 to 0.77      |                          +2.12 |
+| `R`     | `al-002`      |         1.35 | 0.47 to 0.75      |                          +2.65 |
+| `E`     | `al-003`      |         1.35 | 0.67 to 0.85      |                          −3.10 |
+| `L`     | `al-004`      |         1.34 | 0.47 to 0.70      |                          +2.20 |
+| `B`     | `al-006`      |         1.35 | 0.08 to 0.12      |                          +0.29 |
+| `F`     | `al-007`      |         1.34 | 0.26 to 0.33      |                          −0.62 |
+| `T`     | `al-008`      |         1.35 | 0.19 to 0.24      |                          −1.43 |
 
-The bound uses each arm's own gain per month over its aligned window. About a third of the word-reading contrast and a fifth to a third of the letter-sound and receptive-vocabulary contrasts could be extra elapsed time. Because the gap favours the immediate arm, allowing for it would lower every contrast, making the negative expressive-vocabulary, basic-concepts and grammar contrasts more negative. The family's contrasts are already associations; this adds a named, sized confounder.
+The scenarios use each arm's gain per month over its aligned window. They show that timing could matter under a constant-rate assumption. They do not identify its contribution, and they do not guarantee that an adjusted contrast would be lower. The family's contrasts remain associations confounded by cohort, timing and window length.
 
 ## What changed
 

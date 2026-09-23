@@ -11,6 +11,10 @@ format:
 ---
 
 ::: {.callout-note}
+Statistical wording corrected by a LLM-based AI tool (Codex/GPT-6), 23 September 2026.
+:::
+
+::: {.callout-note}
 Clarity and currency edits by a LLM-based AI tool (Codex/GPT-6).
 :::
 
@@ -66,6 +70,7 @@ if _rk.exists():
         print(
             gb_ranking_markdown(
                 pd.read_csv(_rk),
+                artifact_dir=Path("."),
                 target_label="language sample total words level",
             )
         )
@@ -211,13 +216,21 @@ The gap between in-sample R² and pooled out-of-fold R² is the overfit gap.
 
 ### Permutation importance
 
-Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units. The models are tuned with a Huber objective (squared error within a robust threshold, absolute error beyond it) and RMSE scoring, so the ranking metric and the objective both target the conditional mean while the few most extreme scorers carry reduced weight. The table lists every predictor; the box plot shows the ten with the largest mean importance.
+Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives a donor child's values at matching assessment waves. Donors must have the same observed-wave schedule, so this measures importance conditional on that schedule. Children with a unique schedule cannot move; `permutation_schedule_support.csv` reports that limitation. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units. The models use a Huber objective and RMSE scoring. Huber limits the residual gradient beyond its threshold, but its predictions need not be conditional means for skewed or floored outcomes. RMSE-based importance measures how much these fitted predictions worsen under the specified shuffle. The table lists every predictor; the box plot shows the ten with the largest mean importance.
+
+```{python}
+#| output: asis
+from language_reading_predictors.models._reporting import gb_permutation_support_markdown
+
+print(gb_permutation_support_markdown("."))
+```
+
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
-The box plot shows the variation across shuffles. Positive importance means shuffling increased prediction error; a value near zero means the model changed little. This spread is not a credible interval for a causal effect.
+The box plot shows the variation across shuffles. Positive importance means shuffling increased prediction error; a value near zero means the model changed little under the permitted shuffles. Missing importance means the predictor is not assessable under this design. This spread is not a credible interval for a causal effect.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 
