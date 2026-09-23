@@ -65,7 +65,7 @@ def test_child_constant_signal_feature_gets_positive_importance():
         groups,
         {0: [0], 1: [1]},
         n_repeats=10,
-        seed=47,
+        seed=47, waves=np.tile(np.arange(3), len(groups) // 3),
     )
     signal_mean = float(deltas[0].mean())
     noise_mean = float(deltas[1].mean())
@@ -88,27 +88,41 @@ def test_within_fold_constant_column_would_zero_under_old_scheme():
 
 
 def test_subject_block_permutation_preserves_child_structure():
-    groups = np.array(["a", "a", "a", "b", "b", "c", "c", "c", "c"])
-    rng = np.random.default_rng(3)
-    donor_index = subject_block_permutation_indices(groups, rng)
-
-    assert donor_index.shape == (len(groups),)
-    # Each recipient child's rows must all come from exactly ONE donor child,
-    # and the recipient -> donor map must be a permutation of the children.
-    donor_of = {}
+    groups = np.array(["a", "a", "b", "b", "c", "c", "d"])
+    waves = np.array([1, 3, 3, 1, 1, 3, 2])
+    donor = subject_block_permutation_indices(groups, np.random.default_rng(3), waves=waves)
+    np.testing.assert_array_equal(waves[donor], waves)
+    assert sorted(donor) == list(range(len(groups)))
     for subject in np.unique(groups):
-        rows = np.flatnonzero(groups == subject)
-        donors = set(groups[donor_index[rows]])
-        assert len(donors) == 1
-        donor_of[subject] = donors.pop()
-    assert sorted(donor_of.values()) == sorted(np.unique(groups))
-    # Within-child alignment: recipient row t takes the donor's row t (modulo
-    # the donor's row count), in the donor's original row order.
-    for subject, donor in donor_of.items():
-        rows = np.flatnonzero(groups == subject)
-        donor_rows = np.flatnonzero(groups == donor)
-        expected = donor_rows[np.arange(len(rows)) % len(donor_rows)]
-        assert np.array_equal(donor_index[rows], expected)
+        assert len(set(groups[donor[groups == subject]])) == 1
+    assert donor[-1] == len(groups) - 1  # no compatible donor for wave 2 alone
+
+
+def test_donor_mapping_is_invariant_to_row_order():
+    groups = np.repeat(["a", "b", "c"], 3)
+    waves = np.tile([1, 2, 3], 3)
+    order = np.array([8, 2, 0, 4, 1, 7, 6, 5, 3])
+    original = subject_block_permutation_indices(groups, np.random.default_rng(4), waves=waves)
+    reordered = subject_block_permutation_indices(groups[order], np.random.default_rng(4), waves=waves[order])
+    np.testing.assert_array_equal(order[reordered], original[order])
+
+
+def test_identical_trajectories_with_missing_waves_have_zero_importance():
+    groups = np.array(["a", "a", "a", "b", "b", "c", "c"])
+    waves = np.array([1, 2, 3, 1, 3, 3, 1])
+    X = pd.DataFrame({"x": waves.astype(float)})
+    estimator = LinearRegression().fit(X, waves)
+    deltas = pooled_permutation_deltas(
+        [estimator], X, waves, [np.arange(len(X))], groups, {0: [0]},
+        n_repeats=20, seed=47, waves=waves,
+    )
+    np.testing.assert_array_equal(deltas[0], np.zeros(20))
+
+
+@pytest.mark.parametrize("waves", [None, [1, 1], [1], [1, np.nan]])
+def test_missing_or_ambiguous_wave_labels_are_rejected(waves):
+    with pytest.raises(ValueError):
+        subject_block_permutation_indices(["a", "a"], np.random.default_rng(0), waves=waves)
 
 
 def test_pooled_permutation_deltas_deterministic_per_seed():
@@ -118,17 +132,17 @@ def test_pooled_permutation_deltas_deterministic_per_seed():
     blocks = {0: [0], 1: [1]}
 
     d1 = pooled_permutation_deltas(
-        estimators, X, y, test_indices, groups, blocks, n_repeats=4, seed=47
+        estimators, X, y, test_indices, groups, blocks, n_repeats=4, seed=47, waves=np.tile(np.arange(3), len(groups) // 3)
     )
     d2 = pooled_permutation_deltas(
-        estimators, X, y, test_indices, groups, blocks, n_repeats=4, seed=47
+        estimators, X, y, test_indices, groups, blocks, n_repeats=4, seed=47, waves=np.tile(np.arange(3), len(groups) // 3)
     )
     for key in blocks:
         assert np.allclose(d1[key], d2[key])
 
     # A different seed draws different subject permutations.
     d3 = pooled_permutation_deltas(
-        estimators, X, y, test_indices, groups, blocks, n_repeats=4, seed=48
+        estimators, X, y, test_indices, groups, blocks, n_repeats=4, seed=48, waves=np.tile(np.arange(3), len(groups) // 3)
     )
     assert any(not np.allclose(d1[key], d3[key]) for key in blocks)
 
@@ -137,7 +151,7 @@ def test_pooled_permutation_deltas_deterministic_per_seed():
 
 
 def _reference_pooled_deltas(
-    estimators, X, y, test_indices, groups, col_blocks, *, n_repeats, seed
+    estimators, X, y, test_indices, groups, col_blocks, *, n_repeats, seed, waves
 ):
     """The pre-#662 local scoring loop, kept as the numerical reference.
 
@@ -157,7 +171,7 @@ def _reference_pooled_deltas(
     deltas: dict = {key: [] for key in col_blocks}
     for repeat in range(n_repeats):
         donor = subject_block_permutation_indices(
-            groups, np.random.default_rng([seed, repeat])
+            groups, np.random.default_rng([seed, repeat]), waves=waves
         )
         for key, columns in col_blocks.items():
             columns = list(columns)
@@ -180,10 +194,10 @@ def test_shared_evaluator_reproduces_the_local_deltas_exactly():
     blocks = {0: [0], 1: [1], "cluster": [0, 1]}
 
     new = pooled_permutation_deltas(
-        estimators, X, y, test_indices, groups, blocks, n_repeats=3, seed=47
+        estimators, X, y, test_indices, groups, blocks, n_repeats=3, seed=47, waves=np.tile(np.arange(3), len(groups) // 3)
     )
     old = _reference_pooled_deltas(
-        estimators, X, y, test_indices, groups, blocks, n_repeats=3, seed=47
+        estimators, X, y, test_indices, groups, blocks, n_repeats=3, seed=47, waves=np.tile(np.arange(3), len(groups) // 3)
     )
 
     assert new.keys() == old.keys()
@@ -215,7 +229,7 @@ def test_every_block_shares_one_donor_plan_per_repeat(monkeypatch):
     monkeypatch.setattr(module, "pooled_oof_permutation_deltas", _spy)
     module.pooled_permutation_deltas(
         estimators, X, y, test_indices, groups, {0: [0], "both": [0, 1]},
-        n_repeats=4, seed=47,
+        n_repeats=4, seed=47, waves=np.tile(np.arange(3), len(groups) // 3),
     )
 
     plans = list(captured["donor_indices"].values())
@@ -226,7 +240,7 @@ def test_every_block_shares_one_donor_plan_per_repeat(monkeypatch):
         np.testing.assert_array_equal(
             plans[0][repeat],
             subject_block_permutation_indices(
-                groups, np.random.default_rng([47, repeat])
+                groups, np.random.default_rng([47, repeat]), waves=np.tile(np.arange(3), len(groups) // 3)
             ),
         )
     # Column positions are translated to the labels the shared API blocks by.

@@ -707,6 +707,7 @@ Vehtari
 venv
 Verhoeven
 vocab
+Voelkle
 vpreds
 Wagenmakers
 WAIC

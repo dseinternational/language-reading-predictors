@@ -25,6 +25,7 @@ import pytest
 from dse_research_utils.ml.feature_groups import linkage_from_dissimilarity
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform
+from language_reading_predictors.data_variables import Variables
 
 from language_reading_predictors.models.base_pipeline import (
     EstimatorPipeline,
@@ -195,6 +196,7 @@ def test_bootstrap_importance_preserves_child_trajectories(tmp_path):
     pipe.context.X = pd.DataFrame({"signal": signal, "wave": wave})
     pipe.context.y = pd.Series(3.0 * signal + 10.0 * wave)
     pipe.context.groups = pd.Series(groups)
+    pipe.context.df = pd.DataFrame({Variables.TIME: wave})
     pipe.context.pipeline = LinearRegression()
 
     pipe.stability_selection(n_bootstraps=4, n_repeats=5, top_k=1)
@@ -203,6 +205,9 @@ def test_bootstrap_importance_preserves_child_trajectories(tmp_path):
     assert result.loc["wave", "importance_mean"] == pytest.approx(0.0, abs=1e-12)
     assert result.loc["signal", "importance_mean"] > 1.0
     assert result.loc["signal", "appearance_rate_top_k"] == 1.0
+    support = pd.read_csv(tmp_path / "stability_permutation_support.csv")
+    assert support["used"].all()
+    assert (support["n_movable_subjects"] == support["n_oob_subjects"]).all()
 
 
 def test_bootstrap_requires_two_out_of_bag_children(tmp_path):
@@ -214,8 +219,26 @@ def test_bootstrap_requires_two_out_of_bag_children(tmp_path):
     pipe.context.groups = pd.Series(["a", "a", "b", "b"])
     pipe.context.pipeline = LinearRegression()
 
-    with pytest.raises(RuntimeError, match="at least two out-of-bag subjects"):
+    with pytest.raises(RuntimeError, match="out-of-bag subjects sharing an assessment schedule"):
         pipe.stability_selection(n_bootstraps=3, n_repeats=2)
+    assert not (tmp_path / "stability_selection.csv").exists()
+
+
+def test_bootstrap_without_alternative_donors_records_exclusions(tmp_path):
+    from sklearn.linear_model import LinearRegression
+
+    pipe = _small_pipeline(tmp_path)
+    pipe.context.X = pd.DataFrame({"signal": np.arange(12)})
+    pipe.context.y = pd.Series(np.arange(12))
+    pipe.context.groups = pd.Series(np.arange(12))
+    pipe.context.df = pd.DataFrame({Variables.TIME: np.arange(12)})
+    pipe.context.pipeline = LinearRegression()
+    with pytest.raises(RuntimeError, match="sharing an assessment schedule"):
+        pipe.stability_selection(n_bootstraps=4, n_repeats=2)
+    support = pd.read_csv(tmp_path / "stability_permutation_support.csv")
+    assert len(support) == 4
+    assert not support["used"].any()
+    assert support["n_movable_subjects"].sum() == 0
     assert not (tmp_path / "stability_selection.csv").exists()
 
 

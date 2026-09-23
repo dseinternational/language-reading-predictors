@@ -352,7 +352,7 @@ def test_gain_factor_direction_follows_marginal_effect_not_coefficient():
     """#391: with an active treatment interaction the ``beta_trt`` coefficient and the
     period-1 AME differ in sign, so the reported direction — ``treatment_marginal_effect``
     ``prob_trt_pos`` and ``rope_summary`` ``pd`` under ``direction_from_ame`` — must
-    follow the AME, while the ITT default (``direction_from_ame=False``) is unchanged."""
+    follow the AME by default for every family, including ITT."""
     n_draw, n_obs = 40, 3
     trt = np.array([1.0, 0.0, 1.0])
     beta_trt = np.full((1, n_draw), 0.2)  # coefficient clearly positive
@@ -382,13 +382,12 @@ def test_gain_factor_direction_follows_marginal_effect_not_coefficient():
         term="beta_trt",
         varying_term="",
         moderators=mods,
-        direction_from_ame=True,
     )
     assert rope_ame["pd_coef"] == pytest.approx(1.0)
     assert rope_ame["pd"] == pytest.approx(0.0)
     assert rope_ame["favoured_direction"] == "negative"
 
-    # ITT default is unchanged: pd still tracks the coefficient, no pd_coef emitted.
+    # An explicit coefficient-based request remains available for compatibility.
     rope_coef = rope_summary(
         trace,
         G=trt,
@@ -397,6 +396,7 @@ def test_gain_factor_direction_follows_marginal_effect_not_coefficient():
         term="beta_trt",
         varying_term="",
         moderators=mods,
+        direction_from_ame=False,
     )
     assert rope_coef["pd"] == pytest.approx(1.0)
     assert "pd_coef" not in rope_coef
@@ -521,6 +521,11 @@ def test_joint_difference_row_mask_restandardises_the_declared_contrast():
         per_outcome.append(contribution.mean(axis=0))
     expected = np.median(per_outcome[0] - per_outcome[1])
     assert masked["diff_prob_median"] == pytest.approx(float(expected))
+    assert masked["dependence_moments_method"] == "paired_ame_draws_v1"
+    assert masked["left_ame_prob_variance"] == pytest.approx(np.var(per_outcome[0], ddof=1))
+    assert masked["right_ame_prob_variance"] == pytest.approx(np.var(per_outcome[1], ddof=1))
+    assert masked["ame_prob_covariance"] == pytest.approx(np.cov(per_outcome, ddof=1)[0, 1])
+    assert masked["diff_prob_variance"] == pytest.approx(np.var(per_outcome[0] - per_outcome[1], ddof=1))
     # The mask genuinely changes the standardisation population; a contrast built
     # from full-sample marginals would not have moved.
     assert masked["diff_prob_median"] != pytest.approx(full["diff_prob_median"])

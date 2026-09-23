@@ -192,11 +192,13 @@ def _validation(*, pareto_k, mc_error, elpd_se=10.0, n_children=50) -> NewChildV
         elpd_se=elpd_se,
         p_loo=5.0,
         pointwise_elpd=np.zeros(n_children),
-        pareto_k=np.asarray(pareto_k, dtype=float),
+        pareto_k=np.pad(np.asarray(pareto_k, dtype=float), (0, n_children - len(pareto_k)), constant_values=0.1),
         good_k=0.7,
         latents_redrawn=("u_z",),
         observed_nodes=("y_post",),
         latent_mc_error=mc_error,
+        latent_mc_elpd_error=0.0,
+        integration_batches_reliable=True,
     )
 
 
@@ -244,6 +246,46 @@ def test_no_latent_means_no_integration_error_to_gate_on():
 
 def test_a_non_finite_integration_error_withholds_the_estimate():
     assert not _validation(pareto_k=[0.1], mc_error=math.nan).reliable
+
+
+@pytest.mark.parametrize("field,value", [
+    ("pareto_k", np.array([np.nan] * 50)),
+    ("pareto_k", np.zeros(49)),
+    ("pointwise_elpd", np.array([np.inf] * 50)),
+    ("pointwise_elpd", np.zeros(49)),
+    ("elpd", np.nan), ("elpd_se", np.nan), ("elpd_se", -1.0),
+    ("p_loo", np.inf), ("good_k", np.nan), ("good_k", 0.0),
+    ("n_children", 0), ("latent_mc_error", -1.0),
+    ("latent_mc_elpd_error", np.nan), ("latent_mc_elpd_error", 20.0),
+    ("integration_batches_reliable", False),
+])
+def test_incomplete_or_invalid_diagnostics_cannot_pass(field, value):
+    from dataclasses import replace
+
+    result = replace(_validation(pareto_k=[0.1], mc_error=0.001), **{field: value})
+    assert not result.reliable
+
+
+def test_half_split_disagreement_cannot_cancel_across_posterior_draws():
+    from language_reading_predictors.statistical_models.new_child_predictive import _half_split_error
+
+    left = np.array([[[-1.0], [-9.0]]])
+    right = np.array([[[-5.0], [-5.0]]])
+    assert left.mean() == right.mean()
+    assert _half_split_error([left, right], [1, 1], ("z",)) == 4.0
+
+
+def test_split_score_check_cannot_cancel_between_children():
+    from language_reading_predictors.statistical_models.new_child_predictive import _integration_score_stability
+
+    def score(values, k=(0.1, 0.1)):
+        return types.SimpleNamespace(elpd_i=values, pareto_k=k, good_k=0.7, elpd=sum(values), se=1.0, p=0.1)
+
+    full, left, right = score([-5, -5]), score([-1, -9]), score([-9, -1])
+    error, valid = _integration_score_stability([full, left, right], 2)
+    assert valid and error == 16
+    error, valid = _integration_score_stability([full, left, score([-9, -1], k=(np.nan, 0.1))], 2)
+    assert not valid and np.isnan(error)
 
 
 def test_the_summary_row_publishes_both_verdicts():

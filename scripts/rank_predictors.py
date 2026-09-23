@@ -58,6 +58,7 @@ import pandas as pd
 
 from language_reading_predictors import model_ids
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.data_variables import Variables
 from language_reading_predictors.models.base_pipeline import _clear_directory
 from language_reading_predictors.models.cluster_ranking import (
     SAME_SKILL_SIBLINGS,
@@ -221,6 +222,7 @@ def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
     deltas = _pooled_perm_deltas(
         cv["estimator"], ctx.X, ctx.y, cv["indices"]["test"], ctx.groups,
         cluster_cols, n_repeats=n_repeats, seed=cfg.random_seed,
+        waves=ctx.df[Variables.TIME],
     )
 
     rows = []
@@ -329,6 +331,7 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
         cluster_imp = cluster_permutation_importance(
             full, clusters_by_feature, n_repeats=5 if quick else run.perm_importance_repeats)
 
+        full.context.dataframes["permutation_schedule_support"].to_csv(out / "permutation_schedule_support.csv", index=False)
         ranking = assemble_ranking(full, target, siblings, cluster_imp)
         ranking.to_csv(out / "predictor_ranking.csv", index=False)
         cluster_rank = cluster_ranking_table(cluster_imp, ranking, siblings)
@@ -361,6 +364,8 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
             "cluster_cutoff": cutoff, "random_seed": base.random_seed,
             "pooled_oof_r2": full.context.pooled_cv_metrics.get("pooled_r2"),
             "primary_artefact": "cluster_ranking.csv",
+            "permutation_design": "subject_blocks_same_wave_schedule_v1",
+            "permutation_support": "permutation_schedule_support.csv",
             "note": ("cluster-level grouped importance is the primary unit; per-feature z "
                      "is cv_splits-sensitive (read clusters first)"),
         }

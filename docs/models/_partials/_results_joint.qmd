@@ -1,3 +1,7 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Analysis set and estimand
 
 These are **available-case modified ITT estimates** of randomised offer effects, not full-cohort ITT effects for all 57 randomised children. The published CONSORT diagram records three losses to follow-up—one intervention child and two waiting-control children—leaving 54 analysed and represented in the repository; two children per arm who discontinued the intervention were nevertheless followed and included under assignment. The table records the outcome-specific fitted counts by assigned arm. Extending the causal interpretation to children lost to follow-up or otherwise missing from an outcome-specific fit requires ignorable missingness.
@@ -179,8 +183,7 @@ else:
 # What the registered dependence companion actually did to this contrast
 # (2026-08-24 review of the joint audit). ``release_decision.json`` records the
 # comparison the release decision made -- the contrast's movement, and the split of
-# its interval-width change into the companion's wider per-outcome marginals and the
-# cross-outcome covariance the sign rule above is about. Rendering it keeps the
+# its variance change into changes in marginal variances and covariance. Rendering it keeps the
 # report's account of the companion measured rather than asserted, and silent on
 # every fit that has no bound companion (including the companions themselves).
 _dep_path = _here / "release_decision.json"
@@ -201,27 +204,17 @@ if isinstance(_dep, dict) and _dep.get("status") == "compared":
         f"{100 * float(config.get('ci_prob', 0.89)):.0f}% interval is "
         f"{_dep['interval_width_ratio']:.3f} times as wide under the dependence model."
     ]
-    if _dep.get("channel_status") == "measured":
-        _share = _dep.get("covariance_channel_share")
+    if _dep.get("channel_method") == "paired_ame_draws_v1":
         _lines.append(
-            "That width change splits into "
-            f"{_dep['marginal_width_channel']:+.5f} from the companion's wider "
-            f"per-outcome marginals and {_dep['covariance_width_channel']:+.5f} from "
-            "cross-outcome covariance"
-            + (f" ({100 * _share:.0f}% of the movement)" if _share is not None else "")
-            + ". The implied posterior correlation between the two outcomes' average "
-            f"marginal effects is {_dep['parent_implied_ame_correlation']:+.3f} here "
-            f"and {_dep['companion_implied_ame_correlation']:+.3f} in the companion; "
-            "this fit's value is structurally zero, so it doubles as the "
-            "approximation's own noise floor."
+            "Separately, paired posterior draws give a contrast variance change of "
+            f"{_dep['contrast_variance_change']:+.6f}: "
+            f"{_dep['marginal_variance_channel']:+.6f} from the sum of marginal variances "
+            f"and {_dep['covariance_variance_channel']:+.6f} from minus twice the covariance change. "
+            "This is a variance identity, not a decomposition of credible-interval width "
+            "or an attribution to a single model component."
         )
-        if str(_dep.get("dominant_width_channel")) == "marginal_uncertainty":
-            _lines.append(
-                "**The difference between the two intervals is therefore the "
-                "companion's extra layer of parameter uncertainty, not a covariance "
-                "correction** — the omission described above is real in principle but "
-                "too small to measure at this sample size."
-            )
+    else:
+        _lines.append("A variance decomposition needs moments of paired posterior draws; older interval-width tables cannot supply it.")
     print(" ".join(_lines))
 ```
 
@@ -246,53 +239,38 @@ if _joint_correlated:
                 "\n_How to read it:_ `sigma_outcome[k]` is the per-outcome SD of the "
                 "child-level residual offset (logit scale) and `u_corr_pair[j|k]` the "
                 "residual correlation between the two outcomes within a child; a "
-                "correlation interval spanning zero with SDs reaching towards zero "
-                "means the block is weakly identified and the prior (LKJ η = 4, "
-                "HalfNormal(0.5)) is doing much of the work — compare with the "
-                "prior-versus-posterior overlay and the power-scaling rows for these "
-                "parameters. A positive correlation narrows the paired contrast "
-                "interval relative to the factorised parent; a negative one widens it."
+                "wide correlation interval means substantial uncertainty about its sign and size. "
+                "Compare the prior and posterior distributions and the power-scaling rows. "
+                "Holding marginal AME variances fixed, positive posterior AME covariance "
+                "reduces the variance of their difference. Residual correlation is a different "
+                "quantity, and the companion also changes marginal uncertainty."
             )
 
-    # The quantitative version of that eyeball test (2026-08-22 ITT audit,
-    # finding 3): each block parameter's posterior SD against the prior SD read
-    # from this fit's own persisted prior group. A ratio at 1 means the data moved
-    # the parameter nowhere.
+    # Compare spread separately from changes in location or shape.
     _dep_id = _csv("dependence_identification.csv")
     if _dep_id is not None and len(_dep_id):
-        print("\n#### How far the block is informed by the data\n")
+        print("\n#### Prior and posterior spread and location\n")
         _show = _dep_id.copy()
+        _show["verdict"] = _show["verdict"].replace({
+            "prior-dominated": "little or no contraction",
+            "weakly informed": "moderate contraction", "informed": "substantial contraction",
+        })
         _show = _show[[
             c for c in [
                 "parameter", "role", "posterior_median", "lo", "hi",
-                "posterior_sd", "prior_sd", "posterior_prior_sd_ratio", "verdict",
+                "posterior_sd", "prior_sd", "posterior_prior_sd_ratio", "prior_median",
+                "prior_prob_positive", "posterior_prob_positive", "verdict",
             ] if c in _show.columns
         ]]
         print(_show.round(3).to_markdown(index=False))
-        _dominated = _dep_id[
-            (_dep_id["role"].astype(str) == "residual correlation")
-            & (_dep_id["verdict"].astype(str) == "prior-dominated")
-        ]
         print(
-            "\n_How to read it:_ `posterior_prior_sd_ratio` is the posterior SD "
-            "divided by the prior SD for the same parameter, the prior SD being "
-            "measured from this fit's own persisted prior draws rather than assumed "
-            "from the LKJ formula. A ratio near **1** means the posterior is the "
-            "prior — the data did not move that parameter at all. A ratio well "
-            "below 1 means the data narrowed it."
+            "\n_How to read it:_ `posterior_prior_sd_ratio` compares spread only. "
+            "A ratio near 1 means similar standard deviations, not equal distributions. "
+            "Location, shape and sign probabilities can change while the SD stays the same. "
+            "A ratio below 1 indicates contraction; it is not a general measure of information. "
+            "Check `prior_source` because the prior SD may use a closed-form fallback."
         )
-        if len(_dominated):
-            print(
-                "\n::: {.callout-warning title=\"The residual correlation is "
-                "prior-dominated\"}\n\n"
-                "This fit's within-child residual correlation did not move off its "
-                "prior, so the dependence correction applied to the contrast's "
-                "interval is the **prior's** implied correction, not a covariance "
-                "measured in these data. Read the interval as a prior-informed "
-                "sensitivity. Note that the per-outcome residual SDs *are* informed, "
-                "so this caveat is about the correlation specifically, not the whole "
-                "block.\n\n:::\n"
-            )
+
 ```
 
 ::: {.callout-note collapse="true" title="Additional outcome-specific predictive plots"}

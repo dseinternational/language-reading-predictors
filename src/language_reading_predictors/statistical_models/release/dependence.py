@@ -27,45 +27,27 @@ from language_reading_predictors.statistical_models.release.base import (
     _read_json,
 )
 from language_reading_predictors.statistical_models.release.robustness import (
-    _AME_CORRELATION_NOISE,
     _CONTRAST_DIRECTION_SHIFT,
 )
 
 
 def _dependence_identification_note(output_dir: Path) -> str:
-    """Qualifier when a fitted dependence block never moved off its prior.
-
-    A companion that switches the LKJ residual block on estimates the within-child
-    covariance the parent's factorised interval omits. That covariance is the
-    *data's* only if the correlation posterior is distinguishable from the
-    correlation prior. For the three registered two-outcome companions
-    at n = 53 it is not: posterior-to-prior SD ratios of 1.002, 1.008 and 1.001
-    (2026-08-22 ITT audit, finding 3). The interval such a fit publishes is the
-    LKJ prior's implied correction, and a reader is entitled to be told so beside
-    the number rather than having to reconstruct it.
-
-    A note, never a withhold. The fit is valid and its residual SDs *are*
-    informed; what is qualified is the interpretation of the correlation. Silent
-    when ``dependence_identification.csv`` is absent (every fit without the block,
-    and any stored fit written before the table existed), so old decisions
-    re-decide identically.
-    """
+    """Describe limited SD contraction without claiming equality of distributions."""
     frame = _read_csv(output_dir, "dependence_identification.csv")
     if frame is None or frame.empty or "verdict" not in frame.columns:
         return ""
     correlations = frame.loc[frame["role"].astype(str) == "residual correlation"]
     if correlations.empty:
         return ""
-    dominated = correlations.loc[correlations["verdict"].astype(str) == "prior-dominated"]
+    dominated = correlations.loc[correlations["verdict"].astype(str).isin(("prior-dominated", "little or no contraction"))]
     if dominated.empty:
         return ""
     names = ", ".join(str(v) for v in dominated["parameter"])
     return (
-        "The within-child residual correlation did not move off its prior "
-        f"({names}), so the dependence correction this fit applies to the "
-        "contrast's interval is the prior's rather than the data's; read the "
-        "interval as a prior-informed sensitivity, not as a measured "
-        "within-child covariance."
+        f"The residual-correlation posterior SD changed little or increased ({names}). "
+        "This compares spread only: the posterior may still differ from the prior "
+        "in location or shape. Assess prior sensitivity and the paired contrast "
+        "before interpreting dependence."
     )
 
 
@@ -94,27 +76,6 @@ def _required_dependence_companion(config: Mapping[str, Any]) -> str:
     return str(contrast.get("dependence_companion") or "")
 
 
-def _joint_marginal_widths(directory: Path, outcomes: tuple[str, str]) -> dict[str, float] | None:
-    """Each contrast outcome's probability-scale AME interval width, or ``None``."""
-    frame = _read_csv(directory, "tau_summary.csv")
-    if frame is None or frame.empty or "outcome" not in frame.columns:
-        return None
-    needed = ("ame_prob_lo", "ame_prob_hi")
-    if any(column not in frame.columns for column in needed):
-        return None
-    indexed = frame.set_index(frame["outcome"].astype(str))
-    widths: dict[str, float] = {}
-    for outcome in outcomes:
-        if outcome not in indexed.index:
-            return None
-        row = indexed.loc[outcome]
-        lo, hi = _finite(row["ame_prob_lo"]), _finite(row["ame_prob_hi"])
-        if lo is None or hi is None or hi <= lo:
-            return None
-        widths[outcome] = hi - lo
-    return widths
-
-
 def _joint_width_channels(
     *,
     parent_dir: Path,
@@ -123,80 +84,50 @@ def _joint_width_channels(
     parent_width: float,
     companion_width: float,
 ) -> dict[str, Any]:
-    """Split the contrast's width change into marginal and covariance channels.
+    """Decompose a variance change using moments of paired AME draws.
 
-    2026-08-24 review of the joint audit. Finding 2 asked that the dependence block
-    be assessed through its consequence for the declared contrast, which
-    :func:`_joint_contrast_consequence` does for the contrast's *location*. But the
-    reason three report templates give for running the companion at all is about its
-    *width*: that a factorised interval omits within-child cross-outcome covariance,
-    so a positive residual correlation leaves it too wide and a negative one too
-    narrow. That sign rule describes the covariance term
-    ``Var(A - B) = V_A + V_B - 2 Cov(A, B)`` in isolation. It does not describe what
-    separates these two fits, because the companion also adds a per-child
-    logistic-normal layer whose own parameter uncertainty widens *both* marginals.
-
-    So measure which channel the change came through instead of asserting one. Each
-    fit's implied cross-outcome posterior correlation follows from the same identity
-    read on equal-tailed interval widths,
-    ``r = (W_A^2 + W_B^2 - W_diff^2) / (2 W_A W_B)``; the parent's is structurally
-    zero because a factorised fit shares no parameter between outcomes, so its
-    measured value is this approximation's own noise floor and is recorded beside
-    the companion's for exactly that purpose. ``marginal`` is what the companion's
-    wider marginals alone would do at the parent's correlation, and ``covariance``
-    is the remainder.
-
-    Returns the record fields, or a ``channel_status`` explaining why the split
-    could not be taken. Never raises: this is descriptive provenance attached to a
-    release decision, not a gate.
+    Interval widths remain separate descriptive summaries. They do not identify
+    variances or covariance for arbitrary posterior distributions. The legacy
+    function name and width arguments remain for caller compatibility.
     """
-    parent_widths = _joint_marginal_widths(parent_dir, outcomes)
-    companion_widths = _joint_marginal_widths(companion_dir, outcomes)
-    if parent_widths is None or companion_widths is None:
+    def moments(directory: Path) -> dict[str, float] | None:
+        frame = _read_csv(directory, "tau_difference.csv")
+        if frame is None or len(frame) != 1:
+            return None
+        row = frame.iloc[0]
+        if (
+            row.get("contrast") != f"{outcomes[0]}_minus_{outcomes[1]}"
+            or row.get("dependence_moments_method") != "paired_ame_draws_v1"
+        ):
+            return None
+        columns = ("left_ame_prob_variance", "right_ame_prob_variance", "ame_prob_covariance", "diff_prob_variance")
+        values = {key: _finite(row.get(key)) for key in columns}
+        if any(value is None for value in values.values()):
+            return None
+        a, b, cov, diff = (float(values[key]) for key in columns)
+        if min(a, b, diff) < 0 or abs(cov) > np.sqrt(a * b) + 1e-12:
+            return None
+        if not np.isclose(diff, a + b - 2 * cov, rtol=1e-7, atol=1e-12):
+            return None
+        return {"left": a, "right": b, "covariance": cov, "difference": diff}
+
+    parent, companion = moments(parent_dir), moments(companion_dir)
+    if parent is None or companion is None:
         return {
             "channel_status": "unavailable",
-            "channel_reason": "tau_summary.csv is missing the per-outcome AME interval",
+            "channel_reason": "paired-draw variances and covariance are missing or inconsistent; interval widths cannot replace them",
         }
-    left, right = outcomes
-
-    def _implied(widths: Mapping[str, float], diff_width: float) -> float | None:
-        a, b = widths[left], widths[right]
-        value = (a * a + b * b - diff_width * diff_width) / (2 * a * b)
-        return value if -1.0 <= value <= 1.0 else None
-
-    parent_r = _implied(parent_widths, parent_width)
-    companion_r = _implied(companion_widths, companion_width)
-    if parent_r is None or companion_r is None:
-        return {
-            "channel_status": "unavailable",
-            "channel_reason": (
-                "the interval widths imply a correlation outside [-1, 1], so the "
-                "Gaussian width identity does not describe these posteriors"
-            ),
-        }
-    a, b = companion_widths[left], companion_widths[right]
-    marginal_only = float(np.sqrt(max(a * a + b * b - 2 * parent_r * a * b, 0.0)))
-    marginal_channel = marginal_only - parent_width
-    covariance_channel = companion_width - marginal_only
-    moved = abs(marginal_channel) + abs(covariance_channel)
-    correlation_change = companion_r - parent_r
-    if abs(correlation_change) <= _AME_CORRELATION_NOISE:
-        dominant = "marginal_uncertainty"
-    elif abs(covariance_channel) > abs(marginal_channel):
-        dominant = "cross_outcome_covariance"
-    else:
-        dominant = "marginal_uncertainty"
+    marginal = companion["left"] + companion["right"] - parent["left"] - parent["right"]
+    covariance = -2 * (companion["covariance"] - parent["covariance"])
     return {
         "channel_status": "measured",
-        "parent_marginal_widths": {k: float(v) for k, v in parent_widths.items()},
-        "companion_marginal_widths": {k: float(v) for k, v in companion_widths.items()},
-        "parent_implied_ame_correlation": float(parent_r),
-        "companion_implied_ame_correlation": float(companion_r),
-        "implied_ame_correlation_change": float(correlation_change),
-        "marginal_width_channel": float(marginal_channel),
-        "covariance_width_channel": float(covariance_channel),
-        "covariance_channel_share": (float(abs(covariance_channel) / moved) if moved else None),
-        "dominant_width_channel": dominant,
+        "channel_scale": "variance",
+        "channel_method": "paired_ame_draws_v1",
+        "parent_ame_moments": parent,
+        "companion_ame_moments": companion,
+        "marginal_variance_channel": marginal,
+        "covariance_variance_channel": covariance,
+        "contrast_variance_change": companion["difference"] - parent["difference"],
     }
 
 

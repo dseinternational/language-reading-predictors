@@ -49,15 +49,8 @@ from language_reading_predictors.statistical_models.invariants import (
 _CONTRAST_DIRECTION_SHIFT = 0.05
 
 
-#: How far the implied cross-outcome posterior correlation must move between a
-#: factorised parent and its companion before the contrast's width change is
-#: attributed to covariance at all (2026-08-24 review of the joint audit). Both
-#: correlations are read off equal-tailed interval widths, and a factorised
-#: parent's is *structurally* zero — its outcomes share no parameter — so the
-#: parent's measured value is this approximation's own noise floor. On the three
-#: registered pairs it is -0.011, -0.010 and -0.019 against exact posterior-draw
-#: values of -0.003, -0.006 and -0.006, so a band just above that floor separates
-#: Monte Carlo noise from a covariance correction.
+#: Retired interval-width approximation threshold, retained for import compatibility.
+#: Current comparisons use actual paired-draw variances and covariance.
 _AME_CORRELATION_NOISE = 0.03
 
 
@@ -153,11 +146,15 @@ def causal_term_for(config: Mapping[str, Any]) -> str:
     return "tau"
 
 
-_PRIOR_ATTENUATION_NOTE = (
-    "The treatment-effect prior is deliberately cautious and pulls this estimate "
-    "towards no effect, so the size is best read as a lower bound while the "
-    "direction is the more reliable part."
+_PRIOR_SENSITIVITY_NOTE = (
+    "Power scaling flags sensitivity to both the prior and likelihood. This does "
+    "not establish the direction of prior influence, a lower bound on the effect, "
+    "or a stable sign. Read the estimate with its uncertainty and any completed "
+    "estimand-matched prior sensitivity analysis."
 )
+# Compatibility name; the note no longer asserts attenuation.
+_PRIOR_ATTENUATION_NOTE = _PRIOR_SENSITIVITY_NOTE
+
 
 
 _QUALIFY_NOTE = (
@@ -551,17 +548,15 @@ def _floor_decision(
     # trace-validated. The per-class treatment mirrors the graded branch below —
     # the grid gates *whether* a floored fit may speak, not *how* its prior
     # dependence is described (2026-08-20 ITT review, finding 2: the floored path
-    # released a ``prior_data_conflict`` verdict without the attenuation note the
+    # released a ``prior_data_conflict`` verdict without the prior-sensitivity note the
     # module policy promises).
     if tau_class == "prior_data_conflict":
         return ReleaseDecision(
             status="release",
-            note=_PRIOR_ATTENUATION_NOTE,
+            note=_PRIOR_SENSITIVITY_NOTE,
             reason=(
-                "power-scaling flags a prior-data conflict on `tau`, but the "
-                "likelihood moves the posterior too, so the conservative prior "
-                "attenuates the estimate rather than determining it; the "
-                "completed treatment-prior grid bounds how far"
+                "power-scaling flags sensitivity to both prior and likelihood on `tau`; "
+                "the completed treatment-prior grid gives a separate sensitivity check"
             ),
             **common,
         )
@@ -638,12 +633,10 @@ def _gain_offfloor_decision(
     if tau_class == "prior_data_conflict":
         return ReleaseDecision(
             status="release",
-            note=_PRIOR_ATTENUATION_NOTE,
+            note=_PRIOR_SENSITIVITY_NOTE,
             reason=(
-                f"power-scaling flags a prior-data conflict on `{causal_term}`, "
-                "but the likelihood moves the posterior too, so the conservative "
-                "prior attenuates the estimate rather than determining it; the "
-                "trace-bound treatment-prior sweep bounds how far"
+                f"power-scaling flags sensitivity to both prior and likelihood on `{causal_term}`; "
+                "the trace-bound treatment-prior sweep gives a separate sensitivity check"
             ),
             **common,
         )
@@ -746,11 +739,10 @@ def evaluate_itt_release(
     if tau_class == "prior_data_conflict":
         return ReleaseDecision(
             status="release",
-            note=_PRIOR_ATTENUATION_NOTE,
+            note=_PRIOR_SENSITIVITY_NOTE,
             reason=(
-                f"power-scaling flags a prior-data conflict on `{causal_term}`, but "
-                "the likelihood moves the posterior too, so the conservative prior "
-                "attenuates the estimate rather than determining it"
+                f"power-scaling flags sensitivity to both prior and likelihood on `{causal_term}`; "
+                "the flag alone does not establish the direction of prior influence"
             ),
             **common,
         )

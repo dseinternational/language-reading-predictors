@@ -112,7 +112,6 @@ from language_reading_predictors.statistical_models.release.dependence import ( 
     _historical_joint_resolvability_change,
     _joint_contrast_consequence,
     _joint_dependence_companion_note,
-    _joint_marginal_widths,
     _joint_width_channels,
     _required_dependence_companion,
 )

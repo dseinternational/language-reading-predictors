@@ -208,31 +208,48 @@ class NewChildValidation:
     latents_redrawn: tuple[str, ...]
     observed_nodes: tuple[str, ...]
     latent_mc_error: float = 0.0
-    """Largest per-child half-split disagreement in the integrated log term."""
+    """Largest half-split disagreement over every posterior draw and child."""
+    latent_mc_elpd_error: float = float("nan")
+    integration_batches_reliable: bool = False
     pit: pd.DataFrame = field(default_factory=pd.DataFrame)
 
     @property
+    def diagnostics_valid(self) -> bool:
+        """Require complete, finite diagnostics before comparing thresholds."""
+        return bool(
+            self.n_children > 0
+            and self.posterior_draws_used > 0
+            and self.pareto_k.shape == (self.n_children,)
+            and self.pointwise_elpd.shape == (self.n_children,)
+            and np.isfinite(self.pareto_k).all()
+            and np.isfinite(self.pointwise_elpd).all()
+            and all(math.isfinite(v) for v in (self.elpd, self.elpd_se, self.p_loo, self.good_k))
+            and self.elpd_se >= 0
+            and 0 < self.good_k <= 1
+        )
+
+    @property
     def n_unreliable(self) -> int:
-        return int((self.pareto_k > self.good_k).sum())
+        return int((~np.isfinite(self.pareto_k) | (self.pareto_k > self.good_k)).sum())
 
     @property
     def integration_reliable(self) -> bool:
-        """Whether the latent integral is precise enough to carry the ELPD.
+        """Check integration stability, not a bound on numerical error.
 
-        Two things can be too rough here, and only one of them is Pareto-k. The
-        integral itself is a Monte-Carlo average over a finite number of population
-        draws, and its error scales with how many latent dimensions the child carries:
-        the two-dimensional joint residual settles by a few dozen draws, while a
-        multi-measure panel's stable-plus-within departures were still moving the ELPD
-        by hundreds of nats between 64 and 256 draws (#626 probe, 2026-09-01). The
-        test is relative rather than absolute — integration noise summed over children
-        must stay inside the ELPD's own standard error, because an estimate whose
-        numerical error rivals its sampling error is not measuring the model.
+        Compare every draw's log likelihood before averaging, and recompute PSIS
+        on both independent integration batches. The sum of absolute pointwise
+        ELPD changes avoids cancellation between children. Neither check proves
+        accuracy; both batches can miss the same part of a latent distribution.
         """
-        if not math.isfinite(self.latent_mc_error):
+        if not self.diagnostics_valid or not math.isfinite(self.latent_mc_error) or self.latent_mc_error < 0:
             return False
-        if not math.isfinite(self.elpd_se) or self.elpd_se <= 0.0:
-            return self.latent_mc_error == 0.0
+        if self.latents_redrawn and (
+            not self.integration_batches_reliable
+            or not math.isfinite(self.latent_mc_elpd_error)
+            or self.latent_mc_elpd_error < 0
+            or self.latent_mc_elpd_error > self.elpd_se
+        ):
+            return False
         return self.n_children * self.latent_mc_error <= self.elpd_se
 
     @property
@@ -244,7 +261,7 @@ class NewChildValidation:
         importance ratios, so a conditional fit's clean k values are no warrant — and
         it applies to the integral's own precision alongside it.
         """
-        return self.n_unreliable == 0 and self.integration_reliable
+        return self.diagnostics_valid and self.n_unreliable == 0 and self.integration_reliable
 
     @property
     def max_pareto_k(self) -> float:
@@ -252,6 +269,8 @@ class NewChildValidation:
 
     def summary_row(self) -> dict[str, Any]:
         return {
+            "validation_schema_version": 2,
+            "diagnostics_valid": self.diagnostics_valid,
             "prediction_target": self.plan.prediction_target,
             "holdout_unit": "child",
             "n_children": self.n_children,
@@ -266,6 +285,8 @@ class NewChildValidation:
             "latents_redrawn": " ".join(self.latents_redrawn) or "(none)",
             "observed_nodes": " ".join(self.observed_nodes),
             "latent_mc_half_split_error": self.latent_mc_error,
+            "latent_mc_elpd_error": self.latent_mc_elpd_error,
+            "integration_batches_reliable": self.integration_batches_reliable,
             "n_latent_draws": self.plan.n_latent_draws,
             "posterior_draws_used": self.posterior_draws_used,
         }
@@ -422,7 +443,7 @@ def _half_split_error(
     population draws, and how finite is enough depends on how many latent dimensions
     the child carries — two for the joint LKJ residual, far more for a correlated
     multi-measure panel. Splitting the re-draws into two independent halves and taking
-    the largest per-child disagreement in the draw-averaged term gives the reader a
+    the largest disagreement over posterior draws and children gives the reader a
     number for that rather than an assurance. Zero when there is no latent to
     integrate, because the term is then exact.
     """
@@ -434,8 +455,8 @@ def _half_split_error(
     # Each half is normalised by the number of re-draws it actually accumulated, not by
     # a formula derived from the total: the even and odd halves differ in size whenever
     # ``n_latent_draws`` is odd, and deriving it got the two the wrong way round.
-    left = (first - math.log(counts[0])).mean(axis=(0, 1))
-    right = (second - math.log(counts[1])).mean(axis=(0, 1))
+    left = first - math.log(counts[0])
+    right = second - math.log(counts[1])
     return float(np.max(np.abs(left - right)))
 
 
@@ -445,6 +466,31 @@ def _observed_node_names(model: pm.Model, plan: NewChildPlan) -> tuple[str, ...]
     if declared:
         return declared
     return tuple(rv.name for rv in model.observed_RVs)
+
+
+def _integration_score_stability(scores: Sequence[Any], n_children: int) -> tuple[float, bool]:
+    """Compare full and split PSIS scores without cancellation across children."""
+    points = []
+    for score in scores:
+        values = np.asarray(score.elpd_i, dtype=float).ravel()
+        k = np.asarray(score.pareto_k, dtype=float).ravel()
+        threshold = float(getattr(score, "good_k", DEFAULT_GOOD_K))
+        if (
+            values.shape != (n_children,)
+            or k.shape != (n_children,)
+            or not np.isfinite(values).all()
+            or not np.isfinite(k).all()
+            or not math.isfinite(threshold)
+            or not 0 < threshold <= 1
+            or np.any(k > threshold)
+            or not all(math.isfinite(float(getattr(score, name))) for name in ("elpd", "se", "p"))
+            or float(score.se) < 0
+        ):
+            return float("nan"), False
+        points.append(values)
+    if len(points) != 3:
+        return float("nan"), False
+    return max(float(np.abs(a - b).sum()) for i, a in enumerate(points) for b in points[i + 1 :]), True
 
 
 def run_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -> NewChildValidation:
@@ -587,7 +633,19 @@ def run_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -> 
     elpd = _loo(loo_tree, pointwise=True, var_name="y_child")
     pareto_k = np.asarray(getattr(elpd, "pareto_k")).ravel().astype(float)
     pointwise = np.asarray(getattr(elpd, "elpd_i", np.array([]))).ravel().astype(float)
-    good_k = float(getattr(elpd, "good_k", DEFAULT_GOOD_K) or DEFAULT_GOOD_K)
+    good_k = float(getattr(elpd, "good_k", DEFAULT_GOOD_K))
+    batch_error, batches_reliable = 0.0, True
+    if latents:
+        batch_scores = [elpd]
+        for half_sum, count in zip(halves, half_counts, strict=True):
+            if half_sum is None or count < 1:
+                raise ValueError("both integration batches must contain latent draws")
+            half_da = integrated_da.copy(data=half_sum - math.log(count))
+            half_tree = xr.DataTree()
+            half_tree["posterior"] = xr.DataTree(thinned)
+            half_tree["log_likelihood"] = xr.DataTree(xr.Dataset({"y_child": half_da}))
+            batch_scores.append(_loo(half_tree, pointwise=True, var_name="y_child"))
+        batch_error, batches_reliable = _integration_score_stability(batch_scores, n_children)
 
     pit = _new_child_pit(
         ctx,
@@ -613,6 +671,8 @@ def run_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -> 
         latents_redrawn=latents,
         observed_nodes=nodes,
         latent_mc_error=latent_mc_error,
+        latent_mc_elpd_error=batch_error,
+        integration_batches_reliable=batches_reliable,
         pit=pit,
     )
 
@@ -806,7 +866,7 @@ def write_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -
                 "subject_id": _subject_ids(ctx, result.n_children),
                 "pareto_k": result.pareto_k,
                 "good_k_threshold": result.good_k,
-                "new_child_loo_reliable": result.pareto_k <= result.good_k,
+                "new_child_loo_reliable": np.isfinite(result.pareto_k) & (result.pareto_k <= result.good_k),
             }
         ).sort_values("pareto_k", ascending=False),
     )
@@ -815,12 +875,14 @@ def write_new_child_validation(ctx: StatisticalFitContext, plan: NewChildPlan) -
         _plot_new_child_pit(ctx, result)
     if not result.reliable:
         reasons = []
+        if not result.diagnostics_valid:
+            reasons.append("diagnostics are incomplete or non-finite")
         if result.n_unreliable:
-            reasons.append(f"{result.n_unreliable} of {result.n_children} children exceed good_k = {result.good_k:.2f}")
+            reasons.append(f"{result.n_unreliable} of {result.n_children} children have invalid or excessive Pareto-k (threshold {result.good_k:.2f})")
         if not result.integration_reliable:
             reasons.append(
-                f"the latent integral's half-split error ({result.latent_mc_error:.3g} "
-                f"per child) is large beside the ELPD's own SE ({result.elpd_se:.3g})"
+                f"integration stability checks failed (maximum draw discrepancy {result.latent_mc_error:.3g}, "
+                f"split-score discrepancy {result.latent_mc_elpd_error:.3g}, ELPD SE {result.elpd_se:.3g})"
             )
         rprint(f"[yellow]new-child ELPD withheld: {'; '.join(reasons)}[/yellow]")
     return result

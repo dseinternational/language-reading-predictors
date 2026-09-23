@@ -123,10 +123,10 @@ def test_pooled_perm_deltas_is_deterministic_per_seed(rank_predictors):
     cluster_cols = {0: [0, 1], 1: [2]}
 
     d1 = rank_predictors._pooled_perm_deltas(
-        estimators, X, y, test_indices, groups, cluster_cols, n_repeats=4, seed=47
+        estimators, X, y, test_indices, groups, cluster_cols, n_repeats=4, seed=47, waves=np.tile(np.arange(3), n // 3)
     )
     d2 = rank_predictors._pooled_perm_deltas(
-        estimators, X, y, test_indices, groups, cluster_cols, n_repeats=4, seed=47
+        estimators, X, y, test_indices, groups, cluster_cols, n_repeats=4, seed=47, waves=np.tile(np.arange(3), n // 3)
     )
     for c in cluster_cols:
         assert np.allclose(d1[c], d2[c])

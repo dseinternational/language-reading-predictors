@@ -293,14 +293,15 @@ class EstimatorPipeline:
 
         Note on units: deltas are in held-out **RMSE** units. The models
         are tuned under a Huber objective with RMSE scoring (2026-09-22
-        adoption, superseding the #169 MAE policy), so the ranking metric and
-        the objective both target the conditional mean; the ranking is what
-        the report reads.
+        adoption, superseding the #169 MAE policy). RMSE assesses squared-error
+        performance; fixed-threshold Huber predictions need not be conditional
+        means. The ranking measures this fitted predictor's RMSE sensitivity.
 
         The CSV tables keep every predictor. The box plot shows only the
         leading ``plot_top_n`` predictors so the figure stays legible.
         """
         from language_reading_predictors.models.permutation import (
+            permutation_schedule_support,
             pooled_permutation_deltas,
         )
 
@@ -324,6 +325,9 @@ class EstimatorPipeline:
             raise RuntimeError(msg)
 
         n_features = len(context.X.columns)
+        support = permutation_schedule_support(context.groups, context.df[V.TIME])
+        support.to_csv(context.output_dir / "permutation_schedule_support.csv", index=False)
+        context.dataframes["permutation_schedule_support"] = support
         deltas = pooled_permutation_deltas(
             cv_results["estimator"],
             context.X,
@@ -333,6 +337,7 @@ class EstimatorPipeline:
             {i: [i] for i in range(n_features)},
             n_repeats=n_repeats,
             seed=cfg.random_seed,
+            waves=context.df[V.TIME],
         )
 
         # A positive delta means the pooled out-of-fold RMSE rose when the
@@ -754,7 +759,7 @@ class EstimatorPipeline:
         """
         from sklearn.base import clone
         from sklearn.utils import resample
-        from language_reading_predictors.models.permutation import pooled_permutation_deltas
+        from language_reading_predictors.models.permutation import permutation_schedule_support, pooled_permutation_deltas
 
         section_header("Stability selection")
 
@@ -783,6 +788,7 @@ class EstimatorPipeline:
         }
 
         completed_bootstraps = 0
+        support_records = []
         for b in range(n_bootstraps):
             seed = int(rng.integers(0, 2**31 - 1))
             drawn = resample(
@@ -795,11 +801,18 @@ class EstimatorPipeline:
             X_b = context.X.iloc[row_idx]
             y_b = context.y.iloc[row_idx]
             oob_subjects = np.setdiff1d(unique_subjects, np.unique(drawn))
+            record = {"bootstrap": b, "n_oob_subjects": len(oob_subjects), "n_movable_subjects": 0, "used": False}
+            support_records.append(record)
             if oob_subjects.size < 2:
                 continue
             eval_idx = np.flatnonzero(context.groups.isin(oob_subjects).to_numpy())
             if eval_idx.size == 0:
                 continue
+            support = permutation_schedule_support(context.groups.iloc[eval_idx], context.df[V.TIME].iloc[eval_idx])
+            record["n_movable_subjects"] = int(support["n_movable_subjects"].sum())
+            if not record["n_movable_subjects"]:
+                continue
+            record["used"] = True
             X_eval = context.X.iloc[eval_idx]
             y_eval = context.y.iloc[eval_idx]
 
@@ -814,6 +827,7 @@ class EstimatorPipeline:
                 {i: [i] for i in range(X_eval.shape[1])},
                 n_repeats=n_repeats,
                 seed=seed,
+                waves=context.df[V.TIME].iloc[eval_idx],
             )
             importance_means = np.asarray([deltas[i].mean() for i in range(X_eval.shape[1])])
             completed_bootstraps += 1
@@ -831,9 +845,12 @@ class EstimatorPipeline:
                 if ranks[i] <= top_k:
                     appearance_top[feat] += 1
 
+        support_frame = pd.DataFrame(support_records)
+        support_frame.to_csv(context.output_dir / "stability_permutation_support.csv", index=False)
+        context.dataframes["stability_permutation_support"] = support_frame
         if completed_bootstraps == 0:
             raise RuntimeError(
-                "No bootstrap had at least two out-of-bag subjects for stability selection."
+                "No bootstrap had out-of-bag subjects sharing an assessment schedule for stability selection."
             )
 
         rows = []

@@ -1572,7 +1572,7 @@ def test_level_factors_surfaces_t2_psense_warning(tmp_path):
     assert "robustness" in kinds
     assert kinds.index("robustness") < kinds.index("causal")
     warn = payload["sentences"][kinds.index("robustness")]["text"]
-    assert "lower bound" in warn
+    assert "does not establish" in warn
 
 
 @pytest.mark.parametrize("clear_marker", ["✓", "-", ""])
@@ -3200,10 +3200,8 @@ def test_clean_power_scaling_releases_itt_findings_unchanged(tmp_path):
     ]
 
 
-def test_prior_data_conflict_releases_with_an_attenuation_note(tmp_path):
-    """A conservative zero-centred prior attenuates a real effect rather than
-    inventing one, so a conflict where the data still move the posterior is released
-    with a note that the size is a lower bound — not withheld."""
+def test_prior_data_conflict_releases_with_a_sensitivity_note(tmp_path):
+    """A power-scaling flag cannot establish attenuation or a lower bound."""
     d = _setup_dir(tmp_path, "itt")
     _write_psense(d, prior=0.09, likelihood=0.22)
     _write_csv(d, "rope_summary.csv", _rope_row())
@@ -3215,7 +3213,8 @@ def test_prior_data_conflict_releases_with_an_attenuation_note(tmp_path):
     assert "robustness" in kinds
     # The note must not displace the causal sentence (#464): it goes before it.
     assert kinds.index("robustness") < kinds.index("causal")
-    assert "lower bound" in _texts(payload)
+    assert "does not establish" in _texts(payload)
+    assert "best read as a lower bound" not in _texts(payload)
 
 
 def test_prior_dominant_tau_withholds_the_causal_headline(tmp_path):

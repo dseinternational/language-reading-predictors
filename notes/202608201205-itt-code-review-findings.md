@@ -1,3 +1,8 @@
+> [!NOTE]
+> Amendment drafted by a LLM-based AI tool (Codex/GPT-6), 23 September 2026.
+>
+> The later source review corrects the endorsement of automatic attenuation and lower-bound wording below. Sensitivity to prior and likelihood weights does not establish either claim. See [the correction record](20260923-statistical-review-corrections.md). The dated record below is preserved.
+
 # Code review of the ITT family: functional and statistical correctness
 
 > [!NOTE]

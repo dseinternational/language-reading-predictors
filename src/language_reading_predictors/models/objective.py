@@ -7,9 +7,10 @@ The gradient-boosting models use LightGBM's Huber objective (adopted
 2026-09-22 after the objective-sensitivity check recorded in
 ``notes/202609221700-gb-objective-sensitivity.md``, superseding the #169 MAE
 policy). Huber loss is quadratic for residuals within a threshold ``delta``
-and linear beyond it, so the fitted values are robust conditional means: the
-bulk of the sample is fitted as under squared error while the few extreme
-scorers that motivated MAE cannot dominate the trees.
+and linear beyond it. Its population target is a Huber location functional,
+which need not equal the conditional mean for skewed or floored outcomes.
+Clipping the residual gradient limits one source of influence; it does not
+guarantee that extreme observations cannot affect the fitted trees.
 
 The threshold is a per-model constant derived from the target's spread, not a
 tuned hyperparameter. ``delta = 1.345 * sigma_hat`` where ``sigma_hat`` is the
