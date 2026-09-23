@@ -21,27 +21,10 @@ _nc_kfold_pit = _csv("new_child_kfold_pit.csv")
 def _nc_true(value):
     return str(value).strip().lower() == "true"
 
-def _nc_current_reliable(row):
-    import math
+from language_reading_predictors.statistical_models.new_child_evidence import new_child_validation_verdict
 
-    try:
-        finite = all(math.isfinite(float(row[name])) for name in (
-            "elpd", "elpd_se", "p_loo", "max_pareto_k", "good_k_threshold", "n_children",
-        ))
-        valid = (
-            finite and float(row["elpd_se"]) >= 0 and float(row["n_children"]) > 0
-            and 0 < float(row["good_k_threshold"]) <= 1
-            and float(row["max_pareto_k"]) <= float(row["good_k_threshold"])
-            and float(row["n_unreliable"]) == 0
-        )
-    except (KeyError, TypeError, ValueError):
-        return False
-    return (
-        valid and str(row.get("validation_schema_version", "")) in ("2", "2.0")
-        and _nc_true(row.get("diagnostics_valid"))
-        and _nc_true(row.get("integration_reliable"))
-        and _nc_true(row.get("reliable"))
-    )
+def _nc_current_reliable(row):
+    return new_child_validation_verdict(row.to_dict()).reliable
 
 if _nc_target:
     print(
@@ -84,34 +67,17 @@ elif _nc is not None and not _nc.empty:
         print(
             f"\nExpected log predictive density for a new child: "
             f"**{float(_row['elpd']):.1f}** (standard error {float(_row['elpd_se']):.1f}) "
-            f"over {int(_row['n_children'])} children. Every Pareto-$k$ is at or below "
+            f"over {int(float(_row['n_children']))} children. Every Pareto-$k$ is at or below "
             f"the reliability threshold ({float(_row['good_k_threshold']):.2f}), and the "
-            "integration stability checks are no larger than that standard error. "
+            "split-score stability check is no larger than that standard error. "
             "These checks do not bound integration error; both batches may miss the same region.\n"
         )
     else:
-        _why = []
-        if not _nc_true(_row.get("diagnostics_valid")) or str(_row.get("validation_schema_version", "")) not in ("2", "2.0"):
-            _why.append("the current finite-diagnostic and integration checks have not been recorded")
-        if int(_row.get("n_unreliable", 0)) > 0:
-            _why.append(
-                f"{int(_row['n_unreliable'])} of {int(_row['n_children'])} children have "
-                f"a Pareto-$k$ above {float(_row['good_k_threshold']):.2f} "
-                f"(largest {float(_row['max_pareto_k']):.2f})"
-            )
-        if not _nc_true(_row.get("integration_reliable")):
-            _why.append(
-                "integration stability has not passed the current checks"
-            )
-        if not _why:
-            _why.append("the stored validation evidence has not passed all required checks")
+        _verdict = new_child_validation_verdict(_row.to_dict())
         print(
             "\n**The ELPD is withheld.** "
-            + "; ".join(_why).capitalize()
-            + ". An importance-sampling estimate is only as good as its weights, and "
-            "an estimate whose numerical error rivals its sampling error is not "
-            "measuring the model, so neither number is published as a validation "
-            "(#626).\n"
+            + "; ".join(_verdict.reasons).capitalize()
+            + ". Revalidate the saved fit before interpreting its predictive score.\n"
         )
 ```
 

@@ -121,9 +121,12 @@ def _standardise_perm(df: pd.DataFrame) -> pd.DataFrame:
     Shared by both entry points so the two surfaces standardise the (differently
     sourced) permutation-importance frame identically.
     """
-    return df.rename(
+    out = df.rename(
         columns={"importance_mean": "perm_imp_mean", "importance_std": "perm_imp_sd"}
-    )[["feature", "perm_imp_mean", "perm_imp_sd"]]
+    ).copy()
+    if "permutation_status" not in out:
+        out["permutation_status"] = np.where(out["perm_imp_mean"].notna(), "assessable", "not assessable under this design")
+    return out[["feature", "perm_imp_mean", "perm_imp_sd", "permutation_status"]]
 
 
 def aggregate_cluster_importance(
@@ -133,7 +136,7 @@ def aggregate_cluster_importance(
 
     A light, single-fit proxy for the dedicated ranking run's grouped-permutation
     cluster importance: the cluster score is the **mean** per-feature out-of-fold
-    permutation importance of its members (with the member SDs propagated). Ranks
+    permutation importance of its assessable members (with the member SDs propagated). Ranks
     clusters by that mean. Returns the same schema the grouped-permutation path
     produces, so :func:`assemble_ranking` / :func:`cluster_ranking_table` are shared.
 
@@ -154,14 +157,16 @@ def aggregate_cluster_importance(
             # cluster_perm_imp_sd in scripts/rank_predictors.py (the std of the
             # regrouped delta samples, a different statistic on the same column).
             "cluster_perm_imp_sd": g["perm_imp_sd"]
-            .apply(lambda s: float(np.sqrt(np.nanmean(np.square(s.to_numpy())))))
+            .apply(lambda s: float(np.sqrt(np.mean(np.square(s.dropna().to_numpy())))) if s.notna().any() else np.nan)
             .to_numpy(),
             "n_members": g["feature"].size().to_numpy(),
+            "n_assessable_members": g["perm_imp_mean"].count().to_numpy(),
             "members": g["feature"].apply(lambda s: ", ".join(map(str, s))).to_numpy(),
         }
     )
     out = out.sort_values("cluster_perm_imp_mean", ascending=False).reset_index(drop=True)
-    out["cluster_rank"] = np.arange(1, len(out) + 1)
+    out["cluster_rank"] = out["cluster_perm_imp_mean"].rank(ascending=False, method="first")
+    out["permutation_status"] = np.where(out["cluster_perm_imp_mean"].notna(), "assessable", "not assessable under this design")
     return out
 
 
@@ -208,11 +213,11 @@ def assemble_ranking(pipe, target, siblings, cluster_imp):
     df = df.sort_values(
         ["cluster_rank", "perm_imp_mean"], ascending=[True, False]
     ).reset_index(drop=True)
-    df["within_cluster_rank"] = df.groupby("cluster_rank").cumcount() + 1
+    df["within_cluster_rank"] = df.groupby("cluster_id")["perm_imp_mean"].rank(ascending=False, method="first")
     cols = [
         "cluster_rank", "cluster_id", "within_cluster_rank", "member",
         "cluster_perm_imp_mean", "perm_imp_mean", "perm_imp_sd", "z",
-        "mean_abs_shap", "topk_freq", "sign", "same_skill_of_outcome",
+        "mean_abs_shap", "topk_freq", "sign", "same_skill_of_outcome", "permutation_status",
     ]
     return df[cols]
 
@@ -230,15 +235,18 @@ def cluster_ranking_table(cluster_imp, ranking, siblings):
         members = ranking[ranking["cluster_id"] == c["cluster_id"]].sort_values(
             "perm_imp_mean", ascending=False
         )
-        rep = members.iloc[0]["member"]
-        non_skill = members[~members["same_skill_of_outcome"]]
+        eligible = members[members["perm_imp_mean"].notna()]
+        rep = eligible.iloc[0]["member"] if len(eligible) else None
+        non_skill = eligible[~eligible["same_skill_of_outcome"]]
         rep_excl = non_skill.iloc[0]["member"] if len(non_skill) else None
         rows.append({
-            "cluster_rank": int(c["cluster_rank"]),
+            "cluster_rank": c["cluster_rank"],
+            "permutation_status": "assessable" if pd.notna(c["cluster_perm_imp_mean"]) else "not assessable under this design",
             "cluster_id": int(c["cluster_id"]),
             "cluster_perm_imp_mean": c["cluster_perm_imp_mean"],
             "cluster_perm_imp_sd": c["cluster_perm_imp_sd"],
             "n_members": int(c["n_members"]),
+            "n_assessable_members": len(eligible),
             "representative": rep,
             "representative_excl_same_skill": rep_excl,
             "any_same_skill": bool(members["same_skill_of_outcome"].any()),

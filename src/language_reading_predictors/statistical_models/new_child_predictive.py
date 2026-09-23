@@ -94,6 +94,11 @@ from language_reading_predictors.statistical_models.artifacts import (
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.new_child_evidence import (
+    VALIDATION_SCHEMA_VERSION,
+    NewChildVerdict,
+    new_child_validation_verdict,
+)
 
 __all__ = [
     "NewChildEvidenceUnavailable",
@@ -216,17 +221,7 @@ class NewChildValidation:
     @property
     def diagnostics_valid(self) -> bool:
         """Require complete, finite diagnostics before comparing thresholds."""
-        return bool(
-            self.n_children > 0
-            and self.posterior_draws_used > 0
-            and self.pareto_k.shape == (self.n_children,)
-            and self.pointwise_elpd.shape == (self.n_children,)
-            and np.isfinite(self.pareto_k).all()
-            and np.isfinite(self.pointwise_elpd).all()
-            and all(math.isfinite(v) for v in (self.elpd, self.elpd_se, self.p_loo, self.good_k))
-            and self.elpd_se >= 0
-            and 0 < self.good_k <= 1
-        )
+        return self.verdict.diagnostics_valid
 
     @property
     def n_unreliable(self) -> int:
@@ -236,21 +231,11 @@ class NewChildValidation:
     def integration_reliable(self) -> bool:
         """Check integration stability, not a bound on numerical error.
 
-        Compare every draw's log likelihood before averaging, and recompute PSIS
-        on both independent integration batches. The sum of absolute pointwise
-        ELPD changes avoids cancellation between children. Neither check proves
-        accuracy; both batches can miss the same part of a latent distribution.
+        Recompute PSIS on both independent integration batches. The sum of
+        absolute pointwise ELPD changes avoids cancellation between children.
+        The raw per-draw maximum remains a diagnostic, not an ELPD error bound.
         """
-        if not self.diagnostics_valid or not math.isfinite(self.latent_mc_error) or self.latent_mc_error < 0:
-            return False
-        if self.latents_redrawn and (
-            not self.integration_batches_reliable
-            or not math.isfinite(self.latent_mc_elpd_error)
-            or self.latent_mc_elpd_error < 0
-            or self.latent_mc_elpd_error > self.elpd_se
-        ):
-            return False
-        return self.n_children * self.latent_mc_error <= self.elpd_se
+        return self.verdict.integration_reliable
 
     @property
     def reliable(self) -> bool:
@@ -261,16 +246,25 @@ class NewChildValidation:
         importance ratios, so a conditional fit's clean k values are no warrant — and
         it applies to the integral's own precision alongside it.
         """
-        return self.diagnostics_valid and self.n_unreliable == 0 and self.integration_reliable
+        return self.verdict.reliable
+
+    @property
+    def verdict(self) -> NewChildVerdict:
+        return new_child_validation_verdict(self._evidence_row())
 
     @property
     def max_pareto_k(self) -> float:
         return float(self.pareto_k.max()) if self.pareto_k.size else float("nan")
 
-    def summary_row(self) -> dict[str, Any]:
+    def _evidence_row(self) -> dict[str, Any]:
         return {
-            "validation_schema_version": 2,
-            "diagnostics_valid": self.diagnostics_valid,
+            "validation_schema_version": VALIDATION_SCHEMA_VERSION,
+            "pointwise_diagnostics_valid": bool(
+                self.pareto_k.shape == (self.n_children,)
+                and self.pointwise_elpd.shape == (self.n_children,)
+                and np.isfinite(self.pareto_k).all()
+                and np.isfinite(self.pointwise_elpd).all()
+            ),
             "prediction_target": self.plan.prediction_target,
             "holdout_unit": "child",
             "n_children": self.n_children,
@@ -280,8 +274,6 @@ class NewChildValidation:
             "max_pareto_k": self.max_pareto_k,
             "good_k_threshold": self.good_k,
             "n_unreliable": self.n_unreliable,
-            "reliable": self.reliable,
-            "integration_reliable": self.integration_reliable,
             "latents_redrawn": " ".join(self.latents_redrawn) or "(none)",
             "observed_nodes": " ".join(self.observed_nodes),
             "latent_mc_half_split_error": self.latent_mc_error,
@@ -289,6 +281,16 @@ class NewChildValidation:
             "integration_batches_reliable": self.integration_batches_reliable,
             "n_latent_draws": self.plan.n_latent_draws,
             "posterior_draws_used": self.posterior_draws_used,
+        }
+
+    def summary_row(self) -> dict[str, Any]:
+        row = self._evidence_row()
+        verdict = new_child_validation_verdict(row)
+        return row | {
+            "diagnostics_valid": verdict.diagnostics_valid,
+            "integration_reliable": verdict.integration_reliable,
+            "reliable": verdict.reliable,
+            "withholding_reasons": "; ".join(verdict.reasons),
         }
 
 

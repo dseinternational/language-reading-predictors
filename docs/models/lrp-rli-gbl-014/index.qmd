@@ -82,6 +82,7 @@ if _rk.exists():
         print(
             gb_ranking_markdown(
                 pd.read_csv(_rk),
+                artifact_dir=Path("."),
                 target_label="basic concept knowledge (CELF) level",
             )
         )
@@ -230,16 +231,9 @@ Permutation importance measures how much prediction error increases when a predi
 
 ```{python}
 #| output: asis
-from pathlib import Path
+from language_reading_predictors.models._reporting import gb_permutation_support_markdown
 
-_support_path = Path("permutation_schedule_support.csv")
-if _support_path.exists():
-    _support = pd.read_csv(_support_path)
-    print(f"Alternative donors are available for {int(_support['n_movable_subjects'].sum())} "
-          f"of {int(_support['n_subjects'].sum())} children. Children with unique schedules stay fixed.")
-else:
-    print("::: {.callout-warning}\nThese saved rankings lack assessment-schedule support. "
-          "Recompute permutation importance before interpreting them under the corrected wave-alignment rule.\n:::")
+print(gb_permutation_support_markdown("."))
 ```
 
 
@@ -247,7 +241,7 @@ else:
 perm_imp = pd.read_csv("permutation_importance.csv")
 perm_imp
 ```
-The box plot shows the variation across shuffles. Positive importance means shuffling increased prediction error; a value near zero means the model changed little. This spread is not a credible interval for a causal effect.
+The box plot shows the variation across shuffles. Positive importance means shuffling increased prediction error; a value near zero means the model changed little under the permitted shuffles. Missing importance means the predictor is not assessable under this design. This spread is not a credible interval for a causal effect.
 
 ![Permutation importances](permutation_importance.png){#fig-perm-importance .lightbox fig-align="left"}
 

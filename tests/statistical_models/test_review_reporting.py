@@ -30,7 +30,11 @@ def _validation_row():
 
 
 @pytest.mark.parametrize("change", [{}, {"reliable": "False"}, {"validation_schema_version": 1},
-                                   {"max_pareto_k": np.nan}, {"elpd_se": np.nan}])
+                                   {"validation_schema_version": 2}, {"max_pareto_k": np.nan}, {"elpd_se": np.nan},
+                                   {"n_unreliable": np.nan}, {"n_unreliable": "broken"},
+                                   {"n_children": np.nan}, {"n_children": "broken"}, {"n_children": 2.5},
+                                   {"good_k_threshold": "broken"}, {"posterior_draws_used": 0},
+                                   {"posterior_draws_used": np.inf}, {"latent_mc_half_split_error": np.nan}])
 def test_new_child_csv_reader_requires_current_finite_evidence(tmp_path, capsys, change):
     row = _validation_row() | change
     path = tmp_path / "new_child_loo.csv"
@@ -45,6 +49,32 @@ def test_new_child_csv_reader_requires_current_finite_evidence(tmp_path, capsys,
         assert "**-10.0**" not in output
     else:
         assert "**-10.0**" in output
+
+
+@pytest.mark.parametrize("change", [{}, {"latent_mc_elpd_error": np.nan}, {"latent_mc_elpd_error": 3.},
+                                   {"integration_batches_reliable": "False"}, {"n_latent_draws": 1}])
+def test_latent_csv_evidence_overrules_stale_true_flags(tmp_path, capsys, change):
+    from dataclasses import replace
+
+    live = NewChildValidation(
+        plan=NewChildPlan(child_dims=("child",), latent_vars=("z",)), n_children=2,
+        posterior_draws_used=1000, elpd=-10, elpd_se=2, p_loo=1,
+        pointwise_elpd=np.array([-4., -6.]), pareto_k=np.array([.1, .2]), good_k=.7,
+        latents_redrawn=("z",), observed_nodes=("y",), latent_mc_error=100.,
+        latent_mc_elpd_error=.1, integration_batches_reliable=True,
+    )
+    row = live.summary_row() | change
+    path = tmp_path / "new_child_loo.csv"
+    pd.DataFrame([row]).to_csv(path, index=False)
+    frame = pd.read_csv(path)
+    namespace = {"config": {}, "_csv": lambda name: frame if name == path.name else None}
+    for block in _blocks("_new_child_validation.qmd"):
+        exec(compile(block, "_new_child_validation.qmd", "exec"), namespace)
+    output = capsys.readouterr().out
+    assert ("The ELPD is withheld" in output) == bool(change)
+    assert ("**-10.0**" in output) == (not change)
+    if "latent_mc_elpd_error" in change:
+        assert not replace(live, latent_mc_elpd_error=change["latent_mc_elpd_error"]).reliable
 
 
 @pytest.mark.parametrize("method", ["legacy_interval_widths", "paired_ame_draws_v1"])
@@ -76,3 +106,13 @@ def test_legacy_dependence_labels_are_translated_to_spread_only(capsys):
     assert "little or no contraction" in output
     assert "similar standard deviations, not equal distributions" in output
     assert "prior-dominated" not in output
+
+
+@pytest.mark.parametrize("source", ["persisted_prior", "lkj_closed_form"])
+def test_dependence_report_shows_prior_source_without_verdict(source, capsys):
+    frame = pd.DataFrame([{"parameter": "rho", "prior_sd": .33, "prior_source": source}])
+    block = next(block for block in _blocks("_results_joint.qmd") if "_dep_id =" in block)
+    exec(compile(block, "_results_joint.qmd", "exec"), {
+        "_joint_correlated": True, "_csv": lambda name, **kwargs: frame if name == "dependence_identification.csv" else None,
+    })
+    assert source in capsys.readouterr().out

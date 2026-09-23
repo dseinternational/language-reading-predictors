@@ -237,7 +237,8 @@ def cluster_permutation_importance(pipe, clusters_by_feature, *, n_repeats):
             "members": ",".join(members),
         })
     out = pd.DataFrame(rows).sort_values("cluster_perm_imp_mean", ascending=False).reset_index(drop=True)
-    out.insert(0, "cluster_rank", np.arange(1, len(out) + 1))
+    out.insert(0, "cluster_rank", out["cluster_perm_imp_mean"].rank(ascending=False, method="first"))
+    out["permutation_status"] = np.where(out["cluster_perm_imp_mean"].notna(), "assessable", "not assessable under this design")
     return out
 
 
@@ -289,7 +290,14 @@ def conditional_dropout_check(model_id, run, cluster_imp, clusters_by_feature, b
     """Conditional cross-check on the dominant cluster: drop the whole top cluster and
     report the pooled OOF R² change (how much the cluster *jointly* buys)."""
     feats = list(base_full_pipe.context.X.columns)
-    top_cluster = int(cluster_imp.iloc[0]["cluster_id"])
+    eligible = cluster_imp.dropna(subset=["cluster_perm_imp_mean"])
+    if eligible.empty:
+        return {
+            "status": "not assessable under this design", "top_cluster_members": [],
+            "r2_full": base_full_pipe.context.pooled_cv_metrics.get("pooled_r2"),
+            "r2_drop_top_cluster": None,
+        }
+    top_cluster = int(eligible.iloc[0]["cluster_id"])
     top_members = [f for f in feats if clusters_by_feature[f] == top_cluster]
     cfg, _, _ = make_config(model_id, kind="full")
     cfg = dataclasses.replace(
@@ -351,8 +359,10 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
             ns = run_stages(cfg_ns, run, cluster_cutoff=cutoff, do_stability=False)
             ns.context.perm_importance_df.to_csv(out / "ranking_excluding_same_skill.csv", index=False)
             noskill = {"dropped": siblings,
-                       "top5": ns.context.perm_importance_df.head(5)["feature"].tolist(),
+                       "top5": ns.context.perm_importance_df.dropna(subset=["importance_mean"]).head(5)["feature"].tolist(),
                        "r2_noskill": ns.context.pooled_cv_metrics.get("pooled_r2")}
+
+        from language_reading_predictors.models.permutation import PERMUTATION_DESIGN_VERSION
 
         # self-describing metadata (records the pinned cv config)
         meta = {
@@ -364,7 +374,7 @@ def run_model(model_id, *, cutoff=0.4, cv_splits=None, perm_repeats=None, quick=
             "cluster_cutoff": cutoff, "random_seed": base.random_seed,
             "pooled_oof_r2": full.context.pooled_cv_metrics.get("pooled_r2"),
             "primary_artefact": "cluster_ranking.csv",
-            "permutation_design": "subject_blocks_same_wave_schedule_v1",
+            "permutation_design": PERMUTATION_DESIGN_VERSION,
             "permutation_support": "permutation_schedule_support.csv",
             "note": ("cluster-level grouped importance is the primary unit; per-feature z "
                      "is cv_splits-sensitive (read clusters first)"),
@@ -398,12 +408,12 @@ def _print_summary(model_id, target, siblings, full, ranking, cluster_rank, sens
           f"n_children={full.context.groups.nunique()}  "
           f"full_set={len(full.context.X.columns)}  pooled_OOF_R2={_fmt(r2)}")
     if pd.isna(max_z):
-        verdict = "PLATEAU: all per-feature SD = 0 (z undefined)"
+        verdict = "no defined per-feature z: importance unavailable or SD zero"
     else:
         verdict = "PLATEAU: none > 1 SD above 0" if max_z < 1 else "top feature clears z=1"
     print(f"  max |z| (per-feature perm imp / SD) = {_fmt(max_z, '{:.2f}')}  ({verdict})")
     print("\n  PRIMARY — cluster ranking (grouped permutation importance):")
-    for _, r in cluster_rank.head(4).iterrows():
+    for _, r in cluster_rank.dropna(subset=["cluster_rank"]).head(4).iterrows():
         skill = " *same-skill present*" if r["any_same_skill"] else ""
         print(f"    #{int(r['cluster_rank'])}  imp={r['cluster_perm_imp_mean']:+.4f}  "
               f"rep={r['representative']}  [{r['members']}]{skill}")
@@ -412,7 +422,7 @@ def _print_summary(model_id, target, siblings, full, ranking, cluster_rank, sens
         print(f"\n  same-skill flag -> {flagged} (curated siblings of {target})")
         if noskill:
             print(f"    excluding same-skill top5: {noskill['top5']}  R2={_fmt(noskill['r2_noskill'])}")
-    print(f"\n  conditional check: drop dominant cluster {cond['top_cluster_members']}")
+    print(f"\n  conditional check: {cond.get('status', 'drop dominant cluster')} {cond['top_cluster_members']}")
     print(f"    pooled R2  full={_fmt(cond['r2_full'])} -> drop-top-cluster={_fmt(cond['r2_drop_top_cluster'])}")
     print("\n  cut-height sensitivity:")
     print(sens[["cutoff", "n_clusters", "anchor_cluster_size"]].to_string(index=False))

@@ -49,11 +49,6 @@ from language_reading_predictors.statistical_models.invariants import (
 _CONTRAST_DIRECTION_SHIFT = 0.05
 
 
-#: Retired interval-width approximation threshold, retained for import compatibility.
-#: Current comparisons use actual paired-draw variances and covariance.
-_AME_CORRELATION_NOISE = 0.03
-
-
 #: Model tiers to which the withhold applies. Uniform by decision; narrowing this
 #: set is how a graded policy would be expressed.
 _WITHHOLD_TIERS = frozenset({"primary", "adjusted_robustness", "off_grid"})

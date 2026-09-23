@@ -76,19 +76,16 @@ def _required_dependence_companion(config: Mapping[str, Any]) -> str:
     return str(contrast.get("dependence_companion") or "")
 
 
-def _joint_width_channels(
+def _joint_variance_channels(
     *,
     parent_dir: Path,
     companion_dir: Path,
     outcomes: tuple[str, str],
-    parent_width: float,
-    companion_width: float,
 ) -> dict[str, Any]:
     """Decompose a variance change using moments of paired AME draws.
 
     Interval widths remain separate descriptive summaries. They do not identify
-    variances or covariance for arbitrary posterior distributions. The legacy
-    function name and width arguments remain for caller compatibility.
+    variances or covariance for arbitrary posterior distributions.
     """
     def moments(directory: Path) -> dict[str, float] | None:
         frame = _read_csv(directory, "tau_difference.csv")
@@ -213,12 +210,10 @@ def _joint_contrast_consequence(
     )
     if pair is not None and all(pair):
         record.update(
-            _joint_width_channels(
+            _joint_variance_channels(
                 parent_dir=parent_dir,
                 companion_dir=companion_dir,
                 outcomes=pair,
-                parent_width=p_width,
-                companion_width=c_width,
             )
         )
     else:

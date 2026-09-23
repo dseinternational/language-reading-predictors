@@ -107,7 +107,7 @@ def test_donor_mapping_is_invariant_to_row_order():
     np.testing.assert_array_equal(order[reordered], original[order])
 
 
-def test_identical_trajectories_with_missing_waves_have_zero_importance():
+def test_identical_trajectories_with_missing_waves_are_not_assessable():
     groups = np.array(["a", "a", "a", "b", "b", "c", "c"])
     waves = np.array([1, 2, 3, 1, 3, 3, 1])
     X = pd.DataFrame({"x": waves.astype(float)})
@@ -116,7 +116,7 @@ def test_identical_trajectories_with_missing_waves_have_zero_importance():
         [estimator], X, waves, [np.arange(len(X))], groups, {0: [0]},
         n_repeats=20, seed=47, waves=waves,
     )
-    np.testing.assert_array_equal(deltas[0], np.zeros(20))
+    assert np.isnan(deltas[0]).all()
 
 
 @pytest.mark.parametrize("waves", [None, [1, 1], [1], [1, np.nan]])

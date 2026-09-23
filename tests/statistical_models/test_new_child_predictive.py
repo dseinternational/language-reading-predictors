@@ -220,10 +220,21 @@ def test_a_rough_latent_integral_withholds_the_estimate_even_with_clean_k():
     256 latent draws while every k value stayed finite; an estimate whose numerical
     error rivals its own standard error is not measuring the model.
     """
-    result = _validation(pareto_k=[0.1, 0.2], mc_error=1.0, elpd_se=5.0, n_children=50)
+    from dataclasses import replace
+
+    result = replace(_validation(pareto_k=[0.1, 0.2], mc_error=1.0, elpd_se=5.0, n_children=50), latent_mc_elpd_error=6.0)
     assert result.n_unreliable == 0
     assert not result.integration_reliable
     assert not result.reliable
+
+
+def test_raw_likelihood_maximum_does_not_stand_in_for_score_error():
+    from dataclasses import replace
+
+    result = replace(_validation(pareto_k=[0.1], mc_error=20.0), latent_mc_elpd_error=0.1)
+    assert result.reliable
+    assert replace(result, posterior_draws_used=100_000, latent_mc_error=40.0).reliable
+    assert not replace(result, latent_mc_elpd_error=11.0).reliable
 
 
 def test_no_latent_means_no_integration_error_to_gate_on():

@@ -21,6 +21,9 @@ and scores the change in the *pooled* out-of-fold RMSE:
    values at the same assessment waves. Donors must have the same observed
    wave schedule. A schedule represented by only one child cannot be permuted.
    This defines importance conditional on the observed assessment schedule.
+   A predictor determined by wave (including ``time``), or otherwise constant
+   among eligible donors at each wave, cannot be assessed under this design.
+   Its deltas are missing, not zero importance.
 2. Each fold's already-fitted estimator predicts its own held-out rows of the
    permuted matrix; the predictions are pooled into one out-of-fold RMSE.
 3. The importance delta is that pooled permuted RMSE minus the unpermuted
@@ -35,11 +38,52 @@ own.
 from __future__ import annotations
 
 from collections.abc import Hashable, Iterable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 import pandas as pd
 from dse_research_utils.ml.permutation import pooled_oof_permutation_deltas
+
+PERMUTATION_DESIGN_VERSION = "subject_blocks_same_wave_schedule_v2"
+
+
+@dataclass(frozen=True)
+class SubjectPermutationDesign:
+    """Build schedule blocks once, then reuse them for support and each repeat."""
+
+    blocks: dict[tuple[Hashable, ...], list[np.ndarray]]
+    n_rows: int
+
+    @classmethod
+    def from_labels(cls, groups: Any, waves: Any = None) -> SubjectPermutationDesign:
+        return cls(_schedule_blocks(groups, waves), len(groups))
+
+    def indices(self, rng: np.random.Generator) -> np.ndarray:
+        donor_index = np.arange(self.n_rows, dtype=np.intp)
+        for subjects in self.blocks.values():
+            perm = rng.permutation(len(subjects))
+            for index, recipient_rows in enumerate(subjects):
+                donor_index[recipient_rows] = subjects[perm[index]]
+        return donor_index
+
+    def support(self) -> pd.DataFrame:
+        return pd.DataFrame([
+            {"wave_schedule": ",".join(map(str, schedule)), "n_subjects": len(subjects),
+             "n_rows": sum(len(rows) for rows in subjects),
+             "n_movable_subjects": len(subjects) if len(subjects) > 1 else 0}
+            for schedule, subjects in self.blocks.items()
+        ], columns=["wave_schedule", "n_subjects", "n_rows", "n_movable_subjects"])
+
+    def assessable(self, X: pd.DataFrame, columns: Sequence[int]) -> bool:
+        """Whether at least one permitted donor can change a value in this block."""
+        if len(X) != self.n_rows:
+            raise ValueError("permutation design must match the predictor rows")
+        for subjects in self.blocks.values():
+            for wave_rows in zip(*subjects, strict=True):
+                if (X.iloc[list(wave_rows), list(columns)].nunique(dropna=False) > 1).any():
+                    return True
+        return False
 
 
 def subject_block_permutation_indices(
@@ -72,13 +116,7 @@ def subject_block_permutation_indices(
         Integer array ``donor_index`` of length ``n_rows`` such that the
         permuted value of any column ``x`` is ``x[donor_index]``.
     """
-    blocks = _schedule_blocks(groups, waves)
-    donor_index = np.arange(len(groups), dtype=np.intp)
-    for subjects in blocks.values():
-        perm = rng.permutation(len(subjects))
-        for index, recipient_rows in enumerate(subjects):
-            donor_index[recipient_rows] = subjects[perm[index]]
-    return donor_index
+    return SubjectPermutationDesign.from_labels(groups, waves).indices(rng)
 
 
 def _schedule_blocks(
@@ -117,18 +155,7 @@ def permutation_schedule_support(
     waves: pd.Series | np.ndarray | Sequence[Hashable] | None,
 ) -> pd.DataFrame:
     """Report the rows and children for which an alternative donor is available."""
-    return pd.DataFrame(
-        [
-            {
-                "wave_schedule": ",".join(map(str, schedule)),
-                "n_subjects": len(subjects),
-                "n_rows": sum(len(rows) for rows in subjects),
-                "n_movable_subjects": len(subjects) if len(subjects) > 1 else 0,
-            }
-            for schedule, subjects in _schedule_blocks(groups, waves).items()
-        ],
-        columns=["wave_schedule", "n_subjects", "n_rows", "n_movable_subjects"],
-    )
+    return SubjectPermutationDesign.from_labels(groups, waves).support()
 
 
 def _predict(estimator: Any, frame: pd.DataFrame) -> np.ndarray:
@@ -160,6 +187,7 @@ def pooled_permutation_deltas(
     n_repeats: int,
     seed: int,
     waves: pd.Series | np.ndarray | Sequence[Hashable] | None = None,
+    design: SubjectPermutationDesign | None = None,
 ) -> dict[Hashable, np.ndarray]:
     """Pooled out-of-fold subject-block permutation deltas, one entry per block.
 
@@ -199,21 +227,29 @@ def pooled_permutation_deltas(
         Base RNG seed; repeat ``r`` is seeded with ``[seed, r]``.
     waves : array-like, optional
         Assessment labels aligned with the rows. Required for repeated observations.
+    design : SubjectPermutationDesign, optional
+        Schedule blocks already built for these rows, for reuse with support tables.
 
     Returns
     -------
     dict
         Block key -> array of ``n_repeats`` deltas (rise in pooled out-of-fold
         RMSE when the block is permuted; positive = the block was useful).
+        Blocks that cannot change under any permitted donor mapping contain NaN.
     """
     # The donor design is this project's (#631) and stays here: one subject-block
     # permutation per repeat, drawn from ``default_rng([seed, r])`` and SHARED by
     # every block, so block iteration order cannot move a delta. The scoring loop
     # — baseline, per-block permuted frames, pooled out-of-fold score, delta sign
     # — is ``ml.permutation.pooled_oof_permutation_deltas`` (#662).
+    design = design or SubjectPermutationDesign.from_labels(groups, waves)
+    assessable = {key: design.assessable(X, cols) for key, cols in col_blocks.items()}
+    missing = {key: np.full(n_repeats, np.nan) for key, movable in assessable.items() if not movable}
+    if len(missing) == len(col_blocks):
+        return missing
     donor_plan = np.stack(
         [
-            subject_block_permutation_indices(groups, np.random.default_rng([seed, r]), waves=waves)
+            design.indices(np.random.default_rng([seed, r]))
             for r in range(n_repeats)
         ]
     )
@@ -221,7 +257,7 @@ def pooled_permutation_deltas(
     # column position, which the two callers build from ``X.columns`` order.
     labels = list(X.columns)
     column_blocks = {
-        key: [labels[position] for position in cols] for key, cols in col_blocks.items()
+        key: [labels[position] for position in cols] for key, cols in col_blocks.items() if assessable[key]
     }
     result = pooled_oof_permutation_deltas(
         estimators,
@@ -236,4 +272,4 @@ def pooled_permutation_deltas(
         score=pooled_rmse,
         score_direction="lower_is_better",
     )
-    return {key: np.asarray(value) for key, value in result.deltas.items()}
+    return {key: np.asarray(value) for key, value in result.deltas.items()} | missing
