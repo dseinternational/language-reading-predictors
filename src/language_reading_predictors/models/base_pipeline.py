@@ -292,8 +292,13 @@ class EstimatorPipeline:
         (#631 finding 1).
 
         Note on units: deltas are in held-out **RMSE** units. The models
-        themselves are MAE-tuned (#169), so importance magnitudes are not
-        on the tuning-loss scale; the ranking is what the report reads.
+        are tuned under a Huber objective with RMSE scoring (2026-09-22
+        adoption, superseding the #169 MAE policy), so the ranking metric and
+        the objective both target the conditional mean; the ranking is what
+        the report reads.
+
+        The CSV tables keep every predictor. The box plot shows only the
+        leading ``plot_top_n`` predictors so the figure stays legible.
         """
         from language_reading_predictors.models.permutation import (
             pooled_permutation_deltas,
@@ -368,7 +373,10 @@ class EstimatorPipeline:
             )
         )
 
-        ordered = perm_df["feature"].tolist()
+        # Figure only: the leading predictors by mean importance. The CSVs
+        # written above keep every predictor.
+        ordered = perm_df["feature"].head(cfg.plot_top_n).tolist()
+        n_shown, n_all = len(ordered), len(perm_df)
         col_index = {f: i for i, f in enumerate(context.X.columns)}
         data = [all_importances[col_index[f]] for f in ordered]
         fig_h = max(3.0, 0.35 * len(ordered) + 1.5)
@@ -396,7 +404,10 @@ class EstimatorPipeline:
             "subject-block permuted"
         )
         ax.set_ylabel("Predictor variable")
-        ax.set_title("Pooled out-of-fold permutation importance")
+        title = "Pooled out-of-fold permutation importance"
+        if n_shown < n_all:
+            title += f" (top {n_shown} of {n_all} predictors)"
+        ax.set_title(title)
         ax.grid(axis="x", alpha=0.3)
         fig.tight_layout()
         save_styled_figure(
@@ -1019,8 +1030,13 @@ class EstimatorPipeline:
 
         explanation = explainer(X_shap)
 
+        # ``max_display`` counts the trailing "Sum of N other features" row,
+        # so ``plot_top_n + 1`` shows the leading ``plot_top_n`` predictors by
+        # mean |SHAP| plus the remainder.
+        bar_rows = context.config.plot_top_n + 1
+
         plt.figure()
-        shap.plots.bar(explanation, max_display=12, show=False)
+        shap.plots.bar(explanation, max_display=bar_rows, show=False)
         fig_bar = plt.gcf()
         save_styled_figure(context.output_dir, "shap_bar", fig=fig_bar, close=False)
         context.plots["shap_bar"] = fig_bar
@@ -1053,7 +1069,7 @@ class EstimatorPipeline:
         best_idx = eval_df["representative_score"].idxmin()
         pos_idx = eval_df.index.get_loc(best_idx)
 
-        shap.plots.waterfall(explanation[pos_idx], max_display=12, show=False)
+        shap.plots.waterfall(explanation[pos_idx], max_display=bar_rows, show=False)
         fig_waterfall = plt.gcf()
         save_styled_figure(
             context.output_dir, "shap_waterfall", fig=fig_waterfall, close=False
@@ -1061,12 +1077,55 @@ class EstimatorPipeline:
         context.plots["shap_waterfall"] = fig_waterfall
         plt.close("all")
 
+        # Three further waterfalls at observations whose outcome lies nearest
+        # the 25th, 50th and 75th percentiles of the fitted target, so the
+        # report shows how the model explains a low, a typical and a high
+        # scorer rather than one representative case only.
+        chosen = [
+            {"label": "representative", "percentile": None, "row_position": pos_idx}
+        ]
+        chosen.extend(self._percentile_waterfall_rows(eval_df))
+        time_col = (
+            context.df[V.TIME].to_numpy()
+            if context.df is not None and V.TIME in context.df.columns
+            else None
+        )
+        records = []
+        for item in chosen:
+            pos = int(item["row_position"])
+            if item["percentile"] is not None:
+                shap.plots.waterfall(explanation[pos], max_display=bar_rows, show=False)
+                fig_pct = plt.gcf()
+                name = f"shap_waterfall_{item['label']}"
+                save_styled_figure(context.output_dir, name, fig=fig_pct, close=False)
+                context.plots[name] = fig_pct
+                plt.close("all")
+            row = eval_df.iloc[pos]
+            records.append(
+                {
+                    "label": item["label"],
+                    "percentile": item["percentile"],
+                    "target_quantile": item.get("target_quantile"),
+                    "row_position": pos,
+                    V.SUBJECT_ID: row[V.SUBJECT_ID],
+                    V.TIME: None if time_col is None else time_col[pos],
+                    "y_true": float(row["y_true"]),
+                    "y_pred": float(row["y_pred"]),
+                    "residual": float(row["residual"]),
+                }
+            )
+        waterfall_df = pd.DataFrame(records)
+        context.dataframes["shap_waterfall_observations"] = waterfall_df
+        waterfall_df.to_csv(
+            context.output_dir / "shap_waterfall_observations.csv", index=False
+        )
+
         clustering = shap.utils.hclust(X_shap, context.y)
         shap.plots.bar(
             explanation,
             clustering=clustering,
             clustering_cutoff=0.4,
-            max_display=15,
+            max_display=bar_rows,
             show=False,
         )
         fig_clustered = plt.gcf()
@@ -1077,6 +1136,37 @@ class EstimatorPipeline:
         plt.close("all")
 
         print("  SHAP plots saved.")
+
+    @staticmethod
+    def _percentile_waterfall_rows(
+        eval_df: pd.DataFrame,
+        percentiles: tuple[float, ...] = (25.0, 50.0, 75.0),
+    ) -> list[dict[str, object]]:
+        """Pick one observation per percentile of the observed target.
+
+        For each percentile the observation whose ``y_true`` lies nearest the
+        target quantile is chosen; ties (integer scores make them common) go
+        to the smallest absolute in-sample residual, then to the earliest
+        row, so the choice is deterministic and the waterfall explains a
+        case the model fits well at that level of the outcome.
+        """
+        y_true = eval_df["y_true"].to_numpy(dtype=float)
+        abs_residual = eval_df["abs_residual"].to_numpy(dtype=float)
+        rows: list[dict[str, object]] = []
+        for pct in percentiles:
+            quantile = float(np.percentile(y_true, pct))
+            distance = np.abs(y_true - quantile)
+            order = np.lexsort((np.arange(len(y_true)), abs_residual, distance))
+            pos = int(order[0])
+            rows.append(
+                {
+                    "label": f"p{int(pct):02d}",
+                    "percentile": float(pct),
+                    "target_quantile": quantile,
+                    "row_position": pos,
+                }
+            )
+        return rows
 
     def shap_scatter_plots(
         self,
@@ -1092,8 +1182,10 @@ class EstimatorPipeline:
         Parameters
         ----------
         predictors : list[str] | None
-            Features to plot. Defaults to all predictors in ``context.X``.
-            Must be subset of the fitted predictor set.
+            Features to plot. Defaults to the leading ``plot_top_n``
+            predictors by permutation importance (every predictor when the
+            importance table is unavailable). Must be a subset of the fitted
+            predictor set.
         color_by : str | None
             Column name used to colour each point.
 
@@ -1131,7 +1223,7 @@ class EstimatorPipeline:
         all_predictors = list(context.X.columns)
 
         if predictors is None:
-            predictors = all_predictors
+            predictors = self._leading_predictors(all_predictors)
         else:
             missing = [p for p in predictors if p not in all_predictors]
             if missing:
@@ -1167,6 +1259,21 @@ class EstimatorPipeline:
         label = f" (coloured by {color_by})" if color_by else ""
         print(f"  Saved {len(written)} scatter plot(s){label}.")
         return written
+
+    def _leading_predictors(self, all_predictors: list[str]) -> list[str]:
+        """The leading ``plot_top_n`` predictors by permutation importance.
+
+        Falls back to every predictor when permutation importance has not
+        been computed, so the scatter set is never silently empty.
+        """
+        context = self.context
+        perm_df = context.perm_importance_df
+        if perm_df is None or perm_df.empty:
+            return list(all_predictors)
+        top_n = context.config.plot_top_n
+        ranked = perm_df.sort_values("importance_mean", ascending=False)
+        leading = [f for f in ranked["feature"].tolist() if f in all_predictors]
+        return leading[:top_n]
 
     def run_shap_scatter_specs(self) -> None:
         """Run every ``ShapScatterSpec`` declared on the model config.
@@ -1313,6 +1420,8 @@ class EstimatorPipeline:
             "cv_splits": effective_cv_splits,
             "outlier_threshold": cfg.outlier_threshold,
             "perm_importance_repeats": effective_perm_importance_repeats,
+            "pdp_top_n": cfg.pdp_top_n,
+            "plot_top_n": cfg.plot_top_n,
             "random_seed": cfg.random_seed,
             "run_config": run.name,
             "output_root": str(_paths.output_root()),

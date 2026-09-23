@@ -5,7 +5,7 @@
 > [!NOTE]
 > Drafted by a LLM-based AI tool (Claude Code/Fable 5.1).
 
-Date: 2026-09-22 — **Status: EVIDENCE, decision pending** (author decision on the boosting objective not yet recorded).
+Date: 2026-09-22 — **Status: EVIDENCE; decision taken.** The author adopted Huber for both families on 2026-09-22 (PR #686 discussion); the retune and refit are recorded in [the Huber retune note](202609221800-gb-huber-retune-refit.md).
 
 ## The question
 

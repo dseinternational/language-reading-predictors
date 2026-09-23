@@ -29,41 +29,47 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
 
-# ── hyperparameters (MAE-tuned) ──────────────────────────────────────────
+# ── hyperparameters (Huber-tuned) ──────────────────────────────────────────
 
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "learning_rate": 0.15969581110081696,
-    "num_leaves": 43,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 11.92.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 20.30987794499999,
+    "learning_rate": 0.038155083864876,
+    "num_leaves": 8,
     "max_depth": 6,
-    "min_child_samples": 26,
-    "subsample": 0.7159620678979401,
-    "colsample_bytree": 0.8464621915648938,
-    "reg_alpha": 0.004789701574097576,
-    "reg_lambda": 4.1161906720327135,
+    "min_child_samples": 31,
+    "subsample": 0.9746323612606866,
+    "colsample_bytree": 0.6891489354039396,
+    "reg_alpha": 2.165009111332799,
+    "reg_lambda": 0.0012695958684485265,
     "subsample_freq": 1,
     "n_jobs": -1,
     "verbosity": -1,
     "random_state": 47,
-    "n_estimators": 107,
+    "n_estimators": 311,
 }
 
 
 class LRPGBL26(LevelModel):
-    """language sample intelligibility level predictors — baseline (MAE-tuned)."""
+    """language sample intelligibility level predictors — baseline (Huber-tuned)."""
 
     model_id = "lrp-rli-gbl-026"
     target_var = V.LSAMINT
     description = (
-        "LightGBM — language sample intelligibility level predictors (full predictor set, MAE-tuned, no outlier exclusion)"
+        "LightGBM — language sample intelligibility level predictors (full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     cv_splits = 51
     outlier_threshold = None
     shap_scatter_specs = (
         ShapScatterSpec(description="All predictors, SHAP auto-colouring"),
     )
     notes = (
-        "Exploratory model for lsamint (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Treat the ranking as exploratory."
+        "Exploratory model for lsamint (level). Fits the full DEFAULT_LEVEL predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Treat the ranking as exploratory."
     )

@@ -44,8 +44,8 @@ is the taught-vocabulary analogue of [LRPGBL06](../lrp-rli-gbl-006/index.qmd), w
 LRPGBL02 (level) give taught vocabulary the same gain + achievement-level inventory
 the standardised outcomes already have.
 
-This is a **baseline exploratory model**. It was MAE-tuned by Optuna on the full
-predictor set (150 trials, seed 47; #169), running on the full `Predictors.DEFAULT_LEVEL`
+This is a **baseline exploratory model**. It was Huber-tuned by Optuna on the full
+predictor set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169), running on the full `Predictors.DEFAULT_LEVEL`
 set (the target `b1extau` is already excluded), with no outlier exclusion.
 
 ::: {.callout-note title="Leakage exclusion: b1exto"}
@@ -223,7 +223,7 @@ print(f"In-sample MedAE: {medae:.4f}")
 
 ### Permutation importance
 
-Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units, although the models are tuned using mean absolute error (MAE).
+Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units. The models are tuned with a Huber objective (squared error within a robust threshold, absolute error beyond it) and RMSE scoring, so the ranking metric and the objective both target the conditional mean while the few most extreme scorers carry reduced weight. The table lists every predictor; the box plot shows the ten with the largest mean importance.
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
@@ -235,9 +235,36 @@ The box plot shows the variation across shuffles. Positive importance means shuf
 
 ### SHAP analysis
 
+The bar plots show the ten predictors with the largest mean |SHAP| and collapse the rest into one "other features" row.
+
 ![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
 
 ![SHAP summary plot](shap_summary.png){#fig-shap-summary .lightbox fig-align="left"}
+
+#### Waterfall plot (most representative observation)
+
+SHAP waterfall plot for the most representative observation (lowest combined
+residual and distance from the median feature vector), showing how each feature
+pushes the prediction from the base value.
+
+![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
+
+#### Waterfall plots at the 25th, 50th and 75th percentiles of the outcome
+
+One waterfall for each of the three observations whose observed outcome lies nearest the 25th, 50th and 75th percentiles of the fitted target (ties go to the observation the model fits best), showing how the leading predictors move the prediction from the base value for a low, a typical and a high scorer. Each waterfall names its ten largest contributions and pools the rest. The table records which child-wave each plot explains, with the observed and predicted values.
+
+```{python}
+pd.read_csv("shap_waterfall_observations.csv")
+```
+
+::: {layout-ncol=3}
+![25th percentile](shap_waterfall_p25.png){.lightbox}
+
+![50th percentile](shap_waterfall_p50.png){.lightbox}
+
+![75th percentile](shap_waterfall_p75.png){.lightbox}
+:::
+
 
 ```{python}
 #| output: asis

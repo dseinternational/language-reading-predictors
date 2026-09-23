@@ -43,7 +43,7 @@ the raw expressive-vocabulary score. All observations are included (no outlier
 exclusion) so the full range of outcomes informs the model.
 
 This is an **exploratory model** for the level-prediction task. It runs on
-MAE-tuned hyperparameters from an Optuna 150-trial study on the full `Predictors.DEFAULT_LEVEL` set (minus
+Huber-tuned hyperparameters from an Optuna 150-trial study on the full `Predictors.DEFAULT_LEVEL` set (minus
 the target); #116 Phase D retired hard feature selection in favour of full-set ranking. The predictor ranking is shown below.
 
 Cross-validation is group-aware (`GroupKFold`, grouped by `subject_id`) to
@@ -214,7 +214,7 @@ print(f"In-sample MedAE: {medae:.4f}")
 
 ### Permutation importance
 
-Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units, although the models are tuned using mean absolute error (MAE).
+Permutation importance measures how much prediction error increases when a predictor is shuffled between children. Each child receives another child's predictor values as a block, preserving the repeated-measures structure. Each fold predicts only its held-out children; the predictions are then combined to calculate one root mean squared error (RMSE) per shuffle. Importance is measured in RMSE units. The models are tuned with a Huber objective (squared error within a robust threshold, absolute error beyond it) and RMSE scoring, so the ranking metric and the objective both target the conditional mean while the few most extreme scorers carry reduced weight. The table lists every predictor; the box plot shows the ten with the largest mean importance.
 
 ```{python}
 perm_imp = pd.read_csv("permutation_importance.csv")
@@ -269,6 +269,8 @@ global and local interpretability.
 Mean absolute SHAP values across all observations, showing the average magnitude
 of each feature's contribution to predictions.
 
+The bar plots show the ten predictors with the largest mean |SHAP| and collapse the rest into one "other features" row.
+
 ![SHAP bar plot](shap_bar.png){#fig-shap-bar .lightbox fig-align="left"}
 
 #### Clustered feature importance
@@ -294,9 +296,26 @@ pushes the prediction from the base value.
 
 ![SHAP waterfall plot](shap_waterfall.png){#fig-shap-waterfall .lightbox fig-align="left"}
 
+#### Waterfall plots at the 25th, 50th and 75th percentiles of the outcome
+
+One waterfall for each of the three observations whose observed outcome lies nearest the 25th, 50th and 75th percentiles of the fitted target (ties go to the observation the model fits best), showing how the leading predictors move the prediction from the base value for a low, a typical and a high scorer. Each waterfall names its ten largest contributions and pools the rest. The table records which child-wave each plot explains, with the observed and predicted values.
+
+```{python}
+pd.read_csv("shap_waterfall_observations.csv")
+```
+
+::: {layout-ncol=3}
+![25th percentile](shap_waterfall_p25.png){.lightbox}
+
+![50th percentile](shap_waterfall_p50.png){.lightbox}
+
+![75th percentile](shap_waterfall_p75.png){.lightbox}
+:::
+
+
 #### SHAP scatter plots by predictor
 
-One scatter per predictor: feature value on the x-axis, SHAP contribution on
+One scatter for each of the ten predictors with the largest permutation importance: feature value on the x-axis, SHAP contribution on
 the y-axis. Colouring uses SHAP's auto-interaction picker (the strongest
 interacting feature is chosen automatically for each plot).
 

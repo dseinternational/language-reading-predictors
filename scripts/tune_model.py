@@ -26,7 +26,7 @@ Writes results to ``output/tuning/{model_id}/``:
 
 Usage
 -----
-    python scripts/tune_model.py lrp-rli-gbg-012               # 50 trials
+    python scripts/tune_model.py lrp-rli-gbg-012               # 50 trials, Huber policy
     python scripts/tune_model.py lrp-rli-gbg-012 --n-trials 200
     python scripts/tune_model.py lrp-rli-gbg-012 --timeout 1800  # cap at 30 min
     python scripts/tune_model.py lrp-rli-gbg-012 --cv-splits 5 --seed 42
@@ -61,6 +61,10 @@ from language_reading_predictors.models.lgbm_signed_log_pipeline import (
     signed_log1p,
 )
 from language_reading_predictors.models.registry import MODELS
+from language_reading_predictors.models.objective import (
+    ROBUST_MAD_RULE,
+    robust_huber_delta,
+)
 from rich.panel import Panel
 
 from language_reading_predictors import paths as _paths
@@ -265,11 +269,12 @@ def tune(
     early_stopping_rounds: int,
     max_n_estimators: int,
     early_stopping_fraction: float,
-    # MAE defaults mirror the #169 batch policy — see the CLI defaults below.
-    scoring: str = "mae",
-    lgbm_objective: str = "mae",
+    # Huber defaults mirror the 2026-09-22 batch policy — see the CLI defaults below.
+    scoring: str = "rmse",
+    lgbm_objective: str = "huber",
     target_transform: str | None = None,
     alpha: float | None = None,
+    alpha_rule: str | None = ROBUST_MAD_RULE,
 ) -> None:
     # The registry is keyed on the canonical id (``lrp-rli-gbg-012``) since #168
     # Phase 2. Build a legacy-alias index over its keys so a legacy id
@@ -315,6 +320,27 @@ def tune(
 
     X, y, groups = _load_frame(cfg)
 
+    # A Huber threshold is a per-model constant derived from the target's
+    # spread, not a searched hyperparameter. ``--alpha`` fixes it by hand;
+    # ``--alpha-rule robust-mad`` derives it from the rows the tuner sees.
+    alpha_derivation: dict[str, float | int | str] | None = None
+    if alpha is not None and alpha_rule is not None:
+        print("[bold red]Pass either --alpha or --alpha-rule none, not both[/bold red]")
+        raise SystemExit(1)
+    if alpha_rule is not None:
+        if alpha_rule != ROBUST_MAD_RULE:
+            print(f"[bold red]Unknown alpha rule {alpha_rule!r}[/bold red]")
+            raise SystemExit(1)
+        if lgbm_objective != "huber":
+            print(
+                "[bold red]--alpha-rule applies to the huber objective only "
+                f"(got {lgbm_objective!r}); pass --alpha-rule none[/bold red]"
+            )
+            raise SystemExit(1)
+        derived = robust_huber_delta(y.to_numpy())
+        alpha = derived.delta
+        alpha_derivation = derived.as_dict()
+
     setup_lines = [
         f"[bold]Tuning {key.upper()}[/bold]  ([dim]{pipeline_name}[/dim])",
         "",
@@ -331,7 +357,8 @@ def tune(
         f"[dim]inner ES fraction:[/dim] {early_stopping_fraction})",
     ]
     if alpha is not None:
-        setup_lines.append(f"[dim]Alpha:[/dim]          {alpha}")
+        rule = f" ({alpha_rule})" if alpha_rule else ""
+        setup_lines.append(f"[dim]Alpha:[/dim]          {alpha:.4g}{rule}")
     print()
     print_panel(
         Panel("\n".join(setup_lines), border_style="green", padding=(1, 2))
@@ -396,6 +423,10 @@ def tune(
         "timeout": timeout,
         "seed": seed,
         "cv_splits": cv_splits,
+        # How the Huber threshold was set (None when ``--alpha`` was given by
+        # hand or the objective needs none); the batch orchestrator compares it.
+        "alpha_rule": alpha_rule,
+        "alpha_derivation": alpha_derivation,
         "params": best_full_params,
     }
 
@@ -511,25 +542,38 @@ def main() -> None:
             "at the outer val fold."
         ),
     )
-    # Defaults match the reviewed #169 batch policy (scripts/tune_models_batch.py):
-    # MAE scoring with the MAE LightGBM objective. #169 adopted MAE everywhere,
-    # so a bare standalone run no longer silently tunes under a different
-    # (RMSE/squared-error) policy than the batch (#631 finding 20d).
+    # Defaults match the reviewed batch policy (scripts/tune_models_batch.py):
+    # the Huber objective with RMSE scoring and a per-model threshold derived
+    # from the target's robust spread (adopted 2026-09-22 after the
+    # objective-sensitivity check, superseding the #169 MAE policy). A bare
+    # standalone run therefore tunes under the same policy as the batch.
     parser.add_argument(
         "--scoring",
         type=str,
-        default="mae",
+        default="rmse",
         choices=list(_SCORING_FUNCS.keys()),
-        help="Scoring metric to optimise (default: mae — the #169 batch policy).",
+        help="Scoring metric to optimise (default: rmse — the Huber batch policy).",
     )
     parser.add_argument(
         "--lgbm-objective",
         type=str,
-        default="mae",
+        default="huber",
         help=(
-            "LightGBM objective function. Use 'mae' for MAE tuning (the #169 "
-            "policy), 'regression' (squared error) for RMSE tuning. "
-            "Default: mae."
+            "LightGBM objective function. 'huber' (default; the 2026-09-22 "
+            "policy), 'mae' for the retired #169 policy, 'regression' for "
+            "squared error."
+        ),
+    )
+    parser.add_argument(
+        "--alpha-rule",
+        type=str,
+        default=ROBUST_MAD_RULE,
+        choices=[ROBUST_MAD_RULE, "none"],
+        help=(
+            "How to set the Huber threshold: 'robust-mad' (default) derives "
+            "1.345 x 1.4826 x MAD of the tuned target, falling back to 1.345 x "
+            "the mean absolute deviation from the median when the MAD is "
+            "zero; 'none' uses --alpha (or LightGBM's default) instead."
         ),
     )
     parser.add_argument(
@@ -583,6 +627,7 @@ def main() -> None:
         lgbm_objective=args.lgbm_objective,
         target_transform=args.target_transform,
         alpha=args.alpha,
+        alpha_rule=None if args.alpha_rule == "none" else args.alpha_rule,
     )
 
 

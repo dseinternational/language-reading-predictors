@@ -11,6 +11,7 @@ anchoring
 ANCOVA
 Anscombe
 AOAS
+aoms
 aptgram
 aptinfo
 argmax

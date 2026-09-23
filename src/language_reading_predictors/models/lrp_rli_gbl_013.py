@@ -26,44 +26,48 @@ from language_reading_predictors.models.common import DEFAULT_SHAP_SCATTER_SPECS
 from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 
-# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
-# #169 retune, superseding the earlier pruned-set tune).
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "n_estimators": 118,
-    "learning_rate": 0.04811059604375191,
-    "num_leaves": 17,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 1.07.
+# Huber threshold alpha = 1.345 x mean |y - median| (MAD is zero)
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 1.663381642512077,
+    "n_estimators": 195,
+    "learning_rate": 0.023399411381282632,
+    "num_leaves": 53,
     "max_depth": 3,
-    "min_child_samples": 11,
-    "subsample": 0.9764536087799128,
+    "min_child_samples": 4,
+    "subsample": 0.6177900456024724,
     "subsample_freq": 1,
-    "colsample_bytree": 0.6690024806000164,
-    "reg_alpha": 0.007967682872704603,
-    "reg_lambda": 0.016771763411827834,
+    "colsample_bytree": 0.8063206160182882,
+    "reg_alpha": 0.05618931944501457,
+    "reg_lambda": 0.04100566707282181,
     "n_jobs": -1,
     "verbosity": -1,
 }
 
 
 class LRPGBL13(LevelModel):
-    """Non-word reading level predictors — baseline (all data, MAE-tuned).
+    """Non-word reading level predictors — baseline (all data, Huber-tuned).
 
-    Full ``Predictors.DEFAULT_LEVEL`` set, MAE-tuned on the full set (#169).
+    Full ``Predictors.DEFAULT_LEVEL`` set, Huber-tuned on the full set (#169).
     """
 
     model_id = "lrp-rli-gbl-013"
     target_var = V.NONWORD
     description = (
         "LightGBM — non-word reading level predictors "
-        "(full predictor set, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
         "Exploratory model for nonword (level). Fits the full DEFAULT_LEVEL "
         "predictor set (#116 Phase D retired hard feature selection in favour "
         "of full-set ranking); hyperparameters are re-tuned by Optuna on the full set "
-        "(150 trials, seed 47; #169). Treat the ranking as "
+        "(150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Treat the ranking as "
         "exploratory."
     )

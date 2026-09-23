@@ -5,7 +5,7 @@
 LRPGBG05: Predictors of receptive vocabulary gains.
 
 ``LRPGBG05`` is the exploratory model for receptive vocabulary gains
-(``rowpvt_gain``). It is MAE-tuned on the full
+(``rowpvt_gain``). It is Huber-tuned on the full
 :attr:`Predictors.DEFAULT_GAIN` set (with the ``rowpvt`` baseline
 auto-included) and no outlier exclusion, designed to identify the most
 important influences on receptive vocabulary gains.
@@ -16,7 +16,7 @@ and ~3% zero observations, n ≈ 161). Cleaner distribution than any
 previous gain target — no skew and no pile-up at zero.
 
 Fits the full ``Predictors.DEFAULT_GAIN`` set; hyperparameters are
-re-tuned by Optuna on the full set (150 trials, seed 47; #169).
+re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169).
 """
 
 from language_reading_predictors.data_variables import Variables as V
@@ -27,32 +27,36 @@ from language_reading_predictors.models.lgbm_pipeline import LGBMPipeline
 
 # ── hyperparameter sets ─────────────────────────────────────────────────
 
-# MAE-tuned by Optuna on the full predictor set (150 trials, seed 47;
-# #169 retune, superseding the earlier pruned-set tune).
-_LGBM_MAE_PARAMS: dict[str, float | int | str] = {
-    "objective": "mae",
-    "n_estimators": 52,
-    "learning_rate": 0.033583242538720685,
-    "num_leaves": 45,
-    "max_depth": 12,
-    "min_child_samples": 7,
-    "subsample": 0.66908083247909,
+# Huber-tuned (Optuna 150-trial, seed 47, GroupKFold cv=51, RMSE scoring)
+# on the full default predictor set; best mean cross-validated RMSE 8.01.
+# Huber threshold alpha = 1.345 x 1.4826 x MAD
+# of the tuned target
+# (2026-09-22 Huber retune, superseding the #169 MAE tune).
+_LGBM_HUBER_PARAMS: dict[str, float | int | str] = {
+    "objective": "huber",
+    "alpha": 9.970484999999998,
+    "n_estimators": 66,
+    "learning_rate": 0.15484591361429514,
+    "num_leaves": 48,
+    "max_depth": 6,
+    "min_child_samples": 39,
+    "subsample": 0.6625127808402785,
     "subsample_freq": 1,
-    "colsample_bytree": 0.8607281557180144,
-    "reg_alpha": 0.003497407529698995,
-    "reg_lambda": 0.0014738297333053436,
+    "colsample_bytree": 0.6310391246947331,
+    "reg_alpha": 0.35731706070703834,
+    "reg_lambda": 4.907301983701988,
     "n_jobs": -1,
     "verbosity": -1,
 }
 
 
-# ── primary model (exploratory, MAE-tuned) ──────────────────────────────
+# ── primary model (exploratory, Huber-tuned) ──────────────────────────────
 
 
 class LRPGBG05(GainModel):
-    """Receptive vocabulary gain predictors — exploratory (MAE-tuned, all data).
+    """Receptive vocabulary gain predictors — exploratory (Huber-tuned, all data).
 
-    Full ``Predictors.DEFAULT_GAIN`` set, MAE-tuned on the full
+    Full ``Predictors.DEFAULT_GAIN`` set, Huber-tuned on the full
     set (#169). Uses the full predictor set plus the base variable
     ``rowpvt`` (auto-included via :class:`GainModel`) with no outlier
     exclusion.
@@ -62,11 +66,11 @@ class LRPGBG05(GainModel):
     target_var = V.ROWPVT_GAIN
     description = (
         "LightGBM — receptive vocabulary gain predictors "
-        "(full predictor set, MAE-tuned, no outlier exclusion)"
+        "(full predictor set, Huber-tuned, no outlier exclusion)"
     )
     pipeline_cls = LGBMPipeline
-    params = _LGBM_MAE_PARAMS
+    params = _LGBM_HUBER_PARAMS
     shap_scatter_specs = DEFAULT_SHAP_SCATTER_SPECS
     notes = (
-        "Exploratory model for rowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
+        "Exploratory model for rowpvt_gain (gain). Fits the full DEFAULT_GAIN predictor set (#116 Phase D retired hard feature selection in favour of full-set ranking); hyperparameters were re-tuned by Optuna on the full set (150 trials, seed 47; Huber retune of 2026-09-22, superseding #169). Gain models are near-noise (baseline-driven regression to the mean) - treat the ranking as exploratory."
     )

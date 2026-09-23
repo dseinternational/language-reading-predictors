@@ -151,6 +151,12 @@ class ModelConfig:
     """Number of top features (by permutation importance) to include in partial
     dependence plots when ``pdp_features`` is not set explicitly."""
 
+    plot_top_n: int = 10
+    """Number of leading predictors (by permutation importance for the
+    permutation and SHAP scatter plots; by mean |SHAP| for the SHAP bar plots)
+    shown in the per-predictor figures. The CSV tables always keep every
+    predictor; only the figures are limited."""
+
     shap_scatter_specs: list[ShapScatterSpec] = field(default_factory=list)
     """Ordered list of SHAP scatter/dependence plot sets to generate
     automatically after ``shap_analysis()``. Leave empty to skip."""
