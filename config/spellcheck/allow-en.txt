@@ -753,3 +753,7 @@ Zucker
 ΔELPD
 writable
 MPLBACKEND
+basetemp
+cachetools
+filelock
+msgspec
