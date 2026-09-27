@@ -136,8 +136,9 @@ def render_model_graph(context: StatisticalFitContext) -> None:
 def _graphviz(model):
     # Raster PNG output (not SVG): the DAG's many nodes/edges make a large SVG
     # slow to browse, so render to PNG and bump DPI to keep the lightbox legible.
-    # The Helvetica styling is the shared helper's; only the DPI is ours. Imported
-    # locally because the shared module imports PyMC at module scope.
+    # The Noto Sans styling is the shared helper's (since dse-research-utils 0.16.0);
+    # only the DPI is ours. Imported locally because the shared module imports PyMC
+    # at module scope.
     from dse_research_utils.statistics.models.pymc_utils import model_to_graphviz
 
     return model_to_graphviz(model, dpi=150)
