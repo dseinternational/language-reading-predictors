@@ -4,7 +4,8 @@ title: "LRPITT21: Ability-adjusted available-case modified ITT estimate for rece
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

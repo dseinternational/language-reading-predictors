@@ -4,7 +4,8 @@ title: "LRP-CA-007: Concurrent conditional associations — skills → phoneme b
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

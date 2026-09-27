@@ -52,6 +52,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+from language_reading_predictors import figure_io
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.statistical_models.definitions import (
     MODEL_REGISTRY,
@@ -2207,6 +2208,7 @@ def main() -> None:
 
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
+    figure_io.use_house_fonts()
     args.out = args.out or str(_paths.stat_comparison_dir())
     os.makedirs(args.out, exist_ok=True)
 

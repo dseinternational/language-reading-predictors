@@ -21,7 +21,6 @@ import traceback
 import uuid
 from multiprocessing import freeze_support
 
-import dse_research_utils.environment.setup as setup
 from rich import print as rprint
 from rich.panel import Panel
 
@@ -30,7 +29,7 @@ from language_reading_predictors.models._reporting import (
     print_panel,
     print_table,
 )
-from language_reading_predictors import model_ids
+from language_reading_predictors import figure_io, model_ids
 from language_reading_predictors import paths
 from language_reading_predictors.storage import upload_to_blob_storage
 from language_reading_predictors.statistical_models.registry import (
@@ -70,7 +69,7 @@ def main() -> None:
     # Apply the shared DSE matplotlib house style so Bayesian figures match the
     # GB ones (scripts/fit_model.py does the same). Without this every figure
     # falls back to matplotlib/ArviZ defaults and looks inconsistent in the report.
-    setup.init_script()
+    figure_io.use_house_style()
 
     parser = argparse.ArgumentParser()
     parser.add_argument(

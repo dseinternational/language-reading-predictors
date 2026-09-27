@@ -10,6 +10,8 @@
 > Divergent-transition qualification workflow updated by a LLM-based AI tool (Codex/GPT-5).
 >
 > Phoneme-blending link-sensitivity release workflow updated by a LLM-based AI tool (Codex/GPT-5).
+>
+> Font check added by a LLM-based AI tool (Claude Code/Opus 5.5).
 
 # Full statistical-model refit and publication
 
@@ -43,6 +45,15 @@ az account show   # confirm the right tenant/subscription
 export PATH="/Applications/quarto/bin:$PATH"
 export QUARTO_PYTHON="$(python -c 'import sys; print(sys.executable)')"
 quarto --version
+
+# 4. Confirm the house fonts resolve (README, "Creating reports"). matplotlib
+#    otherwise falls back to DejaVu Sans without failing the fit. After a new
+#    install, delete fontlist-*.json from matplotlib.get_cachedir() first.
+python - <<'PY'
+from matplotlib import font_manager as fm
+for family in ("Noto Sans", "Noto Sans Math"):
+    print(family, "->", fm.findfont(fm.FontProperties(family=family), fallback_to_default=False))
+PY
 ```
 
 Every new publication run must use a **fresh, versioned output root**. Do not refit into bare `output/` or reuse a previous run directory: individual statistical fits replace their directories only after successful staged execution, but a sweep also produces shared comparisons and sensitivity files. A fresh root keeps the whole batch separate from earlier runs. Start from a committed, clean checkout, choose an optional run base, create a unique child directory, and resolve the paths once for every later command:

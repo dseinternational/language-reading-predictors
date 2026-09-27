@@ -4,7 +4,8 @@ title: "LRPBX02: Block-2 taught receptive vocabulary, block-active exposure (TR2
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

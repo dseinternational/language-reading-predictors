@@ -4,7 +4,8 @@ title: "LRP87f: Blending (PA) via letter sounds (LS) under the one-in-three gues
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

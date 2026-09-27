@@ -4,7 +4,8 @@ title: "LRPITT14b: Unadjusted available-case modified ITT estimate on the SES co
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

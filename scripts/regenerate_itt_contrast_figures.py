@@ -42,6 +42,7 @@ import numpy as np
 from rich.console import Console
 
 from language_reading_predictors import paths as _paths
+from language_reading_predictors.statistical_models.environment import init_plotting
 
 from language_reading_predictors.statistical_models.arm_overlap import (
     write_arm_overlap_artifacts,
@@ -182,6 +183,7 @@ def main() -> None:
     if args.output_dir:
         _paths.set_output_root(args.output_dir)
     _console.print(f"Output root: {_paths.describe_output_root()}")
+    init_plotting()  # redrawn figures match the fit's house style
 
     targets = resolve_targets(args.target)
     if not targets:

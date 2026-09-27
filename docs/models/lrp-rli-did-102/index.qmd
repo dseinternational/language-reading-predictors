@@ -4,7 +4,8 @@ title: "LRPDID102: Wide-tau prior sensitivity for the letter-sound arm-by-wave c
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

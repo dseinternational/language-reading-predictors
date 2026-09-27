@@ -25,6 +25,7 @@ import argparse
 import matplotlib.pyplot as plt
 import pandas as pd
 
+from language_reading_predictors import figure_io
 from language_reading_predictors import paths as _paths
 
 # --- Per-figure configuration (the only lines that differ between scripts) ---
@@ -99,6 +100,7 @@ def main() -> None:
     args = parser.parse_args()
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
+    figure_io.use_house_fonts()
 
     df = pd.read_csv(_DATA_PATH)
     panel = build_panel(df)

@@ -4,7 +4,8 @@ title: "LRP80: Does word reading route through taught-receptive vocabulary? (med
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

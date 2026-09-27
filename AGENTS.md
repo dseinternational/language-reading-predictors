@@ -17,6 +17,8 @@
 > Mediation integration and gain-factor holdout wording updated by a LLM-based AI tool (Claude Code/Opus 5).
 >
 > Assessment-interval wording updated by a LLM-based AI tool (Claude Code/Opus 5).
+>
+> Font requirements updated by a LLM-based AI tool (Claude Code/Opus 5.5).
 
 > **Keep in sync:** This file, `CLAUDE.md`, and `.github/copilot-instructions.md` share the same content. When updating one, update all three.
 
@@ -46,6 +48,8 @@ Run commands with `uv run <command>`; activation is optional. PyMC uses the Numb
 `dse-research-utils` supplies the scientific dependencies. This repository declares its required extras and pinned git tag in `pyproject.toml`; do not duplicate those version lists here. For local library development, replace its `[tool.uv.sources]` git entry with a path to `../research/src/python`. The project uses neither the `jax` nor the `storage` extra.
 
 Model graphs also need the system Graphviz `dot` binary (`brew install graphviz`, `apt install graphviz` or `winget install Graphviz.Graphviz`).
+
+Figures, graphs and reports set text in Noto Sans and equations in Noto Sans Math. Install both system fonts (`brew install --cask font-noto-sans font-noto-sans-math`, `apt install fonts-noto-core` or Google Fonts on Windows), then delete `fontlist-*.json` from `matplotlib.get_cachedir()`. Without them, figures fall back to DejaVu Sans.
 
 ## Commands
 
@@ -171,7 +175,7 @@ Fits write under `output/statistical_models/models/{model_id}-{config}/`:
 
 The `joint`, `joint_mechanism` and `historical_joint` families declare prediction for a new child in a replicate cohort. `new_child_predictive.py` integrates child-level latent variables over their population distribution. A child-indexed free variable omitted from that declaration fails the fit. Require finite, complete diagnostics and validation schema version 3. Withhold the estimate if Pareto-k exceeds `good_k` in the full or either split batch, or if the split-score stability check exceeds the ELPD standard error. The maximum per-draw likelihood discrepancy is a reported diagnostic without an ELPD threshold. These checks do not bound integration error. See `notes/20260923-statistical-review-corrections.md`. The alternative is grouped child-level K-fold refitting through `new_child_kfold.py`, recorded as `cross_validation` sub-fits. Publish the matching `new_child_loo` / `new_child_pareto_k` / `new_child_pit` or `new_child_kfold` tables and figures. Retain and label conditional leave-one-cell-out LOO-PIT plots separately. See `notes/202609011600-joint-new-child-prediction-target-626.md` for the decision.
 
-Each report template contains a title, model-specific prose and shared includes. Keep this order: `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → `_priors` → `_prior_predictive` → family results → collapsed `_technical` (convergence and diagnostics) → `_footer`. `scripts/restructure_statistical_reports.py` validates the order. Shared partials in `docs/models/_partials/` read `config.json` and `measures`; copy them beside the report at fit time so includes resolve.
+Each report template contains a title, model-specific prose and shared includes. Its front matter layers `_partials/_fonts.scss` over the cosmo theme and sets `html-math-method: mathml`, so browsers draw equations in Noto Sans Math; the GB report step copies the stylesheet too. Keep this order: `_header` → `_setup` → `_gate_badge` → `_key_findings` → collapsed `_reading_guide` → model prose → `_priors` → `_prior_predictive` → family results → collapsed `_technical` (convergence and diagnostics) → `_footer`. `scripts/restructure_statistical_reports.py` validates the order. Shared partials in `docs/models/_partials/` read `config.json` and `measures`; copy them beside the report at fit time so includes resolve.
 
 Fit with `uv run python scripts/fit_statistical_model.py {model_id|all} --config dev|test|rep-lite|reporting [--render] [--target-accept X]`. The filename-derived `LazyModel` map imports only selected models. Sampling presets come from `dse_research_utils`; target-acceptance precedence is command override, model default, then preset, without mutating shared sampling code. `rep-lite` uses 4 chains × 4000 draws and `reporting` uses 6 × 6000, both with preset `target_accept=0.95`. Check attained ESS; a draw count does not guarantee a pass. `scripts/compare_statistical_models.py` writes comparisons under `output/statistical_models/comparison/`.
 
@@ -184,6 +188,7 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 ## Conventions
 
 - All source files include SPDX license headers: `# SPDX-License-Identifier: AGPL-3.0-or-later`
+- Fits, and scripts that redraw fit figures, apply the full house plot style with `figure_io.use_house_style()`, which `init_plotting()` calls. Standalone scripts that lay out their own figures call `figure_io.use_house_fonts()`. Both name Noto Sans, Noto Sans Math and DejaVu Sans as text families so that symbols missing from Noto Sans, such as → and ≈, fall back rather than print as empty boxes.
 - Spell checking uses British English (`en-GB`) configured in `.cspell.config.yaml` with a custom allow list at `config/spellcheck/allow-en.txt`.
 - The Quarto report (`docs/report/`) uses `execute: freeze: true` — computational output is cached, not re-run on render.
 - Hatch builds the package; `src/language_reading_predictors/__init__.py` supplies the version. `uv run mypy` checks the whole package under strict flags. Keep exemptions in the single `pyproject.toml` list; `tests/test_type_coverage.py` rejects newly failing modules and exemptions that have become unnecessary.

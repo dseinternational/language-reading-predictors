@@ -4,7 +4,8 @@ title: "LRPHS03: Regularized-horseshoe ranking cross-check - letter-sound gain"
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

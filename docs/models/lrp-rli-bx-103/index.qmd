@@ -4,7 +4,8 @@ title: "LRPBX103: Wide-delta prior sensitivity for block-2 not-taught expressive
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

@@ -4,7 +4,8 @@ title: "LRPGF09: Factors associated with gains in taught receptive vocabulary (T
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

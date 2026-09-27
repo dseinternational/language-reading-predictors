@@ -2,16 +2,16 @@ digraph RLM_DAG {
   rankdir=LR;
   bgcolor="white";
   labelloc="t";
-  fontname="Helvetica-Bold";
+  fontname="Noto Sans,sans-serif";
   fontsize=17;
-  label="Reading, language & memory DAG — Byrne, MacDonald & Buckley (2002) cohort  (causal flow left → right)";
+  label=<<B>Reading, language &amp; memory DAG — Byrne, MacDonald &amp; Buckley (2002) cohort  (causal flow left → right)</B>>;
   nodesep=0.30;
   ranksep=1.05;
   concentrate=false;
   splines=true;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+  node [shape=box, style="rounded,filled", fontname="Noto Sans,sans-serif", fontsize=11,
         margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
-  edge [penwidth=1.1, arrowsize=0.7];
+  edge [penwidth=1.1, arrowsize=0.7, fontname="Noto Sans,sans-serif"];
 
   // ================= NODES =================
   readgrp [label="readgrp\nreading group / cohort\n(OBSERVATIONAL, not randomised)",
@@ -24,7 +24,7 @@ digraph RLM_DAG {
   bpvs   [label="bpvs\nreceptive vocab  [RV]", fillcolor="#d6ebe4", color="#2f9e78"];
   trog   [label="trog\nreceptive grammar  [RG]", fillcolor="#eceef1", color="#9aa0a8"];
 
-  basread [label="basread\nWORD READING\n(primary outcome)  [WR]", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+  basread [label=<<TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD><B>basread</B></TD></TR><TR><TD><B>WORD READING</B></TD></TR><TR><TD><B>(primary outcome)  [WR]</B></TD></TR></TABLE>>, fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6];
   basspel [label="basspel\nspelling (outcome)  [PS]", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
   basnum  [label="basnum\nnumber skills (outcome)", fillcolor="#eceef1", color="#9aa0a8"];
   woco    [label="woco\nreading comprehension\n(outcome; Simple View)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.2];

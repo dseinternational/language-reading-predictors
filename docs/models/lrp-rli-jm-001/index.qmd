@@ -4,7 +4,8 @@ title: "LRPJM01: Per-wave joint {word reading, nonword decoding} levels model"
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

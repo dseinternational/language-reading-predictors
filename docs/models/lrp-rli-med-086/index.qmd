@@ -4,7 +4,8 @@ title: "LRP86: Does the intervention raise nonword reading via letter-sounds? (o
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

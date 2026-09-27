@@ -4,7 +4,8 @@ title: "LRP99: Negative-control outcome — letter sounds (LS) -> receptive gram
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

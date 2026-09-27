@@ -2,6 +2,8 @@ project:
   type: book
 
   output-dir: ../../output/report
+  # Pandoc drops the reference document's math font; restore Noto Sans Math.
+  post-render: ../../scripts/set_docx_math_font.py
 
   preview:
     port: 4201
@@ -72,7 +74,10 @@ book:
 format:
   html:
     code-fold: true
-    theme: default
+    # Noto Sans text and Noto Sans Math equations, as in the figures (#693).
+    # Browsers draw MathML in the stylesheet's math font; MathJax would not.
+    theme: [default, ../models/_partials/_fonts.scss]
+    html-math-method: mathml
   docx:
     reference-doc: ../template.docx
   pdf:
@@ -81,8 +86,9 @@ format:
     colorlinks: true
     link-citations: true
     fontsize: 12pt
-    mainfont: "Source Sans 3"
-    sansfont: "Source Sans 3"
+    mainfont: "Noto Sans"
+    sansfont: "Noto Sans"
+    mathfont: "Noto Sans Math"
     monofont: "Monaspace Neon"
     monofontoptions: "Scale=0.75"
     linestretch: 1.25

@@ -20,16 +20,17 @@ STAT_OUTPUT_DIR = str(_paths.stat_dir())
 
 
 def init_plotting() -> None:
-    """Apply the shared DSE matplotlib house style for figure generation.
+    """Apply the DSE matplotlib house style for figure generation.
 
-    The CLI entry point (``scripts/fit_statistical_model.py``) applies this via
-    ``dse_research_utils.environment.setup.init_script`` — mirroring the GB
-    ``scripts/fit_model.py``. This idempotent helper is called at the top of each
-    Bayesian ``fit()`` too, so figures are styled consistently even when a model
-    is fitted / replotted from a notebook or test that bypasses the CLI. Imported
-    lazily so importing this paths module stays cheap and free of import-time
-    matplotlib side effects.
+    The shared ``dse_research_utils`` style plus this repository's font fallback
+    (``figure_io.use_house_style``). The CLI entry points
+    (``scripts/fit_statistical_model.py`` and the GB ``scripts/fit_model.py``)
+    apply it too. This idempotent helper is called at the top of each Bayesian
+    ``fit()``, so figures are styled consistently even when a model is fitted /
+    replotted from a notebook or test that bypasses the CLI. Imported lazily so
+    importing this paths module stays cheap and free of import-time matplotlib
+    side effects.
     """
-    from dse_research_utils.plot.styles import set_matplotlib_default_style
+    from language_reading_predictors.figure_io import use_house_style
 
-    set_matplotlib_default_style()
+    use_house_style()

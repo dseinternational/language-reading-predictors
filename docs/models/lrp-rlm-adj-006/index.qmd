@@ -4,7 +4,8 @@ title: "RLMADJ06: Byrne annual predictors of word-reading progress, waves 1-5"
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

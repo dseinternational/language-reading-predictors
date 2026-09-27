@@ -375,8 +375,14 @@ Majerus
 Makowski
 Margossian
 Mascaro
+mathbb
+mathbf
 mathcal
+mathfont
+mathml
 mathrm
+mathscr
+mathtext
 matplotlib
 MAXJOBS
 McArdle
@@ -448,6 +454,7 @@ nonzero
 noqa
 Nordahl
 notna
+Noto
 NUCA
 numba
 numchil
@@ -483,6 +490,7 @@ overfitting
 Ozanne
 Pagnamenta
 Pandoc
+Pango
 Papagno
 papersize
 parameterisation
@@ -638,6 +646,7 @@ Stanovich
 startswith
 statsmodels
 Sterling
+STIX
 Stojanovik
 Stuebing
 subfit

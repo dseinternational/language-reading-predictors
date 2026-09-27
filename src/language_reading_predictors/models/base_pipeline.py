@@ -1623,6 +1623,11 @@ class EstimatorPipeline:
         qmd_dest = context.output_dir / "index.qmd"
         shutil.copy(template, qmd_dest)
         print(f"  Template used: {template.relative_to(_ROOT_DIR)}")
+        # The template's theme layers the shared report fonts (#693), resolved
+        # beside the rendered file as for the statistical reports' partials.
+        partials_dest = context.output_dir / "_partials"
+        partials_dest.mkdir(exist_ok=True)
+        shutil.copy(_DOCS_DIR / "models" / "_partials" / "_fonts.scss", partials_dest)
 
         print(f"  Report template copied to: {qmd_dest}")
         print(

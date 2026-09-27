@@ -57,6 +57,7 @@ from sklearn.model_selection import GroupKFold
 
 import language_reading_predictors.data_utils as data_utils
 from language_reading_predictors import model_ids
+from language_reading_predictors import figure_io
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.registry import MODELS
@@ -655,6 +656,7 @@ def main() -> None:
     args = parser.parse_args()
     _paths.set_output_root(args.output_dir)
     print(f"[bold]Output root:[/bold] {_paths.describe_output_root()}")
+    figure_io.use_house_fonts()
 
     # Resolve legacy/canonical CLI ids forward to the canonical registry key.
     models = [_resolve_model_id(m) for m in args.models]

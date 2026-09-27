@@ -40,7 +40,7 @@ import pandas as pd
 from dse_research_utils.statistics.intervals import eti_1d, eti_bands
 from scipy.special import expit
 
-from language_reading_predictors import paths
+from language_reading_predictors import figure_io, paths
 from language_reading_predictors.statistical_models.measures import MEASURES
 from dse_research_utils.statistics.evidence import evidence_label, favoured_direction
 
@@ -134,6 +134,8 @@ def _forest(df: pd.DataFrame, path: str) -> None:
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+
+    figure_io.use_house_fonts()
 
     y = np.arange(len(df))[::-1]
     fig, ax = plt.subplots(figsize=(8, 0.6 * len(df) + 1.5))

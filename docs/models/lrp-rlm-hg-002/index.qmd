@@ -4,7 +4,8 @@ title: "RLMHG02: Historical BAS spelling growth, waves 1-4 + DS wave 5 (Byrne et
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

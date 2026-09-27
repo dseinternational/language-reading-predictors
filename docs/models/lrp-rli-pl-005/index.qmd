@@ -4,7 +4,8 @@ title: "LRPPL005: Wave-pooled level association, phonological memory (erbto) →
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3
