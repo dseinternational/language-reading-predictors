@@ -352,3 +352,29 @@ def test_output_cleanup_unlinks_directory_symlinks(tmp_path, clear_outputs):
     clear_outputs(output)
     assert list(output.iterdir()) == []
     assert sentinel.read_text() == "keep"
+
+
+# ── importance pairing with unassessable predictors (#691) ─────────────────────
+
+
+def test_importance_pairing_keeps_unassessable_predictors_unranked():
+    from language_reading_predictors.models.base_pipeline import importance_pairing
+
+    clusters = pd.DataFrame({"feature": ["a", "b", "time", "c"], "cluster_id": [1, 1, 1, 2]})
+    perm = pd.DataFrame(
+        {
+            "feature": ["a", "b", "time", "c"],
+            "importance_mean": [0.1, 0.3, np.nan, 0.2],
+            "importance_std": [0.01, 0.02, np.nan, 0.01],
+        }
+    )
+    pairing = importance_pairing(clusters, perm)
+    assert pairing["importance_rank"].dtype == "Int64"
+    assert pairing["feature"].tolist() == ["b", "a", "time", "c"]
+    assert pairing.set_index("feature")["importance_rank"].isna().to_dict() == {
+        "a": False,
+        "b": False,
+        "time": True,
+        "c": False,
+    }
+    assert pairing.set_index("feature").loc[["b", "c", "a"], "importance_rank"].tolist() == [1, 2, 3]
