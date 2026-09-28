@@ -190,6 +190,7 @@ Fieldsend
 figsize
 Filipe
 FIML
+findfont
 Finestack
 Fiske
 fittable
@@ -436,6 +437,7 @@ nanmin
 ncol
 ndarray
 networkx
+Neue
 NeurIPS
 Neuropsychologia
 Neurorehabilitation

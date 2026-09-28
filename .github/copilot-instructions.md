@@ -49,7 +49,7 @@ Run commands with `uv run <command>`; activation is optional. PyMC uses the Numb
 
 Model graphs also need the system Graphviz `dot` binary (`brew install graphviz`, `apt install graphviz` or `winget install Graphviz.Graphviz`).
 
-Figures, graphs and reports set text in Noto Sans and equations in Noto Sans Math. Install both system fonts (`brew install --cask font-noto-sans font-noto-sans-math`, `apt install fonts-noto-core` or Google Fonts on Windows), then delete `fontlist-*.json` from `matplotlib.get_cachedir()`. Without them, figures fall back to DejaVu Sans.
+Figures, graphs and reports set text in Noto Sans and equations in Noto Sans Math. Install both system fonts (`brew install --cask font-noto-sans font-noto-sans-math`, `apt install fonts-noto-core` or Google Fonts on Windows), then delete `fontlist-*.json` from `matplotlib.get_cachedir()`. Without them, text falls back to the next installed font in the shared style's `font.sans-serif` list, such as Arial or DejaVu Sans.
 
 ## Commands
 
@@ -188,7 +188,7 @@ Notebooks reference a shared external package (`dse_research_utils`) for environ
 ## Conventions
 
 - All source files include SPDX license headers: `# SPDX-License-Identifier: AGPL-3.0-or-later`
-- Fits, and scripts that redraw fit figures, apply the full house plot style with `figure_io.use_house_style()`, which `init_plotting()` calls. Standalone scripts that lay out their own figures call `figure_io.use_house_fonts()`. Both name Noto Sans, Noto Sans Math and DejaVu Sans as text families so that symbols missing from Noto Sans, such as → and ≈, fall back rather than print as empty boxes.
+- Fits, and scripts that redraw fit figures, apply the full house plot style with `figure_io.use_house_style()`, which `init_plotting()` calls. Standalone scripts that lay out their own figures call `figure_io.use_house_fonts()`. Both take `font.family` from the shared style's `default_font_families()`, which lists only installed fonts, so that symbols missing from Noto Sans, such as → and ≈, fall back to Noto Sans Math or DejaVu Sans rather than print as empty boxes. Do not name Noto Sans in `font.family`: where it is absent, including CI, matplotlib logs a warning for every text element.
 - Spell checking uses British English (`en-GB`) configured in `.cspell.config.yaml` with a custom allow list at `config/spellcheck/allow-en.txt`.
 - The Quarto report (`docs/report/`) uses `execute: freeze: true` — computational output is cached, not re-run on render.
 - Hatch builds the package; `src/language_reading_predictors/__init__.py` supplies the version. `uv run mypy` checks the whole package under strict flags. Keep exemptions in the single `pyproject.toml` list; `tests/test_type_coverage.py` rejects newly failing modules and exemptions that have become unnecessary.

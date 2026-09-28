@@ -56,7 +56,7 @@ Supported platforms are Linux (x86-64 and arm64), Apple Silicon macOS, and Windo
 
 Plotting model graphs additionally requires the system [Graphviz](https://graphviz.org/) `dot` binary, which is not a Python package: `brew install graphviz`, `apt install graphviz` or `winget install Graphviz.Graphviz`.
 
-Figures, model graphs and reports set text in [Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans) and equations in [Noto Sans Math](https://fonts.google.com/noto/specimen/Noto+Sans+Math). These are system fonts: `brew install --cask font-noto-sans font-noto-sans-math`, `sudo apt install fonts-noto-core`, or install both from Google Fonts on Windows. matplotlib caches its font list, so after installing them delete `fontlist-*.json` from the directory that `uv run python -c "import matplotlib; print(matplotlib.get_cachedir())"` prints. Without the fonts, figures fall back to DejaVu Sans.
+Figures, model graphs and reports set text in [Noto Sans](https://fonts.google.com/noto/specimen/Noto+Sans) and equations in [Noto Sans Math](https://fonts.google.com/noto/specimen/Noto+Sans+Math). These are system fonts: `brew install --cask font-noto-sans font-noto-sans-math`, `sudo apt install fonts-noto-core`, or install both from Google Fonts on Windows. matplotlib caches its font list, so after installing them delete `fontlist-*.json` from the directory that `uv run python -c "import matplotlib; print(matplotlib.get_cachedir())"` prints. Without the fonts, text falls back to another installed font, such as Arial or DejaVu Sans.
 
 #### Creating reports
 

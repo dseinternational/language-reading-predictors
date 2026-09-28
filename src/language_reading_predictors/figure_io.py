@@ -14,12 +14,12 @@ call site behaves identically:
 * optionally write ``<name>.csv`` of the data behind the plot.
 
 Consistent house style (fonts, colours, grid, DPI) comes from ``dse_research_utils``
-(``set_matplotlib_default_style``) plus this repository's font fallback, applied once
-at the fit entry points through :func:`use_house_style`; the other helpers only
-standardise *saving* — PNG + SVG sibling + optional data CSV — and closing the
-figure. Both matplotlib figures and ``arviz_plots`` ``PlotCollection`` objects route
-through here so a single change propagates to every model. Standalone scripts that
-lay out their own figures take only the house fonts, through :func:`use_house_fonts`.
+(``set_matplotlib_default_style``), applied once at the fit entry points through
+:func:`use_house_style`; the other helpers only standardise *saving* — PNG + SVG
+sibling + optional data CSV — and closing the figure. Both matplotlib figures and
+``arviz_plots`` ``PlotCollection`` objects route through here so a single change
+propagates to every model. Standalone scripts that lay out their own figures take
+only the house fonts, through :func:`use_house_fonts`.
 
 The save mechanics moved into ``dse_research_utils.plot.io`` in v0.12.0 (they were
 one of five parallel implementations across the research repositories); this module
@@ -37,8 +37,7 @@ import matplotlib as mpl
 from dse_research_utils.plot.styles import (
     DEFAULT_STYLE_DICT,
     DPI_FILE,
-    FONT_FAMILY_DEFAULT,
-    FONT_FAMILY_MATH,
+    default_font_families,
     set_matplotlib_default_style,
 )
 
@@ -47,25 +46,14 @@ from dse_research_utils.plot.styles import (
 # below the multi-megabyte beeswarm/interaction grids we want to keep raster.
 SVG_MAX_BYTES = plot_io.SVG_MAX_BYTES
 
-# Text families in fallback order (#693). The shared style names the generic
-# "sans-serif", which matplotlib resolves to a single font, so a character that
-# Noto Sans lacks is drawn as an empty box. Noto Sans has no arrows or relations
-# (→ ≈ ≤ ✓); Noto Sans Math, designed to pair with it, has them. DejaVu Sans ships
-# with matplotlib and covers the rest, and the text itself when the Noto fonts are
-# not installed.
-HOUSE_FONT_FAMILIES = [FONT_FAMILY_DEFAULT, FONT_FAMILY_MATH, "DejaVu Sans"]
-
 # The house font settings: the shared style's sans-serif list and mathtext fonts
-# (Noto Sans Math for equations), with the fallback order above. Read from the
-# shared style so the two cannot drift. Font size stays out because it changes
-# layout, which is what the fonts-only route exists to leave alone.
+# (Noto Sans Math for equations). Read from the shared style so the two cannot
+# drift. Font size stays out because it changes layout, which is what the
+# fonts-only route exists to leave alone. ``font.family`` stays out because it
+# depends on which fonts are installed (#695), so :func:`use_house_fonts` reads it
+# when it runs.
 HOUSE_FONT_RCPARAMS: dict[str, Any] = {
-    **{
-        key: value
-        for key, value in DEFAULT_STYLE_DICT.items()
-        if key == "font.sans-serif" or key.startswith("mathtext.")
-    },
-    "font.family": HOUSE_FONT_FAMILIES,
+    key: value for key, value in DEFAULT_STYLE_DICT.items() if key == "font.sans-serif" or key.startswith("mathtext.")
 }
 
 
@@ -75,14 +63,19 @@ def use_house_fonts() -> None:
     For standalone scripts that size and lay out their own figures (with
     ``tight_layout``, which the full style's constrained layout would fight).
     Model fits and scripts that redraw fit figures use :func:`use_house_style`.
+
+    ``font.family`` comes from the shared style's fallback list, so symbols that
+    Noto Sans lacks (→ ≈ ≤ ✓) fall back to Noto Sans Math or DejaVu Sans rather
+    than drawing as empty boxes (#693). The list names only installed fonts, so a
+    machine without the Noto fonts does not log a lookup failure per text element.
     """
     mpl.rcParams.update(HOUSE_FONT_RCPARAMS)
+    mpl.rcParams["font.family"] = default_font_families()
 
 
 def use_house_style() -> None:
-    """Apply the shared house style with the house font fallback."""
+    """Apply the shared house style, including its font fallback list."""
     set_matplotlib_default_style()
-    use_house_fonts()
 
 
 def save_plot_data(output_dir: str, name: str, data: Any, *, index: bool = False) -> str:
@@ -147,7 +140,6 @@ def save_plotcollection(
 
 __all__ = [
     "DPI_FILE",
-    "HOUSE_FONT_FAMILIES",
     "HOUSE_FONT_RCPARAMS",
     "SVG_MAX_BYTES",
     "save_plot_data",
