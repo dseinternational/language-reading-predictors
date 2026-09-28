@@ -19,11 +19,11 @@ Under 0.16.0, `figure_io` set `font.family` to `["Noto Sans", "Noto Sans Math", 
 
 The house list had a cost that #694 did not measure. matplotlib logs `findfont: Font family '…' not found.` each time it lays out text in a named family it cannot find. It caches the failed lookup but logs it again on every use. A two-panel test figure, with titles, axis labels, legends and a figure title, logged the following warnings:
 
-| Fonts available to matplotlib   | House list (0.16.0) | Shared list (0.16.1) |
-| ------------------------------- | ------------------- | -------------------- |
-| Noto Sans and Noto Sans Math    | 0                   | 0                    |
-| Noto Sans only                  | 295                 | 0                    |
-| Neither, as on the CI runner    | 590                 | 0                    |
+| Fonts available to matplotlib | House list (0.16.0) | Shared list (0.16.1) |
+| ----------------------------- | ------------------- | -------------------- |
+| Noto Sans and Noto Sans Math  | 0                   | 0                    |
+| Noto Sans only                | 295                 | 0                    |
+| Neither, as on the CI runner  | 590                 | 0                    |
 
 The development machine used here has Noto Sans but not Noto Sans Math, so its own fits were affected; the note for #693 had checked both fonts on a different machine. The first row was measured by loading a downloaded copy of Noto Sans Math into matplotlib for the session only, and the last by hiding both Noto fonts from matplotlib's font list. None of the cases raised a missing-glyph warning.
 
