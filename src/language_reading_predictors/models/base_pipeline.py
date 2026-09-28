@@ -1021,19 +1021,7 @@ class EstimatorPipeline:
         perm_df = context.perm_importance_df
         if perm_df is not None:
             print("  Joining permutation importance onto clusters...")
-            perm_df = perm_df.copy()
-            perm_df["importance_rank"] = (
-                perm_df["importance_mean"]
-                .rank(ascending=False, method="min")
-                .astype(int)
-            )
-            pairing = cluster_df.merge(
-                perm_df[
-                    ["feature", "importance_mean", "importance_std", "importance_rank"]
-                ],
-                on="feature",
-                how="left",
-            ).sort_values(["cluster_id", "importance_rank"])
+            pairing = importance_pairing(cluster_df, perm_df)
             pairing.to_csv(out / "importance_pairing.csv", index=False)
 
         print("  Feature-selection diagnostics saved.")
@@ -1732,6 +1720,27 @@ class EstimatorPipeline:
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
+
+
+def importance_pairing(cluster_df: pd.DataFrame, perm_df: pd.DataFrame) -> pd.DataFrame:
+    """Join permutation importance and its rank onto the cluster table.
+
+    Predictors the permutation design cannot assess carry a missing
+    ``importance_mean`` (#691), so the rank uses the nullable ``Int64`` dtype:
+    they keep a blank rank and sort after the assessable members of their
+    cluster rather than failing the integer cast.
+    """
+    perm_df = perm_df.copy()
+    perm_df["importance_rank"] = (
+        perm_df["importance_mean"]
+        .rank(ascending=False, method="min")
+        .astype("Int64")
+    )
+    return cluster_df.merge(
+        perm_df[["feature", "importance_mean", "importance_std", "importance_rank"]],
+        on="feature",
+        how="left",
+    ).sort_values(["cluster_id", "importance_rank"])
 
 
 def summed_symmetric_interactions(
