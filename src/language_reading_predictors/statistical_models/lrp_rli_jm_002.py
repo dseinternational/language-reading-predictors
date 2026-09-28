@@ -99,6 +99,12 @@ SPEC = ModelSpec(
         confounder_symbols=("G", "A"),
         include_group=True,
     ),
+    # Above the reporting preset's 0.95: at 0.95 the 2026-09-28 rebuild failed the
+    # ESS gate on a single per-child latent (u_child_z[33, N], bulk/tail ESS
+    # 399.65 against 400) with 0 divergences, R-hat 1.0096 and per-chain BFMI
+    # >= 0.885. Declared here, not on the command line, so that a registry rebuild
+    # reproduces the remediated contract.
+    target_accept=0.99,
 )
 
 
