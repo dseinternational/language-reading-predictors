@@ -4,7 +4,8 @@ title: "LRP87: Does the intervention raise phoneme blending via letter-sounds? (
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

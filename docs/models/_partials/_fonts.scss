@@ -1,0 +1,33 @@
+// SPDX-License-Identifier: CC-BY-4.0
+// House report fonts (#693): Noto Sans text and Noto Sans Math equations, matching
+// the figures and model graphs. Layer after a Bootstrap theme, e.g.
+// `theme: [cosmo, _partials/_fonts.scss]`, with `html-math-method: mathml`:
+// MathJax draws equations in its own fonts, while browsers draw MathML in the
+// font below. Both families load from Google Fonts, whose Noto Sans Math keeps
+// the OpenType MATH table MathML layout needs.
+
+/*-- scss:defaults --*/
+
+$house-web-fonts: "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,300..700;1,300..700&family=Noto+Sans+Math&display=swap";
+// Bootswatch themes such as cosmo import their own web font from this variable;
+// Bootstrap's default theme has none. The rules below import the house fonts
+// under either.
+$web-font-path: false;
+$font-family-sans-serif: "Noto Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+/*-- scss:rules --*/
+
+@import url($house-web-fonts);
+
+math {
+  font-family: "Noto Sans Math", math;
+}
+
+// MathML does not line-break, so a long equation scrolls in its own box rather
+// than widening the page.
+math[display="block"] {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25em;
+}

@@ -4,7 +4,8 @@ title: "RLMGC01: Does baseline verbal reasoning predict the BAS word-reading tra
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

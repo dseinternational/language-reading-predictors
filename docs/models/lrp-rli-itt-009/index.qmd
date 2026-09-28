@@ -4,7 +4,8 @@ title: "LRPITT09: Available-case modified ITT analysis of phonetic spelling (SPP
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

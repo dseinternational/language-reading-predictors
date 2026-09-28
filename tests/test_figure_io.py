@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import matplotlib
 
 matplotlib.use("Agg")
@@ -109,6 +111,57 @@ def test_init_plotting_applies_house_style():
     init_plotting()
     # set_matplotlib_default_style pins the file DPI at 300.
     assert plt.rcParams["savefig.dpi"] == pytest.approx(300)
+
+
+def test_house_style_sets_noto_fonts():
+    """Issue #693: figures use Noto Sans text and Noto Sans Math math."""
+    from language_reading_predictors.statistical_models.environment import (
+        init_plotting,
+    )
+
+    with matplotlib.rc_context():
+        init_plotting()
+        assert plt.rcParams["font.family"] == ["Noto Sans", "Noto Sans Math", "DejaVu Sans"]
+        assert plt.rcParams["font.sans-serif"][0] == "Noto Sans"
+        assert plt.rcParams["mathtext.fontset"] == "custom"
+        assert plt.rcParams["mathtext.rm"] == "Noto Sans Math"
+        assert plt.rcParams["savefig.dpi"] == pytest.approx(300)  # and the rest of the shared style
+
+
+def test_house_style_draws_symbols_noto_sans_lacks():
+    """Noto Sans has no arrows or relations; the family list falls back per glyph.
+
+    Without the Noto fonts (as in CI) DejaVu Sans draws all of it, so this holds
+    either way; with them, a generic "sans-serif" family would draw empty boxes.
+    """
+    with matplotlib.rc_context():
+        figure_io.use_house_style()
+        fig, ax = plt.subplots()
+        ax.set_title("average effect ≈ +1.4 items → ≤ ≥ ↔ ≠ ✓")
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            fig.canvas.draw()
+        plt.close(fig)
+    assert not [w for w in caught if "missing from font" in str(w.message)]
+
+
+def test_use_house_fonts_sets_fonts_and_leaves_layout():
+    with matplotlib.rc_context(
+        {
+            "font.sans-serif": ["DejaVu Sans"],
+            "mathtext.fontset": "dejavusans",
+            "font.size": 9,
+            "figure.constrained_layout.use": False,
+        }
+    ):
+        figure_io.use_house_fonts()
+        assert plt.rcParams["font.family"] == ["Noto Sans", "Noto Sans Math", "DejaVu Sans"]
+        assert plt.rcParams["font.sans-serif"][0] == "Noto Sans"
+        assert plt.rcParams["mathtext.fontset"] == "custom"
+        assert plt.rcParams["mathtext.rm"] == "Noto Sans Math"
+        assert plt.rcParams["mathtext.it"] == "Noto Sans:italic"
+        assert plt.rcParams["font.size"] == pytest.approx(9)
+        assert plt.rcParams["figure.constrained_layout.use"] is False
 
 
 def test_save_plotcollection_leaves_unrelated_figure_open(tmp_path):

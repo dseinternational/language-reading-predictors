@@ -4,25 +4,25 @@ digraph RLM_LAGGED_DAG {
   rankdir=LR;
   bgcolor="white";
   labelloc="t";
-  fontname="Helvetica-Bold";
+  fontname="Noto Sans,sans-serif";
   fontsize=17;
-  label="Reading, language & memory lagged DAG — adopted two-slice working structure";
+  label=<<B>Reading, language &amp; memory lagged DAG — adopted two-slice working structure</B>>;
   nodesep=0.24;
   ranksep=0.72;
   concentrate=false;
   splines=true;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=10,
+  node [shape=box, style="rounded,filled", fontname="Noto Sans,sans-serif", fontsize=10,
         margin="0.10,0.05", penwidth=1.2, color="#9aa0a8", fillcolor="#eceef1"];
   edge [penwidth=1.0, arrowsize=0.65, color="#9aa0a8"];
 
   subgraph cluster_t {
-    label="annual assessment t";
+    label=<<B>annual assessment t</B>>;
     color="#d1d5db";
     style="rounded";
     basdig_t  [label="basdig\ndigit recall", fillcolor="#d6ebe4", color="#2f9e78"];
     bpvs_t    [label="bpvs\nreceptive vocabulary", fillcolor="#d6ebe4", color="#2f9e78"];
     trog_t    [label="trog\nreceptive grammar"];
-    basread_t [label="basread\nWORD READING", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.3, fontname="Helvetica-Bold"];
+    basread_t [label=<<TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD><B>basread</B></TD></TR><TR><TD><B>WORD READING</B></TD></TR></TABLE>>, fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.3];
     woco_t    [label="woco\nreading comprehension", fillcolor="#cfe0f7", color="#2f6fdb"];
     basspel_t [label="basspel\nspelling", fillcolor="#fdecd2", color="#c2872a"];
     basnum_t  [label="basnum\nnumber skills"];
@@ -39,13 +39,13 @@ digraph RLM_LAGGED_DAG {
   }
 
   subgraph cluster_t1 {
-    label="annual assessment t+1";
+    label=<<B>annual assessment t+1</B>>;
     color="#d1d5db";
     style="rounded";
     basdig_t1  [label="basdig\ndigit recall", fillcolor="#d6ebe4", color="#2f9e78"];
     bpvs_t1    [label="bpvs\nreceptive vocabulary", fillcolor="#d6ebe4", color="#2f9e78"];
     trog_t1    [label="trog\nreceptive grammar"];
-    basread_t1 [label="basread\nWORD READING", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.3, fontname="Helvetica-Bold"];
+    basread_t1 [label=<<TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD><B>basread</B></TD></TR><TR><TD><B>WORD READING</B></TD></TR></TABLE>>, fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.3];
     woco_t1    [label="woco\nreading comprehension", fillcolor="#cfe0f7", color="#2f6fdb"];
     basspel_t1 [label="basspel\nspelling", fillcolor="#fdecd2", color="#c2872a"];
     basnum_t1  [label="basnum\nnumber skills"];

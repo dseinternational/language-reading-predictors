@@ -4,7 +4,8 @@ title: "RLMHG05: Historical TROG receptive-grammar growth, waves 1-4 + DS wave 5
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

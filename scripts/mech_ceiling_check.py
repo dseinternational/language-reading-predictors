@@ -49,10 +49,9 @@ import pymc as pm
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-import dse_research_utils.environment.setup as setup  # noqa: E402
 import dse_research_utils.statistics.models.sampling as _sampling  # noqa: E402
 
-from language_reading_predictors import paths  # noqa: E402
+from language_reading_predictors import figure_io, paths  # noqa: E402
 
 # noqa: E402
 from language_reading_predictors.statistical_models.preprocessing import (  # noqa: E402
@@ -170,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output-dir", default=None)
     args = parser.parse_args(argv)
 
-    setup.init_script()
+    figure_io.use_house_style()
     paths.set_output_root(args.output_dir)
     registry = discover_models()
 

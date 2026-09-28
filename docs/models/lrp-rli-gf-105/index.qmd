@@ -4,7 +4,8 @@ title: "LRPGF05b: Factors associated with gains in phonetic spelling (PS), off-f
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

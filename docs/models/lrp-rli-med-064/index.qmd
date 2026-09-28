@@ -4,7 +4,8 @@ title: "LRP64: Do letter-sounds and vocabulary act as independent paths to word 
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

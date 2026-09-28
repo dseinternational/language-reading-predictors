@@ -20,7 +20,7 @@ import pandas as pd
 import pymc as pm
 from scipy.special import expit
 
-from language_reading_predictors import paths
+from language_reading_predictors import figure_io, paths
 from language_reading_predictors.data_variables import Variables
 from language_reading_predictors.statistical_models.itt import (
     build_itt_from_plan,
@@ -105,6 +105,7 @@ def main() -> None:
     args = parser.parse_args()
     if args.children < 4 or args.chains < 2 or min(args.draws, args.tune) < 1:
         parser.error("use at least four children, two chains, and positive draws and tune")
+    figure_io.use_house_fonts()
 
     plan = resolve_itt_run_plan(SPEC)
     output = args.output_dir.resolve()

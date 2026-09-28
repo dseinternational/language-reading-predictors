@@ -43,7 +43,11 @@ patterns:
           [\s\S]*?
           ^\1
       /gmx
+  # Quarto's option name uses US "math"; British prose should still say "maths".
+  - name: quarto_html_math_method
+    pattern: /html-math-method/g
 ignoreRegExpList:
+    - quarto_html_math_method
     - markdown_code_block
     - markdown_citation
     - markdown_inline_math

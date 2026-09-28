@@ -4,7 +4,8 @@ title: "RLMADJ01: Byrne wave-1 predictors of word-reading gain, waves 1-3 (betwe
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

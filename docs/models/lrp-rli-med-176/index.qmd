@@ -4,7 +4,8 @@ title: "LRP176: Reverse longitudinal-ordering mediation â€” word reading (t2) â†
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

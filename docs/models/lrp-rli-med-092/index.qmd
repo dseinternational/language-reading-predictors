@@ -4,7 +4,8 @@ title: "MED-092: Does being on the programme raise word reading via letter-sound
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

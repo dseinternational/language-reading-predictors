@@ -2,14 +2,14 @@ digraph LRP_DAG {
   rankdir=LR;
   bgcolor="white";
   labelloc="t";
-  fontname="Helvetica-Bold";
+  fontname="Noto Sans,sans-serif";
   fontsize=17;
-  label="Language & reading causal DAG — revised 2026-07-10  (causal flow left → right)";
+  label=<<B>Language &amp; reading causal DAG — revised 2026-07-10  (causal flow left → right)</B>>;
   nodesep=0.28;
   ranksep=0.95;
   concentrate=false;
   splines=true;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11,
+  node [shape=box, style="rounded,filled", fontname="Noto Sans,sans-serif", fontsize=11,
         margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
   edge [penwidth=1.1, arrowsize=0.7];
 
@@ -38,7 +38,7 @@ digraph LRP_DAG {
   NW [label="NW\nnonword reading", fillcolor="#fdecd2", color="#c2872a"];
   PS [label="PS\nphonetic spelling\n(outcome)", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
 
-  WR [label="WR\nWORD READING\n(primary outcome)", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+  WR [label=<<TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD><B>WR</B></TD></TR><TR><TD><B>WORD READING</B></TD></TR><TR><TD><B>(primary outcome)</B></TD></TR></TABLE>>, fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6];
 
   // background common causes (shown, edges summarised)
   ABG [label="A · age\nGA · general ability (latent)\n→ common causes of EVERY observed node\n(16 edges each; omitted for clarity)",

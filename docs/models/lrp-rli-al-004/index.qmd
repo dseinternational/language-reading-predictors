@@ -4,7 +4,8 @@ title: "LRPAL04: Aligned-40-week per-protocol gain for letter-sound knowledge (L
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

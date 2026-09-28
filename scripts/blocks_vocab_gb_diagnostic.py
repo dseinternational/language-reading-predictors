@@ -38,7 +38,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 import language_reading_predictors.data_utils as data_utils
-from language_reading_predictors import model_ids, paths
+from language_reading_predictors import figure_io, model_ids, paths
 from language_reading_predictors.data_variables import Variables as V
 from language_reading_predictors.models.base_model import MODELS
 from language_reading_predictors.models.common import RunConfig
@@ -126,6 +126,7 @@ def main() -> None:
     ap.add_argument("--models", nargs="+", default=list(VOCAB_LEVEL_MODELS))
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
+    figure_io.use_house_style()  # the fits draw figures, as under scripts/fit_model.py
 
     df = data_utils.load_data()
     rows = [run_one(m, args.config, df) for m in args.models]

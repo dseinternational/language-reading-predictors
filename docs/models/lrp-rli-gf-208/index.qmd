@@ -4,7 +4,8 @@ title: "LRPGF08m: Treatment-moderation variant — gains in TROG receptive gramm
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

@@ -353,6 +353,7 @@ def age_within_group(df: pd.DataFrame) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()
+    figure_io.use_house_fonts()
     os.makedirs(_OUT_DIR, exist_ok=True)
     df = load_rlm()
     per_wave_matrices(df)

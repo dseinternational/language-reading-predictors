@@ -53,6 +53,7 @@ _KIND_BY_EXTENSION = {
     ".pdf": "figure",
     ".png": "figure",
     ".qmd": "report",
+    ".scss": "report",
     ".svg": "figure",
     ".txt": "text",
     ".yml": "report",

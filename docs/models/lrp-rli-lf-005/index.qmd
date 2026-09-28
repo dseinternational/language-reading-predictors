@@ -4,7 +4,8 @@ title: "LRPLF05: Factors associated with the level of phonetic spelling (PS), of
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

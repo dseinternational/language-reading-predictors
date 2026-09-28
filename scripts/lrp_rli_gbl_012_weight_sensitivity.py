@@ -58,6 +58,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GroupKFold
 
 import language_reading_predictors.data_utils as data_utils
+from language_reading_predictors import figure_io
 from language_reading_predictors import paths as _paths
 from language_reading_predictors.models.registry import MODELS
 
@@ -169,6 +170,7 @@ def main() -> None:
     args = parser.parse_args()
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
+    figure_io.use_house_fonts()
 
     out_dir = _output_dir()
     out_dir.mkdir(parents=True, exist_ok=True)

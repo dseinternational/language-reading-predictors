@@ -4,7 +4,8 @@ title: "LCSM-081: Does prior word reading predict taught-vocabulary change? (lag
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

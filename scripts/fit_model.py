@@ -13,14 +13,13 @@ import uuid
 from pathlib import Path
 from multiprocessing import freeze_support
 
-import dse_research_utils.environment.setup as setup
 from rich import print
 
 from language_reading_predictors.models._reporting import (
     metrics_table,
     print_table,
 )
-from language_reading_predictors import model_ids
+from language_reading_predictors import figure_io, model_ids
 from language_reading_predictors import paths
 from language_reading_predictors.models.registry import MODELS
 from language_reading_predictors.storage import upload_to_blob_storage
@@ -83,7 +82,7 @@ def main():
 
     freeze_support()
 
-    setup.init_script()
+    figure_io.use_house_style()
 
     args = parser.parse_args()
 

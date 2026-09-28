@@ -4,7 +4,8 @@ title: "RLMHS01: Byrne horseshoe ranking of wave-1 predictors of word-reading ga
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

@@ -532,6 +532,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    figure_io.use_house_fonts()
     results = run_analysis(n_bootstrap=args.n_bootstrap, seed=args.seed)
     write_outputs(results, args.output_dir)
     print(results[["study_id", "estimand", "estimate", "lower_89", "upper_89", "n_children"]].to_string(index=False))

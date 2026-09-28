@@ -6,6 +6,9 @@
 > [!NOTE]
 > Byrne/RLM DAG documentation added by a LLM-based AI tool (Codex/GPT-5).
 
+> [!NOTE]
+> Font and regeneration notes updated by a LLM-based AI tool (Claude Code/Opus 5.5).
+
 # Causal DAGs
 
 A directed acyclic graph (DAG) records assumed causal directions without cycles. These graphs guide model design and adjustment choices. Each analysis assigns its own exposure and outcome. Drawing an arrow does not establish that the data identify its causal effect.
@@ -27,13 +30,21 @@ A directed acyclic graph (DAG) records assumed causal directions without cycles.
 
 The prose exposition of the structure — its assumptions, the TD/DS/IDD evidence, honest weaknesses and alternatives considered — is maintained as a review draft in [`../notes/202607101444-dag-explanation-review-draft.md`](../notes/202607101444-dag-explanation-review-draft.md).
 
-Regenerate the figure after editing the `.dot`:
+Regenerate the figures after editing a `.dot`:
 
 ```bash
 dot -Tsvg dag/dag-language-reading.dot -o dag/dag-language-reading.svg
+dot -Tsvg dag/dag-language-reading-lagged.dot -o dag/dag-language-reading-lagged.svg
+dot -Tpng dag/dag-language-reading-lagged.dot -o dag/dag-language-reading-lagged.png
+dot -Tsvg dag/dag-language-reading-lagged-per-wave.dot -o dag/dag-language-reading-lagged-per-wave.svg
+dot -Tpng dag/dag-language-reading-lagged-per-wave.dot -o dag/dag-language-reading-lagged-per-wave.png
 dot -Tsvg dag/dag-reading-language-memory.dot -o dag/dag-reading-language-memory.svg
+dot -Tpng -Gdpi=180 dag/dag-reading-language-memory.dot -o dag/dag-reading-language-memory.png
 dot -Tsvg dag/dag-reading-language-memory-lagged.dot -o dag/dag-reading-language-memory-lagged.svg
+dot -Tpng -Gdpi=180 dag/dag-reading-language-memory-lagged.dot -o dag/dag-reading-language-memory-lagged.png
 ```
+
+The graphs use Noto Sans, like the figures and model graphs (#693); install it first, as the repository README describes. Bold text uses HTML-like `<B>` labels rather than a bold font name. Graphviz copies a font name into SVG unchanged, and browsers cannot match a name such as `Noto Sans Bold` to a font. Bold labels with several lines use a one-column table, because `<BR/>` spaces lines more tightly than plain labels.
 
 Keep the `.dagitty` file and the `.dot`/`.svg` in step: the `.dagitty` file is the source of truth for structure; the Graphviz files are a view of it (with the two universal parents `A` and `GA` summarised in a note rather than drawn, for legibility — the only place the picture departs from the `.dagitty` block).
 

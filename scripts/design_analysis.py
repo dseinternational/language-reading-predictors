@@ -44,6 +44,7 @@ import numpy as np
 import pymc as pm
 from scipy import stats
 
+from language_reading_predictors import figure_io
 from language_reading_predictors import paths as _paths
 
 from language_reading_predictors.statistical_models.factories.itt import build_itt_model
@@ -333,6 +334,7 @@ def main():
     args = ap.parse_args()
     _paths.set_output_root(args.output_dir)
     print(f"Output root: {_paths.describe_output_root()}")
+    figure_io.use_house_fonts()
 
     out_dir = os.path.join(str(_paths.stat_models_dir()), "design_analysis")
     os.makedirs(out_dir, exist_ok=True)

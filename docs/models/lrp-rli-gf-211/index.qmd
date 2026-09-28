@@ -4,7 +4,8 @@ title: "LRPGF11m: Treatment-moderation variant — gains in nonword reading (N),
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3

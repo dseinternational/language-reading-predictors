@@ -1,12 +1,12 @@
 digraph COPYPASTE {
   rankdir=LR; compound=true; bgcolor="white"; splines=true;
-  labelloc="t"; fontname="Helvetica-Bold"; fontsize=17;
-  label="Language & reading causal DAG — TIME-LAGGED unroll, Option A (ADOPTED 2026-07-13): the base cascade, copied per wave, linked across time";
+  labelloc="t"; fontname="Noto Sans,sans-serif"; fontsize=17;
+  label=<<B>Language &amp; reading causal DAG — TIME-LAGGED unroll, Option A (ADOPTED 2026-07-13): the base cascade, copied per wave, linked across time</B>>;
   nodesep=0.22; ranksep=0.85;
-  node [shape=box, style="rounded,filled", fontname="Helvetica", fontsize=11, margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
+  node [shape=box, style="rounded,filled", fontname="Noto Sans,sans-serif", fontsize=11, margin="0.11,0.06", penwidth=1.3, color="#9aa0a8", fillcolor="#eceef1"];
   edge [arrowsize=0.7, penwidth=1.15];
   subgraph cluster_1 {
-    label="WAVE t  ·  the base DAG (a copy)"; labelloc="t"; fontname="Helvetica-Bold"; fontsize=14; fontcolor="#404650";
+    label=<<B>WAVE t  ·  the base DAG (a copy)</B>>; labelloc="t"; fontname="Noto Sans,sans-serif"; fontsize=14; fontcolor="#404650";
     style="rounded,filled"; color="#c9ced6"; fillcolor="#fbfbfc"; margin=14;
     "SP_1" [label="SP\nspeech production", fillcolor="#fbe1e0", color="#d0433f"];
     "RW_1" [label="RW\nword repetition\n(phon. memory)", fillcolor="#d6ebe4", color="#2f9e78"];
@@ -22,7 +22,7 @@ digraph COPYPASTE {
     "PA_1" [label="PA\nphoneme aware.\n(blending)", fillcolor="#fdecd2", color="#c2872a"];
     "NW_1" [label="NW\nnonword reading", fillcolor="#fdecd2", color="#c2872a"];
     "PS_1" [label="PS\nphonetic spelling", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
-    "WR_1" [label="WR\nWORD READING", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+    "WR_1" [label=<<TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD><B>WR</B></TD></TR><TR><TD><B>WORD READING</B></TD></TR></TABLE>>, fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6];
     "TR_1" -> "TE_1" [color="#7a52b3", penwidth=1.15];
     "TR_1" -> "RV_1" [color="#7a52b3", penwidth=1.15];
     "TR_1" -> "EV_1" [color="#7a52b3", penwidth=1.15];
@@ -69,7 +69,7 @@ digraph COPYPASTE {
     {rank=same; "NW_1"; "PS_1";}
   }
   subgraph cluster_2 {
-    label="WAVE t+1  ·  the base DAG (a copy)"; labelloc="t"; fontname="Helvetica-Bold"; fontsize=14; fontcolor="#404650";
+    label=<<B>WAVE t+1  ·  the base DAG (a copy)</B>>; labelloc="t"; fontname="Noto Sans,sans-serif"; fontsize=14; fontcolor="#404650";
     style="rounded,filled"; color="#c9ced6"; fillcolor="#fbfbfc"; margin=14;
     "SP_2" [label="SP\nspeech production", fillcolor="#fbe1e0", color="#d0433f"];
     "RW_2" [label="RW\nword repetition\n(phon. memory)", fillcolor="#d6ebe4", color="#2f9e78"];
@@ -85,7 +85,7 @@ digraph COPYPASTE {
     "PA_2" [label="PA\nphoneme aware.\n(blending)", fillcolor="#fdecd2", color="#c2872a"];
     "NW_2" [label="NW\nnonword reading", fillcolor="#fdecd2", color="#c2872a"];
     "PS_2" [label="PS\nphonetic spelling", fillcolor="#fdecd2", color="#c2872a", penwidth=2.2];
-    "WR_2" [label="WR\nWORD READING", fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6, fontname="Helvetica-Bold"];
+    "WR_2" [label=<<TABLE BORDER="0" CELLSPACING="0" CELLPADDING="0"><TR><TD><B>WR</B></TD></TR><TR><TD><B>WORD READING</B></TD></TR></TABLE>>, fillcolor="#cfe0f7", color="#2f6fdb", penwidth=2.6];
     "TR_2" -> "TE_2" [color="#7a52b3", penwidth=1.15];
     "TR_2" -> "RV_2" [color="#7a52b3", penwidth=1.15];
     "TR_2" -> "EV_2" [color="#7a52b3", penwidth=1.15];

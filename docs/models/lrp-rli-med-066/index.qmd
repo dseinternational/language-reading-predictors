@@ -4,7 +4,8 @@ title: "LRP66: Do letter-sounds and blending act as independent phonics paths to
 format:
   html:
     code-fold: true
-    theme: cosmo
+    theme: [cosmo, _partials/_fonts.scss]
+    html-math-method: mathml
     number-sections: true
     toc: true
     toc-depth: 3
