@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import logging
 import warnings
 
 import matplotlib
@@ -13,6 +14,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import pandas as pd  # noqa: E402
 import pytest  # noqa: E402
+from dse_research_utils.plot.styles import default_font_families  # noqa: E402
+from matplotlib import font_manager  # noqa: E402
 
 from language_reading_predictors import figure_io  # noqa: E402
 from language_reading_predictors.figure_io import (  # noqa: E402
@@ -121,27 +124,71 @@ def test_house_style_sets_noto_fonts():
 
     with matplotlib.rc_context():
         init_plotting()
-        assert plt.rcParams["font.family"] == ["Noto Sans", "Noto Sans Math", "DejaVu Sans"]
+        # Issue #695: the shared style's fallback list, which names only installed fonts.
+        assert plt.rcParams["font.family"] == default_font_families()
+        assert plt.rcParams["font.family"][0] == "sans-serif"
         assert plt.rcParams["font.sans-serif"][0] == "Noto Sans"
         assert plt.rcParams["mathtext.fontset"] == "custom"
         assert plt.rcParams["mathtext.rm"] == "Noto Sans Math"
         assert plt.rcParams["savefig.dpi"] == pytest.approx(300)  # and the rest of the shared style
 
 
-def test_house_style_draws_symbols_noto_sans_lacks():
+HOUSE_FONT_ROUTES = [
+    pytest.param(figure_io.use_house_style, id="house_style"),
+    pytest.param(figure_io.use_house_fonts, id="house_fonts"),
+]
+
+SYMBOLS_NOTO_SANS_LACKS = "average effect ≈ +1.4 items → ≤ ≥ ↔ ≠ ✓"
+
+
+def _draw_symbols_title():
+    fig, ax = plt.subplots()
+    ax.set_title(SYMBOLS_NOTO_SANS_LACKS)
+    ax.set_xlabel("Assessment wave")
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        fig.canvas.draw()
+    plt.close(fig)
+    return caught
+
+
+@pytest.fixture
+def without_noto_fonts(monkeypatch):
+    """Hide the Noto fonts from matplotlib, as on a CI runner that installs none."""
+    manager = font_manager.fontManager
+    monkeypatch.setattr(manager, "ttflist", [font for font in manager.ttflist if not font.name.startswith("Noto")])
+    manager._findfont_cached.cache_clear()
+    yield
+    monkeypatch.undo()
+    manager._findfont_cached.cache_clear()
+
+
+@pytest.mark.parametrize("apply_fonts", HOUSE_FONT_ROUTES)
+def test_house_fonts_draw_symbols_noto_sans_lacks(apply_fonts):
     """Noto Sans has no arrows or relations; the family list falls back per glyph.
 
-    Without the Noto fonts (as in CI) DejaVu Sans draws all of it, so this holds
-    either way; with them, a generic "sans-serif" family would draw empty boxes.
+    Without the Noto fonts (as in CI) DejaVu Sans draws the symbols, so this holds
+    either way; with them, a lone generic "sans-serif" family would draw empty boxes.
+    Scripts on the fonts-only route draw → and ≥ too, so both routes are checked.
     """
     with matplotlib.rc_context():
-        figure_io.use_house_style()
-        fig, ax = plt.subplots()
-        ax.set_title("average effect ≈ +1.4 items → ≤ ≥ ↔ ≠ ✓")
-        with warnings.catch_warnings(record=True) as caught:
-            warnings.simplefilter("always")
-            fig.canvas.draw()
-        plt.close(fig)
+        apply_fonts()
+        caught = _draw_symbols_title()
+    assert not [w for w in caught if "missing from font" in str(w.message)]
+
+
+@pytest.mark.parametrize("apply_fonts", HOUSE_FONT_ROUTES)
+def test_house_fonts_log_no_lookup_failures_without_noto(apply_fonts, without_noto_fonts, caplog):
+    """Issue #695: a family list naming an absent font logs a line per text element."""
+    with matplotlib.rc_context():
+        apply_fonts()
+        # The fixture took effect: text resolves to another font, and the shared
+        # list leaves out Noto Sans Math.
+        assert "Noto" not in font_manager.findfont(font_manager.FontProperties(family=["sans-serif"]))
+        assert "Noto Sans Math" not in default_font_families()
+        with caplog.at_level(logging.WARNING, logger="matplotlib.font_manager"):
+            caught = _draw_symbols_title()
+    assert not [r for r in caplog.records if "not found" in r.getMessage()]
     assert not [w for w in caught if "missing from font" in str(w.message)]
 
 
@@ -155,7 +202,7 @@ def test_use_house_fonts_sets_fonts_and_leaves_layout():
         }
     ):
         figure_io.use_house_fonts()
-        assert plt.rcParams["font.family"] == ["Noto Sans", "Noto Sans Math", "DejaVu Sans"]
+        assert plt.rcParams["font.family"] == default_font_families()
         assert plt.rcParams["font.sans-serif"][0] == "Noto Sans"
         assert plt.rcParams["mathtext.fontset"] == "custom"
         assert plt.rcParams["mathtext.rm"] == "Noto Sans Math"

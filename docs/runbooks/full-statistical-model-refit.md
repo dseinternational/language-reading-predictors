@@ -47,7 +47,7 @@ export QUARTO_PYTHON="$(python -c 'import sys; print(sys.executable)')"
 quarto --version
 
 # 4. Confirm the house fonts resolve (README, "Creating reports"). matplotlib
-#    otherwise falls back to DejaVu Sans without failing the fit. After a new
+#    otherwise falls back to another font without failing the fit. After a new
 #    install, delete fontlist-*.json from matplotlib.get_cachedir() first.
 python - <<'PY'
 from matplotlib import font_manager as fm
