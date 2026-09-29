@@ -20,6 +20,7 @@ import tempfile
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Literal
 
 import numpy as np
@@ -650,6 +651,19 @@ DID_SENSITIVITY_MODEL_IDS = (
     "lrp-rli-did-104",
 )
 DID_SENSITIVITY_MU_DOSE_SIGMAS = (0.5, 1.0, 1.5)
+
+# Per-model cell target_accept floors, raised above the primary's recorded value.
+# Cells always run at max(primary, this floor, any --cell-target-accept), so a
+# floor can only make integration stricter; it never relaxes the primary's
+# contract, and stricter integration does not change the posterior. Declared
+# here, not on the command line, so a registry rebuild reproduces it.
+#
+# lrp-rli-did-007: at its primary's 0.97 the mu_dose cell at prior scale 1.5
+# failed on divergences in the 2026-09-08, 2026-09-21 and 2026-09-28 rebuilds
+# (6 in each of the last two), and each batch cleared it with a command-line
+# --cell-target-accept 0.99. At 0.99 all three cells converge, and on 2026-09-21
+# the swept tau_logit_mean at that scale moved only from +0.134 to +0.133.
+DID_SENSITIVITY_CELL_TARGET_ACCEPT: Mapping[str, float] = MappingProxyType({"lrp-rli-did-007": 0.99})
 
 # The gate covers ``gain_factors`` on ``beta_trt`` (#391). Like the did sweep the
 # set is keyed by **model id**, not outcome: the taught-vocabulary outcomes each

@@ -593,3 +593,30 @@ def test_grid_for_selects_focal_terms_grid():
     # A distal-tier outcome would ride the distal grid; none is currently swept
     # but the selection must not silently apply the proximal grid to one.
     assert did_script._grid_for(distal_plan) == (0.2, 0.25, 0.3, 0.5)
+
+
+# --- the runner's declared cell target_accept floors ---------------------------
+
+
+def test_did_007_cells_carry_their_declared_target_accept_floor():
+    # Declared in the sweep definition so a registry rebuild reproduces the
+    # remediation without a command-line flag.
+    assert did_script._cell_target_accept_floor("lrp-rli-did-007", None) == 0.99
+    # A command-line value may raise the floor but never lower it.
+    assert did_script._cell_target_accept_floor("lrp-rli-did-007", 0.995) == 0.995
+    assert did_script._cell_target_accept_floor("lrp-rli-did-007", 0.95) == 0.99
+
+
+def test_undeclared_did_models_keep_the_primary_contract():
+    assert did_script._cell_target_accept_floor("lrp-rli-did-001", None) is None
+    assert did_script._cell_target_accept_floor("lrp-rli-did-001", 0.99) == 0.99
+
+
+def test_declared_floors_name_only_swept_models():
+    from language_reading_predictors.statistical_models.sensitivity import (
+        DID_SENSITIVITY_CELL_TARGET_ACCEPT,
+        DID_SENSITIVITY_MODEL_IDS,
+    )
+
+    assert set(DID_SENSITIVITY_CELL_TARGET_ACCEPT) <= set(DID_SENSITIVITY_MODEL_IDS)
+    assert all(0.0 < v < 1.0 for v in DID_SENSITIVITY_CELL_TARGET_ACCEPT.values())
