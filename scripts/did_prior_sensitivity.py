@@ -29,6 +29,8 @@ via :mod:`sensitivity` (#488 review):
   on draws/tune/chains, and the primary's recorded ``target_accept`` is
   adopted for every cell (did-007's registered spec overrides the preset with
   0.97, and evidence for that fit must be sampled under that fit's contract).
+  A per-model floor in ``DID_SENSITIVITY_CELL_TARGET_ACCEPT`` (did-007: 0.99)
+  or ``--cell-target-accept`` may only raise it.
 - Each cell is gated on the full convergence criteria over all free variables
   (R-hat <= 1.01, ESS >= 400, BFMI >= 0.3, zero divergences); an unconverged
   cell is not evidence and blocks that model's report-local copy.
@@ -77,6 +79,7 @@ from language_reading_predictors.statistical_models.measures import (
     MEASURES,
 )
 from language_reading_predictors.statistical_models.sensitivity import (
+    DID_SENSITIVITY_CELL_TARGET_ACCEPT,
     DID_SENSITIVITY_MODEL_IDS,
     DID_SENSITIVITY_MU_DOSE_SIGMAS,
     STANDARD_SENSITIVITY_DISTAL_TAU_SIGMAS,
@@ -120,6 +123,15 @@ def _resolve_plan(model_id: str):
 
     module = importlib.import_module("language_reading_predictors.statistical_models." + model_id.replace("-", "_"))
     return resolve_did_run_plan(module.SPEC)
+
+
+def _cell_target_accept_floor(model_id: str, requested: float | None) -> float | None:
+    """The cells' target_accept floor: the higher of the model's declared floor
+    (``DID_SENSITIVITY_CELL_TARGET_ACCEPT``) and any ``--cell-target-accept``.
+    ``_fit_cell`` then takes the maximum with the primary's recorded value, so
+    neither can relax the primary's contract."""
+    floors = [f for f in (DID_SENSITIVITY_CELL_TARGET_ACCEPT.get(model_id), requested) if f is not None]
+    return max(floors) if floors else None
 
 
 def _grid_for(plan) -> tuple[float, ...]:
@@ -433,7 +445,8 @@ def main() -> None:
         default=None,
         help=(
             "escalate the cells' target_accept ABOVE the primary's recorded "
-            "value (each cell runs at max(primary, this); recorded per row in "
+            "value (each cell runs at max(primary, the model's declared floor "
+            "in DID_SENSITIVITY_CELL_TARGET_ACCEPT, this); recorded per row in "
             "sampling_target_accept beside the primary's own value). For a fit "
             "whose cells show seed-hopping divergence-only failures at the "
             "primary's contract: stricter integration never changes the "
@@ -497,7 +510,7 @@ def main() -> None:
                 sampling=sampling,
                 sensitivity_dir=sensitivity_dir,
                 primary_reference=reference,
-                cell_target_accept=args.cell_target_accept,
+                cell_target_accept=_cell_target_accept_floor(model_id, args.cell_target_accept),
             )
             print(
                 f"    tau_logit_mean={row['tau_logit_mean']:+.3f} "
