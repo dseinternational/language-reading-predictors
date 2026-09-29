@@ -96,7 +96,10 @@ def test_the_sampler_knob_survived_the_move_to_its_own_field():
     # the two fits would not be attributable to the ability measure.
     # + lrp-rli-mech-104, whose 0.98 remediation was declared in its module after
     # the 2026-09-21 rebuild re-ran the preset (notes/20260921-full-statistical-refit.md).
-    assert len(declared) == 40
+    # + lrp-rli-jm-002, whose 0.99 remediation was declared after the 2026-09-28
+    # rebuild failed the ESS gate on one per-child latent
+    # (notes/20260928-full-rebuild-both-layers.md).
+    assert len(declared) == 41
     assert all(0.0 < value < 1.0 for value in declared.values())
     # Every one of them now reads from the first-class field.
     assert all(
