@@ -19,6 +19,8 @@
 > Assessment-interval wording updated by a LLM-based AI tool (Claude Code/Opus 5).
 >
 > Font requirements updated by a LLM-based AI tool (Claude Code/Opus 5.5).
+>
+> Windows Numba workaround added by a LLM-based AI tool (Claude Code/Opus 5.5).
 
 > **Keep in sync:** This file, `CLAUDE.md`, and `.github/copilot-instructions.md` share the same content. When updating one, update all three.
 
@@ -44,6 +46,8 @@ uv sync
 ```
 
 Run commands with `uv run <command>`; activation is optional. PyMC uses the Numba-backed `nutpie` sampler. Supported platforms are declared in `pyproject.toml`; Windows runs natively and Intel macOS is excluded.
+
+On some Windows hosts, Numba cannot compile the larger statistical models for the host CPU and stops with `ran out of registers during register allocation`. This was seen with an Intel Raptor Lake CPU, numba 0.67 and llvmlite 0.49. Set `NUMBA_CPU_NAME=sandybridge` before fitting or running sensitivity sweeps. The `generic` and `x86-64-v2` targets also work; `haswell` and `x86-64-v3` fail in the same way. Fit provenance does not record this variable, so state it in the run note.
 
 `dse-research-utils` supplies the scientific dependencies. This repository declares its required extras and pinned git tag in `pyproject.toml`; do not duplicate those version lists here. For local library development, replace its `[tool.uv.sources]` git entry with a path to `../research/src/python`. The project uses neither the `jax` nor the `storage` extra.
 
