@@ -7,8 +7,9 @@ A NEW mechanism model (no prior blending -> reading fit existed) built to TEST w
 phoneme blending shows a "knee" - a level of blending skill beyond which it is
 associated with a more marked difference in word reading - the way LRP58 found for
 letter sounds. The mechanism enters as an HSGP curve on the logit-safe transform of the
-blending post-score; target_accept is 0.999 (per LRP58). Blending is a small bounded
-count (n = 10), so the curve is demanding at this sample size.
+blending post-score; target_accept is 0.9995 (0.999 per LRP58, raised after the
+2026-10-01 rebuild). Blending is a small bounded count (n = 10), so the curve is
+demanding at this sample size.
 
 Reparameterised for the thin blending support (#430). At the shared f_mech defaults
 (m = 10, lengthscale ``InverseGamma(5, 5)``) the curve diverged 31 times at reporting
@@ -56,8 +57,13 @@ SPEC = ModelSpec(
     outcome_symbol="W",
     mechanism_symbol="B",
     adjustment=["G", "A", "L", "TE", "E", "W_pre"],
-    # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58.
-    target_accept=0.999,
+    # HSGP mechanism curve ON (knee-test); target_accept 0.999 per LRP58, raised to
+    # 0.9995 after the 2026-10-01 rebuild: at 0.999 the reporting fit had 1
+    # divergence (R-hat 1.0012, ESS 3,403, per-chain BFMI >= 0.918). At 0.9995 it
+    # had 0 divergences, R-hat 1.0011 and ESS 2,632, and the curve moved by at most
+    # 0.03 items. Declared here, not on the command line, so that a registry
+    # rebuild reproduces the remediated contract.
+    target_accept=0.9995,
     model_settings=MechanismModelSettings(
         outcomes=("W", "B", "L", "TE", "E"),
         adjust_baseline_symbol="W",

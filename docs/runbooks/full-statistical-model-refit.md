@@ -12,6 +12,8 @@
 > Phoneme-blending link-sensitivity release workflow updated by a LLM-based AI tool (Codex/GPT-5).
 >
 > Font check added by a LLM-based AI tool (Claude Code/Opus 5.5).
+>
+> Windows Numba prerequisite added by a LLM-based AI tool (Claude Code/Opus 5.5).
 
 # Full statistical-model refit and publication
 
@@ -54,6 +56,11 @@ from matplotlib import font_manager as fm
 for family in ("Noto Sans", "Noto Sans Math"):
     print(family, "->", fm.findfont(fm.FontProperties(family=family), fallback_to_default=False))
 PY
+
+# 5. Windows only: if Numba fails to compile larger models with "ran out of
+#    registers during register allocation", fit with a portable CPU target and
+#    record it in the run note (fit provenance does not capture it).
+export NUMBA_CPU_NAME=sandybridge
 ```
 
 Every new publication run must use a **fresh, versioned output root**. Do not refit into bare `output/` or reuse a previous run directory: individual statistical fits replace their directories only after successful staged execution, but a sweep also produces shared comparisons and sensitivity files. A fresh root keeps the whole batch separate from earlier runs. Start from a committed, clean checkout, choose an optional run base, create a unique child directory, and resolve the paths once for every later command:
