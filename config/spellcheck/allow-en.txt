@@ -544,6 +544,7 @@ PYTHONPATH
 PYTHONUTF
 Rabe
 Raftery
+raptorlake
 Rasch
 Ratz
 readgrp
@@ -614,6 +615,7 @@ Rogde
 Rogosa
 Rouder
 rowpvt
+sandybridge
 sansfont
 savefig
 Scheel
