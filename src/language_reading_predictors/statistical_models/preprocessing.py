@@ -23,7 +23,7 @@ Conventions
 
 from __future__ import annotations
 
-import hashlib
+from dse_research_utils.metadata.provenance import sha256_file as shared_sha256_file
 import warnings
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field, replace
@@ -160,13 +160,9 @@ def _default_data_path() -> Path:
 
 
 def _data_provenance(path: Path) -> tuple[str, str]:
-    """Return the resolved source path and a streaming SHA-256 digest."""
+    """Return the resolved source path and its shared streaming digest."""
     resolved = path.resolve()
-    digest = hashlib.sha256()
-    with resolved.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return str(resolved), digest.hexdigest()
+    return str(resolved), shared_sha256_file(resolved)
 
 
 def read_source_csv(path: Path | str) -> pd.DataFrame:

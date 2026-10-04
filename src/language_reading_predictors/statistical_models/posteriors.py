@@ -4,6 +4,8 @@
 """Shared interval summaries and diagnostics that retain chain identity."""
 
 from __future__ import annotations
+from dse_research_utils.statistics.array_intervals import equal_tail_interval
+
 import arviz as az
 import numpy as np
 import xarray as xr
@@ -23,7 +25,10 @@ def band50(draws: np.ndarray) -> tuple[float, float]:
     summaries use the shared ``eti_bands`` helper; this covers the families that
     emit a single headline interval.
     """
-    return float(np.quantile(draws, 0.25)), float(np.quantile(draws, 0.75))
+    if np.size(draws) == 0:
+        raise ValueError("Cannot summarise an empty posterior sample.")
+    lo, hi = equal_tail_interval(draws, prob=0.5, axis=None, nonfinite="propagate")
+    return float(lo), float(hi)
 
 
 def derived_mc_diagnostics(
@@ -86,14 +91,15 @@ def beta_summary(trace: xr.DataTree, name: str, ci_prob: float) -> dict[str, flo
     ``ctx.reporting.ci_prob``).
     """
     draws = trace.posterior[name].stack(sample=("chain", "draw")).values
-    lo_q, hi_q = (1 - ci_prob) / 2, 1 - (1 - ci_prob) / 2
+    lo, hi = equal_tail_interval(draws, prob=ci_prob, axis=None, nonfinite="propagate")
+    lo50, hi50 = band50(draws)
     return {
         "median": float(np.median(draws)),
         "mean": float(np.mean(draws)),
-        "lo": float(np.quantile(draws, lo_q)),
-        "hi": float(np.quantile(draws, hi_q)),
-        "lo50": float(np.quantile(draws, 0.25)),
-        "hi50": float(np.quantile(draws, 0.75)),
+        "lo": float(lo),
+        "hi": float(hi),
+        "lo50": lo50,
+        "hi50": hi50,
         "prob_pos": float(np.mean(draws > 0)),
     }
 
@@ -105,14 +111,15 @@ def coef_row(label: str, draws: np.ndarray, hdi_prob: float) -> dict[str, str | 
     :func:`reporting.tau_summary_itt` (not a highest-density interval).
     """
     d = np.asarray(draws).reshape(-1)
-    lo_q = (1 - hdi_prob) / 2
+    lo, hi = equal_tail_interval(d, prob=hdi_prob, axis=None, nonfinite="propagate")
+    lo50, hi50 = band50(d)
     return {
         "coefficient": label,
         "median": float(np.median(d)),
         "mean": float(np.mean(d)),
-        "lo": float(np.quantile(d, lo_q)),
-        "hi": float(np.quantile(d, 1 - lo_q)),
-        "lo50": float(np.quantile(d, 0.25)),
-        "hi50": float(np.quantile(d, 0.75)),
+        "lo": float(lo),
+        "hi": float(hi),
+        "lo50": lo50,
+        "hi50": hi50,
         "prob_pos": float(np.mean(d > 0)),
     }

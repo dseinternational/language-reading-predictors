@@ -9,6 +9,7 @@ reads from here, and only ``publication`` reads from the checks.
 
 from __future__ import annotations
 
+from dse_research_utils.report.readers import read_json
 import json
 import os
 from pathlib import Path
@@ -138,14 +139,11 @@ ReleaseStage = Literal["inputs", "computation", "artifacts", "robustness"]
 
 
 def _read_json(path: str | Path) -> tuple[Any, str | None]:
-    """``(payload, error)`` — ``error`` names why the payload is unusable."""
-    if not os.path.exists(path):
-        return None, "missing"
-    try:
-        with open(path, encoding="utf-8") as handle:
-            return json.load(handle), None
-    except OSError, UnicodeDecodeError, json.JSONDecodeError:
-        return None, "unreadable"
+    """Keep release decisions separate from shared JSON parsing facts."""
+    result = read_json(path)
+    if result.status == "present":
+        return result.value, None
+    return None, "missing" if result.status == "missing" else "unreadable"
 
 
 def _stored_bool(value: Any) -> bool | None:
