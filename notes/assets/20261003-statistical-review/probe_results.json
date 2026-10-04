@@ -1,0 +1,54 @@
+{
+  "pooled_levels_current_data": {
+    "prepared_rows": 214,
+    "likelihood_rows": 210,
+    "recorded_fitted_identity_rows": 214,
+    "payload_fitted_rows": 210,
+    "rows_dropped_in_factory": 4,
+    "exposure_zero_rows": 4,
+    "exposure_ceiling_rows": 9,
+    "max_absolute_z_difference": 0.6724525811643138,
+    "transform_correlation": 0.9749941506622454,
+    "zero_haldane_logit": -4.174387269895637,
+    "zero_clipped_logit": -6.906754778648554
+  },
+  "mediation_floor_sensitivity": {
+    "primary_nie_median": 0.04256394280964915,
+    "pipeline_sweep_zero_nie_median": 0.06384591421447405,
+    "correct_sweep_zero_nie_median": 0.04256394280964915,
+    "ordinary_to_correct_median_ratio": 1.5000000000000078,
+    "all_sweep_interval_columns_ratio_1_5": true,
+    "direction_probabilities_unchanged": true
+  },
+  "dose_period1_design": {
+    "period1_immediate_rows": 28,
+    "pooled_treated_mean_sessions": 66.234375,
+    "period1_immediate_mean_sessions": 72.71428571428571,
+    "period1_immediate_mean_between_regressor": -0.1131429724304536,
+    "period1_immediate_mean_within_regressor": 0.4577956995716989,
+    "later_periods_contribute_to_child_dose_mean": true
+  },
+  "within_between_counterexample": {
+    "true_direct_effect": 1.0,
+    "estimated_between_slope": 0.8031860367510729,
+    "estimated_within_slope": 0.0024111046939527298,
+    "n_synthetic_children": 100000,
+    "n_waves": 4,
+    "predictor_measurement_error_sd": 2.0
+  },
+  "saved_mediation_floor_run": {
+    "model_id": "lrp-rli-med-387",
+    "config": "reporting",
+    "primary_nie_median": 0.026483615288174,
+    "sensitivity_zero_nie_median": 0.0397254229322606,
+    "primary_nie_lo": -0.0107235149997062,
+    "primary_nie_hi": 0.0651323006858644,
+    "sensitivity_zero_nie_lo": -0.0160852724995584,
+    "sensitivity_zero_nie_hi": 0.0976984510287967,
+    "ratio": 1.499999999999985,
+    "primary_prob_positive": 0.8793611111111111,
+    "sensitivity_zero_prob_positive": 0.8793611111111111
+  },
+  "review_revision": "2203024a800c4ecbccd06c66a79ec915885c5772",
+  "review_date": "2026-10-03"
+}

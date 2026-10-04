@@ -280,12 +280,12 @@ class DoseResponseRunPlan:
                 "1 is exactly zero and the four-column intercept design has full rank."
             ),
             "theta_treated": (
-                "Extensive margin: being on the intervention during a period versus "
-                "not, at the treated-mean session count. In period 1 this contrast is "
-                "randomised (every immediate-arm child attended, every waitlist child "
-                "attended zero sessions), so it is the only term here identified by "
-                "randomisation; it is otherwise informed only by the few later "
-                "zero-session rows."
+                "Conditional presence association: being on the intervention versus "
+                "not at zero on both fitted dose regressors. The model conditions on "
+                "treatment-induced attendance, including later attendance in the "
+                "child mean. Random assignment does not identify this coefficient "
+                "as a causal effect, even in period 1. The assigned-arm effect is "
+                "reported by the separate available-case modified ITT analysis."
             ),
             "gamma_own": "Autoregression / regression-to-the-mean control on the period's own baseline logit.",
         }
@@ -582,7 +582,8 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
             "post-score among on-intervention rows (the intensive margin), reported "
             "on the items scale as a within-period interquartile contrast of observed "
             "treated attendance. The separate on-intervention indicator carries the "
-            "extensive margin; in period 1 that contrast is randomised."
+            "conditional presence association at zero on the fitted dose regressors; "
+            "it is not an identified assigned-arm causal effect in period 1."
         ),
         causal_status=(
             "Observational association, not a randomised treatment effect. Session "
@@ -590,9 +591,10 @@ def resolve_dose_response_run_plan(spec: ModelSpec) -> DoseResponseRunPlan:
             "engagement processes, and the authoritative DAG carries edges into "
             "intervention sessions from age, latent general ability and assigned "
             "group, so conditioning on measured baselines does not close that door. "
-            "The one exception is the period-1 on-intervention indicator, which is a "
-            "randomised contrast; it is reported as such and is not the family's "
-            "headline."
+            "The presence coefficient also conditions on treatment-induced "
+            "attendance, including later attendance in the child mean. It is an "
+            "adjusted association even in period 1, not the assigned-arm causal "
+            "effect reported by the separate available-case modified ITT analysis."
         ),
         analysis_population=(
             f"Available RLI transition rows with observed {outcome}, "

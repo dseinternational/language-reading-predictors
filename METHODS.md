@@ -1,4 +1,7 @@
 > [!NOTE]
+> October review corrections prepared by a LLM-based AI tool (Codex/GPT-6), 4 October 2026.
+
+> [!NOTE]
 > Statistical wording corrected by a LLM-based AI tool (Codex/GPT-6), 23 September 2026.
 
 > [!NOTE]
@@ -179,6 +182,12 @@ The arms were not assessed at identical spacing. Relative to the wait-list arm, 
 The onset-aligned windows are also unequal: the immediate arm's t1→t3 window averages 15.5 months and the wait-list's t2→t4 window 14.2 months. Under constant-rate scenarios, the 1.3-month difference corresponds to 0.67–0.77 words of the 2.12-word word-reading contrast, and about a fifth to a third of the letter-sound and receptive-vocabulary contrasts. Those scenarios do not identify the timing contribution or guarantee how a timing-adjusted contrast would change. `scripts/assessment_interval_check.py` computes these quantities; the [interval note](notes/202609212100-assessment-interval-lengths.md) records the measurements and decisions.
 
 **Adjusted associations.** Baseline-to-later skill coefficients, mechanism curves and mediator-to-outcome terms concern exposures that were not randomised. Stable shared traits and measurement error can affect these relationships. A child random intercept models dependence between repeated observations; it does not by itself separate within-child from between-child associations or remove confounding. The mechanism exposure and outcome are also measured at the same wave. Report these results as adjusted associations, not as evidence that one skill causes another.
+
+**Attendance-adjusted presence.** The dose-response presence coefficient conditions on treatment-induced attendance, including later attendance in each child's mean. It is a conditional association at zero on the fitted dose regressors. Random assignment does not identify this coefficient as an assigned-arm causal effect, even in period 1. Use the separate available-case modified ITT analysis for that contrast. Adjustment for a treatment-affected variable can bias a randomised comparison. See Rosenbaum (1984), DOI [10.2307/2981697](https://doi.org/10.2307/2981697).
+
+**Pooled-level units and interpretation.** Bounded exposures and skill adjusters use the shared Haldane-corrected logit, then standardisation on their final fitted rows. Record the transform, its fitted mean and standard deviation, and the exact likelihood-row identity. Common transforms do not guarantee common standard deviations or estimands across families. A small within-child slope alongside a larger between-child slope is compatible with shared causes, but does not exclude direct influence. Measurement error, little true change, ceilings and delayed influence need their own assessment.
+
+**K-fold numerical precision.** New-child K-fold scores use two independent batches of population latent draws at the same fold posterior. Start with 64 latent draws per posterior draw in total, split across batches. Double that total budget up to 512 if the batches disagree. Require an absolute difference no larger than 0.1 log-score units for every held-out child and 1.0 for the study total. Allocate the total tolerance equally over folds. These are declared numerical stability tolerances, separate from the standard error that describes variation between children. Agreement does not bound integration error because both batches may miss the same region. Withhold the score if coverage, convergence, finite diagnostics or batch stability fail. Legacy tables without the current integration evidence remain withheld until their saved fold traces are re-scored.
 
 **Mechanism headline.** The default headline compares predicted outcomes at the fitted exposure's 25th and 75th percentiles (`items_ref_quantiles`). Calculate both predictions for every fitted row, keeping its period, covariates, baseline and fitted child intercept; hold any moderator at its standardised mean. Transform each prediction to the outcome scale before averaging. For the ordinary logit link, `y(x) = N * mean_i expit(eta_base[i] + f_i(x))`. This describes the fitted children, not a new child or a constructed average child.
 

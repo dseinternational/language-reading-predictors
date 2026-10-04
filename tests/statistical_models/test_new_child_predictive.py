@@ -523,6 +523,8 @@ def test_a_complete_kfold_reports_as_complete():
         fold_converged={0: True, 1: True},
         latents_redrawn=("z_subject",),
         observed_nodes=("score_basread",),
+        pointwise_batch_elpd=np.zeros((2, 4)),
+        integration_diagnostics={0: {"stable": True, "n_latent_draws": 64}, 1: {"stable": True, "n_latent_draws": 64}},
     )
     assert result.complete
 

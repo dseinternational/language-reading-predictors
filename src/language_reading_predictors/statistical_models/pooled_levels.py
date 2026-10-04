@@ -77,6 +77,8 @@ from language_reading_predictors.statistical_models.mechanism import (
 )
 from language_reading_predictors.statistical_models.preprocessing import (
     MISSINGNESS_INDICATOR_PAIRS,
+    _subset,
+    logit_safe,
     standardise,
 )
 from language_reading_predictors.statistical_models.settings_validation import (
@@ -138,6 +140,9 @@ class PooledLevelsPayload(FittedPayload):
     exposure_kind: str = "bounded_count"
     exposure_sd_raw: float | None = None
     exposure_mean_raw: float | None = None
+    exposure_transform: str = "haldane_logit"
+    exposure_scale: tuple[float, float] | None = None
+    skill_scales: dict[str, tuple[float, float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,6 +243,7 @@ class PooledLevelsRunPlan:
     causal_status: str
     analysis_population: str
     missing_data_assumption: str
+    bounded_predictor_transform: str = "haldane_logit"
     extra: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
@@ -322,13 +328,14 @@ class PooledLevelsRunPlan:
             "nowhere, so a bounded-count logit would fabricate a denominator; rows "
             "whose exposure was imputed are dropped via `require_observed`)"
             if self.mechanism_is_covariate
-            else f"`{self.mechanism_symbol}` at the same wave, as the standardised logit of the observed proportion"
+            else f"`{self.mechanism_symbol}` at the same wave, as the standardised Haldane-corrected logit"
         )
         skills = ", ".join(f"`{s}`" for s in self.skill_symbols) if self.skill_symbols else "none"
         complete_case = ", ".join(f"`{c}`" for c in self.require_observed) if self.require_observed else "none"
         return (
             "Note: Generated from the validated pooled-levels run plan; template "
-            "drafted by an LLM-based AI tool (Claude Code/Opus 5).\n\n"
+            "drafted by an LLM-based AI tool (Claude Code/Opus 5), "
+            "substantially edited by an LLM-based AI tool (Codex/GPT-6).\n\n"
             f"# Model recipe: {title}\n\n"
             f"Model ID: `{self.model_id}`.\n\n"
             f"## Design\n\n{self.design}\n\n"
@@ -469,7 +476,7 @@ def resolve_pooled_levels_run_plan(spec: ModelSpec) -> PooledLevelsRunPlan:
         if settings.mechanism_is_covariate
         else MEASURES[spec.mechanism_symbol].label
     )
-    exposure_scale = "standardised raw score" if settings.mechanism_is_covariate else "logit"
+    exposure_scale = "standardised raw score" if settings.mechanism_is_covariate else "Haldane-corrected logit"
     skill_clause = (
         " and the same-wave standardised logits of "
         + ", ".join(MEASURES[s].label for s in settings.skill_symbols)
@@ -609,8 +616,15 @@ def build_pooled_levels_model(
             "pooled_levels: no child-wave row has the outcome, the exposure and "
             "every skill adjuster observed in the requested waves."
         )
-    y = y_all[keep]
-    exposure = x_all[keep]
+    # Return exactly the likelihood rows, including their dense child indexing.
+    # Distinguish a requested-wave restriction from missing-score exclusions.
+    prepared = _subset(prepared, in_wave, reason="pooled_levels_wave_restriction")
+    prepared = _subset(prepared, complete[in_wave], reason="pooled_levels_incomplete")
+    y = np.asarray(prepared.post_counts[outcome_symbol], dtype=float)
+    exposure = np.asarray(
+        prepared.covariates[mechanism_symbol] if mechanism_is_covariate else prepared.post_counts[mechanism_symbol],
+        dtype=float,
+    )
 
     n_out = MEASURES[outcome_symbol].n_trials
     exposure_sd_raw: float | None = None
@@ -618,27 +632,26 @@ def build_pooled_levels_model(
     if mechanism_is_covariate:
         # Re-standardise the loader's z on the fitted rows so +1 SD is one SD of
         # the exposure actually fitted; the loader scaler maps it back to raw units.
-        mech_std, _ = standardise(exposure)
+        mech_std, exposure_scaler = standardise(exposure)
         scaler = prepared.covariate_scalers.get(mechanism_symbol)
         if scaler is not None:
             exposure_sd_raw = float(scaler.sd * np.std(exposure, ddof=1))
             exposure_mean_raw = float(scaler.mean + scaler.sd * np.mean(exposure))
     else:
         n_mech = MEASURES[mechanism_symbol].n_trials
-        # Standardised logit of the exposure proportion — the same per-SD scale the
-        # mechanism family reports on, so the two are directly comparable.
-        p = np.clip(exposure / n_mech, 1e-3, 1 - 1e-3)
-        mech_std, _ = standardise(np.log(p / (1 - p)))
+        # Share the score transform with mechanism and concurrent models. Their
+        # fitted row sets and standard deviations can still differ.
+        mech_std, exposure_scaler = standardise(logit_safe(exposure, n_mech))
     # Same-wave skill adjusters: the standardised logit of each skill's observed
     # proportion on the fitted rows (the same transform as a bounded exposure).
     skill_std: dict[str, np.ndarray] = {}
-    for sym, values in skill_all.items():
-        p_s = np.clip(values[keep] / MEASURES[sym].n_trials, 1e-3, 1 - 1e-3)
-        skill_std[sym], _ = standardise(np.log(p_s / (1 - p_s)))
+    skill_scales: dict[str, tuple[float, float]] = {}
+    for sym in skill_symbols:
+        skill_std[sym], scale = standardise(logit_safe(prepared.post_counts[sym], MEASURES[sym].n_trials))
+        skill_scales[sym] = (float(scale.mean), float(scale.sd))
 
-    child_idx = np.asarray(prepared.child_idx)[keep]
-    _, child_idx = np.unique(child_idx, return_inverse=True)
-    wave_idx_raw = np.asarray(prepared.phase)[keep]
+    child_idx = np.asarray(prepared.child_idx)
+    wave_idx_raw = np.asarray(prepared.phase)
     wave_labels = sorted(set(int(w) + 1 for w in wave_idx_raw))
     remap = {w - 1: i for i, w in enumerate(wave_labels)}
     wave_idx = np.array([remap[int(w)] for w in wave_idx_raw])
@@ -704,7 +717,7 @@ def build_pooled_levels_model(
             eta = eta + beta_mech * mech_d
 
         if include_group:
-            g = pm.Data("G", np.asarray(prepared.G, dtype=float)[keep], dims="obs_id")
+            g = pm.Data("G", np.asarray(prepared.G, dtype=float), dims="obs_id")
             eta = (
                 eta
                 + _priors.tau_prior().to_pymc(
@@ -715,7 +728,7 @@ def build_pooled_levels_model(
                 * g
             )
 
-        age = pm.Data("A_std", np.asarray(prepared.A_std, dtype=float)[keep], dims="obs_id")
+        age = pm.Data("A_std", np.asarray(prepared.A_std, dtype=float), dims="obs_id")
         eta = eta + _priors.gamma_age_prior().to_pymc("gamma_A") * age
 
         # Same-wave skill adjusters (#553): cross-coupling prior, like every other
@@ -734,7 +747,7 @@ def build_pooled_levels_model(
         for name, values in prepared.covariates.items():
             if mechanism_is_covariate and name == mechanism_symbol:
                 continue  # the exposure carries the focal slopes, not a gamma_
-            cov = pm.Data(f"{name}_std", np.asarray(values, dtype=float)[keep], dims="obs_id")
+            cov = pm.Data(f"{name}_std", np.asarray(values, dtype=float), dims="obs_id")
             eta = (
                 eta
                 + _priors.predictor_slope_prior().to_pymc(
@@ -772,6 +785,9 @@ def build_pooled_levels_model(
             exposure_kind="raw_covariate" if mechanism_is_covariate else "bounded_count",
             exposure_sd_raw=exposure_sd_raw,
             exposure_mean_raw=exposure_mean_raw,
+            exposure_transform="raw_score" if mechanism_is_covariate else "haldane_logit",
+            exposure_scale=(float(exposure_scaler.mean), float(exposure_scaler.sd)),
+            skill_scales=skill_scales,
         ),
     )
 

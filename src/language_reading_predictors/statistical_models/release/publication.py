@@ -45,6 +45,8 @@ from language_reading_predictors.statistical_models.release.family_checks import
     _itt_missingness_release_failures,
     _joint_mechanism_wave_release_failures,
     _mediation_t3_release_failures,
+    _mediation_link_sensitivity_release_failures,
+    _pooled_levels_release_failures,
 )
 from language_reading_predictors.statistical_models.release.dependence import (
     _dependence_identification_note,
@@ -506,6 +508,8 @@ def evaluate_publication(
         )
 
     t3_gate_failures, t3_artifact_failures = _mediation_t3_release_failures(output_dir, config)
+    link_gate_failures, link_artifact_failures = _mediation_link_sensitivity_release_failures(output_dir, config)
+    pooled_gate_failures = _pooled_levels_release_failures(config)
     (
         growth_gate_failures,
         growth_artifact_failures,
@@ -551,6 +555,8 @@ def evaluate_publication(
         sorted(
             {
                 *t3_gate_failures,
+                *link_gate_failures,
+                *pooled_gate_failures,
                 *growth_gate_failures,
                 *itt_missingness_gate_failures,
                 *jm_wave_gate_failures,
@@ -564,7 +570,7 @@ def evaluate_publication(
         return ReleaseEvaluation(
             status="gate_failed",
             stage="computation",
-            reason=("a required trace-backed secondary sensitivity did not pass its sampling-quality gate"),
+            reason=("a required computation or sampling-quality check did not pass"),
             failing_checks=gate_failures,
             config=config,
             **qualification,
@@ -574,6 +580,7 @@ def evaluate_publication(
         sorted(
             {
                 *t3_artifact_failures,
+                *link_artifact_failures,
                 *growth_artifact_failures,
                 *itt_missingness_artifact_failures,
                 *jm_wave_artifact_failures,

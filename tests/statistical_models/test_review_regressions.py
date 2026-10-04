@@ -356,7 +356,15 @@ def test_kfold_saves_reuses_and_binds_each_training_partition(tmp_path, monkeypa
     # persistence, primary compatibility, sub-fit compatibility and fold dispatch
     # run together; no sampler is permitted on the reuse pass.
     monkeypatch.setattr(pm, "sample", lambda **kw: trace.copy(deep=True))
-    monkeypatch.setattr(kfold, "_score_held_out", lambda *args, **kw: (-np.arange(1.0, 5.0), None))
+    monkeypatch.setattr(
+        kfold, "_score_held_out",
+        lambda *args, **kw: kfold._FoldScore(
+            scored=-np.arange(1.0, 5.0),
+            batch_scores=np.tile(-np.arange(1.0, 5.0), (2, 1)),
+            predictive={},
+            diagnostics={"stable": True, "n_latent_draws": args[2].n_latent_draws},
+        ),
+    )
     monkeypatch.setattr(kfold, "_fold_pit", lambda *args, **kw: pd.DataFrame())
 
     def rebuild(training, held_out):

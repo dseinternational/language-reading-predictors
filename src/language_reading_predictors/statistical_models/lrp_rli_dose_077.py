@@ -77,8 +77,9 @@ reassurance, not proof, because those are noisy proxies for ``GA``, not ``GA``.
 
 Caveats (carried into the report)
 ---------------------------------
-Adjusted association, not "dose drives gains". The one randomised quantity in this
-fit is ``theta_treated`` read in period 1. Phase-1 best strata reached only
+Every coefficient is an adjusted association, including ``theta_treated`` in
+period 1. Attendance adjustment prevents interpreting it as the assigned-arm
+causal effect. Phase-1 best strata reached only
 R^2 0.1-0.3; the deliverable is a calibrated attendance slope with credible
 intervals, not a strong predictor. Group is coded ``G = 2 - group``
 (G=1 = immediate-intervention, G=0 = waitlist control; positive = benefit), per the

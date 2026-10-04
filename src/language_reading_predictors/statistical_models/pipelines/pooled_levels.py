@@ -104,6 +104,7 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
             f"{payload.exposure_mean_raw:.2f})."
         )
     attach_built(ctx, built)
+    prepared = built.prepared
     render_model_graph(ctx)
 
     shared_stages().run_primary_fit(
@@ -151,6 +152,10 @@ def fit_pooled_levels(spec: ModelSpec, config: str = "dev") -> StatisticalFitCon
         "n_dropped_incomplete_rows": int(built.payload.n_dropped_incomplete),
         "use_wave_intercepts": plan.use_wave_intercepts,
         "exposure_kind": built.payload.exposure_kind,
+        "exposure_transform": built.payload.exposure_transform,
+        "exposure_scale": list(built.payload.exposure_scale) if built.payload.exposure_scale is not None else None,
+        "skill_transform": "haldane_logit",
+        "skill_scales": built.payload.skill_scales,
         "skill_symbols": list(plan.skill_symbols),
         "effective_adjustment": _levels_effective_adjustment(spec, prepared, plan, fitted_adjust_for),
     }

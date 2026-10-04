@@ -9,6 +9,7 @@ import math
 from typing import Any
 
 VALIDATION_SCHEMA_VERSION = 3
+K_FOLD_VALIDATION_SCHEMA_VERSION = 1
 
 
 def _true(value: Any) -> bool:
@@ -83,3 +84,59 @@ def new_child_validation_verdict(row: Mapping[str, Any]) -> NewChildVerdict:
             reliable = False
             break
     return NewChildVerdict(diagnostics, bool(integration), reliable, tuple(reasons))
+
+def new_child_kfold_verdict(row: Mapping[str, Any]) -> NewChildVerdict:
+    """Require finite, complete fold evidence and independent integration batches.
+
+    Legacy ``complete=True`` rows have no integration evidence and fail closed.
+    The score's sampling standard error is not an integration tolerance.
+    """
+    reasons: list[str] = []
+    current = _number(row, "validation_schema_version") == K_FOLD_VALIDATION_SCHEMA_VERSION
+    if not current:
+        reasons.append("the current K-fold integration schema has not been recorded")
+    counts = ("n_folds", "n_children", "n_children_scored", "n_folds_converged", "n_folds_refused")
+    values = {name: _number(row, name) for name in (*counts, "elpd_kfold", "elpd_kfold_se")}
+    diagnostics = bool(
+        current
+        and all(math.isfinite(value) for value in values.values())
+        and all(values[name].is_integer() for name in counts)
+        and values["n_folds"] >= 2
+        and values["n_children"] >= values["n_folds"]
+        and values["n_children_scored"] == values["n_children"]
+        and values["n_folds_converged"] == values["n_folds"]
+        and values["n_folds_refused"] == 0
+        and values["elpd_kfold_se"] >= 0
+        and _true(row.get("pointwise_diagnostics_valid"))
+    )
+    if not diagnostics:
+        reasons.append("finite scores, complete child coverage or fold convergence have not been established")
+    fields = (
+        "max_pointwise_batch_difference",
+        "total_batch_difference",
+        "pointwise_tolerance",
+        "total_tolerance",
+        "n_latent_draws",
+        "n_latent_draws_max_used",
+        "max_latent_draws",
+    )
+    evidence = {name: _number(row, name) for name in fields}
+    integration = bool(
+        current
+        and all(math.isfinite(value) for value in evidence.values())
+        and _true(row.get("integration_stable"))
+        and 0 <= evidence["max_pointwise_batch_difference"] <= evidence["pointwise_tolerance"]
+        and 0 <= evidence["total_batch_difference"] <= evidence["total_tolerance"]
+        and evidence["pointwise_tolerance"] > 0
+        and evidence["total_tolerance"] > 0
+        and all(
+            evidence[name].is_integer() for name in ("n_latent_draws", "n_latent_draws_max_used", "max_latent_draws")
+        )
+        and 2 <= evidence["n_latent_draws"] <= evidence["n_latent_draws_max_used"] <= evidence["max_latent_draws"]
+    )
+    if not integration:
+        reasons.append("independent latent integration batches have not passed the recorded stability tolerances")
+    reliable = bool(diagnostics and integration and _true(row.get("complete")))
+    if diagnostics and integration and not reliable:
+        reasons.append("the stored completion verdict disagrees with its evidence")
+    return NewChildVerdict(diagnostics, integration, reliable, tuple(reasons))

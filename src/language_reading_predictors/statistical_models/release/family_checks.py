@@ -26,6 +26,66 @@ from language_reading_predictors.statistical_models.release.base import (
 )
 
 
+def _pooled_levels_release_failures(config: Mapping[str, Any]) -> tuple[str, ...]:
+    """Do not publish clipped-transform fits or inconsistent fitted-row records."""
+    if config.get("kind") != "pooled_levels":
+        return ()
+    plan = config.get("resolved_run_plan") or {}
+    extra = config.get("extra") or {}
+    failures: list[str] = []
+    if plan.get("bounded_predictor_transform") != "haldane_logit":
+        failures.append("pooled-level predictor-transform declaration is stale; refit bounded predictors")
+    expected = "raw_score" if plan.get("mechanism_is_covariate") else "haldane_logit"
+    if extra.get("exposure_transform") != expected or extra.get("exposure_scale") is None:
+        failures.append("pooled-level fitted exposure transform and scale have not been recorded")
+    if plan.get("skill_symbols") and extra.get("skill_transform") != "haldane_logit":
+        failures.append("pooled-level skill adjusters do not declare the corrected transform")
+    contract = config.get("reuse_contract") or {}
+    identity = contract.get("fitted_subject_identity") or {}
+    rows = (config.get("n_obs"), extra.get("n_child_wave_rows"), contract.get("n_obs"), identity.get("n_rows"))
+    try:
+        counts = np.asarray(rows, dtype=float)
+    except TypeError, ValueError:
+        counts = np.full(4, np.nan)
+    if (
+        not np.isfinite(counts).all()
+        or np.any(counts <= 0)
+        or np.any(counts != np.floor(counts))
+        or not np.all(counts == counts[0])
+    ):
+        failures.append("pooled-level metadata and fitted-data identity do not identify the same likelihood rows")
+    return tuple(failures)
+
+
+def _mediation_link_sensitivity_release_failures(
+    output_dir: Path, config: Mapping[str, Any]
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """The zero-bias indirect effect must equal the primary fitted-link effect."""
+    plan = config.get("resolved_run_plan") or {}
+    if config.get("kind") != "mediation" or plan.get("score_mean_link") != "three_choice_guessing_floor":
+        return (), ()
+    primary = _read_csv(output_dir, "mediation_summary.csv")
+    sweep = _read_csv(output_dir, "mediation_sensitivity.csv")
+    if primary is None or sweep is None:
+        return (), ("mediation_summary.csv / mediation_sensitivity.csv (fitted-link consistency)",)
+    try:
+        quantity = "IIE" if plan.get("estimand") == "interventional" else "NIE"
+        main = primary.loc[primary["quantity"] == quantity]
+        zero = sweep.loc[pd.to_numeric(sweep["delta"], errors="coerce") == 0]
+        if len(main) != 1 or len(zero) != 1:
+            raise ValueError("exactly one primary effect and zero-bias row are required")
+        left = np.asarray(main.iloc[0][["prob_median", "prob_lo", "prob_hi", "prob_pos"]], dtype=float)
+        right = np.asarray(zero.iloc[0][["nie_median", "nie_lo", "nie_hi", "nie_prob_pos"]], dtype=float)
+        matches = (
+            np.isfinite(left).all() and np.isfinite(right).all() and np.allclose(left, right, rtol=1e-10, atol=1e-12)
+        )
+    except KeyError, TypeError, ValueError:
+        matches = False
+    return (
+        () if matches else ("mediation zero-bias sensitivity does not match the primary fitted-link indirect effect",)
+    ), ()
+
+
 def _mediation_t3_release_failures(
     output_dir: Path, config: Mapping[str, Any]
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:

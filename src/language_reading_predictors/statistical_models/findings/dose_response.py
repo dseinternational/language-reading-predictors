@@ -220,10 +220,11 @@ def _kf_build_dose_response(output_dir: str | Path, config: Mapping) -> list[dic
                 "much was attended: "
                 f"**{_kf_float(presence['median']):+.2f} logit units** "
                 f"(89% credible range {_kf_float(presence['lo']):+.2f} to "
-                f"{_kf_float(presence['hi']):+.2f}). In period 1 that contrast is "
-                "randomised — every immediate-arm child attended and every waitlist "
-                "child attended none — so it, not the dose slope, is where this "
-                "model's randomised evidence sits.",
+                f"{_kf_float(presence['hi']):+.2f}). This is a conditional presence "
+                "association at zero on the fitted dose regressors. Conditioning "
+                "on treatment-induced attendance prevents interpreting it as the "
+                "randomised assigned-arm effect, even in period 1. Use the separate "
+                "available-case modified ITT analysis for that contrast.",
                 "robustness",
             )
         )

@@ -59,11 +59,13 @@ import pandas as pd
 import pymc as pm
 import xarray as xr
 from rich import print as rprint
+from scipy.special import logsumexp
 
 from language_reading_predictors.statistical_models.artifacts import save_table
 from language_reading_predictors.statistical_models.context import (
     StatisticalFitContext,
 )
+from language_reading_predictors.statistical_models.new_child_evidence import K_FOLD_VALIDATION_SCHEMA_VERSION
 from language_reading_predictors.statistical_models.new_child_predictive import (
     NewChildEvidenceUnavailable,
     NewChildPlan,
@@ -168,20 +170,36 @@ class KFoldPlan:
 
     n_folds: int = 5
     n_latent_draws: int = 64
+    max_latent_draws: int = 512
+    pointwise_tolerance: float = 0.1
+    total_tolerance: float = 1.0
     random_seed: int = 20260626
     stratify: bool = True
     """Balance each fold's group composition. Off only for a single-group cohort."""
 
     def __post_init__(self) -> None:
+        for name in ("n_folds", "n_latent_draws", "max_latent_draws"):
+            value = getattr(self, name)
+            if not isinstance(value, int) or isinstance(value, bool):
+                raise TypeError(f"{name} must be an integer")
         if self.n_folds < 2:
             raise ValueError("n_folds must be at least 2")
         if self.n_latent_draws < 2:
             raise ValueError("n_latent_draws must be at least 2 to integrate anything")
+        if self.max_latent_draws < self.n_latent_draws:
+            raise ValueError("max_latent_draws must be at least n_latent_draws")
+        for name in ("pointwise_tolerance", "total_tolerance"):
+            value = getattr(self, name)
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive")
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "n_folds": self.n_folds,
             "n_latent_draws": self.n_latent_draws,
+            "max_latent_draws": self.max_latent_draws,
+            "pointwise_tolerance": self.pointwise_tolerance,
+            "total_tolerance": self.total_tolerance,
             "random_seed": self.random_seed,
             "stratify": self.stratify,
         }
@@ -219,28 +237,84 @@ class KFoldValidation:
     observed_nodes: tuple[str, ...]
     pit: pd.DataFrame = field(default_factory=pd.DataFrame)
     refused_folds: dict[int, str] = field(default_factory=dict)
+    pointwise_batch_elpd: np.ndarray | None = None
+    integration_diagnostics: dict[int, dict[str, Any]] = field(default_factory=dict)
+
+    def _batch_differences(self) -> np.ndarray | None:
+        batches = self.pointwise_batch_elpd
+        if batches is None or batches.shape != (2, self.n_children) or not np.isfinite(batches).all():
+            return None
+        return batches[0] - batches[1]
+
+    @property
+    def integration_stable(self) -> bool:
+        """Independent latent batches agree on every child and on the total.
+
+        These are numerical stability tolerances in log-score units. They are
+        separate from between-child score variation and do not bound integration
+        error: both batches can miss the same region of latent support.
+        """
+        differences = self._batch_differences()
+        if differences is None:
+            return False
+        occupied = set(int(f) for f in self.fold_of_child)
+        if not occupied or any(not self.integration_diagnostics.get(f, {}).get("stable", False) for f in occupied):
+            return False
+        return bool(
+            np.max(np.abs(differences)) <= self.kfold.pointwise_tolerance
+            and abs(float(differences.sum())) <= self.kfold.total_tolerance
+        )
 
     @property
     def complete(self) -> bool:
-        """Whether every child was scored by a converged fold.
+        """Whether every child has a finite score and all required checks pass.
 
-        A partial K-fold is reportable but is not the declared estimate: the ELPD then
-        covers a subset of children chosen by which refits happened to work, which is
-        a selection the reader has to be told about rather than a smaller sample.
+        A partial K-fold covers children selected by which refits happened to
+        work. Keep that diagnostic evidence, but withhold the declared estimate.
         """
-        return self.n_scored == self.n_children and all(self.fold_converged.values())
+        occupied = set(int(f) for f in self.fold_of_child)
+        return bool(
+            self.n_children >= 2
+            and self.n_scored == self.n_children
+            and self.n_children >= self.kfold.n_folds
+            and self.fold_of_child.shape == (self.n_children,)
+            and occupied == set(range(self.kfold.n_folds))
+            and self.pointwise_elpd.shape == (self.n_children,)
+            and np.isfinite(self.pointwise_elpd).all()
+            and math.isfinite(self.elpd)
+            and math.isfinite(self.elpd_se)
+            and all(self.fold_converged.get(f, False) for f in occupied)
+            and not self.refused_folds
+            and self.integration_stable
+        )
 
     def summary_row(self) -> dict[str, Any]:
+        differences = self._batch_differences()
         return {
+            "validation_schema_version": K_FOLD_VALIDATION_SCHEMA_VERSION,
             "prediction_target": self.plan.prediction_target,
             "holdout_unit": "child",
             "estimator": "grouped_child_kfold",
             "n_folds": self.kfold.n_folds,
             "n_children": self.n_children,
             "n_children_scored": self.n_scored,
-            "elpd_kfold": self.elpd,
-            "elpd_kfold_se": self.elpd_se,
+            "elpd_kfold": self.elpd if self.complete else float("nan"),
+            "elpd_kfold_se": self.elpd_se if self.complete else float("nan"),
             "complete": self.complete,
+            "pointwise_diagnostics_valid": bool(
+                self.pointwise_elpd.shape == (self.n_children,) and np.isfinite(self.pointwise_elpd).all()
+            ),
+            "integration_stable": self.integration_stable,
+            "max_pointwise_batch_difference": (
+                float(np.max(np.abs(differences))) if differences is not None else float("nan")
+            ),
+            "total_batch_difference": (abs(float(differences.sum())) if differences is not None else float("nan")),
+            "pointwise_tolerance": self.kfold.pointwise_tolerance,
+            "total_tolerance": self.kfold.total_tolerance,
+            "max_latent_draws": self.kfold.max_latent_draws,
+            "n_latent_draws_max_used": max(
+                (int(d["n_latent_draws"]) for d in self.integration_diagnostics.values()), default=0
+            ),
             "n_folds_converged": sum(1 for ok in self.fold_converged.values() if ok),
             "n_folds_refused": len(self.refused_folds),
             "latents_redrawn": " ".join(self.latents_redrawn) or "(none)",
@@ -413,6 +487,8 @@ def run_child_kfold(
     groups = _child_groups(ctx, n_children) if kfold.stratify else None
     folds = _fold_assignment(n_children, groups, kfold)
     pointwise: np.ndarray = np.full(n_children, np.nan, dtype=float)
+    batches: np.ndarray = np.full((2, n_children), np.nan, dtype=float)
+    integration: dict[int, dict[str, Any]] = {}
     converged: dict[int, bool] = {}
     refused: dict[int, str] = {}
     pit_frames: list[pd.DataFrame] = []
@@ -452,7 +528,7 @@ def run_child_kfold(
             refused[fold] = str(exc)
             rprint(f"[yellow]K-fold {fold}: {exc}[/yellow]")
             continue
-        scored, predictive = _score_held_out(
+        score = _score_held_out(
             model,
             plan,
             kfold,
@@ -462,13 +538,17 @@ def run_child_kfold(
             maps=maps,
             n_children=n_children,
             density_model=density_model,
+            held_out=held_out,
+            fold=fold,
         )
-        pointwise[held_out] = scored[held_out]
+        pointwise[held_out] = score.scored[held_out]
+        batches[:, held_out] = score.batch_scores[:, held_out]
+        integration[fold] = score.diagnostics
         pit_frames.append(
             _fold_pit(
                 ctx,
                 plan,
-                predictive=predictive,
+                predictive=score.predictive,
                 observed=observed,
                 maps=maps,
                 nodes=nodes,
@@ -502,7 +582,17 @@ def run_child_kfold(
         observed_nodes=nodes,
         pit=pit,
         refused_folds=refused,
+        pointwise_batch_elpd=batches,
+        integration_diagnostics=integration,
     )
+
+
+@dataclass(frozen=True)
+class _FoldScore:
+    scored: np.ndarray
+    batch_scores: np.ndarray
+    predictive: dict[str, list[np.ndarray]]
+    diagnostics: dict[str, Any]
 
 
 def _score_held_out(
@@ -516,20 +606,25 @@ def _score_held_out(
     maps: dict[str, np.ndarray],
     n_children: int,
     density_model: pm.Model,
-) -> tuple[np.ndarray, dict[str, list[np.ndarray]]]:
+    held_out: np.ndarray,
+    fold: int,
+) -> _FoldScore:
     """Per-child held-out log predictive density under one fold's posterior.
 
     ``log (1/S) sum_s (1/M) sum_m p(y_i | theta_fold^s, u^(m))`` — the fold posterior
     integrated over both its own draws and fresh population draws of the child's latent,
-    which is what "a child this fit has never seen" means. Returns the per-child values
-    for every child (the caller keeps only the held-out ones) and the predictive draws
-    the calibration diagnostic reuses.
+    which is what "a child this fit has never seen" means. Returns per-child
+    values, independent batch scores, their stability checks and predictive draws
+    for calibration. The checks apply only to this fold's held-out children.
     """
-    running: np.ndarray | None = None
+    running: list[np.ndarray | None] = [None, None]
+    counts = [0, 0]
     predictive: dict[str, list[np.ndarray]] = {node: [] for node in nodes}
     n_chain = int(transplanted.sizes["chain"])
     n_draw = int(transplanted.sizes["draw"])
-    for index in range(kfold.n_latent_draws):
+    budget = kfold.n_latent_draws
+    diagnostics: dict[str, Any] = {}
+    for index in range(kfold.max_latent_draws):
         tree = xr.DataTree()
         tree["posterior"] = xr.DataTree(transplanted)
         with model:
@@ -537,7 +632,9 @@ def _score_held_out(
                 tree,
                 var_names=[*latents, *nodes],
                 extend_inferencedata=False,
-                random_seed=plan.random_seed + 100_000 + index,
+                random_seed=int(
+                    np.random.SeedSequence([plan.random_seed, kfold.random_seed, fold, index]).generate_state(1)[0]
+                ),
                 progressbar=False,
             )
         redrawn = _dataset(getattr(drawn, "posterior_predictive", None))
@@ -571,15 +668,50 @@ def _score_held_out(
             rows = maps[node]
             for child in range(n_children):
                 child_ll[..., child] += cell[..., rows == child].sum(axis=-1)
-        running = child_ll if running is None else np.logaddexp(running, child_ll)
-    if running is None:  # pragma: no cover - n_latent_draws >= 2 is validated
-        raise ValueError("no latent re-draws were scored")
-    # One log-mean-exp over the (draw, latent re-draw) product: both are Monte-Carlo
-    # samples of the same predictive integral, so they collapse together.
-    integrated = running - math.log(kfold.n_latent_draws)
-    flat = integrated.reshape(-1, n_children)
-    scored = np.log(np.mean(np.exp(flat - flat.max(axis=0)), axis=0)) + flat.max(axis=0)
-    return scored, predictive
+        batch = index % 2
+        previous = running[batch]
+        running[batch] = child_ll if previous is None else np.logaddexp(previous, child_ll)
+        counts[batch] += 1
+        if index + 1 < budget:
+            continue
+        first, second = running
+        if first is None or second is None:  # pragma: no cover - initial budget >= 2
+            raise ValueError("both latent integration batches are required")
+        batch_scores = np.stack(
+            [
+                logsumexp(value.reshape(-1, n_children), axis=0) - math.log(count * n_chain * n_draw)
+                for value, count in zip((first, second), counts, strict=True)
+            ]
+        )
+        scored = logsumexp(np.logaddexp(first, second).reshape(-1, n_children), axis=0) - math.log(
+            (index + 1) * n_chain * n_draw
+        )
+        differences = batch_scores[0, held_out] - batch_scores[1, held_out]
+        finite = bool(np.isfinite(batch_scores[:, held_out]).all() and np.isfinite(scored[held_out]).all())
+        pointwise_difference = float(np.max(np.abs(differences))) if finite else float("nan")
+        total_difference = abs(float(differences.sum())) if finite else float("nan")
+        stable = bool(
+            finite
+            and pointwise_difference <= kfold.pointwise_tolerance
+            # Allocate the total tolerance over folds, so accepted fold totals
+            # cannot accumulate into an unaccepted study-wide discrepancy.
+            and total_difference <= kfold.total_tolerance / kfold.n_folds
+        )
+        diagnostics = {
+            "stable": stable,
+            "finite": finite,
+            "n_latent_draws": index + 1,
+            "batch_1_draws": counts[0],
+            "batch_2_draws": counts[1],
+            "max_pointwise_batch_difference": pointwise_difference,
+            "total_batch_difference": total_difference,
+            "pointwise_tolerance": kfold.pointwise_tolerance,
+            "fold_total_tolerance": kfold.total_tolerance / kfold.n_folds,
+        }
+        if stable or not finite or index + 1 == kfold.max_latent_draws:
+            return _FoldScore(scored, batch_scores, predictive, diagnostics)
+        budget = min(budget * 2, kfold.max_latent_draws)
+    raise ValueError("no latent re-draws were scored")  # pragma: no cover
 
 
 def _fold_pit(
@@ -697,13 +829,20 @@ def write_child_kfold(
     save_table(ctx, "new_child_kfold", pd.DataFrame([result.summary_row()]))
     save_table(
         ctx,
+        "new_child_kfold_integration",
+        pd.DataFrame([{"fold": fold, **values} for fold, values in result.integration_diagnostics.items()]),
+    )
+    save_table(
+        ctx,
         "new_child_kfold_pointwise",
         pd.DataFrame(
             {
                 "child_index": np.arange(result.n_children, dtype=int),
                 "subject_id": _subject_ids(ctx, result.n_children),
                 "fold": result.fold_of_child,
-                "held_out_elpd": result.pointwise_elpd,
+                "held_out_elpd": result.pointwise_elpd if result.complete else np.full(result.n_children, np.nan),
+                "batch_1_elpd": result.pointwise_batch_elpd[0] if result.pointwise_batch_elpd is not None else np.nan,
+                "batch_2_elpd": result.pointwise_batch_elpd[1] if result.pointwise_batch_elpd is not None else np.nan,
                 "fold_converged": [result.fold_converged.get(int(f), False) for f in result.fold_of_child],
             }
         ),
@@ -714,7 +853,8 @@ def write_child_kfold(
     if not result.complete:
         rprint(
             f"[yellow]K-fold covered {result.n_scored} of {result.n_children} "
-            "children; the ELPD is partial and is reported as such[/yellow]"
+            f"children; integration stable: {result.integration_stable}. "
+            "The predictive score is withheld.[/yellow]"
         )
     return result
 

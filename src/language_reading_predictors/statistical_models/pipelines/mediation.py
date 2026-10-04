@@ -335,6 +335,7 @@ def fit_mediation(spec: ModelSpec, config: str = "dev") -> StatisticalFitContext
         med_data,
         ci_prob=ctx.reporting.ci_prob,
         interventional=_interventional,
+        score_mean_link=built.require_payload(MediationPayload, family="mediation").score_mean_link,
     )
     save_table(ctx, "mediation_sensitivity", sens_sweep)
     save_table(
