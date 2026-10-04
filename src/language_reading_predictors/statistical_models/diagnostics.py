@@ -50,8 +50,8 @@ from dse_research_utils.statistics.diagnostics import (
     BFMI_THRESHOLD,
     ESS_THRESHOLD,
     RHAT_MAX,
-    _bfmi_per_chain,
 )
+from dse_research_utils.statistics.diagnostics import bfmi_per_chain as _bfmi_per_chain
 from dse_research_utils.statistics.diagnostics import (
     amend_diagnostics_summary,
 )
