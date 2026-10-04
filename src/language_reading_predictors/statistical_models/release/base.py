@@ -9,8 +9,7 @@ reads from here, and only ``publication`` reads from the checks.
 
 from __future__ import annotations
 
-import json
-import os
+from dse_research_utils.report.readers import read_json
 from pathlib import Path
 from collections.abc import Callable
 from typing import Any, Literal, Mapping
@@ -110,15 +109,8 @@ def _model_tier(config: Mapping[str, Any]) -> str:
 
 
 def _load_config(output_dir: Path) -> dict[str, Any] | None:
-    path = output_dir / "config.json"
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, encoding="utf-8") as handle:
-            loaded = json.load(handle)
-    except OSError, UnicodeDecodeError, json.JSONDecodeError:
-        return None
-    return loaded if isinstance(loaded, dict) else None
+    loaded, error = _read_json(output_dir / "config.json")
+    return loaded if error is None and isinstance(loaded, dict) else None
 
 
 RELEASE_DECISION_FILENAME = "release_decision.json"
@@ -138,14 +130,11 @@ ReleaseStage = Literal["inputs", "computation", "artifacts", "robustness"]
 
 
 def _read_json(path: str | Path) -> tuple[Any, str | None]:
-    """``(payload, error)`` — ``error`` names why the payload is unusable."""
-    if not os.path.exists(path):
-        return None, "missing"
-    try:
-        with open(path, encoding="utf-8") as handle:
-            return json.load(handle), None
-    except OSError, UnicodeDecodeError, json.JSONDecodeError:
-        return None, "unreadable"
+    """Keep release decisions separate from shared JSON parsing facts."""
+    result = read_json(path)
+    if result.status == "present":
+        return result.value, None
+    return None, "missing" if result.status == "missing" else "unreadable"
 
 
 def _stored_bool(value: Any) -> bool | None:

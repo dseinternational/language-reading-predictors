@@ -19,6 +19,7 @@ data identified them.
 
 from __future__ import annotations
 
+from dse_research_utils.metadata.provenance import sha256_file as shared_sha256_file
 import hashlib
 import json
 import os
@@ -155,13 +156,8 @@ SCREENING_COVARIATES: tuple[str, ...] = (
 
 
 def sha256_file(path: str | Path) -> str:
-    """Return the SHA-256 digest of one source or trace file."""
-
-    digest = hashlib.sha256()
-    with open(path, "rb") as handle:
-        for block in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    """Return the shared SHA-256 digest of a file."""
+    return shared_sha256_file(path)
 
 
 @dataclass(frozen=True, slots=True)

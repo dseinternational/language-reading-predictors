@@ -32,8 +32,8 @@ Re-running the same command after an interruption continues where it stopped.
 
 from __future__ import annotations
 
+from dse_research_utils.metadata.provenance import sha256_file as shared_sha256_file
 import argparse
-import hashlib
 import json
 import os
 import subprocess
@@ -62,13 +62,9 @@ FIT_SCRIPTS = {
 def _sha256_file(path: Path) -> str | None:
     """Digest a file, returning ``None`` when it cannot be read."""
     try:
-        digest = hashlib.sha256()
-        with open(path, "rb") as handle:
-            for block in iter(lambda: handle.read(1 << 20), b""):
-                digest.update(block)
+        return shared_sha256_file(path)
     except OSError:
         return None
-    return digest.hexdigest()
 
 
 def _git(arguments: list[str]) -> str | None:

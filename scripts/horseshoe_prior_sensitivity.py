@@ -42,12 +42,12 @@ Usage::
 
 from __future__ import annotations
 
+from dse_research_utils.metadata.provenance import sha256_file as shared_sha256_file
 from language_reading_predictors.statistical_models.factories import horseshoe as _horseshoe_factory
 from language_reading_predictors.statistical_models.summaries import horseshoe as _horseshoe_summary
 
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 
@@ -81,11 +81,8 @@ SLAB_GRID = (1.0, 4.0)
 
 
 def _sha256(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for chunk in iter(lambda: fh.read(1 << 20), b""):
-            h.update(chunk)
-    return h.hexdigest()
+    """Return the shared SHA-256 digest of a file."""
+    return shared_sha256_file(path)
 
 
 def _spec_for(model_id: str) -> ModelSpec:

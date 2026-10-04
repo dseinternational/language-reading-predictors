@@ -31,8 +31,8 @@ Outputs are written beneath ``output/exploratory/cross_cohort/`` by default.
 
 from __future__ import annotations
 
+from dse_research_utils.metadata.provenance import sha256_file as shared_sha256_file
 import argparse
-import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -138,11 +138,8 @@ COHORTS = (RLI, RLM)
 
 
 def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for block in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(block)
-    return digest.hexdigest()
+    """Return the shared SHA-256 digest of a file."""
+    return shared_sha256_file(path)
 
 
 def _zscore(values: np.ndarray) -> np.ndarray:
