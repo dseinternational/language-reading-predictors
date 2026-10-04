@@ -3,11 +3,13 @@
 
 """Interval mechanics and release parsing preserve their distinct policies."""
 
+import json
+
 import numpy as np
 import pytest
 
 from language_reading_predictors.statistical_models.posteriors import band50, coef_row
-from language_reading_predictors.statistical_models.release.base import _read_json
+from language_reading_predictors.statistical_models.release.base import _load_config, _read_json
 
 
 def test_posterior_summary_preserves_mean_median_and_two_equal_tail_bands():
@@ -36,6 +38,7 @@ def test_invalid_release_json_stays_unreadable(tmp_path, contents):
     source = tmp_path / "config.json"
     source.write_text(contents)
     assert _read_json(source) == (None, "unreadable")
+    assert _load_config(tmp_path) is None
 
 
 def test_release_json_distinguishes_missing_from_present_null(tmp_path):
@@ -43,3 +46,17 @@ def test_release_json_distinguishes_missing_from_present_null(tmp_path):
     assert _read_json(source) == (None, "missing")
     source.write_text("null")
     assert _read_json(source) == (None, None)
+
+
+@pytest.mark.parametrize("contents", ["null", "[]", '"config"', "false", "42"])
+def test_config_reader_requires_an_object(tmp_path, contents):
+    source = tmp_path / "config.json"
+    assert _load_config(tmp_path) is None
+    source.write_text(contents)
+    assert _load_config(tmp_path) is None
+
+
+@pytest.mark.parametrize("config", [{}, {"model_id": "lrp-test", "extra": {"threshold": 0.5, "enabled": False}}])
+def test_config_reader_preserves_finite_objects(tmp_path, config):
+    (tmp_path / "config.json").write_text(json.dumps(config))
+    assert _load_config(tmp_path) == config

@@ -1250,6 +1250,27 @@ def test_an_unreadable_config_stops_at_the_inputs_stage(tmp_path):
     assert "could not be parsed" in decision.reason
 
 
+@pytest.mark.parametrize("literal", ["NaN", "Infinity", "-Infinity", "1e999", "-1e999"])
+@pytest.mark.parametrize("gate_passed", [True, False])
+def test_non_finite_config_preserves_publication_gate_order(tmp_path, literal, gate_passed):
+    d = _fit_dir(tmp_path, gate_passed=gate_passed)
+    config_path = d / "config.json"
+    contents = config_path.read_text(encoding="utf-8")
+    config_path.write_text(contents[:-1] + ', "extra": {"invalid": ' + literal + "}}", encoding="utf-8")
+
+    decision = evaluate_publication(d)
+
+    if gate_passed:
+        assert (decision.status, decision.stage) == ("not_available", "inputs")
+        assert "config.json could not be parsed" in decision.reason
+    else:
+        assert (decision.status, decision.stage) == ("gate_failed", "computation")
+        assert "sampling-quality gate failed" in decision.reason
+    assert decision.config is None
+    assert decision.development_only is True
+    assert "config.json is unreadable" in decision.publication_qualification
+
+
 def test_non_rli_fit_without_input_contract_fails_closed(tmp_path):
     d = _fit_dir(tmp_path)
     config = json.loads((d / "config.json").read_text())

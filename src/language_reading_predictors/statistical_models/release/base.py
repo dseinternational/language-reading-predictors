@@ -10,8 +10,6 @@ reads from here, and only ``publication`` reads from the checks.
 from __future__ import annotations
 
 from dse_research_utils.report.readers import read_json
-import json
-import os
 from pathlib import Path
 from collections.abc import Callable
 from typing import Any, Literal, Mapping
@@ -111,15 +109,8 @@ def _model_tier(config: Mapping[str, Any]) -> str:
 
 
 def _load_config(output_dir: Path) -> dict[str, Any] | None:
-    path = output_dir / "config.json"
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, encoding="utf-8") as handle:
-            loaded = json.load(handle)
-    except OSError, UnicodeDecodeError, json.JSONDecodeError:
-        return None
-    return loaded if isinstance(loaded, dict) else None
+    loaded, error = _read_json(output_dir / "config.json")
+    return loaded if error is None and isinstance(loaded, dict) else None
 
 
 RELEASE_DECISION_FILENAME = "release_decision.json"
