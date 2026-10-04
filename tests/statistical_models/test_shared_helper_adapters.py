@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import os
 import stat
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -99,6 +101,55 @@ def test_the_bundle_index_writers_keep_publishing_a_readable_file(tmp_path):
     influence._atomic_write_csv(pd.DataFrame({"model_id": ["a"]}), destination)
     assert destination.read_text(encoding="utf-8").startswith("model_id")
     assert stat.S_IMODE(destination.stat().st_mode) == expected
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+@pytest.mark.parametrize("mode", ["private", "process_default"])
+def test_the_writer_can_set_its_own_final_permissions(tmp_path, mode):
+    destination = tmp_path / "copied.csv"
+
+    def write(temporary):
+        temporary.write_text("copied", encoding="utf-8")
+        temporary.chmod(0o640)
+
+    write_atomic(destination, write, mode=mode)
+
+    assert stat.S_IMODE(destination.stat().st_mode) == 0o640
+
+
+def test_a_failed_mode_probe_retains_the_project_fallback(tmp_path, monkeypatch):
+    from language_reading_predictors import atomic_files
+
+    def fail(_directory):
+        raise PermissionError("mode probe failed")
+
+    monkeypatch.setattr(atomic_files, "_shared_default_file_mode", fail)
+    assert process_default_file_mode(tmp_path) == 0o644
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits")
+@pytest.mark.parametrize("mask", [0o022, 0o027, 0o077])
+def test_permission_choices_are_applied_before_the_writer(tmp_path, mask):
+    script = """
+import os
+import stat
+import sys
+from pathlib import Path
+from language_reading_predictors.atomic_files import write_atomic
+root = Path(sys.argv[1])
+mask = int(sys.argv[2])
+os.umask(mask)
+def write_shared(temporary):
+    assert stat.S_IMODE(temporary.stat().st_mode) == 0o666 & ~mask
+    temporary.write_text('shared')
+    temporary.chmod(0o640)
+write_atomic(root / 'shared.csv', write_shared, mode='process_default')
+assert stat.S_IMODE((root / 'shared.csv').stat().st_mode) == 0o640
+write_atomic(root / 'private.csv', lambda temporary: temporary.write_text('private'))
+assert stat.S_IMODE((root / 'private.csv').stat().st_mode) == 0o600
+assert sorted(p.name for p in root.iterdir()) == ['private.csv', 'shared.csv']
+"""
+    subprocess.run([sys.executable, "-c", script, str(tmp_path), str(mask)], check=True)
 
 
 def test_the_archive_copy_verifies_the_digest_before_it_replaces_anything(tmp_path):
