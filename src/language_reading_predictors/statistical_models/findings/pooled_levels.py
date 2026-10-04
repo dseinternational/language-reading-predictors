@@ -92,10 +92,11 @@ def _kf_build_pooled_levels(output_dir: str | Path, config: Mapping) -> list[dic
         sentences.append(
             {
                 "text": (
-                    "The two are different questions. A large between-child coefficient "
-                    "beside a small within-child one places the association in stable "
-                    "differences between children rather than in a child's own "
-                    "movement — the pattern a shared-cause account predicts."
+                    "The two answer different questions. A larger between-child "
+                    "association beside a smaller within-child association is "
+                    "compatible with stable shared causes, but does not distinguish "
+                    "them from direct influence. Measurement error, little true "
+                    "change, ceilings and delayed influence can produce that pattern too."
                 ),
                 "kind": "highlight",
             }

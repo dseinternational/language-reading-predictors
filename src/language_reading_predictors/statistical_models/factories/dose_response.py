@@ -119,8 +119,9 @@ def build_dose_response_model(
     causes of attendance as well as of the outcomes. Age and arm are adjusted;
     latent ability is not closed by conditioning on measured baselines, which is
     why ``ability_adjust_symbols`` is a *sensitivity*, never a proof. Every dose
-    coefficient here is an adjusted association. The single exception is
-    ``theta_treated`` read in period 1, which is a randomised contrast.
+    coefficient here is an adjusted association. In particular,
+    ``theta_treated`` is also a conditional association in period 1 because
+    the model conditions on treatment-induced attendance.
 
     Parameters mirror :func:`build_mechanism_model`'s backbone options
     (``use_subject_random_intercept``, ``adjust_baseline_symbol``). The arm and
@@ -268,12 +269,12 @@ def build_dose_response_model(
 
         eta = alpha + alpha_phase[phase_d] + gamma_own * own_pre_d
 
-        # Extensive margin: on the intervention this period versus not. In period 1
-        # this is exactly the randomised arm contrast (every immediate-arm child
-        # attended, every waitlist child attended zero sessions).
+        # Conditional presence association. Even in period 1, the dose-adjusted
+        # coefficient does not identify the randomised assigned-arm effect.
         theta_treated = _priors.tau_prior(sigma=_tau_sigma_for(outcome_symbol)).to_pymc(
             "theta_treated",
-            rationale="On-intervention presence — the extensive margin. Read in period 1 this is the randomised contrast (every immediate-arm child attended, every waitlist child attended none); it is the only randomisation-identified term in this family.",
+            role="association",
+            rationale="Conditional presence association at zero on the fitted dose regressors. Conditioning on treatment-induced attendance, including later attendance in the child mean, prevents interpreting it as the randomised assigned-arm effect even in period 1.",
         )
         eta = eta + theta_treated * treated_d
 

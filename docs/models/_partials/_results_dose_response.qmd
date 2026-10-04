@@ -1,6 +1,10 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Results
 
-This family asks a narrow question: **among children who were receiving the intervention, did attending more sessions go with more progress?** That is the _intensive margin_. It is deliberately separated from the _extensive margin_ — whether a child was receiving the intervention at all — because in period 1 the two are the same thing (every immediate-arm child attended, every waiting-control child attended none), and a single coefficient covering both would report the randomised treatment effect under a dose label.
+This family asks whether attending more sessions went with more progress among children who received the intervention. It separates this attendance association from a conditional presence association. In period 1 every immediate-arm child attended and every waiting-control child attended none. A single dose slope across both groups would mix assignment differences with attendance differences.
 
 Sessions therefore enter centred and standardised over the on-intervention rows only, so each slope is the change in the outcome logit per 1 SD of _attendance among children being taught_, and rows with no intervention contribute nothing to any dose term. Positive slopes mean larger conditional gains went with higher attendance.
 
@@ -14,7 +18,7 @@ _How to read the dose-slope table:_ each row is one estimated quantity, in logit
 
 - `dose_overall`, `dose_period1..3` — the dose slopes, partially pooled across periods.
 - `dose_between_child` — **between children**: a child whose study-average attendance was 1 SD higher than another's. The period slopes are the complementary **within-child** quantity: the same child in a period when they attended more than their own average. These answer different questions and are reported separately because a single slope over a child random intercept silently returns a blend of the two.
-- `on_intervention` — the extensive margin. Read in period 1 this is a **randomised** contrast, and it is where this model's randomised evidence sits; the dose slopes are not randomised.
+- `on_intervention` is the conditional presence association at zero on both fitted dose regressors. The model conditions on treatment-induced attendance, including later attendance in each child's mean. Random assignment does not identify this coefficient as a causal effect, even in period 1. Use the separate available-case modified ITT analysis for the assigned-arm contrast.
 - `sigma_dose_between_period` — how much the slope varies from period to period.
 
 ```{python}

@@ -9,6 +9,7 @@ AMPPS
 Amrhein
 anchoring
 ANCOVA
+annurev
 Anscombe
 AOAS
 aoms

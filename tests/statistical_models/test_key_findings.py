@@ -2139,9 +2139,13 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             "config.json",
             {
                 "kind": "pooled_levels",
+                "n_obs": 50,
+                "reuse_contract": {"n_obs": 50, "fitted_subject_identity": {"n_rows": 50}},
+                "extra": {"n_child_wave_rows": 50, "exposure_transform": "haldane_logit", "exposure_scale": [0.0, 1.0]},
                 "outcome_symbol": "W",
                 "mechanism_symbol": "L",
                 "resolved_run_plan": {
+                    "bounded_predictor_transform": "haldane_logit",
                     "outcome_symbol": "W",
                     "mechanism_symbol": "L",
                     "decompose_between_within": True,
@@ -3768,9 +3772,12 @@ def test_pooled_levels_covariate_exposure_and_skills_are_named(tmp_path):
         "pooled_levels",
         config={
             "kind": "pooled_levels",
+            "n_obs": 50,
+            "reuse_contract": {"n_obs": 50, "fitted_subject_identity": {"n_rows": 50}},
             "outcome_symbol": "W",
             "mechanism_symbol": "erbto",
             "resolved_run_plan": {
+                "bounded_predictor_transform": "haldane_logit",
                 "outcome_symbol": "W",
                 "mechanism_symbol": "erbto",
                 "mechanism_is_covariate": True,
@@ -3780,7 +3787,7 @@ def test_pooled_levels_covariate_exposure_and_skills_are_named(tmp_path):
                 "waves": [1, 2, 3, 4],
                 "use_wave_intercepts": True,
             },
-            "extra": {"mechanism_exposure_sd_raw": 9.47},
+            "extra": {"mechanism_exposure_sd_raw": 9.47, "n_child_wave_rows": 50, "exposure_transform": "raw_score", "exposure_scale": [0.0, 1.0], "skill_transform": "haldane_logit"},
         },
     )
     _write_rows(

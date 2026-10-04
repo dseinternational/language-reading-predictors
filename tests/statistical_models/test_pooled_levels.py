@@ -7,9 +7,80 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from scipy.special import expit
 
 from language_reading_predictors.statistical_models import pooled_levels as P
 from language_reading_predictors.statistical_models.context import ModelSpec
+from language_reading_predictors.statistical_models.preprocessing import PreparedData, Standardiser
+from language_reading_predictors.statistical_models.run_metadata import fitted_subject_identity
+
+
+def _prepared_with_missing_levels():
+    outcome = np.arange(12, dtype=float)
+    outcome[:4] = np.nan  # This child's whole likelihood disappears.
+    exposure = np.array([1, 2, 3, 4, 6, 0, np.nan, 32, 8, 16, 9, 10], dtype=float)
+    skill = np.array([1, 2, 3, 4, 5, 0, 7, 24, 8, 12, 9, np.nan], dtype=float)
+    return PreparedData(
+        subject_ids=np.repeat(["a", "b", "c"], 4),
+        child_idx=np.repeat(np.arange(3), 4),
+        phase=np.tile(np.arange(4), 3),
+        G=np.repeat([0, 1, 0], 4),
+        A_months=np.arange(12, dtype=float) + 60,
+        A_std=np.linspace(-1, 1, 12),
+        age_scaler=Standardiser(60, 1),
+        pre_logit={},
+        post_counts={"W": outcome, "L": exposure, "TR": skill},
+        n_trials={"W": 79, "L": 32, "TR": 24},
+        n_obs=12,
+        n_children=3,
+        n_phases=4,
+        dropped_rows=0,
+        phase_mode="levels",
+        covariates={"hs": np.linspace(-1, 1, 12)},
+    )
+
+
+def test_factory_identity_and_every_row_array_match_the_observed_likelihood():
+    prepared = _prepared_with_missing_levels()
+    built = P.build_pooled_levels_model(
+        prepared, outcome_symbol="W", mechanism_symbol="L", skill_symbols=("TR",), waves=(2, 4)
+    )
+    fitted = built.prepared
+    assert fitted.n_obs == built.payload.n_fitted_rows == fitted_subject_identity(fitted)["n_rows"] == 3
+    assert fitted.n_children == built.payload.n_children == 2
+    np.testing.assert_array_equal(fitted.subject_ids, ["b", "b", "c"])
+    np.testing.assert_array_equal(fitted.child_idx, [0, 0, 1])
+    np.testing.assert_array_equal(fitted.post_counts["W"], [5, 7, 9])
+    np.testing.assert_array_equal(built.model.rvs_to_values[built.model["y_post"]].eval(), [5, 7, 9])
+    np.testing.assert_array_equal(built.model["G"].get_value(), fitted.G)
+    np.testing.assert_array_equal(built.model["A_std"].get_value(), fitted.A_std)
+    np.testing.assert_array_equal(built.model["hs_std"].get_value(), fitted.covariates["hs"])
+    assert fitted.dropped_by_reason == {"pooled_levels_wave_restriction": 6, "pooled_levels_incomplete": 3}
+    assert fitted.dropped_rows == 9
+    assert built.payload.n_dropped_incomplete == 3
+    assert prepared.n_obs == 12  # The caller's frame is not mutated.
+
+
+def test_recorded_corrected_scales_recover_exposure_and_skill_counts_at_the_boundaries():
+    built = P.build_pooled_levels_model(
+        _prepared_with_missing_levels(), outcome_symbol="W", mechanism_symbol="L", skill_symbols=("TR",), waves=(2, 4)
+    )
+    assert built.payload.exposure_transform == "haldane_logit"
+    for node, scale, symbol, maximum in (
+        ("mech_post_logit_std", built.payload.exposure_scale, "L", 32),
+        ("TR_post_logit_std", built.payload.skill_scales["TR"], "TR", 24),
+    ):
+        mean, sd = scale
+        logit = built.model[node].get_value() * sd + mean
+        recovered = (maximum + 1) * expit(logit) - 0.5
+        np.testing.assert_allclose(recovered, built.prepared.post_counts[symbol], atol=1e-12)
+        assert sd > 0
+
+
+def test_run_plan_binds_the_bounded_predictor_transform_for_saved_trace_reuse():
+    plan = P.resolve_pooled_levels_run_plan(_spec())
+    assert plan.as_dict()["bounded_predictor_transform"] == "haldane_logit"
+    assert "Haldane-corrected" in plan.recipe_markdown(title="test")
 
 
 def _spec(**extra) -> ModelSpec:

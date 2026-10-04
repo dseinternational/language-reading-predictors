@@ -61,6 +61,69 @@ _BB_MEDIATOR_DRAWS = ["a0", "a_G", "a_L", "a_A"]
 _GAUSSIAN_MEDIATOR_DRAWS = ["a0", "a_G", "a_comp", "a_A"]
 
 
+@pytest.mark.parametrize("link", ["logit", "three_choice_guessing_floor"])
+@pytest.mark.parametrize("estimand", ["natural", "interventional"])
+def test_pipeline_zero_bias_sensitivity_matches_the_primary_fitted_outcome_scale(tmp_path, monkeypatch, link, estimand):
+    from language_reading_predictors.statistical_models import mediation as med
+    from language_reading_predictors.statistical_models.pipelines import mediation as pipeline
+
+    prepared = load_and_prepare(
+        path=_write_synthetic(tmp_path, n_children=15), phase_mode="itt", outcomes=("B", "L", "W")
+    )
+    spec = ModelSpec(
+        model_id="lrp-rli-med-test",
+        title="link consistency",
+        kind="mediation",
+        outcome_symbol="B",
+        mechanism_symbol="L",
+        adjustment=["W"],
+        model_settings=MediationModelSettings(outcomes=("B", "L", "W"), score_mean_link=link, estimand=estimand),
+    )
+    plan = pipeline._settings.resolve_mediation_run_plan(spec).with_effective_confounders(("W",))
+    built, _ = build_mediation_model(prepared, **plan.factory_kwargs())
+    names = [str(rv.name) for rv in built.model.free_RVs]
+    trace = _fake_trace(
+        names,
+        positive=[n for n in names if n.startswith("kappa")],
+        values={"b_G": 0.4, "b_M": 0.5, "b_GM": 0.1, "a_G": 0.7},
+    )
+    ctx = SimpleNamespace(trace=trace, spec=spec, reporting=SimpleNamespace(ci_prob=0.89))
+    saved = {}
+
+    class _SensitivityWritten(Exception):
+        pass
+
+    def save(_ctx, name, data, **kwargs):
+        saved[name] = data
+        if name == "mediation_sensitivity_summary":
+            raise _SensitivityWritten
+
+    original = med.sensitivity_sweep
+    monkeypatch.setattr(med, "sensitivity_sweep", lambda *a, **kw: original(*a, n_deltas=3, **kw))
+    monkeypatch.setattr(pipeline, "make_context", lambda *a, **kw: ctx)
+    monkeypatch.setattr(pipeline, "_prepare_mediation_data", lambda *a: (prepared, ("W",)))
+    monkeypatch.setattr(pipeline._metadata, "write_model_recipe", lambda *a, **kw: None)
+    monkeypatch.setattr(pipeline, "print_header", lambda *a, **kw: None)
+    monkeypatch.setattr(pipeline, "render_model_graph", lambda *a, **kw: None)
+    monkeypatch.setattr(pipeline, "attach_built", lambda *a: None)
+    monkeypatch.setattr(pipeline, "shared_stages", lambda: SimpleNamespace(run_primary_fit=lambda *a, **kw: None))
+    monkeypatch.setattr(pipeline._diag, "save_prior_posterior_plot", lambda *a, **kw: None)
+    monkeypatch.setattr(pipeline._diag, "gate_derived_estimands", lambda *a, **kw: None)
+    monkeypatch.setattr(pipeline, "print_table", lambda *a, **kw: None)
+    monkeypatch.setattr(pipeline, "save_table", save)
+    with pytest.raises(_SensitivityWritten):
+        pipeline.fit_mediation(spec)
+    quantity = "IIE" if estimand == "interventional" else "NIE"
+    primary = saved["mediation_summary"].set_index("quantity").loc[quantity]
+    zero = saved["mediation_sensitivity"].set_index("delta").loc[0]
+    np.testing.assert_allclose(
+        primary[["prob_median", "prob_lo", "prob_hi", "prob_pos"]].to_numpy(dtype=float),
+        zero[["nie_median", "nie_lo", "nie_hi", "nie_prob_pos"]].to_numpy(dtype=float),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
 def _prepare(tmp_path, n_children: int = 15):
     p = _write_synthetic(tmp_path, n_children=n_children)
     return load_and_prepare(path=p, phase_mode="itt")

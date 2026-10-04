@@ -692,9 +692,11 @@ def test_dose_arm_presence_and_mu_dose_rationales(built_models):
     assert "Treatment effect tau" not in by["beta_arm_late"]["rationale"]
     assert "backdoor" in by["beta_arm_late"]["rationale"]
 
-    # The extensive margin must not be silently labelled a dose slope, and must be
-    # the term that carries the randomised reading.
-    assert "randomised contrast" in by["theta_treated"]["rationale"]
+    # Presence remains distinct from attendance, but conditioning on attendance
+    # prevents this coefficient from identifying the assigned-arm causal effect.
+    assert by["theta_treated"]["role"] == "association"
+    assert "Conditional presence association" in by["theta_treated"]["rationale"]
+    assert "prevents interpreting it as the randomised assigned-arm effect" in by["theta_treated"]["rationale"]
 
     assert by["beta_dose_between"]["role"] == "association"
     assert "Between-child" in by["beta_dose_between"]["rationale"]

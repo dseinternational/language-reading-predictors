@@ -1,3 +1,7 @@
+::: {.callout-note}
+Substantially edited by a LLM-based AI tool (Codex/GPT-6).
+:::
+
 ## Results
 
 ```{python}
@@ -75,12 +79,13 @@ else:
     print(
         "Slopes are on the outcome's logit scale per **1 SD of the pooled row-level "
         + (
-            "exposure raw score** (the same per-SD unit the `mechanism` family's "
-            "covariate-exposure fits report)"
+            "exposure raw score** on the fitted pooled rows"
             if _covariate
-            else "exposure logit** (the same per-SD unit the `mechanism` family reports)"
+            else "Haldane-corrected exposure logit** on the fitted pooled rows"
         )
-        + "; the final row translates the focal slope into outcome items at the "
+        + ". The transform is shared with the `mechanism` family, but its fitted "
+        "rows and standard deviation can differ. The coefficients are not directly "
+        "comparable as a common score increment. The final row translates the focal slope into outcome items at the "
         "average fitted linear predictor.\n"
     )
     print("| Term | Median | 89% CrI | P(> 0) |")
@@ -104,10 +109,12 @@ else:
         )
         print(
             "The two answer different questions and can diverge sharply. A large "
-            "between-child coefficient beside a small within-child one says the "
-            "association lives in stable differences between children rather than in "
-            "a child's own movement, which is the pattern a shared-cause account "
-            "predicts and a direct-influence account does not.\n"
+            "between-child coefficient beside a small within-child one describes "
+            "a stronger association between child averages than between changes "
+            "within a child. This is compatible with stable shared causes, but "
+            "does not distinguish them from direct influence. Measurement error, "
+            "little genuine change, ceiling compression and delayed influence can "
+            "also produce this pattern.\n"
         )
     print(
         "\nEvery term here is an **adjusted association**. Exposure and outcome are "
