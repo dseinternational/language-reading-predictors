@@ -683,7 +683,7 @@ if _has("icon_array.png"):
     print(_img("icon_array.png", "Icon array: 100 plausible worlds coloured by the ROPE verdict"))
     print(
         "\n_How to read the icon array:_ each dot is one equally plausible 'world' given the model and data. "
-        "Green dots are worlds where the benefit reaches the agreed meaningful difference δ, red dots are "
+        "Blue dots are worlds where the benefit reaches the agreed meaningful difference δ, orange dots are "
         "worlds with meaningful harm, and grey dots are worlds where the effect is smaller than δ in either "
         "direction."
     )
@@ -730,8 +730,8 @@ if _has("child_fit_panels.png"):
     print("### Per-child fit\n")
     print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples (observed dots, model band)"))
     print(
-        f"\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
-        f"{_obs}; the green band is {_band}, conditional on their own fitted random intercept — a "
+        f"\n_How to read it:_ each panel is one child (indexed, never identified). Green dots are that "
+        f"{_obs}; the blue band is {_band}, conditional on their own fitted random intercept — a "
         "*same-children* display, and a different quantity from the population trajectory above. Panels "
         "flagged with a high Pareto-k are the worst-fitting children in the sample, shown on purpose so "
         "the figure is honest about where the model captures a child and where it does not. The remaining "

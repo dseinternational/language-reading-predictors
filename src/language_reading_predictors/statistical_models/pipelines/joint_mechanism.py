@@ -36,7 +36,7 @@ from language_reading_predictors.statistical_models import run_metadata as _meta
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from dse_research_utils.plot.styles import COLOUR_BLUE
+from dse_research_utils.plot.styles import CHART_COLOURS
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import (
@@ -130,6 +130,9 @@ _JM_TERM_LABELS: dict[str, str] = {
         "(logit per SD) - the denominator-free companion to the ratio"
     ),
 }
+
+#: The per-outcome letter-sound slopes in blue (``chart-1``) in the by-wave figure.
+_SLOPE_COLOUR = CHART_COLOURS[0]
 
 #: The one reported term that is a ratio of posterior quantities. Its mean is never
 #: published (a ratio's mean is dominated by draws where the denominator is small),
@@ -1184,7 +1187,7 @@ def _plot_joint_mechanism_by_wave(ctx: StatisticalFitContext, df: pd.DataFrame, 
     )
     y = np.arange(len(keep))[::-1]
     plt.figure(figsize=(7.2, 0.42 * len(keep) + 1.6))
-    colours = [COLOUR_BLUE if str(t).startswith("beta_mech[") else "#B45309" for t in keep["term"]]
+    colours = [_SLOPE_COLOUR if str(t).startswith("beta_mech[") else "#B45309" for t in keep["term"]]
     for i, (_, row) in enumerate(keep.iterrows()):
         plt.errorbar(
             row["median"],

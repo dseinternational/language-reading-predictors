@@ -46,6 +46,7 @@ import xarray as xr
 from pymc.stats import compute_log_likelihood, compute_log_prior
 from rich import print as rprint
 
+from dse_research_utils.plot.styles import CHART_COLOURS
 from dse_research_utils.statistics.diagnostics import (
     BFMI_THRESHOLD,
     ESS_THRESHOLD,
@@ -92,6 +93,11 @@ from language_reading_predictors.statistical_models.invariants import (
 # and the per-chain BFMI helper are now owned by the shared package and
 # re-exported here so existing call sites and tests keep their import paths.
 __all__ = ["RHAT_MAX", "ESS_THRESHOLD", "BFMI_THRESHOLD", "_bfmi_per_chain"]
+
+#: Predictive-check histograms: the model's draws in blue (``chart-1``) and the
+#: observed values in green (``chart-2``), as in ``ppc_artifacts.py``.
+_PREDICTIVE_COLOUR = CHART_COLOURS[0]
+_OBSERVED_COLOUR = CHART_COLOURS[1]
 
 
 def run_prior_predictive(
@@ -1569,7 +1575,7 @@ def _overlay_count_histograms(
         replicated,
         bins=bins,
         density=True,
-        color="#1f77b4",
+        color=_PREDICTIVE_COLOUR,
         alpha=0.55,
         label=predictive_label,
     )
@@ -1577,7 +1583,7 @@ def _overlay_count_histograms(
         observed,
         bins=bins,
         density=True,
-        color="#d62728",
+        color=_OBSERVED_COLOUR,
         alpha=0.55,
         label="observed",
     )
@@ -1668,11 +1674,11 @@ def save_prior_predictive_rate_plot(
             density=True,
             alpha=0.55,
             label="prior predictive",
-            color="#1f77b4",
+            color=_PREDICTIVE_COLOUR,
         )
         plt.axvline(
             obs_rate,
-            color="#d62728",
+            color=_OBSERVED_COLOUR,
             linewidth=2,
             label=f"observed rate = {obs_rate:.2f}",
         )

@@ -305,9 +305,9 @@ if _has("child_fit_panels.png"):
     print("### Per-child fit\n")
     print(_img("child_fit_panels.png", "Per-child fitted-vs-observed small multiples for a focal measure (observed dots, posterior-predictive band)"))
     print(
-        "\n_How to read it:_ each panel is one child (indexed, never identified). Red dots are that "
+        "\n_How to read it:_ each panel is one child (indexed, never identified). Green dots are that "
         "child's observed scores on a focal measure (named in the figure title) across the fitted waves; "
-        "the green band is the model's posterior-predictive 89% interval **for that same child**, built "
+        "the blue band is the model's posterior-predictive 89% interval **for that same child**, built "
         "from the child's fitted growth trajectory (a *same-children* display, distinct from the cohort "
         "trajectory above). To keep one figure, only the focal measure is drawn; the others behave "
         "analogously. Panels flagged with a high Pareto-k are the worst-fitting children (aggregated "

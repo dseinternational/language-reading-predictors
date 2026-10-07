@@ -88,7 +88,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import xarray as xr
-from dse_research_utils.plot.styles import COLOUR_BLUE, COLOUR_RED
+from dse_research_utils.plot.styles import CHART_COLOURS
 from scipy.special import expit
 
 from language_reading_predictors.figure_io import save_styled_figure
@@ -111,10 +111,12 @@ __all__ = [
 HEADLINE_ESTIMAND = "mechanism_items_contrast_interquartile_fitted_rows"
 SECONDARY_ESTIMAND = "mechanism_items_contrast_observed_range_fitted_rows"
 
-#: Curve / ribbon and worked-example accents from the shared project palette
-#: (``dse_research_utils.plot.styles``), matching ``_write_mechanism_curve``.
-_CURVE_COLOR = COLOUR_BLUE
-_WORKED_COLOR = COLOUR_RED
+#: Curve / ribbon and worked-example accents from the shared chart colours
+#: (``dse_research_utils.plot.styles``): the curve in blue (``chart-1``), matching
+#: ``_write_mechanism_curve``, and the worked example in the next series colour,
+#: green (``chart-2``).
+_CURVE_COLOR = CHART_COLOURS[0]
+_WORKED_COLOR = CHART_COLOURS[1]
 
 
 def _stack_obs(da: xr.DataArray) -> np.ndarray:

@@ -643,7 +643,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "dse-research-utils", extras = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "tuning", "viz"], git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.17.0" }]
+requires-dist = [{ name = "dse-research-utils", extras = ["boosting", "columnar", "dependence", "graphs", "io", "notebook", "tuning", "viz"], git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&rev=a1c2656e7d5c303c4938b04168b9b79cf78b2270" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -657,7 +657,7 @@ dev = [
 [[package]]
 name = "dse-research-utils"
 version = "0.17.0"
-source = { git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&tag=v0.17.0#935bd38bdd09da05cd9895fb3ee73d38c27b3e7c" }
+source = { git = "https://github.com/dseinternational/research.git?subdirectory=src%2Fpython&rev=a1c2656e7d5c303c4938b04168b9b79cf78b2270#a1c2656e7d5c303c4938b04168b9b79cf78b2270" }
 dependencies = [
     { name = "arviz" },
     { name = "arviz-base" },

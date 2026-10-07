@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from dse_research_utils.plot.styles import (
-    COLOUR_BLUE,
-    COLOUR_RED,
+    CHART_COLOURS,
+    DIVERGING_CMAP,
     FIGSIZE_LG,
 )
 
@@ -39,6 +39,11 @@ from language_reading_predictors.statistical_models.plotting import (
     save_plotcollection,
     save_styled_figure,
 )
+
+#: Posterior-predictive checks draw the model in blue (``chart-1``) and the observed
+#: values in green (``chart-2``), with a distinct marker, in every check figure.
+_PREDICTIVE_COLOUR = CHART_COLOURS[0]
+_OBSERVED_COLOUR = CHART_COLOURS[1]
 
 
 def _draw_did_cell_panel(
@@ -69,10 +74,10 @@ def _draw_did_cell_panel(
         yerr=np.vstack((centre - lo, hi - centre)),
         fmt="o",
         capsize=4,
-        color=COLOUR_BLUE,
+        color=_PREDICTIVE_COLOUR,
         label=(f"posterior predictive median and {int(round(ci_prob * 100))}% interval"),
     )
-    ax.scatter(x, observed, marker="x", s=55, linewidth=2, color=COLOUR_RED, label="observed")
+    ax.scatter(x, observed, marker="x", s=55, linewidth=2, color=_OBSERVED_COLOUR, label="observed")
     ax.set_ylabel(ylabel)
     ax.grid(axis="y", alpha=0.2)
     ax.set_xticks(x, labels)
@@ -127,8 +132,8 @@ def save_proportion_at_zero_plot(ctx: StatisticalFitContext, symbol: str, ppc0: 
         rep = ppc0["rep"]
         obs = ppc0["obs_prop_at_zero"]
         plt.figure(figsize=FIGSIZE_LG)
-        plt.hist(rep, bins=30, color=COLOUR_BLUE, alpha=0.6, density=True)
-        plt.axvline(obs, color=COLOUR_RED, lw=2, label=f"observed = {obs:.2f}")
+        plt.hist(rep, bins=30, color=_PREDICTIVE_COLOUR, alpha=0.6, density=True)
+        plt.axvline(obs, color=_OBSERVED_COLOUR, lw=2, label=f"observed = {obs:.2f}")
         plt.xlabel(f"proportion of {symbol} post-scores at zero")
         plt.ylabel("posterior-predictive density")
         plt.title(f"Proportion-at-zero PPC ({symbol}); two-sided tail = {ppc0['ppc_two_sided_tail']:.2f}")
@@ -503,7 +508,9 @@ def save_contrast_heatmap(ctx: StatisticalFitContext, contrast) -> None:
         labels = list(contrast.index)
         M = contrast.to_numpy(dtype=float)
         fig, ax = plt.subplots(figsize=(1.1 + 0.6 * len(labels), 1.0 + 0.6 * len(labels)))
-        im = ax.imshow(M, cmap="RdBu_r", vmin=0.0, vmax=1.0)
+        # A probability either side of 0.5 (unresolved ordering): the diverging scale,
+        # with the column outcome favoured at the orange end and the row at the blue.
+        im = ax.imshow(M, cmap=DIVERGING_CMAP, vmin=0.0, vmax=1.0)
         ax.set_xticks(range(len(labels)), labels, rotation=45, ha="right", fontsize=8)
         ax.set_yticks(range(len(labels)), labels, fontsize=8)
         for i in range(len(labels)):

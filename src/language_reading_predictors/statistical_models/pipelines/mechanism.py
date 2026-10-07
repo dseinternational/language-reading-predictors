@@ -26,7 +26,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from dse_research_utils.plot.styles import COLOUR_BLUE, COLOUR_RED, FIGSIZE_LG
+from dse_research_utils.plot.styles import CHART_COLOURS, FIGSIZE_LG
 from rich import print as rprint
 from scipy.special import expit
 
@@ -71,6 +71,11 @@ from language_reading_predictors.statistical_models.runtime import (
     write_run_metadata,
 )
 from language_reading_predictors.statistical_models.stages import PrimaryFitPlan
+
+#: The mechanism curve in blue (``chart-1``) and the readiness knee drawn over it in
+#: the next series colour, green (``chart-2``), as in ``mechanism_items.py``.
+_CURVE_COLOUR = CHART_COLOURS[0]
+_KNEE_COLOUR = CHART_COLOURS[1]
 
 
 def _mechanism_run_plan(
@@ -482,12 +487,12 @@ def _write_mechanism_curve(ctx: StatisticalFitContext) -> None:
     )
     outcome = ctx.spec.outcome_symbol or "W"
     plt.figure(figsize=FIGSIZE_LG)
-    plt.plot(xs, f_ord.mean(axis=1), color=COLOUR_BLUE, lw=2)
+    plt.plot(xs, f_ord.mean(axis=1), color=_CURVE_COLOUR, lw=2)
     plt.fill_between(
         xs,
         np.quantile(f_ord, 0.055, axis=1),
         np.quantile(f_ord, 0.945, axis=1),
-        color=COLOUR_BLUE,
+        color=_CURVE_COLOUR,
         alpha=0.2,
     )
     plt.xlabel(x_label)
@@ -1003,15 +1008,15 @@ def _write_readiness_threshold(ctx: StatisticalFitContext) -> None:
     x = x_obs[order]
     mean = f[order].mean(axis=1)
     plt.figure(figsize=FIGSIZE_LG)
-    plt.plot(x, mean, color=COLOUR_BLUE, lw=2)
+    plt.plot(x, mean, color=_CURVE_COLOUR, lw=2)
     plt.axvspan(
         summary["knee_count_ci_low"],
         summary["knee_count_ci_high"],
-        color=COLOUR_RED,
+        color=_KNEE_COLOUR,
         alpha=0.15,
         label=f"knee {int(round(ctx.reporting.ci_prob * 100))}% CI",
     )
-    plt.axvline(summary["knee_count_median"], color=COLOUR_RED, lw=1.5, label="knee median")
+    plt.axvline(summary["knee_count_median"], color=_KNEE_COLOUR, lw=1.5, label="knee median")
     plt.xlabel(x_label)
     plt.ylabel(f"{outcome} logit contribution")
     plt.title(f"Readiness threshold (steepest rise): {sym} -> {outcome}")

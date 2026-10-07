@@ -29,7 +29,7 @@ from language_reading_predictors.statistical_models import run_metadata as _meta
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from dse_research_utils.plot.styles import COLOUR_BLUE
+from dse_research_utils.plot.styles import CHART_COLOURS
 from rich import print as rprint
 
 from language_reading_predictors.models._reporting import (
@@ -72,6 +72,9 @@ from language_reading_predictors.statistical_models.subfits import run_subfit
 from language_reading_predictors.statistical_models.invariants import (
     require_value,
 )
+
+#: The adjusted coefficients in blue (``chart-1``) beside the grey bivariate ones.
+_ADJUSTED_COLOUR = CHART_COLOURS[0]
 
 
 # Human-readable labels for the LRP65 predictor keys (for tables / forest plot).
@@ -307,7 +310,7 @@ def _plot_associations(ctx: StatisticalFitContext, df: pd.DataFrame, hdi: float)
         y + 0.12,
         xerr=[df["adj_mean"] - df["adj_lo"], df["adj_hi"] - df["adj_mean"]],
         fmt="o",
-        color=COLOUR_BLUE,
+        color=_ADJUSTED_COLOUR,
         capsize=3,
         label="adjusted (mutual)",
     )

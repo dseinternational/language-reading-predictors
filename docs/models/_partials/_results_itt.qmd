@@ -371,8 +371,8 @@ if _has("icon_array.png"):
     print(_img("icon_array.png", "Icon array: 100 plausible worlds coloured by the ROPE verdict"))
     print(
         "\n_How to read the icon array:_ each dot is one equally plausible 'world' given the model "
-        "and data. Green dots are worlds where the benefit reaches the agreed meaningful "
-        "difference δ, red dots are worlds with meaningful harm, and grey dots are worlds where "
+        "and data. Blue dots are worlds where the benefit reaches the agreed meaningful "
+        "difference δ, orange dots are worlds with meaningful harm, and grey dots are worlds where "
         "the effect is smaller than δ in either direction."
     )
 ```
@@ -386,7 +386,7 @@ if _has("arm_overlap_mean.png"):
     print(_img("arm_overlap_mean.png", "Posterior of each arm's population-average expected outcome, overlaid"))
     print(
         f"\n_How to read it:_ two smoothed posterior curves for the model's population-average "
-        f"expected {outcome_label} — no intervention (grey) and intervention (blue) — with the "
+        f"expected {outcome_label} — no intervention (orange) and intervention (blue) — with the "
         "overlapping area shaded and each arm's median marked. The **overlap fraction** is an "
         "at-a-glance summary of how distinguishable the arms are: near-separate curves mean a "
         "confidently signed effect, heavily overlapping curves mean the arms are hard to tell "

@@ -46,6 +46,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from dse_research_utils.plot.styles import DIVERGING_CMAP
 
 from language_reading_predictors import figure_io, paths
 from language_reading_predictors.statistical_models.datasets import (
@@ -114,7 +115,7 @@ def _heatmap(matrix: pd.DataFrame, title: str, name: str) -> None:
     n_rows, n_cols = labelled.shape
     fig, ax = plt.subplots(figsize=(1.5 + 0.75 * n_cols, 0.9 + 0.6 * n_rows))
     data = labelled.to_numpy(dtype=float)
-    im = ax.imshow(data, vmin=-1.0, vmax=1.0, cmap="RdBu_r", aspect="auto")
+    im = ax.imshow(data, vmin=-1.0, vmax=1.0, cmap=DIVERGING_CMAP, aspect="auto")
     ax.set_xticks(range(n_cols))
     ax.set_yticks(range(n_rows))
     ax.set_xticklabels(labelled.columns, rotation=45, ha="right", fontsize=8)
@@ -130,7 +131,8 @@ def _heatmap(matrix: pd.DataFrame, title: str, name: str) -> None:
                     ha="center",
                     va="center",
                     fontsize=7,
-                    color="white" if abs(v) > 0.55 else "black",
+                    # White text reads better than black beyond |r| = 0.7 on this scale.
+                    color="white" if abs(v) > 0.7 else "black",
                 )
     ax.set_title(title, fontsize=10)
     fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, label="Pearson's r")

@@ -19,6 +19,7 @@
 # %%
 import math
 import matplotlib as mpl
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -33,6 +34,7 @@ from sklearn.inspection import partial_dependence, permutation_importance
 
 import dse_research_utils.environment.setup as setup
 import dse_research_utils.metadata.packages as package_metadata
+import dse_research_utils.plot.styles as plot_styles
 
 import language_reading_predictors.data_utils as data_utils
 
@@ -442,7 +444,10 @@ plt.figure(figsize=(9, 7))
 
 Z_plot = np.ma.masked_invalid(Z)
 
-contours = plt.contourf(A_mesh, C_mesh, Z_plot, levels=15, cmap="coolwarm")
+# SHAP interactions are signed: the diverging scale, centred on zero.
+contours = plt.contourf(
+    A_mesh, C_mesh, Z_plot, levels=15, cmap=plot_styles.DIVERGING_CMAP, norm=mcolors.CenteredNorm(vcenter=0.0)
+)
 
 plt.colorbar(contours, label="SHAP interaction (attend × celf)")
 plt.xlabel("Attendance")

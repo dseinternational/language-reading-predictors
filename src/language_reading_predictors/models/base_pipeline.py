@@ -30,6 +30,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import shap
+from dse_research_utils.plot.styles import SEQUENTIAL_CMAP
 from rich import print
 from scipy.cluster import hierarchy
 from sklearn.inspection import partial_dependence
@@ -624,7 +625,8 @@ class EstimatorPipeline:
 
         side = min(0.45 * p + 2.0, 14.0)
         fig, ax = plt.subplots(figsize=(side, side))
-        im = ax.imshow(heat, cmap="viridis")
+        # Mean absolute interactions are non-negative: the sequential scale.
+        im = ax.imshow(heat, cmap=SEQUENTIAL_CMAP)
         ax.set_xticks(range(p))
         ax.set_xticklabels(feats, rotation=90, fontsize=6)
         ax.set_yticks(range(p))
@@ -959,7 +961,10 @@ class EstimatorPipeline:
         pd.DataFrame(spearman_corr, index=predictors, columns=predictors).to_csv(
             out / "spearman_matrix.csv"
         )
-        fig_sp, _ = plot_heatmap(spearman_corr, predictors, "Spearman rank correlation")
+        # Signed: the diverging scale, centred on no correlation. The distance
+        # correlation and mutual information below are non-negative, so they keep
+        # the sequential default.
+        fig_sp, _ = plot_heatmap(spearman_corr, predictors, "Spearman rank correlation", centre=0.0)
         save_styled_figure(out, "spearman_heatmap", fig=fig_sp, close=False)
         context.plots["spearman_heatmap"] = fig_sp
         plt.close(fig_sp)
