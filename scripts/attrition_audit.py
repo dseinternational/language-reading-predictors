@@ -14,8 +14,8 @@ the windows the headline estimands use —
 - the **DiD crossover window** t1 -> t2 -> t3 (a t2 score but no t3), and
 - the final **maintenance wave** t4 (a t3 score but no t4),
 
-so a reviewer can see where — if anywhere — outcome attrition could bias an estimand.
-It fits no model and makes no causal claim; it only tabulates observed missingness.
+These counts locate missing outcomes in each window. They cannot establish
+whether missingness biases an estimate. The script fits no model.
 
 Standalone by design: reads ``data/rli_data_long.csv`` directly and resolves its output
 path through ``language_reading_predictors.paths``. Writes
@@ -61,10 +61,7 @@ RANDOMISED_BY_GROUP: dict[int, tuple[str, int]] = {
 
 
 def _wide(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    # pivot (not pivot_table): for an audit the counts must be trustworthy, so a
-    # duplicate (subject_id, time) row should *raise* rather than be silently averaged
-    # by the default aggfunc='mean' (#298 review). The panel is balanced today (216 =
-    # 54x4), so this is a guard, not a behaviour change.
+    # Reject duplicate child-wave rows instead of averaging them during an audit.
     return df.pivot(index=V.SUBJECT_ID, columns=V.TIME, values=column)
 
 
@@ -137,10 +134,8 @@ def audit(df: pd.DataFrame) -> pd.DataFrame:
         col = MEASURES[sym].column
         w = _wide(df, col)
         present = {t: w[t].notna() if t in w.columns else pd.Series(False, index=w.index) for t in WAVES}
-        # Single-leg attrition: had the earlier score, missing the next one. Column names
-        # are per-LEG (not per-chain): the full DiD crossover chain t1->t2->t3 is complete
-        # for an outcome iff BOTH itt_window_attrition (t1->t2) and t2_to_t3_attrition are 0
-        # (#298 review — avoids over-reading a single column as the whole chain).
+        # Each count concerns one adjacent pair of waves. Zero attrition does not
+        # imply complete observations for children already missing the earlier score.
         itt_attr = int((present[1] & ~present[2]).sum())  # t1 baseline, no t2 post
         t2_to_t3_attr = int((present[2] & ~present[3]).sum())  # t2, no t3 (crossover leg)
         t4_attr = int((present[3] & ~present[4]).sum())  # t3, no t4 (maintenance leg)

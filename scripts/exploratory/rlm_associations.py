@@ -1,42 +1,24 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Descriptive exploratory pass for the Byrne reading-language-memory cohort (#409 item A).
+"""Describe associations in the Byrne reading-language-memory cohort.
 
-Mirrors the RLI descriptive work for the observational Byrne, MacDonald & Buckley
-(2002) cohort (``study_id="rlm"``). Three purely descriptive views, each written as
-one figure per file (PNG + SVG + CSV) under ``output/exploratory/rlm/``:
+Write per-wave Pearson correlations, between-child and within-child correlation
+decompositions, baseline-to-gain associations adjusted for the outcome's own
+baseline, and within-group age-to-reading-gain associations. The age check uses
+less adjustment and a different sample from ``lrp-rlm-adj-001``.
 
-1. **Per-wave correlation matrices** over the battery + age, and the **between-child
-   vs within-child decomposition** of the pairwise correlations. The two answer
-   different questions -- "do children who read well tend to score well elsewhere"
-   (between) vs "is a good year for reading a good year for the other skill"
-   (within) -- and are reported separately, as in the RLI strand.
-2. **RTM-corrected baseline -> gain partials**: for every predictor-outcome pair and
-   group, the association of the predictor's wave-1 level with the outcome's w1->w3
-   gain, **conditioning on the outcome's own wave-1 level**. Raw baseline -> gain
-   correlations in this design are regression-to-the-mean-confounded by
-   construction; the partial is the honest descriptive analogue (the correction that
-   flipped the taught-vocabulary reading in the RLI strand, #405).
-3. **Within-group age check**: a crude age -> word-reading-gain diagnostic
-   (conditioning only on baseline word reading) -- is the pooled association also
-   present inside each ``readgrp``, or partly cohort composition? This is *not* a
-   reproduction of ``lrp-rlm-adj-001``, which uses a different analytic sample and a
-   full covariate adjustment set; it is a descriptive prompt, not that estimate.
+These are descriptive associations in an observational cohort. Baseline
+adjustment does not guarantee removal of regression-to-the-mean effects,
+measurement error or confounding. The historical output names retain ``rtm``.
+Pearson correlations match the linear decomposition; a rank-correlation check
+would require a separate calculation.
 
-Nothing here is causal. ``readgrp`` is an observational cohort factor; every
-association is an adjusted/observed descriptive correlate with a residual-confounding
-caveat. Correlations use Pearson's r throughout for coherence with the between/within
-variance decomposition and the linear RTM residualisation; Spearman gives the same
-qualitative pattern and is a cheap robustness check.
+Write PNG, SVG and CSV files under ``output/exploratory/rlm/``.
 
 Run::
 
-    python scripts/exploratory/rlm_associations.py
-
-Writes to ``output/exploratory/rlm/`` (gitignored); commit the script, not the
-figures.
-"""
+    python scripts/exploratory/rlm_associations.py"""
 
 from __future__ import annotations
 
@@ -71,10 +53,8 @@ BASELINE_MEASURES = CORE_MEASURES + ["bassim"]
 LABELS = {sym: RLM_MEASURES[sym].label for sym in ALL_MEASURES}
 LABELS["age"] = "age (months)"
 
-# Baseline wave and the outcome-gain wave for the RTM-corrected partials and the age
-# check. w1->w3 matches the fitted ``lrp-rlm-adj-001`` window and keeps every group
-# in-sample (the panel runs to w5, but w4/w5 are progressively DS-only -- the later
-# waves are #409 item D2, deferred).
+# Use waves 1 to 3 for baseline-adjusted gain associations and the age check.
+# All cohort groups contribute to this window; later waves have narrower coverage.
 BASELINE_WAVE = 1
 GAIN_WAVE = 3
 
@@ -267,9 +247,11 @@ def _child_wide(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def rtm_partials(df: pd.DataFrame) -> None:
-    """RTM-corrected partial-correlation matrices (predictor baseline -> outcome gain,
-    conditioning on the outcome's own baseline) alongside the raw baseline -> gain
-    correlations, per group and pooled."""
+    """Compare raw and own-baseline-adjusted baseline-to-gain correlations.
+
+    Compute each predictor-outcome pair within groups and in the pooled cohort.
+    The legacy ``rtm`` name does not imply complete correction for regression to the
+    mean or measurement error."""
     wide = _child_wide(df)
     predictors = BASELINE_MEASURES + ["age"]  # basmat has no wave-1 baseline
     outcomes = CORE_MEASURES  # gains in the core battery
@@ -307,13 +289,10 @@ def rtm_partials(df: pd.DataFrame) -> None:
 
 
 def age_within_group(df: pd.DataFrame) -> None:
-    """Crude age -> word-reading-gain diagnostic, pooled vs within each group.
+    """Compare raw and baseline-reading-adjusted age-to-reading-gain correlations.
 
-    Reports the raw and RTM-corrected age->gain correlation, where "corrected"
-    conditions only on baseline word reading. This is a deliberately crude,
-    child-level (between-child within each group) descriptive check -- not a
-    reproduction of ``lrp-rlm-adj-001``, whose analytic sample and adjustment set
-    (bpvs, trog, basdig, bassim, basnum and group nuisance terms) both differ."""
+    Compute between-child associations within each group and in the pooled cohort.
+    This uses a different sample and less adjustment than ``lrp-rlm-adj-001``."""
     wide = _child_wide(df)
     rows = []
     groups = [(None, "pooled")] + [(g, RLM_GROUP_LABELS[g]) for g in sorted(RLM_GROUP_LABELS)]

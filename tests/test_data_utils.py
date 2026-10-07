@@ -131,7 +131,7 @@ def test_per_period_counts_sum_to_all_periods():
 # ── ERB word-repetition quarantine + integrity check (#631 finding 3) ────
 # See notes/202608262120-erb-word-repetition-quarantine-631.md.
 
-_ERB_BAD_SUBJECT = KNOWN_BAD_CELLS[0][0]  # ID_FDCBDCF29AC0BF03
+_ERB_BAD_SUBJECT = KNOWN_BAD_CELLS[0][0]
 
 
 def test_known_bad_erb_cells_load_as_missing():
@@ -204,7 +204,7 @@ def test_validate_erb_consistency_skips_incomplete_rows():
             V.ERBTO: [99.0],
         }
     )
-    validate_erb_consistency(frame)  # must not raise
+    validate_erb_consistency(frame)
 
 
 def test_known_bad_cells_are_the_single_sanctioned_bypass():
@@ -214,7 +214,7 @@ def test_known_bad_cells_are_the_single_sanctioned_bypass():
     sanctioned = pd.DataFrame(
         {V.SUBJECT_ID: [_ERB_BAD_SUBJECT], V.TIME: [4], **values}
     )
-    validate_erb_consistency(sanctioned)  # must not raise
+    validate_erb_consistency(sanctioned)
     unsanctioned = pd.DataFrame(
         {V.SUBJECT_ID: ["SOMEONE_ELSE"], V.TIME: [4], **values}
     )

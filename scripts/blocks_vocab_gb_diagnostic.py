@@ -1,27 +1,17 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""GB corroboration for issue #186 (Q4, Phase 2): does block design carry nonparametric predictive signal for vocabulary?
+"""Rank block design in the vocabulary level gradient-boosting models.
 
-For each vocabulary LEVEL gradient-boosting model (LRP-RLI-GBL-001–006) this refits an
-ad-hoc variant with block design added to the predictor set — `blocks` is normally
-in `DEFAULT_EXCLUDED` (t1-only), and `data_utils.load_data` now broadcasts it per
-child so it is a usable time-invariant covariate — and reports where `blocks` ranks
-by out-of-fold permutation importance.
+Refits each model with block design in its predictor set and reports its rank by
+out-of-fold permutation importance. The loader broadcasts this time-invariant
+measure to each child's waves. Any added variant remains outside the registry.
 
-This is a nonparametric cross-check of the Bayesian `gamma_blocks` read-out
-(`scripts/ability_vocab_association.py`). The interpretations differ on purpose:
-unlike the ANCOVA-on-logit available-case modified ITT models, the GB model does not privilege the child's
-own baseline vocabulary as an anchor, so a mid-pack `blocks` here reflects the
-**marginal** predictive contribution of non-verbal ability (larger, and shared with
-baseline vocabulary), not the **incremental** value beyond baseline that the
-Bayesian coefficient isolates. Agreement on *where* `blocks` matters (taught vs
-standardised) is the corroboration; the magnitude gap is expected.
-
-The variant configs are built with ``dataclasses.replace`` and are **not**
-registered in ``MODELS`` (no new permanent models). Direction is the marginal
-Spearman of block design with the target (positive as expected — the point of
-interest is rank, not sign).
+Permutation importance describes prediction in a model with all its other
+predictors. It is not a marginal association or a causal effect. The script also
+reports the unadjusted Spearman correlation with the target. Neither quantity is
+the baseline-adjusted ``gamma_blocks`` coefficient reported by
+``scripts/ability_vocab_association.py``; their magnitudes are not comparable.
 
 Usage::
 
@@ -44,8 +34,7 @@ from language_reading_predictors.models.base_model import MODELS
 from language_reading_predictors.models.common import RunConfig
 
 # Vocabulary LEVEL GB models: taught/not-taught receptive & expressive + standardised.
-# The registry is keyed on the canonical id since #168 Phase 2; a legacy id
-# (``lrpgbl01``) passed via ``--models`` still resolves (see ``_resolve``).
+# _resolve accepts canonical and legacy model IDs.
 VOCAB_LEVEL_MODELS = (
     "lrp-rli-gbl-001",  # b1retau - taught receptive
     "lrp-rli-gbl-002",  # b1extau - taught expressive
@@ -60,7 +49,7 @@ def _resolve(model_id: str) -> str:
     """Resolve a user-supplied id (legacy or canonical, any form) to its registry key.
 
     Returns the input unchanged when unrecognised so ``MODELS[...]`` raises the
-    usual ``KeyError`` for a genuinely unknown model.
+    usual ``KeyError`` for an unknown model.
     """
     aliases: dict[str, str] = {}
     for key in MODELS:

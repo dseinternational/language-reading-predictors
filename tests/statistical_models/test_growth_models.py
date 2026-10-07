@@ -6,8 +6,8 @@
 Covers the three pieces the models add: the time-invariant baseline-covariate
 loader on :func:`load_wave_panel`, the pure ``growth_association_summary`` read-out
 in :mod:`statistical_models.reporting`, and that :func:`build_growth_model` builds
-(both layers) and draws a small prior predictive. Full posterior correctness is
-validated by the end-to-end fits in ``scripts/fit_statistical_model.py``.
+(both layers) and draws a small prior predictive sample. These checks do not
+test posterior sampling or parameter recovery.
 """
 
 from __future__ import annotations

@@ -12,24 +12,8 @@ license = { text = "AGPL-3.0-or-later" }
 authors = [{ name = "Frank Buckley" }]
 
 dependencies = [
-  # The compiled scientific core is no longer restated here: it is declared once
-  # in dse-research-utils' own pyproject.toml and inherited transitively, so the
-  # floors (numpy <2.6, pymc, pytensor, arviz, …) cannot drift between repos.
-  # Extras carry the optional layers this repo actually imports:
-  #   boosting   lightgbm, shap           (models/, scripts/rank_predictors.py)
-  #   columnar   pyreadstat               (scripts/audit_rlm_source_provenance.py)
-  #   dependence dcor                     (distance_corr_matrix in stats_utils.py)
-  #   graphs     graphviz, networkx       (model graphs; ALSO needs the system `dot`)
-  #   io         orjson, tabulate         (shared library I/O helpers)
-  #   notebook   jupyter, jupytext        (notebooks/ are Jupytext-paired)
-  #   tuning     optuna                   (scripts/tune_model.py)
-  #   viz        seaborn                  (plot_utils.py and friends)
-  # No `jax` extra: every pm.sample call site hardcodes nuts_sampler="nutpie"
-  # and nothing imports jax or numpyro, so the JAX backend the old shared conda
-  # core installed everywhere is genuinely unused here. No `storage` extra
-  # either: h5netcdf/h5py — what ArviZ needs to write trace.nc — moved into the
-  # library's base dependencies in v0.11.1, leaving only zarr behind that extra,
-  # and nothing here imports zarr.
+  # The shared package supplies the scientific stack and these optional layers.
+  # The graphs extra also needs the system Graphviz dot binary.
   "dse-research-utils[boosting,columnar,dependence,graphs,io,notebook,tuning,viz]"
 ]
 
@@ -43,11 +27,7 @@ dev = [
 ]
 
 [tool.uv]
-# Platforms the lockfile resolves for, copied from the research repo so both
-# resolve for the same set. Intel macOS is deliberately absent: numba publishes
-# no macOS x86_64 wheels and shap pins numba<0.63 there, so the stack cannot
-# solve on that platform. Native win-amd64 is now covered — the conda-forge
-# stack could not serve it (no win-64 jaxlib), so Windows no longer needs WSL.
+# Resolve the supported Linux, Apple Silicon macOS and native Windows platforms.
 environments = [
   "sys_platform == 'linux' and platform_machine == 'x86_64'",
   "sys_platform == 'linux' and platform_machine == 'aarch64'",
@@ -56,8 +36,7 @@ environments = [
 ]
 
 [tool.uv.sources]
-# dse-research-utils isn't published to PyPI — resolve it from the public git
-# tag. To develop against a sibling checkout, replace this entry with:
+# Resolve the shared library from a release tag. For local development:
 #   dse-research-utils = { path = "../research/src/python", editable = true }
 dse-research-utils = { git = "https://github.com/dseinternational/research.git", subdirectory = "src/python", tag = "v0.18.0" }
 
@@ -84,19 +63,10 @@ src = ["src", "scripts", "tests"]
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "B905", "RUF012"]
 
-# Incremental static-typing gate (#361 Phase 5). The strict boundary covers typed
-# family specifications/run plans, shared execution/report stages, atomic
-# publication, environment provenance, registry documentation, and the high-value
-# ITT/DiD/LCF runtime paths migrated under #521.
+# Check the package under strict typing flags, with explicit temporary exemptions.
 [tool.mypy]
 python_version = "3.14"
-# Opt-out, not opt-in (#637 stage 4). This was a hand-maintained list of 36
-# files, so a new module went unchecked until someone remembered to add it —
-# and with ``follow_imports = "skip"`` even a listed file was checked against
-# ``Any`` for everything it imported, which is why the pipelines named below
-# report errors they never used to. The whole package is checked now, and the
-# modules that are not yet clean are named in the exemption list at the
-# bottom, which can only shrink.
+# Check new modules automatically; exemptions are listed below.
 files = ["src/language_reading_predictors"]
 check_untyped_defs = true
 disallow_incomplete_defs = true
@@ -108,23 +78,8 @@ show_error_codes = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 
-# Registered model modules are checked like everything else. Their settings are
-# where a mistyped declaration lives, and checking them caught five specs passing
-# a list where the family declares a tuple, and four companions narrowing a
-# parent's settings without checking the type they narrowed to.
-
-# Not yet type-checked. Temporary and explicit, as #637 asks: each entry is a
-# module whose bodies still fail the strict flags above, and removing one is a
-# self-contained piece of work. `test_type_coverage` runs mypy with these
-# disabled and fails if an entry has become clean, so an exemption cannot
-# outlive the work it stands for, and a newly-failing module cannot be
-# tolerated without being named.
-#
-# 97 modules, 935 errors, at the time of writing. The profile says what
-# finishing them takes: ~300 `arg-type` and ~230 `no-untyped-def`, so mostly
-# annotating function signatures, plus ~195 `union-attr` that would mostly fall
-# to giving `StatisticalFitContext.prepared` the same treatment `BuiltModel`
-# just had.
+# These modules still fail strict typing checks. test_type_coverage checks for
+# new failures and for exemptions that have become unnecessary.
 [[tool.mypy.overrides]]
 module = [
   "language_reading_predictors.data_utils",

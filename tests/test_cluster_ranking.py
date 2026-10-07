@@ -104,8 +104,8 @@ def test_shared_grouping_reproduces_the_local_tree_and_cut(seed):
 
     ``cluster_id`` joins ``cluster_table.csv`` to ``importance_pairing.csv`` and
     to the cluster-importance tables, so the labels are not free to change: they
-    are SciPy's own, and the column keeps SciPy's ``int32`` (building it from
-    Python ints would widen it to ``int64`` and break a dtype-sensitive merge).
+    are SciPy's own. The test also preserves SciPy's ``int32`` column dtype;
+    building the column from Python ints would widen it to ``int64``.
     """
     rng = np.random.default_rng(seed)
     n = int(rng.integers(2, 25))

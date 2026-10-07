@@ -1,22 +1,20 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Readiness-threshold post-processing for a mechanism fit (#230 §2/§5).
+"""Locate the steepest interval of a saved mechanism association curve.
 
-Locates the "knee" of a fitted HSGP mechanism curve — the predictor count around
-which the outcome rises *fastest* (the steepest rise, not the onset of the rise) —
-from a mechanism model's saved trace. For the default target ``lrp-rli-mech-058``
-(letter sounds -> word reading) this reads as "reading rises fastest around ~k
-letter sounds", with the below-knee slope saying whether it is near-flat before
-that. Pure post-processing: it re-fits nothing, reading the ``f_mech`` posterior
-and the ``mech_post_logit`` constant-data node written by the mechanism fit.
+The legacy output name is ``readiness_threshold.csv``. The location describes
+where the fitted curve rises fastest. It does not identify the onset of reading,
+a causal threshold or a minimum prerequisite. Interpret its boundary and
+stability checks with the fitted sample and the model's assumptions.
 
-Mechanism fits now write this summary (plus a plot) automatically; this script
-re-generates ``readiness_threshold.csv`` from an existing trace without a re-fit::
+This script post-processes the saved logit-scale ``f_mech`` curve and does not
+refit the model. The fit pipeline also writes this summary and a separate
+expected-items summary.
 
-    python scripts/fit_statistical_model.py lrp-rli-mech-058 --config reporting
-    python scripts/readiness_threshold.py --model lrp-rli-mech-058 --config reporting
-"""
+Run::
+
+    python scripts/readiness_threshold.py --model lrp-rli-mech-058 --config reporting"""
 
 from __future__ import annotations
 

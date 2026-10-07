@@ -114,11 +114,7 @@ def test_typed_construction_rejects_non_booleans(cls, field, optional):
     ids=[f"{c.__name__}.{f}" for c, f, _ in BOOL_FIELD_CASES],
 )
 def test_the_legacy_extra_adapter_rejects_non_booleans(cls, field, optional):
-    """A declaration reaching the family through ``spec.extra`` binds identically.
-
-    108 registered modules still declare their settings that way, so an adapter
-    that coerced would leave the strict typed path checking nothing that matters.
-    """
+    """Legacy ``spec.extra`` adapters must enforce the typed Boolean rules."""
     adapter, kwargs = _adapter(cls)
     if adapter is None:
         pytest.skip(f"{cls.__name__} has no legacy extra adapter")

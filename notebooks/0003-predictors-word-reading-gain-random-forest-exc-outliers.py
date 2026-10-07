@@ -83,9 +83,7 @@ ewrswr_gain_df["ewrswr_gain"].describe()
 # %%
 predictor_vars = [
     "time",
-    #   "group",
     "age",
-    #    "area",
     "attend",
     "hearing",
     "vision",
@@ -100,17 +98,9 @@ predictor_vars = [
     "trog",
     "aptgram",
     "aptinfo",
-    #    "b1extau",
-    #    "b1exnt",
     "b1exto",
-    #    "b1retau",
-    #    "b1rent",
     "b1reto",
-    #    "b2extau",
-    #    "b2exnt",
     "b2exto",
-    #    "b2retau",
-    #    "b2rent",
     "b2reto",
     "celf",
     "deappin",
@@ -203,10 +193,9 @@ df_eval["residual"] = df_eval["y_true"] - df_eval["y_pred"]
 df_eval["abs_residual"] = df_eval["residual"].abs()
 typical_by_fit = df_eval.sort_values("abs_residual").index.tolist()
 
-# Compute median feature vector
 median_vec = X_shap.median(axis=0)
 
-# Compute L1 distance from median for each child
+# Sum absolute feature deviations from the median for each observation row.
 dist_from_median = (X_shap - median_vec).abs().sum(axis=1)
 
 df_eval["dist_from_median"] = dist_from_median
@@ -282,7 +271,6 @@ fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, 4 * n_rows))
 
 axes = axes.reshape(n_rows, n_cols)
 
-# Loop and plot
 for idx, feature in enumerate(features_ordered):
     row = idx // n_cols
     col = idx % n_cols
@@ -356,18 +344,15 @@ df_int = pd.DataFrame(
 )
 
 # %%
-# Choose grid resolution
 n_bins_y = 25
 n_bins_c = 25
 
 y_bins = np.linspace(df_int["yarclet"].min(), df_int["yarclet"].max(), n_bins_y + 1)
 c_bins = np.linspace(df_int["celf"].min(), df_int["celf"].max(), n_bins_c + 1)
 
-# Digitise values to bins
 y_idx = np.digitize(df_int["yarclet"], y_bins) - 1
 c_idx = np.digitize(df_int["celf"], c_bins) - 1
 
-# Initialise grid with NaNs
 Z = np.full((n_bins_c, n_bins_y), np.nan)
 
 # Aggregate mean interaction per bin
@@ -377,7 +362,6 @@ for i in range(n_bins_y):
         if mask.any():
             Z[j, i] = df_int.loc[mask, "interaction"].mean()
 
-# Build grid coordinates at bin midpoints
 Y_grid = 0.5 * (y_bins[:-1] + y_bins[1:])
 C_grid = 0.5 * (c_bins[:-1] + c_bins[1:])
 Y_mesh, C_mesh = np.meshgrid(Y_grid, C_grid)
@@ -388,7 +372,7 @@ from mpl_toolkits.mplot3d import Axes3D  # needed for 3D projection
 fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection="3d")
 
-# Mask NaNs so they don't create spikes/holes
+# Mask empty bins before plotting the surface.
 Z_plot = np.ma.masked_invalid(Z)
 
 ax.plot_surface(Y_mesh, C_mesh, Z_plot, linewidth=0, antialiased=True)
@@ -399,9 +383,6 @@ ax.set_zlabel("SHAP interaction (YARCLET×CELF)")
 ax.set_title("3D surface of YARCLET × CELF interaction")
 
 # %%
-# Assuming:
-# shap_inter = explainer.shap_interaction_values(X_shap)
-# X_shap is your float64-filled DataFrame
 
 feature_names = X_shap.columns.tolist()
 idx_attend = feature_names.index("attend")
@@ -422,11 +403,9 @@ df_int
 import numpy as np
 from scipy.interpolate import griddata
 
-# Points and values
 points = df_int[["attend", "celf"]].values
 values = df_int["interaction"].values
 
-# Regular grid over the observed range
 att_min, att_max = df_int["attend"].min(), df_int["attend"].max()
 celf_min, celf_max = df_int["celf"].min(), df_int["celf"].max()
 
@@ -434,7 +413,6 @@ att_grid = np.linspace(att_min, att_max, 60)
 celf_grid = np.linspace(celf_min, celf_max, 60)
 A_mesh, C_mesh = np.meshgrid(att_grid, celf_grid)
 
-# Interpolate interaction values onto the grid
 Z = griddata(points, values, (A_mesh, C_mesh), method="linear")
 
 # %%

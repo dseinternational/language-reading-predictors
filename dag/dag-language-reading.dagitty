@@ -13,8 +13,9 @@
 // GA [latent] is annotated, because being unobserved is a structural property,
 // not an analysis-specific role.
 //
-// This is the CONTEMPORANEOUS (single-wave) structure. A time-lagged DAG is a
-// separate workstream and will be recorded alongside this file in dag/.
+// This single-wave graph records working causal assumptions. The time-lagged
+// companion is dag/dag-language-reading-lagged.dagitty. Neither graph alone
+// establishes that a skill effect is identifiable from these data.
 //
 // Verified acyclic (20 nodes). Roots: A, GA, HS, IG.
 //

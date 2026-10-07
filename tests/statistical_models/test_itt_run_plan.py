@@ -438,13 +438,11 @@ def test_the_registered_floor_models_resolve_without_a_pre_restriction():
 
 
 def test_the_expressive_vocabulary_models_declare_the_dispersion_scale_prior():
-    """E is the one outcome whose registered prior was measurably binding.
+    """E models use the dispersion-scale prior; R and EI keep concentration priors.
 
-    At EOWPVT's 170-item ceiling ``kappa ~ HalfNormal(50)`` enforces a floor on
-    over-dispersion. Freeing it moves E's concentration posterior from 126 to
-    475 and improves predictive calibration at both levels (72.2% of
-    observations inside a nominal 50% interval, against 61.1%). R and EI were
-    swept too and their priors do not bind, so they keep the suite default.
+    At a 170-item ceiling, ``kappa ~ HalfNormal(50)`` puts negligible mass near
+    Binomial variation but imposes no strict floor on extra variation. The E
+    specifications also report the sampled ``inv_sqrt_kappa`` parameter.
     """
     from language_reading_predictors.statistical_models.lrp_rli_itt_005 import (
         SPEC as R_SPEC,

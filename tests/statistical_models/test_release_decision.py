@@ -1597,8 +1597,7 @@ def _ready_grid(monkeypatch) -> None:
 
 
 def test_floored_conflict_release_carries_the_sensitivity_note(tmp_path, monkeypatch):
-    """A released floored ``prior_data_conflict`` must carry the lower-bound note
-    the module policy promises, exactly as the graded branch does."""
+    """Release must retain the sensitivity note without claiming a lower bound."""
     d = _floor_fit_dir(
         tmp_path,
         prior=0.12,

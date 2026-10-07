@@ -5,7 +5,7 @@
 
 WPPSI-III Object Assembly at t1 is the second non-verbal subtest the original
 trial reported, and it is present in the committed deposit
-(``data/dse-rli-trial-data-archive.csv``) but in neither derived analysis file.
+(``data/dse-rli-trial-data-archive.csv``) and is copied into the derived analysis files by this script.
 It exists so the suite's single-subtest ability adjustment can be checked
 against a two-indicator composite (``Variables.OBJASS_C``).
 
@@ -141,8 +141,7 @@ def _values(write: bool) -> tuple[list[float | None], list[float | None]]:
     wide = pd.read_csv(WIDE_PATH)
     long = pd.read_csv(LONG_PATH)
     derived = object_assembly_by_wide_row(wide=wide)
-    # The long file carries the subtest at t1 only, exactly as Block Design does;
-    # every consumer broadcasts it from there.
+    # Store the subtest at t1 only, as for Block Design. Loaders can broadcast it.
     by_subject = dict(zip(wide[V.SUBJECT_ID], derived, strict=True))
     wide_values: list[float | None] = [float(v) for v in derived]
     long_values: list[float | None] = [

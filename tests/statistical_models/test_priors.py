@@ -154,8 +154,8 @@ def test_priors_table_applies_rationale_overrides():
 def test_empirical_bayes_rationale_matches_only_anchored_locations():
     """The EB label fires on a computed prior *mean*, not on any ``<constant>``.
 
-    Keyed on the distribution rather than the name because ``alpha`` is anchored in
-    the growth family and a free zero-centred deviation everywhere else (#390 P1).
+    Check the distribution as well as the name because ``alpha`` can have either
+    an observed-data anchor or a zero-centred prior (#390 P1).
     The negatives are the other ``<constant>`` renderings in the suite — LKJ
     dimensions and a ZeroSumNormal shape — which are structural arguments, not
     locations, and must not be labelled empirical Bayes.

@@ -59,7 +59,7 @@ def test_standardised_rows_apply_the_dominance_formula_and_contrast_sources():
         "std g L->W - std g E->W (contrast)",
         "|std g L->W| - |std g E->W| (dominance)",
     }
-    # Hand computation of g* = g * sd(prior source levels) / sd(target changes),
+    # Hand computation of g* = g * sd(source levels) / sd(target changes),
     # per draw, then the median over draws.
     x = post["x_latent"]
     sd_dt = x.sel(outcome="W").diff("wave").std(dim=("child", "wave"))
@@ -70,7 +70,7 @@ def test_standardised_rows_apply_the_dominance_formula_and_contrast_sources():
     assert by["std g (L -> W change)"]["median"] == float(np.median(g_L))
     assert by["std g (E -> W change)"]["median"] == float(np.median(g_E))
     # Raw E is twice raw L, but L's levels spread three times wider: standardised,
-    # L is the larger and the signed contrast is positive with certainty here.
+    # L is larger and the signed contrast is positive in every synthetic draw.
     assert by["std g (L -> W change)"]["median"] > by["std g (E -> W change)"]["median"]
     assert by["std g L->W - std g E->W (contrast)"]["prob_pos"] == 1.0
     assert by["std g (L -> W change)"]["kind"] == "standardised_coupling"

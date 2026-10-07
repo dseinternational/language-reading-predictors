@@ -108,8 +108,7 @@ def _write_did_arm_wave(
                 "tau_t2_items_median": items_median,
                 "tau_t2_items_lo": items_lo,
                 "tau_t2_items_hi": items_hi,
-                # A deliberately different post-crossover quantity: triangulation
-                # must select the clean randomised t2 contrast, not catch-up.
+                # Distinguish the t2 arm contrast from the later change in arm gap.
                 "delta_crossover_median": -9.0,
             }
         ]

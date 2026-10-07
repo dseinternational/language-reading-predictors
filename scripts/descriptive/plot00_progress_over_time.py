@@ -5,16 +5,15 @@
 
 A 2x4 small-multiples grid, one panel per measure. Within each panel:
 faint per-child lines (level against timepoint) plus a bold mean-per-wave line.
-Shows the developmental profile across the reading/phonics, language and
-vocabulary battery for the responder/non-responder picture. Non-verbal MA
+Shows observed score trajectories across the reading/phonics, language and
+vocabulary measures. These trajectories do not classify treatment response. Non-verbal MA
 (block design) is excluded here because it is measured at baseline only and so
 has no trajectory over the four waves.
 
-Standalone by design: this script loads ``data/rli_data_long.csv`` directly and
-hardcodes its own columns and labels and resolves its output path through
-``language_reading_predictors.paths`` so scratch-output runs stay
-consistent. Duplication across the descriptive plot scripts is intentional --
-do not refactor shared logic into a helper.
+Each descriptive script keeps its own plot settings for standalone use. It
+reads ``data/rli_data_long.csv`` and resolves output through the shared paths
+module. This repetition is deliberate; shared helpers would need to preserve
+each script's standalone use.
 
 Run::
 

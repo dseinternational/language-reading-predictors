@@ -167,7 +167,7 @@
        `series-creator`, `executive-producer` == `editor`
   -->
   <!-- Reviews are detected if an item has type `review` or `review-book` or if it has any of the variables `reviewed-title`, `reviewed-author`, or `reviewed-genre`. For the latter case, reviews are commonly stored as types `article-journal`, `article-magazine`, `article-newspaper`, `post-weblog`, or `webpage`. -->
-  <!-- Indigeneous knowledge: Assume the item is stored as `document` or `speech` and that Nation/Community, treaty territory, where the Elder lives, and topic are all stored in `title`. Cf. <https://libguides.norquest.ca/c.php?g=314831&p=5188823>. If the item is stored as `interview`, assume that Nation/Community, treaty territory, and topic are stored in `title`. 'Oral teaching' or similar is stored in `archive`, and where the Elder lives is stored in `archive-place`. -->
+  <!-- Indigenous knowledge: Assume the item is stored as `document` or `speech` and that Nation/Community, treaty territory, where the Elder lives, and topic are all stored in `title`. Cf. <https://libguides.norquest.ca/c.php?g=314831&p=5188823>. If the item is stored as `interview`, assume that Nation/Community, treaty territory, and topic are stored in `title`. 'Oral teaching' or similar is stored in `archive`, and where the Elder lives is stored in `archive-place`. -->
   <!-- Variable labels -->
   <macro name="label-chapter-number">
     <group delimiter=" ">

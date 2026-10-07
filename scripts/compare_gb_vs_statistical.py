@@ -47,8 +47,8 @@ from compare_horseshoe_vs_gb import (  # noqa: E402
 
 from language_reading_predictors import paths  # noqa: E402
 
-# gain_factors coefficient -> construct symbol. The treatment term is excluded:
-# it is the one causal coefficient and has no counterpart in a GB ranking.
+# Map gain-factor covariate terms to constructs. The assigned-treatment contrast
+# answers a different question from predictor importance and is excluded.
 GF_TERM_TO_SYMBOL = {
     "gamma_own": "W",
     "gamma_A": "age",
@@ -63,10 +63,9 @@ GF_TERM_TO_SYMBOL = {
 }
 
 # Two pooled_levels exposures are composites whose components are separate GB
-# columns, so they need adding to the shared construct map: speech production is
-# the sum of the three DEAP picture-naming scores, phonological memory the two
-# repetition scores. ``gb_construct_ranking`` takes the max importance among a
-# construct's columns, which is the right aggregation for a composite too.
+# columns. Group their components under one symbol and use the maximum column
+# importance as the ranking convention. This does not estimate the importance
+# of a composite fitted as a single predictor.
 EXTRA_COLUMN_SYMBOLS = {
     "deappin": "deapp_c",
     "deappvo": "deapp_c",

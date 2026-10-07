@@ -2089,8 +2089,8 @@ def _remaining_family_case(tmp_path: Path, kind: str) -> tuple[Path, str]:
             },
         )
 
-        # Two waves, so the builder's per-wave path (range + clearest-wave lead) is
-        # exercised, plus the levels-only conditional-slope / share-retained rows.
+        # Two waves exercise the all-wave reporting path and the levels-only
+        # conditional-slope / share-retained rows.
         def _jm(wave, term, median, lo, hi, prob_pos):
             span = (hi - lo) / 4.0
             return {
@@ -3622,11 +3622,10 @@ def test_did_off_floor_direction_words_state_status_not_transition(tmp_path):
 def test_each_family_reads_its_own_causal_term():
     """The gate must name the term the headline actually rests on.
 
-    ``level_factors`` fits one ``b_grp_time`` per timepoint and only t2 is randomised;
-    reading the bare vector name returns "unavailable" for all eleven fits. The DiD
-    dose models have no ``tau_t2`` at all — the choice mirrors ``DiDRunPlan.effect_term``
-    and is read from the persisted plan so the decision and the fit's own psense
-    emission cannot disagree.
+    Level models use the t2 contrast for the randomised untreated-versus-treated
+    window. Later arm gaps compare randomised treatment schedules. The gate reads
+    the indexed focal term from the saved plan, including the t1-referenced form.
+    Dose models instead name their fitted dose coefficient.
     """
     from language_reading_predictors.statistical_models.release import causal_term_for
 

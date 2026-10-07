@@ -92,11 +92,10 @@ def _prepare_and_build(spec):
 
 
 def _refit_convergence(model, idata) -> dict:
-    """Unrounded max R-hat / min ESS (over free RVs) + divergence count (issue #274).
+    """Check free-variable R-hat, minimum bulk/tail ESS and divergences.
 
-    ``round_to="none"`` — the string — genuinely disables rounding (``round_to=None``
-    would fall through to ``rcParams["stats.round_to"]`` at 2 sig figs and let a
-    borderline R-hat pass); free RVs match the headline gate's coverage.
+    Uses the shared unrounded diagnostics. This local check does not include BFMI
+    and is not the complete publication decision used by the fit pipelines.
     """
     n_div = None
     try:

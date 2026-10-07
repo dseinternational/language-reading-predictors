@@ -265,10 +265,9 @@ def test_period_stacked_primary_is_the_supported_window():
 def test_named_confounder_calibration_recovers_a_known_linear_bias():
     """Simulation validation of the ``delta = |b(U->M) * b(U->Y)|`` form (#585 f.6).
 
-    The product is the omitted-variable bias only because both slopes are put on
-    one-standard-deviation scales, which makes ``Var(M) = 1``. Generate data with
-    a known unmeasured common cause and confirm the inflation of the fitted
-    mediator coefficient matches the product to within Monte-Carlo error.
+    The mediator is standardised and the simulated confounder has variance near
+    one. Its slope to the outcome is conditional on the mediator. Under this
+    linear model, the slope product approximates the omitted-variable bias.
     """
     rng = np.random.default_rng(585)
     n = 200_000
@@ -283,14 +282,13 @@ def test_named_confounder_calibration_recovers_a_known_linear_bias():
     actual_bias = fitted_b - true_b
     slope_u_to_m = float(np.polyfit(u, m, 1)[0])
 
-    # With the PARTIAL U -> Y slope (U's coefficient given M) the bare product is
-    # the exact omitted-variable bias, because standardising M makes Var(M) = 1.
+    # Use U's outcome coefficient conditional on M. Var(M) is one and Var(U)
+    # is close to one, so their slope product should reproduce the bias.
     design = np.column_stack([np.ones(n), m, u])
     partial_u_to_y = float(np.linalg.lstsq(design, y, rcond=None)[0][2])
     assert abs(slope_u_to_m * partial_u_to_y) == pytest.approx(actual_bias, rel=0.01)
 
-    # The module deliberately supplies the MARGINAL U -> Y slope instead, which
-    # also absorbs the genuine U -> M -> Y path. That is conservative by
-    # construction: it can only overstate the bias, never understate it.
+    # The marginal U -> Y slope includes the U -> M -> Y path. Both paths are
+    # positive in this fixture, so that product overstates the bias here.
     marginal_u_to_y = float(np.polyfit(u, y, 1)[0])
     assert abs(slope_u_to_m * marginal_u_to_y) > actual_bias

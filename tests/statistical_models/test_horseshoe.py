@@ -5,8 +5,8 @@
 
 The builder tests are smoke tests on synthetic data (matching the rest of
 ``test_factories``): each variant *builds*, exposes the expected horseshoe RVs,
-and can draw a small prior predictive sample. Full posterior correctness is
-validated by the end-to-end dev fits. The ranking test is deterministic: a
+and can draw a small prior predictive sample. They do not test posterior sampling
+or parameter recovery. The ranking test is deterministic: a
 synthetic posterior with one planted strong coefficient must come out on top with
 ``p_abs_gt_delta`` near 1, and the schema must match what the report partial reads.
 """

@@ -3,12 +3,10 @@
 
 """Guard tests for the posterior-predictive coverage suite (issue #318).
 
-The coverage statistic is a decidable check that band-gazing is not, so it must be
-validated against synthetic fits with *known* behaviour: a perfectly-calibrated
-predictive should recover ≈ nominal coverage; a point-mass predictive at / far from
-the observed value should give coverage 1 / 0; and the closed-interval convention
-(observed exactly on a quantile edge counts as inside) must hold. The off-floor
-rate path is validated on hand-constructed cells with a known in/out verdict.
+Synthetic predictions check interval coverage and its closed-endpoint convention.
+Observations drawn from the same continuous law should give coverage near the
+nominal level, with sampling variation. Point-mass predictions and off-floor cells
+provide exact inside/outside checks.
 """
 
 from __future__ import annotations
@@ -189,10 +187,8 @@ def _offfloor_trace(rep, obs, *, node="y_offfloor"):
 
 
 def test_offfloor_rate_coverage_by_group_cell_known_verdict():
-    # Two arms, 4 obs each. Immediate observed off-floor rate 0.5; waitlist 0.0.
-    # Predictive: immediate cell always off-floor (rate 1.0) so observed 0.5 sits
-    # well below its predictive band -> OUTSIDE. Waitlist predictive is a coin flip
-    # (rate ~0.5 with spread) so observed 0.0... construct deterministically instead.
+    # Two arms, four observations each. Predictions fix the immediate arm's
+    # off-floor rate at 1 and the waitlist rate at 0.
     obs = np.array([1, 1, 0, 0, 0, 0, 0, 0])  # immediate rate .5, waitlist rate 0
     group = np.array(["immediate"] * 4 + ["waitlist"] * 4)
     # Replicated: immediate always 1 (rate 1.0), waitlist always 0 (rate 0.0).
@@ -291,8 +287,8 @@ def test_coverage_markdown_flags_undercoverage():
 
 
 def test_coverage_markdown_flags_overcoverage():
-    # Review fix: coverage well ABOVE nominal (100% inside a 90% interval) must not be
-    # labelled "close to the nominal level" — it means the ranges are wider than needed.
+    # Full coverage must not be labelled close to the nominal 90% level.
+    # High coverage can indicate wide ranges; it does not establish the cause.
     import pandas as pd
 
     cov = pd.DataFrame(

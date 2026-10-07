@@ -1,67 +1,27 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Dispersion prior-family sensitivity for the high-denominator ITT outcomes.
+"""Compare concentration and dispersion-scale priors for graded ITT outcomes.
 
-The registered suite puts ``kappa ~ HalfNormal(50)`` on the Beta-Binomial
-concentration. That prior is candidly documented as only partly permissive, and
-the 2026-08-22 ITT audit (finding 5) quantified what it excludes: the
-Beta-Binomial variance inflation over Binomial is ``(n + kappa) / (1 + kappa)``,
-so at the prior median ``kappa ~ 33.7`` the *prior* already enforces about 2.1x
-inflation at ``n = 40``, 3.3x at ``n = 80`` and 5.9x at ``n = 170``. Coming within
-10% of Binomial at ``n = 170`` needs ``kappa > 1689``, which has effectively zero
-mass. The near-Binomial limit — for a bounded count, the perfectly ordinary
-hypothesis "this measure shows no extra-Binomial dispersion" — is off the table
-*a priori*, and the registered ``kappa_sigma`` sweep cannot test it either: it
-covers only L and W, and even its widest ``HalfNormal(200)`` gives the region
-zero prior mass.
+The Beta-Binomial variance multiplier is ``(n + kappa) / (1 + kappa)``. Being
+within 10% of Binomial variance requires ``kappa >= 10*(n - 1) - 1``. A
+``HalfNormal(50)`` prior on kappa assigns negligible probability near that limit
+for large tests; it favours extra variation without imposing a strict floor.
+The alternative ``1/sqrt(kappa) ~ HalfNormal(sigma)`` assigns appreciable
+probability to large kappa values.
 
-This sweep tests it, by varying the prior **family** rather than its scale. The
-alternative is the dispersion-scale parameterisation the RLM historical families
-already use, ``1 / sqrt(kappa) ~ HalfNormal(sigma)``, which does reach
-``kappa >> n``. Measured over 400k draws, P(variance within 10% of Binomial):
+Refits W (79 items), R/E (170) and EI (80) under the concentration-scale reference
+and two dispersion-scale widths. The reference is a comparison cell, not
+necessarily the current registered prior. The floor-rule P headline is excluded
+because its Bernoulli likelihood has no kappa.
 
-======================================  ======  ======  =======
-prior                                    n=79    n=80    n=170
-======================================  ======  ======  =======
-``HalfNormal(50)`` on kappa (registered)  0.000   0.000   0.000
-``HalfNormal(200)`` on kappa (sweep max)  0.000   0.000   0.000
-``HalfNormal(0.25)`` on 1/sqrt(kappa)     0.114   0.113   0.078
-``HalfNormal(0.50)`` on 1/sqrt(kappa)     0.058   0.057   0.039
-======================================  ======  ======  =======
-
-Scope is every graded high-denominator ITT outcome: **R** and **E**
-(``n_trials`` 170), **EI** (80) and **W** (79). W is here despite already having a
-``kappa_sigma`` sweep, because that sweep varies the prior's *scale* and this
-finding is about its *family* — the table above shows ``HalfNormal(200)``, the
-widest cell that sweep reaches, giving the near-Binomial region 0.000 mass at
-n = 79 just as ``HalfNormal(50)`` does. W had therefore never been tested against
-this hypothesis, which matters because it is the suite's model of record
-(``lrp-rli-itt-010``, five registered fits). P (92) is excluded: its floor-rule
-headline is a Bernoulli off-floor indicator with no ``kappa`` at all. Its flagged
-graded secondary does carry one, and is noted as out of scope here rather than
-silently omitted — it is an explicitly exploratory sub-fit, not a headline.
-
-Deliberately a **separate artefact**, written to
-``output/statistical_models/dispersion_prior_sensitivity/``, exactly as the P/N
-floor grid is kept out of the standard sweep. The 44-cell
-``tau_prior_sensitivity.csv`` grid is bound to registered primaries by hash and
-checked against ``sensitivity._standard_expected_cells``; adding cells to it
-would invalidate stored sweeps. Nothing here feeds a release gate — it is
-recorded evidence about a prior choice, not a pass/fail.
+Writes ``dispersion_prior_sensitivity.csv`` under
+``output/statistical_models/dispersion_prior_sensitivity/``. This separate
+analysis does not supply the standard treatment-prior release sweep.
 
 Usage::
 
-    python scripts/dispersion_prior_sensitivity.py                    # dev (fast)
-    python scripts/dispersion_prior_sensitivity.py --config reporting
-    python scripts/dispersion_prior_sensitivity.py --outcomes R --config test
-
-Read the output as: does the treatment effect move when the model is *allowed*
-to conclude there is no extra-Binomial dispersion? The first run (R, E, EI) found
-the answer is outcome-specific — no AME moved materially anywhere, but for E the
-registered prior was genuinely binding, its concentration posterior moving from
-126 to 475 with predictive calibration improving at both levels, while R and EI
-were unaffected. E's registered models now declare the dispersion-scale prior.
+    uv run python scripts/dispersion_prior_sensitivity.py --config reporting
 """
 
 from __future__ import annotations
@@ -98,8 +58,7 @@ _console = Console()
 OUTPUT_SUBDIR = "dispersion_prior_sensitivity"
 FILENAME = "dispersion_prior_sensitivity.csv"
 
-#: Graded outcomes whose denominator makes the enforced-overdispersion floor
-#: material, with the registered primary each cell is matched to.
+#: High-denominator graded outcomes, with the primary model for each comparison.
 DISPERSION_SENSITIVITY_MODEL_IDS = {
     "W": "lrp-rli-itt-010",
     "R": "lrp-rli-itt-005",
@@ -107,9 +66,7 @@ DISPERSION_SENSITIVITY_MODEL_IDS = {
     "EI": "lrp-rli-itt-029",
 }
 
-#: ``(family, sigma)``. The first is the registered prior, refitted here so the
-#: comparison is like-for-like within one run rather than against a stored trace
-#: sampled under different settings.
+#: (family, sigma). Refit all cells under one sampling configuration.
 DISPERSION_SENSITIVITY_CELLS = (
     ("halfnormal_concentration", 50.0),
     ("halfnormal_inverse_sqrt", 0.25),

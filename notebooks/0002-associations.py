@@ -14,6 +14,9 @@
 # ---
 
 # %% [markdown]
+# > [!NOTE]
+# > Comment and heading edits by a LLM-based AI tool (Codex/GPT-6).
+#
 # # 0002 - Associations
 
 # %%
@@ -77,7 +80,7 @@ def scatter_plot(x, y):
 
 
 # %% [markdown]
-# ## Influence of letter sounds score
+# ## Associations with letter-sound scores
 
 # %%
 scatter_plot(vars.YARCLET, vars.EWRSWR)
@@ -92,7 +95,7 @@ scatter_plot(vars.YARCLET, vars.BLENDING)
 scatter_plot(vars.YARCLET, vars.NONWORD)
 
 # %% [markdown]
-# ## Factors influencing early word reading composite
+# ## Associations with the early word-reading composite
 
 # %%
 scatter_plot(vars.BLENDING, vars.EWRSWR)
@@ -104,7 +107,7 @@ scatter_plot(vars.SPPHON, vars.EWRSWR)
 scatter_plot(vars.NONWORD, vars.EWRSWR)
 
 # %% [markdown]
-# ## Factors influencing non-word reading score
+# ## Associations with nonword reading scores
 
 # %%
 scatter_plot(vars.ROWPVT, vars.NONWORD)

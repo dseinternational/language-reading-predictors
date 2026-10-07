@@ -228,12 +228,11 @@ def test_a_legacy_or_invalid_saved_design_still_demands_a_fresh_full_fit():
 
 @pytest.mark.parametrize("prob", [0.5, 0.8, 0.89, 0.9, 0.94, 0.95, 0.99])
 def test_the_shared_upper_quantile_matches_the_one_it_replaced(prob):
-    """``(1 + p) / 2`` and ``1 - (1 - p) / 2`` are equal in float64 for p >= 0.25.
+    """The two upper-quantile formulas agree exactly at the tested interval widths.
 
     The shared helper uses the complement form. The two are algebraically the
-    same and agree exactly at every interval this project publishes, but they can
-    differ by an ulp for very narrow intervals, which can flip an inclusion flag
-    at an endpoint. A future narrower reporting width would fail here first.
+    same, but rounding can differ at other widths and change inclusion of a value
+    at an interval endpoint. Add any new reporting width to this parameterisation.
     """
     assert (1.0 + prob) / 2.0 == 1.0 - (1.0 - prob) / 2.0
 

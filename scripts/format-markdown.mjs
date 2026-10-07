@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: AGPL-3.0-or-later
 
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -36,11 +37,8 @@ const repoRoot = path.resolve(scriptDir, "..");
 const prettierBin = process.platform === "win32" ? "prettier.cmd" : "prettier";
 const localPrettier = path.join(repoRoot, "node_modules", ".bin", prettierBin);
 const prettier = existsSync(localPrettier) ? localPrettier : prettierBin;
-// Windows spawns through cmd.exe (shell: true), whose command line tops out at
-// ~8,191 characters — the full tracked-markdown list already exceeds it. Batch
-// the Prettier calls so each command stays comfortably under that limit, run
-// every batch even after a failure so --check reports the complete file list,
-// and exit non-zero if any batch failed.
+// Keep batches below cmd.exe's 8,191-character limit, with room for the command.
+// Check every batch and retain any failure in the final exit status.
 const MAX_ARGS_LENGTH = 6000;
 const batches = [];
 let batch = [];

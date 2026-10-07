@@ -443,16 +443,11 @@ if factor_summary is not None and "role" in factor_summary.columns:
 ```{python}
 # | echo: false
 # | output: asis
-# Level family only: the group contribution at t2 is
-# (balance term + focal t2 term + gamma_grp_ability*ability)*G. The card nets ALL of it
-# out of every fitted row and adds back only the focal term (#584 decision 1: the
-# arm-free standardisation), so both arms are read at the same operating point and the
-# pre-randomisation chance imbalance is no part of the effect. gamma_grp_ability is a
-# single *time-invariant* coefficient, identified from all four timepoints, three of
-# which are not randomised, so folding it in would import a non-randomised component
-# into a causal claim (#271 item 5; design note Decision 4) — the increment stays at
-# mean ability. Gated on the term's presence, so a level model fitted without
-# group x ability prints nothing.
+# Standardise both arms at a common operating point. Remove the balance, focal
+# and group-by-ability contributions, then add back only the focal t2 term at
+# mean ability. The shared group-by-ability coefficient is not a t2-specific
+# treatment moderator. Later assigned-arm gaps are treatment-schedule contrasts,
+# not treated-versus-untreated contrasts.
 if (
     factor_summary is not None
     and "term" in factor_summary.columns

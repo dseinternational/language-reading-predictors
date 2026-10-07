@@ -1,20 +1,12 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""The shared layer's module boundaries, after the #637 stage 3 split.
+"""Check module ownership, compatibility exports and import cycles (#637).
 
-``reporting.py`` was 9,417 lines and one of the three dependency hubs the
-maintainability review named. It is now four modules — estimands, predictive
-checks, run metadata, key findings — plus the convergence gate, with ``reporting``
-kept as a **temporary** re-export facade so existing call sites keep working.
-
-Two concrete import cycles came with those hubs and are closed here: ``factories``
-imported level-factor policy while level-factor code reached back into
-``factories`` for a private helper, and ``reporting`` and ``release`` imported one
-another through function-local imports written to hide the fact.
-
-These tests pin the shape, not the contents: which module owns what, that the
-facade is complete, and that no module-level cycle returns.
+The package separates estimands, predictive checks, run metadata, findings and
+convergence. ``reporting`` retains compatibility exports. These tests check
+those exports, the factory and release boundaries, and the absence of
+module-level import cycles, including cycles through nested packages.
 """
 
 from __future__ import annotations
@@ -33,7 +25,7 @@ from language_reading_predictors.statistical_models import definitions
 PACKAGE = pathlib.Path(definitions.__file__).parent
 SM = "language_reading_predictors.statistical_models"
 
-#: The four responsibility modules ``reporting.py`` was split into, plus the gate.
+#: Compatibility modules and the convergence gate checked below.
 SPLIT_MODULES = (
     "estimands",
     "predictive_checks",
@@ -113,11 +105,7 @@ def _cycles(edges: dict[str, set[str]]) -> list[list[str]]:
 
 
 def test_the_package_has_no_module_level_import_cycle():
-    """Both named cycles are closed, and no new one may appear.
-
-    A function-local import that exists only to hide a cycle is the smell this
-    replaces: it makes the edge invisible to every tool and to the reader.
-    """
+    """Check module-level imports; function-local imports are outside this scan."""
     cycles = _cycles(_edges())
     assert cycles == [], [" -> ".join(cycle) for cycle in cycles]
 

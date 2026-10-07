@@ -1,48 +1,31 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Between- vs within-child diagnostic for an interaction (confound check).
+"""Compare pooled and within-child interaction associations.
 
-A frequentist triangulation for the Bayesian interaction models (LRP71/72/73):
-an apparent ``mechanism × moderator`` interaction may be a **between-child
-ability confound** (children who are higher on one skill tend to be higher on the
-other and read better) rather than a within-child effect. This script fits an OLS
-of the logit outcome on ``z(mechanism)``, ``z(moderator)`` and their product,
-four ways:
+Fit the logit outcome on standardised mechanism and moderator scores and their
+product using four OLS specifications:
 
-1. **pooled (naive)** — classical SE; ignores the 3-4 rows/child, so it
-   overstates the interaction (the inflation the exploration warned about).
-2. **pooled (cluster-robust by subject)** — honest SE for the pooled estimate.
-3. **subject fixed effects on the raw product** — subject dummies absorb the
-   between-child *levels*, but by Frisch–Waugh–Lovell the FE estimator still uses
-   the within-child variation of the **raw** product ``xL·xM``, which retains
-   cross-level terms (between-child levels × within-child changes). So this
-   coefficient is **not** a clean within-child interaction. Kept only as a
-   contrast against estimator 4. Cluster-robust SE.
-4. **within-child (double-demeaned product)** — the genuine within-child
-   interaction: the product of the *within-demeaned* components
-   ``(xL − x̄L_i)·(xM − x̄M_i)`` alongside subject fixed effects
-   (Giesselmann & Schmidt-Catran 2020, DOI 10.1177/0081175020966850). This is the
-   estimator the verdict reads. Cluster-robust SE.
+1. Pooled rows with classical standard errors.
+2. Pooled rows with standard errors clustered by child.
+3. Child fixed effects with the raw product. Its within-child variation still
+   contains products of between-child levels and within-child changes.
+4. Child fixed effects with the product of within-child demeaned components.
 
-If the interaction is large pooled but collapses to ~0 on estimator 4, it is a
-between-child confound, not a developmental/skill-combination effect. This is the
-check that contextualises LRP71 (phonics×vocab) and LRP72 (blending×letter-sound);
-LRP73 (letter-sound×age) is its primary use — age is overwhelmingly a
-between-child variable, so the FE-raw-product contamination is largest there.
+The last specification follows Giesselmann and Schmidt-Catran (2020), DOI
+10.1177/0081175020966850. Clustered standard errors allow dependence within a
+child but rely on their own finite-sample and model assumptions. They do not
+change the pooled point estimate.
 
-The outcome / predictors are entered on the same logit scale the Bayesian models
-use; OLS here is a rough linear diagnostic, not the inferential model (note: the
-within-child SE does not account for the four-wave longitudinal structure beyond
-clustering). Symbols are the measure symbols in ``measures.py``; the moderator may
-also be ``age`` (a continuous covariate).
+A smaller within-child interaction suggests sensitivity to the decomposition.
+It does not prove between-child confounding or identify a causal skill effect.
+Limited within-child variation, measurement error and time-varying confounding
+can also affect this comparison. OLS is a linear diagnostic for the bounded-score
+Bayesian models, not a replacement for their likelihood or uncertainty checks.
 
-Usage::
+Run::
 
-    python scripts/within_child_interaction_check.py                       # L x age -> W (LRP73)
-    python scripts/within_child_interaction_check.py --moderator E         # L x E -> W (LRP71)
-    python scripts/within_child_interaction_check.py --moderator B --outcome N  # L x B -> decoding (LRP72)
-"""
+    python scripts/within_child_interaction_check.py --moderator E"""
 
 from __future__ import annotations
 
@@ -104,8 +87,7 @@ def run_check(mechanism: str, moderator: str, outcome: str) -> pd.DataFrame:
     subject = prepared.subject_ids[keep]
 
     df = pd.DataFrame({"y": y, "xL": xL, "xM": xM, "subject": subject.astype(str)})
-    # Within-child (double-)demeaned components and their product — the genuine
-    # within-child interaction regressor (estimator 4).
+    # Form the product after demeaning each component within child.
     df["xL_dm"] = df.groupby("subject")["xL"].transform(lambda s: s - s.mean())
     df["xM_dm"] = df.groupby("subject")["xM"].transform(lambda s: s - s.mean())
     df["xLM_dm"] = df["xL_dm"] * df["xM_dm"]

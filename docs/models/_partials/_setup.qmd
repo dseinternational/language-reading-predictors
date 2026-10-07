@@ -26,12 +26,8 @@ with open(_here / "config.json") as _f:
 
 trace = az.from_netcdf(_here / "trace.nc")
 
-# Artefacts that EXIST but could not be parsed, mapped to the shared reader's
-# failure category. Missing and unreadable used to be indistinguishable here —
-# both returned None — so a truncated or half-written CSV/JSON rendered exactly
-# like a fit that had not written that artefact yet, which is the reassuring
-# reading of a failure. Since #662 an unreadable artefact is recorded and
-# withholds scientific output; _gate_badge names the files.
+# Track parse failures separately from missing files. An unreadable artefact
+# withholds scientific output, and the gate badge names the affected files.
 unreadable_artifacts: dict[str, str] = {}
 
 

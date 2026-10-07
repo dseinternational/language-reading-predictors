@@ -8,10 +8,10 @@ child-aggregated PSIS-LOO actually answered a new-child question. Where a model 
 a child-level latent it does not: the importance weights reweight a posterior in which
 the held-out child's own random effect is still fitted to its own data.
 
-These tests hold the three things that turns into: every joint family declares a target;
-the latent declaration fails closed rather than silently reverting to the conditional
-answer; and an estimate whose Pareto-k or whose own integration error is unacceptable is
-withheld rather than published.
+These tests require every joint family to declare a target and every child latent
+variable. They also require predictive estimates to be withheld when Pareto-k or
+split-batch stability checks fail. Agreement between batches does not bound
+integration error.
 """
 
 from __future__ import annotations
@@ -214,11 +214,10 @@ def test_an_unacceptable_pareto_k_withholds_the_estimate():
 
 
 def test_a_rough_latent_integral_withholds_the_estimate_even_with_clean_k():
-    """The second failure mode, which Pareto-k cannot see.
+    """Withhold when split-score disagreement exceeds the ELPD standard error.
 
-    The historical joint-growth probe moved its ELPD by hundreds of nats between 64 and
-    256 latent draws while every k value stayed finite; an estimate whose numerical
-    error rivals its own standard error is not measuring the model.
+    A clean Pareto-k check does not establish numerical stability. This comparison
+    is a stability check, not a bound on integration error.
     """
     from dataclasses import replace
 

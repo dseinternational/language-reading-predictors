@@ -1,48 +1,24 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""
-Sensitivity check: LRP-RLI-GBL-012 under inverse-frequency subject weighting.
+"""Compare equal-child and equal-row training weights for LRP-RLI-GBL-012.
 
-Motivation
-----------
+Baseline parent reports ``agebooks`` and ``agespeak`` repeat across a child's
+rows. Children with more observed timepoints therefore contribute more training
+weight under the standard fit. Repetition alone does not establish bias towards
+these predictors, since each row also has an outcome and other predictors.
 
-``agebooks`` and ``agespeak`` are measured once at baseline (parent
-report) and repeated across every timepoint for each child in the long
-format. Under the standard fit, each child contributes 3–4 identical
-rows of these time-invariant predictors, which inflates their effective
-training weight even though no new information is added.
+The script uses ``1 / n_timepoints_per_child`` weights so each child's total
+training weight is one. It compares weighted and unweighted fits on identical
+child-grouped folds, then removes both parent-report predictors without retuning.
+It also compares permutation importance on the full training data. Those scores
+describe sensitivity within this procedure, not held-out importance.
 
-``GroupKFold`` prevents *test-set* leakage (a child's ``agebooks`` value
-never appears in both train and test), but during training the model
-still sees each child's time-invariant values repeated. This biases
-tree splits and permutation importance toward time-invariant features
-relative to what would be seen with one row per child.
+Outputs go to ``output/sensitivity/lrp-rli-gbl-012_weight/``.
 
-What this script does
----------------------
+Run::
 
-1. Loads LRP-RLI-GBL-012's exact data, predictors, and MAE-tuned hyperparameters
-   from the model registry.
-2. Computes ``sample_weight = 1 / n_timepoints_per_child`` so each
-   child contributes a total weight of 1.0.
-3. Runs two manual ``GroupKFold`` cross-validations with identical
-   splits — one unweighted, one weighted — and records out-of-fold
-   predictions.
-4. Fits both models on the full dataset and computes permutation
-   importance (the weighted model scores permutation importance with
-   ``sample_weight`` so the scoring is consistent with the fit).
-5. Saves a side-by-side comparison of pooled OOF metrics and
-   permutation importance rankings under
-   ``output/sensitivity/lrp-rli-gbl-012_weight/``.
-
-Usage
------
-
-::
-
-    python scripts/lrp_rli_gbl_012_weight_sensitivity.py
-"""
+    python scripts/lrp_rli_gbl_012_weight_sensitivity.py"""
 
 from __future__ import annotations
 
@@ -128,14 +104,11 @@ def _permutation_importance(
     weights: np.ndarray | None,
     n_repeats: int,
 ) -> pd.DataFrame:
-    """In-sample permutation importance (fit and permute on the SAME rows).
+    """Compute permutation importance on the same rows used to fit the model.
 
-    NOTE: unlike the pipeline's out-of-fold permutation importances, this fits on
-    the full dataset and then permutes those same (in-sample) rows, so the absolute
-    importances are systematically inflated relative to the pipeline artefact. Read
-    only the weighted-vs-unweighted *contrast* (both arms share this in-sample
-    procedure); do not compare these numbers directly to the pipeline's OOF values.
-    """
+    Training-data importance can differ from held-out importance through overfitting.
+    Compare weighting choices within this procedure; do not equate these scores with
+    the pipeline's out-of-fold importance."""
     est = LGBMRegressor(**{**params, "random_state": seed})
     fit_kwargs = {"sample_weight": weights} if weights is not None else {}
     est.fit(X, y, **fit_kwargs)
@@ -194,9 +167,7 @@ def main() -> None:
         f"max: {group_sizes.max()}, mean: {group_sizes.mean():.2f}"
     )
 
-    # Cap n_estimators if the config has one set — use the registry's pinned value
-    # directly (no RunConfig override applied here; sensitivity check mirrors
-    # the reporting-config fit).
+    # Use registered parameters without a RunConfig override.
     params = dict(cfg.model_params)
     seed = cfg.random_seed
     cv_splits = cfg.cv_splits
@@ -212,11 +183,8 @@ def main() -> None:
         X, y, groups, params, seed, cv_splits, weights=weights
     )
 
-    # Drop-both baseline: refit on the 11-predictor set with agebooks and
-    # agespeak removed. Upper-bound estimate of "how much do these features
-    # buy" — hyperparameters are not retuned, so if the 11-predictor fit
-    # matches or beats the 13-predictor fit the two features carry no
-    # unique signal beyond what the remaining 11 predictors cover.
+    # Remove both predictors without retuning. The score change measures their
+    # value under this fit and these folds; it does not bound their unique signal.
     drop_features = ["agebooks", "agespeak"]
     X_dropped = X.drop(columns=drop_features)
     print(

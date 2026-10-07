@@ -18,9 +18,9 @@ writers:
 * **#604** — the pooled exposure slope assumes stability across three substantively
   different treatment histories. The per-period slopes are pinned to be
   partially-pooled and linear-only.
-* **#605** — ``kappa ~ HalfNormal(50)`` enforces a floor on overdispersion at high
-  denominators. The alternative family is pinned to reach the near-Binomial limit
-  that the registered one cannot.
+* **#605** checks that the concentration prior puts negligible mass near the
+  Binomial limit for large item counts, while the dispersion-scale alternative
+  gives that region appreciable mass. Neither prior imposes a strict floor.
 """
 
 from __future__ import annotations
@@ -386,8 +386,8 @@ def test_mundlak_vectors_are_built_on_fitted_rows_and_sum_back(tmp_path):
 
     Two properties, one test: the child mean is taken over the rows the model keeps
     (not the pre-keep-mask frame the loader returns), and ``child_mean +
-    within_dev == z`` exactly, so the reparameterisation adds a question rather than
-    changing the model's fit.
+    within_dev == z`` exactly. This preserves the exposure values; separate
+    between-child and within-child slopes still change the model specification.
     """
     from language_reading_predictors.statistical_models.factories.mechanism import build_mechanism_model
     from language_reading_predictors.statistical_models.preprocessing import (
@@ -632,12 +632,12 @@ def _kappa_prior_draws(family: str, sigma: float, *, draws: int = 200_000):
 
 @pytest.mark.parametrize("n_trials", [79, 170])
 def test_registered_kappa_prior_excludes_the_near_binomial_limit(n_trials):
-    """``HalfNormal(50)`` gives "no extra-Binomial variation" no prior mass.
+    """``HalfNormal(50)`` puts negligible mass near Binomial variation.
 
     The variance inflation is ``(kappa + n) / (kappa + 1)``, so being within 10% of
     Binomial needs ``kappa >= 10 (n - 1) - 1`` — 779 at n = 79 and 1689 at n = 170.
-    This is the substantive assumption #605 is about: the registered prior enforces a
-    floor on overdispersion, and the dispersion-scale alternative does not.
+    The concentration prior strongly favours extra variation but imposes no strict
+    floor. The dispersion-scale alternative puts appreciable mass near this limit.
     """
     threshold = 10.0 * (n_trials - 1) - 1.0
     registered = _kappa_prior_draws("halfnormal_concentration", 50.0)
@@ -645,7 +645,7 @@ def test_registered_kappa_prior_excludes_the_near_binomial_limit(n_trials):
 
     assert float(np.mean(registered >= threshold)) < 1e-4
     assert float(np.mean(alternative >= threshold)) > 0.02
-    # At the registered prior's own median the enforced inflation is substantial.
+    # The variance multiplier at the concentration prior's median is large.
     inflation = (np.median(registered) + n_trials) / (np.median(registered) + 1.0)
     assert inflation > (3.0 if n_trials == 79 else 5.0)
 

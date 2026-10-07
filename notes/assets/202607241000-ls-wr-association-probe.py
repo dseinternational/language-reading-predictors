@@ -35,7 +35,7 @@ production convergence gate (R-hat, ESS, BFMI and divergences are checked inline
 recorded in the note instead). Promote to ``lrp_rli_ca_0NN`` / ``lrp_rli_gf_0NN`` modules before citing
 anywhere outside the note.
 
-Run with the conda env interpreter from the repo root; writes CSVs to ``--out``.
+Run from the repository root with ``uv run python``; writes CSVs to ``--out``.
 Use ``--section q3-partials`` to rerun only the timing/missingness-sensitive Q3
 partial fits.
 """

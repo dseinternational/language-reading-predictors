@@ -1,34 +1,20 @@
 # Copyright (c) 2026 Down Syndrome Education International and contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Persistent floor-sitters on phonics/nonword: the descriptive data cut.
+"""Describe zero scores in nonword reading and phonetic spelling.
 
-The cohesive descriptive backing for the floor-sitter note
-(``notes/…-persistent-floor-sitters-nonword-spelling.md``, issue #230 §5). It
-characterises the children still at floor on nonword reading (``nonword``) and
-phonetic spelling (``spphon``) at the final wave: how the floor rate falls over
-the four waves, how much of it is a sustained group versus boundary flicker, and
-how strongly it tracks incomplete letter-sound prerequisites rather than an
-inability to decode.
+Tables and figures show floor rates by wave, final-wave overlap and arm counts,
+trajectories among children observed at all four waves, and concurrent letter-
+sound bands. Those bands are descriptive screens, not established prerequisites
+or diagnoses of a child's ability to decode. Final-wave floor status does not
+identify intervention non-response.
 
-**Purely descriptive — no models, no causal language.** By the final wave both
-arms have been treated, so floor status is prognostic, not evidence of failure.
-
-Unlike the one-figure ``plotNN_*`` scripts in this directory, this is a single
-generator that emits the *linked set* of tables and figures the note needs (the
-floor-sitter story is one argument across several panels, not an archivable
-one-off scatter). It is still standalone: it loads ``data/rli_data_long.csv``
-directly, hardcodes its own columns and definitions, and resolves output through
-``language_reading_predictors.paths``. Do not refactor its logic into a shared
-helper.
-
-All tables are printed to stdout (so the note's inline numbers can be
-re-verified) and written as CSVs; figures are written as PNGs. Output goes to
-``output/descriptive/`` (gitignored) — commit the script, not the images.
+Reads ``data/rli_data_long.csv`` and writes CSVs and PNGs under
+``output/descriptive/``. The tables are also printed for checking a dated note.
 
 Run::
 
-    python scripts/descriptive/floor_sitters.py
+    uv run python scripts/descriptive/floor_sitters.py
 """
 
 from __future__ import annotations
@@ -44,9 +30,9 @@ from language_reading_predictors import paths as _paths
 
 # --- Floored measures (both floor at a score of zero) ---
 FLOORED = [("nonword", "Nonword reading"), ("spphon", "Phonetic spelling")]
-# Concurrent letter-sound knowledge (YARC-LSK, out of 32) — the prerequisite axis.
+# Concurrent letter-sound knowledge (YARC-LSK, out of 32).
 L_COL = "yarclet"
-# Letter-sound bands used in the prerequisite cross-tab.
+# Descriptive letter-sound bands; these cut-offs do not establish prerequisites.
 L_BANDS = [("L<16", 0, 15), ("16-25", 16, 25), ("26-32", 26, 32)]
 # The production-puzzle screen: near-complete letter sounds yet zero nonword.
 PUZZLE_L_MIN = 26
@@ -238,9 +224,7 @@ def main() -> None:
 
     # 2. t4 overlap and arm balance.
     t4 = df[df.time == tmax].copy()
-    # Overlap and arm balance use NON-MISSING scores only, so a missing t4 score is not
-    # silently counted as "not at floor" and inflating the denominator (consistent with
-    # the per-wave floor-rate denominators above; #293 review).
+    # Use observed scores so missing values do not inflate the denominator.
     both_obs = t4.dropna(subset=["nonword", "spphon"])
     both = int(((both_obs.nonword == 0) & (both_obs.spphon == 0)).sum())
     print(
@@ -270,7 +254,7 @@ def main() -> None:
     ).T.reset_index(names="measure")
     _print_and_save(breakdown, "completer_breakdown", out_dir)
 
-    # 4. Letter-sound prerequisite cross-tab (nonword at t4).
+    # Final-wave nonword floor rates by concurrent letter-sound band.
     band = _band_crosstab(t4).reset_index()
     _print_and_save(band, "nonword_floor_by_lettersound_band", out_dir)
 

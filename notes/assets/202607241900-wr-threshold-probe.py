@@ -32,13 +32,13 @@ P3  THRESHOLD VERSUS GRADIENT, model-based. Per target, four Beta-Binomial
       null    - not at all
       linear  - straight line in words
       log     - straight line in log1p(words) (diminishing returns)
-      hinge   - flat below a FREE breakpoint theta, then a straight line
+      hinge   - softened hinge around a free breakpoint theta
     Compared by PSIS-LOO. The deliverable is (a) whether the hinge wins, and
     (b) the posterior for theta in words - a threshold nobody can locate is not
     a threshold, so an unresolved theta is a real answer and is reported as one.
 
 IDENTIFICATION, stated once and applying throughout. Only the ITT arm contrast is
-randomised in this study; nothing here is causal. Under the lagged DAG
+randomised in this study; nothing here is causal. Under the July 2026 lagged DAG
 (``dag/dag-language-reading-lagged.dagitty``) the coupling ``WR -> LS`` is
 identifiable with a small set - age, hearing, own letter-sound baseline, speech -
 and that set is used below. ``WR -> PA`` needs 8-11 adjusters (unfittable at this
@@ -50,12 +50,16 @@ such. Latent general ability confounds all three and is unblockable.
 
 MEASUREMENT, the standing caveat on every number here. Letter sounds have a
 32-item ceiling that the strong readers reach; blending is 10 items administered
-as three-alternative picture-pointing, so the chance floor is near 3.3 and 19% of
+as three-alternative picture-pointing, so the expected guessing score is near 3.3 and 19% of
 children are at ceiling by t4; nonword reading is 6 items, floored at zero for
 72 / 64 / 52 / 40% of children at t1-t4. A "threshold" in any of these can be
 manufactured by the instrument rather than the child.
 
-Run with the conda env interpreter from the repo root; writes CSVs to ``--out``.
+This adjustment discussion records the July design, before the WR -> NW edge
+was adopted on 8 August 2026. It is not a check against the current DAG. The
+probe remains exploratory and does not establish a causal prerequisite.
+
+Run from the repository root with ``uv run python``; writes CSVs to ``--out``.
 """
 
 from __future__ import annotations
@@ -198,10 +202,9 @@ def run_p1(df: pd.DataFrame, out: Path) -> pd.DataFrame:
             frame = analysis_frame(df, sym, cut)
             if frame.empty:
                 continue
-            # Residualise the gain on the period-start level of the TARGET, pooled
-            # within this restriction: a raw gain contrast across word-reading bands
-            # is regression to the mean plus a ceiling constraint, because the bands
-            # differ on the target's own baseline.
+            # Adjust gain for the target's starting score within this restriction.
+            # Baseline differences, regression to the mean and bounds can affect raw
+            # band contrasts; this linear adjustment need not remove all their effects.
             x = frame[f"{sym}_pre"].to_numpy(float)
             y = frame[f"{sym}_gain"].to_numpy(float)
             slope, intercept = np.polyfit(x, y, 1)
@@ -430,11 +433,10 @@ def run_p3(df: pd.DataFrame, out: Path, draws: int) -> tuple[pd.DataFrame, pd.Da
 def run_p4(df: pd.DataFrame, out: Path, draws: int) -> pd.DataFrame:
     """Refit the blending and nonword specs with period-start LETTER SOUNDS added.
 
-    Word-reading level and letter-sound knowledge are strongly coupled, and in the
-    DAG letter sounds are the parent of nonword reading, not word reading. If the
-    word-reading term collapses once letter sounds are held fixed, then any
-    apparent "minimum reading level" is a minimum LETTER-SOUND level wearing a
-    word-reading costume. Reported for both the linear and hinge specifications.
+    Compare the word-reading term with and without the correlated letter-sound
+    measure. Attenuation after adjustment can show shared information, but does
+    not establish a letter-sound threshold or which skill causes the outcome.
+    Reported for both the linear and hinge specifications.
 
     This is a descriptive discrimination test, not an identification claim: letter
     sounds at period start are themselves a consequence of earlier reading, so
