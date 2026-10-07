@@ -588,18 +588,23 @@ def test_a_publishable_fit_shows_the_qualification_it_publishes_under():
 
 def test_the_historical_joint_report_states_which_scale_the_rule_uses():
     repo = Path(__file__).resolve().parents[2]
-    results = (repo / "docs/models/_partials/_results_historical_joint.qmd").read_text(encoding="utf-8")
+    # Prose checks must not depend on how the source wraps paragraphs.
+    results = " ".join(
+        (repo / "docs/models/_partials/_results_historical_joint.qmd")
+        .read_text(encoding="utf-8")
+        .split()
+    )
 
     assert "realised_prob_above_minimum" in results
     assert "lenient" in results
     assert "registered wider-prior companion is part of the result" in results
     # The retired reason must not come back: multiple likelihood nodes are not the
     # obstacle (2026-08-23 joint audit, finding 8) ...
-    assert "several likelihood nodes make it\nundefined" in results
+    assert "Not because several likelihood nodes make it undefined" in results
     assert "they share an observation coordinate" in results
     # ... and neither may the reason that replaced it, which said no target had been
     # defined. One is declared now, and #626 names both what it is and why this family
     # estimates it by refits rather than by importance sampling.
     assert "prediction target has been defined" not in results
-    assert "the out-of-sample target is **a new\nchild**" in results
-    assert "grouped child-level K-fold\nrefits" in results
+    assert "the out-of-sample target is **a new child**" in results
+    assert "grouped child-level K-fold refits" in results
